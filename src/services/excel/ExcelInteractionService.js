@@ -375,8 +375,7 @@ async function loadMasterOrders(params = {}) {
   const scope = normalizeScope(params.scope);
   const ids = uniqueStrings(params.selectedIds);
   if (scope === 'SELECTED' || scope === 'PAGE') {
-    const results = await Promise.all(ids.map((id) => masterOrderService.getMasterOrder(id)));
-    return results.map((result) => result?.masterOrder).filter(Boolean);
+    return masterOrderService.getMasterOrders(ids, { batchSize: 250, childBatchSize: 250 });
   }
   const rows = [];
   const maxRows = safeLimit(params.maxRows, 5000);
@@ -746,6 +745,7 @@ module.exports = {
     importOrderItemRows,
     ensureProductCatalogColumns,
     enrichProductRows,
+    loadMasterOrders,
     normalizeScope,
     uniqueStrings
   }

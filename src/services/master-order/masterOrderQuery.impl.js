@@ -17,13 +17,30 @@ const {
   buildIdentityInFilter
 } = require('./masterOrderIdentity.util');
 
-async function buildMasterChildrenMapFast(masterOrders = []) {
-  const allRefs = [...new Set((masterOrders || []).flatMap(masterChildOrderRefs))];
-  const salesOrderIds = normalizeSalesOrderIds(allRefs);
-  const map = new Map();
-  if (!salesOrderIds.length) return map;
+function boundedBatchSize(value, fallback, { allowZero = false } = {}) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  const minimum = allowZero ? 0 : 1;
+  return Math.min(Math.max(Math.trunc(number), minimum), 500);
+}
 
-  const orders = await orderRepository.findAll(buildSalesOrderIdInQuery(salesOrderIds));
+async function buildMasterChildrenMapFast(masterOrders = [], options = {}) {
+  const allRefs = [...new Set((masterOrders || []).flatMap(masterChildOrderRefs))];
+  const map = new Map();
+  if (!allRefs.length) return map;
+
+  const identityBatchSize = boundedBatchSize(options.identityBatchSize, 0, { allowZero: true });
+  const orders = [];
+  if (identityBatchSize) {
+    for (let offset = 0; offset < allRefs.length; offset += identityBatchSize) {
+      const batch = await orderRepository.findManyByIdentity(allRefs.slice(offset, offset + identityBatchSize));
+      orders.push(...batch);
+    }
+  } else {
+    const salesOrderIds = normalizeSalesOrderIds(allRefs);
+    if (!salesOrderIds.length) return map;
+    orders.push(...await orderRepository.findAll(buildSalesOrderIdInQuery(salesOrderIds)));
+  }
   const byKey = new Map();
   for (const order of orders || []) {
     if (isInactiveStatus(order)) continue;
@@ -85,6 +102,42 @@ async function getMasterOrder(id) {
   if (!masterOrder) return { error: 'Không tìm thấy đơn tổng', status: 404 };
   const children = await orderService.getMasterChildren(masterOrder);
   return { masterOrder: toClient(masterOrder, children) };
+}
+
+async function getMasterOrders(ids = [], options = {}) {
+  const requestedIds = [...new Set((Array.isArray(ids) ? ids : [])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean))];
+  if (!requestedIds.length) return [];
+
+  const batchSize = boundedBatchSize(options.batchSize, 250);
+  const masterByIdentity = new Map();
+  const uniqueMasters = new Map();
+  for (let offset = 0; offset < requestedIds.length; offset += batchSize) {
+    const matches = await masterOrderRepository.findManyByIdentityMatches(
+      requestedIds.slice(offset, offset + batchSize)
+    );
+    for (const match of matches) {
+      const masterOrder = match?.masterOrder;
+      if (!masterOrder) continue;
+      for (const key of match.identityKeys || []) {
+        if (!masterByIdentity.has(key)) masterByIdentity.set(key, masterOrder);
+      }
+      const masterKey = String(masterOrder.id || masterOrder.code || match.identityKeys?.[0] || '').trim();
+      if (masterKey && !uniqueMasters.has(masterKey)) uniqueMasters.set(masterKey, masterOrder);
+    }
+  }
+
+  const masters = [...uniqueMasters.values()];
+  const childrenMap = await buildMasterChildrenMapFast(masters, {
+    identityBatchSize: boundedBatchSize(options.childBatchSize, 250)
+  });
+  return requestedIds.map((id) => {
+    const masterOrder = masterByIdentity.get(id);
+    if (!masterOrder) return null;
+    const masterKey = String(masterOrder.id || masterOrder.code || '').trim();
+    return toClient(masterOrder, childrenMap.get(masterKey) || []);
+  }).filter(Boolean);
 }
 
 function normalizeOrderDateForMaster(value) {
@@ -211,6 +264,7 @@ module.exports = {
   isInactiveStatus,
   toClient,
   getMasterOrder,
+  getMasterOrders,
   normalizeOrderDateForMaster,
   orderDeliveryFilterDate,
   normalizeOrderSourceForMaster,
