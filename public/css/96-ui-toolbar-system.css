@@ -131,6 +131,39 @@
 }
 #deliveryTodayTab .delivery-v46-actions-danger-separated .danger{margin-right:auto;}
 
+/* Return module adopters: filters and batch actions remain separate. */
+#returnOrdersTab .return-order-filter-form{display:block!important;}
+#returnOrdersTab .return-order-filter-grid{
+  grid-template-columns:
+    minmax(var(--search-width-sm),var(--search-width-lg))
+    minmax(150px,var(--filter-width-sm))
+    minmax(150px,var(--filter-width-sm))
+    max-content!important;
+}
+#masterReturnOrdersTab .master-return-filter-bar{
+  grid-template-columns:
+    minmax(150px,var(--filter-width-sm))
+    minmax(150px,var(--filter-width-sm))
+    max-content;
+}
+#returnOrdersTab .return-order-filter-form :is(input,button){
+  min-height:var(--toolbar-control-height)!important;
+  height:var(--toolbar-control-height)!important;
+  margin:0!important;
+}
+#masterReturnOrdersTab .master-return-batch-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:var(--toolbar-gap);
+  flex-wrap:wrap;
+  margin:0 0 10px;
+}
+#masterReturnOrdersTab .ui-action-sensitive{
+  border-color:#f59e0b!important;
+  background:#fffbeb!important;
+  color:#92400e!important;
+}
+
 @media(max-width:1199px) and (min-width:768px){
   .ui-search-filter-bar{grid-template-columns:repeat(6,minmax(0,1fr));}
   .ui-field-search{grid-column:span 3;}
@@ -145,6 +178,13 @@
   #deliveryTodayTab .delivery-v46-field-date,
   #deliveryTodayTab .delivery-v46-field-status{grid-column:span 1;}
   #deliveryTodayTab .ui-toolbar-actions{grid-column:span 4;justify-content:flex-end;}
+  #returnOrdersTab .return-order-filter-grid,
+  #masterReturnOrdersTab .master-return-filter-bar{grid-template-columns:repeat(6,minmax(0,1fr))!important;}
+  #returnOrdersTab .ui-field-search{grid-column:span 4;}
+  #returnOrdersTab .return-order-field-date{grid-column:span 1;}
+  #returnOrdersTab .ui-toolbar-actions{grid-column:span 6;justify-content:flex-end;}
+  #masterReturnOrdersTab .master-return-field-date{grid-column:span 3;}
+  #masterReturnOrdersTab .ui-toolbar-actions{grid-column:span 6;justify-content:flex-end;}
 }
 
 @media(max-width:767px){
@@ -159,6 +199,14 @@
   #deliveryTodayTab .delivery-v46-filters.ui-search-filter-bar{grid-template-columns:1fr;}
   #deliveryTodayTab .ui-toolbar-field,
   #deliveryTodayTab .ui-toolbar-actions{grid-column:1/-1;}
+  #returnOrdersTab .return-order-filter-grid,
+  #masterReturnOrdersTab .master-return-filter-bar{grid-template-columns:1fr!important;}
+  #returnOrdersTab .ui-toolbar-field,
+  #returnOrdersTab .ui-toolbar-actions,
+  #masterReturnOrdersTab .ui-toolbar-field,
+  #masterReturnOrdersTab .ui-toolbar-actions{grid-column:1/-1;}
+  #masterReturnOrdersTab .master-return-batch-actions{display:grid;grid-template-columns:1fr 1fr;}
+  #masterReturnOrdersTab .master-return-batch-actions .ui-action-sensitive{grid-column:1/-1;}
   .ui-list-toolbar :is(input,select,button){
     min-height:var(--toolbar-control-height-comfortable)!important;
     height:var(--toolbar-control-height-comfortable)!important;

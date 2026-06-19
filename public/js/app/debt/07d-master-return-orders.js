@@ -425,8 +425,8 @@ window.toggleSelectAllMasterReturnOrders=toggleSelectAllMasterReturnOrders;
 window.printSelectedMasterReturnOrders=printSelectedMasterReturnOrders;
 window.receiveSelectedMasterReturnOrders=receiveSelectedMasterReturnOrders;
 if(selectAllMasterReturnOrdersButton)selectAllMasterReturnOrdersButton.addEventListener('click',toggleSelectAllMasterReturnOrders);
-if(printSelectedMasterReturnOrdersButton)printSelectedMasterReturnOrdersButton.addEventListener('click',printSelectedMasterReturnOrders);
-if(receiveSelectedMasterReturnOrdersButton)receiveSelectedMasterReturnOrdersButton.addEventListener('click',()=>receiveSelectedMasterReturnOrders().catch(err=>showMessage(masterReturnOrderMessage,err.message,true)));
+if(printSelectedMasterReturnOrdersButton)printSelectedMasterReturnOrdersButton.addEventListener('click',()=>runMasterReturnToolbarAction(printSelectedMasterReturnOrdersButton,'Đang in...',printSelectedMasterReturnOrders));
+if(receiveSelectedMasterReturnOrdersButton)receiveSelectedMasterReturnOrdersButton.addEventListener('click',()=>runMasterReturnToolbarAction(receiveSelectedMasterReturnOrdersButton,'Đang nhập...',receiveSelectedMasterReturnOrders).catch(err=>showMessage(masterReturnOrderMessage,err.message,true)));
 
 
 
@@ -436,6 +436,11 @@ window.cancelMasterReturnOrder=cancelMasterReturnOrder;
 window.viewMasterReturnOrder=viewMasterReturnOrder;
 window.receiveMasterReturnOrder=receiveMasterReturnOrder;
 window.printMasterReturnOrder=printMasterReturnOrder;
+
+function runMasterReturnToolbarAction(button,loadingText,task){
+  if(window.ToolbarActions?.run)return window.ToolbarActions.run(button,task,{loadingText});
+  return task();
+}
 
 if(reloadUnmergedReturnOrdersButton)reloadUnmergedReturnOrdersButton.addEventListener('click',loadUnmergedReturnOrders);
 if(masterReturnOrderForm)masterReturnOrderForm.addEventListener('submit',submitMasterReturnOrder);
@@ -452,9 +457,15 @@ if(masterReturnReloadInlineButton)masterReturnReloadInlineButton.addEventListene
 const masterReturnSearchInput=document.getElementById('unmergedReturnOrderSearchInput');
 if(masterReturnSearchInput)masterReturnSearchInput.addEventListener('input',debounce(loadUnmergedReturnOrders,250));
 if(masterReturnDeliveryStaff)masterReturnDeliveryStaff.addEventListener('input',debounce(loadUnmergedReturnOrders,250));
-if(reloadMasterReturnOrdersButton)reloadMasterReturnOrdersButton.addEventListener('click',loadMasterReturnOrders);
-if(masterReturnOrderDateFrom)masterReturnOrderDateFrom.addEventListener('change',loadMasterReturnOrders);
-if(masterReturnOrderDateTo)masterReturnOrderDateTo.addEventListener('change',loadMasterReturnOrders);
+const applyMasterReturnFiltersButton=document.getElementById('applyMasterReturnFiltersButton');
+const clearMasterReturnFiltersButton=document.getElementById('clearMasterReturnFiltersButton');
+if(applyMasterReturnFiltersButton)applyMasterReturnFiltersButton.addEventListener('click',()=>runMasterReturnToolbarAction(applyMasterReturnFiltersButton,'Đang tìm...',loadMasterReturnOrders));
+if(clearMasterReturnFiltersButton)clearMasterReturnFiltersButton.addEventListener('click',()=>{
+  if(masterReturnOrderDateFrom)masterReturnOrderDateFrom.value=today();
+  if(masterReturnOrderDateTo)masterReturnOrderDateTo.value=today();
+  runMasterReturnToolbarAction(clearMasterReturnFiltersButton,'Đang xóa...',loadMasterReturnOrders);
+});
+if(reloadMasterReturnOrdersButton)reloadMasterReturnOrdersButton.addEventListener('click',()=>runMasterReturnToolbarAction(reloadMasterReturnOrdersButton,'Đang tải...',loadMasterReturnOrders));
 if(openMasterReturnOrderModalButton)openMasterReturnOrderModalButton.addEventListener('click',()=>{resetMasterReturnOrderModal();openMasterReturnOrderModal();});
 if(closeMasterReturnOrderModalButton)closeMasterReturnOrderModalButton.addEventListener('click',closeMasterReturnOrderModal);
 if(masterReturnOrderModal)masterReturnOrderModal.addEventListener('click',event=>{if(event.target===masterReturnOrderModal)closeMasterReturnOrderModal();});

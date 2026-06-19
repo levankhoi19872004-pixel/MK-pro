@@ -98,27 +98,37 @@
     <section id="masterReturnOrdersTab" class="tab-content">
       <main class="grid master-return-grid master-return-list-only-grid">
         <section class="card">
-          <div class="master-return-toolbar-grouped">
-            <div class="master-return-title-row">
-              <div>
+          <div class="ui-list-toolbar">
+            <div class="ui-page-header">
+              <div class="ui-page-title">
                 <h2>Đơn tổng trả hàng</h2>
-                <p id="masterReturnOrderCount" class="muted">Đang tải...</p>
+                <p id="masterReturnOrderCount" class="muted ui-page-meta">Đang tải...</p>
               </div>
-              <button id="openMasterReturnOrderModalButton" type="button">Tạo đơn tổng trả</button>
+              <div class="ui-page-actions">
+                <button id="openMasterReturnOrderModalButton" class="primary ui-action-primary" type="button">Tạo đơn tổng trả</button>
+              </div>
             </div>
             <p id="masterReturnOrderMessage" class="message"></p>
-            <div class="master-return-toolbar-row">
-              <div class="master-return-date-box">
+            <div class="ui-search-filter-bar master-return-filter-bar">
+              <label class="ui-toolbar-field master-return-field-date">
+                <span>Từ ngày</span>
                 <input id="masterReturnOrderDateFrom" type="date" title="Từ ngày" />
+              </label>
+              <label class="ui-toolbar-field master-return-field-date">
+                <span>Đến ngày</span>
                 <input id="masterReturnOrderDateTo" type="date" title="Đến ngày" />
-              </div>
-              <div class="master-return-action-box">
-                <button id="selectAllMasterReturnOrdersButton" class="secondary" type="button">Chọn tất cả</button>
-                <button id="printSelectedMasterReturnOrdersButton" class="secondary" type="button">In</button>
-                <button id="receiveSelectedMasterReturnOrdersButton" class="secondary" type="button">Nhập kho</button>
+              </label>
+              <div class="ui-toolbar-actions">
+                <button id="applyMasterReturnFiltersButton" class="primary ui-action-primary" type="button">Tìm kiếm</button>
+                <button id="clearMasterReturnFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
                 <button id="reloadMasterReturnOrdersButton" class="secondary" type="button">Tải lại</button>
               </div>
             </div>
+          </div>
+          <div class="master-return-batch-actions">
+            <button id="selectAllMasterReturnOrdersButton" class="secondary" type="button">Chọn tất cả</button>
+            <button id="printSelectedMasterReturnOrdersButton" class="secondary" type="button">In</button>
+            <button id="receiveSelectedMasterReturnOrdersButton" class="secondary ui-action-sensitive" type="button">Nhập kho</button>
           </div>
           <div id="masterReturnOrderTable" class="order-list master-return-fixed-list">Đang tải đơn tổng trả hàng...</div>
         </section>
@@ -154,9 +164,9 @@
                   <span id="unmergedReturnOrderSummary">Chưa tải phiếu trả hàng chưa gộp.</span>
                 </div>
                 <div class="button-row master-return-popup-actions">
-                  <button type="submit">Tạo đơn tổng trả</button>
                   <button type="button" id="clearMasterReturnSelectionButton" class="secondary">Bỏ chọn</button>
                   <button id="reloadUnmergedReturnOrdersButton" class="secondary" type="button">Tải phiếu</button>
+                  <button type="submit" class="primary">Tạo đơn tổng trả</button>
                 </div>
               </form>
 

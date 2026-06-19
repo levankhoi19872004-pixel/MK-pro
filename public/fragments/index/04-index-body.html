@@ -132,29 +132,32 @@
 
     <section id="returnOrdersTab" class="tab-content">
       <section class="card">
-        <div class="toolbar sticky-filter-bar">
-          <div>
-            <h2>Đơn trả hàng</h2>
-            <p id="returnOrderCount" class="muted">Quản lý riêng phiếu trả hàng từ app giao hàng và phần mềm. Nguồn dữ liệu một mối: <strong>/api/return-orders</strong>.</p>
+        <div class="ui-list-toolbar">
+          <div class="ui-page-header">
+            <div class="ui-page-title">
+              <h2>Đơn trả hàng</h2>
+              <p id="returnOrderCount" class="muted ui-page-meta">Quản lý riêng phiếu trả hàng từ app giao hàng và phần mềm. Nguồn dữ liệu một mối: <strong>/api/return-orders</strong>.</p>
+            </div>
           </div>
           <form id="returnOrderFilterForm" class="return-order-filter-form" autocomplete="off">
-            <label class="return-order-search-field" for="returnOrderSearchInput">
+            <div class="ui-search-filter-bar return-order-filter-grid">
+            <label class="return-order-search-field ui-toolbar-field ui-field-search" for="returnOrderSearchInput">
               <span>Tìm kiếm</span>
               <input id="returnOrderSearchInput" placeholder="Mã trả hàng, khách hàng, đơn bán, nhân viên giao" />
             </label>
-            <div class="return-order-date-range" aria-label="Khoảng ngày trả hàng">
-              <label for="returnOrderDateFrom">
-                <span>Từ ngày</span>
-                <input id="returnOrderDateFrom" type="date" />
-              </label>
-              <label for="returnOrderDateTo">
-                <span>Đến ngày</span>
-                <input id="returnOrderDateTo" type="date" />
-              </label>
+            <label class="ui-toolbar-field return-order-field-date" for="returnOrderDateFrom">
+              <span>Từ ngày</span>
+              <input id="returnOrderDateFrom" type="date" />
+            </label>
+            <label class="ui-toolbar-field return-order-field-date" for="returnOrderDateTo">
+              <span>Đến ngày</span>
+              <input id="returnOrderDateTo" type="date" />
+            </label>
+            <div class="return-order-filter-actions ui-toolbar-actions">
+              <button id="applyReturnOrderFiltersButton" class="primary ui-action-primary" type="submit">Tìm kiếm</button>
+              <button id="clearReturnOrderFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
+              <button id="reloadReturnOrdersButton" class="secondary" type="button">Tải lại</button>
             </div>
-            <div class="return-order-filter-actions">
-              <button id="applyReturnOrderFiltersButton" type="submit">Lọc</button>
-              <button id="clearReturnOrderFiltersButton" class="secondary" type="button">Xóa lọc</button>
             </div>
           </form>
         </div>

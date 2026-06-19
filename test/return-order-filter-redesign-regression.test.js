@@ -85,7 +85,7 @@ test('listReturnOrders rejects reversed date range before querying MongoDB', asy
   }
 });
 
-test('return-order filter UI is compact, modular and has no Today mode selector', () => {
+test('return-order filter UI is standardized and has no Today mode selector', () => {
   const root = path.resolve(__dirname, '..');
   const html = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/index.html'));
   const dom = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/js/app/state/00b-debt-return-fund-state.js'));
@@ -94,8 +94,9 @@ test('return-order filter UI is compact, modular and has no Today mode selector'
   const css = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/css/10-operational-overrides.css'));
 
   assert.match(html, /id="returnOrderFilterForm" class="return-order-filter-form"/);
-  assert.match(html, /id="applyReturnOrderFiltersButton"[^>]*>Lọc<\/button>/);
+  assert.match(html, /id="applyReturnOrderFiltersButton"[^>]*>Tìm kiếm<\/button>/);
   assert.match(html, /id="clearReturnOrderFiltersButton"[^>]*>Xóa lọc<\/button>/);
+  assert.match(html, /id="reloadReturnOrdersButton"[^>]*>Tải lại<\/button>/);
   assert.doesNotMatch(html, /id="returnOrderDateMode"/);
   assert.doesNotMatch(html, /<option value="today">Hôm nay<\/option>/);
 

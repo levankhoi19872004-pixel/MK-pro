@@ -175,12 +175,6 @@ async function loadReturnOrders(){
   params.set('limit','50');
   params.set('excludeInactive','1');
 
-  const originalButtonText=applyReturnOrderFiltersButton?.textContent||'Lọc';
-  if(applyReturnOrderFiltersButton){
-    applyReturnOrderFiltersButton.disabled=true;
-    applyReturnOrderFiltersButton.textContent='Đang lọc...';
-  }
-
   try{
     const res=await fetch(`/api/return-orders?${params.toString()}`);
     const json=await res.json();
@@ -231,27 +225,30 @@ async function loadReturnOrders(){
     if(returnOrderCount) returnOrderCount.textContent='Không tải được đơn trả hàng';
     returnOrderTable.innerHTML=`<tr><td colspan="7">${escapeHtml(err.message||'Không tải được đơn trả hàng')}</td></tr>`;
     renderReturnOrderDetail(null);
-  }finally{
-    if(requestSeq===returnOrderRequestSeq&&applyReturnOrderFiltersButton){
-      applyReturnOrderFiltersButton.disabled=false;
-      applyReturnOrderFiltersButton.textContent=originalButtonText;
-    }
   }
 }
 window.loadReturnOrders=loadReturnOrders;
+
+function runReturnOrderLoad(button,loadingText){
+  const task=()=>loadReturnOrders();
+  if(window.ToolbarActions?.run)return window.ToolbarActions.run(button,task,{loadingText});
+  return task();
+}
 
 if(returnOrderDateFrom&&!returnOrderDateFrom.value)returnOrderDateFrom.value=today();
 if(returnOrderDateTo&&!returnOrderDateTo.value)returnOrderDateTo.value=today();
 if(returnOrderFilterForm) returnOrderFilterForm.addEventListener('submit',event=>{
   event.preventDefault();
-  loadReturnOrders();
+  runReturnOrderLoad(applyReturnOrderFiltersButton,'Đang tìm...');
 });
 if(clearReturnOrderFiltersButton) clearReturnOrderFiltersButton.addEventListener('click',()=>{
   if(returnOrderSearchInput)returnOrderSearchInput.value='';
-  if(returnOrderDateFrom)returnOrderDateFrom.value='';
-  if(returnOrderDateTo)returnOrderDateTo.value='';
-  loadReturnOrders();
+  if(returnOrderDateFrom)returnOrderDateFrom.value=today();
+  if(returnOrderDateTo)returnOrderDateTo.value=today();
+  runReturnOrderLoad(clearReturnOrderFiltersButton,'Đang xóa...');
 });
+const reloadReturnOrdersButton=document.getElementById('reloadReturnOrdersButton');
+if(reloadReturnOrdersButton)reloadReturnOrdersButton.addEventListener('click',()=>runReturnOrderLoad(reloadReturnOrdersButton,'Đang tải...'));
 if(returnOrderTable){
   returnOrderTable.addEventListener('click',event=>{
     const tr=event.target.closest('tr[data-return-key]');
