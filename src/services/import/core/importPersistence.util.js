@@ -15,6 +15,7 @@ const AUTO_CREATED_CUSTOMER_ADDRESS = 'NEW';
 const {
   cleanText,
   dateOnly,
+  getProductCodeFromRow,
   getCustomerCodeFromRow,
   getCustomerNameFromRow
 } = require('./importValue.util');

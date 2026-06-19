@@ -58,6 +58,7 @@ const {
   cleanText,
   get,
   getDateFromRow,
+  getProductCodeFromRow,
   getCustomerCodeFromRow,
   buildCustomerSelectiveUpdate,
   buildProductSelectiveUpdate,
