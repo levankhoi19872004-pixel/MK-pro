@@ -333,6 +333,7 @@ async function loadImportOrders(){
         <div>Mã phiếu</div>
         <div>Ngày nhập</div>
         <div>Nhà cung cấp</div>
+        <div>Ghi chú</div>
         <div>Số lượng</div>
         <div>Giá trị</div>
         <div>Trạng thái</div>
@@ -343,7 +344,7 @@ async function loadImportOrders(){
         const displayDate=o.displayDate||o.date||o.documentDate||o.importDate||'';
         const supplier=escapeSalesHtml(o.supplier||'Chưa khai báo');
         const code=escapeSalesHtml(o.code||o.id||'');
-        const note=escapeSalesHtml(o.note||'');
+        const note=escapeSalesHtml(importOrderNoteText(o));
         const safeDisplayDate=escapeSalesHtml(displayDate);
         const statusHtml=`<span class="status-badge ${posted?'ok':'pending'}">${posted?'Đã nhập kho':'Bản nháp'}</span>`;
         const actionHtml=posted
@@ -354,6 +355,7 @@ async function loadImportOrders(){
           <div class="import-order-cell-code">${code}</div>
           <div class="import-order-cell">${safeDisplayDate}</div>
           <div class="import-order-cell">${supplier}</div>
+          <div class="import-order-cell import-order-note" title="${note}">${note||'-'}</div>
           <div class="import-order-cell">${money(o.totalQuantity)}</div>
           <div class="import-order-cell import-order-money">${money(o.totalAmount)}</div>
           <div class="import-order-cell">${statusHtml}</div>

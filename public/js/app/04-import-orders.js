@@ -1,4 +1,14 @@
 const escapeImportOrderHtml = (window.V45Common && window.V45Common.escapeHtml) || ((value='')=>String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])));
+function importOrderNoteText(order={}){
+  return [
+    order.note,
+    order.notes,
+    order.remark,
+    order.remarks,
+    order.description,
+    order.memo
+  ].map(value=>String(value??'').trim()).find(Boolean)||'';
+}
 // Product autocomplete is handled centrally by public/js/search/autocompleteEngine.js + productSearchBox.js.
 function importProductCost(p){
   return Number(p?.costPrice ?? p?.importPrice ?? p?.purchasePrice ?? p?.lastCostPrice ?? 0);
@@ -146,7 +156,7 @@ function editImportOrder(idx){
   editingImportOrderId=order.id||order.code;
   importForm.elements.date.value=order.date||today();
   importForm.elements.supplier.value=order.supplier||'';
-  importForm.elements.note.value=order.note||'';
+  importForm.elements.note.value=importOrderNoteText(order);
   importItems=(order.items||[]).map(i=>({
     productId:i.productId,
     productCode:i.productCode,

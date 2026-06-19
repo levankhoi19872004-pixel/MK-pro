@@ -328,6 +328,7 @@
     minmax(120px,1.05fr)
     minmax(96px,.8fr)
     minmax(150px,1.1fr)
+    minmax(160px,1.2fr)
     minmax(90px,.75fr)
     minmax(125px,.95fr)
     minmax(96px,.8fr)
@@ -342,26 +343,33 @@
   gap:10px!important;
   align-items:center!important;
   width:100%!important;
-  min-width:1040px!important;
+  min-width:1200px!important;
 }
 #importTab .import-order-list-head > div,
 #importTab .import-order-one-line-row > div{
   min-width:0;
 }
-#importTab .import-order-list-head > :is(:nth-child(1),:nth-child(3),:nth-child(7),:nth-child(8)),
-#importTab .import-order-one-line-row > :is(:nth-child(1),:nth-child(3),:nth-child(7),:nth-child(8)){
+#importTab .import-order-list-head > :is(:nth-child(1),:nth-child(3),:nth-child(8),:nth-child(9)),
+#importTab .import-order-one-line-row > :is(:nth-child(1),:nth-child(3),:nth-child(8),:nth-child(9)){
   display:flex;
   align-items:center;
   justify-content:center!important;
   text-align:center!important;
 }
-#importTab .import-order-list-head > :is(:nth-child(5),:nth-child(6)),
-#importTab .import-order-one-line-row > :is(:nth-child(5),:nth-child(6)){
+#importTab .import-order-list-head > :is(:nth-child(6),:nth-child(7)),
+#importTab .import-order-one-line-row > :is(:nth-child(6),:nth-child(7)){
   display:flex;
   align-items:center;
   justify-content:flex-end!important;
   text-align:right!important;
   font-variant-numeric:tabular-nums;
+}
+#importTab .import-order-note{
+  display:block!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  color:#475569!important;
 }
 #importTab .import-order-list-head{
   padding:9px 12px!important;
