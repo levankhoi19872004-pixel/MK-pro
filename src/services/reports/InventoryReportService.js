@@ -111,8 +111,7 @@ async function currentStockReport(query = {}) {
   };
 }
 
-async function inventoryMovementReport(query = {}) {
-  const { dateFrom, dateTo } = dateRange(query);
+async function loadInventoryReportContext(dateTo) {
   const today = require('../../utils/date.util').todayVN();
   const [transactions, productMap, currentStock, futureTransactions] = await Promise.all([
     loadTransactionsUntil(dateTo),
@@ -120,6 +119,18 @@ async function inventoryMovementReport(query = {}) {
     currentStockReport({ full: '1', export: '1' }),
     dateTo < today ? loadTransactionsRange(dateTo, today) : Promise.resolve([])
   ]);
+  return { today, transactions, productMap, currentStock, futureTransactions };
+}
+
+function buildInventoryMovementReport(query = {}, context = {}) {
+  const { dateFrom, dateTo } = dateRange(query);
+  const {
+    today,
+    transactions = [],
+    productMap = new Map(),
+    currentStock = {},
+    futureTransactions = []
+  } = context;
   const grouped = new Map();
 
   for (const transaction of transactions) {
@@ -287,6 +298,12 @@ async function inventoryMovementReport(query = {}) {
   };
 }
 
+async function inventoryMovementReport(query = {}) {
+  const { dateTo } = dateRange(query);
+  const context = await loadInventoryReportContext(dateTo);
+  return buildInventoryMovementReport(query, context);
+}
+
 async function stockReport(query = {}) {
   // Tồn hiện tại tuyệt đối không phụ thuộc khoảng ngày. Muốn xem nhập-xuất-tồn
   // phải gọi rõ mode=movement hoặc inventoryMovementReport().
@@ -296,11 +313,12 @@ async function stockReport(query = {}) {
 
 async function stockCardReport(query = {}) {
   const { dateFrom, dateTo } = dateRange(query);
-  const [transactions, productMap, movement] = await Promise.all([
-    loadTransactionsUntil(dateTo),
-    loadProducts(),
-    inventoryMovementReport({ ...query, full: '1', export: '1', mode: 'movement' })
-  ]);
+  const context = await loadInventoryReportContext(dateTo);
+  const { transactions, productMap } = context;
+  const movement = buildInventoryMovementReport(
+    { ...query, full: '1', export: '1', mode: 'movement' },
+    context
+  );
   const openingByProduct = new Map((movement.stock || []).map((row) => [row.productCode, toNumber(row.openingQty)]));
   const periodRows = [];
 
