@@ -77,9 +77,9 @@ async function reconcileStock() {
       {
         $project: {
           productCode: { $ifNull: ['$productCode', '$productId'] },
-          availableQty: {
+          onHand: {
             $convert: {
-              input: { $ifNull: ['$availableQty', { $ifNull: ['$quantity', '$qty'] }] },
+              input: { $ifNull: ['$onHand', { $ifNull: ['$quantity', '$qty'] }] },
               to: 'double',
               onError: 0,
               onNull: 0
@@ -91,7 +91,7 @@ async function reconcileStock() {
       {
         $group: {
           _id: '$productCode',
-          snapshotQty: { $sum: '$availableQty' }
+          snapshotQty: { $sum: '$onHand' }
         }
       }
     ])
