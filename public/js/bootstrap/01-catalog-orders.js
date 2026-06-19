@@ -3,8 +3,6 @@
 // App bootstrap: module files are loaded before this file in index.html.
 // Product/customer list uses server-side pagination; explicit search resets to page 1.
 // Không dùng popup autocomplete ở màn danh sách sản phẩm; chỉ gửi request khi người dùng áp dụng tìm kiếm.
-const debounce = window.debounce || ((fn, wait=250)=>{let t;return (...args)=>{clearTimeout(t);t=setTimeout(()=>fn(...args),wait)}});
-const debouncedLoadCustomers=debounce(()=>loadCustomers({resetPage:true}),250);
 function hideProductListSuggestions(){
   if(window.SearchAutocomplete)window.SearchAutocomplete.hide(document.getElementById('productListSuggestions'));
 }
@@ -34,12 +32,35 @@ if(searchInput)searchInput.addEventListener('keydown',event=>{
 if(productPrevPage)productPrevPage.addEventListener('click',()=>{productPage=Math.max(1,productPage-1);reloadCurrentProducts();});
 if(productNextPage)productNextPage.addEventListener('click',()=>{productPage=Math.min(productTotalPages||1,productPage+1);reloadCurrentProducts();});
 if(productPageSizeSelect)productPageSizeSelect.addEventListener('change',()=>{productPageSize=Number(productPageSizeSelect.value||50);productPage=1;reloadCurrentProducts();});
-if(customerSearchInput)customerSearchInput.addEventListener('input',()=>{if(window.SearchAutocomplete){window.SearchAutocomplete.hide(document.getElementById('customerListSuggestions'));}debouncedLoadCustomers();});
+function hideCustomerListSuggestions(){
+  if(window.SearchAutocomplete)window.SearchAutocomplete.hide(document.getElementById('customerListSuggestions'));
+}
+function applyCustomerFilters(){
+  hideCustomerListSuggestions();
+  return loadCustomers({resetPage:true});
+}
+function clearCustomerFilters(){
+  hideCustomerListSuggestions();
+  if(customerSearchInput)customerSearchInput.value='';
+  return loadCustomers({resetPage:true});
+}
+function reloadCurrentCustomers(){
+  hideCustomerListSuggestions();
+  return loadCustomers();
+}
+if(applyCustomerFiltersButton)applyCustomerFiltersButton.addEventListener('click',applyCustomerFilters);
+if(clearCustomerFiltersButton)clearCustomerFiltersButton.addEventListener('click',clearCustomerFilters);
+if(reloadCustomersButton)reloadCustomersButton.addEventListener('click',reloadCurrentCustomers);
+if(customerSearchInput)customerSearchInput.addEventListener('keydown',event=>{
+  if(event.key!=='Enter')return;
+  event.preventDefault();
+  applyCustomerFilters();
+});
 if(customerTable)customerTable.addEventListener('change',event=>{const check=event.target.closest('.customer-row-check');if(!check)return;if(check.checked)selectedCustomerIds.add(check.dataset.id);else selectedCustomerIds.delete(check.dataset.id);updateCustomerBulkUI();});
 if(customerCheckAll)customerCheckAll.addEventListener('change',()=>{getCustomerPageRows().forEach(c=>{if(!c.id)return;if(customerCheckAll.checked)selectedCustomerIds.add(c.id);else selectedCustomerIds.delete(c.id)});renderCustomerTable();});
-if(customerPrevPage)customerPrevPage.addEventListener('click',()=>{customerPage=Math.max(1,customerPage-1);loadCustomers();});
-if(customerNextPage)customerNextPage.addEventListener('click',()=>{customerPage=Math.min(getCustomerTotalPages(),customerPage+1);loadCustomers();});
-if(customerPageSizeSelect)customerPageSizeSelect.addEventListener('change',()=>{customerPageSize=Number(customerPageSizeSelect.value||50);customerPage=1;loadCustomers();});
+if(customerPrevPage)customerPrevPage.addEventListener('click',()=>{customerPage=Math.max(1,customerPage-1);reloadCurrentCustomers();});
+if(customerNextPage)customerNextPage.addEventListener('click',()=>{customerPage=Math.min(getCustomerTotalPages(),customerPage+1);reloadCurrentCustomers();});
+if(customerPageSizeSelect)customerPageSizeSelect.addEventListener('change',()=>{customerPageSize=Number(customerPageSizeSelect.value||50);customerPage=1;reloadCurrentCustomers();});
 if(bulkDeleteCustomerButton)bulkDeleteCustomerButton.addEventListener('click',bulkDeleteCustomers);
 initConfiguredAutocomplete();
 if(addImportItemButton)addImportItemButton.addEventListener('click',addImportItem);

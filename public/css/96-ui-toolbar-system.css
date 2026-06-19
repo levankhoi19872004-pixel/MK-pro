@@ -232,6 +232,15 @@
 #productsTab .product-bulk-actions button[aria-busy="true"],
 #productModal button[aria-busy="true"]{cursor:wait;opacity:.72;}
 
+/* Customer module adopter: explicit search, page actions and destructive bulk actions. */
+#customersTab .customer-toolbar-grid{
+  grid-template-columns:minmax(var(--search-width-sm),var(--search-width-lg)) max-content;
+}
+#customersTab .customer-toolbar-actions button[aria-busy="true"],
+#customersTab .customer-bulk-actions button[aria-busy="true"],
+#customersTab .customer-row-actions button[aria-busy="true"],
+#customerModal button[aria-busy="true"]{cursor:wait;opacity:.72;}
+
 /* Inventory module adopter: current stock and DMS comparison share one toolbar contract. */
 #stockTab .stock-current-shell{display:grid;gap:12px;}
 #stockTab .stock-module-toolbar{margin:0;}
@@ -289,6 +298,9 @@
   #productsTab .product-toolbar-grid{grid-template-columns:repeat(12,minmax(0,1fr));}
   #productsTab .product-toolbar-grid .ui-field-search{grid-column:span 7;}
   #productsTab .product-toolbar-actions{grid-column:span 5;justify-content:flex-end;}
+  #customersTab .customer-toolbar-grid{grid-template-columns:repeat(12,minmax(0,1fr));}
+  #customersTab .customer-toolbar-grid .ui-field-search{grid-column:span 7;}
+  #customersTab .customer-toolbar-actions{grid-column:span 5;justify-content:flex-end;}
   #stockTab .stock-current-toolbar-grid,
   #stockTab .dms-inventory-toolbar-grid{grid-template-columns:repeat(12,minmax(0,1fr));}
   #stockTab .stock-current-toolbar-grid .ui-field-search{grid-column:span 7;}
@@ -361,6 +373,9 @@
   #productsTab .product-toolbar-grid{grid-template-columns:1fr;}
   #productsTab .product-toolbar-grid .ui-toolbar-field,
   #productsTab .product-toolbar-actions{grid-column:1/-1;}
+  #customersTab .customer-toolbar-grid{grid-template-columns:1fr;}
+  #customersTab .customer-toolbar-grid .ui-toolbar-field,
+  #customersTab .customer-toolbar-actions{grid-column:1/-1;}
   #stockTab .stock-current-toolbar-grid,
   #stockTab .dms-inventory-toolbar-grid{grid-template-columns:1fr;}
   #stockTab .stock-current-toolbar-grid .ui-toolbar-field,

@@ -231,17 +231,35 @@
     <section id="customersTab" class="tab-content">
       <main class="grid customer-workspace-grid">
         <section class="card customer-card">
-          <div class="toolbar customer-list-toolbar">
-            <div><h2>Danh sách khách hàng</h2><p id="customerCount" class="muted">Đang tải...</p></div>
-            <div class="customer-toolbar-actions">
-              <input id="customerSearchInput" placeholder="Tìm mã, tên, SĐT, MST, địa chỉ..." />
-              <button type="button" id="openCustomerModalButton" class="primary-action">+ Thêm khách hàng</button>
+          <div class="ui-page-header customer-page-header">
+            <div class="ui-page-title">
+              <h2>Danh sách khách hàng</h2>
+              <p id="customerCount" class="muted ui-page-meta">Đang tải...</p>
+            </div>
+            <div class="ui-page-actions">
+              <button type="button" id="openCustomerModalButton" class="primary-action">Tạo khách hàng</button>
             </div>
           </div>
-          <div id="customerBulkActions" class="bulk-actions" hidden>
-            <label><input id="customerCheckAll" type="checkbox" /> Chọn tất cả</label>
-            <span id="customerSelectedCount">0 khách đã chọn</span>
-            <button id="bulkDeleteCustomerButton" class="small danger" type="button">Xóa nhiều</button>
+          <div class="ui-list-toolbar customer-module-toolbar">
+            <div class="ui-search-filter-bar customer-toolbar-grid">
+              <label class="ui-toolbar-field ui-field-search">Tìm khách hàng
+                <input id="customerSearchInput" placeholder="Tìm mã, tên, SĐT, MST, địa chỉ..." autocomplete="off" />
+              </label>
+              <div class="ui-toolbar-actions customer-toolbar-actions">
+                <button type="button" id="applyCustomerFiltersButton" class="ui-action-primary">Tìm kiếm</button>
+                <button type="button" id="clearCustomerFiltersButton" class="ui-button-ghost">Xóa lọc</button>
+                <button type="button" id="reloadCustomersButton" class="ui-button-ghost">Tải lại</button>
+              </div>
+            </div>
+          </div>
+          <div id="customerBulkActions" class="bulk-actions customer-bulk-actions" hidden>
+            <div class="bulk-info customer-bulk-info">
+              <label class="customer-bulk-select-all"><input id="customerCheckAll" type="checkbox" /> Chọn tất cả</label>
+              <span><strong id="customerSelectedCount">0</strong> khách hàng được chọn</span>
+            </div>
+            <div class="bulk-buttons customer-bulk-buttons">
+              <button id="bulkDeleteCustomerButton" class="small danger" type="button">Xóa nhiều</button>
+            </div>
           </div>
           <div class="table-wrap customer-table-wrap">
             <table class="customer-data-table">
