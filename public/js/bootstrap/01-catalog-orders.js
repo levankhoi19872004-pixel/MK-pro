@@ -39,4 +39,15 @@ function setDefaultDocumentDateFilters(){
 }
 setDefaultDocumentDateFilters();
 
-if(stockSearchInput)stockSearchInput.addEventListener('input',loadStock);
+function resetStockFilters(){
+  if(stockSearchInput)stockSearchInput.value='';
+  return loadStock();
+}
+if(stockApplyFiltersButton)stockApplyFiltersButton.addEventListener('click',()=>loadStock());
+if(stockClearFiltersButton)stockClearFiltersButton.addEventListener('click',resetStockFilters);
+if(stockReloadButton)stockReloadButton.addEventListener('click',()=>loadStock());
+if(stockSearchInput)stockSearchInput.addEventListener('keydown',event=>{
+  if(event.key!=='Enter')return;
+  event.preventDefault();
+  loadStock();
+});

@@ -8,6 +8,8 @@
     dmsPanel: document.getElementById('dmsInventoryPanel'),
     latestInfo: document.getElementById('dmsInventoryLatestInfo'),
     reload: document.getElementById('dmsInventoryReloadButton'),
+    apply: document.getElementById('dmsInventoryApplyButton'),
+    clear: document.getElementById('dmsInventoryClearButton'),
     upload: document.getElementById('dmsInventoryUploadButton'),
     history: document.getElementById('dmsInventoryHistoryButton'),
     search: document.getElementById('dmsInventorySearch'),
@@ -40,7 +42,7 @@
 
   if(!el.dmsPanel) return;
 
-  const state = { page: 1, limit: 100, hasMore: false, preview: null, loading: false };
+  const state = { page: 1, limit: 100, hasMore: false, preview: null, loading: false, loadPromise: null, pendingLoadOptions: null, historyLoading: false };
 
   function escapeHtml(value=''){
     return String(value ?? '')
@@ -107,7 +109,7 @@
     el.dmsSubtab?.classList.toggle('active',showDms);
     if(el.currentPanel){el.currentPanel.hidden=showDms;el.currentPanel.classList.toggle('active',!showDms);}
     if(el.dmsPanel){el.dmsPanel.hidden=!showDms;el.dmsPanel.classList.toggle('active',showDms);}
-    if(showDms) loadDmsInventory({resetPage:true,forceRefresh:true});
+    if(showDms) loadDmsInventory({forceRefresh:true});
     else if(typeof window.loadStock==='function') window.loadStock().catch(()=>{});
   }
 
@@ -158,11 +160,27 @@
     }).join('');
   }
 
+  function setDmsToolbarLoading(isLoading){
+    [el.apply,el.clear,el.reload].forEach(button=>{
+      if(!button)return;
+      button.disabled=Boolean(isLoading);
+      button.setAttribute('aria-busy',isLoading?'true':'false');
+    });
+    if(el.prev) el.prev.disabled=Boolean(isLoading)||state.page<=1;
+    if(el.next) el.next.disabled=Boolean(isLoading)||!state.hasMore;
+  }
+
   async function loadDmsInventory(options={}){
-    if(state.loading) return;
+    if(state.loadPromise){
+      state.pendingLoadOptions={
+        resetPage:Boolean(state.pendingLoadOptions?.resetPage||options.resetPage),
+        forceRefresh:Boolean(state.pendingLoadOptions?.forceRefresh||options.forceRefresh)
+      };
+      return state.loadPromise;
+    }
     if(options.resetPage) state.page=1;
     state.loading=true;
-    if(el.reload) el.reload.disabled=true;
+    setDmsToolbarLoading(true);
     setMessage(el.message,'Đang đối chiếu file DMS với tồn kho hiện tại...');
     const params=new URLSearchParams({
       type:el.type?.value||'internal_greater',
@@ -171,29 +189,39 @@
       limit:String(state.limit)
     });
     if(options.forceRefresh) params.set('refresh','1');
-    try{
-      const response=await fetch(`/api/dms-inventory/latest?${params.toString()}`);
-      const payload=await response.json().catch(()=>({}));
-      if(!response.ok||payload.ok===false) throw new Error(payload.message||'Không tải được đối chiếu DMS');
-      const data=payload.data||payload;
-      renderSummary(data.summary||{});
-      renderRows(data.rows||[]);
-      state.hasMore=Boolean(data.hasMore);
-      el.prev.disabled=state.page<=1;
-      el.next.disabled=!state.hasMore;
-      el.count.textContent=`${formatNumber(data.total)} dòng · Trang ${state.page}`;
-      if(data.import){
-        const comparedAt=formatDateTime(data.comparisonGeneratedAt);
-        el.latestInfo.textContent=`DMS chốt: ${formatDateTime(data.import.committedAt||data.import.snapshotAt)} · File ${data.import.originalFilename||''} · Tồn thực tế đọc trực tiếp từ inventories lúc ${comparedAt} · Hạn mức App giữ theo lần chốt`;
-        setMessage(el.message,'');
-      }else{
-        el.latestInfo.textContent='Chưa có file tồn DMS. App bán hàng sẽ chưa có hạn mức bán.';
-        setMessage(el.message,'Hãy tải file tồn DMS buổi sáng để tạo hạn mức bán App.',true);
+    state.loadPromise=(async()=>{
+      try{
+        const response=await fetch(`/api/dms-inventory/latest?${params.toString()}`);
+        const payload=await response.json().catch(()=>({}));
+        if(!response.ok||payload.ok===false) throw new Error(payload.message||'Không tải được đối chiếu DMS');
+        const data=payload.data||payload;
+        renderSummary(data.summary||{});
+        renderRows(data.rows||[]);
+        state.hasMore=Boolean(data.hasMore);
+        el.count.textContent=`${formatNumber(data.total)} dòng · Trang ${state.page}`;
+        if(data.import){
+          const comparedAt=formatDateTime(data.comparisonGeneratedAt);
+          el.latestInfo.textContent=`DMS chốt: ${formatDateTime(data.import.committedAt||data.import.snapshotAt)} · File ${data.import.originalFilename||''} · Tồn thực tế đọc trực tiếp từ inventories lúc ${comparedAt} · Hạn mức App giữ theo lần chốt`;
+          setMessage(el.message,'');
+        }else{
+          el.latestInfo.textContent='Chưa có file tồn DMS. App bán hàng sẽ chưa có hạn mức bán.';
+          setMessage(el.message,'Hãy tải file tồn DMS buổi sáng để tạo hạn mức bán App.',true);
+        }
+      }catch(error){
+        el.table.innerHTML=`<tr><td colspan="10">${escapeHtml(error.message||'Không tải được dữ liệu')}</td></tr>`;
+        setMessage(el.message,error.message||'Không tải được dữ liệu',true);
       }
-    }catch(error){
-      el.table.innerHTML=`<tr><td colspan="10">${escapeHtml(error.message||'Không tải được dữ liệu')}</td></tr>`;
-      setMessage(el.message,error.message||'Không tải được dữ liệu',true);
-    }finally{state.loading=false;if(el.reload)el.reload.disabled=false;}
+    })();
+    try{
+      return await state.loadPromise;
+    }finally{
+      state.loadPromise=null;
+      state.loading=false;
+      setDmsToolbarLoading(false);
+      const pendingOptions=state.pendingLoadOptions;
+      state.pendingLoadOptions=null;
+      if(pendingOptions) queueMicrotask(()=>loadDmsInventory(pendingOptions));
+    }
   }
 
   function resetUpload(){
@@ -277,6 +305,9 @@
   }
 
   async function openHistory(){
+    if(state.historyLoading)return;
+    state.historyLoading=true;
+    if(el.history){el.history.disabled=true;el.history.setAttribute('aria-busy','true');}
     setModal(el.historyModal,true);
     el.historyTable.innerHTML='<tr><td colspan="5">Đang tải...</td></tr>';
     try{
@@ -294,15 +325,28 @@
       </tr>`).join(''):'<tr><td colspan="5">Chưa có lịch sử.</td></tr>';
     }catch(error){
       el.historyTable.innerHTML=`<tr><td colspan="5">${escapeHtml(error.message||'Không tải được lịch sử')}</td></tr>`;
+    }finally{
+      state.historyLoading=false;
+      if(el.history){el.history.disabled=false;el.history.setAttribute('aria-busy','false');}
     }
   }
 
-  let searchTimer=null;
+  function resetDmsFilters(){
+    if(el.search)el.search.value='';
+    if(el.type)el.type.value='internal_greater';
+    return loadDmsInventory({resetPage:true});
+  }
+
   el.currentSubtab?.addEventListener('click',()=>switchPanel('stockCurrentPanel'));
   el.dmsSubtab?.addEventListener('click',()=>switchPanel('dmsInventoryPanel'));
-  el.reload?.addEventListener('click',()=>loadDmsInventory({resetPage:true,forceRefresh:true}));
-  el.type?.addEventListener('change',()=>loadDmsInventory({resetPage:true}));
-  el.search?.addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadDmsInventory({resetPage:true}),280);});
+  el.apply?.addEventListener('click',()=>loadDmsInventory({resetPage:true}));
+  el.clear?.addEventListener('click',resetDmsFilters);
+  el.reload?.addEventListener('click',()=>loadDmsInventory({forceRefresh:true}));
+  el.search?.addEventListener('keydown',event=>{
+    if(event.key!=='Enter')return;
+    event.preventDefault();
+    loadDmsInventory({resetPage:true});
+  });
   el.prev?.addEventListener('click',()=>{if(state.page>1){state.page-=1;loadDmsInventory();}});
   el.next?.addEventListener('click',()=>{if(state.hasMore){state.page+=1;loadDmsInventory();}});
   el.upload?.addEventListener('click',()=>{resetUpload();setModal(el.uploadModal,true);});

@@ -37,12 +37,16 @@ saleMode:saleMode,pricingMode:saleMode,priceLocked:saleMode!==PRICING_DIRECT_PRI
 ;const method=editingSalesOrderId?"PUT":"POST";const res=await fetch(url,{method:method,headers:{"Content-Type":"application/json","X-User-Role":"admin"},
 body:JSON.stringify(payload)});const json=await res.json();if(!json.ok)throw new Error(json.message||"Không lưu được đơn bán");resetSalesFormAfterSave()
 ;showMessage(salesMessage,json.message||"Đã lưu đơn bán");closeSalesOrderModal(true);await loadStock();await loadSalesOrders();await loadDebts();await loadReceipts()
-;await loadCashbook()}catch(err){showMessage(salesMessage,err.message,true)}}async function loadStock(){const q=stockSearchInput?stockSearchInput.value.trim():""
-;const params=new URLSearchParams;if(q)params.set("q",q);const url=`/api/stock${params.toString()?`?${params.toString()}`:""}`;try{const res=await fetch(url)
-;const json=await res.json();if(!json.ok)throw new Error(json.message||"Không tải được tồn kho");const stock=json.stock||[];stockCount.textContent=`${stock.length} dòng tồn kho`
-;if(!stock.length){stockTable.innerHTML='<tr><td colspan="6">Chưa có tồn kho. Hãy tạo phiếu nhập trước.</td></tr>';return}
+;await loadCashbook()}catch(err){showMessage(salesMessage,err.message,true)}}let stockLoadPromise=null;let stockReloadQueued=false;function setStockToolbarLoading(isLoading){
+[stockApplyFiltersButton,stockClearFiltersButton,stockReloadButton].forEach(button=>{if(!button)return;button.disabled=Boolean(isLoading)
+;button.setAttribute("aria-busy",isLoading?"true":"false")})}async function loadStock(){if(stockLoadPromise){stockReloadQueued=true;return stockLoadPromise}
+setStockToolbarLoading(true);stockLoadPromise=(async()=>{const q=stockSearchInput?stockSearchInput.value.trim():"";const params=new URLSearchParams;if(q)params.set("q",q)
+;const url=`/api/stock${params.toString()?`?${params.toString()}`:""}`;try{const res=await fetch(url);const json=await res.json()
+;if(!json.ok)throw new Error(json.message||"Không tải được tồn kho");const stock=json.stock||[];stockCount.textContent=`${stock.length} dòng tồn kho`;if(!stock.length){
+stockTable.innerHTML='<tr><td colspan="6">Chưa có tồn kho. Hãy tạo phiếu nhập trước.</td></tr>';return}
 stockTable.innerHTML=stock.map(r=>`<tr><td><strong>${escapeSalesHtml(r.productCode||"")}</strong></td><td>${escapeSalesHtml(r.productName||"")}</td><td>${escapeSalesHtml(r.unit||"")}</td><td>${escapeSalesHtml(productPackingText(r))}</td><td class="stock-qty">${displayQtyTL(r.availableQty??r.quantity,r)}</td><td>${r.updatedAt?new Date(r.updatedAt).toLocaleString("vi-VN"):""}</td></tr>`).join("")
-}catch(err){stockCount.textContent="Lỗi tải tồn kho";stockTable.innerHTML=`<tr><td colspan="6">${escapeSalesHtml(err.message)}</td></tr>`}}
+}catch(err){stockCount.textContent="Lỗi tải tồn kho";stockTable.innerHTML=`<tr><td colspan="6">${escapeSalesHtml(err.message)}</td></tr>`}})();try{return await stockLoadPromise
+}finally{stockLoadPromise=null;setStockToolbarLoading(false);if(stockReloadQueued){stockReloadQueued=false;queueMicrotask(()=>loadStock())}}}
 async function openImportOrderDetail(idx){const order=window.__importOrdersCache?.[idx];if(!order)return
 ;const lines=(order.items||[]).map(i=>`<li>${escapeSalesHtml(i.productCode||"")} - ${escapeSalesHtml(i.productName||"")}: ${escapeSalesHtml(displayQtyTL(i.quantity,i))} × ${money(i.costPrice)} = ${money(i.amount)}</li>`).join("")
 ;const card=document.querySelector(`[data-import-detail="${idx}"]`);if(card)card.innerHTML=card.innerHTML?"":`<ul class="order-items">${lines}</ul>`}

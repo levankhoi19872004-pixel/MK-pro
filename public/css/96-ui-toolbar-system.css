@@ -224,6 +224,20 @@
 }
 #fundsTab .fund-row-actions button[aria-busy="true"]{cursor:wait;opacity:.72;}
 
+/* Inventory module adopter: current stock and DMS comparison share one toolbar contract. */
+#stockTab .stock-current-shell{display:grid;gap:12px;}
+#stockTab .stock-module-toolbar{margin:0;}
+#stockTab .stock-current-toolbar-grid{
+  grid-template-columns:minmax(var(--search-width-sm),var(--search-width-lg)) max-content;
+}
+#stockTab .dms-inventory-toolbar-grid{
+  grid-template-columns:
+    minmax(var(--search-width-sm),var(--search-width-lg))
+    minmax(180px,var(--filter-width-md))
+    max-content;
+}
+#stockTab .dms-inventory-actions button[aria-busy="true"]{cursor:wait;opacity:.72;}
+
 @media(max-width:1199px) and (min-width:768px){
   .ui-search-filter-bar{grid-template-columns:repeat(6,minmax(0,1fr));}
   #debtTab .debt-toolbar-grid,
@@ -247,6 +261,13 @@
   #fundsTab .fund-toolbar-actions{grid-column:1/-1;justify-content:flex-end;}
   #fundsTab .fund-toolbar-grid.fund-toolbar-compact .ui-field-search{grid-column:span 8;}
   #fundsTab .fund-toolbar-grid.fund-toolbar-compact .fund-toolbar-actions{grid-column:span 4;}
+  #stockTab .stock-current-toolbar-grid,
+  #stockTab .dms-inventory-toolbar-grid{grid-template-columns:repeat(12,minmax(0,1fr));}
+  #stockTab .stock-current-toolbar-grid .ui-field-search{grid-column:span 7;}
+  #stockTab .stock-current-toolbar-actions{grid-column:span 5;justify-content:flex-end;}
+  #stockTab .dms-inventory-toolbar-grid .ui-field-search,
+  #stockTab .dms-inventory-toolbar-grid .ui-field-status{grid-column:span 6;}
+  #stockTab .dms-inventory-toolbar-actions{grid-column:1/-1;justify-content:flex-end;}
   .ui-field-search{grid-column:span 3;}
   .ui-field-staff{grid-column:span 3;}
   .ui-toolbar-actions{grid-column:span 3;justify-content:flex-end;}
@@ -298,6 +319,12 @@
   #fundsTab .fund-toolbar-grid .ui-toolbar-field,
   #fundsTab .fund-toolbar-actions{grid-column:1/-1;}
   #fundsTab .fund-row-actions{white-space:normal;}
+  #stockTab .stock-current-toolbar-grid,
+  #stockTab .dms-inventory-toolbar-grid{grid-template-columns:1fr;}
+  #stockTab .stock-current-toolbar-grid .ui-toolbar-field,
+  #stockTab .stock-current-toolbar-actions,
+  #stockTab .dms-inventory-toolbar-grid .ui-toolbar-field,
+  #stockTab .dms-inventory-toolbar-actions{grid-column:1/-1;}
   #masterReturnOrdersTab .master-return-batch-actions{display:grid;grid-template-columns:1fr 1fr;}
   #masterReturnOrdersTab .master-return-batch-actions .ui-action-sensitive{grid-column:1/-1;}
   .ui-list-toolbar :is(input,select,button){

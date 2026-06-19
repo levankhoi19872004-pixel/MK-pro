@@ -111,7 +111,7 @@
         "public/js/app/05-sales-orders.source/part-03.jsfrag",
         "public/js/app/05-sales-orders.source/part-04.jsfrag"
       ],
-      "sourceSha256": "4db51305aa61c995f6d5a1d94f0459ad80baad849b8b64483aebd6396ec11aa1",
+      "sourceSha256": "c30b94f24e66a3677589a724411c28c5b93a3d45fa872b7df38e4ce5b6f743c1",
       "runtimeFiles": [
         "public/js/app/05-sales-orders.js",
         "public/js/app/05-sales-orders.part02.js",

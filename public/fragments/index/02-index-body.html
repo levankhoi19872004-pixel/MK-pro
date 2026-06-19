@@ -249,23 +249,39 @@
       </div>
 
       <section id="stockCurrentPanel" class="stock-subpanel active">
-        <section class="card">
-          <div class="toolbar"><div><h2>Tồn kho hiện tại</h2><p id="stockCount" class="muted">Đang tải...</p></div><input id="stockSearchInput" placeholder="Tìm mã / tên sản phẩm..." /></div>
+        <section class="card stock-current-shell">
+          <div class="ui-page-header">
+            <div class="ui-page-title">
+              <h2>Tồn kho hiện tại</h2>
+              <p id="stockCount" class="muted ui-page-meta">Đang tải...</p>
+            </div>
+          </div>
+          <div class="ui-list-toolbar stock-module-toolbar">
+            <div class="ui-search-filter-bar stock-current-toolbar-grid">
+              <label class="ui-toolbar-field ui-field-search">Tìm sản phẩm
+                <input id="stockSearchInput" type="search" placeholder="Tìm mã / tên sản phẩm..." />
+              </label>
+              <div class="ui-toolbar-actions stock-current-toolbar-actions">
+                <button id="stockApplyFiltersButton" type="button" class="ui-action-primary">Tìm kiếm</button>
+                <button id="stockClearFiltersButton" type="button" class="secondary">Xóa lọc</button>
+                <button id="stockReloadButton" type="button" class="secondary ui-button-ghost">Tải lại</button>
+              </div>
+            </div>
+          </div>
           <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tên sản phẩm</th><th>ĐVT</th><th>Quy cách</th><th>Tồn kho</th><th>Cập nhật</th></tr></thead><tbody id="stockTable"><tr><td colspan="6">Đang tải tồn kho...</td></tr></tbody></table></div>
         </section>
       </section>
 
       <section id="dmsInventoryPanel" class="stock-subpanel" hidden>
         <section class="card dms-inventory-shell">
-          <div class="dms-inventory-head">
-            <div>
+          <div class="ui-page-header dms-inventory-head">
+            <div class="ui-page-title">
               <h2>Đối chiếu tồn DMS Unilever</h2>
-              <p id="dmsInventoryLatestInfo" class="muted">Chưa có dữ liệu đối chiếu.</p>
+              <p id="dmsInventoryLatestInfo" class="muted ui-page-meta">Chưa có dữ liệu đối chiếu.</p>
             </div>
-            <div class="dms-inventory-actions">
+            <div class="ui-page-actions dms-inventory-actions">
               <button id="dmsInventoryHistoryButton" type="button" class="secondary">Lịch sử</button>
-              <button id="dmsInventoryReloadButton" type="button" class="secondary">Tải lại</button>
-              <button id="dmsInventoryUploadButton" type="button">+ Tải file DMS buổi sáng</button>
+              <button id="dmsInventoryUploadButton" type="button">Tải file DMS buổi sáng</button>
             </div>
           </div>
 
@@ -276,16 +292,27 @@
             <article class="dms-kpi-card warning"><span>Cần kiểm tra mã/quy cách</span><strong id="dmsWarningSkuCount">0 SKU</strong><small>Chưa ghép mã hoặc sai quy cách</small></article>
           </div>
 
-          <div class="dms-inventory-toolbar">
-            <input id="dmsInventorySearch" type="search" placeholder="Tìm toàn bộ theo mã hoặc tên sản phẩm..." />
-            <select id="dmsInventoryTypeFilter">
-              <option value="internal_greater">Thực tế nhiều hơn DMS</option>
-              <option value="dms_greater">DMS nhiều hơn thực tế</option>
-              <option value="matched">Khớp hoàn toàn</option>
-              <option value="unmapped">Chưa ghép mã</option>
-              <option value="conversion_mismatch">Sai quy cách</option>
-              <option value="all">Tất cả</option>
-            </select>
+          <div class="ui-list-toolbar stock-module-toolbar dms-inventory-toolbar">
+            <div class="ui-search-filter-bar dms-inventory-toolbar-grid">
+              <label class="ui-toolbar-field ui-field-search">Tìm sản phẩm
+                <input id="dmsInventorySearch" type="search" placeholder="Tìm toàn bộ theo mã hoặc tên sản phẩm..." />
+              </label>
+              <label class="ui-toolbar-field ui-field-status">Loại đối chiếu
+                <select id="dmsInventoryTypeFilter">
+                  <option value="internal_greater">Thực tế nhiều hơn DMS</option>
+                  <option value="dms_greater">DMS nhiều hơn thực tế</option>
+                  <option value="matched">Khớp hoàn toàn</option>
+                  <option value="unmapped">Chưa ghép mã</option>
+                  <option value="conversion_mismatch">Sai quy cách</option>
+                  <option value="all">Tất cả</option>
+                </select>
+              </label>
+              <div class="ui-toolbar-actions dms-inventory-toolbar-actions">
+                <button id="dmsInventoryApplyButton" type="button" class="ui-action-primary">Tìm kiếm</button>
+                <button id="dmsInventoryClearButton" type="button" class="secondary">Xóa lọc</button>
+                <button id="dmsInventoryReloadButton" type="button" class="secondary ui-button-ghost">Tải lại</button>
+              </div>
+            </div>
           </div>
 
           <p id="dmsInventoryMessage" class="message"></p>
