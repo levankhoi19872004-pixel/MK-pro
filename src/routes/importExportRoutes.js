@@ -36,6 +36,12 @@ importRouter.get('/sessions/:sessionId', controller.sessionStatus);
 importRouter.post('/commit', controller.commitImport);
 importRouter.get('/logs', controller.importLogs);
 
+// Import shortage reconciliation reports. These routes must live on the
+// router actually mounted at /api/import.
+importRouter.get('/shortage-reports', controller.shortageReports);
+importRouter.get('/shortage-reports/:id', controller.shortageReportDetail);
+importRouter.patch('/shortage-reports/:id', controller.updateShortageReport);
+
 // Import templates
 importRouter.get('/templates', controller.listBuiltInTemplates);
 importRouter.get('/template/:type', controller.downloadBuiltInTemplate);

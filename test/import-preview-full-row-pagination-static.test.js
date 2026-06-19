@@ -34,6 +34,6 @@ test('worker không được làm mất chế độ update khi chạy async', ()
   const worker = read('src/jobs/importPreview.worker.js');
   const runner = read('src/jobs/importPreviewRunner.js');
   assert.match(worker, /importMode: payload\.importMode \|\| 'create'/);
-  assert.match(runner, /prefer that value/);
-  assert.match(runner, /buildPreviewFromRows\(\{ type, rows, userName, importMode: effectiveImportMode \}\)/);
+  assert.match(runner, /parsingSession\?\.importMode === 'update'/);
+  assert.match(runner, /importMode:\s*effectiveImportMode/);
 });

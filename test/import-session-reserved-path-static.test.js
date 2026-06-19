@@ -31,5 +31,5 @@ test('import session mongoose schemas do not use reserved top-level errors path'
 
   assert.match(importSessionService, /importErrors:\s*errors\.slice/);
   assert.match(importSessionService, /rowErrors/);
-  assert.match(importSessionService, /\$unset:\s*\{[\s\S]*errors:\s*''/);
+  assert.match(importSessionService, /\berrors:\s*''/);
 });

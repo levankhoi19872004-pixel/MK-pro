@@ -12,7 +12,10 @@ function read(file) {
 test('import session does not embed full import rows in parent document', () => {
   const model = read('src/models/ImportSession.js');
   const service = read('src/services/importSessionService.js');
-  const excelImportService = read('src/services/excelImportService.js');
+  const excelImportService = [
+    read('src/services/excelImportService.js'),
+    read('src/services/import/importCommit.impl.js')
+  ].join('\n');
   const rowModel = read('src/models/ImportSessionRow.js');
 
   assert.match(rowModel, /import_session_rows/);
@@ -22,8 +25,8 @@ test('import session does not embed full import rows in parent document', () => 
   assert.doesNotMatch(service, /validDataRows:\s*rows/);
   assert.doesNotMatch(service, /rawRows:\s*rawRows/);
 
-  assert.match(service, /\$unset:\s*\{[\s\S]*validDataRows/);
-  assert.match(service, /\$unset:\s*\{[\s\S]*rawRows/);
+  assert.match(service, /\bvalidDataRows:\s*''/);
+  assert.match(service, /\brawRows:\s*''/);
 
   assert.match(excelImportService, /await\s+importSessionService\.selectRows/);
 

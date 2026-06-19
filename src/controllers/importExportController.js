@@ -2,6 +2,7 @@
 
 const importExportService = require('../services/importExportService');
 const excelImportService = require('../services/excelImportService');
+const importShortageReportService = require('../services/importShortageReportService');
 
 function normalizeUploadedFiles(req) {
   const files = [];
@@ -152,6 +153,59 @@ async function importLogs(req, res) {
   }
 }
 
+async function shortageReports(req, res) {
+  try {
+    const reports = await importShortageReportService.list({
+      status: req.query.status,
+      search: req.query.search,
+      limit: req.query.limit
+    });
+    return res.json({ ok: true, source: 'import-export-route', reports });
+  } catch (err) {
+    return sendSafeInternalError(
+      res,
+      '[IMPORT_SHORTAGE_REPORT_LIST_ERROR]',
+      'Không tải được báo cáo hàng thiếu',
+      err
+    );
+  }
+}
+
+async function shortageReportDetail(req, res) {
+  try {
+    const report = await importShortageReportService.getById(String(req.params.id || '').trim());
+    if (!report) return res.status(404).json({ ok: false, message: 'Không tìm thấy báo cáo hàng thiếu' });
+    return res.json({ ok: true, source: 'import-export-route', report });
+  } catch (err) {
+    return sendSafeInternalError(
+      res,
+      '[IMPORT_SHORTAGE_REPORT_DETAIL_ERROR]',
+      'Không tải được chi tiết báo cáo hàng thiếu',
+      err
+    );
+  }
+}
+
+async function updateShortageReport(req, res) {
+  try {
+    const actor = req.user?.username || req.user?.fullName || '';
+    const result = await importShortageReportService.updateReport(
+      String(req.params.id || '').trim(),
+      req.body || {},
+      actor
+    );
+    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
+    return res.json({ ok: true, source: 'import-export-route', ...result });
+  } catch (err) {
+    return sendSafeInternalError(
+      res,
+      '[IMPORT_SHORTAGE_REPORT_UPDATE_ERROR]',
+      'Không cập nhật được báo cáo hàng thiếu',
+      err
+    );
+  }
+}
+
 async function listBuiltInTemplates(req, res) {
   res.json({ ok: true, templates: importExportService.getBuiltInTemplates() });
 }
@@ -223,6 +277,9 @@ module.exports = {
   directImport,
   commitImport,
   importLogs,
+  shortageReports,
+  shortageReportDetail,
+  updateShortageReport,
   listBuiltInTemplates,
   downloadBuiltInTemplate,
   fields,

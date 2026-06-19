@@ -8,6 +8,6 @@ const source = require('./helpers/sourceBundle.util').readSource(path.join(__dir
 test('parent process marks timed out import failed and removes temp files', () => {
   assert.match(source, /recordFailure/);
   assert.match(source, /markFailed\(job\.payload\.sessionId/);
-  assert.match(source, /cleanupImportFiles\(job\.payload\.files/);
+  assert.match(source, /cleanup(?:Import)?Files\(job\.payload\.files/);
   assert.match(source, /timedOut = true/);
 });

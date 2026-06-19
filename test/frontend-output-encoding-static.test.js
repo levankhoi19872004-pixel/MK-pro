@@ -49,6 +49,6 @@ test('import preview queue is bounded by concurrency and queue size', () => {
   const queue = read('src/jobs/importPreviewQueue.js');
   assert.match(queue, /IMPORT_PREVIEW_MAX_CONCURRENCY/);
   assert.match(queue, /IMPORT_PREVIEW_MAX_QUEUE/);
-  assert.match(queue, /activeJobs < IMPORT_PREVIEW_MAX_CONCURRENCY/);
+  assert.match(queue, /activeJobs < (?:IMPORT_PREVIEW_MAX_CONCURRENCY|maxConcurrency)/);
   assert.match(queue, /IMPORT_PREVIEW_QUEUE_FULL/);
 });

@@ -219,20 +219,28 @@ async function parseExcelBuffer(buffer) {
   return [];
 }
 
-process.on('message', async (message = {}) => {
+function sendResultAndExit(message, exitCode) {
+  if (!process.send || !process.connected) {
+    process.exit(exitCode);
+    return;
+  }
+
+  process.send(message, () => {
+    if (process.connected) process.disconnect();
+    process.exit(exitCode);
+  });
+}
+
+process.once('message', async (message = {}) => {
   try {
     const buffer = Buffer.from(String(message.buffer || ''), 'base64');
     const rows = await parseExcelBuffer(buffer);
-
-    if (process.send) {
-      process.send({ ok: true, rows });
-    }
+    sendResultAndExit({ ok: true, rows }, 0);
   } catch (err) {
-    if (process.send) {
-      process.send({
-        ok: false,
-        error: err && err.message ? err.message : String(err)
-      });
-    }
+    console.error('[EXCEL_PARSER_WORKER_ERROR]', err && (err.stack || err.message || err));
+    sendResultAndExit({
+      ok: false,
+      error: err && err.message ? err.message : String(err)
+    }, 1);
   }
 });

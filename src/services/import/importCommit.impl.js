@@ -56,6 +56,8 @@ async function getSessionStatus(sessionId) {
     previewRows: session.previewRows || [],
     importErrors: session.importErrors || [],
     errorMessage: session.errorMessage || '',
+    failure: session.failure || {},
+    worker: session.worker || {},
     result: session.result || {},
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
