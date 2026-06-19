@@ -182,15 +182,14 @@
 
     <section id="reportsTab" class="tab-content">
       <main class="report-directory-shell">
-        <section class="card report-directory-hero">
-          <div>
+        <section class="card report-directory-hero ui-page-header">
+          <div class="ui-page-title">
             <span class="report-eyebrow">REPORT CENTER V2</span>
             <h2>Danh sách báo cáo quản trị</h2>
-            <p class="muted">Chọn đúng báo cáo cần xem. Mỗi báo cáo mở trong một cửa sổ riêng để màn hình chính luôn gọn và dễ tìm.</p>
+            <p class="muted ui-page-meta">Chọn đúng báo cáo cần xem. Mỗi báo cáo mở trong một cửa sổ riêng để màn hình chính luôn gọn và dễ tìm.</p>
           </div>
-          <div class="report-directory-status-wrap">
-            <span id="reportDirectoryState" class="report-directory-state">Chưa tải danh mục</span>
-            <button id="reloadReportCatalogButton" class="secondary" type="button">Tải lại danh mục</button>
+          <div class="ui-page-actions report-directory-status-wrap">
+            <span id="reportDirectoryState" class="report-directory-state" aria-live="polite">Chưa tải danh mục</span>
           </div>
         </section>
 
@@ -200,7 +199,18 @@
               <h3>Danh mục báo cáo</h3>
               <p class="muted">Báo cáo được nhóm theo nghiệp vụ. Nhấn “Xem báo cáo” để mở popup chi tiết.</p>
             </div>
-            <input id="reportCatalogSearch" placeholder="Tìm tên hoặc nội dung báo cáo..." />
+          </div>
+          <div class="ui-list-toolbar report-directory-toolbar">
+            <div class="ui-search-filter-bar report-directory-toolbar-grid">
+              <label class="ui-toolbar-field ui-field-search">Tìm báo cáo
+                <input id="reportCatalogSearch" placeholder="Tên hoặc nội dung báo cáo..." autocomplete="off" />
+              </label>
+              <div class="ui-toolbar-actions report-directory-toolbar-actions">
+                <button id="applyReportCatalogFiltersButton" class="ui-action-primary" type="button">Tìm kiếm</button>
+                <button id="clearReportCatalogFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
+                <button id="reloadReportCatalogButton" class="secondary" type="button">Tải lại</button>
+              </div>
+            </div>
           </div>
           <div id="reportCatalog" class="report-directory-list">
             <div class="report-catalog-loading">Đang tải danh mục...</div>
@@ -244,32 +254,49 @@
       <div id="reportCenterModal" class="modal-backdrop report-center-modal" hidden aria-hidden="true">
         <main class="report-center-shell report-center-dialog" role="dialog" aria-modal="true" aria-labelledby="reportCenterModalTitle">
           <section class="card report-popup-header">
-            <div class="report-center-heading">
-              <div>
+            <div class="report-center-heading ui-page-header">
+              <div class="ui-page-title">
                 <span class="report-eyebrow">CHI TIẾT BÁO CÁO</span>
                 <h2 id="reportCenterModalTitle">Xem báo cáo</h2>
-                <p class="muted">Lọc, phân tích và xuất Excel cho báo cáo đang chọn.</p>
+                <p class="muted ui-page-meta">Lọc, phân tích và xuất Excel cho báo cáo đang chọn.</p>
               </div>
-              <div class="report-center-heading-actions">
-                <div id="reportLoadState" class="report-load-state">Sẵn sàng tải báo cáo</div>
+              <div class="ui-page-actions report-center-heading-actions">
+                <div id="reportLoadState" class="report-load-state" aria-live="polite">Sẵn sàng tải báo cáo</div>
+                <button id="reportExportCurrentButton" class="secondary" type="button">Xuất Excel</button>
                 <button id="closeReportCenterButton" class="secondary report-center-close" type="button">Đóng</button>
               </div>
             </div>
 
-            <div class="report-filter-panel">
-              <label>Kỳ báo cáo
-                <select id="reportPeriodPreset">
-                  <option value="currentDay">Hôm nay</option>
-                  <option value="7days">7 ngày gần nhất</option>
-                  <option value="month" selected>Tháng này</option>
-                  <option value="previousMonth">Tháng trước</option>
-                  <option value="custom">Tùy chọn</option>
-                </select>
-              </label>
-              <label>Từ ngày<input id="reportFromDate" type="date" /></label>
-              <label>Đến ngày<input id="reportToDate" type="date" /></label>
-              <label>Tìm trong báo cáo<input id="reportSearchInput" placeholder="Mã, tên, chứng từ..." /></label>
-              <button id="reloadReportsButton" type="button">Cập nhật báo cáo</button>
+            <div class="ui-list-toolbar report-popup-filter-toolbar">
+              <div class="ui-search-filter-bar report-popup-toolbar-grid">
+                <label class="ui-toolbar-field ui-field-search">Tìm trong báo cáo
+                  <input id="reportSearchInput" placeholder="Mã, tên, chứng từ..." autocomplete="off" />
+                </label>
+                <label class="ui-toolbar-field report-period-field">Kỳ báo cáo
+                  <select id="reportPeriodPreset">
+                    <option value="currentDay">Hôm nay</option>
+                    <option value="7days">7 ngày gần nhất</option>
+                    <option value="month" selected>Tháng này</option>
+                    <option value="previousMonth">Tháng trước</option>
+                    <option value="custom">Tùy chọn</option>
+                  </select>
+                </label>
+                <label class="ui-toolbar-field ui-field-date">Từ ngày<input id="reportFromDate" type="date" /></label>
+                <label class="ui-toolbar-field ui-field-date">Đến ngày<input id="reportToDate" type="date" /></label>
+                <label class="ui-toolbar-field report-page-size-field">Số dòng
+                  <select id="reportPageSize">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                  </select>
+                </label>
+                <div class="ui-toolbar-actions report-popup-toolbar-actions">
+                  <button id="applyReportFiltersButton" class="ui-action-primary" type="button">Tìm kiếm</button>
+                  <button id="clearReportFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
+                  <button id="reloadReportsButton" class="secondary" type="button">Tải lại</button>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -280,17 +307,6 @@
                 <h3 id="reportActiveTitle">Chưa chọn báo cáo</h3>
                 <p id="reportSalesSummary" class="muted">Nhấn “Xem báo cáo” tại danh sách bên ngoài.</p>
               </div>
-              <div class="report-viewer-actions">
-                <label>Số dòng
-                  <select id="reportPageSize">
-                    <option value="25">25</option>
-                    <option value="50" selected>50</option>
-                    <option value="100">100</option>
-                    <option value="200">200</option>
-                  </select>
-                </label>
-                <button id="reportExportCurrentButton" class="secondary" type="button">Xuất Excel</button>
-              </div>
             </div>
 
             <div id="reportSummaryMetrics" class="report-summary-metrics"></div>
@@ -300,8 +316,7 @@
             </div>
 
             <div class="report-table-toolbar">
-              <span id="reportTableStatus" class="muted">Chưa tải dữ liệu</span>
-              <button id="reportClearSearchButton" class="text-button" type="button">Xóa tìm kiếm</button>
+              <span id="reportTableStatus" class="muted" aria-live="polite">Chưa tải dữ liệu</span>
             </div>
             <div class="table-wrap report-table-wrap">
               <table class="report-data-table">

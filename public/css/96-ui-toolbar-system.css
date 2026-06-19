@@ -238,6 +238,23 @@
 }
 #stockTab .dms-inventory-actions button[aria-busy="true"]{cursor:wait;opacity:.72;}
 
+/* Report module adopter: directory and popup filters share the common toolbar contract. */
+#reportsTab .report-directory-toolbar{margin:14px 0 0;}
+#reportsTab .report-directory-toolbar-grid{
+  grid-template-columns:minmax(var(--search-width-sm),var(--search-width-lg)) max-content;
+}
+#reportCenterModal .report-popup-filter-toolbar{margin:0;}
+#reportCenterModal .report-popup-toolbar-grid{
+  grid-template-columns:
+    minmax(var(--search-width-sm),var(--search-width-lg))
+    minmax(140px,180px)
+    minmax(150px,170px)
+    minmax(150px,170px)
+    minmax(90px,110px)
+    max-content;
+}
+#reportCenterModal .report-center-heading-actions button[aria-busy="true"]{cursor:wait;opacity:.72;}
+
 @media(max-width:1199px) and (min-width:768px){
   .ui-search-filter-bar{grid-template-columns:repeat(6,minmax(0,1fr));}
   #debtTab .debt-toolbar-grid,
@@ -268,6 +285,17 @@
   #stockTab .dms-inventory-toolbar-grid .ui-field-search,
   #stockTab .dms-inventory-toolbar-grid .ui-field-status{grid-column:span 6;}
   #stockTab .dms-inventory-toolbar-actions{grid-column:1/-1;justify-content:flex-end;}
+  #reportCenterModal .report-center-heading.ui-page-header{align-items:stretch;flex-direction:column;}
+  #reportCenterModal .report-center-heading-actions{justify-content:flex-start;}
+  #reportsTab .report-directory-toolbar-grid,
+  #reportCenterModal .report-popup-toolbar-grid{grid-template-columns:repeat(12,minmax(0,1fr));}
+  #reportsTab .report-directory-toolbar-grid .ui-field-search{grid-column:span 7;}
+  #reportsTab .report-directory-toolbar-actions{grid-column:span 5;justify-content:flex-end;}
+  #reportCenterModal .report-popup-toolbar-grid .ui-field-search{grid-column:span 4;}
+  #reportCenterModal .report-popup-toolbar-grid .report-period-field,
+  #reportCenterModal .report-popup-toolbar-grid .ui-field-date,
+  #reportCenterModal .report-popup-toolbar-grid .report-page-size-field{grid-column:span 2;}
+  #reportCenterModal .report-popup-toolbar-actions{grid-column:1/-1;justify-content:flex-end;}
   .ui-field-search{grid-column:span 3;}
   .ui-field-staff{grid-column:span 3;}
   .ui-toolbar-actions{grid-column:span 3;justify-content:flex-end;}
@@ -325,6 +353,12 @@
   #stockTab .stock-current-toolbar-actions,
   #stockTab .dms-inventory-toolbar-grid .ui-toolbar-field,
   #stockTab .dms-inventory-toolbar-actions{grid-column:1/-1;}
+  #reportsTab .report-directory-toolbar-grid,
+  #reportCenterModal .report-popup-toolbar-grid{grid-template-columns:1fr;}
+  #reportsTab .report-directory-toolbar-grid .ui-toolbar-field,
+  #reportsTab .report-directory-toolbar-actions,
+  #reportCenterModal .report-popup-toolbar-grid .ui-toolbar-field,
+  #reportCenterModal .report-popup-toolbar-actions{grid-column:1/-1;}
   #masterReturnOrdersTab .master-return-batch-actions{display:grid;grid-template-columns:1fr 1fr;}
   #masterReturnOrdersTab .master-return-batch-actions .ui-action-sensitive{grid-column:1/-1;}
   .ui-list-toolbar :is(input,select,button){
