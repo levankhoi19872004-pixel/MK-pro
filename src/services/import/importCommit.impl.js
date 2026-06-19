@@ -42,6 +42,26 @@ async function getSessionStatus(sessionId) {
     };
   }
 
+  const storedResult = session.result && typeof session.result === 'object' && !Array.isArray(session.result)
+    ? session.result
+    : {};
+  const storedFailure = storedResult.importFailure && typeof storedResult.importFailure === 'object'
+    ? storedResult.importFailure
+    : null;
+  const publicResult = { ...storedResult };
+
+  if (storedFailure) {
+    publicResult.importFailure = {
+      code: storedFailure.code || '',
+      kind: storedFailure.kind || 'system',
+      message: storedFailure.message || session.errorMessage || '',
+      source: storedFailure.source || '',
+      exitCode: Number.isInteger(storedFailure.exitCode) ? storedFailure.exitCode : null,
+      signal: storedFailure.signal || '',
+      at: storedFailure.at || null
+    };
+  }
+
   return {
     sessionId: session.sessionId || session.id,
     importSessionId: session.sessionId || session.id,
@@ -56,9 +76,9 @@ async function getSessionStatus(sessionId) {
     previewRows: session.previewRows || [],
     importErrors: session.importErrors || [],
     errorMessage: session.errorMessage || '',
-    failure: session.failure || {},
-    worker: session.worker || {},
-    result: session.result || {},
+    errorCode: storedFailure?.code || '',
+    errorKind: storedFailure?.kind || '',
+    result: publicResult,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     queuedAt: session.queuedAt,

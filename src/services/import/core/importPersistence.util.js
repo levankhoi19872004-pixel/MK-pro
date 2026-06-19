@@ -15,9 +15,9 @@ const AUTO_CREATED_CUSTOMER_ADDRESS = 'NEW';
 const {
   cleanText,
   dateOnly,
-  getProductCodeFromRow,
   getCustomerCodeFromRow,
-  getCustomerNameFromRow
+  getCustomerNameFromRow,
+  getProductCodeFromRow
 } = require('./importValue.util');
 
 function groupRows(rows = [], keyFn) {

@@ -89,12 +89,13 @@ preparing_commit:"Đang chuẩn bị phiên import",loading_selected_rows:"Đang
 revalidating_orders:"Đang kiểm tra lại mã đơn, khách hàng, sản phẩm và NVBH",committing:"Đang ghi dữ liệu",finalizing:"Đang hoàn tất và ghi nhật ký",done:"Đã hoàn tất"}
 ;return`${labels[step]||"Đang import"} · ${percent}% · ${formatNumber(selectedCount)} đơn/dòng đã chọn`}function startImportCommitProgressPolling(sessionId,selectedCount){
 let stopped=false;let timer=null;const poll=async()=>{if(stopped||!sessionId)return;try{
-const res=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}?t=${Date.now()}`,{cache:"no-store"});const json=await res.json();if(res.ok&&json.ok){
-const status=String(json.status||"").toLowerCase();if(status==="importing"){showMessage(importDataMessage,describeImportCommitProgress(json.progress||{},selectedCount))
-}else if(status==="failed"){showMessage(importDataMessage,json.errorMessage||"Import thất bại",true);stopped=true;return}else if(status==="done"){stopped=true;return}}}catch(_){}
-if(!stopped)timer=setTimeout(poll,1200)};timer=setTimeout(poll,500);return()=>{stopped=true;if(timer)clearTimeout(timer)}}async function refreshAfterImport(type){
-if(["promotionProductRules","promotionGroupItems","promotionGroupRules"].includes(type)){if(typeof window.reloadPromotionRules==="function")await window.reloadPromotionRules()
-;return}if(type==="users"){if(typeof loadUsers==="function")await loadUsers();return}const tasks=[];const add=fn=>{if(typeof fn==="function")tasks.push(Promise.resolve().then(fn))}
-;if(type==="salesOrders"){add(loadSalesOrders);add(loadStock)}else if(type==="products"){add(loadProducts);add(loadStock)}else if(type==="customers"){add(loadCustomers)
-}else if(type==="openingStock"){add(loadStock);add(loadProducts)}else if(type==="importOrders"){add(loadImportOrders)}else if(type==="openingDebt"){add(loadDebts)
-}else if(type==="debtCollections"){add(loadDebts);add(loadReceipts);add(loadCashbook)}else if(type==="cashbook"){add(loadCashbook)}if(tasks.length)await Promise.allSettled(tasks)}
+const res=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}?t=${Date.now()}`,{cache:"no-store"});const json=await res.json()
+;const status=String(json.status||"").toLowerCase();if(status==="failed"){showMessage(importDataMessage,json.errorMessage||json.message||"Import thất bại",true);stopped=true;return
+}if(res.ok&&json.ok){if(status==="importing"){showMessage(importDataMessage,describeImportCommitProgress(json.progress||{},selectedCount))}else if(status==="done"){stopped=true
+;return}}}catch(_){}if(!stopped)timer=setTimeout(poll,1200)};timer=setTimeout(poll,500);return()=>{stopped=true;if(timer)clearTimeout(timer)}}
+async function refreshAfterImport(type){if(["promotionProductRules","promotionGroupItems","promotionGroupRules"].includes(type)){
+if(typeof window.reloadPromotionRules==="function")await window.reloadPromotionRules();return}if(type==="users"){if(typeof loadUsers==="function")await loadUsers();return}
+const tasks=[];const add=fn=>{if(typeof fn==="function")tasks.push(Promise.resolve().then(fn))};if(type==="salesOrders"){add(loadSalesOrders);add(loadStock)
+}else if(type==="products"){add(loadProducts);add(loadStock)}else if(type==="customers"){add(loadCustomers)}else if(type==="openingStock"){add(loadStock);add(loadProducts)
+}else if(type==="importOrders"){add(loadImportOrders)}else if(type==="openingDebt"){add(loadDebts)}else if(type==="debtCollections"){add(loadDebts);add(loadReceipts)
+;add(loadCashbook)}else if(type==="cashbook"){add(loadCashbook)}if(tasks.length)await Promise.allSettled(tasks)}

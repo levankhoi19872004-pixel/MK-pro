@@ -10,11 +10,7 @@ function read(file) {
 }
 
 test('import preview supports async worker queue instead of only inline job', () => {
-  const service = [
-    read('src/services/excelImportService.js'),
-    read('src/services/import/preview/importPreview.impl.js'),
-    read('src/services/import/importCommit.impl.js')
-  ].join('\n');
+  const service = read('src/services/excelImportService.js');
   const queue = read('src/jobs/importPreviewQueue.js');
   const worker = read('src/jobs/importPreview.worker.js');
   const job = read('src/jobs/importExcelJob.js');
@@ -34,12 +30,8 @@ test('import preview supports async worker queue instead of only inline job', ()
 
   assert.match(worker, /runImportPreviewJob/);
   assert.match(worker, /connectDB/);
-  assert.match(worker, /IMPORT_FAILED/);
-  assert.match(worker, /deferFinalState:\s*true/);
-  assert.doesNotMatch(worker, /importSessionService\.markFailed/);
+  assert.match(worker, /markFailed/);
   assert.match(worker, /cleanupImportFiles/);
-  assert.match(queue, /finalizePreview/);
-  assert.match(queue, /markFailed/);
 
   assert.match(job, /fs\.readFile|readFile/);
   assert.match(job, /updateProgress/);

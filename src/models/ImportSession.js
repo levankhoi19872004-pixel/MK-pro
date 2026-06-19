@@ -46,34 +46,6 @@ const ImportSessionSchema = new mongoose.Schema({
   startedAt: { type: Date, default: null },
   finishedAt: { type: Date, default: null },
 
-  tempFiles: {
-    type: [{
-      fileName: { type: String, default: '', trim: true },
-      path: { type: String, default: '', trim: true },
-      size: { type: Number, default: 0 }
-    }],
-    default: []
-  },
-
-  worker: {
-    pid: { type: Number, default: 0 },
-    diagnosticId: { type: String, default: '', trim: true },
-    startedAt: { type: Date, default: null },
-    durationMs: { type: Number, default: 0 },
-    exitCode: { type: Number, default: null },
-    signal: { type: String, default: '', trim: true }
-  },
-
-  failure: {
-    stage: { type: String, default: '', trim: true },
-    code: { type: String, default: '', trim: true },
-    workerPid: { type: Number, default: 0 },
-    exitCode: { type: Number, default: null },
-    signal: { type: String, default: '', trim: true },
-    diagnosticId: { type: String, default: '', trim: true },
-    durationMs: { type: Number, default: 0 }
-  },
-
   progress: {
     percent: { type: Number, default: 0 },
     step: { type: String, default: '' }

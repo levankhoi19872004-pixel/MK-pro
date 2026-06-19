@@ -6,135 +6,121 @@ const mongoose = require('mongoose');
 const connectDB = require('../config/db');
 const { runImportPreviewJob } = require('./importExcelJob');
 const { cleanupImportFiles } = require('../utils/importTempFileStore');
+const importSessionService = require('../services/importSessionService');
 
-let payload = {};
-let currentStage = 'starting';
-let shuttingDown = false;
+let activePayload = {};
+let terminationPromise = null;
 
 function decodePayload(value = '') {
   return JSON.parse(Buffer.from(String(value || ''), 'base64').toString('utf8'));
-}
-
-function normalizeError(reason) {
-  if (reason instanceof Error) return reason;
-  if (typeof reason === 'string') return new Error(reason);
-
-  try {
-    return new Error(JSON.stringify(reason));
-  } catch (err) {
-    return new Error(String(reason || 'Import worker thất bại'));
-  }
-}
-
-function truncate(value, maxLength = 4000) {
-  const text = String(value || '');
-  return text.length <= maxLength ? text : text.slice(0, maxLength);
-}
-
-function sendMessage(message) {
-  return new Promise((resolve) => {
-    if (!process.send || !process.connected) return resolve(false);
-    process.send(message, (err) => resolve(!err));
-  });
 }
 
 async function closeMongo() {
   await mongoose.connection.close().catch(() => {});
 }
 
-async function cleanupAndClose() {
-  await cleanupImportFiles(payload.files || []).catch((err) => {
-    console.error('[IMPORT_PREVIEW_WORKER_CLEANUP_ERROR]', err && (err.stack || err.message || err));
+function classifyImportFailure(err, defaults = {}) {
+  const statusCode = Number(err?.statusCode || err?.status || defaults.statusCode || 0);
+  const message = err && err.message ? err.message : String(err || defaults.message || 'Import worker thất bại');
+  const explicitKind = err?.importKind || defaults.kind;
+  const dataMessage = /(file excel|workbook|sheet|header|dữ liệu|du lieu|dòng|dong|cột|cot|loại import|loai import)/i.test(message);
+  const systemErrorName = ['ReferenceError', 'TypeError', 'SyntaxError', 'RangeError'].includes(err?.name);
+  const kind = explicitKind === 'data' || (!systemErrorName && statusCode >= 400 && statusCode < 500) || (!systemErrorName && dataMessage)
+    ? 'data'
+    : 'system';
+
+  return importSessionService.normalizeImportFailure({
+    code: err?.code || defaults.code || (kind === 'data' ? 'IMPORT_EXCEL_DATA_ERROR' : 'IMPORT_WORKER_SYSTEM_ERROR'),
+    kind,
+    message,
+    stack: err?.stack || defaults.stack || '',
+    source: 'worker',
+    exitCode: 1,
+    signal: ''
   });
-  await closeMongo();
 }
 
-async function failAndExit(reason) {
-  if (shuttingDown) return;
-  shuttingDown = true;
+function sendParentMessage(message) {
+  if (!process.send || !process.connected) return Promise.resolve(false);
 
-  const err = normalizeError(reason);
-  const message = err.message || String(err);
-  const errorCode = err.code || 'IMPORT_WORKER_FAILED';
-  const stage = err.importStage || currentStage || 'unknown';
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (sent) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(sent);
+    };
+    const timer = setTimeout(() => finish(false), 1000);
 
-  console.error('[IMPORT_PREVIEW_WORKER_FATAL]', {
-    sessionId: payload.sessionId,
-    stage,
-    code: errorCode,
-    message,
-    stack: err.stack
+    try {
+      process.send(message, (err) => finish(!err));
+    } catch (_) {
+      finish(false);
+    }
   });
+}
 
-  await sendMessage({
-    type: 'IMPORT_FAILED',
-    sessionId: payload.sessionId || '',
-    stage,
-    code: errorCode,
-    message,
-    stack: truncate(err.stack)
-  });
+async function terminateWithFailure(err, defaults = {}) {
+  if (terminationPromise) return terminationPromise;
 
-  await cleanupAndClose();
-  if (process.connected) process.disconnect();
-  process.exit(1);
+  terminationPromise = (async () => {
+    const failure = classifyImportFailure(err, defaults);
+
+    if (activePayload.sessionId) {
+      await importSessionService.markFailed(activePayload.sessionId, failure).catch(() => {});
+    }
+
+    await sendParentMessage({
+      type: 'failed',
+      sessionId: activePayload.sessionId || '',
+      failure
+    }).catch(() => false);
+
+    await cleanupImportFiles(activePayload.files || []).catch(() => {});
+    await closeMongo();
+    process.exit(1);
+  })();
+
+  return terminationPromise;
 }
 
 async function main() {
-  try {
-    payload = decodePayload(process.argv[2] || '');
-    currentStage = 'connecting_database';
-    await sendMessage({ type: 'IMPORT_PROGRESS', sessionId: payload.sessionId || '', stage: currentStage });
-    await connectDB();
+  activePayload = decodePayload(process.argv[2] || '');
+  await connectDB();
 
-    const result = await runImportPreviewJob({
-      sessionId: payload.sessionId,
-      type: payload.type,
-      files: payload.files || [],
-      userName: payload.userName || '',
-      importMode: payload.importMode || 'create',
-      deferFinalState: true,
-      onStage(stageInfo = {}) {
-        currentStage = String(stageInfo.stage || currentStage || 'processing');
-        void sendMessage({
-          type: 'IMPORT_PROGRESS',
-          sessionId: payload.sessionId || '',
-          stage: currentStage,
-          percent: Number(stageInfo.percent || 0),
-          fileName: stageInfo.fileName || ''
-        });
-      }
-    });
+  const result = await runImportPreviewJob({
+    sessionId: activePayload.sessionId,
+    type: activePayload.type,
+    files: activePayload.files || [],
+    userName: activePayload.userName || '',
+    importMode: activePayload.importMode || 'create'
+  });
 
-    currentStage = 'completed';
-    await cleanupAndClose();
-
-    await sendMessage({
-      type: 'IMPORT_COMPLETED',
-      sessionId: payload.sessionId || '',
-      stage: currentStage,
-      summary: {
-        total: Number(result?.total || result?.rows?.length || 0),
-        valid: Number(result?.valid || 0),
-        invalid: Number(result?.invalid || 0),
-        totalFiles: Number(result?.totalFiles || payload.files?.length || 0)
-      }
-    });
-
-    shuttingDown = true;
-    if (process.connected) process.disconnect();
-    process.exit(0);
-  } catch (err) {
-    await failAndExit(err);
+  if (result && result.error) {
+    const error = new Error(result.error);
+    error.code = 'IMPORT_EXCEL_DATA_ERROR';
+    error.importKind = 'data';
+    error.statusCode = Number(result.status || 422);
+    throw error;
   }
+
+  await cleanupImportFiles(activePayload.files || []);
+  await sendParentMessage({
+    type: 'completed',
+    sessionId: activePayload.sessionId || ''
+  });
+  await closeMongo();
+  process.exit(0);
 }
 
 process.on('uncaughtException', (err) => {
-  void failAndExit(err);
+  void terminateWithFailure(err);
 });
 
 process.on('unhandledRejection', (reason) => {
-  void failAndExit(reason);
+  const err = reason instanceof Error ? reason : new Error(String(reason || 'Unhandled rejection'));
+  void terminateWithFailure(err);
 });
 
-void main();
+void main().catch((err) => terminateWithFailure(err));

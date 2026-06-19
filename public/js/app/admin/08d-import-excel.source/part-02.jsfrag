@@ -354,14 +354,15 @@ function startImportCommitProgressPolling(sessionId,selectedCount){
     try{
       const res=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}?t=${Date.now()}`,{cache:'no-store'});
       const json=await res.json();
+      const status=String(json.status||'').toLowerCase();
+      if(status==='failed'){
+        showMessage(importDataMessage,json.errorMessage||json.message||'Import thất bại',true);
+        stopped=true;
+        return;
+      }
       if(res.ok&&json.ok){
-        const status=String(json.status||'').toLowerCase();
         if(status==='importing'){
           showMessage(importDataMessage,describeImportCommitProgress(json.progress||{},selectedCount));
-        }else if(status==='failed'){
-          showMessage(importDataMessage,json.errorMessage||'Import thất bại',true);
-          stopped=true;
-          return;
         }else if(status==='done'){
           stopped=true;
           return;

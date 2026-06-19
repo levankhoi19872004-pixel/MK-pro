@@ -12,6 +12,52 @@ function cleanText(value) {
   return String(value ?? '').trim();
 }
 
+const IMPORT_FAILURE_MESSAGE_MAX = 1200;
+const IMPORT_FAILURE_STACK_MAX = 8000;
+
+function escapeRegExp(value = '') {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function sanitizeImportFailureText(value, maxLength) {
+  let text = String(value ?? '').replace(/\0/g, '').trim();
+  if (!text) return '';
+
+  const cwd = cleanText(process.cwd());
+  if (cwd) text = text.replace(new RegExp(escapeRegExp(cwd), 'g'), '<app>');
+
+  text = text
+    .replace(/(mongodb(?:\+srv)?:\/\/)([^@\s]+)@/gi, '$1<redacted>@')
+    .replace(/\b(authorization|cookie|password|passwd|secret|token)\s*[:=]\s*([^\s,;]+)/gi, '$1=<redacted>');
+
+  return text.slice(0, Math.max(1, Number(maxLength) || IMPORT_FAILURE_MESSAGE_MAX));
+}
+
+function normalizeImportFailure(failure = {}) {
+  const source = failure && typeof failure === 'object' && !Array.isArray(failure)
+    ? failure
+    : { message: failure };
+  const kind = source.kind === 'data' ? 'data' : 'system';
+  const rawCode = cleanText(source.code || (kind === 'data' ? 'IMPORT_EXCEL_DATA_ERROR' : 'IMPORT_WORKER_SYSTEM_ERROR'));
+  const code = rawCode.replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 80) || 'IMPORT_WORKER_SYSTEM_ERROR';
+  const message = sanitizeImportFailureText(
+    source.message || (kind === 'data' ? 'Dữ liệu Excel không hợp lệ' : 'Import worker thất bại'),
+    IMPORT_FAILURE_MESSAGE_MAX
+  );
+  const stack = sanitizeImportFailureText(source.stack || '', IMPORT_FAILURE_STACK_MAX);
+
+  return {
+    code,
+    kind,
+    message,
+    stack,
+    source: sanitizeImportFailureText(source.source || '', 40),
+    exitCode: Number.isInteger(source.exitCode) ? source.exitCode : null,
+    signal: sanitizeImportFailureText(source.signal || '', 40),
+    at: new Date().toISOString()
+  };
+}
+
 function getRowDocumentCode(row = {}) {
   return cleanText(
     row.documentCode ||
@@ -194,7 +240,7 @@ async function markParsing(id) {
         updatedAt: new Date(),
         progress: {
           percent: 10,
-          step: 'reading_file'
+          step: 'parsing'
         }
       }
     },
@@ -202,30 +248,7 @@ async function markParsing(id) {
   );
 }
 
-async function markWorkerStarted(id, { workerPid, diagnosticId = '', startedAt = new Date() } = {}) {
-  const value = cleanText(id);
-  if (!value) return null;
-
-  return ImportSession.findOneAndUpdate(
-    { $or: [{ id: value }, { sessionId: value }] },
-    {
-      $set: {
-        worker: {
-          pid: Number(workerPid || 0),
-          diagnosticId: cleanText(diagnosticId),
-          startedAt,
-          durationMs: 0,
-          exitCode: null,
-          signal: ''
-        },
-        updatedAt: new Date()
-      }
-    },
-    { new: true }
-  );
-}
-
-async function savePreviewResult(id, { rows = [], previewRows = [], fileNames = [], deferFinalState = false } = {}) {
+async function savePreviewResult(id, { rows = [], previewRows = [], fileNames = [] } = {}) {
   const value = cleanText(id);
   if (!value) return null;
 
@@ -248,129 +271,80 @@ async function savePreviewResult(id, { rows = [], previewRows = [], fileNames = 
 
   await insertRowsInBatches(rowDocs);
 
-  const now = new Date();
-  const setPayload = {
-    totalRows: rows.length,
-    validRows: validRows.length,
-    errorRows: errorRowNumbers.size || errors.length,
-    importErrors: errors.slice(0, 1000),
-    previewRows: (previewRows.length ? previewRows : rows)
-      .slice(0, IMPORT_PREVIEW_LIMIT)
-      .map(compactPreviewRow),
-    rowStorage: 'collection',
-    storedRows: rowDocs.length,
-    fileNames,
-    updatedAt: now
-  };
-
-  const unsetPayload = {
-    errors: '',
-    validDataRows: '',
-    rawRows: ''
-  };
-
-  if (deferFinalState) {
-    setPayload.progress = { percent: 95, step: 'awaiting_finalize' };
-  } else {
-    setPayload.status = 'preview_ready';
-    setPayload.finishedAt = now;
-    setPayload.progress = { percent: 100, step: 'completed' };
-    unsetPayload.tempFiles = '';
-    unsetPayload.failure = '';
-    unsetPayload.errorMessage = '';
-  }
-
   return ImportSession.findOneAndUpdate(
     { $or: [{ id: value }, { sessionId: value }] },
     {
-      $set: setPayload,
-      $unset: unsetPayload
-    },
-    { new: true }
-  );
-}
-
-async function finalizePreview(id, { workerPid, diagnosticId = '', durationMs = 0 } = {}) {
-  const value = cleanText(id);
-  if (!value) return null;
-
-  return ImportSession.findOneAndUpdate(
-    {
-      $or: [{ id: value }, { sessionId: value }],
-      status: { $in: ['queued', 'parsing'] }
-    },
-    {
       $set: {
         status: 'preview_ready',
+        totalRows: rows.length,
+        validRows: validRows.length,
+        errorRows: errorRowNumbers.size || errors.length,
+        importErrors: errors.slice(0, 1000),
+        previewRows: (previewRows.length ? previewRows : rows)
+          .slice(0, IMPORT_PREVIEW_LIMIT)
+          .map(compactPreviewRow),
+        rowStorage: 'collection',
+        storedRows: rowDocs.length,
+        fileNames,
         finishedAt: new Date(),
         progress: {
           percent: 100,
-          step: 'completed'
-        },
-        'worker.pid': Number(workerPid || 0),
-        'worker.diagnosticId': cleanText(diagnosticId),
-        'worker.durationMs': Math.max(0, Number(durationMs) || 0),
-        'worker.exitCode': 0,
-        'worker.signal': '',
-        updatedAt: new Date()
-      },
-      $unset: {
-        tempFiles: '',
-        failure: '',
-        errorMessage: ''
-      }
-    },
-    { new: true }
-  );
-}
-
-async function markFailed(id, errorMessage, details = {}) {
-  const value = cleanText(id);
-  if (!value) return null;
-
-  const stage = cleanText(details.stage || 'unknown');
-  const hasExitCode = details.exitCode !== null && details.exitCode !== undefined && details.exitCode !== '';
-  const exitCode = hasExitCode && Number.isFinite(Number(details.exitCode))
-    ? Number(details.exitCode)
-    : null;
-
-  return ImportSession.findOneAndUpdate(
-    {
-      $or: [{ id: value }, { sessionId: value }],
-      status: { $nin: ['preview_ready', 'done'] }
-    },
-    {
-      $set: {
-        status: 'failed',
-        errorMessage: String(errorMessage || ''),
-        failedAt: new Date(),
-        finishedAt: new Date(),
-        failure: {
-          stage,
-          code: cleanText(details.code || 'IMPORT_FAILED'),
-          workerPid: Number(details.workerPid || 0),
-          exitCode,
-          signal: cleanText(details.signal),
-          diagnosticId: cleanText(details.diagnosticId),
-          durationMs: Math.max(0, Number(details.durationMs) || 0)
-        },
-        'worker.pid': Number(details.workerPid || 0),
-        'worker.diagnosticId': cleanText(details.diagnosticId),
-        'worker.durationMs': Math.max(0, Number(details.durationMs) || 0),
-        'worker.exitCode': exitCode,
-        'worker.signal': cleanText(details.signal),
-        progress: {
-          percent: 100,
-          step: stage && stage !== 'unknown' ? `failed:${stage}` : 'failed'
+          step: 'preview_ready'
         },
         updatedAt: new Date()
       },
       $unset: {
+        errors: '',
+        validDataRows: '',
+        rawRows: '',
         tempFiles: ''
       }
     },
     { new: true }
   );
+}
+
+async function markFailed(id, failure, { preserveExistingDetails = false } = {}) {
+  const value = cleanText(id);
+  if (!value) return null;
+
+  const normalizedFailure = normalizeImportFailure(failure);
+  const identityFilter = { $or: [{ id: value }, { sessionId: value }] };
+  const filter = preserveExistingDetails
+    ? {
+        $and: [
+          identityFilter,
+          {
+            $or: [
+              { 'result.importFailure.message': { $exists: false } },
+              { 'result.importFailure.message': '' }
+            ]
+          }
+        ]
+      }
+    : identityFilter;
+
+  const updated = await ImportSession.findOneAndUpdate(
+    filter,
+    {
+      $set: {
+        status: 'failed',
+        errorMessage: normalizedFailure.message,
+        'result.importFailure': normalizedFailure,
+        failedAt: new Date(),
+        finishedAt: new Date(),
+        progress: {
+          percent: 100,
+          step: 'failed'
+        },
+        updatedAt: new Date()
+      }
+    },
+    { new: true }
+  );
+
+  if (!updated && preserveExistingDetails) return getSession(value);
+  return updated;
 }
 
 async function getSession(id) {
@@ -528,10 +502,9 @@ module.exports = {
   markQueued,
   updateProgress,
   markParsing,
-  markWorkerStarted,
   savePreviewResult,
-  finalizePreview,
   markFailed,
+  normalizeImportFailure,
   recoverStaleImportSessions,
   getSession,
   listSessionRows,
