@@ -105,11 +105,23 @@
 }
 #salesTab .sales-order-list-head{top:0!important;}
 
+/* Master orders adopter: page actions and filters share the common toolbar contract. */
+#masterOrdersTab .ui-search-filter-bar{
+  grid-template-columns:
+    minmax(var(--search-width-sm),var(--search-width-lg))
+    minmax(150px,var(--filter-width-sm))
+    minmax(150px,var(--filter-width-sm))
+    max-content;
+}
+
 @media(max-width:1199px) and (min-width:768px){
   .ui-search-filter-bar{grid-template-columns:repeat(6,minmax(0,1fr));}
   .ui-field-search{grid-column:span 3;}
   .ui-field-staff{grid-column:span 3;}
   .ui-toolbar-actions{grid-column:span 3;justify-content:flex-end;}
+  #masterOrdersTab .ui-search-filter-bar{grid-template-columns:repeat(6,minmax(0,1fr));}
+  #masterOrdersTab .ui-field-search{grid-column:span 4;}
+  #masterOrdersTab .ui-toolbar-actions{grid-column:span 6;justify-content:flex-end;}
 }
 
 @media(max-width:767px){
@@ -120,6 +132,7 @@
   .ui-toolbar-actions{display:grid;grid-template-columns:1fr 1fr;justify-content:stretch;}
   .ui-toolbar-actions button{width:100%;}
   .ui-toolbar-actions .ui-action-primary{grid-column:1/-1;grid-row:1;}
+  #masterOrdersTab .ui-search-filter-bar{grid-template-columns:1fr;}
   .ui-list-toolbar :is(input,select,button){
     min-height:var(--toolbar-control-height-comfortable)!important;
     height:var(--toolbar-control-height-comfortable)!important;

@@ -330,23 +330,32 @@
       <!-- MASTER_ORDER_POPUP_PATCH_START: màn chính chỉ giữ danh sách đơn tổng, tạo đơn tổng đưa vào popup 3 layer -->
       <main class="grid master-order-grid master-order-list-only-grid">
         <section class="card master-list-card master-list-only-card">
-          <!-- MASTER_ORDER_TOOLBAR_GROUPED_START: tách tiêu đề, search/date và cụm nút để toolbar cân đối hơn -->
-          <div class="master-order-toolbar-grouped">
-            <div class="master-order-title-row">
+          <div class="ui-list-toolbar">
+            <div class="ui-page-header">
               <div>
                 <h2>Danh sách đơn tổng</h2>
-                <p id="masterOrderCount" class="muted">Đang tải...</p>
+                <p id="masterOrderCount" class="muted ui-page-meta">Đang tải...</p>
               </div>
-            </div>
-            <div class="master-order-toolbar-row">
-              <div class="master-order-search-box">
-                <input id="masterOrderSearch" placeholder="Tìm mã đơn tổng, NV giao, NV bán, ghi chú..." />
-              </div>
-              <div class="master-order-date-box">
-                <input id="masterOrderDateFrom" type="date" title="Từ ngày" />
-                <input id="masterOrderDateTo" type="date" title="Đến ngày" />
-              </div>
-              <div class="master-order-action-box">
-                <button id="openMasterOrderModalButton" class="primary" type="button">+ Tạo đơn tổng</button>
+              <div class="ui-page-actions">
                 <button id="selectAllMasterOrdersButton" class="secondary" type="button">Chọn tất cả</button>
                 <button id="printSelectedMasterOrdersButton" class="secondary" type="button">In đơn tổng</button>
+                <button id="exportSelectedMasterOrdersButton" class="secondary" type="button">Xuất Excel</button>
+                <button id="openMasterOrderModalButton" class="primary ui-action-primary" type="button">+ Tạo đơn tổng</button>
+              </div>
+            </div>
+            <div class="ui-search-filter-bar">
+              <label class="ui-toolbar-field ui-field-search">
+                <span>Tìm kiếm</span>
+                <input id="masterOrderSearch" placeholder="Tìm mã đơn tổng, NV giao, NV bán, ghi chú..." />
+              </label>
+              <label class="ui-toolbar-field">
+                <span>Từ ngày</span>
+                <input id="masterOrderDateFrom" type="date" title="Từ ngày" />
+              </label>
+              <label class="ui-toolbar-field">
+                <span>Đến ngày</span>
+                <input id="masterOrderDateTo" type="date" title="Đến ngày" />
+              </label>
+              <div class="ui-toolbar-actions">
+                <button id="applyMasterOrderFiltersButton" class="primary" type="button">Tìm kiếm</button>
+                <button id="clearMasterOrderFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
