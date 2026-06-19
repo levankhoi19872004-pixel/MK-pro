@@ -1,8 +1,0 @@
-".env" 
-"node_modules/" 
-".git/" 
-node_modules/
-.env
-coverage/
-logs/
-*.log

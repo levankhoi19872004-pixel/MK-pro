@@ -1,7 +1,0 @@
-PHASE33 QUALITY GATE
-====================
-JavaScript syntax: PASS - 498 files
-OpenAPI drift: PASS - 270 operations
-Full automated tests: PASS - 384/384
-Phase33 targeted regression: PASS - 6/6
-npm audit --omit=dev --audit-level=high: PASS - 0 vulnerabilities
