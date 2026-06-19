@@ -45,38 +45,75 @@ function renderDebtCollections(rows=[], summary={}){
       <td>${escapeHtml(debtCollectionMethodName(row.paymentMethod))}</td>
       <td>${escapeHtml(debtCollectionStatusName(row.status))}</td>
       <td>${allocationText}</td>
-      <td>${canConfirm?`<button type="button" class="small success" onclick="confirmDebtCollectionFromWeb('${id}', ${Number(row.amount||0)})">Xác nhận</button> <button type="button" class="small danger" onclick="rejectDebtCollectionFromWeb('${id}')">Từ chối</button>`:'-'}</td>
+      <td>${canConfirm?`<span class="debt-collection-row-actions"><button type="button" class="small success" data-debt-collection-id="${id}" onclick="confirmDebtCollectionFromWeb('${id}', ${Number(row.amount||0)}, this)">Xác nhận</button><button type="button" class="small danger" data-debt-collection-id="${id}" onclick="rejectDebtCollectionFromWeb('${id}', this)">Từ chối</button></span>`:'-'}</td>
     </tr>`;
   }).join('');
 }
+let debtCollectionsLoadPromise=null;
+const debtCollectionActionLocks=new Set();
+function setDebtCollectionToolbarLoading(isLoading){
+  [applyDebtCollectionFiltersButton,clearDebtCollectionFiltersButton,reloadDebtCollectionsButton].forEach(button=>{
+    if(!button)return;
+    button.disabled=isLoading;
+    if(isLoading)button.setAttribute('aria-busy','true');
+    else button.removeAttribute('aria-busy');
+  });
+}
+function setDebtCollectionRowLoading(id, isLoading){
+  document.querySelectorAll('.debt-collection-row-actions button').forEach(button=>{
+    if(String(button.dataset.debtCollectionId||'')!==String(id||''))return;
+    button.disabled=isLoading;
+    if(isLoading)button.setAttribute('aria-busy','true');
+    else button.removeAttribute('aria-busy');
+  });
+}
 async function loadDebtCollections(){
   if(!debtCollectionTable)return;
-  const params=new URLSearchParams();
-  const status=debtCollectionStatusFilter?debtCollectionStatusFilter.value:'submitted';
-  if(status&&status!=='all')params.set('status',status);
-  if(debtCollectionCollectorTypeFilter&&debtCollectionCollectorTypeFilter.value)params.set('collectorType',debtCollectionCollectorTypeFilter.value);
-  if(debtCollectionDateFrom&&debtCollectionDateFrom.value)params.set('fromDate',debtCollectionDateFrom.value);
-  if(debtCollectionDateTo&&debtCollectionDateTo.value)params.set('toDate',debtCollectionDateTo.value);
-  params.set('limit','300');
-  try{
-    if(debtCollectionCount)debtCollectionCount.textContent='Đang tải phiếu thu nợ...';
-    const res=await fetch(`/api/debt-collections?${params.toString()}`);
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không tải được phiếu thu nợ');
-    window.__debtCollectionsCache=Array.isArray(json.items)?json.items:[];
-    renderDebtCollections(window.__debtCollectionsCache,json.summary||{});
-  }catch(err){
-    if(debtCollectionCount)debtCollectionCount.textContent='Lỗi tải phiếu thu nợ';
-    if(debtCollectionTable)debtCollectionTable.innerHTML=`<tr><td colspan="8" class="danger-text">${escapeHtml(err.message||'Không tải được phiếu thu nợ')}</td></tr>`;
-  }
+  if(debtCollectionsLoadPromise)return debtCollectionsLoadPromise;
+  setDebtCollectionToolbarLoading(true);
+  debtCollectionsLoadPromise=(async()=>{
+    const params=new URLSearchParams();
+    const status=debtCollectionStatusFilter?debtCollectionStatusFilter.value:'submitted';
+    if(status&&status!=='all')params.set('status',status);
+    if(debtCollectionCollectorTypeFilter&&debtCollectionCollectorTypeFilter.value)params.set('collectorType',debtCollectionCollectorTypeFilter.value);
+    if(debtCollectionDateFrom&&debtCollectionDateFrom.value)params.set('fromDate',debtCollectionDateFrom.value);
+    if(debtCollectionDateTo&&debtCollectionDateTo.value)params.set('toDate',debtCollectionDateTo.value);
+    params.set('limit','300');
+    try{
+      if(debtCollectionCount)debtCollectionCount.textContent='Đang tải phiếu thu nợ...';
+      const res=await fetch(`/api/debt-collections?${params.toString()}`);
+      const json=await res.json();
+      if(!json.ok)throw new Error(json.message||'Không tải được phiếu thu nợ');
+      window.__debtCollectionsCache=Array.isArray(json.items)?json.items:[];
+      renderDebtCollections(window.__debtCollectionsCache,json.summary||{});
+    }catch(err){
+      if(debtCollectionCount)debtCollectionCount.textContent='Lỗi tải phiếu thu nợ';
+      if(debtCollectionTable)debtCollectionTable.innerHTML=`<tr><td colspan="8" class="danger-text">${escapeHtml(err.message||'Không tải được phiếu thu nợ')}</td></tr>`;
+    }finally{
+      setDebtCollectionToolbarLoading(false);
+      debtCollectionsLoadPromise=null;
+    }
+  })();
+  return debtCollectionsLoadPromise;
 }
-async function confirmDebtCollectionFromWeb(id, amount){
+async function resetDebtCollectionFilters(){
+  if(debtCollectionStatusFilter)debtCollectionStatusFilter.value='submitted';
+  if(debtCollectionCollectorTypeFilter)debtCollectionCollectorTypeFilter.value='';
+  if(debtCollectionSearchInput)debtCollectionSearchInput.value='';
+  if(debtCollectionDateFrom)debtCollectionDateFrom.value=today();
+  if(debtCollectionDateTo)debtCollectionDateTo.value=today();
+  await loadDebtCollections();
+}
+async function confirmDebtCollectionFromWeb(id, amount, triggerButton){
   if(!id)return;
   const raw=prompt('Số tiền kế toán thực nhận', String(Math.round(Number(amount||0))));
   if(raw===null)return;
   const actualReceivedAmount=parseDebtMoneyInput(raw);
   if(actualReceivedAmount<=0){alert('Số tiền thực nhận phải lớn hơn 0');return;}
   const accountingNote=prompt('Ghi chú kế toán', 'Đã nhận đủ tiền')||'';
+  if(debtCollectionActionLocks.has(id))return;
+  debtCollectionActionLocks.add(id);
+  setDebtCollectionRowLoading(id,true);
   try{
     const res=await fetch(`/api/debt-collections/${encodeURIComponent(id)}/confirm`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({actualReceivedAmount,accountingNote})});
     const json=await res.json();
@@ -86,11 +123,15 @@ async function confirmDebtCollectionFromWeb(id, amount){
     await loadDebts();
     if(typeof loadFundLedger==='function')await loadFundLedger();
   }catch(err){showMessage(debtCollectionMessage,err.message||'Không xác nhận được phiếu thu nợ',true)}
+  finally{debtCollectionActionLocks.delete(id);setDebtCollectionRowLoading(id,false);if(triggerButton)triggerButton.removeAttribute('aria-busy')}
 }
-async function rejectDebtCollectionFromWeb(id){
+async function rejectDebtCollectionFromWeb(id, triggerButton){
   if(!id)return;
   const reason=prompt('Lý do từ chối phiếu thu nợ','Nhân viên chưa nộp tiền');
   if(!reason)return;
+  if(debtCollectionActionLocks.has(id))return;
+  debtCollectionActionLocks.add(id);
+  setDebtCollectionRowLoading(id,true);
   try{
     const res=await fetch(`/api/debt-collections/${encodeURIComponent(id)}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});
     const json=await res.json();
@@ -99,13 +140,15 @@ async function rejectDebtCollectionFromWeb(id){
     await loadDebtCollections();
     await loadDebts();
   }catch(err){showMessage(debtCollectionMessage,err.message||'Không từ chối được phiếu thu nợ',true)}
+  finally{debtCollectionActionLocks.delete(id);setDebtCollectionRowLoading(id,false);if(triggerButton)triggerButton.removeAttribute('aria-busy')}
 }
 window.loadDebtCollections=loadDebtCollections;
 window.confirmDebtCollectionFromWeb=confirmDebtCollectionFromWeb;
 window.rejectDebtCollectionFromWeb=rejectDebtCollectionFromWeb;
+if(applyDebtCollectionFiltersButton)applyDebtCollectionFiltersButton.addEventListener('click',loadDebtCollections);
+if(clearDebtCollectionFiltersButton)clearDebtCollectionFiltersButton.addEventListener('click',resetDebtCollectionFilters);
 if(reloadDebtCollectionsButton)reloadDebtCollectionsButton.addEventListener('click',loadDebtCollections);
-[debtCollectionStatusFilter,debtCollectionCollectorTypeFilter,debtCollectionDateFrom,debtCollectionDateTo].forEach(el=>{if(el)el.addEventListener('change',loadDebtCollections)});
-if(debtCollectionSearchInput)debtCollectionSearchInput.addEventListener('input',()=>renderDebtCollections(window.__debtCollectionsCache||[],{}));
+if(debtCollectionSearchInput)debtCollectionSearchInput.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();loadDebtCollections();}});
 if(debtCollectionDateFrom&&!debtCollectionDateFrom.value)debtCollectionDateFrom.value=today();
 if(debtCollectionDateTo&&!debtCollectionDateTo.value)debtCollectionDateTo.value=today();
 

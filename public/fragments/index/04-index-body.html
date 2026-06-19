@@ -79,27 +79,43 @@
 
     <section id="debtCollectionsTab" class="tab-content">
       <section class="card">
-        <div class="toolbar sticky-filter-bar">
-          <div>
-            <h2>Thu nợ chờ kế toán xác nhận</h2>
-            <p id="debtCollectionCount" class="muted">Danh sách phiếu thu nợ do app bán hàng/app giao hàng gửi lên. Chỉ khi kế toán xác nhận mới trừ công nợ và ghi quỹ.</p>
+        <div class="ui-list-toolbar debt-collection-list-toolbar">
+          <div class="ui-page-header">
+            <div class="ui-page-title">
+              <h2>Thu nợ chờ kế toán xác nhận</h2>
+              <p id="debtCollectionCount" class="muted ui-page-meta">Danh sách phiếu thu nợ do app bán hàng/app giao hàng gửi lên. Chỉ khi kế toán xác nhận mới trừ công nợ và ghi quỹ.</p>
+            </div>
           </div>
-          <div class="sales-history-filters">
-            <select id="debtCollectionStatusFilter" title="Trạng thái phiếu thu nợ">
-              <option value="submitted">Chờ xác nhận</option>
-              <option value="accounting_confirmed">Đã xác nhận</option>
-              <option value="rejected">Đã từ chối</option>
-              <option value="all">Tất cả</option>
-            </select>
-            <select id="debtCollectionCollectorTypeFilter" title="Nguồn thu">
-              <option value="">Tất cả nguồn</option>
-              <option value="sales">App bán hàng</option>
-              <option value="delivery">App giao hàng</option>
-            </select>
-            <input id="debtCollectionDateFrom" type="date" title="Từ ngày" />
-            <input id="debtCollectionDateTo" type="date" title="Đến ngày" />
-            <input id="debtCollectionSearchInput" placeholder="Mã phiếu / KH / nhân viên" />
-            <button id="reloadDebtCollectionsButton" class="primary-action" type="button">Tải phiếu</button>
+          <div class="ui-search-filter-bar debt-collection-toolbar-grid" role="search" aria-label="Tìm và lọc phiếu thu nợ">
+            <label class="ui-toolbar-field ui-field-search">Tìm kiếm
+              <input id="debtCollectionSearchInput" placeholder="Mã phiếu / khách hàng / nhân viên" />
+            </label>
+            <label class="ui-toolbar-field ui-field-status">Trạng thái
+              <select id="debtCollectionStatusFilter" title="Trạng thái phiếu thu nợ">
+                <option value="submitted">Chờ xác nhận</option>
+                <option value="accounting_confirmed">Đã xác nhận</option>
+                <option value="rejected">Đã từ chối</option>
+                <option value="all">Tất cả</option>
+              </select>
+            </label>
+            <label class="ui-toolbar-field debt-collection-source-field">Nguồn thu
+              <select id="debtCollectionCollectorTypeFilter" title="Nguồn thu">
+                <option value="">Tất cả nguồn</option>
+                <option value="sales">App bán hàng</option>
+                <option value="delivery">App giao hàng</option>
+              </select>
+            </label>
+            <label class="ui-toolbar-field ui-field-date">Từ ngày
+              <input id="debtCollectionDateFrom" type="date" title="Từ ngày" />
+            </label>
+            <label class="ui-toolbar-field ui-field-date">Đến ngày
+              <input id="debtCollectionDateTo" type="date" title="Đến ngày" />
+            </label>
+            <div class="ui-toolbar-actions debt-collection-toolbar-actions">
+              <button id="applyDebtCollectionFiltersButton" class="primary-action ui-action-primary" type="button">Tìm kiếm</button>
+              <button id="clearDebtCollectionFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
+              <button id="reloadDebtCollectionsButton" class="secondary" type="button">Tải lại</button>
+            </div>
           </div>
         </div>
         <div class="debt-v2-kpis debt-v2-kpis-4">
@@ -122,7 +138,7 @@
                 <th>Thao tác</th>
               </tr>
             </thead>
-            <tbody id="debtCollectionTable"><tr><td colspan="8">Bấm Tải phiếu để xem danh sách thu nợ chờ xác nhận.</td></tr></tbody>
+            <tbody id="debtCollectionTable"><tr><td colspan="8">Bấm Tìm kiếm hoặc Tải lại để xem danh sách thu nợ chờ xác nhận.</td></tr></tbody>
           </table>
         </div>
         <p id="debtCollectionMessage" class="message"></p>

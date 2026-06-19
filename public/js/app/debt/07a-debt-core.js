@@ -78,66 +78,83 @@ function clearDebtSearchResultState(message='Nhập mã, tên hoặc SĐT khách
   if(typeof renderDebtManagementReports==='function')renderDebtManagementReports([],{});
   if(typeof clearDebtCustomerSelection==='function')clearDebtCustomerSelection();
 }
+let debtLoadPromise=null;
+function setDebtToolbarLoading(isLoading){
+  [applyDebtFiltersButton,debtClearFiltersButton,reloadDebtsButton].forEach(button=>{
+    if(!button)return;
+    button.disabled=isLoading;
+    if(isLoading)button.setAttribute('aria-busy','true');
+    else button.removeAttribute('aria-busy');
+  });
+}
 async function loadDebts(){
   const criteria=getDebtSearchCriteria();
   if(!hasDebtSearchCriteria(criteria)){
     clearDebtSearchResultState();
     return;
   }
-  const params=new URLSearchParams();
-  if(criteria.q)params.set('q',criteria.q);
-  if(criteria.salesman)params.set('salesman',criteria.salesman);
-  if(criteria.delivery)params.set('delivery',criteria.delivery);
-  if(criteria.status && criteria.status!=='all')params.set('status',criteria.status);
-  params.set('page','1');
-  params.set('limit','50');
-  params.set('includePaid',criteria.status==='paid'?'1':'0');
-  const url=`/api/debts/customers?${params.toString()}`;
-  try{
-    if(debtCount)debtCount.textContent='Đang tra cứu công nợ...';
-    const res=await fetch(url);
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không tải được công nợ');
-    const ledger=Array.isArray(json.debts)?json.debts:[];
-    window.debtLedgerRowsCache=ledger;
-    const summary=json.summary||{};
-    debtsCache=mergeDebtCustomerSummaryFromDebtRows(json.customerSummary, ledger);
-    const totalDebt=Number(summary.totalDebt ?? ledger.reduce((sum,d)=>sum+normalizeDebtAmount(d.debt),0));
-    if(debtTotalKpi)debtTotalKpi.textContent=money(totalDebt);
-    if(debtCount)debtCount.textContent=`${summary.customerCount??debtsCache.length} khách · ${summary.orderCount??ledger.length} đơn · Quá hạn ${summary.overdueCount??0}`;
-    if(debtCustomerCountKpi)debtCustomerCountKpi.textContent=money(summary.customerCount??debtsCache.length);
-    if(debtOrderCountKpi)debtOrderCountKpi.textContent=money(summary.orderCount??ledger.length);
-    if(debtOverdueCountKpi)debtOverdueCountKpi.textContent=money(summary.overdueCount??0);
-    if(debtTable)debtTable.innerHTML=ledger.map(d=>`<tr><td>${escapeHtml(d.orderCode||'')}</td><td>${escapeHtml(d.customerCode||'')} ${escapeHtml(d.customerName||'')}</td><td>${money(d.debt)}</td></tr>`).join('');
+  if(debtLoadPromise)return debtLoadPromise;
+  setDebtToolbarLoading(true);
+  debtLoadPromise=(async()=>{
+    const params=new URLSearchParams();
+    if(criteria.q)params.set('q',criteria.q);
+    if(criteria.salesman)params.set('salesman',criteria.salesman);
+    if(criteria.delivery)params.set('delivery',criteria.delivery);
+    if(criteria.status && criteria.status!=='all')params.set('status',criteria.status);
+    params.set('page','1');
+    params.set('limit','50');
+    params.set('includePaid',criteria.status==='paid'?'1':'0');
+    const url=`/api/debts/customers?${params.toString()}`;
+    try{
+      if(debtCount)debtCount.textContent='Đang tra cứu công nợ...';
+      const res=await fetch(url);
+      const json=await res.json();
+      if(!json.ok)throw new Error(json.message||'Không tải được công nợ');
+      const ledger=Array.isArray(json.debts)?json.debts:[];
+      window.debtLedgerRowsCache=ledger;
+      const summary=json.summary||{};
+      debtsCache=mergeDebtCustomerSummaryFromDebtRows(json.customerSummary, ledger);
+      const totalDebt=Number(summary.totalDebt ?? ledger.reduce((sum,d)=>sum+normalizeDebtAmount(d.debt),0));
+      if(debtTotalKpi)debtTotalKpi.textContent=money(totalDebt);
+      if(debtCount)debtCount.textContent=`${summary.customerCount??debtsCache.length} khách · ${summary.orderCount??ledger.length} đơn · Quá hạn ${summary.overdueCount??0}`;
+      if(debtCustomerCountKpi)debtCustomerCountKpi.textContent=money(summary.customerCount??debtsCache.length);
+      if(debtOrderCountKpi)debtOrderCountKpi.textContent=money(summary.orderCount??ledger.length);
+      if(debtOverdueCountKpi)debtOverdueCountKpi.textContent=money(summary.overdueCount??0);
+      if(debtTable)debtTable.innerHTML=ledger.map(d=>`<tr><td>${escapeHtml(d.orderCode||'')}</td><td>${escapeHtml(d.customerCode||'')} ${escapeHtml(d.customerName||'')}</td><td>${money(d.debt)}</td></tr>`).join('');
 
-    const rows=debtsCache.filter(d=>{
-      if(criteria.status==='paid')return !hasOpenDebt(d.debt);
-      if(criteria.status==='overdue')return hasOpenDebt(d.debt) && Number(d.overdueDays||0)>0;
-      if(criteria.status==='all')return true;
-      return hasOpenDebt(d.debt) || isOverpaidDebt(d.debt);
-    });
-    window.debtVisibleRows=rows;
-    if(debtCardList){
-      debtCardList.innerHTML=rows.length?rows.map((d,idx)=>{
-        const meta=debtDisplayMeta(d.debt);
-        const overdue=Number(d.overdueDays||0);
-        return `<article class="debt-v2-customer-card" data-debt-index="${idx}" onclick="selectDebtCustomerFromCard(${idx})">
-          <div class="debt-v2-card-top"><div><small>${escapeHtml(d.customerCode||'')}</small><b>${escapeHtml(d.customerName||'Chưa rõ khách')}</b></div><strong class="${meta.className}">${meta.text}</strong></div>
-          <div class="debt-v2-card-meta"><span>${Number(d.orderCount||0)} đơn</span><span>${overdue>0?'Quá hạn '+overdue+' ngày':'Tuổi nợ '+Number(d.agingDays||0)+' ngày'}</span></div>
-          <div class="debt-v2-card-staff"><span>NVBH: ${escapeHtml(debtPersonLabel(d.salesmanCode,d.salesmanName))}</span><span>NVGH: ${escapeHtml(debtPersonLabel(d.deliveryStaffCode,d.deliveryStaffName))}</span></div>
-        </article>`;
-      }).join(''):'<div class="empty-state">Không có khách phù hợp điều kiện tìm kiếm.</div>';
+      const rows=debtsCache.filter(d=>{
+        if(criteria.status==='paid')return !hasOpenDebt(d.debt);
+        if(criteria.status==='overdue')return hasOpenDebt(d.debt) && Number(d.overdueDays||0)>0;
+        if(criteria.status==='all')return true;
+        return hasOpenDebt(d.debt) || isOverpaidDebt(d.debt);
+      });
+      window.debtVisibleRows=rows;
+      if(debtCardList){
+        debtCardList.innerHTML=rows.length?rows.map((d,idx)=>{
+          const meta=debtDisplayMeta(d.debt);
+          const overdue=Number(d.overdueDays||0);
+          return `<article class="debt-v2-customer-card" data-debt-index="${idx}" onclick="selectDebtCustomerFromCard(${idx})">
+            <div class="debt-v2-card-top"><div><small>${escapeHtml(d.customerCode||'')}</small><b>${escapeHtml(d.customerName||'Chưa rõ khách')}</b></div><strong class="${meta.className}">${meta.text}</strong></div>
+            <div class="debt-v2-card-meta"><span>${Number(d.orderCount||0)} đơn</span><span>${overdue>0?'Quá hạn '+overdue+' ngày':'Tuổi nợ '+Number(d.agingDays||0)+' ngày'}</span></div>
+            <div class="debt-v2-card-staff"><span>NVBH: ${escapeHtml(debtPersonLabel(d.salesmanCode,d.salesmanName))}</span><span>NVGH: ${escapeHtml(debtPersonLabel(d.deliveryStaffCode,d.deliveryStaffName))}</span></div>
+          </article>`;
+        }).join(''):'<div class="empty-state">Không có khách phù hợp điều kiện tìm kiếm.</div>';
+      }
+      renderDebtManagementReports(ledger, json);
+      renderCollectionCustomerSelect();
+      const current=getSelectedDebtCustomer();
+      const next=current || rows[0];
+      if(next)selectCollectionCustomer(next,{silent:true});
+      else clearDebtCustomerSelection();
+    }catch(err){
+      if(debtCount)debtCount.textContent='Lỗi tải công nợ';
+      if(debtCardList)debtCardList.innerHTML=`<div class="empty-state danger-text">${escapeHtml(err.message)}</div>`;
+    }finally{
+      setDebtToolbarLoading(false);
+      debtLoadPromise=null;
     }
-    renderDebtManagementReports(ledger, json);
-    renderCollectionCustomerSelect();
-    const current=getSelectedDebtCustomer();
-    const next=current || rows[0];
-    if(next)selectCollectionCustomer(next,{silent:true});
-    else clearDebtCustomerSelection();
-  }catch(err){
-    if(debtCount)debtCount.textContent='Lỗi tải công nợ';
-    if(debtCardList)debtCardList.innerHTML=`<div class="empty-state danger-text">${escapeHtml(err.message)}</div>`;
-  }
+  })();
+  return debtLoadPromise;
 }
 
 
@@ -666,13 +683,10 @@ if(debtCollectionForm){debtCollectionForm.addEventListener('submit',submitDebtCo
 if(debtPaymentAmount)debtPaymentAmount.addEventListener('input',updateDebtSelectionSummary);
 if(clearDebtCustomerButton)clearDebtCustomerButton.addEventListener('click',clearDebtCustomerSelection);
 if(typeof resetDebtFilters==='function')resetDebtFilters({load:false});
-const phase35DebouncedLoadDebts=debounce(()=>loadDebts(),300);
-if(debtSearchInput){
-  debtSearchInput.addEventListener('input',phase35DebouncedLoadDebts);
-  debtSearchInput.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();loadDebts();}});
-}
-[debtSalesmanFilter,debtDeliveryFilter].forEach(el=>{if(el)el.addEventListener('input',phase35DebouncedLoadDebts);});
-if(debtStatusFilter)debtStatusFilter.addEventListener('change',loadDebts);
+if(applyDebtFiltersButton)applyDebtFiltersButton.addEventListener('click',loadDebts);
+[debtSearchInput,debtSalesmanFilter,debtDeliveryFilter].forEach(input=>{
+  if(input)input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();loadDebts();}});
+});
 if(debtClearFiltersButton)debtClearFiltersButton.addEventListener('click',()=>resetDebtFilters());
 debtInnerTabs.forEach(btn=>btn.addEventListener('click',()=>setDebtPanel(btn.dataset.debtPanel)));
 window.voidReceipt=voidReceipt;

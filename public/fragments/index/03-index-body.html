@@ -214,39 +214,40 @@
 
     <section id="debtTab" class="tab-content">
       <main class="debt-v2-layout debt-v2-search-first">
-        <section class="card debt-v2-topbar">
-          <div class="debt-v2-head debt-v2-head-clean">
-            <div>
+        <section class="debt-v2-topbar ui-list-toolbar">
+          <div class="ui-page-header">
+            <div class="ui-page-title">
               <h2>Công nợ khách hàng</h2>
-              <p id="debtCount" class="muted">Nhập mã, tên hoặc SĐT khách hàng để tra công nợ.</p>
+              <div class="debt-page-meta">
+                <p id="debtCount" class="muted ui-page-meta">Nhập mã, tên hoặc SĐT khách hàng để tra công nợ.</p>
+                <span id="debtDetailStatus" class="debt-status-pill">Chưa chọn khách</span>
+              </div>
             </div>
-            <div class="debt-v2-head-actions">
+            <div class="ui-page-actions">
               <button id="openExternalDebtModalButton" class="primary-action" type="button">Tạo công nợ</button>
-              <button id="reloadDebtsButton" class="secondary" type="button">Tải lại</button>
-              <span id="debtDetailStatus" class="debt-status-pill">Chưa chọn khách</span>
             </div>
           </div>
 
-          <div class="debt-v2-filter-grid debt-v2-search-grid">
-            <label class="debt-main-search">Tìm khách hàng
+          <div class="ui-search-filter-bar debt-toolbar-grid" role="search" aria-label="Tìm và lọc công nợ khách hàng">
+            <label class="ui-toolbar-field ui-field-search debt-main-search">Tìm khách hàng
               <div class="autocomplete">
                 <input id="debtSearchInput" placeholder="Nhập mã KH / tên KH / SĐT để xem công nợ..." autocomplete="off" />
                 <div id="debtSearchSuggestions" class="suggestions" hidden></div>
               </div>
             </label>
-            <label>Nhân viên bán hàng
+            <label class="ui-toolbar-field ui-field-staff debt-salesman-field">Nhân viên bán hàng
               <div class="autocomplete">
                 <input id="debtSalesmanFilter" placeholder="Mã hoặc tên NVBH" autocomplete="off" />
                 <div id="debtSalesmanFilterSuggestions" class="suggestions" hidden></div>
               </div>
             </label>
-            <label>Nhân viên giao hàng
+            <label class="ui-toolbar-field ui-field-staff debt-delivery-field">Nhân viên giao hàng
               <div class="autocomplete">
                 <input id="debtDeliveryFilter" placeholder="Mã hoặc tên NVGH" autocomplete="off" />
                 <div id="debtDeliveryFilterSuggestions" class="suggestions" hidden></div>
               </div>
             </label>
-            <label>Trạng thái
+            <label class="ui-toolbar-field ui-field-status debt-status-field">Trạng thái
               <select id="debtStatusFilter">
                 <option value="">Khách còn nợ</option>
                 <option value="overdue">Quá hạn</option>
@@ -254,7 +255,11 @@
                 <option value="all">Tất cả</option>
               </select>
             </label>
-            <button type="button" class="secondary debt-v2-clear-btn" id="debtClearFiltersButton">Xóa lọc</button>
+            <div class="ui-toolbar-actions debt-toolbar-actions">
+              <button id="applyDebtFiltersButton" class="primary-action ui-action-primary" type="button">Tìm kiếm</button>
+              <button id="debtClearFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
+              <button id="reloadDebtsButton" class="secondary" type="button">Tải lại</button>
+            </div>
           </div>
 
           <div class="debt-v2-kpis debt-v2-kpis-4">
