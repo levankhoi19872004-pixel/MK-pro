@@ -97,10 +97,18 @@
 
   function debounce(fn, delay){
     let timer = null;
-    return (...args) => {
+    const wrapped = (...args) => {
       clearTimeout(timer);
-      timer = setTimeout(() => fn(...args), delay);
+      timer = setTimeout(() => {
+        timer = null;
+        fn(...args);
+      }, delay);
     };
+    wrapped.cancel = () => {
+      clearTimeout(timer);
+      timer = null;
+    };
+    return wrapped;
   }
 
   function wire(options){
@@ -119,8 +127,9 @@
 
     if(!input || !box || typeof getItems !== 'function' || typeof label !== 'function' || typeof select !== 'function') return;
 
-    const oldCleanup = wiredInputs.get(input);
-    if(typeof oldCleanup === 'function') oldCleanup();
+    const oldBinding = wiredInputs.get(input);
+    if(oldBinding && typeof oldBinding.cleanup === 'function') oldBinding.cleanup();
+    else if(typeof oldBinding === 'function') oldBinding();
 
     ensureHost(input, box);
 
@@ -168,8 +177,20 @@
       buttons[activeIndex].scrollIntoView({block:'nearest'});
     };
 
+    const cancelPending = () => {
+      requestSeq++;
+      if(refresh && typeof refresh.cancel === 'function') refresh.cancel();
+      activeIndex = -1;
+      currentItems = [];
+      hide(box);
+    };
+
     const onInput = () => {
       if(clearOnInput) clearSelected(input);
+      if(input.dataset && input.dataset.clearableSuppressAutocomplete === '1') {
+        cancelPending();
+        return;
+      }
       refresh();
     };
     const onFocus = () => refresh();
@@ -209,15 +230,29 @@
     document.addEventListener('mousedown', onDocumentMouseDown);
 
     const cleanup = () => {
-      requestSeq++;
+      cancelPending();
       input.removeEventListener('input', onInput);
       input.removeEventListener('focus', onFocus);
       input.removeEventListener('keydown', onKeydown);
       document.removeEventListener('mousedown', onDocumentMouseDown);
-      hide(box);
     };
-    wiredInputs.set(input, cleanup);
+    const clear = () => {
+      cancelPending();
+      clearSelected(input);
+    };
+    wiredInputs.set(input, { cleanup, cancel: cancelPending, clear });
   }
 
-  window.SearchAutocomplete = { normalizeText, escapeHtml, matchText, show, hide, wire };
+  function cancel(input){
+    const binding = wiredInputs.get(input);
+    if(binding && typeof binding.cancel === 'function') binding.cancel();
+  }
+
+  function clear(input){
+    const binding = wiredInputs.get(input);
+    if(binding && typeof binding.clear === 'function') binding.clear();
+    else clearSelected(input);
+  }
+
+  window.SearchAutocomplete = { normalizeText, escapeHtml, matchText, show, hide, wire, cancel, clear };
 })();

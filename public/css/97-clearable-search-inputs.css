@@ -1,0 +1,107 @@
+/* Clearable search input - dùng chung web/mobile, không thay đổi chiều cao control. */
+.clearable-search-control{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  min-width:0;
+  max-width:100%;
+  vertical-align:middle;
+  --clearable-search-padding:38px;
+}
+
+.ui-toolbar-field > .clearable-search-control,
+.autocomplete > .clearable-search-control,
+.autocomplete-host > .clearable-search-control,
+label > .clearable-search-control,
+.debt-list-toolbar > .clearable-search-control,
+.m-delivery-filter > .clearable-search-control,
+.mobile-page .clearable-search-control{
+  width:100%;
+}
+
+.toolbar > .clearable-search-control{
+  flex:1 1 280px;
+  max-width:420px;
+}
+
+.clearable-search-control > .clearable-search-input{
+  width:100%;
+  min-width:0;
+  max-width:none;
+  box-sizing:border-box;
+  padding-right:38px!important;
+}
+
+.clearable-search-control > .clearable-search-input[type="search"]{
+  -webkit-appearance:textfield;
+  appearance:textfield;
+}
+
+.clearable-search-control > .clearable-search-input[type="search"]::-webkit-search-cancel-button,
+.clearable-search-control > .clearable-search-input[type="search"]::-webkit-search-decoration{
+  -webkit-appearance:none;
+  appearance:none;
+  display:none;
+}
+
+.search-clear-button{
+  position:absolute;
+  z-index:3;
+  right:4px;
+  top:50%;
+  transform:translateY(-50%);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:28px;
+  min-width:28px;
+  height:28px;
+  min-height:28px!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:999px;
+  background:transparent!important;
+  color:#64748b!important;
+  font:600 20px/1 system-ui,-apple-system,"Segoe UI",sans-serif;
+  box-shadow:none!important;
+  cursor:pointer;
+  touch-action:manipulation;
+}
+
+.search-clear-button[hidden]{display:none!important;}
+.search-clear-button:hover{background:rgba(100,116,139,.12)!important;color:#334155!important;}
+.search-clear-button:active{background:rgba(100,116,139,.2)!important;transform:translateY(-50%) scale(.94);}
+.search-clear-button:focus-visible{outline:2px solid #2563eb!important;outline-offset:1px;}
+.search-clear-button:disabled{cursor:not-allowed;opacity:.45;}
+.clearable-search-control.is-disabled .search-clear-button,
+.clearable-search-control.is-readonly .search-clear-button{pointer-events:none;}
+
+/* Giữ suggestion dropdown ở ngoài wrapper và không để nút xóa che dropdown. */
+.autocomplete > .clearable-search-control + .suggestions,
+.autocomplete-host > .clearable-search-control + .suggestions{
+  z-index:40;
+}
+
+@media(max-width:640px){
+  .search-clear-button{
+    right:5px;
+    width:30px;
+    min-width:30px;
+    height:30px;
+    min-height:30px!important;
+  }
+  .clearable-search-control{--clearable-search-padding:41px;}
+  .clearable-search-control > .clearable-search-input{padding-right:41px!important;}
+}
+
+@media(prefers-color-scheme:dark){
+  .search-clear-button{color:#94a3b8!important;}
+  .search-clear-button:hover{background:rgba(148,163,184,.16)!important;color:#e2e8f0!important;}
+  .search-clear-button:active{background:rgba(148,163,184,.24)!important;}
+}
+
+[data-theme="dark"] .search-clear-button,
+.dark .search-clear-button{color:#94a3b8!important;}
+[data-theme="dark"] .search-clear-button:hover,
+.dark .search-clear-button:hover{background:rgba(148,163,184,.16)!important;color:#e2e8f0!important;}

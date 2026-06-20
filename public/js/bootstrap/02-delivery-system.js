@@ -12,7 +12,7 @@ if(deliveryEditResetButton)deliveryEditResetButton.addEventListener('click',clea
 [deliveryEditDebtBefore,deliveryEditCash,deliveryEditBank,deliveryEditReturn].filter(Boolean).forEach(input=>input.addEventListener('input',recalcDeliveryEditDebt));
 if(userForm)userForm.addEventListener('submit',submitUser);
 if(resetUserButton)resetUserButton.addEventListener('click',resetUserForm);
-if(userSearchInput)userSearchInput.addEventListener('input',loadUsers);
+// userSearchInput is owned by app/admin/08b-users.js (debounced); do not bind a second API request here.
 if(promotionForm)promotionForm.addEventListener('submit',submitPromotion);
 if(resetPromotionButton)resetPromotionButton.addEventListener('click',resetPromotionForm);
 if(promotionSearchInput)promotionSearchInput.addEventListener('input',loadPromotions);
