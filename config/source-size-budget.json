@@ -17,7 +17,7 @@
     "src/services/inventoryService.js": 40960,
     "templates/printTemplates.js": 40960,
     "public/js/app/05-sales-orders.js": 24576,
-    "public/mobile/js/sales.js": 49152,
+    "public/mobile/js/sales.js": 40960,
     "public/js/app/admin/08d-import-excel.js": 24576,
     "public/js/delivery/delivery-web-view.js": 40960,
     "public/js/app/debt/07f-fund-ledger.js": 24576,

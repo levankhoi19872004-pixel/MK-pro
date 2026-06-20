@@ -136,7 +136,7 @@ test('admin UI labels current inventory source and busts the old frontend cache'
   const css = read('public/css/80-dms-inventory.css');
 
   assert.match(indexHtml, /Tồn thực tế hiện tại/);
-  assert.match(indexHtml, /10-dms-inventory\.js\?v=phase71-dms-live-inventory-v1/);
+  assert.match(indexHtml, /10-dms-inventory\.js\?v=phase86-production-hardening-v1/);
   assert.match(adminJs, /Tồn thực tế đọc trực tiếp từ inventories/);
   assert.match(adminJs, /internalUpdatedAt/);
   assert.match(adminJs, /params\.set\('refresh','1'\)/);

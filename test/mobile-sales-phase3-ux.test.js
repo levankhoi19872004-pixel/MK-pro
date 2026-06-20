@@ -105,7 +105,7 @@ test('mobile controls meet minimum touch target and keyboard focus requirements'
 });
 
 test('phase 3 preserves server-authoritative order submission and does not alter pricing rules', () => {
-  assert.match(sales, /mobileApi\.updateSalesOrder\(editingOrderId, payload\)/);
+  assert.match(sales, /mobileApi\.updateSalesOrder\(state\.draft\.editingOrderId, payload\)/);
   assert.match(sales, /mobileApi\.createSalesOrder\(payload\)/);
   assert.match(sales, /await recalculateCartPromotions\(\{ silent: true \}\)/);
   assert.doesNotMatch(sales, /InventoryPostingService|arLedgers|fundLedgers/);

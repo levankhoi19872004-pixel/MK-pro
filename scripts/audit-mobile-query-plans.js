@@ -79,20 +79,48 @@ function staticReport() {
   }));
 }
 
+function collectPlanStages(plan = {}, stages = []) {
+  if (!plan || typeof plan !== 'object') return stages;
+  if (plan.stage) stages.push({ stage: plan.stage, indexName: plan.indexName || '' });
+  for (const value of Object.values(plan)) {
+    if (value && typeof value === 'object') collectPlanStages(value, stages);
+  }
+  return stages;
+}
+
 function summarizeExplain(explain = {}) {
   const stats = explain.executionStats || {};
   const planner = explain.queryPlanner || {};
   const winningPlan = planner.winningPlan || {};
   const inputStage = winningPlan.inputStage || winningPlan;
+  const stages = collectPlanStages(winningPlan);
+  const returned = Number(stats.nReturned || 0);
+  const examinedDocs = Number(stats.totalDocsExamined || 0);
   return {
     namespace: planner.namespace || '',
     winningStage: winningPlan.stage || inputStage.stage || '',
     indexName: inputStage.indexName || winningPlan.indexName || '',
-    returned: Number(stats.nReturned || 0),
-    examinedDocs: Number(stats.totalDocsExamined || 0),
+    returned,
+    examinedDocs,
+    examinedRatio: returned > 0 ? Number((examinedDocs / returned).toFixed(2)) : examinedDocs,
     examinedKeys: Number(stats.totalKeysExamined || 0),
-    executionTimeMs: Number(stats.executionTimeMillis || 0)
+    executionTimeMs: Number(stats.executionTimeMillis || 0),
+    collectionScan: stages.some((row) => row.stage === 'COLLSCAN'),
+    stages
   };
+}
+
+
+function auditViolations(results = [], env = process.env) {
+  const maxRatio = Math.max(1, Number(env.MOBILE_QUERY_PLAN_MAX_DOCS_RATIO || 20));
+  const maxExecutionMs = Math.max(1, Number(env.MOBILE_QUERY_PLAN_MAX_EXECUTION_MS || 500));
+  const violations = [];
+  for (const row of results) {
+    if (row.collectionScan) violations.push({ query: row.query, code: 'COLLSCAN', message: 'Winning plan có COLLSCAN' });
+    if (row.examinedRatio > maxRatio) violations.push({ query: row.query, code: 'DOCS_EXAMINED_RATIO', value: row.examinedRatio, limit: maxRatio });
+    if (row.executionTimeMs > maxExecutionMs) violations.push({ query: row.query, code: 'EXECUTION_TIME', value: row.executionTimeMs, limit: maxExecutionMs });
+  }
+  return { maxRatio, maxExecutionMs, violations };
 }
 
 async function main() {
@@ -111,10 +139,16 @@ async function main() {
     const explain = await entry.explain().explain('executionStats');
     results.push({ query: entry.name, collection: entry.collectionKey, ...summarizeExplain(explain) });
   }
-  console.log(JSON.stringify({ mode: 'mongo-execution-stats', readOnly: true, results }, null, 2));
+  const audit = auditViolations(results);
+  console.log(JSON.stringify({ mode: 'mongo-execution-stats', readOnly: true, results, audit }, null, 2));
+  if (process.env.MOBILE_QUERY_PLAN_ENFORCE === '1' && audit.violations.length) {
+    const error = new Error(`Mobile query plan audit có ${audit.violations.length} vi phạm`);
+    error.code = 'MOBILE_QUERY_PLAN_AUDIT_FAILED';
+    throw error;
+  }
 }
 
-main()
+if (require.main === module) main()
   .catch((error) => {
     console.error('[mobile-query-plan-audit]', error.message);
     process.exitCode = 1;
@@ -122,3 +156,5 @@ main()
   .finally(async () => {
     if (mongoose.connection.readyState) await mongoose.disconnect();
   });
+
+module.exports = { staticReport, summarizeExplain, auditViolations, collectPlanStages };

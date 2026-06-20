@@ -1,8 +1,8 @@
-function renderTodayOrders(items = todayOrderCache, summary = todayOrderSummary) {
-  todayOrderCache = Array.isArray(items) ? items : [];
-  const serverOrders = todayOrderCache;
+function renderTodayOrders(items = state.orders.rows, summary = state.orders.summary) {
+  state.orders.rows = Array.isArray(items) ? items : [];
+  const serverOrders = state.orders.rows;
   const selectedDate = String(orderDateFilter?.value || todayValue());
-  const pendingForDate = pendingOfflineOrders.filter((order) => !selectedDate || String(order.date || '').slice(0, 10) === selectedDate);
+  const pendingForDate = state.sync.pendingOrders.filter((order) => !selectedDate || String(order.date || '').slice(0, 10) === selectedDate);
   const allDisplayOrders = [...pendingForDate, ...serverOrders];
   const displayOrders = allDisplayOrders.filter(orderMatchesSearchText).filter(orderMatchesDisplayFilter);
   const totalAmount = Number(summary?.totalAmount ?? serverOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0));
@@ -15,7 +15,7 @@ function renderTodayOrders(items = todayOrderCache, summary = todayOrderSummary)
   document.getElementById('todayPaid').textContent = money(paidAmount);
   document.getElementById('todayDebt').textContent = money(debtAmount);
   if (orderFilterResultCount) orderFilterResultCount.textContent = `${displayOrders.length} đơn`;
-  if (orderLoadMoreBtn) orderLoadMoreBtn.hidden = !todayOrderHasMore || orderStatusFilterValue() === 'pending_sync';
+  if (orderLoadMoreBtn) orderLoadMoreBtn.hidden = !state.orders.hasMore || orderStatusFilterValue() === 'pending_sync';
 
   if (!displayOrders.length) {
     const hasAnyRows = allDisplayOrders.length > 0;
@@ -37,44 +37,28 @@ function renderTodayOrders(items = todayOrderCache, summary = todayOrderSummary)
 
 }
 
-function mergeOrderPages(current = [], incoming = []) {
-  const map = new Map();
-  [...current, ...incoming].forEach((order) => {
-    const key = String(order.id || order.code || `ROW:${map.size}`);
-    map.set(key, { ...(map.get(key) || {}), ...order });
-  });
-  return [...map.values()];
-}
+
 
 function upsertTodayOrder(order = {}) {
-  if (!order || !(order.id || order.code)) return;
-  const key = String(order.id || order.code);
-  const normalized = {
-    ...order,
-    canEdit: order.canEdit !== false && !order.masterOrderId && !order.masterOrderCode && (order.mergeStatus || 'unmerged') !== 'merged',
-    editLockReason: order.editLockReason || ''
-  };
-  const index = todayOrderCache.findIndex((item) => String(item.id || item.code) === key || String(item.code || '') === String(order.code || ''));
-  if (index >= 0) todayOrderCache[index] = { ...todayOrderCache[index], ...normalized };
-  else todayOrderCache.unshift(normalized);
-  renderTodayOrders(todayOrderCache, todayOrderSummary);
+  state.orders.rows = upsertOrder(state.orders.rows, order);
+  renderTodayOrders(state.orders.rows, state.orders.summary);
 }
 
 async function loadTodayOrders(options = {}) {
   const append = options.append === true;
   const force = options.force === true;
   const queryKey = currentOrderQueryKey();
-  if (append && todayOrderLoadedKey !== queryKey) return loadTodayOrders({ reset: true, force: true });
-  if (todayOrderLoading) return;
-  if (append && !todayOrderHasMore) return;
-  if (todayOrderLoaded && todayOrderLoadedKey === queryKey && !force && !append) {
-    renderTodayOrders(todayOrderCache, todayOrderSummary);
+  if (append && state.orders.loadedKey !== queryKey) return loadTodayOrders({ reset: true, force: true });
+  if (state.orders.loading) return;
+  if (append && !state.orders.hasMore) return;
+  if (state.orders.loaded && state.orders.loadedKey === queryKey && !force && !append) {
+    renderTodayOrders(state.orders.rows, state.orders.summary);
     return;
   }
 
-  const requestSeq = ++todayOrderRequestSeq;
-  const nextPage = append ? todayOrderPage + 1 : 1;
-  todayOrderLoading = true;
+  const requestSeq = ++state.orders.requestSeq;
+  const nextPage = append ? state.orders.page + 1 : 1;
+  state.orders.loading = true;
   setButtonBusy(orderLoadMoreBtn, true, 'Đang tải...');
   try {
     if (!append) {
@@ -92,17 +76,17 @@ async function loadTodayOrders(options = {}) {
       requestKey: 'mobile-sales-orders',
       cancelPrevious: !append
     });
-    if (requestSeq !== todayOrderRequestSeq) return;
+    if (requestSeq !== state.orders.requestSeq) return;
     const rawItems = data.items || [];
     const scopedItems = filterOrdersForCurrentSalesUser(rawItems);
-    todayOrderPage = Number(data.pagination?.page || nextPage);
-    todayOrderHasMore = Boolean(data.pagination?.hasMore);
-    todayOrderSummary = data.summary || todayOrderSummary || {};
-    todayOrderCache = append ? mergeOrderPages(todayOrderCache, scopedItems) : scopedItems;
-    todayOrderLoaded = true;
-    todayOrderLoadedKey = queryKey;
-    renderTodayOrders(todayOrderCache, todayOrderSummary);
-    if (orderLoadMoreBtn) orderLoadMoreBtn.hidden = !todayOrderHasMore || orderStatusFilterValue() === 'pending_sync';
+    state.orders.page = Number(data.pagination?.page || nextPage);
+    state.orders.hasMore = Boolean(data.pagination?.hasMore);
+    state.orders.summary = data.summary || state.orders.summary || {};
+    state.orders.rows = append ? mergeOrderPages(state.orders.rows, scopedItems) : scopedItems;
+    state.orders.loaded = true;
+    state.orders.loadedKey = queryKey;
+    renderTodayOrders(state.orders.rows, state.orders.summary);
+    if (orderLoadMoreBtn) orderLoadMoreBtn.hidden = !state.orders.hasMore || orderStatusFilterValue() === 'pending_sync';
     if (rawItems.length !== scopedItems.length) {
       console.warn('[MOBILE_SALES_OWNER_GUARD]', {
         currentSalesStaffCode: currentSalesStaffCode(),
@@ -111,10 +95,10 @@ async function loadTodayOrders(options = {}) {
       });
     }
   } catch (err) {
-    if (requestSeq !== todayOrderRequestSeq || err?.code === 'REQUEST_ABORTED') return;
+    if (requestSeq !== state.orders.requestSeq || err?.code === 'REQUEST_ABORTED') return;
     if (!append) {
-      todayOrderLoaded = false;
-      todayOrderLoadedKey = '';
+      state.orders.loaded = false;
+      state.orders.loadedKey = '';
       renderMobileListState(todayOrders, {
         state: 'error',
         baseClass: 'order-list',
@@ -126,7 +110,7 @@ async function loadTodayOrders(options = {}) {
       announceMobileStatus(err.message || 'Không tải thêm được đơn hàng', 'error', { persist: true });
     }
   } finally {
-    if (requestSeq === todayOrderRequestSeq) todayOrderLoading = false;
+    if (requestSeq === state.orders.requestSeq) state.orders.loading = false;
     setButtonBusy(orderLoadMoreBtn, false);
   }
 }

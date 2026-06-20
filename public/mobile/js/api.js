@@ -1,9 +1,30 @@
-import { API_URL, STORAGE_KEYS, MOBILE_ROUTES } from './config.js';
+import { API_URL, STORAGE_KEYS, MOBILE_ROUTES, applyMobileRuntimeConfig, getMobileRuntimeConfig } from './config.js?v=phase86-production-hardening-v1';
 
-const DEFAULT_TIMEOUT_MS = Math.max(3000, Number(window.MOBILE_API_TIMEOUT_MS || 15000));
+const DEFAULT_TIMEOUT_MS = 15000;
 const MAX_TELEMETRY_ROWS = 100;
 const activeRequestControllers = new Map();
 const telemetryRows = [];
+const pendingTelemetryRows = [];
+let telemetryFlushTimer = null;
+let telemetryFlushInFlight = null;
+let telemetrySampled = true;
+
+function defaultTimeoutMs() {
+  return Math.max(3000, Number(getMobileRuntimeConfig().apiTimeoutMs || window.MOBILE_API_TIMEOUT_MS || DEFAULT_TIMEOUT_MS));
+}
+
+function sanitizeTelemetryPath(value = '') {
+  const raw = String(value || '').split('?')[0].split('#')[0];
+  return raw.startsWith('/api/') ? raw : '';
+}
+
+function connectionSnapshot() {
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection || {};
+  return {
+    networkType: navigator.onLine ? 'online' : 'offline',
+    effectiveType: String(connection.effectiveType || '')
+  };
+}
 
 export function getToken() {
   return '';
@@ -46,10 +67,71 @@ function withClientRequestId(payload = {}, prefix = 'mobile') {
   return { ...payload, idempotencyKey: payload.idempotencyKey || payload.requestId || payload.clientRequestId || makeClientRequestId(prefix) };
 }
 
+function scheduleTelemetryFlush() {
+  const config = getMobileRuntimeConfig();
+  if (!config.clientTelemetryEnabled || !telemetrySampled || telemetryFlushTimer) return;
+  telemetryFlushTimer = window.setTimeout(() => {
+    telemetryFlushTimer = null;
+    void flushMobileApiTelemetry();
+  }, config.clientTelemetryFlushMs);
+}
+
 function recordTelemetry(row = {}) {
-  telemetryRows.push({ at: new Date().toISOString(), ...row });
+  const normalized = { at: new Date().toISOString(), ...row, path: sanitizeTelemetryPath(row.path) };
+  telemetryRows.push(normalized);
   while (telemetryRows.length > MAX_TELEMETRY_ROWS) telemetryRows.shift();
-  window.dispatchEvent(new CustomEvent('mkpro:mobile-api-perf', { detail: row }));
+  const config = getMobileRuntimeConfig();
+  if (normalized.path && config.clientTelemetryEnabled && telemetrySampled && normalized.path !== MOBILE_ROUTES.telemetry) {
+    pendingTelemetryRows.push(normalized);
+    while (pendingTelemetryRows.length > MAX_TELEMETRY_ROWS) pendingTelemetryRows.shift();
+    if (pendingTelemetryRows.length >= config.clientTelemetryBatchSize) void flushMobileApiTelemetry();
+    else scheduleTelemetryFlush();
+  }
+  window.dispatchEvent(new CustomEvent('mkpro:mobile-api-perf', { detail: normalized }));
+}
+
+export async function flushMobileApiTelemetry() {
+  if (telemetryFlushInFlight) return telemetryFlushInFlight;
+  const config = getMobileRuntimeConfig();
+  if (!config.clientTelemetryEnabled || !telemetrySampled || !pendingTelemetryRows.length) return { skipped: true };
+  const events = pendingTelemetryRows.splice(0, Math.min(config.clientTelemetryBatchSize, pendingTelemetryRows.length));
+  const connection = connectionSnapshot();
+  telemetryFlushInFlight = fetch(`${API_URL}${MOBILE_ROUTES.telemetry}`, {
+    method: 'POST',
+    credentials: 'include',
+    keepalive: true,
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    body: JSON.stringify({
+      appVersion: 'phase86-production-hardening-v1',
+      deviceId: localStorage.getItem('mkpro_mobile_device_id') || '',
+      ...connection,
+      events
+    })
+  }).then(async (response) => {
+    if (!response.ok) throw new Error(`Telemetry HTTP ${response.status}`);
+    return response.json().catch(() => ({ ok: true }));
+  }).catch(() => {
+    pendingTelemetryRows.unshift(...events);
+    while (pendingTelemetryRows.length > MAX_TELEMETRY_ROWS) pendingTelemetryRows.pop();
+    return { ok: false };
+  }).finally(() => {
+    telemetryFlushInFlight = null;
+    scheduleTelemetryFlush();
+  });
+  return telemetryFlushInFlight;
+}
+
+export async function loadMobileRuntimeConfig() {
+  const data = await apiRequest(MOBILE_ROUTES.runtimeConfig, {
+    requestKey: 'mobile-runtime-config',
+    cancelPrevious: true,
+    timeoutMs: 5000,
+    skipTelemetry: true
+  });
+  const config = applyMobileRuntimeConfig(data.config || {});
+  telemetrySampled = Math.random() <= Number(config.clientTelemetrySampleRate || 0);
+  if (config.clientTelemetryEnabled && telemetrySampled) scheduleTelemetryFlush();
+  return config;
 }
 
 export function getMobileApiTelemetry() {
@@ -60,7 +142,7 @@ function createRequestAbortContext(options = {}, path = '') {
   const controller = new AbortController();
   const requestKey = String(options.requestKey || '').trim();
   const cancelPrevious = options.cancelPrevious === true && requestKey;
-  const timeoutMs = Math.max(0, Number(options.timeoutMs ?? DEFAULT_TIMEOUT_MS));
+  const timeoutMs = Math.max(0, Number(options.timeoutMs ?? defaultTimeoutMs()));
   let timedOut = false;
 
   if (cancelPrevious) {
@@ -110,6 +192,7 @@ export async function apiRequest(path, options = {}) {
   delete requestOptions.requestKey;
   delete requestOptions.cancelPrevious;
   delete requestOptions.clientRequestId;
+  delete requestOptions.skipTelemetry;
 
   const clientRequestId = String(options.clientRequestId || makeClientRequestId('api'));
   const headers = {
@@ -131,7 +214,6 @@ export async function apiRequest(path, options = {}) {
     const data = await res.json().catch(() => ({}));
     const serverMs = Number(data.serverMs || data.ms || res.headers.get('X-Response-Time-Ms') || 0);
     data.__clientPerf = { path, clientMs, serverMs, perf: data.perf || null, status: res.status, requestId: clientRequestId };
-    recordTelemetry(data.__clientPerf);
 
     if (res.status === 401 && path !== MOBILE_ROUTES.login && path !== MOBILE_ROUTES.refresh && !authRetried) {
       const refreshed = await refreshSession().catch(() => null);
@@ -146,12 +228,17 @@ export async function apiRequest(path, options = {}) {
       const error = new Error(data.message || 'Có lỗi xảy ra');
       error.status = res.status;
       error.code = data.code || '';
+      if (!options.skipTelemetry) {
+        recordTelemetry({ ...data.__clientPerf, errorCode: error.code || `HTTP_${res.status}` });
+        error.__telemetryRecorded = true;
+      }
       throw error;
     }
+    if (!options.skipTelemetry) recordTelemetry(data.__clientPerf);
     return data;
   } catch (error) {
     const normalized = normalizeRequestError(error, abortContext);
-    recordTelemetry({
+    if (!options.skipTelemetry && !normalized.__telemetryRecorded) recordTelemetry({
       path,
       clientMs: Math.round(performance.now() - clientStartedAt),
       serverMs: 0,
@@ -194,6 +281,9 @@ export const mobileApi = {
   me() {
     return apiRequest(MOBILE_ROUTES.me);
   },
+  getRuntimeConfig() {
+    return loadMobileRuntimeConfig();
+  },
   getCustomers(q = '', options = {}) {
     const query = new URLSearchParams();
     if (q) query.set('q', q);
@@ -235,13 +325,13 @@ export const mobileApi = {
     return apiRequest(`${MOBILE_ROUTES.stock}?q=${encodeURIComponent(q)}`, { requestKey: `mobile-stock:${q}`, cancelPrevious: true });
   },
   createSalesOrder(payload) {
-    return apiRequest(MOBILE_ROUTES.salesOrders, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'sales-create')), timeoutMs: 30000 });
+    return apiRequest(MOBILE_ROUTES.salesOrders, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'sales-create')), timeoutMs: getMobileRuntimeConfig().commandTimeoutMs });
   },
   getSalesOrder(id) {
     return apiRequest(`${MOBILE_ROUTES.salesOrders}/${encodeURIComponent(id)}`);
   },
   updateSalesOrder(id, payload) {
-    return apiRequest(`${MOBILE_ROUTES.salesOrders}/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(withClientRequestId(payload, 'sales-update')), timeoutMs: 30000 });
+    return apiRequest(`${MOBILE_ROUTES.salesOrders}/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(withClientRequestId(payload, 'sales-update')), timeoutMs: getMobileRuntimeConfig().commandTimeoutMs });
   },
   deleteSalesOrder(id) {
     return apiRequest(`${MOBILE_ROUTES.salesOrders}/${encodeURIComponent(id)}`, { method: 'DELETE' });
@@ -272,7 +362,7 @@ export const mobileApi = {
     });
   },
   submitDebtCollection(payload = {}) {
-    return apiRequest(MOBILE_ROUTES.debtCollections || '/api/mobile/debt-collections', { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'debt-collection')), timeoutMs: 30000 });
+    return apiRequest(MOBILE_ROUTES.debtCollections || '/api/mobile/debt-collections', { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'debt-collection')), timeoutMs: getMobileRuntimeConfig().commandTimeoutMs });
   },
   getDeliveryOrders(params = {}) {
     const query = new URLSearchParams(params);
@@ -302,3 +392,8 @@ export const mobileApi = {
     return apiRequest(MOBILE_ROUTES.cashSubmit, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'cash-submit')) });
   }
 };
+
+window.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') void flushMobileApiTelemetry();
+});
+window.addEventListener('pagehide', () => { void flushMobileApiTelemetry(); });

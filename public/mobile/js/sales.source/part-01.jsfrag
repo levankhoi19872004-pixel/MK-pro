@@ -2,10 +2,26 @@
 const v45Common = window.V45Common || {};
 const todayValue = v45Common.todayValue;
 const calculateCartonUnit = v45Common.calculateCartonUnit;
-import { mobileApi, getUser } from './api.js';
-import { queueOperation, isNetworkError, listOperations } from './offline-sync.js';
+import { mobileApi, getUser } from './api.js?v=phase86-production-hardening-v1';
+import { queueOperation, canQueueOfflineOperation, isNetworkError, listOperations } from './offline-sync.js?v=phase86-production-hardening-v1';
 import { bindLogout, debounce, escapeHtml, formatDisplayDate, formatShortDate, money, requireLogin, requireRole, setButtonBusy, setMessage } from './ui.js';
-import { buildCartItemsHtml, buildOrderCardsHtml, calculateCartTotals, createMobileSalesNavigation, createStatusAnnouncer, renderMobileListState as renderSharedMobileListState } from './sales-ux.js?v=phase84-mobile-ux-v1';
+import { buildCartItemsHtml, buildOrderCardsHtml, createMobileSalesNavigation, createStatusAnnouncer, renderMobileListState as renderSharedMobileListState } from './sales-ux.js?v=phase86-production-hardening-v1';
+import { collectMobileSalesDom } from './sales/dom.js?v=phase86-production-hardening-v1';
+import { createMobileSalesState, OrderDraftStore } from './sales/state.js?v=phase86-production-hardening-v1';
+import {
+  buildDebtLookup, customerAddressValue, customerAvailableDebtValue, customerCodeValue,
+  customerDebtValue, customerNameValue, customerPendingCollectedValue, customerPhoneValue, customerSalesValue,
+  debtClassName, mergeCustomerDebt, mergeCustomerPages, normalizeSelectedCustomerForSubmit, uniqueCustomerIdentityKeys
+} from './sales/customer.js?v=phase86-production-hardening-v1';
+import { currentSalesStaffCode as resolveCurrentSalesStaffCode, filterOrdersForCurrentSalesUser as scopeOrdersForCurrentSalesUser } from './sales/staff.js?v=phase86-production-hardening-v1';
+import {
+  applyPromotionLines, attachPackingRate, buildPromotionCartPayloadItem, normalizePackingRate,
+  normalizeProductGroupName, normalizeProductSearchResponse, toMobileProduct as normalizeMobileProduct
+} from './sales/product.js?v=phase86-production-hardening-v1';
+import { buildOrderPayloadItems, calculateCartTotals, cartQuantityFromInputs, validateCartQuantity } from './sales/cart.js?v=phase86-production-hardening-v1';
+import { buildOrderQueryKey, mergeOrderPages, orderMatchesDisplayFilter as matchesOrderStatus, orderMatchesSearchText as matchesOrderSearch, orderStatusFilterValue as readOrderStatusFilter, upsertOrder } from './sales/orders.js?v=phase86-production-hardening-v1';
+import { debtCustomerKey, filterAndSortDebts, mergeDebtPages, parseMobileMoneyInput } from './sales/debt.js?v=phase86-production-hardening-v1';
+import { offlineOperationToOrder as mapOfflineOperationToOrder } from './sales/sync.js?v=phase86-production-hardening-v1';
 
 requireLogin();
 requireRole(['sales']);
@@ -16,271 +32,30 @@ document.getElementById('staffInfo').textContent = `${user.name || user.username
 
 
 
-let selectedCustomer = null;
-let selectedProduct = null;
-let cart = [];
-let editingOrderId = '';
-let lastCustomers = [];
-let todayOrderCache = [];
-let debtCache = [];
-let debtLoaded = false;
-let debtLoading = false;
-let debtRequestSeq = 0;
-let debtSubtab = 'customers';
-let selectedDebtCustomerKey = '';
-let debtFormDirty = false;
-let debtListScrollTop = 0;
-let customerRequestSeq = 0;
-let pendingOfflineOrders = [];
+const draftStore = new OrderDraftStore({
+  ownerKey: resolveCurrentSalesStaffCode(user) || user.id || user.username || 'sales'
+});
+const state = createMobileSalesState({ draftStore });
+const {
+  tabs, panels, customerSearch, customerList, customerLoadMoreBtn, productSearch, productGroupFilter,
+  productSuggestions, selectedCustomerBox, selectedProductBox, caseQtyInput, looseQtyInput, paidAmountInput,
+  cartList, cartCustomerContext, cartCount, cartTotal, cartGrossTotal, cartDiscountTotal, orderDraftBar,
+  orderDraftLineCount, orderDraftTotal, openCartBtn, backToOrderBtn, todayOrders, orderLoadMoreBtn,
+  orderSearch, orderDateFilter, orderStatusFilter, orderFilterResultCount, message, orderFormTitle,
+  submitOrderBtn, cartTabBadge, syncNavBadge, networkStatus, mobileGlobalStatus, debtList, debtLoadMoreBtn,
+  debtLedgerList, debtTotalAmount, debtCustomerCount, debtPendingAmount, debtTabMessage,
+  debtCustomersSubtab, debtCollectSubtab, debtCustomersPanel, debtCollectPanel, debtCustomerSearch,
+  debtCustomerSort
+} = collectMobileSalesDom();
+
 const CUSTOMER_PAGE_LIMIT = 40;
 const DEBT_PAGE_LIMIT = 30;
 const ORDER_PAGE_LIMIT = 30;
-let customerPage = 1;
-let customerHasMore = false;
-let customerLoading = false;
-let customerQuery = '';
-let debtPage = 1;
-let debtHasMore = false;
-let debtSummary = {};
-let todayOrderPage = 1;
-let todayOrderHasMore = false;
-let todayOrderLoaded = false;
-let todayOrderLoading = false;
-let todayOrderSummary = {};
-let productToolsInitialized = false;
-let activeTabId = 'customersTab';
-let todayOrderRequestSeq = 0;
-let todayOrderLoadedKey = '';
-
-const tabs = document.querySelectorAll('.tab-btn');
-const panels = document.querySelectorAll('.tab-panel');
-const customerSearch = document.getElementById('customerSearch');
-const customerList = document.getElementById('customerList');
-const customerLoadMoreBtn = document.getElementById('customerLoadMoreBtn');
-const productSearch = document.getElementById('productSearch');
-// MOBILE_PRODUCT_GROUP_FILTER_LOGIC_START: DOM filter Nhóm hàng để thu hẹp danh sách sản phẩm mobile.
-const productGroupFilter = document.getElementById('productGroupFilter');
-let productGroupOptionsLoaded = false;
-// MOBILE_PRODUCT_GROUP_FILTER_LOGIC_END
-const productSuggestions = document.getElementById('productSuggestions');
-const selectedCustomerBox = document.getElementById('selectedCustomer');
-const selectedProductBox = document.getElementById('selectedProduct');
-const caseQtyInput = document.getElementById('caseQtyInput');
-const looseQtyInput = document.getElementById('looseQtyInput');
-const paidAmountInput = document.getElementById('paidAmountInput');
-const cartList = document.getElementById('cartList');
-const cartCustomerContext = document.getElementById('cartCustomerContext');
-const cartCount = document.getElementById('cartCount');
-const cartTotal = document.getElementById('cartTotal');
-const cartGrossTotal = document.getElementById('cartGrossTotal');
-const cartDiscountTotal = document.getElementById('cartDiscountTotal');
-const orderDraftBar = document.getElementById('orderDraftBar');
-const orderDraftLineCount = document.getElementById('orderDraftLineCount');
-const orderDraftTotal = document.getElementById('orderDraftTotal');
-const openCartBtn = document.getElementById('openCartBtn');
-const backToOrderBtn = document.getElementById('backToOrderBtn');
-const todayOrders = document.getElementById('todayOrders');
-const orderLoadMoreBtn = document.getElementById('orderLoadMoreBtn');
-const orderSearch = document.getElementById('orderSearch');
-const orderDateFilter = document.getElementById('orderDateFilter');
-const orderStatusFilter = document.getElementById('orderStatusFilter');
-const orderFilterResultCount = document.getElementById('orderFilterResultCount');
-const message = document.getElementById('salesMessage');
-const orderFormTitle = document.getElementById('orderFormTitle');
-const submitOrderBtn = document.getElementById('submitOrderBtn');
-const cartTabBadge = document.getElementById('cartTabBadge');
-const syncNavBadge = document.getElementById('syncNavBadge');
-const networkStatus = document.getElementById('networkStatus');
-const mobileGlobalStatus = document.getElementById('mobileGlobalStatus');
-const debtList = document.getElementById('debtList');
-const debtLoadMoreBtn = document.getElementById('debtLoadMoreBtn');
-const debtLedgerList = document.getElementById('debtLedgerList');
-const debtTotalAmount = document.getElementById('debtTotalAmount');
-const debtCustomerCount = document.getElementById('debtCustomerCount');
-const debtPendingAmount = document.getElementById('debtPendingAmount');
-const debtTabMessage = document.getElementById('debtTabMessage');
-const debtCustomersSubtab = document.getElementById('debtCustomersSubtab');
-const debtCollectSubtab = document.getElementById('debtCollectSubtab');
-const debtCustomersPanel = document.getElementById('debtCustomersPanel');
-const debtCollectPanel = document.getElementById('debtCollectPanel');
-const debtCustomerSearch = document.getElementById('debtCustomerSearch');
-const debtCustomerSort = document.getElementById('debtCustomerSort');
-
-
-
-function customerDebtValue(customer = {}) {
-  return Number(customer.debtAmount ?? customer.currentDebt ?? customer.debt ?? customer.arDebt ?? 0);
-}
-
-
-function customerAvailableDebtValue(customer = {}) {
-  return Number(customer.availableDebtAmount ?? customer.availableDebt ?? customer.debtAmount ?? customer.debt ?? 0);
-}
-
-function customerPendingCollectedValue(customer = {}) {
-  return Number(customer.pendingCollectedAmount ?? customer.pendingCollected ?? 0);
-}
-
-function parseMobileMoneyInput(value) {
-  if (typeof value === 'number') return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return 0;
-  const multiplier = raw.endsWith('k') ? 1000 : (raw.endsWith('tr') ? 1000000 : 1);
-  const cleaned = raw.replace(/tr|k/g, '').replace(/[^0-9,.-]/g, '').replace(/[.,](?=\d{3}(\D|$))/g, '').replace(',', '.');
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? Math.max(0, Math.round(n * multiplier)) : 0;
-}
-
-function customerSalesValue(customer = {}) {
-  return Number(customer.monthRevenue ?? customer.monthSales ?? customer.salesAmount ?? 0);
-}
-
-
-// MOBILE_SALES_CLIENT_OWNER_GUARD_START
-function normalizeSalesStaffToken(value = '') {
-  return String(value || '').trim().toLowerCase();
-}
 
 function currentSalesStaffCode() {
-  return String(
-    user.salesStaffCode ||
-    user.salesmanCode ||
-    user.nvbhCode ||
-    user.maNVBH ||
-    user.staffCode ||
-    user.code ||
-    ''
-  ).trim();
-}
-
-function orderSalesStaffCode(order = {}) {
-  return String(
-    order.salesStaffCode ||
-    order.salesPersonCode ||
-    order.salesmanCode ||
-    order.nvbhCode ||
-    order.maNVBH ||
-    (order.salesStaff && order.salesStaff.code) ||
-    ''
-  ).trim();
+  return resolveCurrentSalesStaffCode(user);
 }
 
 function filterOrdersForCurrentSalesUser(items = []) {
-  const rows = Array.isArray(items) ? items : [];
-  if (String(user.role || '') !== 'sales') return rows;
-  const code = normalizeSalesStaffToken(currentSalesStaffCode());
-  if (!code) return [];
-  return rows.filter((order) => normalizeSalesStaffToken(orderSalesStaffCode(order)) === code);
-}
-// MOBILE_SALES_CLIENT_OWNER_GUARD_END
-
-
-function cleanCustomerText(value, fallback = '') {
-  const text = String(value ?? '').trim();
-  return text && text !== 'undefined' && text !== 'null' ? text : fallback;
-}
-
-function customerCodeValue(customer = {}) {
-  return cleanCustomerText(customer.code || customer.customerCode || customer.customerId || customer.id || '');
-}
-
-function customerNameValue(customer = {}) {
-  return cleanCustomerText(customer.name || customer.customerName || customer.fullName || '');
-}
-
-function customerPhoneValue(customer = {}) {
-  return cleanCustomerText(customer.phone || customer.customerPhone || customer.mobile || customer.tel || customer.telephone || customer.contactPhone || customer.sdt || '', 'Chưa có SĐT');
-}
-
-function customerAddressValue(customer = {}) {
-  return cleanCustomerText(customer.address || customer.customerAddress || customer.fullAddress || customer.diaChi || customer.routeAddress || '', 'Chưa có địa chỉ');
-}
-
-// MOBILE_SALES_CUSTOMER_CANONICAL_PAYLOAD_START
-function normalizeSelectedCustomerForSubmit(customer = {}) {
-  const code = customerCodeValue(customer);
-  const name = customerNameValue(customer);
-  const id = cleanCustomerText(customer.id || customer._id || customer.customerId || '');
-  const phone = cleanCustomerText(customer.phone || customer.customerPhone || customer.mobile || customer.tel || customer.telephone || customer.contactPhone || customer.sdt || '');
-  const address = cleanCustomerText(customer.address || customer.customerAddress || customer.fullAddress || customer.diaChi || customer.routeAddress || '');
-
-  return {
-    ...customer,
-    id,
-    customerId: cleanCustomerText(customer.customerId || id || code),
-    code,
-    customerCode: code,
-    name,
-    customerName: name,
-    phone,
-    customerPhone: phone,
-    address,
-    customerAddress: address
-  };
-}
-// MOBILE_SALES_CUSTOMER_CANONICAL_PAYLOAD_END
-
-function debtClassName(customer = {}) {
-  const debt = customerDebtValue(customer);
-  if (debt > 10000000) return 'debt-high';
-  if (debt >= 3000000) return 'debt-mid';
-  if (debt > 0) return 'debt-low';
-  return 'debt-zero';
-}
-
-function uniqueCustomerIdentityKeys(customer = {}) {
-  const pairs = [
-    ['id', customer.id],
-    ['id', customer._id],
-    ['id', customer.customerId],
-    ['code', customer.code],
-    ['code', customer.customerCode]
-  ];
-  return Array.from(new Set(pairs
-    .map(([kind, value]) => [kind, String(value || '').trim().toLowerCase()])
-    .filter(([, value]) => Boolean(value))
-    .map(([kind, value]) => `${kind}:${value}`)));
-}
-
-function legacyCustomerNameKey(customer = {}) {
-  const name = String(customer.name || customer.customerName || '').trim().toLowerCase();
-  return name ? `name:${name}` : '';
-}
-
-function buildDebtLookup(rows = debtCache) {
-  const map = new Map();
-  const legacyNameRows = new Map();
-  const ambiguousNames = new Set();
-
-  (Array.isArray(rows) ? rows : []).forEach((item) => {
-    const stableKeys = uniqueCustomerIdentityKeys(item);
-    stableKeys.forEach((key) => map.set(key, item));
-    if (stableKeys.length) return;
-
-    const nameKey = legacyCustomerNameKey(item);
-    if (!nameKey) return;
-    if (legacyNameRows.has(nameKey)) {
-      legacyNameRows.delete(nameKey);
-      ambiguousNames.add(nameKey);
-    } else if (!ambiguousNames.has(nameKey)) {
-      legacyNameRows.set(nameKey, item);
-    }
-  });
-
-  legacyNameRows.forEach((item, key) => map.set(key, item));
-  return map;
-}
-
-function mergeCustomerDebt(customer = {}, debtLookup = buildDebtLookup()) {
-  const stableKeys = uniqueCustomerIdentityKeys(customer);
-  let matched = stableKeys.map((key) => debtLookup.get(key)).find(Boolean);
-  // Tên chỉ là fallback cho dữ liệu lịch sử khi cả hai phía đều không có mã/ID.
-  if (!matched && !stableKeys.length) matched = debtLookup.get(legacyCustomerNameKey(customer));
-  if (!matched) return { ...customer, debtAmount: customerDebtValue(customer) };
-  return {
-    ...customer,
-    debtAmount: Number(matched.debtAmount || 0),
-    orderCount: Number(matched.orderCount || 0),
-    oldestDebtDate: matched.oldestDebtDate || customer.oldestDebtDate || ''
-  };
+  return scopeOrdersForCurrentSalesUser(items, user);
 }

@@ -7,6 +7,8 @@ const { createMobileSalesRouter } = require('./sales.routes');
 const { createMobileDeliveryRouter } = require('./delivery.routes');
 const { createMobileDebtRouter, createMobileDebtCollectionRouter } = require('./debts.routes');
 const { createMobileSyncRouter } = require('./sync.routes');
+const { body } = require('express-validator');
+const { createMobileRuntimeController } = require('../../controllers/mobile/runtime.controller');
 
 function forwardTo(router, targetPath) {
   return (req, res, next) => {
@@ -41,8 +43,21 @@ function createMobileRouter(ctx) {
   }
 
   const router = express.Router();
+  const runtimeController = createMobileRuntimeController(ctx);
 
   addCompatibilityAliases(router);
+
+  router.get('/runtime-config', ctx.requireMobileLogin, runtimeController.config);
+  router.post('/telemetry',
+    ctx.requireMobileLogin,
+    body('events').isArray({ min: 1, max: 50 }).withMessage('events phải có từ 1 đến 50 phần tử'),
+    body('appVersion').optional().isString().isLength({ max: 80 }),
+    body('deviceId').optional().isString().isLength({ max: 120 }),
+    body('networkType').optional().isString().isLength({ max: 40 }),
+    body('effectiveType').optional().isString().isLength({ max: 40 }),
+    ctx.validateRequest,
+    runtimeController.telemetry
+  );
 
   router.use('/auth', createMobileAuthRouter(ctx));
   router.use('/catalog', createMobileCatalogRouter(ctx));

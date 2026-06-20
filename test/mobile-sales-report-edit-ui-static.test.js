@@ -17,5 +17,5 @@ test('sales report edit buttons use delegated click handling and explicit button
 });
 
 test('mobile sales script cache version is bumped for edit fix', () => {
-  assert.match(html, /sales\.js\?v=phase84-mobile-ux-v1/);
+  assert.match(html, /sales\.js\?v=phase86-production-hardening-v1/);
 });

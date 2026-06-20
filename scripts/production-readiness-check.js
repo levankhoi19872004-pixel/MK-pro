@@ -50,6 +50,27 @@ function evaluateProductionReadiness(env = process.env) {
   if (!text(env.TRUST_PROXY)) warnings.push('Nên khai báo TRUST_PROXY phù hợp với Render/nginx');
   if (!text(env.BACKUP_DIR)) warnings.push('Nên khai báo BACKUP_DIR trên volume bền vững hoặc dùng Atlas PITR');
 
+
+  if (enabled(env.ENABLE_MOBILE_OFFLINE_SYNC)) {
+    errors.push('ENABLE_MOBILE_OFFLINE_SYNC là cờ legacy và phải tắt trong chế độ online-first');
+  }
+  if (enabled(env.ENABLE_MOBILE_OFFLINE_QUEUE)) {
+    errors.push('ENABLE_MOBILE_OFFLINE_QUEUE phải tắt theo chính sách mobile online-first');
+  }
+  if (enabled(env.ENABLE_MOBILE_LEGACY_SYNC_DRAIN)) {
+    warnings.push('ENABLE_MOBILE_LEGACY_SYNC_DRAIN chỉ dùng tạm để xử lý operation cũ; phải tắt sau khi hàng đợi bằng 0');
+    if (!text(env.MOBILE_LEGACY_SYNC_DRAIN_UNTIL)) {
+      warnings.push('Nên đặt MOBILE_LEGACY_SYNC_DRAIN_UNTIL để tránh mở kênh legacy vô thời hạn');
+    }
+  }
+  if (disabled(env.MOBILE_CLIENT_TELEMETRY_ENABLED)) {
+    warnings.push('MOBILE_CLIENT_TELEMETRY_ENABLED đang tắt; không đo được độ trễ thực tế trên thiết bị');
+  }
+  const apiMonitorSampleSize = Number(env.API_MONITOR_SAMPLE_SIZE || 200);
+  if (!Number.isFinite(apiMonitorSampleSize) || apiMonitorSampleSize < 100) {
+    warnings.push('API_MONITOR_SAMPLE_SIZE nên từ 100 trở lên để p95/p99 ổn định hơn');
+  }
+
   const enterpriseModules = [
     'ENABLE_PURCHASING',
     'ENABLE_WAREHOUSE_ADVANCED',

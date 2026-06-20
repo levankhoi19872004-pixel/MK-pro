@@ -8,6 +8,7 @@ const { bindSalesPayload } = require('../src/services/mobile/MobileSyncService')
 
 const salesService = readSource('src/services/mobile/sales.service.js');
 const salesFrontend = readSource('public/mobile/js/sales.js');
+const salesCustomerDomain = readSource('public/mobile/js/sales/customer.js');
 const offlineSync = readSource(path.join(__dirname, '..', 'public/mobile/js/offline-sync.js'));
 const syncController = readSource(path.join(__dirname, '..', 'src/controllers/mobile/sync.controller.js'));
 const syncRoutes = readSource(path.join(__dirname, '..', 'src/routes/mobile/sync.routes.js'));
@@ -61,19 +62,19 @@ test('offline sync production route reuses mobile sales command path', () => {
 
 
 test('customer search, debt merge and order draft guards are hardened on mobile', () => {
-  assert.match(salesFrontend, /const requestSeq = \+\+customerRequestSeq/);
-  assert.match(salesFrontend, /if \(requestSeq !== customerRequestSeq\) return/);
-  assert.match(salesFrontend, /uniqueCustomerIdentityKeys/);
-  assert.match(salesFrontend, /Tên chỉ là fallback cho dữ liệu lịch sử/);
+  assert.match(salesFrontend, /const requestSeq = \+\+state\.customer\.requestSeq/);
+  assert.match(salesFrontend, /if \(requestSeq !== state\.customer\.requestSeq\) return/);
+  assert.match(salesFrontend, /sales\/customer\.js/);
+  assert.match(salesCustomerDomain, /legacyNameRows|ambiguousNames/);
   assert.match(salesFrontend, /Giỏ hiện tại đang thuộc khách hàng khác/);
   assert.match(salesFrontend, /cartCustomerContext/);
-  assert.match(salesFrontend, /mkpro_mobile_sales_draft_v1/);
+  assert.match(salesFrontend, /OrderDraftStore/);
 });
 
 
 test('offline conflicts remain visible but are not automatically retried', () => {
   assert.match(offlineSync, /statuses: \['pending', 'failed'\]/);
   assert.doesNotMatch(offlineSync, /\['pending', 'failed', 'conflict'\]\.includes\(row\.status\)/);
-  assert.match(salesFrontend, /statuses: \['pending', 'failed', 'conflict'\]/);
+  assert.match(salesFrontend, /statuses: \['pending', 'failed', 'conflict', 'needs_attention'\]/);
   assert.match(salesFrontend, /Chờ đồng bộ/);
 });

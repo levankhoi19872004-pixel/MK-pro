@@ -1,6 +1,6 @@
 
 
-function renderDebtCustomerList(items = debtCache) {
+function renderDebtCustomerList(items = state.debt.rows) {
   if (!debtList) return;
   const source = Array.isArray(items) ? items : [];
 
@@ -30,7 +30,7 @@ function renderDebtCustomerList(items = debtCache) {
     const available = customerAvailableDebtValue(item);
     const disabled = available <= 0;
     return `
-      <article class="debt-card${debtCustomerKey(item) === selectedDebtCustomerKey ? ' selected' : ''}">
+      <article class="debt-card${debtCustomerKey(item) === state.debt.selectedCustomerKey ? ' selected' : ''}">
         <div class="debt-card-content">
           <strong>${escapeHtml(item.customerCode || '')} - ${escapeHtml(item.customerName || '')}</strong>
           <span>Công nợ: ${money(item.debtAmount || 0)} · Chờ KT: ${money(customerPendingCollectedValue(item))} · Có thể thu: ${money(available)}</span>
@@ -94,7 +94,7 @@ function updateMobileDebtCollectionAmount(item = {}) {
   }, 0);
   const input = document.getElementById('mobileDebtCollectionAmount');
   if (input) input.value = String(total);
-  debtFormDirty = true;
+  state.debt.formDirty = true;
 }
 
 function renderDebtLedger(item = {}) {
@@ -169,8 +169,8 @@ function renderDebtLedger(item = {}) {
   });
   const form = document.getElementById('mobileDebtCollectionForm');
   if (form) {
-    form.addEventListener('input', () => { debtFormDirty = true; });
-    form.addEventListener('change', () => { debtFormDirty = true; });
+    form.addEventListener('input', () => { state.debt.formDirty = true; });
+    form.addEventListener('change', () => { state.debt.formDirty = true; });
     form.addEventListener('submit', (event) => submitMobileDebtCollection(event, item));
   }
 }
@@ -201,16 +201,18 @@ async function submitMobileDebtCollection(event, item = {}) {
     const successText = data.message || 'Đã ghi nhận thu nợ, chờ kế toán xác nhận';
     setMessage(msg, successText, 'success');
     setMessage(debtTabMessage, successText, 'success');
-    debtFormDirty = false;
-    selectedDebtCustomerKey = '';
-    debtLoaded = false;
+    state.debt.formDirty = false;
+    state.debt.selectedCustomerKey = '';
+    state.debt.loaded = false;
     await loadDebts({ force: true });
     setDebtSubtab('customers', { restoreScroll: true });
   } catch (err) {
-    if (isNetworkError(err)) {
+    if (isNetworkError(err) && canQueueOfflineOperation('debt_collection_submit')) {
       await queueOperation('debt_collection_submit', offlineDebtPayload);
       setMessage(msg, 'Đã lưu phiếu thu offline, hệ thống sẽ tự đồng bộ khi có mạng', 'success');
-      debtFormDirty = false;
+      state.debt.formDirty = false;
+    } else if (isNetworkError(err)) {
+      setMessage(msg, 'Mất kết nối. Phiếu thu chưa được gửi; dữ liệu đang nhập vẫn được giữ để bạn thử lại.', 'error');
     } else {
       setMessage(msg, err.message || 'Không gửi được phiếu thu nợ', 'error');
     }
@@ -222,12 +224,12 @@ async function submitMobileDebtCollection(event, item = {}) {
 submitOrderBtn.addEventListener('click', async () => {
   if (submitOrderBtn.disabled) return;
   setMessage(message, '');
-  if (!selectedCustomer) return setMessage(message, 'Chưa chọn khách hàng', 'error');
-  const customerPayload = normalizeSelectedCustomerForSubmit(selectedCustomer);
+  if (!state.draft.customer) return setMessage(message, 'Chưa chọn khách hàng', 'error');
+  const customerPayload = normalizeSelectedCustomerForSubmit(state.draft.customer);
   if (!customerPayload.code && !customerPayload.customerCode && !customerPayload.id && !customerPayload.customerId) {
     return setMessage(message, 'Thiếu mã khách hàng, vui lòng chọn lại khách ở tab Khách hàng', 'error');
   }
-  if (!cart.length) return setMessage(message, 'Chưa có sản phẩm', 'error');
+  if (!state.draft.cart.length) return setMessage(message, 'Chưa có sản phẩm', 'error');
   setButtonBusy(submitOrderBtn, true);
 
   let offlineOrderPayload = null;
@@ -240,27 +242,14 @@ submitOrderBtn.addEventListener('click', async () => {
       customerId: customerPayload.customerId || customerPayload.id || customerPayload.code || '',
       customerCode: customerPayload.customerCode || customerPayload.code || '',
       customerName: customerPayload.customerName || customerPayload.name || '',
-      items: cart.map((item) => ({
-        ...item,
-        grossPrice: Number(item.grossPrice || item.originalPrice || item.catalogSalePrice || item.salePrice || item.price || 0),
-        originalPrice: Number(item.originalPrice || item.grossPrice || item.catalogSalePrice || item.salePrice || item.price || 0),
-        unitPrice: Number(item.unitPrice || item.finalPrice || item.salePrice || item.price || 0),
-        salePrice: Number(item.salePrice || item.unitPrice || item.finalPrice || item.price || 0),
-        finalPrice: Number(item.finalPrice || item.unitPrice || item.salePrice || item.price || 0),
-        discountAmount: Number(item.discountAmount || item.promotionAmount || item.totalDiscountAmount || 0),
-        amount: Number(item.amount || 0),
-        saleMode: 'promotion',
-        saleMethod: 'promotion',
-        pricingMode: 'promotion',
-        priceLocked: true
-      })),
+      items: buildOrderPayloadItems(state.draft.cart),
       paidAmount,
-      note: editingOrderId ? 'Sửa từ app bán hàng mobile' : 'Tạo từ app bán hàng mobile'
+      note: state.draft.editingOrderId ? 'Sửa từ app bán hàng mobile' : 'Tạo từ app bán hàng mobile'
     };
     // MOBILE_SALES_CART_PROMOTION_RECALC_SUBMIT_END
     offlineOrderPayload = payload;
-    const data = editingOrderId
-      ? await mobileApi.updateSalesOrder(editingOrderId, payload)
+    const data = state.draft.editingOrderId
+      ? await mobileApi.updateSalesOrder(state.draft.editingOrderId, payload)
       : await mobileApi.createSalesOrder(payload);
 
     const code = data.salesOrder?.code || '';
@@ -270,11 +259,11 @@ submitOrderBtn.addEventListener('click', async () => {
     const successMessage = `${data.message || 'Đã lưu đơn'} ${code}`.trim();
     setMessage(message, successMessage, 'success');
     announceMobileStatus(successMessage, 'success');
-    if (debtLoaded) await loadDebts({ reset: true, force: true });
+    if (state.debt.loaded) await loadDebts({ reset: true, force: true });
     await loadTodayOrders({ reset: true, force: true });
     switchTab('reportTab');
   } catch (err) {
-    if (!editingOrderId && offlineOrderPayload && isNetworkError(err)) {
+    if (!state.draft.editingOrderId && offlineOrderPayload && isNetworkError(err) && canQueueOfflineOperation('sales_order_create')) {
       await queueOperation('sales_order_create', offlineOrderPayload);
       clearOrderForm(false);
       const offlineMessage = 'Đã lưu đơn offline. Đơn đang hiển thị trong danh sách Chờ đồng bộ.';
@@ -282,20 +271,25 @@ submitOrderBtn.addEventListener('click', async () => {
       announceMobileStatus(offlineMessage, 'warning', { persist: true });
       await loadPendingOfflineOrders();
       switchTab('reportTab');
+    } else if (isNetworkError(err)) {
+      persistOrderDraft();
+      const onlineFirstMessage = 'Mất kết nối — đơn chưa được gửi. Bản nháp vẫn được giữ; vui lòng thử lại khi có mạng.';
+      setMessage(message, onlineFirstMessage, 'error');
+      announceMobileStatus(onlineFirstMessage, 'warning', { persist: true });
     } else {
       setMessage(message, err.message, 'error');
       announceMobileStatus(err.message || 'Không lưu được đơn hàng.', 'error', { persist: true });
     }
   } finally {
     setButtonBusy(submitOrderBtn, false);
-    submitOrderBtn.disabled = !selectedCustomer || cart.length === 0;
+    submitOrderBtn.disabled = !state.draft.customer || state.draft.cart.length === 0;
   }
 });
 
 function clearOrderForm(clearCustomer = true) {
-  cart = [];
-  editingOrderId = '';
-  selectedProduct = null;
+  state.draft.cart = [];
+  state.draft.editingOrderId = '';
+  state.draft.product = null;
   productSearch.value = '';
   caseQtyInput.value = '';
   looseQtyInput.value = '';
@@ -305,7 +299,7 @@ function clearOrderForm(clearCustomer = true) {
   orderFormTitle.textContent = 'Đặt hàng';
   submitOrderBtn.textContent = 'Xác nhận đơn';
   if (clearCustomer) {
-    selectedCustomer = null;
+    state.draft.customer = null;
     setMessage(message, 'Đã làm mới đơn. Hãy chọn khách hàng ở tab 1.', 'success');
   }
   renderSelectedCustomerContext();
@@ -320,8 +314,8 @@ async function editTodayOrder(orderId) {
     const order = data.order;
     if (!order.canEdit) return setMessage(message, order.editLockReason || 'Đơn hiện không thể chỉnh sửa trên app bán hàng.', 'error');
 
-    editingOrderId = order.id || order.code;
-    selectedCustomer = {
+    state.draft.editingOrderId = order.id || order.code;
+    state.draft.customer = {
       id: order.customerId,
       code: order.customerCode,
       name: order.customerName,
@@ -332,7 +326,7 @@ async function editTodayOrder(orderId) {
     };
     renderSelectedCustomerContext();
 
-    cart = (order.items || []).map((item) => ({
+    state.draft.cart = (order.items || []).map((item) => ({
       productId: item.productId || item.productCode,
       productCode: item.productCode,
       productName: item.productName,
@@ -372,11 +366,11 @@ async function deleteTodayOrder(orderId, orderCode) {
   if (!ok) return;
   try {
     const data = await mobileApi.deleteSalesOrder(orderId);
-    todayOrderCache = todayOrderCache.filter((order) => {
+    state.orders.rows = state.orders.rows.filter((order) => {
       const key = String(order.id || order.code || '');
       return key !== String(orderId || '') && String(order.code || '') !== String(orderCode || '');
     });
-    renderTodayOrders(todayOrderCache, todayOrderSummary);
+    renderTodayOrders(state.orders.rows, state.orders.summary);
     await loadTodayOrders({ reset: true, force: true });
     const deletedMessage = data.message || 'Đã xóa đơn';
     setMessage(message, deletedMessage, 'success');

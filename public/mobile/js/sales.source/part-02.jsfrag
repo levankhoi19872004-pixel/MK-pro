@@ -1,68 +1,13 @@
 
 // MOBILE_SALES_CART_PROMOTION_RECALC_END
 
+
+
 function toMobileProduct(product = {}) {
-  const availableQty = Number(
-    product._availableQty ??
-    product.availableQty ??
-    product.availableStock ??
-    product.stockQuantity ??
-    product.stock ??
-    0
-  );
-
-  const code = product.code || product.productCode || product.sku || '';
-  const name = product.name || product.productName || '';
-  // MOBILE_PRODUCT_GROUP_FILTER_NORMALIZE_START: chuẩn hóa Nhóm hàng từ danh mục sản phẩm.
-  const groupName = String(
-    product.groupName ||
-    product.productGroupName ||
-    product.productGroup ||
-    product.group ||
-    product.categoryName ||
-    product.category ||
-    ''
-  ).trim();
-  // MOBILE_PRODUCT_GROUP_FILTER_NORMALIZE_END
-
-  const internalSaleQuota = product.internalSaleQuota && typeof product.internalSaleQuota === 'object'
-    ? product.internalSaleQuota
-    : {};
-  const maxOrderQty = Math.max(0, Number(
-    product.maxOrderQty ??
-    internalSaleQuota.currentlyAllowedQty ??
-    internalSaleQuota.remainingQty ??
-    0
-  ));
-
-  return {
-    ...product,
-    id: product.id || product._id || code,
-    code,
-    name,
-    groupName,
-    category: product.category || groupName,
-    salePrice: Number(product.salePrice || product.price || 0),
-    availableQty,
-    stockQuantity: availableQty,
-    conversionRate: normalizePackingRate(product),
-    packingQty: normalizePackingRate(product),
-    unitsPerCase: normalizePackingRate(product),
-    stockDisplay: formatStockTL(availableQty, normalizePackingRate(product)),
-    maxOrderQty,
-    internalSaleQuota: {
-      ...internalSaleQuota,
-      remainingQty: Math.max(0, Number(internalSaleQuota.remainingQty || 0)),
-      currentlyAllowedQty: maxOrderQty
-    }
-  };
+  return normalizeMobileProduct(product, { formatStock: formatStockTL });
 }
-
 
 // MOBILE_PRODUCT_GROUP_FILTER_OPTIONS_START: tải danh sách Nhóm hàng để lọc sản phẩm trước khi tìm kiếm.
-function normalizeProductGroupName(value = '') {
-  return String(value || '').trim();
-}
 
 function escapeProductGroupHtml(value = '') {
   return String(value || '')
@@ -91,20 +36,20 @@ function renderProductGroupOptions(groups = []) {
 
 async function loadProductGroupOptions(force = false) {
   if (!productGroupFilter) return;
-  if (productGroupOptionsLoaded && !force) return;
-  productGroupOptionsLoaded = true;
+  if (state.product.groupOptionsLoaded && !force) return;
+  state.product.groupOptionsLoaded = true;
   try {
     const data = await mobileApi.getProductGroups();
     renderProductGroupOptions(data.items || data.groups || []);
   } catch (err) {
-    productGroupOptionsLoaded = false;
+    state.product.groupOptionsLoaded = false;
     if (err?.code !== 'REQUEST_ABORTED') console.warn('[mobile-sales] không tải được nhóm hàng sản phẩm:', err.message || err);
   }
 }
 // MOBILE_PRODUCT_GROUP_FILTER_OPTIONS_END
 
 function resetSelectedProduct() {
-  selectedProduct = null;
+  state.draft.product = null;
   if (productSearch) {
     productSearch.dataset.id = '';
     productSearch.dataset.code = '';
@@ -117,7 +62,7 @@ function resetSelectedProduct() {
 
 function pickProduct(product) {
   const p = toMobileProduct(product);
-  selectedProduct = p;
+  state.draft.product = p;
 
   // V45 Unified Search V2: input chỉ là phần hiển thị, dữ liệu chọn thật phải lưu ở dataset.
   // Nếu chỉ set productSearch.value thì khi thêm hàng app không biết chắc sản phẩm đã chọn từ gợi ý nào.
@@ -161,12 +106,6 @@ async function preloadUnifiedProducts(force = false) {
   return [];
 }
 
-function normalizeProductSearchResponse(data) {
-  if (Array.isArray(data)) return data;
-  if (!data || typeof data !== 'object') return [];
-  const rows = data.items || data.products || data.rows || data.data || data.result || [];
-  return Array.isArray(rows) ? rows : [];
-}
 
 async function searchMobileProducts(keyword = '') {
   const q = String(keyword || '').trim();
@@ -202,8 +141,8 @@ async function searchMobileProducts(keyword = '') {
 }
 
 function ensureProductToolsInitialized() {
-  if (productToolsInitialized) return;
-  productToolsInitialized = true;
+  if (state.product.toolsInitialized) return;
+  state.product.toolsInitialized = true;
   initProductAutocomplete();
 }
 
@@ -256,26 +195,26 @@ function initProductAutocomplete() {
 document.getElementById('addItemBtn').addEventListener('click', async () => {
   // MOBILE_SALES_CART_PROMOTION_RECALC_ADD_START
   setMessage(message, '');
-  if (!selectedCustomer) return setMessage(message, 'Chưa chọn khách hàng ở tab 1', 'error');
-  if (!selectedProduct) return setMessage(message, 'Chưa chọn sản phẩm', 'error');
+  if (!state.draft.customer) return setMessage(message, 'Chưa chọn khách hàng ở tab 1', 'error');
+  if (!state.draft.product) return setMessage(message, 'Chưa chọn sản phẩm', 'error');
 
   const caseQty = Number(caseQtyInput?.value || 0);
   const looseQty = Number(looseQtyInput?.value || 0);
-  const packingRate = normalizePackingRate(selectedProduct);
+  const packingRate = normalizePackingRate(state.draft.product);
   const qty = (caseQty > 0 && packingRate > 0 ? caseQty * packingRate : 0) + looseQty;
   if (qty <= 0) return setMessage(message, 'Số lượng phải lớn hơn 0', 'error');
 
   // V45 fix: tồn hiển thị trên autocomplete có thể bị cache/stale.
   // Không chặn cứng ở frontend khi availableQty = 0/không có; backend sẽ kiểm tra lại tồn Mongo thật khi ghi đơn.
-  const availableQty = Number(selectedProduct.availableQty || 0);
-  const maxOrderQty = Math.max(0, Number(selectedProduct.maxOrderQty || 0));
+  const availableQty = Number(state.draft.product.availableQty || 0);
+  const maxOrderQty = Math.max(0, Number(state.draft.product.maxOrderQty || 0));
   if (availableQty > 0 && qty > availableQty) return setMessage(message, 'Số lượng vượt tồn thực tế', 'error');
   if (qty > maxOrderQty) return setMessage(message, maxOrderQty > 0
     ? `Sản phẩm chỉ còn được bán qua App ${formatStockTL(maxOrderQty, packingRate)}`
     : 'Sản phẩm chưa có hạn mức bán qua App. Vui lòng cập nhật file tồn DMS buổi sáng.', 'error');
 
-  const grossPrice = Number(selectedProduct.salePrice || selectedProduct.price || 0);
-  const existed = cart.find((item) => item.productCode === selectedProduct.code);
+  const grossPrice = Number(state.draft.product.salePrice || state.draft.product.price || 0);
+  const existed = state.draft.cart.find((item) => item.productCode === state.draft.product.code);
   if (existed) {
     const nextQty = Number(existed.quantity || 0) + qty;
     if (availableQty > 0 && nextQty > availableQty) return setMessage(message, 'Tổng số lượng vượt tồn thực tế', 'error');
@@ -287,19 +226,19 @@ document.getElementById('addItemBtn').addEventListener('click', async () => {
     existed.grossPrice = existed.originalPrice;
     existed.catalogSalePrice = existed.originalPrice;
     attachPackingRate(existed, {
-      conversionRate: existed.conversionRate || selectedProduct.conversionRate,
-      unitsPerCase: existed.unitsPerCase || selectedProduct.unitsPerCase,
-      packingQty: existed.packingQty || selectedProduct.packingQty,
-      packQty: selectedProduct.packQty,
-      pack: selectedProduct.pack,
-      packageQty: selectedProduct.packageQty
+      conversionRate: existed.conversionRate || state.draft.product.conversionRate,
+      unitsPerCase: existed.unitsPerCase || state.draft.product.unitsPerCase,
+      packingQty: existed.packingQty || state.draft.product.packingQty,
+      packQty: state.draft.product.packQty,
+      pack: state.draft.product.pack,
+      packageQty: state.draft.product.packageQty
     });
   } else {
-    cart.push(attachPackingRate({
-      productId: selectedProduct.id,
-      productCode: selectedProduct.code,
-      productName: selectedProduct.name,
-      unit: selectedProduct.unit,
+    state.draft.cart.push(attachPackingRate({
+      productId: state.draft.product.id,
+      productCode: state.draft.product.code,
+      productName: state.draft.product.name,
+      unit: state.draft.product.unit,
       quantity: qty,
       originalPrice: grossPrice,
       grossPrice,
@@ -319,11 +258,11 @@ document.getElementById('addItemBtn').addEventListener('click', async () => {
       priceLocked: true,
       availableQty,
       maxOrderQty,
-      internalSaleQuota: selectedProduct.internalSaleQuota || {}
-    }, selectedProduct));
+      internalSaleQuota: state.draft.product.internalSaleQuota || {}
+    }, state.draft.product));
   }
 
-  selectedProduct = null;
+  state.draft.product = null;
   productSearch.value = '';
   caseQtyInput.value = '';
   looseQtyInput.value = '';
@@ -335,29 +274,19 @@ document.getElementById('addItemBtn').addEventListener('click', async () => {
   // MOBILE_SALES_CART_PROMOTION_RECALC_ADD_END
 });
 
-// renderCart and cart interaction handlers are defined in part-02b.jsfrag.
+// renderCart and state.draft.cart interaction handlers are defined in part-02b.jsfrag.
 
 
-function debtCustomerKey(item = {}) {
-  return String(
-    item.customerId ||
-    item.customerCode ||
-    item.code ||
-    item.id ||
-    item._id ||
-    item.customerName ||
-    ''
-  ).trim();
-}
+
 
 function selectedDebtCustomer() {
-  if (!selectedDebtCustomerKey) return null;
-  return debtCache.find((item) => debtCustomerKey(item) === selectedDebtCustomerKey) || null;
+  if (!state.debt.selectedCustomerKey) return null;
+  return state.debt.rows.find((item) => debtCustomerKey(item) === state.debt.selectedCustomerKey) || null;
 }
 
 function setDebtSubtab(nextSubtab, options = {}) {
   const next = nextSubtab === 'collect' ? 'collect' : 'customers';
-  debtSubtab = next;
+  state.debt.subtab = next;
 
   debtCustomersSubtab?.classList.toggle('active', next === 'customers');
   debtCollectSubtab?.classList.toggle('active', next === 'collect');
@@ -374,7 +303,7 @@ function setDebtSubtab(nextSubtab, options = {}) {
   }
 
   if (options.restoreScroll !== false) {
-    window.requestAnimationFrame(() => window.scrollTo({ top: debtListScrollTop, behavior: 'auto' }));
+    window.requestAnimationFrame(() => window.scrollTo({ top: state.debt.listScrollTop, behavior: 'auto' }));
   }
 }
 
@@ -386,79 +315,51 @@ function openDebtCollection(item = {}) {
   const nextKey = debtCustomerKey(item);
   if (!nextKey || customerAvailableDebtValue(item) <= 0) return;
 
-  if (selectedDebtCustomerKey === nextKey) {
+  if (state.debt.selectedCustomerKey === nextKey) {
     setDebtSubtab('collect');
     return;
   }
 
   if (
-    debtFormDirty &&
-    selectedDebtCustomerKey &&
-    selectedDebtCustomerKey !== nextKey &&
+    state.debt.formDirty &&
+    state.debt.selectedCustomerKey &&
+    state.debt.selectedCustomerKey !== nextKey &&
     !window.confirm('Bạn đang có phiếu thu chưa gửi. Dữ liệu hiện tại sẽ bị xóa khi chuyển khách hàng.')
   ) {
     return;
   }
 
-  debtListScrollTop = window.scrollY || document.documentElement.scrollTop || 0;
-  selectedDebtCustomerKey = nextKey;
-  debtFormDirty = false;
+  state.debt.listScrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+  state.debt.selectedCustomerKey = nextKey;
+  state.debt.formDirty = false;
   renderDebtLedger(item);
   setDebtSubtab('collect');
 }
 
-function filteredAndSortedDebts(items = debtCache) {
-  const keyword = String(debtCustomerSearch?.value || '').trim().toLowerCase();
-  const sortMode = String(debtCustomerSort?.value || 'debt_desc');
-  const rows = (Array.isArray(items) ? items : [])
-    .map((item, originalIndex) => ({ item, originalIndex }))
-    .filter(({ item }) => {
-      if (!keyword) return true;
-      return [item.customerCode, item.customerName, item.phone, item.customerPhone]
-        .some((value) => String(value || '').toLowerCase().includes(keyword));
-    });
 
-  rows.sort((left, right) => {
-    const a = left.item;
-    const b = right.item;
-    if (sortMode === 'available_desc') {
-      return customerAvailableDebtValue(b) - customerAvailableDebtValue(a);
-    }
-    if (sortMode === 'oldest_asc') {
-      const aDate = formatShortDate(a.oldestDebtDate || '9999-12-31');
-      const bDate = formatShortDate(b.oldestDebtDate || '9999-12-31');
-      return aDate.localeCompare(bDate);
-    }
-    return customerDebtValue(b) - customerDebtValue(a);
+
+function filteredAndSortedDebts(items = state.debt.rows) {
+  return filterAndSortDebts(items, {
+    keyword: debtCustomerSearch?.value || '',
+    sortMode: debtCustomerSort?.value || 'debt_desc',
+    formatDate: formatShortDate
   });
-
-  return rows;
-}
-
-function mergeDebtPages(current = [], incoming = []) {
-  const map = new Map();
-  [...current, ...incoming].forEach((item) => {
-    const key = debtCustomerKey(item) || `ROW:${map.size}`;
-    const previous = map.get(key);
-    map.set(key, previous ? { ...previous, ...item } : item);
-  });
-  return [...map.values()];
 }
 
 async function loadDebts(options = {}) {
   const append = options.append === true;
   const force = options.force === true;
   const isDebtTabActive = document.getElementById('debtTab')?.classList.contains('active');
-  if (debtLoading) return;
-  if (append && !debtHasMore) return;
-  if (debtLoaded && !force && !append) {
-    renderDebts(debtCache, debtSummary);
+  if (state.debt.loading) return;
+  if (append && !state.debt.hasMore) return;
+  if (state.debt.loaded && !force && !append) {
+    renderDebts(state.debt.rows, state.debt.summary);
     return;
   }
 
-  const requestSeq = ++debtRequestSeq;
-  const nextPage = append ? debtPage + 1 : 1;
-  debtLoading = true;
+  const requestSeq = ++state.debt.requestSeq;
+  const nextPage = append ? state.debt.page + 1 : 1;
+  state.debt.loading = true;
   setButtonBusy(debtLoadMoreBtn, true, 'Đang tải...');
 
   try {
@@ -479,20 +380,20 @@ async function loadDebts(options = {}) {
       cancelPrevious: !append
     });
 
-    if (requestSeq !== debtRequestSeq) return;
+    if (requestSeq !== state.debt.requestSeq) return;
     const rows = Array.isArray(data.items) ? data.items : [];
-    debtPage = Number(data.pagination?.page || nextPage);
-    debtHasMore = Boolean(data.pagination?.hasMore);
-    debtSummary = data.summary || debtSummary || {};
-    debtCache = append ? mergeDebtPages(debtCache, rows) : rows;
-    debtLoaded = true;
+    state.debt.page = Number(data.pagination?.page || nextPage);
+    state.debt.hasMore = Boolean(data.pagination?.hasMore);
+    state.debt.summary = data.summary || state.debt.summary || {};
+    state.debt.rows = append ? mergeDebtPages(state.debt.rows, rows) : rows;
+    state.debt.loaded = true;
 
-    renderDebts(debtCache, debtSummary);
-    if (debtLoadMoreBtn) debtLoadMoreBtn.hidden = !debtHasMore;
-    if (Array.isArray(lastCustomers) && lastCustomers.length) renderCustomerList(lastCustomers);
+    renderDebts(state.debt.rows, state.debt.summary);
+    if (debtLoadMoreBtn) debtLoadMoreBtn.hidden = !state.debt.hasMore;
+    if (Array.isArray(state.customer.rows) && state.customer.rows.length) renderCustomerList(state.customer.rows);
   } catch (err) {
-    if (requestSeq !== debtRequestSeq || err?.code === 'REQUEST_ABORTED') return;
-    if (!append) debtLoaded = false;
+    if (requestSeq !== state.debt.requestSeq || err?.code === 'REQUEST_ABORTED') return;
+    if (!append) state.debt.loaded = false;
     if (debtList && isDebtTabActive && !append) {
       renderMobileListState(debtList, {
         state: 'error',
@@ -505,12 +406,12 @@ async function loadDebts(options = {}) {
       setMessage(debtTabMessage, err.message || 'Không tải thêm được công nợ', 'error');
     }
   } finally {
-    if (requestSeq === debtRequestSeq) debtLoading = false;
+    if (requestSeq === state.debt.requestSeq) state.debt.loading = false;
     setButtonBusy(debtLoadMoreBtn, false);
   }
 }
 
-function renderDebts(items = debtCache, summary = {}) {
+function renderDebts(items = state.debt.rows, summary = {}) {
   const total = Number(summary.totalDebt ?? items.reduce((sum, item) => sum + Number(item.debtAmount || 0), 0));
   const pending = Number(summary.pendingCollected ?? items.reduce((sum, item) => sum + customerPendingCollectedValue(item), 0));
   if (debtTotalAmount) debtTotalAmount.textContent = money(total);
@@ -519,13 +420,13 @@ function renderDebts(items = debtCache, summary = {}) {
 
   renderDebtCustomerList(items);
 
-  if (selectedDebtCustomerKey) {
+  if (state.debt.selectedCustomerKey) {
     const selected = selectedDebtCustomer();
     if (selected) {
-      if (!debtFormDirty) renderDebtLedger(selected);
+      if (!state.debt.formDirty) renderDebtLedger(selected);
     } else {
-      selectedDebtCustomerKey = '';
-      debtFormDirty = false;
+      state.debt.selectedCustomerKey = '';
+      state.debt.formDirty = false;
       renderDebtLedger();
     }
   } else {

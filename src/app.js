@@ -197,11 +197,26 @@ function createApp() {
 
   registerApiRoutes(app);
 
-  // Mobile delivery UI V45: prevent browser/Render cache from showing old HTML.
+  // Mobile UI: online-first cache policy plus a page-scoped CSP.
+  // Inline style/script remains temporarily allowed because the current mobile shell still contains
+  // a small inline runtime bootstrap. External scripts, frames and object embedding stay blocked.
   app.use('/mobile', (req, res, next) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.set('Pragma', 'no-cache');
     res.set('Expires', '0');
+    res.set('Content-Security-Policy', [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self' data:",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'"
+    ].join('; '));
+    res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     next();
   });
 

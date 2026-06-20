@@ -57,7 +57,12 @@
     "analytics:rebuild": "node scripts/rebuild-reporting-projections.js",
     "supplier-ap:rebuild:dry": "node scripts/rebuild-supplier-payable-accounts.js",
     "supplier-ap:rebuild": "node scripts/rebuild-supplier-payable-accounts.js --write",
-    "check:path-portability": "node scripts/check-path-portability.js"
+    "check:path-portability": "node scripts/check-path-portability.js",
+    "audit:mobile-query-plans": "node scripts/audit-mobile-query-plans.js",
+    "audit:mobile-telemetry": "node scripts/audit-mobile-client-telemetry.js",
+    "benchmark:mobile": "node scripts/performance/mobile-production-benchmark.js",
+    "test:mobile-browser": "node scripts/mobile-browser-smoke.js",
+    "check:mobile-production": "node scripts/audit-mobile-query-plans.js && node scripts/mobile-browser-smoke.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

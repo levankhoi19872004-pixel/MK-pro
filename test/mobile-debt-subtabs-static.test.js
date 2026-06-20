@@ -21,8 +21,8 @@ test('sales debt tab separates customer list and collection workflow into two su
   assert.match(html, /id="debtCustomerSort"/);
   assert.match(js, /function setDebtSubtab\(/);
   assert.match(js, /function openDebtCollection\(/);
-  assert.match(js, /selectedDebtCustomerKey/);
-  assert.match(js, /debtFormDirty/);
+  assert.match(js, /state\.debt\.selectedCustomerKey/);
+  assert.match(js, /state\.debt\.formDirty/);
   assert.match(js, /Đang chờ KT/);
   assert.match(js, /setDebtSubtab\('customers', \{ restoreScroll: true \}\)/);
   assert.match(css, /\.debt-submit-bar\s*\{/);

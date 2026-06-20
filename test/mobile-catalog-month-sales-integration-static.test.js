@@ -15,7 +15,8 @@ test('modular mobile customer catalog loads and attaches monthly sales metrics',
 });
 
 test('sales app renders the monthly metric from customer payload', () => {
-  const source = require('./helpers/sourceBundle.util').readSource('public/mobile/js/sales.js');
-  assert.match(source, /customer\.monthRevenue\s*\?\?\s*customer\.monthSales/);
-  assert.match(source, /DS tháng:\s*\$\{money\(customerSalesValue\(customer\)\)\}/);
+  const coordinator = require('./helpers/sourceBundle.util').readSource('public/mobile/js/sales.js');
+  const customerModule = fs.readFileSync(path.join(ROOT, 'public/mobile/js/sales/customer.js'), 'utf8');
+  assert.match(customerModule, /customer\.monthRevenue\s*\?\?\s*customer\.monthSales/);
+  assert.match(coordinator, /DS tháng:\s*\$\{money\(customerSalesValue\(customer\)\)\}/);
 });

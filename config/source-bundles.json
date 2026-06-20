@@ -132,7 +132,7 @@
         "public/mobile/js/sales.source/part-03.jsfrag",
         "public/mobile/js/sales.source/part-03b.jsfrag"
       ],
-      "sourceSha256": "ef37d3bac38da2a8ddb7381fd64796a64cbeafac6c62a4408e32ca2815ba8ead"
+      "sourceSha256": "301fb4ad65aadc8890a1b57d9b3c154f760585fb8a74040113c1b8a639f6b9f7"
     },
     {
       "target": "public/js/app/admin/08d-import-excel.js",

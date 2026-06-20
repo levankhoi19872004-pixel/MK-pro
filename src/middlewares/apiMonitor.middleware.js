@@ -16,12 +16,21 @@ const MAX_RECENT_SLOW = Number(process.env.API_MONITOR_MAX_SLOW || 200);
 const MAX_ROUTE_STATS = Number(process.env.API_MONITOR_MAX_ROUTES || 500);
 const MAX_QUERY_TRACES_PER_API = Number(process.env.API_MONITOR_MAX_QUERY_TRACES_PER_API || 50);
 const MAX_QUERY_TRACE_LABEL = Number(process.env.API_MONITOR_MAX_QUERY_TRACE_LABEL || 240);
+const MAX_LATENCY_SAMPLES = Math.max(20, Math.min(Number(process.env.API_MONITOR_SAMPLE_SIZE || 200), 2000));
 
 const apiStats = new Map();
 const recentSlowApis = [];
 
 function nowMs() {
   return Number(process.hrtime.bigint()) / 1e6;
+}
+
+
+function percentile(values = [], ratio = 0.5) {
+  if (!Array.isArray(values) || !values.length) return 0;
+  const sorted = values.slice().sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1));
+  return Math.round(sorted[index] || 0);
 }
 
 function compactJson(value, maxLength = MAX_QUERY_TRACE_LABEL) {
@@ -313,10 +322,17 @@ function recordMetric(metric) {
     lastQueryTraces: [],
     maxQueryTraces: [],
     slowestQueryLabel: '',
-    slowestQueryMs: 0
+    slowestQueryMs: 0,
+    latencySamples: [],
+    statusCounts: {}
   };
 
   current.count += 1;
+  current.latencySamples = Array.isArray(current.latencySamples) ? current.latencySamples : [];
+  current.latencySamples.push(metric.ms);
+  if (current.latencySamples.length > MAX_LATENCY_SAMPLES) current.latencySamples.splice(0, current.latencySamples.length - MAX_LATENCY_SAMPLES);
+  current.statusCounts = current.statusCounts || {};
+  current.statusCounts[metric.statusCode] = (current.statusCounts[metric.statusCode] || 0) + 1;
   current.totalMs += metric.ms;
   current.totalMongoMs += metric.mongoMs || 0;
   current.totalJsMs += metric.jsMs || 0;
@@ -452,6 +468,11 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
     module: s.module,
     count: s.count,
     avgMs: Math.round(s.totalMs / Math.max(1, s.count)),
+    p50Ms: percentile(s.latencySamples, 0.5),
+    p95Ms: percentile(s.latencySamples, 0.95),
+    p99Ms: percentile(s.latencySamples, 0.99),
+    errorRate: Number(((s.errorCount || 0) / Math.max(1, s.count)).toFixed(4)),
+    slowRate: Number(((s.slowCount || 0) / Math.max(1, s.count)).toFixed(4)),
     avgMongoMs: Math.round((s.totalMongoMs || 0) / Math.max(1, s.count)),
     avgJsMs: Math.round((s.totalJsMs || 0) / Math.max(1, s.count)),
     avgDbQueries: Math.round((s.totalDbQueries || 0) / Math.max(1, s.count)),
@@ -477,6 +498,7 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
     maxQueryTraces: Array.isArray(s.maxQueryTraces) ? s.maxQueryTraces : [],
     slowCount: s.slowCount,
     errorCount: s.errorCount,
+    statusCounts: { ...(s.statusCounts || {}) },
     status: s.slowCount > 0 || s.maxMs >= DEFAULT_SLOW_MS ? 'slow' : 'ok'
   }))
     .filter((row) => (slowOnly ? row.slowCount > 0 || row.maxMs >= DEFAULT_SLOW_MS : true))
@@ -504,7 +526,7 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
 
   const moduleStats = Array.from(apiStats.values()).reduce((acc, s) => {
     const key = s.module || 'Khác';
-    acc[key] = acc[key] || { module: key, count: 0, totalMs: 0, totalMongoMs: 0, totalJsMs: 0, totalDbQueries: 0, maxMs: 0, maxMongoMs: 0, slowCount: 0, routes: 0 };
+    acc[key] = acc[key] || { module: key, count: 0, totalMs: 0, totalMongoMs: 0, totalJsMs: 0, totalDbQueries: 0, maxMs: 0, maxMongoMs: 0, slowCount: 0, errorCount: 0, routes: 0, latencySamples: [] };
     acc[key].count += s.count;
     acc[key].totalMs += s.totalMs;
     acc[key].totalMongoMs += s.totalMongoMs || 0;
@@ -513,6 +535,9 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
     acc[key].maxMs = Math.max(acc[key].maxMs, s.maxMs || 0);
     acc[key].maxMongoMs = Math.max(acc[key].maxMongoMs, s.maxMongoMs || 0);
     acc[key].slowCount += s.slowCount || 0;
+    acc[key].errorCount += s.errorCount || 0;
+    acc[key].latencySamples.push(...(Array.isArray(s.latencySamples) ? s.latencySamples : []));
+    if (acc[key].latencySamples.length > MAX_LATENCY_SAMPLES * 4) acc[key].latencySamples.splice(0, acc[key].latencySamples.length - MAX_LATENCY_SAMPLES * 4);
     acc[key].routes += 1;
     return acc;
   }, {});
@@ -526,7 +551,12 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
       avgMs: Math.round(x.totalMs / Math.max(1, x.count)),
       avgMongoMs: Math.round((x.totalMongoMs || 0) / Math.max(1, x.count)),
       avgJsMs: Math.round((x.totalJsMs || 0) / Math.max(1, x.count)),
-      avgDbQueries: Math.round((x.totalDbQueries || 0) / Math.max(1, x.count))
+      avgDbQueries: Math.round((x.totalDbQueries || 0) / Math.max(1, x.count)),
+      p50Ms: percentile(x.latencySamples, 0.5),
+      p95Ms: percentile(x.latencySamples, 0.95),
+      p99Ms: percentile(x.latencySamples, 0.99),
+      errorRate: Number(((x.errorCount || 0) / Math.max(1, x.count)).toFixed(4)),
+      latencySamples: undefined
     })).sort((a, b) => b.maxMs - a.maxMs),
     data: rows.slice(0, Math.max(1, Math.min(Number(limit) || 100, 500))),
     topSlowestApis,
@@ -547,5 +577,6 @@ module.exports = {
   apiMonitor,
   apiStats,
   getApiMonitorReport,
-  resetApiMonitor
+  resetApiMonitor,
+  percentile
 };

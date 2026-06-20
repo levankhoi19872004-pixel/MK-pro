@@ -1,15 +1,15 @@
 // MOBILE_SALES_PHASE3_CART_START
 function updateCartSummaryUi() {
-  const totals = calculateCartTotals(cart);
-  cartCount.textContent = `${cart.length} dòng`;
-  if (cartTabBadge) cartTabBadge.textContent = String(cart.length);
+  const totals = calculateCartTotals(state.draft.cart);
+  cartCount.textContent = `${state.draft.cart.length} dòng`;
+  if (cartTabBadge) cartTabBadge.textContent = String(state.draft.cart.length);
   if (cartGrossTotal) cartGrossTotal.textContent = money(totals.gross);
   if (cartDiscountTotal) cartDiscountTotal.textContent = totals.discount > 0 ? `-${money(totals.discount)}` : money(0);
   cartTotal.textContent = money(totals.payable);
-  if (orderDraftLineCount) orderDraftLineCount.textContent = `${cart.length} sản phẩm`;
+  if (orderDraftLineCount) orderDraftLineCount.textContent = `${state.draft.cart.length} sản phẩm`;
   if (orderDraftTotal) orderDraftTotal.textContent = money(totals.payable);
-  if (orderDraftBar) orderDraftBar.hidden = cart.length === 0;
-  if (submitOrderBtn) submitOrderBtn.disabled = !selectedCustomer || cart.length === 0;
+  if (orderDraftBar) orderDraftBar.hidden = state.draft.cart.length === 0;
+  if (submitOrderBtn) submitOrderBtn.disabled = !state.draft.customer || state.draft.cart.length === 0;
 }
 
 function renderCart() {
@@ -17,18 +17,18 @@ function renderCart() {
   persistOrderDraft();
   updateCartSummaryUi();
 
-  if (!cart.length) {
+  if (!state.draft.cart.length) {
     renderMobileListState(cartList, {
       state: 'empty',
       baseClass: 'cart-list',
       title: 'Giỏ hàng chưa có sản phẩm',
-      detail: selectedCustomer ? 'Quay lại Bán hàng để chọn sản phẩm.' : 'Hãy chọn khách hàng trước khi lập đơn.'
+      detail: state.draft.customer ? 'Quay lại Bán hàng để chọn sản phẩm.' : 'Hãy chọn khách hàng trước khi lập đơn.'
     });
     return;
   }
 
   cartList.className = 'cart-list';
-  cartList.innerHTML = buildCartItemsHtml(cart, {
+  cartList.innerHTML = buildCartItemsHtml(state.draft.cart, {
     escapeHtml,
     money,
     normalizePackingRate,
@@ -37,27 +37,22 @@ function renderCart() {
 }
 
 async function updateCartItemQuantity(index, button) {
-  const item = cart[index];
+  const item = state.draft.cart[index];
   if (!item) return;
   const caseInput = cartList.querySelector(`[data-cart-case="${index}"]`);
   const looseInput = cartList.querySelector(`[data-cart-loose="${index}"]`);
-  const caseQty = Math.max(0, Number(caseInput?.value || 0));
-  const looseQty = Math.max(0, Number(looseInput?.value || 0));
-  const rate = normalizePackingRate(item);
-  const nextQty = (caseQty * rate) + looseQty;
-
-  if (!Number.isFinite(nextQty) || nextQty <= 0) {
+  const { rate, quantity: nextQty } = cartQuantityFromInputs(item, caseInput?.value, looseInput?.value);
+  const validation = validateCartQuantity(item, nextQty);
+  if (!validation.ok && validation.code === 'INVALID_QUANTITY') {
     setMessage(message, 'Số lượng sau khi sửa phải lớn hơn 0. Hãy dùng nút Xóa nếu không mua sản phẩm này.', 'error');
     return;
   }
-  const availableQty = Math.max(0, Number(item.availableQty || 0));
-  const maxOrderQty = Math.max(0, Number(item.maxOrderQty || 0));
-  if (availableQty > 0 && nextQty > availableQty) {
-    setMessage(message, `Số lượng vượt tồn đang hiển thị (${formatStockTL(availableQty, rate)}).`, 'error');
+  if (!validation.ok && validation.code === 'OVER_STOCK') {
+    setMessage(message, `Số lượng vượt tồn đang hiển thị (${formatStockTL(validation.availableQty, rate)}).`, 'error');
     return;
   }
-  if (maxOrderQty > 0 && nextQty > maxOrderQty) {
-    setMessage(message, `Số lượng vượt hạn mức bán App (${formatStockTL(maxOrderQty, rate)}).`, 'error');
+  if (!validation.ok && validation.code === 'OVER_APP_QUOTA') {
+    setMessage(message, `Số lượng vượt hạn mức bán App (${formatStockTL(validation.maxOrderQty, rate)}).`, 'error');
     return;
   }
 
@@ -79,10 +74,10 @@ function bindCartInteractions() {
     const removeButton = event.target.closest('[data-remove]');
     if (removeButton && cartList.contains(removeButton)) {
       const index = Number(removeButton.dataset.remove);
-      const item = cart[index];
+      const item = state.draft.cart[index];
       if (!item) return;
       if (!window.confirm(`Xóa ${item.productName || item.productCode} khỏi giỏ hàng?`)) return;
-      cart.splice(index, 1);
+      state.draft.cart.splice(index, 1);
       await recalculateCartPromotions({ silent: true });
       renderCart();
       announceMobileStatus('Đã xóa sản phẩm khỏi giỏ hàng.', 'success');

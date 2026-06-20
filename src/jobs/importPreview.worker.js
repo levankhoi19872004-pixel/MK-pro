@@ -86,15 +86,16 @@ async function terminateWithFailure(err, defaults = {}) {
 }
 
 async function main() {
-  activePayload = decodePayload(process.argv[2] || '');
+  const payload = decodePayload(process.argv[2] || '');
+  activePayload = payload;
   await connectDB();
 
   const result = await runImportPreviewJob({
-    sessionId: activePayload.sessionId,
-    type: activePayload.type,
-    files: activePayload.files || [],
-    userName: activePayload.userName || '',
-    importMode: activePayload.importMode || 'create'
+    sessionId: payload.sessionId,
+    type: payload.type,
+    files: payload.files || [],
+    userName: payload.userName || '',
+    importMode: payload.importMode || 'create'
   });
 
   if (result && result.error) {

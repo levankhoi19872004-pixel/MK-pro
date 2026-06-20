@@ -13,7 +13,7 @@ const mobileSalesNavigation = createMobileSalesNavigation({
     reportTab: '#don-hang'
   },
   onActivate(tabId) {
-    activeTabId = tabId;
+    state.ui.activeTabId = tabId;
     if (tabId === 'debtTab') loadDebts();
     if (tabId === 'reportTab') loadTodayOrders();
     if (tabId === 'orderTab' || tabId === 'cartTab') ensureProductToolsInitialized();
@@ -21,11 +21,11 @@ const mobileSalesNavigation = createMobileSalesNavigation({
 });
 
 function switchTab(tabId, options = {}) {
-  activeTabId = mobileSalesNavigation.switchPanel(tabId, options);
+  state.ui.activeTabId = mobileSalesNavigation.switchPanel(tabId, options);
 }
 
 function initializeMobileNavigation() {
-  activeTabId = mobileSalesNavigation.initialize();
+  state.ui.activeTabId = mobileSalesNavigation.initialize();
 }
 
 const announceMobileStatus = createStatusAnnouncer(mobileGlobalStatus);
@@ -42,29 +42,24 @@ function renderMobileListState(container, options = {}) {
   renderSharedMobileListState(container, options, escapeHtml);
 }
 
+
+// MOBILE_SALES_PHASE3_UX_END
+
 function orderStatusFilterValue() {
-  return String(orderStatusFilter?.value || 'all');
+  return readOrderStatusFilter(orderStatusFilter);
 }
 
 function orderMatchesDisplayFilter(order = {}) {
-  const filter = orderStatusFilterValue();
-  if (filter === 'pending_sync') return order.pendingSync === true;
-  if (filter === 'editable') return order.pendingSync !== true && order.canEdit === true;
-  if (filter === 'locked') return order.pendingSync !== true && order.canEdit !== true;
-  return true;
+  return matchesOrderStatus(order, orderStatusFilterValue());
 }
 
 function orderMatchesSearchText(order = {}) {
-  const keyword = String(orderSearch?.value || '').trim().toLowerCase();
-  if (!keyword) return true;
-  return [order.code, order.customerCode, order.customerName]
-    .some((value) => String(value || '').toLowerCase().includes(keyword));
+  return matchesOrderSearch(order, orderSearch?.value || '');
 }
 
 function currentOrderQueryKey() {
-  return JSON.stringify({
-    date: String(orderDateFilter?.value || todayValue()),
-    q: String(orderSearch?.value || '').trim()
+  return buildOrderQueryKey({
+    date: orderDateFilter?.value || todayValue(),
+    q: orderSearch?.value || ''
   });
 }
-// MOBILE_SALES_PHASE3_UX_END
