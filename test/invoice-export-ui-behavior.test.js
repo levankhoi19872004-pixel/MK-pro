@@ -24,10 +24,13 @@ class FakeElement {
     this.listeners = new Map();
     this.value = '';
     this.clicked = 0;
+    this.children = [];
   }
   addEventListener(name, handler) { this.listeners.set(name, handler); }
   setAttribute(name, value) { this.attributes[name] = String(value); }
   remove() { this.removed = true; }
+  replaceChildren(...children) { this.children = [...children]; }
+  add(child) { this.children.push(child); }
   click() {
     this.clicked += 1;
     const handler = this.listeners.get('click');
@@ -41,20 +44,26 @@ function makeHarness(fetchImpl) {
   const summary = new FakeElement('Sẵn sàng');
   const from = new FakeElement(); from.value = '2026-06-01';
   const to = new FakeElement(); to.value = '2026-06-20';
+  const salesStaff = new FakeElement(); salesStaff.value = 'NVBH01';
+  const clear = new FakeElement('Xóa lọc');
   const anchors = [];
   const elements = {
     exportVatInvoiceTT78Button: vat,
     exportVatNonInvoiceOrdersButton: nonVat,
     vatInvoiceExportSummary: summary,
-    reportFromDate: from,
-    reportToDate: to
+    invoiceExportFromDate: from,
+    invoiceExportToDate: to,
+    invoiceExportSalesStaffCode: salesStaff,
+    clearInvoiceExportFiltersButton: clear
   };
   const urls = [];
   const context = {
     URLSearchParams,
     Blob,
+    Option: function Option(text, value) { return { text, value }; },
     console: { error() {} },
     fetch: async (...args) => { urls.push(args[0]); return fetchImpl(...args); },
+    window: { UnifiedSearchEngine: { async searchSalesStaff() { return [{ code: 'NVBH01', name: 'Nhân viên 01' }]; } } },
     setReportDefaults() {},
     setTimeout(fn) { fn(); return 1; },
     URL: {
@@ -73,7 +82,7 @@ function makeHarness(fetchImpl) {
     }
   };
   vm.runInNewContext(SCRIPT, context, { filename: '08f-vat-export.js' });
-  return { vat, nonVat, summary, urls, anchors };
+  return { vat, nonVat, summary, urls, anchors, salesStaff, clear };
 }
 
 function successfulResponse(fileName = 'Hoa_don_VAT.xlsx') {
@@ -103,6 +112,7 @@ test('one click sends one VAT request, keeps filters and restores button state',
   assert.match(harness.urls[0], /invoiceType=VAT/);
   assert.match(harness.urls[0], /dateFrom=2026-06-01/);
   assert.match(harness.urls[0], /dateTo=2026-06-20/);
+  assert.match(harness.urls[0], /salesStaffCode=NVBH01/);
   resolveFetch(successfulResponse('Hoa_don_VAT_01-06-2026_den_20-06-2026.xlsx'));
   await first;
   assert.equal(harness.vat.disabled, false);

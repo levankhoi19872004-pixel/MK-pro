@@ -1,45 +1,63 @@
-
 'use strict';
 
-// Các luồng xuất hóa đơn và SSE độc lập, dùng invoiceType rõ ràng và một request tại một thời điểm.
+// Ba luồng xuất dùng chung một bộ lọc ngày nghiệp vụ + mã NVBH; SSE luôn dùng invoiceType=ALL.
 (function initInvoiceExports(){
   const vatButton=document.getElementById('exportVatInvoiceTT78Button');
   const nonVatButton=document.getElementById('exportVatNonInvoiceOrdersButton');
   const sseButton=document.getElementById('exportSseInvoiceButton');
   const sseErrorButton=document.getElementById('downloadSseErrorReportButton');
-  const sseTypeSelect=document.getElementById('sseInvoiceTypeSelect');
+  const fromInput=document.getElementById('invoiceExportFromDate');
+  const toInput=document.getElementById('invoiceExportToDate');
+  const salesStaffSelect=document.getElementById('invoiceExportSalesStaffCode');
+  const clearFiltersButton=document.getElementById('clearInvoiceExportFiltersButton');
   const summary=document.getElementById('vatInvoiceExportSummary');
-  const buttons=[vatButton,nonVatButton,sseButton,sseErrorButton].filter(Boolean);
+  const exportButtons=[vatButton,nonVatButton,sseButton,sseErrorButton].filter(Boolean);
+  const controls=[fromInput,toInput,salesStaffSelect,clearFiltersButton].filter(Boolean);
   let exportInFlight=false;
   let sseErrorReportUrl='';
 
-  if(!buttons.length)return;
+  if(!exportButtons.length)return;
 
   function setSummary(message,isError=false){
     if(!summary)return;
     summary.textContent=message;
     summary.classList.toggle('error',Boolean(isError));
   }
+
   function setBusy(active,activeButton){
     exportInFlight=active;
-    buttons.forEach(button=>{
+    exportButtons.forEach(button=>{
       button.disabled=active;
       button.setAttribute('aria-busy',active?'true':'false');
       const idleLabel=button.dataset.idleLabel||button.textContent;
       button.dataset.idleLabel=idleLabel;
       button.textContent=active&&button===activeButton?'Đang tạo file...':idleLabel;
     });
-    if(sseTypeSelect)sseTypeSelect.disabled=active;
+    controls.forEach(control=>{ control.disabled=active; });
   }
-  function exportDateParams(invoiceType){
+
+  function initializeDateDefaults(){
     if(typeof setReportDefaults==='function')setReportDefaults();
+    if(fromInput&&!fromInput.value)fromInput.value=document.getElementById('reportFromDate')?.value||'';
+    if(toInput&&!toInput.value)toInput.value=document.getElementById('reportToDate')?.value||'';
+  }
+
+  function validateFilters(){
+    const from=fromInput?.value||'';
+    const to=toInput?.value||'';
+    if(from&&to&&from>to)throw new Error('Từ ngày không được lớn hơn Đến ngày');
+    return {from,to,salesStaffCode:salesStaffSelect?.value||''};
+  }
+
+  function exportParams(invoiceType){
+    const filters=validateFilters();
     const params=new URLSearchParams({invoiceType,limit:'20000'});
-    const from=document.getElementById('reportFromDate')?.value||'';
-    const to=document.getElementById('reportToDate')?.value||'';
-    if(from)params.set('dateFrom',from);
-    if(to)params.set('dateTo',to);
+    if(filters.from)params.set('dateFrom',filters.from);
+    if(filters.to)params.set('dateTo',filters.to);
+    if(filters.salesStaffCode)params.set('salesStaffCode',filters.salesStaffCode);
     return params;
   }
+
   function responseFileName(response,fallback){
     const disposition=String(response.headers.get('content-disposition')||'');
     const utf8Match=disposition.match(/filename\*=UTF-8''([^;]+)/i);
@@ -47,6 +65,7 @@
     const raw=utf8Match?.[1]||plainMatch?.[1]||fallback;
     try{return decodeURIComponent(raw);}catch(_error){return raw;}
   }
+
   async function responseError(response){
     const type=String(response.headers.get('content-type')||'');
     if(type.includes('application/json')){
@@ -57,15 +76,31 @@
     }
     return new Error(`Không xuất được file (${response.status})`);
   }
+
   function saveBlob(blob,fileName){
     const url=URL.createObjectURL(blob);
     const anchor=document.createElement('a');
-    anchor.href=url; anchor.download=fileName; document.body.appendChild(anchor); anchor.click(); anchor.remove();
+    anchor.href=url;
+    anchor.download=fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
+
+  function successSummary(response,fileName){
+    const orderCount=Number(response.headers.get('x-export-order-count')||0);
+    const rowCount=Number(response.headers.get('x-export-row-count')||0);
+    const warningCount=Number(response.headers.get('x-export-warning-count')||0);
+    const counts=orderCount||rowCount?` — ${orderCount.toLocaleString('vi-VN')} đơn, ${rowCount.toLocaleString('vi-VN')} dòng sản phẩm`:'';
+    const warning=warningCount?` — ${warningCount.toLocaleString('vi-VN')} cảnh báo trả vượt`:'';
+    return `Đã tải ${fileName}${counts}${warning}`;
+  }
+
   async function download(url,button,label,fallback){
-    if(exportInFlight)return;
-    setBusy(true,button); setSummary(`Đang tạo file ${label}...`);
+    if(exportInFlight)return false;
+    setBusy(true,button);
+    setSummary(`Đang tạo file ${label}...`);
     try{
       const response=await fetch(url,{method:'GET',headers:{Accept:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}});
       if(!response.ok)throw await responseError(response);
@@ -73,7 +108,7 @@
       if(!contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'))throw new Error('Máy chủ không trả về file Excel hợp lệ');
       const fileName=responseFileName(response,fallback);
       saveBlob(await response.blob(),fileName);
-      setSummary(`Đã tải ${fileName}`);
+      setSummary(successSummary(response,fileName));
       return true;
     }catch(error){
       console.error('[INVOICE_EXPORT_ERROR]',error);
@@ -82,30 +117,75 @@
       if(sseErrorButton)sseErrorButton.hidden=!sseErrorReportUrl;
       setSummary(error.message||`Không xuất được ${label}`,true);
       return false;
-    }finally{ setBusy(false,button); }
+    }finally{
+      setBusy(false,button);
+    }
   }
+
   function downloadInvoiceExport(invoiceType,button){
-    const params=exportDateParams(invoiceType);
+    let params;
+    try{params=exportParams(invoiceType);}catch(error){setSummary(error.message,true);return Promise.resolve(false);}
     const label=invoiceType==='VAT'?'hóa đơn VAT':'hóa đơn không VAT';
     const fallback=invoiceType==='VAT'?'Hoa_don_VAT.xlsx':'Hoa_don_khong_VAT.xlsx';
     return download(`/api/export/invoice-orders.xlsx?${params.toString()}`,button,label,fallback);
   }
+
   function downloadSseExport(){
-    const invoiceType=sseTypeSelect?.value==='NON_VAT'?'NON_VAT':'VAT';
-    const params=exportDateParams(invoiceType);
-    sseErrorReportUrl=''; if(sseErrorButton)sseErrorButton.hidden=true;
-    return download(`/api/export/sse-invoice-orders.xlsx?${params.toString()}`,sseButton,'Excel SSE',`SSE_Hoa_don_${invoiceType}.xlsx`);
+    let params;
+    try{params=exportParams('ALL');}catch(error){setSummary(error.message,true);return Promise.resolve(false);}
+    sseErrorReportUrl='';
+    if(sseErrorButton)sseErrorButton.hidden=true;
+    return download(`/api/export/sse-invoice-orders.xlsx?${params.toString()}`,sseButton,'Excel SSE tất cả đơn','SSE_Hoa_don_tat_ca.xlsx');
   }
+
   function downloadSseErrors(){
-    if(!sseErrorReportUrl)return;
-    return download(sseErrorReportUrl,sseErrorButton,'báo cáo lỗi SSE','SSE_Loi_mapping.xlsx');
+    if(!sseErrorReportUrl)return Promise.resolve(false);
+    return download(sseErrorReportUrl,sseErrorButton,'báo cáo lỗi/cảnh báo SSE','SSE_Loi_mapping.xlsx');
   }
+
+  function clearFilters(){
+    if(fromInput)fromInput.value='';
+    if(toInput)toInput.value='';
+    if(salesStaffSelect)salesStaffSelect.value='';
+    sseErrorReportUrl='';
+    if(sseErrorButton)sseErrorButton.hidden=true;
+    setSummary('Đã xóa bộ lọc xuất hóa đơn.');
+  }
+
+  async function loadSalesStaffOptions(){
+    if(!salesStaffSelect||!window.UnifiedSearchEngine?.searchSalesStaff)return;
+    const selected=salesStaffSelect.value;
+    try{
+      const rows=await window.UnifiedSearchEngine.searchSalesStaff('',{limit:50,minChars:0,allowEmpty:'1',showOnFocus:'1'});
+      const unique=new Map();
+      (rows||[]).forEach(item=>{
+        const code=String(item.code||item.salesStaffCode||item.businessStaffCode||'').trim();
+        if(!code||unique.has(code))return;
+        const name=String(item.name||item.salesStaffName||item.businessStaffName||'').trim();
+        unique.set(code,{code,name});
+      });
+      salesStaffSelect.replaceChildren(new Option('Tất cả nhân viên bán hàng',''));
+      [...unique.values()].sort((a,b)=>a.name.localeCompare(b.name,'vi')).forEach(item=>{
+        salesStaffSelect.add(new Option([item.code,item.name].filter(Boolean).join(' - '),item.code));
+      });
+      salesStaffSelect.value=selected;
+    }catch(error){
+      console.warn('[INVOICE_EXPORT_STAFF_LOAD]',error);
+      setSummary('Không tải được danh sách NVBH; vẫn có thể xuất tất cả nhân viên.',true);
+    }
+  }
+
   function bind(button,handler,key){
     if(!button||button.dataset[key]==='1')return;
-    button.dataset[key]='1'; button.addEventListener('click',handler);
+    button.dataset[key]='1';
+    button.addEventListener('click',handler);
   }
+
+  initializeDateDefaults();
+  loadSalesStaffOptions();
   bind(vatButton,()=>downloadInvoiceExport('VAT',vatButton),'boundInvoiceExport');
   bind(nonVatButton,()=>downloadInvoiceExport('NON_VAT',nonVatButton),'boundInvoiceExport');
   bind(sseButton,downloadSseExport,'boundSseExport');
   bind(sseErrorButton,downloadSseErrors,'boundSseErrorExport');
+  bind(clearFiltersButton,clearFilters,'boundInvoiceFilterClear');
 })();

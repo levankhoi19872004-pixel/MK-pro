@@ -1,7 +1,3 @@
-    ReturnOrder.find(activeReturnOrderFilter()).lean(),
-    Customer.find({}).lean(),
-    Product.find({}).lean()
-  ]);
   const { rows, auditRows } = buildVatInvoiceRows({ orders, returnOrders, customers, products, query });
   const workbook = createWorkbook();
   const sheetRows = [TT78_HEADERS, ...rows.map((row) => TT78_HEADERS.map((header) => row[header] ?? ''))];
@@ -39,7 +35,7 @@
   const buffer = writeWorkbook(workbook);
   const fromName = dateFrom === '0000-01-01' ? 'all' : dateFrom;
   const toName = dateTo === '9999-12-31' ? dateUtil.todayVN() : dateTo;
-  return { buffer, rows: rows.length, fileName: `Hoa_don_VAT_TT78_${fromName}_${toName}.xlsx` };
+  return { buffer, rows: rows.length, orderCount: summary.invoiceCount, fileName: `Hoa_don_VAT_TT78_${fromName}_${toName}.xlsx` };
 }
 
 
@@ -53,22 +49,20 @@ function orderSourceDisplay(order = {}) {
   return cleanText(order.orderSourceName || order.orderSource || order.source || order.sourceType || order.importSource || '');
 }
 
-async function buildVatNonInvoiceOrdersWorkbook(query = {}) {
-  const dateFrom = normalizeDateOnly(query.dateFrom || query.from || query.fromDate || '') || '0000-01-01';
-  const dateTo = normalizeDateOnly(query.dateTo || query.to || query.toDate || '') || '9999-12-31';
-  const orderFilter = buildInvoiceOrderFilter(query, INVOICE_TYPES.NON_VAT);
-
-  const [orders, returnOrders, customers, products] = await Promise.all([
-    SalesOrder.find(orderFilter).sort({ orderDate: 1, date: 1, code: 1 }).limit(Math.min(Math.max(Number(query.limit || 20000), 1), 100000)).lean(),
-    ReturnOrder.find(activeReturnOrderFilter()).lean(),
-    Customer.find({}).lean(),
-    Product.find({}).lean()
-  ]);
+async function buildVatNonInvoiceOrdersWorkbook(query = {}, currentUser = {}) {
+  const filters = invoiceExportQueryService.normalizeExportQuery(query, { invoiceGroup: INVOICE_TYPES.NON_VAT });
+  const dateFrom = filters.dateFrom || '0000-01-01';
+  const dateTo = filters.dateTo || '9999-12-31';
+  const { orders, returnOrders, customers, products } = await invoiceExportQueryService.loadInvoiceExportData({
+    query,
+    invoiceGroup: INVOICE_TYPES.NON_VAT,
+    currentUser
+  });
 
   const activeOrders = (orders || [])
     .filter(isActiveDoc)
     .filter((order) => resolveInvoiceType(order) === INVOICE_TYPES.NON_VAT)
-    .filter((order) => dateInRange(order.orderDate || order.date || order.documentDate || order.createdAt, query));
+    .filter((order) => invoiceExportQueryService.matchesInvoiceExportFilters(order, query, { invoiceGroup: INVOICE_TYPES.NON_VAT }));
   const returnQtyMap = buildReturnQtyMap(returnOrders);
   const customerMap = buildCustomerMap(customers);
   const productMap = buildProductMap(products);
@@ -149,7 +143,7 @@ async function buildVatNonInvoiceOrdersWorkbook(query = {}) {
   const fromName = dateFrom === '0000-01-01' ? 'all' : dateFrom;
   const toName = dateTo === '9999-12-31' ? dateUtil.todayVN() : dateTo;
   const rangeName = fromName === toName ? fromName : `${fromName}_${toName}`;
-  return { buffer, rows: orderRows.length, fileName: `Hoa_don_khong_VAT_${rangeName}.xlsx` };
+  return { buffer, rows: detailRows.filter((row) => Number(row['Số lượng còn lại']) > 0).length, orderCount: orderRows.length, fileName: `Hoa_don_khong_VAT_${rangeName}.xlsx` };
 }
 
 

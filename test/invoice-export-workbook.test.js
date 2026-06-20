@@ -91,6 +91,9 @@ test('unified invoice export produces valid, disjoint VAT and NON_VAT workbooks'
   }
 
   const servicePath = require.resolve('../src/services/importExportLegacy.service');
+  const queryServicePath = require.resolve('../src/services/invoiceExportQuery.service');
+  const savedQueryService = require.cache[queryServicePath];
+  delete require.cache[queryServicePath];
   delete require.cache[servicePath];
   try {
     const service = require(servicePath);
@@ -136,6 +139,8 @@ test('unified invoice export produces valid, disjoint VAT and NON_VAT workbooks'
     assert.match(serializedFilters, /2026-06-20T16:59:59\.999Z/);
   } finally {
     delete require.cache[servicePath];
+    delete require.cache[queryServicePath];
+    if (savedQueryService) require.cache[queryServicePath] = savedQueryService;
     for (const [resolved, entry] of saved) {
       if (entry) require.cache[resolved] = entry;
       else delete require.cache[resolved];

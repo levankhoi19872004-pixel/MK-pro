@@ -231,22 +231,30 @@
           <div class="invoice-export-head">
             <div>
               <h3 id="invoiceExportTitle">Xuất hóa đơn</h3>
-              <p class="muted">Hai file độc lập theo thiết lập VAT của từng đơn. Dữ liệu cũ thiếu cờ VAT tiếp tục thuộc nhóm xuất VAT.</p>
-            </div>
-            <div class="invoice-export-actions">
-              <button id="exportVatInvoiceTT78Button" type="button" class="secondary invoice-export-button" data-invoice-type="VAT">Xuất hóa đơn VAT</button>
-              <button id="exportVatNonInvoiceOrdersButton" type="button" class="secondary invoice-export-button" data-invoice-type="NON_VAT">Xuất hóa đơn không VAT</button>
-              <label class="sse-export-type-label">Nhóm SSE
-                <select id="sseInvoiceTypeSelect" class="sse-export-type-select" aria-label="Chọn nhóm hóa đơn xuất SSE">
-                  <option value="VAT">VAT</option>
-                  <option value="NON_VAT">Không VAT</option>
-                </select>
-              </label>
-              <button id="exportSseInvoiceButton" type="button" class="secondary invoice-export-button">Xuất Excel SSE</button>
-              <button id="downloadSseErrorReportButton" type="button" class="secondary invoice-export-button" hidden>Tải báo cáo lỗi SSE</button>
+              <p class="muted">Lọc theo ngày nghiệp vụ và đúng mã NVBH. SSE luôn xuất tất cả đơn VAT và không VAT sau khi trừ hàng trả đã xác nhận kế toán.</p>
             </div>
           </div>
-          <p id="vatInvoiceExportSummary" class="muted invoice-export-status" aria-live="polite">Sử dụng kỳ báo cáo hiện tại; tải file không thay đổi dữ liệu đơn hàng.</p>
+          <div class="invoice-export-filter-grid" role="group" aria-label="Bộ lọc xuất hóa đơn">
+            <label class="invoice-export-field">Từ ngày
+              <input id="invoiceExportFromDate" type="date" autocomplete="off" />
+            </label>
+            <label class="invoice-export-field">Đến ngày
+              <input id="invoiceExportToDate" type="date" autocomplete="off" />
+            </label>
+            <label class="invoice-export-field invoice-export-staff-field">Nhân viên bán hàng
+              <select id="invoiceExportSalesStaffCode" aria-label="Lọc theo nhân viên bán hàng">
+                <option value="">Tất cả nhân viên bán hàng</option>
+              </select>
+            </label>
+            <button id="clearInvoiceExportFiltersButton" type="button" class="ui-button-ghost invoice-export-clear-button" aria-label="Xóa bộ lọc xuất hóa đơn">Xóa lọc</button>
+          </div>
+          <div class="invoice-export-actions">
+            <button id="exportVatInvoiceTT78Button" type="button" class="secondary invoice-export-button" data-invoice-type="VAT">Xuất hóa đơn VAT</button>
+            <button id="exportVatNonInvoiceOrdersButton" type="button" class="secondary invoice-export-button" data-invoice-type="NON_VAT">Xuất hóa đơn không VAT</button>
+            <button id="exportSseInvoiceButton" type="button" class="secondary invoice-export-button">Xuất Excel SSE</button>
+            <button id="downloadSseErrorReportButton" type="button" class="secondary invoice-export-button" hidden>Tải báo cáo lỗi SSE</button>
+          </div>
+          <p id="vatInvoiceExportSummary" class="muted invoice-export-status" aria-live="polite">Chưa xuất dữ liệu. Thao tác tải file chỉ đọc dữ liệu và không thay đổi chứng từ.</p>
         </section>
 
         <section class="card report-directory-card">

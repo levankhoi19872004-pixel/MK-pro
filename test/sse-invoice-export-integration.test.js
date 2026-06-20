@@ -36,7 +36,9 @@ function loadWithStubs({ orders, returns, customers, products }) {
 
   const originalLoad = Module._load;
   const servicePath = require.resolve('../src/services/sseInvoiceExport.service');
+  const queryServicePath = require.resolve('../src/services/invoiceExportQuery.service');
   delete require.cache[servicePath];
+  delete require.cache[queryServicePath];
   Module._load = function(request, parent, isMain) {
     if (stubs[request]) return stubs[request];
     return originalLoad.call(this, request, parent, isMain);

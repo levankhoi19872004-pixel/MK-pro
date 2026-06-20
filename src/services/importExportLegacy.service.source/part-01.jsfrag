@@ -14,8 +14,7 @@ const {
   INVOICE_TYPES,
   normalizeInvoiceType,
   resolveInvoiceType,
-  isActiveInvoiceOrder,
-  buildInvoiceOrderFilter
+  isActiveInvoiceOrder
 } = require('./invoiceExportClassifier');
 const models = require('../models');
 const reportService = require('./reportService');
@@ -27,6 +26,7 @@ const {
 } = require('../domain/staff/staffIdentity');
 const { normalizePickingZone, pickingZoneFrom, pickingZoneLabel, PICKING_ZONES } = require('../utils/pickingZone.util');
 const sseInvoiceExportService = require('./sseInvoiceExport.service');
+const invoiceExportQueryService = require('./invoiceExportQuery.service');
 
 function stripMongoFields(row = {}) {
   const plain = { ...row };
@@ -438,16 +438,11 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
   const filteredOrders = (orders || [])
     .filter(isActiveDoc)
     .filter((order) => resolveInvoiceType(order) === INVOICE_TYPES.VAT)
-    .filter((order) => dateInRange(order.orderDate || order.date || order.documentDate || order.createdAt, query))
+    .filter((order) => invoiceExportQueryService.matchesInvoiceExportFilters(order, query, { invoiceGroup: INVOICE_TYPES.VAT }))
     .filter((order) => {
       if (!query.customerCode && !query.customerId) return true;
       const target = cleanText(query.customerCode || query.customerId);
       return [order.customerCode, order.customerId, order.customerName].map(cleanText).includes(target);
-    })
-    .filter((order) => {
-      if (!query.salesStaffCode && !query.salesmanCode) return true;
-      const target = cleanText(query.salesStaffCode || query.salesmanCode);
-      return [order.salesStaffCode, order.salesmanCode, order.nvbhCode].map(cleanText).includes(target);
     })
     .sort((a, b) => cleanText(a.orderDate || a.date || a.documentDate || a.createdAt).localeCompare(cleanText(b.orderDate || b.date || b.documentDate || b.createdAt)) || orderCode(a).localeCompare(orderCode(b)));
 
@@ -582,9 +577,12 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
   return { rows: resultRows, auditRows };
 }
 
-async function buildVatInvoiceTT78Workbook(query = {}) {
-  const dateFrom = normalizeDateOnly(query.dateFrom || query.from || query.fromDate || '') || '0000-01-01';
-  const dateTo = normalizeDateOnly(query.dateTo || query.to || query.toDate || '') || '9999-12-31';
-  const orderFilter = buildInvoiceOrderFilter(query, INVOICE_TYPES.VAT);
-  const [orders, returnOrders, customers, products] = await Promise.all([
-    SalesOrder.find(orderFilter).sort({ orderDate: 1, date: 1, code: 1 }).limit(Math.min(Math.max(Number(query.limit || 20000), 1), 100000)).lean(),
+async function buildVatInvoiceTT78Workbook(query = {}, currentUser = {}) {
+  const filters = invoiceExportQueryService.normalizeExportQuery(query, { invoiceGroup: INVOICE_TYPES.VAT });
+  const dateFrom = filters.dateFrom || '0000-01-01';
+  const dateTo = filters.dateTo || '9999-12-31';
+  const { orders, returnOrders, customers, products } = await invoiceExportQueryService.loadInvoiceExportData({
+    query,
+    invoiceGroup: INVOICE_TYPES.VAT,
+    currentUser
+  });

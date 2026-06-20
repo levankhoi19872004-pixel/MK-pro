@@ -38,7 +38,8 @@ test('backend keeps legacy aliases and adds unified invoice export validation', 
   assert.match(source, /invoiceType chỉ nhận VAT hoặc NON_VAT/);
   assert.match(source, /vatInvoiceTT78/);
   assert.match(source, /vat-non-invoice-orders/);
-  assert.match(source, /buildInvoiceOrderFilter/);
+  assert.match(source, /invoiceExportQueryService/);
+  assert.match(source, /loadInvoiceExportData/);
   assert.match(source, /resolveInvoiceType/);
 });
 

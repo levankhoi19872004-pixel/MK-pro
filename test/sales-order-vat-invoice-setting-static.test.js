@@ -10,7 +10,7 @@ test('sales orders default to VAT invoice required across creation sources', () 
   assert.match(read('src/services/orderLegacy.service.js'), /vatInvoiceRequired/);
   assert.match(read('src/services/mobile/sales.service.js'), /vatInvoiceRequired:\s*true/);
   assert.match(read('src/services/mobileService.js'), /vatInvoiceRequired:\s*true/);
-  assert.match(read('src/services/excelImportService.js'), /vatInvoiceRequired:\s*true/);
+  assert.match(read('src/services/import/operations/salesImport.impl.js'), /vatInvoiceRequired:\s*true/);
 });
 
 test('VAT setting uses isolated patch endpoint and does not call stock reverse posting', () => {
@@ -30,7 +30,8 @@ test('VAT exports use one normalized partition and keep old orders in VAT by def
   const classifier = read('src/services/invoiceExportClassifier.js');
   assert.match(source, /resolveInvoiceType\(order\) === INVOICE_TYPES\.VAT/);
   assert.match(source, /resolveInvoiceType\(order\) === INVOICE_TYPES\.NON_VAT/);
-  assert.match(source, /buildInvoiceOrderFilter/);
+  assert.match(source, /invoiceExportQueryService/);
+  assert.match(source, /loadInvoiceExportData/);
   assert.match(source, /buildVatNonInvoiceOrdersWorkbook/);
   assert.match(source, /vat-non-invoice-orders/);
   assert.match(classifier, /value === null \|\| value === undefined/);

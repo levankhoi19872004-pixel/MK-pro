@@ -19,6 +19,9 @@ function sendWorkbook(res, result) {
   if (result?.error) return res.status(result.status || 400).json({ ok: false, message: result.error, code: result.code, errors: result.errors, totalErrors: result.totalErrors, errorReportUrl: result.errorReportUrl });
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(result.fileName || 'export.xlsx')}"`);
+  res.setHeader('X-Export-Order-Count', String(Number(result.orderCount || 0)));
+  res.setHeader('X-Export-Row-Count', String(Number(result.rows || 0)));
+  res.setHeader('X-Export-Warning-Count', String(Number(result.warningCount || 0)));
   return res.send(result.buffer);
 }
 
@@ -222,7 +225,13 @@ async function exportExcel(req, res) {
   try {
     sendWorkbook(res, await importExportService.exportToExcel(req.params.type, req.query || {}, req.user || {}));
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không export được dữ liệu', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
+    const status = Number(err.statusCode || err.status || 500);
+    res.status(status).json({
+      ok: false,
+      message: status < 500 ? (err.message || 'Bộ lọc xuất dữ liệu không hợp lệ') : 'Không export được dữ liệu',
+      code: err.code,
+      error: process.env.NODE_ENV === 'production' ? undefined : err.message
+    });
   }
 }
 

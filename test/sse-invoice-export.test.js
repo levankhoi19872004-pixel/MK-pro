@@ -193,14 +193,20 @@ test('optional real golden fixture comparison is enforced when sample is present
   assert.deepEqual(golden[0].data[contract.headerRow - 1].slice(0, 36), contract.headers);
 });
 
-test('frontend exposes SSE selector, one download action and mapping-error download without removing VAT actions', () => {
+test('frontend exposes shared filters, SSE ALL action and mapping-error download without removing VAT actions', () => {
   const html = fs.readFileSync(path.join(ROOT, 'public/fragments/index/05-index-body.html'), 'utf8');
   const js = fs.readFileSync(path.join(ROOT, 'public/js/app/admin/08f-vat-export.js'), 'utf8');
   assert.match(html, /id="exportVatInvoiceTT78Button"/);
   assert.match(html, /id="exportVatNonInvoiceOrdersButton"/);
-  assert.match(html, /id="sseInvoiceTypeSelect"/);
+  assert.match(html, /id="invoiceExportFromDate"[^>]*type="date"/);
+  assert.match(html, /id="invoiceExportToDate"[^>]*type="date"/);
+  assert.match(html, /id="invoiceExportSalesStaffCode"/);
+  assert.match(html, /id="clearInvoiceExportFiltersButton"/);
+  assert.doesNotMatch(html, /id="sseInvoiceTypeSelect"/);
   assert.match(html, /id="exportSseInvoiceButton"[^>]*>Xuất Excel SSE</);
   assert.match(html, /id="downloadSseErrorReportButton"[^>]*hidden/);
+  assert.match(js, /exportParams\('ALL'\)/);
+  assert.match(js, /salesStaffCode/);
   assert.match(js, /\/api\/export\/sse-invoice-orders\.xlsx/);
   assert.match(js, /errorReportUrl/);
   assert.match(js, /if\(exportInFlight\)return/);

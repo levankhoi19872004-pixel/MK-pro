@@ -200,3 +200,24 @@
 #reportsTab .sse-export-type-select{min-height:38px;border:1px solid var(--border,#cbd5e1);border-radius:8px;background:var(--surface,#fff);color:inherit;padding:0 30px 0 10px;}
 #reportsTab .sse-export-type-select:focus-visible{outline:2px solid #2563eb;outline-offset:2px;}
 @media(max-width:760px){#reportsTab .sse-export-type-label{width:100%;justify-content:space-between;}#reportsTab .sse-export-type-select{min-width:150px;}}
+
+/* Bộ lọc xuất hóa đơn dùng chung VAT / không VAT / SSE. */
+#reportsTab .invoice-export-filter-grid{display:grid;grid-template-columns:minmax(150px,1fr) minmax(150px,1fr) minmax(240px,2fr) auto;gap:10px;align-items:end;}
+#reportsTab .invoice-export-field{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--text,#1f2937);min-width:0;}
+#reportsTab .invoice-export-field input,
+#reportsTab .invoice-export-field select{width:100%;min-height:40px;border:1px solid var(--border,#cbd5e1);border-radius:8px;background:var(--surface,#fff);color:inherit;padding:0 10px;}
+#reportsTab .invoice-export-field input:focus-visible,
+#reportsTab .invoice-export-field select:focus-visible,
+#reportsTab .invoice-export-clear-button:focus-visible{outline:2px solid #2563eb;outline-offset:2px;}
+#reportsTab .invoice-export-clear-button{min-height:40px;white-space:nowrap;}
+#reportsTab .invoice-export-button{min-height:40px;}
+@media(max-width:900px){
+  #reportsTab .invoice-export-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  #reportsTab .invoice-export-staff-field{grid-column:1 / -1;}
+  #reportsTab .invoice-export-clear-button{width:100%;}
+}
+@media(max-width:760px){
+  #reportsTab .invoice-export-filter-grid{grid-template-columns:1fr;}
+  #reportsTab .invoice-export-staff-field{grid-column:auto;}
+  #reportsTab .invoice-export-actions{display:grid;grid-template-columns:1fr;}
+}

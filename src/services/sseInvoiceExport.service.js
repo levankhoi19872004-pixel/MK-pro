@@ -1,21 +1,16 @@
 
 'use strict';
 
-const mongoose = require('mongoose');
 const dateUtil = require('../utils/date.util');
-const SalesOrder = require('../models/SalesOrder');
-const ReturnOrder = require('../models/ReturnOrder');
-const Customer = require('../models/Customer');
-const Product = require('../models/Product');
 const defaultConfig = require('../../config/sse-export.json');
 const {
   INVOICE_TYPES,
   normalizeInvoiceType,
   resolveInvoiceType,
-  isActiveInvoiceOrder,
-  buildInvoiceOrderFilter
+  isActiveInvoiceOrder
 } = require('./invoiceExportClassifier');
 const { createWorkbook, appendAoaSheet, writeWorkbook, excelDate, excelText } = require('../utils/excelWriter.util');
+const invoiceExportQueryService = require('./invoiceExportQuery.service');
 
 const SSE_HEADERS = Object.freeze([
   'Mã khách', 'Tên khách hàng', 'Ngày', 'Số hóa đơn', 'Loại hóa đơn', 'Ký hiệu', 'Diễn giải',
@@ -94,7 +89,7 @@ function validateConfig(config) {
   return missing;
 }
 function orderCode(order = {}) { return firstText(order.invoiceCode, order.documentCode, order.code, order.orderCode, order.salesOrderCode, order.id, order._id); }
-function orderDate(order = {}) { return normalizeDateOnly(order.documentDate || order.orderDate || order.date || order.createdDate || order.createdAt); }
+function orderDate(order = {}) { return invoiceExportQueryService.businessDateOf(order); }
 function orderIdentity(order = {}) { return firstText(order._id, order.id, order.code, order.orderCode, order.salesOrderCode); }
 function customerKeyValues(order = {}) { return [order.customerCode, order.customerId].map(cleanText).filter(Boolean); }
 function productCodeOf(item = {}) { return firstText(item.productCode, item.code, item.sku, item.barcode, item.productId, item.id); }
@@ -107,7 +102,7 @@ function priceAfterPromotionOf(item = {}) {
 }
 function lineKeyOf(item = {}) { return firstText(item.lineKey, item.orderLineId, item.salesOrderItemId, item.itemId, item._id); }
 function priceKeyOf(item = {}) { const p = priceAfterPromotionOf(item); return p ? String(round(p, 6)) : ''; }
-function returnOrderActive(row = {}) { return isActiveInvoiceOrder(row) && !['void','cancelled','canceled','deleted','removed','reversed'].includes(cleanText(row.returnStatus).toLowerCase()); }
+function returnOrderActive(row = {}) { return invoiceExportQueryService.isEligibleReturnOrder(row); }
 function returnOrderKeys(row = {}) {
   return [row.salesOrderId,row.orderId,row.sourceOrderId,row.deliveryOrderId,row.salesOrderCode,row.orderCode,row.sourceOrderCode,row.deliveryOrderCode,row.originalOrderCode].map(cleanText).filter(Boolean);
 }
@@ -222,29 +217,44 @@ function makeSseRow({ order, customer, product, quantity, unitPrice, config }) {
   ];
   return values;
 }
-function buildSseRows({ orders = [], returnOrders = [], customers = [], products = [], invoiceType, config }) {
-  const type = normalizeInvoiceType(invoiceType);
+function buildSseRows({ orders = [], returnOrders = [], customers = [], products = [], invoiceType = invoiceExportQueryService.INVOICE_GROUPS.ALL, config, configByType = {} }) {
+  const requestedType = invoiceExportQueryService.normalizeInvoiceGroup(invoiceType, invoiceExportQueryService.INVOICE_GROUPS.ALL);
   const customerMap = buildCatalogMap(customers, ['_id','id','code','customerCode']);
   const productMap = buildCatalogMap(products, ['_id','id','code','productCode','sku','barcode']);
   const returnMap = buildReturnMap(returnOrders);
   const rows = [];
   const errors = [];
+  const warnings = [];
   const seenOrders = new Set();
+  const exportedOrders = new Set();
   const seenLines = new Set();
   for (const order of orders || []) {
-    if (!isActiveInvoiceOrder(order) || resolveInvoiceType(order) !== type) continue;
+    const orderType = resolveInvoiceType(order);
+    if (!isActiveInvoiceOrder(order)) continue;
+    if (requestedType !== invoiceExportQueryService.INVOICE_GROUPS.ALL && orderType !== requestedType) continue;
     const orderKey = orderIdentity(order);
     if (!orderKey || seenOrders.has(orderKey)) continue;
     seenOrders.add(orderKey);
+    const rowConfig = configByType[orderType] || config;
     const customerDoc = customerMap.get(cleanText(order.customerCode)) || customerMap.get(cleanText(order.customerId)) || {};
-    const customer = resolveCustomer(order, customerDoc, config);
+    const customer = resolveCustomer(order, customerDoc, rowConfig);
     for (const [itemIndex, item] of (Array.isArray(order.items) ? order.items : []).entries()) {
       const soldQty = qtyOf(item);
       if (soldQty <= 0) continue;
       const productKey = productCodeOf(item);
       const catalogProduct = productMap.get(productKey) || productMap.get(productIdOf(item)) || {};
-      const product = resolveProduct(item, catalogProduct, config);
-      const returned = Math.min(soldQty, returnedQtyForLine(returnMap, order, item));
+      const product = resolveProduct(item, catalogProduct, rowConfig);
+      const rawReturned = returnedQtyForLine(returnMap, order, item);
+      if (rawReturned > soldQty) {
+        warnings.push(errorRow(
+          order,
+          item,
+          'Số lượng trả vượt bán',
+          `Số lượng bán ${soldQty}, tổng trả hợp lệ ${rawReturned}`,
+          'Đối chiếu phiếu trả; file SSE đã giới hạn số lượng còn lại về 0'
+        ));
+      }
+      const returned = Math.min(soldQty, rawReturned);
       const quantity = round(Math.max(0, soldQty - returned), 6);
       if (quantity <= 0) continue;
       const directPriceValue = item.finalPrice ?? item.priceAfterPromotion ?? item.promoPrice ?? item.price ?? item.salePrice ?? item.unitPrice ?? item.sellPrice;
@@ -252,23 +262,25 @@ function buildSseRows({ orders = [], returnOrders = [], customers = [], products
       const hasDirectPrice = directPriceValue !== null && directPriceValue !== undefined && cleanText(directPriceValue) !== '' && Number.isFinite(toNumber(directPriceValue, NaN));
       const hasAmountPrice = soldQty > 0 && amountValue !== null && amountValue !== undefined && cleanText(amountValue) !== '' && Number.isFinite(toNumber(amountValue, NaN));
       const sourcePrice = hasDirectPrice ? toNumber(directPriceValue) : (hasAmountPrice ? toNumber(amountValue) / soldQty : NaN);
-      const unitPrice = round(type === INVOICE_TYPES.VAT ? sourcePrice / (1 + config.vatRate) : sourcePrice, 6);
+      const unitPrice = round(orderType === INVOICE_TYPES.VAT ? sourcePrice / (1 + rowConfig.vatRate) : sourcePrice, 6);
       const lineIdentity = [orderKey, lineKeyOf(item) || itemIndex, productKey].join('@@');
       if (seenLines.has(lineIdentity)) continue;
       seenLines.add(lineIdentity);
-      const lineErrors = validateLine({ order, item, customer, product, quantity, unitPrice, hasPrice: hasDirectPrice || hasAmountPrice, config });
+      const lineErrors = validateLine({ order, item, customer, product, quantity, unitPrice, hasPrice: hasDirectPrice || hasAmountPrice, config: rowConfig });
       if (lineErrors.length) { errors.push(...lineErrors); continue; }
-      rows.push(makeSseRow({ order, customer, product, quantity, unitPrice, config }));
-      if (rows.length > config.maxRows) {
-        errors.push(errorRow(order,item,'Giới hạn dòng',`Số dòng vượt giới hạn ${config.maxRows}`,'Thu hẹp khoảng ngày và xuất lại'));
+      rows.push(makeSseRow({ order, customer, product, quantity, unitPrice, config: rowConfig }));
+      exportedOrders.add(orderKey);
+      if (rows.length > rowConfig.maxRows) {
+        errors.push(errorRow(order,item,'Giới hạn dòng',`Số dòng vượt giới hạn ${rowConfig.maxRows}`,'Thu hẹp khoảng ngày và xuất lại'));
         break;
       }
     }
   }
-  return { rows, errors, orderCount: seenOrders.size };
+  return { rows, errors, warnings, orderCount: exportedOrders.size };
 }
 function sseFileName(invoiceType, query = {}) {
-  const typeLabel = normalizeInvoiceType(invoiceType) === INVOICE_TYPES.NON_VAT ? 'khong_VAT' : 'VAT';
+  const normalized = invoiceExportQueryService.normalizeInvoiceGroup(invoiceType, invoiceExportQueryService.INVOICE_GROUPS.ALL);
+  const typeLabel = normalized === INVOICE_TYPES.NON_VAT ? 'khong_VAT' : normalized === INVOICE_TYPES.VAT ? 'VAT' : 'tat_ca';
   const from = normalizeDateOnly(query.dateFrom || query.from || query.fromDate || '') || 'all';
   const to = normalizeDateOnly(query.dateTo || query.to || query.toDate || '') || dateUtil.todayVN();
   const fmt = (d) => d === 'all' ? d : d.split('-').reverse().join('-');
@@ -290,85 +302,95 @@ function buildErrorWorkbook(errors = [], invoiceType, query = {}) {
     fileName: `SSE_Loi_mapping_${normalizeInvoiceType(invoiceType) || 'ALL'}_${normalizeDateOnly(query.dateFrom || query.fromDate || '') || 'all'}_${normalizeDateOnly(query.dateTo || query.toDate || '') || dateUtil.todayVN()}.xlsx`
   };
 }
-function buildTenantClause(currentUser = {}) {
-  if (cleanText(process.env.TENANT_MODE).toLowerCase() === 'single') return null;
-  const tenantId = firstText(currentUser.tenantId, currentUser.tenantCode);
-  return tenantId ? { tenantId } : null;
-}
-function buildReturnFilter(orders = []) {
-  const ids = []; const codes = [];
-  for (const order of orders || []) {
-    [order._id,order.id].map(cleanText).filter(Boolean).forEach((v)=>ids.push(v));
-    [order.code,order.orderCode,order.salesOrderCode,order.documentCode].map(cleanText).filter(Boolean).forEach((v)=>codes.push(v));
-  }
-  const clauses = [];
-  if (ids.length) clauses.push({ $or: [{salesOrderId:{$in:ids}},{orderId:{$in:ids}},{sourceOrderId:{$in:ids}}] });
-  if (codes.length) clauses.push({ $or: [{salesOrderCode:{$in:codes}},{orderCode:{$in:codes}},{sourceOrderCode:{$in:codes}}] });
-  return clauses.length ? { $or: clauses } : { _id: null };
-}
-async function leanResult(query) { return query && typeof query.lean === 'function' ? query.lean() : query; }
 async function loadData(query = {}, invoiceType, currentUser = {}) {
-  const config = loadConfig(invoiceType);
-  const type = normalizeInvoiceType(invoiceType);
-  const filter = buildInvoiceOrderFilter(query, type);
-  const tenantClause = buildTenantClause(currentUser);
-  const orderFilter = tenantClause ? { $and: [filter, tenantClause] } : filter;
-  let orderQuery = SalesOrder.find(orderFilter);
-  if (orderQuery.select) orderQuery = orderQuery.select('id tenantId code documentCode invoiceCode orderCode salesOrderCode date orderDate documentDate createdDate createdAt deleted isDeleted deletedAt customerId customerCode customerName salesStaffCode salesStaffName salesmanCode nvbhCode sseCustomerCode customerSseCode accountingCustomerCode customerAccountingCode customerErpCode sseSalesmanCode accountingSalesmanCode salesStaffSseCode salesStaffAccountingCode vatInvoiceRequired status lifecycleStatus deliveryStatus items');
-  if (orderQuery.sort) orderQuery = orderQuery.sort({ orderDate:1, date:1, code:1 });
-  if (orderQuery.limit) orderQuery = orderQuery.limit(Math.min(Math.max(toNumber(query.limit, config.maxOrders),1),config.maxOrders));
-  const orders = await leanResult(orderQuery);
-  const customerCodes = [...new Set((orders||[]).map((o)=>cleanText(o.customerCode)).filter(Boolean))];
-  const customerIds = [...new Set((orders||[]).map((o)=>cleanText(o.customerId)).filter((v)=>mongoose.isValidObjectId(v)))];
-  const productCodes = []; const productIds = [];
-  for (const order of orders || []) for (const item of Array.isArray(order.items)?order.items:[]) {
-    const code=productCodeOf(item); if(code) productCodes.push(code);
-    const id=productIdOf(item); if(mongoose.isValidObjectId(id)) productIds.push(id);
-  }
-  const customerClauses=[]; if(customerCodes.length)customerClauses.push({code:{$in:[...new Set(customerCodes)]}}); if(customerIds.length)customerClauses.push({_id:{$in:customerIds}});
-  const productClauses=[]; if(productCodes.length)productClauses.push({code:{$in:[...new Set(productCodes)]}}); if(productIds.length)productClauses.push({_id:{$in:[...new Set(productIds)]}});
-  const [returnOrders, customers, products] = await Promise.all([
-    leanResult(ReturnOrder.find(buildReturnFilter(orders))),
-    customerClauses.length ? leanResult(Customer.find({$or:customerClauses})) : [],
-    productClauses.length ? leanResult(Product.find({$or:productClauses})) : []
-  ]);
-  return { config, orders:orders||[], returnOrders:returnOrders||[], customers:customers||[], products:products||[] };
+  const type = invoiceExportQueryService.normalizeInvoiceGroup(invoiceType, invoiceExportQueryService.INVOICE_GROUPS.ALL);
+  const configByType = {
+    [INVOICE_TYPES.VAT]: loadConfig(INVOICE_TYPES.VAT),
+    [INVOICE_TYPES.NON_VAT]: loadConfig(INVOICE_TYPES.NON_VAT)
+  };
+  const data = await invoiceExportQueryService.loadInvoiceExportData({
+    query,
+    invoiceGroup: type,
+    currentUser,
+    maxOrders: Math.max(configByType[INVOICE_TYPES.VAT].maxOrders, configByType[INVOICE_TYPES.NON_VAT].maxOrders)
+  });
+  return {
+    ...data,
+    config: configByType[INVOICE_TYPES.VAT],
+    configByType
+  };
 }
+
+function validateConfigSet(configByType = {}, invoiceType) {
+  const type = invoiceExportQueryService.normalizeInvoiceGroup(invoiceType, invoiceExportQueryService.INVOICE_GROUPS.ALL);
+  const types = type === invoiceExportQueryService.INVOICE_GROUPS.ALL
+    ? [INVOICE_TYPES.VAT, INVOICE_TYPES.NON_VAT]
+    : [type];
+  const errors = [];
+  for (const currentType of types) {
+    for (const field of validateConfig(configByType[currentType] || {})) {
+      errors.push(`${currentType}: ${field}`);
+    }
+  }
+  return errors;
+}
+
 async function buildSseInvoiceWorkbook(query = {}, currentUser = {}) {
-  const invoiceType = normalizeInvoiceType(query.invoiceType);
-  if (!invoiceType) return { error:'invoiceType chỉ nhận VAT hoặc NON_VAT', status:400, code:'INVALID_INVOICE_TYPE' };
+  let invoiceType;
+  try {
+    invoiceType = invoiceExportQueryService.normalizeInvoiceGroup(query.invoiceType || 'ALL', invoiceExportQueryService.INVOICE_GROUPS.ALL);
+    if (!invoiceType) return { error:'invoiceType chỉ nhận VAT, NON_VAT hoặc ALL', status:400, code:'INVALID_INVOICE_TYPE' };
+    invoiceExportQueryService.normalizeExportQuery(query, { invoiceGroup: invoiceType });
+  } catch (error) {
+    return { error:error.message, status:error.statusCode || 400, code:error.code || 'INVALID_EXPORT_FILTER' };
+  }
   const data = await loadData(query, invoiceType, currentUser);
-  const configErrors = validateConfig(data.config);
+  const configErrors = validateConfigSet(data.configByType, invoiceType);
   if (configErrors.length) return { error:`Thiếu cấu hình SSE: ${configErrors.join(', ')}`, status:422, code:'SSE_CONFIG_INVALID' };
   const built = buildSseRows({ ...data, invoiceType });
   if (built.errors.length) {
     const params = new URLSearchParams();
-    ['invoiceType','dateFrom','dateTo','fromDate','toDate'].forEach((key)=>{ if(query[key])params.set(key,String(query[key])); });
+    ['invoiceType','dateFrom','dateTo','fromDate','toDate','salesStaffCode'].forEach((key)=>{ if(query[key])params.set(key,String(query[key])); });
+    if (!params.has('invoiceType')) params.set('invoiceType', invoiceType);
     return {
       error:`Có ${built.errors.length} lỗi mapping SSE. File upload chưa được tạo để tránh dữ liệu thiếu.`,
       status:422, code:'SSE_MAPPING_INVALID', errors:built.errors.slice(0,100), totalErrors:built.errors.length,
+      warnings:built.warnings.slice(0,100), warningCount:built.warnings.length,
       errorReportUrl:`/api/export/sse-invoice-errors.xlsx?${params.toString()}`
     };
   }
   if (!built.rows.length) return { error:'Không có dòng sản phẩm hợp lệ trong phạm vi đã chọn', status:404, code:'SSE_NO_DATA' };
-  return { buffer:buildUploadWorkbook(built.rows,data.config), rows:built.rows.length, orderCount:built.orderCount, fileName:sseFileName(invoiceType,query) };
+  return {
+    buffer:buildUploadWorkbook(built.rows,data.config),
+    rows:built.rows.length,
+    orderCount:built.orderCount,
+    warningCount:built.warnings.length,
+    warnings:built.warnings.slice(0,100),
+    fileName:sseFileName(invoiceType,query)
+  };
 }
 async function buildSseErrorReportWorkbook(query = {}, currentUser = {}) {
-  const invoiceType = normalizeInvoiceType(query.invoiceType);
-  if (!invoiceType) return { error:'invoiceType chỉ nhận VAT hoặc NON_VAT', status:400, code:'INVALID_INVOICE_TYPE' };
+  let invoiceType;
+  try {
+    invoiceType = invoiceExportQueryService.normalizeInvoiceGroup(query.invoiceType || 'ALL', invoiceExportQueryService.INVOICE_GROUPS.ALL);
+    if (!invoiceType) return { error:'invoiceType chỉ nhận VAT, NON_VAT hoặc ALL', status:400, code:'INVALID_INVOICE_TYPE' };
+    invoiceExportQueryService.normalizeExportQuery(query, { invoiceGroup: invoiceType });
+  } catch (error) {
+    return { error:error.message, status:error.statusCode || 400, code:error.code || 'INVALID_EXPORT_FILTER' };
+  }
   const data = await loadData(query, invoiceType, currentUser);
-  const configErrors = validateConfig(data.config);
+  const configErrors = validateConfigSet(data.configByType, invoiceType);
   const errors = configErrors.map((field)=>({
     'Mã đơn':'', 'Khách hàng':'', 'Mã sản phẩm':'', 'Tên sản phẩm':'', 'Trường bị thiếu':field,
     'Nguyên nhân':'Thiếu cấu hình SSE', 'Hướng xử lý':'Cập nhật config/sse-export.json hoặc biến môi trường SSE_*'
   }));
   const built = buildSseRows({ ...data, invoiceType });
-  errors.push(...built.errors);
-  if (!errors.length) return { error:'Không có lỗi mapping SSE trong phạm vi đã chọn', status:404, code:'SSE_NO_MAPPING_ERRORS' };
+  errors.push(...built.errors, ...built.warnings);
+  if (!errors.length) return { error:'Không có lỗi hoặc cảnh báo SSE trong phạm vi đã chọn', status:404, code:'SSE_NO_MAPPING_ERRORS' };
   return buildErrorWorkbook(errors, invoiceType, query);
 }
 
 module.exports = {
   SSE_HEADERS, ERROR_HEADERS, loadConfig, validateConfig, buildSseRows, buildUploadWorkbook, buildErrorWorkbook,
-  buildSseInvoiceWorkbook, buildSseErrorReportWorkbook, sseFileName, _private:{resolveCustomer,resolveProduct,returnedQtyForLine,buildReturnMap,makeSseRow}
+  buildSseInvoiceWorkbook, buildSseErrorReportWorkbook, sseFileName, loadData, _private:{resolveCustomer,resolveProduct,returnedQtyForLine,buildReturnMap,makeSseRow,returnOrderActive,validateConfigSet}
 };

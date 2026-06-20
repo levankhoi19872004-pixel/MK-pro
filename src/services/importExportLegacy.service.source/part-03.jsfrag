@@ -444,14 +444,14 @@ async function exportToExcel(type, query = {}, currentUser = {}) {
     const invoiceType = normalizeInvoiceType(query.invoiceType);
     if (!invoiceType) return { error: 'invoiceType chỉ nhận VAT hoặc NON_VAT', status: 400 };
     return invoiceType === INVOICE_TYPES.VAT
-      ? buildVatInvoiceTT78Workbook(query)
-      : buildVatNonInvoiceOrdersWorkbook(query);
+      ? buildVatInvoiceTT78Workbook(query, currentUser)
+      : buildVatNonInvoiceOrdersWorkbook(query, currentUser);
   }
   if (['vatInvoiceTT78', 'vat-invoice-tt78', 'hoa-don-vat-tt78'].includes(normalizedType)) {
-    return buildVatInvoiceTT78Workbook(query);
+    return buildVatInvoiceTT78Workbook(query, currentUser);
   }
   if (['vat-non-invoice-orders', 'vatNonInvoiceOrders'].includes(normalizedType)) {
-    return buildVatNonInvoiceOrdersWorkbook(query);
+    return buildVatNonInvoiceOrdersWorkbook(query, currentUser);
   }
   if (BUSINESS_REPORT_BUILDERS[normalizedType]) {
     return BUSINESS_REPORT_BUILDERS[normalizedType](query);
