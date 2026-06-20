@@ -3,6 +3,7 @@
 const BackgroundJobService = require('./BackgroundJobService');
 const ArtifactStore = require('./GridFsArtifactStore');
 const importSessionService = require('../importSessionService');
+const { getRuntimeConfig } = require('../../config/app.config');
 
 function actorName(user = {}) { return String(user.username || user.fullName || user.name || user.code || 'system').trim(); }
 function stableJson(value) {
@@ -18,7 +19,8 @@ async function submitExport({ type, query = {}, user = {}, idempotencyKey = '' }
   const sanitizedQuery = { ...query };
   delete sanitizedQuery.async;
   delete sanitizedQuery.idempotencyKey;
-  const requestBucket = Math.floor(Date.now() / Math.max(60_000, Number(process.env.EXPORT_IDEMPOTENCY_WINDOW_MS || 5 * 60 * 1000)));
+  const workerConfig = getRuntimeConfig().worker;
+  const requestBucket = Math.floor(Date.now() / workerConfig.exportIdempotencyWindowMs);
   const effectiveIdempotencyKey = String(idempotencyKey || '').trim() || BackgroundJobService.makeIdempotencyKey([
     'export',
     user.tenantId || user.tenantCode || '',
@@ -42,12 +44,13 @@ async function submitExport({ type, query = {}, user = {}, idempotencyKey = '' }
     },
     idempotencyKey: effectiveIdempotencyKey,
     actor: user,
-    timeoutMs: Number(process.env.EXPORT_JOB_TIMEOUT_MS || 10 * 60 * 1000),
-    maxAttempts: Number(process.env.EXPORT_JOB_MAX_ATTEMPTS || 3)
+    timeoutMs: workerConfig.exportJobTimeoutMs,
+    maxAttempts: workerConfig.exportJobMaxAttempts
   });
 }
 
 async function submitImportPreview({ sessionId, type, files = [], userName = '', importMode = 'create' } = {}) {
+  const importConfig = getRuntimeConfig().import;
   const artifacts = [];
   try {
     for (const file of files) {
@@ -64,8 +67,8 @@ async function submitImportPreview({ sessionId, type, files = [], userName = '',
       },
       idempotencyKey: `import-preview:${sessionId}`,
       createdBy: userName,
-      timeoutMs: Number(process.env.IMPORT_JOB_TIMEOUT_MS || 120000),
-      maxAttempts: Number(process.env.IMPORT_JOB_MAX_ATTEMPTS || 2)
+      timeoutMs: importConfig.jobTimeoutMs,
+      maxAttempts: importConfig.jobMaxAttempts
     });
   } catch (error) {
     for (const artifact of artifacts) await ArtifactStore.remove(artifact.fileId).catch(() => false);
@@ -74,6 +77,7 @@ async function submitImportPreview({ sessionId, type, files = [], userName = '',
 }
 
 async function submitImportCommit(payload = {}, user = {}) {
+  const importConfig = getRuntimeConfig().import;
   const sessionId = String(payload.sessionId || payload.importSessionId || '').trim();
   if (!sessionId) return { error: 'Thiếu importSessionId', status: 400 };
   const session = await importSessionService.getSession(sessionId);
@@ -84,7 +88,7 @@ async function submitImportCommit(payload = {}, user = {}) {
       payload: { ...payload, sessionId },
       idempotencyKey: `import-commit:${sessionId}`,
       actor: user,
-      timeoutMs: Number(process.env.IMPORT_COMMIT_JOB_TIMEOUT_MS || 15 * 60 * 1000),
+      timeoutMs: importConfig.commitJobTimeoutMs,
       maxAttempts: 1
     });
     return { ...existing, alreadyCompleted: true };
@@ -101,13 +105,14 @@ async function submitImportCommit(payload = {}, user = {}) {
     },
     idempotencyKey: `import-commit:${sessionId}`,
     actor: user,
-    timeoutMs: Number(process.env.IMPORT_COMMIT_JOB_TIMEOUT_MS || 15 * 60 * 1000),
+    timeoutMs: importConfig.commitJobTimeoutMs,
     maxAttempts: 1
   });
 }
 
 async function submitReconciliation({ type = 'all', source = 'manual_api', checkedBy = 'system', idempotencyKey = '', actor = {} } = {}) {
-  const windowMs = Math.max(60_000, Number(process.env.RECONCILIATION_IDEMPOTENCY_WINDOW_MS || 5 * 60 * 1000));
+  const workerConfig = getRuntimeConfig().worker;
+  const windowMs = workerConfig.reconciliationIdempotencyWindowMs;
   const effectiveIdempotencyKey = String(idempotencyKey || '').trim() || BackgroundJobService.makeIdempotencyKey([
     'reconciliation',
     actor.tenantId || actor.tenantCode || '',
@@ -121,7 +126,7 @@ async function submitReconciliation({ type = 'all', source = 'manual_api', check
     payload: { reconciliationType: type, source, checkedBy },
     idempotencyKey: effectiveIdempotencyKey,
     actor,
-    timeoutMs: Number(process.env.RECONCILIATION_JOB_TIMEOUT_MS || 30 * 60 * 1000),
+    timeoutMs: workerConfig.reconciliationJobTimeoutMs,
     maxAttempts: 1
   });
 }

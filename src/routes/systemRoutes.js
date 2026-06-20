@@ -14,6 +14,8 @@ router.get('/system/data-source', requireRole(['admin', 'manager']), systemContr
 // Phase 2.9.3 clean system endpoints.
 router.get('/system/status', systemController.status);
 router.get('/system/api-monitor', requireRole(['admin', 'manager']), systemController.apiMonitor);
+router.get('/system/operations', requireRole(['admin', 'manager']), systemController.operations);
+router.get('/system/release', requireRole(['admin', 'manager']), systemController.release);
 router.post('/system/api-monitor/reset', requireRole(['admin']), systemController.resetApiMonitor);
 router.get('/system/reconciliation-reports', requireRole(['admin', 'manager']), systemController.listReconciliationReports);
 router.post('/system/reconciliation/run', requireRole(['admin']), systemController.runReconciliation);

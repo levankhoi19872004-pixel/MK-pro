@@ -67,6 +67,7 @@ module.exports = {
   deliveryRoutePlans: require('./DeliveryRoutePlan'),
   integrationJobs: require('./IntegrationJob'),
   backgroundJobs: require('./BackgroundJob'),
+  operationalHeartbeats: require('./OperationalHeartbeat'),
   tenants: require('./Tenant'),
   tenantSubscriptions: require('./TenantSubscription')
 };

@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const { readAccessToken } = require('../security/accessTokenCookie');
 const rateLimit = require('express-rate-limit');
 const { validationResult } = require('express-validator');
+const { getRuntimeConfig } = require('../config/app.config');
 
 const { normalizeText } = require('../utils/search.util');
 const { makeId, toNumber, stripMongoFields, formatCaseLooseQty } = require('../utils/common.util');
@@ -64,18 +65,18 @@ const PERSIST_KEYS = [
 ];
 
 function jwtSecret() {
-  const secret = [process.env.MOBILE_JWT_SECRET, process.env.JWT_SECRET].find(Boolean);
+  const secret = getRuntimeConfig().security.accessSecret;
   if (!secret) throw new Error('Missing JWT_SECRET');
   return secret;
 }
 
 function mobileRefreshJwtSecret() {
-  return process.env.MOBILE_REFRESH_TOKEN_SECRET || process.env.JWT_REFRESH_SECRET || jwtSecret();
+  return getRuntimeConfig().security.refreshSecret || jwtSecret();
 }
 
 function tokenTypeOk(payload = {}, expected = 'access') {
   if (payload.tokenType === expected) return true;
-  return !payload.tokenType && process.env.ALLOW_LEGACY_UNTYPED_TOKENS === 'true';
+  return !payload.tokenType && getRuntimeConfig().security.allowLegacyUntypedTokens;
 }
 
 function encodeMobileToken(user) {

@@ -1,4 +1,5 @@
 const dmsExactSalesInvoiceTemplate = require('./print/dmsExactSalesInvoice.template');
+const { getCompanyProfile } = require('../src/config/company-profile.config');
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -42,11 +43,12 @@ function getDmsHeader(data) {
 function getDmsDistributor(data) {
   const payload = getDmsPayload(data);
   const distributor = payload.distributor || {};
+  const companyProfile = getCompanyProfile();
   return {
-    code: distributor.code || data.company?.code || '3293',
-    name: distributor.name || data.company?.name || 'Công Ty TNHH MTV Minh Khai',
-    phone: distributor.phone || data.company?.phone || '',
-    address: distributor.address || data.company?.address || ''
+    code: distributor.code || data.company?.code || companyProfile.code,
+    name: distributor.name || data.company?.name || companyProfile.name,
+    phone: distributor.phone || data.company?.phone || companyProfile.phone,
+    address: distributor.address || data.company?.address || companyProfile.address
   };
 }
 

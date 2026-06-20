@@ -5,6 +5,7 @@ const { PRINT_PROFILES, PRINT_DOCUMENT_TYPES, createPrintDocument, cleanText } =
 const { normalizeLine } = require('../PrintLineNormalizer');
 const PrintPromotionPolicy = require('../PrintPromotionPolicy');
 const ProductCatalogExportPolicy = require('../../catalog/ProductCatalogExportPolicy');
+const { getCompanyProfile } = require('../../../config/company-profile.config');
 
 function firstDefined(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== '');
@@ -85,11 +86,12 @@ function customer(order = {}) {
 }
 
 function distributor(order = {}, context = {}) {
+  const companyProfile = getCompanyProfile();
   return {
-    code: cleanText(order.distributorCode || order.distributor?.code || context.companyCode || process.env.PRINT_COMPANY_CODE || '3293'),
-    name: cleanText(order.distributorName || order.distributor?.name || context.companyName || process.env.PRINT_COMPANY_NAME || 'Công Ty TNHH MTV Minh Khai'),
-    address: cleanText(order.distributorAddress || order.distributor?.address || context.companyAddress || process.env.PRINT_COMPANY_ADDRESS || 'Cầu Cánh Sẻ, Quang Bình, Kiến Xương, Thái Bình'),
-    phone: cleanText(order.distributorPhone || order.distributor?.phone || context.companyPhone || process.env.PRINT_COMPANY_PHONE || '')
+    code: cleanText(order.distributorCode || order.distributor?.code || context.companyCode || companyProfile.code),
+    name: cleanText(order.distributorName || order.distributor?.name || context.companyName || companyProfile.name),
+    address: cleanText(order.distributorAddress || order.distributor?.address || context.companyAddress || companyProfile.address),
+    phone: cleanText(order.distributorPhone || order.distributor?.phone || context.companyPhone || companyProfile.phone)
   };
 }
 

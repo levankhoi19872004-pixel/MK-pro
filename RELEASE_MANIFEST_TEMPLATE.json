@@ -1,0 +1,33 @@
+{
+  "application": "MK-Pro",
+  "version": "1.0.0",
+  "releaseId": "YYYY-MM-DD-NN",
+  "gitCommit": "<git-commit-or-unavailable>",
+  "sourceSha256": "<generated>",
+  "sourceFileCount": 0,
+  "bundleSha256": "<generated>",
+  "bundleCount": 0,
+  "buildTime": "<ISO-8601>",
+  "environment": "production",
+  "nodeVersion": "<node-version>",
+  "packageLockHash": "<generated>",
+  "databaseMigration": [],
+  "configurationVersion": "<generated>",
+  "releasedBy": "<operator>",
+  "previousVersion": "<previous-release-id>",
+  "sourceHashScope": [
+    "server.js",
+    "package.json",
+    "package-lock.json",
+    ".env.example",
+    ".env.production.example",
+    "src/**",
+    "services/**",
+    "scripts/**",
+    "public/**",
+    "templates/**",
+    "config/**",
+    "utils/**",
+    "docs/openapi.json"
+  ]
+}

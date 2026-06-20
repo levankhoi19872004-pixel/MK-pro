@@ -1,4 +1,5 @@
 const { calculateCartonUnit } = require('../src/utils/common.util');
+const { getCompanyProfile } = require('../src/config/company-profile.config');
 const { normalizePickingZone, pickingZoneFrom, legacyPrintGroupCode, pickingZoneLabel, PICKING_ZONES } = require('../src/utils/pickingZone.util');
 const {
   toNumber,

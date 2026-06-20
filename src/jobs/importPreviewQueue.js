@@ -4,12 +4,14 @@ const path = require('path');
 const { fork } = require('child_process');
 const importSessionService = require('../services/importSessionService');
 const { cleanupImportFiles } = require('../utils/importTempFileStore');
+const { getRuntimeConfig } = require('../config/app.config');
 
-const IMPORT_JOB_TIMEOUT_MS = Number(process.env.IMPORT_JOB_TIMEOUT_MS || 120000);
-const IMPORT_JOB_MAX_OLD_SPACE_MB = Number(process.env.IMPORT_JOB_MAX_OLD_SPACE_MB || 256);
-const IMPORT_PREVIEW_MAX_CONCURRENCY = Math.max(1, Number(process.env.IMPORT_PREVIEW_MAX_CONCURRENCY || 2));
-const IMPORT_PREVIEW_MAX_QUEUE = Math.max(1, Number(process.env.IMPORT_PREVIEW_MAX_QUEUE || 50));
-const IMPORT_WORKER_LOG_LIMIT = Math.max(500, Number(process.env.IMPORT_WORKER_LOG_LIMIT || 4000));
+const IMPORT_CONFIG = getRuntimeConfig().import;
+const IMPORT_JOB_TIMEOUT_MS = IMPORT_CONFIG.jobTimeoutMs;
+const IMPORT_JOB_MAX_OLD_SPACE_MB = IMPORT_CONFIG.jobMaxOldSpaceMb;
+const IMPORT_PREVIEW_MAX_CONCURRENCY = IMPORT_CONFIG.previewMaxConcurrency;
+const IMPORT_PREVIEW_MAX_QUEUE = IMPORT_CONFIG.previewMaxQueue;
+const IMPORT_WORKER_LOG_LIMIT = IMPORT_CONFIG.workerLogLimit;
 
 let activeJobs = 0;
 let sequence = 0;

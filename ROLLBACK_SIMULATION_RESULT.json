@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "mode": "local-artifact-rollback-simulation",
+  "artifact": "MK-pro-phase10-production-configuration-hardening-patched.zip",
+  "sha256": "bfc49bc30ec709b48af21ccc52d9f62b8244f98fd391c14839d0e974b035e5dd",
+  "extractDurationMs": 379,
+  "syntaxAndBundleDurationMs": 6313,
+  "totalDurationMs": 6692,
+  "syntax": "PASS",
+  "sourceBundles": "PASS (19)",
+  "fullBaselineTests": "961 pass / 0 fail / 1 skip (run separately)",
+  "databaseRollbackRequired": false,
+  "productionTouched": false,
+  "limitation": "This validates the previous artifact locally; it is not a Render rollback drill."
+}

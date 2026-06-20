@@ -228,7 +228,8 @@ test('audit does not remove the only index on a key until managed unique replace
 
 test('mongoose automatic index creation is disabled by default', () => {
   const source = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'src/config/db.js'));
-  assert.match(source, /const autoIndex = process\.env\.MONGOOSE_AUTO_INDEX === 'true'/);
+  assert.match(source, /const autoIndex = database\.autoIndex/);
+  assert.doesNotMatch(source, /process\.env\.MONGOOSE_AUTO_INDEX/);
   assert.match(source, /mongoose\.set\('autoIndex', autoIndex\)/);
   assert.match(source, /await mongoose\.connect\(mongoUri, \{\s*autoIndex,/);
 });

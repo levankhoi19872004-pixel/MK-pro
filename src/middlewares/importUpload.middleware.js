@@ -1,12 +1,12 @@
 'use strict';
 
 const multer = require('multer');
+const { getRuntimeConfig } = require('../config/app.config');
 
-const IMPORT_MAX_FILE_SIZE = Number(process.env.IMPORT_MAX_FILE_SIZE || 10 * 1024 * 1024);
-const IMPORT_MAX_FILES = Number(process.env.IMPORT_MAX_FILES || 2);
-const IMPORT_MAX_TOTAL_SIZE = Number(
-  process.env.IMPORT_MAX_TOTAL_SIZE || IMPORT_MAX_FILE_SIZE * IMPORT_MAX_FILES
-);
+const IMPORT_CONFIG = getRuntimeConfig().import;
+const IMPORT_MAX_FILE_SIZE = IMPORT_CONFIG.maxFileSize;
+const IMPORT_MAX_FILES = IMPORT_CONFIG.maxFiles;
+const IMPORT_MAX_TOTAL_SIZE = IMPORT_CONFIG.maxTotalSize;
 
 const XLSX_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

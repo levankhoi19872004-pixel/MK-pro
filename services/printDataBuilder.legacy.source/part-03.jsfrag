@@ -5,10 +5,10 @@
     truckNo: pick(document.vehicleNo, document.truckNo, document.soXeTai),
     taxCode: pick(document.customerTaxCode, document.customer?.taxCode, document.mst),
     distributor: {
-      code: pick(document.distributor?.code, options.companyCode, process.env.PRINT_COMPANY_CODE, '3293'),
-      name: pick(document.distributor?.name, options.companyName, process.env.PRINT_COMPANY_NAME, 'Công Ty TNHH MTV Minh Khai'),
-      address: pick(document.distributor?.address, options.companyAddress, process.env.PRINT_COMPANY_ADDRESS, 'Cầu Cánh Sẻ, Quang Bình, Kiến Xương, Thái Bình'),
-      phone: pick(document.distributor?.phone, options.companyPhone, process.env.PRINT_COMPANY_PHONE, '')
+      code: pick(document.distributor?.code, options.companyCode, companyProfile.code),
+      name: pick(document.distributor?.name, options.companyName, companyProfile.name),
+      address: pick(document.distributor?.address, options.companyAddress, companyProfile.address),
+      phone: pick(document.distributor?.phone, options.companyPhone, companyProfile.phone)
     },
     customer: {
       customerCode: pick(document.customerCode, document.customer?.code, document.customerId),
@@ -34,11 +34,11 @@
 
   return {
     company: {
-      code: pick(document.distributor?.code, options.companyCode, process.env.PRINT_COMPANY_CODE, '3293'),
-      name: pick(document.distributor?.name, options.companyName, process.env.PRINT_COMPANY_NAME, 'Công Ty TNHH MTV Minh Khai'),
-      address: pick(document.distributor?.address, options.companyAddress, process.env.PRINT_COMPANY_ADDRESS, 'Cầu Cánh Sẻ, Quang Bình, Kiến Xương, Thái Bình'),
-      phone: pick(document.distributor?.phone, options.companyPhone, process.env.PRINT_COMPANY_PHONE, ''),
-      taxCode: options.taxCode || process.env.PRINT_COMPANY_TAX || ''
+      code: pick(document.distributor?.code, options.companyCode, companyProfile.code),
+      name: pick(document.distributor?.name, options.companyName, companyProfile.name),
+      address: pick(document.distributor?.address, options.companyAddress, companyProfile.address),
+      phone: pick(document.distributor?.phone, options.companyPhone, companyProfile.phone),
+      taxCode: options.taxCode || companyProfile.taxCode
     },
     document: {
       id: document.id || document._id || '',

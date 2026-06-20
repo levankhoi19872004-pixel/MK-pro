@@ -463,6 +463,7 @@ function buildDeliveryInvoicePayload(raw = {}) {
 }
 
 function buildPrintData(document = {}, options = {}) {
+  const companyProfile = getCompanyProfile();
   const items = normalizeItems(document);
   const promotions = normalizePromotions(document);
   const displayRewards = normalizeDisplayRewards(document);

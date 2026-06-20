@@ -1,0 +1,372 @@
+{
+  "generatedAt": "2026-06-20T17:15:35.871823+00:00",
+  "baseline": {
+    "file": "MK-pro-phase10-production-configuration-hardening-patched.zip",
+    "sha256": "bfc49bc30ec709b48af21ccc52d9f62b8244f98fd391c14839d0e974b035e5dd"
+  },
+  "summary": {
+    "added": 36,
+    "modified": 23,
+    "deleted": 0
+  },
+  "added": [
+    {
+      "path": "BACKUP_RESTORE_RUNBOOK.md",
+      "status": "added",
+      "sizeBytes": 5017,
+      "sha256": "4153f31692656d85c6c99edc0eabab7409d0ce4493ad42d92f8e7c24b4ae5295"
+    },
+    {
+      "path": "BASELINE_TEST_FIXTURE_TIME_DEPENDENCY.md",
+      "status": "added",
+      "sizeBytes": 1166,
+      "sha256": "dfe909d62e6bbc31f952ecbb3f5c292b4bb5ff1d58fd4dad3bd78a0eb684d775"
+    },
+    {
+      "path": "DEPLOYMENT_RUNBOOK.md",
+      "status": "added",
+      "sizeBytes": 6127,
+      "sha256": "26da0331623c44d8978599722c62f12eb13a4cafcf58f12aa8a6a21c4f9d8c82"
+    },
+    {
+      "path": "FAILURE_SIMULATION_RESULT.json",
+      "status": "added",
+      "sizeBytes": 1194,
+      "sha256": "ade2dd5bf8ca4f28a2cdc1865f4ef25299895a0044ef50761eed30d53f95c460"
+    },
+    {
+      "path": "INCIDENT_RESPONSE_RUNBOOK.md",
+      "status": "added",
+      "sizeBytes": 11094,
+      "sha256": "92f2f922ffed97391c7ea52d6e5e535ede614701857d98c3e62b2ac20eb2deaa"
+    },
+    {
+      "path": "PERFORMANCE_BASELINE.csv",
+      "status": "added",
+      "sizeBytes": 914,
+      "sha256": "e5ec3f8b9e02837464e26f79663202c9543ffaf1fdf8b6822b9744402511876b"
+    },
+    {
+      "path": "PERFORMANCE_BASELINE.json",
+      "status": "added",
+      "sizeBytes": 2665,
+      "sha256": "236473525ac59e6b5f012dfdd711f646076f3216e1e755fef5d53e6a79069c5a"
+    },
+    {
+      "path": "PHASE11_TEST_RESULTS.json",
+      "status": "added",
+      "sizeBytes": 8392,
+      "sha256": "668f8397b690fc4e5f6d25c53e7e81e3c30e589eb810cc0aba2da858acb6da25"
+    },
+    {
+      "path": "PRODUCTION_OPERATIONS_HARDENING_DIFF.patch",
+      "status": "added",
+      "sizeBytes": 116688,
+      "sha256": "f2b148099a625f74adf74c5fd14ce9db3b7e2ec8e7519494196735fbf64048a1"
+    },
+    {
+      "path": "PRODUCTION_OPERATIONS_HARDENING_REPORT.md",
+      "status": "added",
+      "sizeBytes": 18926,
+      "sha256": "3cd2ef1a576b01cf1595a28f6ed953de542939160d41b3ffa071c88b2713249b"
+    },
+    {
+      "path": "RELEASE_MANIFEST.json",
+      "status": "added",
+      "sizeBytes": 970,
+      "sha256": "6fddfb087b28d5b6820f5fed2a2f09ff56b014c23eae2e65c67264961e80d049"
+    },
+    {
+      "path": "RELEASE_MANIFEST_TEMPLATE.json",
+      "status": "added",
+      "sizeBytes": 801,
+      "sha256": "9400db62c9239cff550edf90af42299faf39dba71612ae5210376d22ecec87d4"
+    },
+    {
+      "path": "RESTORE_DRILL_OFFLINE_RESULT.json",
+      "status": "added",
+      "sizeBytes": 3153,
+      "sha256": "669dcea5e23ad1b956519b464943d51a919886f83a903d8f1732ae352685f40f"
+    },
+    {
+      "path": "RESTORE_DRILL_RESULT.md",
+      "status": "added",
+      "sizeBytes": 2029,
+      "sha256": "e1f0f92479d6809ad6092b470d1c43a62df8a51f0b9e72d3ae6831752d820514"
+    },
+    {
+      "path": "ROLLBACK_RUNBOOK.md",
+      "status": "added",
+      "sizeBytes": 4703,
+      "sha256": "9130d2b89cbc0dcf9cd26232038ce65f47e2912f2e49ae6f5e840d55c8e2fd01"
+    },
+    {
+      "path": "ROLLBACK_SIMULATION_RESULT.json",
+      "status": "added",
+      "sizeBytes": 605,
+      "sha256": "1a313440691bc3d972fd754d0e02bf724adb6cc2b46051a0f0ceb41bd2c0b8ce"
+    },
+    {
+      "path": "scripts/generate-release-manifest.js",
+      "status": "added",
+      "sizeBytes": 4606,
+      "sha256": "d42f3d6399b4e661cbde22fb565de48d08d4ceb6eedde153529efe858fc6d9c8"
+    },
+    {
+      "path": "scripts/operations-failure-simulation.js",
+      "status": "added",
+      "sizeBytes": 7536,
+      "sha256": "8d47c4d6bb7dffb703e1cd915ec728f443279097b50e5db87269315e41b2c66c"
+    },
+    {
+      "path": "scripts/restore-drill-offline.js",
+      "status": "added",
+      "sizeBytes": 4093,
+      "sha256": "b363c7e7c247264a4218d03b9c6748d999b9830d2ad365ab364141d461723177"
+    },
+    {
+      "path": "src/models/OperationalHeartbeat.js",
+      "status": "added",
+      "sizeBytes": 1263,
+      "sha256": "953013cfba68e0b036dc22b0b5390aa68e3eced0c264125647ec11be9dc46c0b"
+    },
+    {
+      "path": "src/observability/errorClassification.js",
+      "status": "added",
+      "sizeBytes": 1057,
+      "sha256": "6a62d5d6455c3af0d0af2ba9c972f9fd6061626c42ecc9a52a13a0c6c44ee0ab"
+    },
+    {
+      "path": "src/observability/logger.js",
+      "status": "added",
+      "sizeBytes": 2077,
+      "sha256": "0268e0c7790cca3338145fe9fc66f207400c0e0ad6e7398f8f341983f5ca4656"
+    },
+    {
+      "path": "src/observability/redaction.js",
+      "status": "added",
+      "sizeBytes": 1562,
+      "sha256": "c2790a884b178a713b534da2bb37979b6ebf28aede66459380bad8a2eee4c19d"
+    },
+    {
+      "path": "src/observability/requestContext.js",
+      "status": "added",
+      "sizeBytes": 1401,
+      "sha256": "e31796dad26531641548260666592bb0270030e0d9f0c40af8457ea3a0365dd8"
+    },
+    {
+      "path": "src/operations/backupIntegrity.js",
+      "status": "added",
+      "sizeBytes": 3674,
+      "sha256": "f5db32eefb9f7e36ebfca55d31d3d3c619d70da7bbb503ed413f4400bd116438"
+    },
+    {
+      "path": "src/operations/heartbeatService.js",
+      "status": "added",
+      "sizeBytes": 3410,
+      "sha256": "e3eab892550e91318ac60b87bc0b6a73fc9a5a9e260a6a610ab8ade08e207384"
+    },
+    {
+      "path": "src/operations/mongoShutdown.js",
+      "status": "added",
+      "sizeBytes": 2140,
+      "sha256": "7bc32610028267618cef2aaeb823a01ae548853bf63e998d40dc4ddd3f55f70e"
+    },
+    {
+      "path": "src/operations/releaseMetadata.js",
+      "status": "added",
+      "sizeBytes": 1887,
+      "sha256": "22793a26c02600a87f3477690c498d1aa3f9f20b742ad786b6751dcb04284c56"
+    },
+    {
+      "path": "src/services/operationsService.js",
+      "status": "added",
+      "sizeBytes": 5696,
+      "sha256": "87fcedbba912196978387b4d51ddaf2ef28131a683837ee897a3815d94ed14af"
+    },
+    {
+      "path": "test/operations-backup-integrity.test.js",
+      "status": "added",
+      "sizeBytes": 1408,
+      "sha256": "2b1469124ccf716e1d0313b0bdc64c35ce13dea471d0b027d4bbb733850a7168"
+    },
+    {
+      "path": "test/operations-config-validation.test.js",
+      "status": "added",
+      "sizeBytes": 860,
+      "sha256": "5a2515df3a05ce33e67cf8a486e9daf5d40508fc5aa430c13d0d893e9f3438d6"
+    },
+    {
+      "path": "test/operations-contract-static.test.js",
+      "status": "added",
+      "sizeBytes": 1673,
+      "sha256": "0e070b0af0d25db38c2f3cc2406edd5044b65502db4b069f8d4d7afab68ae9aa"
+    },
+    {
+      "path": "test/operations-health-http.test.js",
+      "status": "added",
+      "sizeBytes": 1698,
+      "sha256": "ce5efceb5fcb315cf0ae7afe6f669da239cf768f7379a7ea6de6e420f8d03dfe"
+    },
+    {
+      "path": "test/operations-redaction.test.js",
+      "status": "added",
+      "sizeBytes": 1404,
+      "sha256": "ea4701bc2cbc4e7a5e090749e59fd6c4d7f461cf51c7928dd50deb8caea4f0c0"
+    },
+    {
+      "path": "test/operations-request-context.test.js",
+      "status": "added",
+      "sizeBytes": 1835,
+      "sha256": "5379e7a5197cbb06a2f5c90ec36c57721d9b37bcdad5ae7a478527e8778faa91"
+    },
+    {
+      "path": "test/operations-shutdown-sigterm.test.js",
+      "status": "added",
+      "sizeBytes": 4632,
+      "sha256": "fa3acc0fd7044e29c623e979c4f71f5edae4ea497c4aabad97d29ea213593dc1"
+    }
+  ],
+  "modified": [
+    {
+      "path": ".env.example",
+      "status": "modified",
+      "sizeBytes": 9690,
+      "sha256": "84ef3c5e422bf22fe01b52a75a2f02cad48da7f1b6e36fe01f30f190b91cc8c8"
+    },
+    {
+      "path": ".env.production.example",
+      "status": "modified",
+      "sizeBytes": 5621,
+      "sha256": "47b73ef1fc3b30f3510e4dd8bbd779baf41521b2bfb39c802c3acd56bb5395fd"
+    },
+    {
+      "path": "ENVIRONMENT_VARIABLES.md",
+      "status": "modified",
+      "sizeBytes": 15978,
+      "sha256": "79e6ddb8f50ef04832a7888257791c705cbb050173a6fb4e6cd78202da495f0b"
+    },
+    {
+      "path": "docs/openapi.json",
+      "status": "modified",
+      "sizeBytes": 421084,
+      "sha256": "fc70abdec0e97de1d3eb2774d05546ac4f420a4f0f4abb0430905441a8aa1ae8"
+    },
+    {
+      "path": "package.json",
+      "status": "modified",
+      "sizeBytes": 6407,
+      "sha256": "612257e14bf5fe6503909f325d6c380bde1ae2ab8441161475c7f169ee006758"
+    },
+    {
+      "path": "scripts/background-job-worker.js",
+      "status": "modified",
+      "sizeBytes": 2611,
+      "sha256": "03a65a74474e5858549775828f291fe3340fcd442c6de38500c251a3144ca9ff"
+    },
+    {
+      "path": "scripts/restore-drill.js",
+      "status": "modified",
+      "sizeBytes": 5857,
+      "sha256": "c25955201c3974d35dc579de1f71a3422404116778792311b832b550066eaf8c"
+    },
+    {
+      "path": "server.js",
+      "status": "modified",
+      "sizeBytes": 381,
+      "sha256": "624d26181efa40f5b8666765d860d450c9b7ab8cb0f5c20cbf808ccfbcbddd3a"
+    },
+    {
+      "path": "src/app.js",
+      "status": "modified",
+      "sizeBytes": 19297,
+      "sha256": "1932e83e5559e38418e263b17cbb5cf60c78037002dc6e87974892a33528c372"
+    },
+    {
+      "path": "src/config/app.config.js",
+      "status": "modified",
+      "sizeBytes": 19594,
+      "sha256": "36cc9c9197763de11e3ebbc8c061276d7ba5c3c8bf0b70cd7e3eae674401daa0"
+    },
+    {
+      "path": "src/config/db.js",
+      "status": "modified",
+      "sizeBytes": 1341,
+      "sha256": "15dc00430c543f9c27189419047559479b2548e9d48bec073a14358b83ae796e"
+    },
+    {
+      "path": "src/controllers/systemController.js",
+      "status": "modified",
+      "sizeBytes": 6008,
+      "sha256": "89d9e18e40629346410a821547738e3870f5cdab3e25729885400fc82db58f75"
+    },
+    {
+      "path": "src/jobs/backgroundJobExecutor.worker.js",
+      "status": "modified",
+      "sizeBytes": 3350,
+      "sha256": "71f312091289e47562d4cb0a32bede9c3d4ac77b5b33ed7e31c5c964d665805c"
+    },
+    {
+      "path": "src/jobs/backgroundJobWorker.js",
+      "status": "modified",
+      "sizeBytes": 8335,
+      "sha256": "4bc43683d1f9121287990842e04a2cb7bf94c5703d161193b2c6d0d6ad6912d6"
+    },
+    {
+      "path": "src/middlewares/apiMonitor.middleware.js",
+      "status": "modified",
+      "sizeBytes": 22272,
+      "sha256": "d88943810c944e2ff54b50f2b1f992035019e85568c19aa6e0a7dce65b3d6d6b"
+    },
+    {
+      "path": "src/middlewares/apiSecurity.middleware.js",
+      "status": "modified",
+      "sizeBytes": 1343,
+      "sha256": "67453ae4fc059653191b5a59d427103b37f40f77b55da1310866e8e1b88545ec"
+    },
+    {
+      "path": "src/models/BackgroundJob.js",
+      "status": "modified",
+      "sizeBytes": 2441,
+      "sha256": "6721e0df81fdde3387aa8527a44588b47f613fefe9ce9ab42a7c8c9af0a202e0"
+    },
+    {
+      "path": "src/models/index.js",
+      "status": "modified",
+      "sizeBytes": 3353,
+      "sha256": "09599d79a12b4a34bca0ab3367312ce5358e4daaa44e2f3fd13471d8dcc682f6"
+    },
+    {
+      "path": "src/routes/health.routes.js",
+      "status": "modified",
+      "sizeBytes": 915,
+      "sha256": "0c0d43252a5964dedfcee1d9bbf770eba410a192e80e550bb66a1e5faf76cfd8"
+    },
+    {
+      "path": "src/routes/systemRoutes.js",
+      "status": "modified",
+      "sizeBytes": 1997,
+      "sha256": "4d4d2d3333cc9cd8198a1abacc6dc75b33f65fc680c163631f083f7597fe7cfa"
+    },
+    {
+      "path": "src/services/background-jobs/BackgroundJobService.js",
+      "status": "modified",
+      "sizeBytes": 13274,
+      "sha256": "05cc7f7f1197a82d82f42e430b0d301924d744e923e0c1fb8cc0b43ec911b4e5"
+    },
+    {
+      "path": "src/services/mongoIndexService.js",
+      "status": "modified",
+      "sizeBytes": 33888,
+      "sha256": "0b59f2af080884e9695781d47039d8a0fdada91679dadf6205d390b255690570"
+    },
+    {
+      "path": "src/services/systemService.js",
+      "status": "modified",
+      "sizeBytes": 13011,
+      "sha256": "6a62c585fe1e4ea17a430aae344f53d7da68ede27c176e79da117e0235325a91"
+    }
+  ],
+  "deleted": [],
+  "metadataFileExcludedFromSelfHash": "PHASE11_FILE_CHANGES.json"
+}

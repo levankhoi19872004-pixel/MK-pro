@@ -1,0 +1,33 @@
+{
+  "application": "MK-Pro",
+  "version": "1.0.0",
+  "releaseId": "2026-06-21-01-gate-fix",
+  "gitCommit": "unavailable",
+  "sourceSha256": "80c7994135da8ae5c7363b7ace0263bc1e20193aa0152cfcdea5c7744bae6741",
+  "sourceFileCount": 749,
+  "bundleSha256": "5028b4dbd5aedc798dd8ff42151208629b6bb78fc789021184b7418a711e8a66",
+  "bundleCount": 26,
+  "buildTime": "2026-06-20T17:27:16.627Z",
+  "environment": "production",
+  "nodeVersion": "v22.16.0",
+  "packageLockHash": "0ee29e9f7858dd144d9ba6fa6e5b51b4ee4e9fa9024a2f6d9c56ca354d0b2d23",
+  "databaseMigration": [],
+  "configurationVersion": "84ef3c5e422bf22fe01b52a75a2f02cad48da7f1b6e36fe01f30f190b91cc8c8",
+  "releasedBy": "Khoi Le",
+  "previousVersion": "2026-06-20-01",
+  "sourceHashScope": [
+    "server.js",
+    "package.json",
+    "package-lock.json",
+    ".env.example",
+    ".env.production.example",
+    "src",
+    "services",
+    "scripts",
+    "public",
+    "templates",
+    "config",
+    "utils",
+    "docs/openapi.json"
+  ]
+}

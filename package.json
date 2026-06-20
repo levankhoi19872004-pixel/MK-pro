@@ -70,7 +70,12 @@
     "benchmark:background-jobs": "node scripts/performance/background-job-isolation-benchmark.js",
     "benchmark:frontend": "node scripts/performance/frontend-dom-benchmark.js",
     "audit:frontend-sinks": "node scripts/security/audit-frontend-sinks.js --output=CSP_XSS_SINK_INVENTORY.json",
-    "check:csp-xss": "node scripts/security/audit-frontend-sinks.js --check --output=CSP_XSS_SINK_INVENTORY.json"
+    "check:csp-xss": "node scripts/security/audit-frontend-sinks.js --check --output=CSP_XSS_SINK_INVENTORY.json",
+    "release:manifest": "node scripts/generate-release-manifest.js",
+    "check:release-manifest": "node scripts/generate-release-manifest.js --check",
+    "restore:drill:offline": "node scripts/restore-drill-offline.js",
+    "test:operations": "node --test test/operations-*.test.js",
+    "simulate:operations": "node scripts/operations-failure-simulation.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

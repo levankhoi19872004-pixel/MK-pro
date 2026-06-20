@@ -6,6 +6,8 @@ const auditService = require('../auditService');
 const ArtifactStore = require('./GridFsArtifactStore');
 const { makeId } = require('../../utils/common.util');
 const { tenantIdOf } = require('../../utils/tenant.util');
+const { getRequestContext } = require('../../observability/requestContext');
+const { redactText, redactValue } = require('../../observability/redaction');
 
 const TERMINAL = new Set(['completed', 'failed', 'dead_letter', 'cancelled']);
 const CANCELLABLE_WHILE_RUNNING = new Set(['export_excel', 'import_preview']);
@@ -67,12 +69,14 @@ async function enqueue(input = {}) {
   }
 
   const now = new Date();
+  const requestContext = getRequestContext();
   const document = {
     id: text(input.id) || makeId('JOB'),
     tenantId,
     type: input.type,
     status: 'pending',
     idempotencyKey,
+    requestId: text(input.requestId || requestContext?.requestId).slice(0, 128),
     payload: input.payload || {},
     progress: { percent: 0, step: 'queued', message: '' },
     attemptCount: 0,
@@ -199,10 +203,10 @@ async function complete(id, workerId, result = {}, artifact = null) {
 function normalizeFailure(error = {}) {
   return {
     code: text(error.code || 'BACKGROUND_JOB_FAILED').slice(0, 100),
-    message: text(error.message || error).slice(0, 1200),
-    stack: text(error.stack).slice(0, STACK_LIMIT),
+    message: redactText(error.message || error).slice(0, 1200),
+    stack: redactText(error.stack || '').slice(0, STACK_LIMIT),
     retryable: error.retryable !== false,
-    details: error.details || null
+    details: redactValue(error.details) || null
   };
 }
 

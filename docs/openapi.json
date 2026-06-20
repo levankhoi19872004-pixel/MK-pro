@@ -14496,6 +14496,46 @@
         ]
       }
     },
+    "/api/system/operations": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "GET /api/system/operations",
+        "operationId": "getSystemOperations",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/system/reconciliation-reports": {
       "get": {
         "tags": [
@@ -14545,6 +14585,46 @@
         "operationId": "postSystemReconciliationRun",
         "responses": {
           "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/system/release": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "GET /api/system/release",
+        "operationId": "getSystemRelease",
+        "responses": {
+          "200": {
             "description": "Success response",
             "content": {
               "application/json": {

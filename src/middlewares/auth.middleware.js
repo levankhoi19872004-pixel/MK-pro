@@ -2,20 +2,21 @@
 
 const jwt = require('jsonwebtoken');
 const { readAccessToken } = require('../security/accessTokenCookie');
+const { getRuntimeConfig } = require('../config/app.config');
 
 function jwtSecret() {
-  const secret = [process.env.JWT_SECRET, process.env.MOBILE_JWT_SECRET].find(Boolean);
+  const secret = getRuntimeConfig().security.accessSecret;
   if (!secret) throw new Error('Missing JWT_SECRET');
   return secret;
 }
 
 function refreshJwtSecret() {
-  return process.env.JWT_REFRESH_SECRET || process.env.MOBILE_REFRESH_TOKEN_SECRET || jwtSecret();
+  return getRuntimeConfig().security.refreshSecret || jwtSecret();
 }
 
 function assertTokenType(payload = {}, expected = 'access') {
   if (payload.tokenType === expected) return payload;
-  if (!payload.tokenType && process.env.ALLOW_LEGACY_UNTYPED_TOKENS === 'true') return payload;
+  if (!payload.tokenType && getRuntimeConfig().security.allowLegacyUntypedTokens) return payload;
   const err = new Error(`Invalid ${expected} token type`);
   err.code = 'INVALID_TOKEN_TYPE';
   throw err;

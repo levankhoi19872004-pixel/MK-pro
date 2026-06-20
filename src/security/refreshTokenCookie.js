@@ -1,5 +1,7 @@
 'use strict';
 
+const { getRuntimeConfig } = require('../config/app.config');
+
 const DEFAULT_COOKIE_NAME = 'mk_refresh_token';
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -28,7 +30,7 @@ function readRefreshToken(req = {}) {
   const cookieToken = String(cookies[cookieName()] || '').trim();
   if (cookieToken) return cookieToken;
   // Temporary migration path for native/legacy clients. Disable after all clients use the cookie.
-  if (process.env.ALLOW_REFRESH_TOKEN_IN_BODY === 'true') {
+  if (getRuntimeConfig().security.allowRefreshTokenInBody) {
     return String(req.body?.refreshToken || '').trim();
   }
   return '';
@@ -60,7 +62,7 @@ function clearRefreshTokenCookie(res) {
 }
 
 function exposeRefreshTokenInBody() {
-  return process.env.ALLOW_REFRESH_TOKEN_IN_BODY === 'true';
+  return getRuntimeConfig().security.allowRefreshTokenInBody;
 }
 
 function attachRefreshToken(res, body = {}) {

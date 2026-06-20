@@ -418,7 +418,8 @@ function apiMonitor(req, res, next) {
       at: new Date().toISOString(),
       method: req.method,
       path,
-      originalUrl: req.originalUrl || req.url || path,
+      originalUrl: path,
+      requestId: req.requestId || '',
       module: moduleName(path),
       statusCode: res.statusCode,
       ms,
@@ -433,8 +434,9 @@ function apiMonitor(req, res, next) {
     recordMetric(metric);
 
     const logPayload = {
+      requestId: metric.requestId,
       method: metric.method,
-      route: metric.originalUrl,
+      route: metric.path,
       path: metric.path,
       module: metric.module,
       statusCode: metric.statusCode,

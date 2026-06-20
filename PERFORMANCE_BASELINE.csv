@@ -1,0 +1,12 @@
+﻿metric,before,after,method
+Startup/listen local (ms),1064.97,1027.05,"createApp + listen, NODE_ENV=test, no Mongo connect"
+Readiness p95 local (ms),1.847,1.401,80 sequential requests; dependency unavailable
+Web RSS idle local (MiB),221.15,218.55,after 400 health requests and GC
+Worker RSS after module load (MiB),148.28,154.68,idle module load; no Mongo/job
+Health API p95 local (ms),1.539,1.618,400 sequential requests
+Health API error rate,0,0,HTTP >=500 / request count
+SIGTERM during Mongo connecting (ms),5012,12,baseline exit=1; after exit=0
+Restore offline logical fixture (ms),,53,"64 logical collections, checksum + integrity"
+MongoDB isolated restore duration,N/A,BLOCKED,no staging URI/mongod; binary download unavailable
+Deployment duration,N/A,Not measured on Render,no production deployment performed
+Rollback duration,N/A,Measured separately in local artifact simulation,see ROLLBACK_RUNBOOK.md

@@ -14,7 +14,6 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const pino = require('pino');
 const pinoHttp = require('pino-http');
 const mongoose = require('mongoose');
 
@@ -39,14 +38,22 @@ const { startIntegrationJob, stopIntegrationJob } = require('./jobs/integrationJ
 const { registerDefaultOutboxHandlers } = require('./services/outbox/registerDefaultHandlers');
 const { startReportingProjectionJob, stopReportingProjectionJob } = require('./jobs/reportingProjectionJob');
 const startupState = require('./services/startupState');
+const { getRuntimeConfig, validateRuntimeConfig } = require('./config/app.config');
+const { logger } = require('./observability/logger');
+const { requestContextMiddleware } = require('./observability/requestContext');
+const { classifyError } = require('./observability/errorClassification');
+const { createHeartbeat } = require('./operations/heartbeatService');
+const { internalReleaseSummary } = require('./operations/releaseMetadata');
+const { closeMongoForShutdown: closeMongoConnectionForShutdown } = require('./operations/mongoShutdown');
 
-const PORT = Number(process.env.PORT || 3000);
-const BIND_HOST = String(process.env.BIND_HOST || '0.0.0.0').trim() || '0.0.0.0';
+const INITIAL_CONFIG = getRuntimeConfig();
+const PORT = INITIAL_CONFIG.app.port;
+const BIND_HOST = INITIAL_CONFIG.app.bindHost;
+// Kept as a named constant for deployment regression checks; source is centralized.
+const TRUST_PROXY = INITIAL_CONFIG.http.trustProxy;
 
-const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
-  redact: ['req.headers.authorization', 'req.body.password', 'req.body.refreshToken']
-});
+let webHeartbeat = null;
+let shutdownRequested = false;
 
 function inputSanitizer(req, res, next) {
   const sanitizeObject = (value) => {
@@ -75,6 +82,8 @@ function startupReadinessGuard(req, res, next) {
   const healthPaths = new Set([
     '/api/health',
     '/api/health/db',
+    '/api/health/live',
+    '/api/health/ready',
     '/api/health/readiness',
     '/api/system/status',
     '/api/system/health',
@@ -122,23 +131,22 @@ function apiPerformanceProbe(req, res, next) {
 }
 
 function createCorsOptions() {
-  const origins = String(process.env.CORS_ORIGIN || '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const allowAll = process.env.CORS_ALLOW_ALL === 'true';
+  const { http } = getRuntimeConfig();
+  const origins = http.corsOrigins;
+  const CORS_ALLOW_ALL = http.corsAllowAll;
   return {
     // Without an explicit allowlist, do not emit cross-origin headers.
     // Same-origin web/mobile requests continue to work normally.
-    origin: allowAll ? true : (origins.length ? origins : false),
-    credentials: process.env.CORS_ALLOW_CREDENTIALS === 'true'
+    origin: CORS_ALLOW_ALL ? true : (origins.length ? origins : false),
+    credentials: http.corsAllowCredentials
   };
 }
 
 function createApiLimiter() {
+  const { http } = getRuntimeConfig();
   return rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: Number(process.env.API_RATE_LIMIT_MAX || 1200),
+    windowMs: http.apiRateLimitWindowMs,
+    max: http.apiRateLimitMax,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
@@ -150,35 +158,27 @@ function createApiLimiter() {
 }
 
 function createCspReportLimiter() {
+  const { http } = getRuntimeConfig();
+  const CSP_REPORT_RATE_LIMIT_MAX = http.cspReportRateLimitMax;
   return rateLimit({
-    windowMs: 60 * 1000,
-    max: Number(process.env.CSP_REPORT_RATE_LIMIT_MAX || 120),
+    windowMs: http.cspReportRateLimitWindowMs,
+    max: CSP_REPORT_RATE_LIMIT_MAX,
     standardHeaders: true,
     legacyHeaders: false,
     message: ''
   });
 }
 
-function configureTrustProxy(app) {
-  const raw = String(process.env.TRUST_PROXY ?? '1').trim().toLowerCase();
-
-  if (raw === 'false' || raw === '0' || raw === 'off') {
-    return;
-  }
-
-  if (raw === 'true') {
-    app.set('trust proxy', true);
-    return;
-  }
-
-  const hops = Number(raw);
-  app.set('trust proxy', Number.isFinite(hops) && hops >= 0 ? hops : 1);
+function configureTrustProxy(app, configuredValue = TRUST_PROXY) {
+  if (configuredValue === false || configuredValue === 0) return;
+  app.set('trust proxy', configuredValue);
 }
 
 function createApp() {
   const app = express();
 
   configureTrustProxy(app);
+  app.use(requestContextMiddleware);
 
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cspHeaders);
@@ -188,12 +188,29 @@ function createApp() {
     createCspReportHandler(logger)
   );
   app.use(cors(createCorsOptions()));
-  const requestLogger = pinoHttp({ logger });
-  if (process.env.NODE_ENV !== 'test') {
+  const requestLogger = pinoHttp({
+    logger,
+    genReqId: (req) => req.requestId,
+    autoLogging: {
+      ignore: (req) => String(req.url || '').startsWith('/api/health/')
+    },
+    customProps: (req) => ({
+      userId: req.user?._id || req.user?.id || undefined,
+      role: req.user?.role || undefined
+    })
+  });
+  if (INITIAL_CONFIG.app.nodeEnv !== 'test') {
     app.use(requestLogger);
+  } else {
+    app.use((req, res, next) => {
+      req.log = logger.child({ requestId: req.requestId });
+      next();
+    });
   }
-  app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '5mb' }));
-  app.use(express.urlencoded({ extended: true, limit: process.env.URLENCODED_BODY_LIMIT || '1mb', parameterLimit: 2000 }));
+  const { http } = getRuntimeConfig();
+  const URLENCODED_BODY_LIMIT = http.urlencodedBodyLimit;
+  app.use(express.json({ limit: http.jsonBodyLimit }));
+  app.use(express.urlencoded({ extended: true, limit: URLENCODED_BODY_LIMIT, parameterLimit: 2000 }));
 
   // Docs has its own limiter/auth guard inside swaggerRoutes, but this keeps
   // the global API protection behavior for all other endpoints.
@@ -246,14 +263,23 @@ function createApp() {
     res.status(404).json({ ok: false, success: false, message: 'API không tồn tại' });
   });
 
-  app.use((err, req, res, next) => {
-    req.log?.error({ err }, 'Unhandled application error');
-    const status = err.status || err.statusCode || 500;
-    return res.status(status).json({
+  app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
+    const status = Number(err.status || err.statusCode || 500);
+    const safeStatus = status >= 400 && status < 600 ? status : 500;
+    const errorCode = classifyError(err, safeStatus);
+    req.log?.error({
+      err,
+      errorCode,
+      requestId: req.requestId,
+      route: String(req.originalUrl || req.url || '').split('?')[0],
+      method: req.method,
+      statusCode: safeStatus
+    }, 'Unhandled application error');
+    return res.status(safeStatus).json({
       ok: false,
       success: false,
-      message: status >= 500 ? 'Lỗi hệ thống, vui lòng thử lại sau' : (err.message || 'Yêu cầu không hợp lệ'),
-      error: process.env.NODE_ENV === 'production' ? undefined : err.message
+      message: safeStatus >= 500 ? 'Lỗi hệ thống, vui lòng thử lại sau' : (err.message || 'Yêu cầu không hợp lệ'),
+      error: getRuntimeConfig().app.nodeEnv === 'production' ? undefined : err.message
     });
   });
 
@@ -262,57 +288,83 @@ function createApp() {
 
 const app = createApp();
 
-process.on('unhandledRejection', (reason) => logger.error({ err: reason }, 'Unhandled Promise rejection'));
-process.on('uncaughtException', (err) => {
-  logger.fatal({ err }, 'Uncaught exception');
-  process.exit(1);
-});
-
+function closeMongoForShutdown(timeoutMs, log = logger) {
+  return closeMongoConnectionForShutdown(timeoutMs, log, {
+    connection: mongoose.connection,
+    disconnect: () => mongoose.disconnect()
+  });
+}
 
 function installGracefulShutdown(server, options = {}) {
-  if (!server || typeof server.close !== 'function') return () => {};
-  const timeoutMs = Math.max(1000, Number(options.timeoutMs || process.env.GRACEFUL_SHUTDOWN_TIMEOUT_MS || 15000));
+  if (!server || typeof server.close !== 'function') return () => Promise.resolve();
+  const timeoutMs = Math.max(1000, Number(options.timeoutMs || getRuntimeConfig().app.gracefulShutdownTimeoutMs));
   let shuttingDown = false;
+  let shutdownPromise = null;
 
-  const shutdown = async (signal = 'SIGTERM') => {
-    if (shuttingDown) return;
+  const shutdown = async (signal = 'SIGTERM', context = {}) => {
+    if (shutdownPromise) return shutdownPromise;
     shuttingDown = true;
-    logger.info({ signal }, 'Graceful shutdown started');
-    stopReconciliationJob();
-    stopOutboxJob();
-    stopIntegrationJob();
-    stopReportingProjectionJob();
+    shutdownRequested = true;
+    const exitCode = Number.isInteger(context.exitCode) ? context.exitCode : 0;
+    const fatalError = context.error instanceof Error ? context.error : null;
 
-    const forceTimer = setTimeout(() => {
-      logger.error({ signal, timeoutMs }, 'Graceful shutdown timed out');
-      if (options.exit !== false) process.exit(1);
-    }, timeoutMs);
-    forceTimer.unref?.();
+    shutdownPromise = (async () => {
+      logger[exitCode ? 'fatal' : 'info']({ signal, err: fatalError || undefined }, 'Graceful shutdown started');
+      stopReconciliationJob();
+      stopOutboxJob();
+      stopIntegrationJob();
+      stopReportingProjectionJob();
 
-    try {
-      await new Promise((resolve) => server.close(resolve));
-      if (mongoose.connection.readyState !== 0) await mongoose.disconnect();
-      clearTimeout(forceTimer);
-      logger.info({ signal }, 'Graceful shutdown completed');
-      if (options.exit !== false) process.exit(0);
-    } catch (err) {
-      clearTimeout(forceTimer);
-      logger.error({ err, signal }, 'Graceful shutdown failed');
-      if (options.exit !== false) process.exit(1);
-    }
+      const forceTimer = setTimeout(() => {
+        logger.fatal({ signal, timeoutMs }, 'Graceful shutdown timed out');
+        if (options.exit !== false) process.exit(1);
+      }, timeoutMs);
+      forceTimer.unref?.();
+
+      try {
+        if (server.listening) {
+          await new Promise((resolve, reject) => {
+            server.close((error) => error ? reject(error) : resolve());
+          });
+        }
+        if (webHeartbeat) await webHeartbeat.stop(exitCode ? 'failed' : 'stopped');
+        await closeMongoForShutdown(timeoutMs, logger);
+        clearTimeout(forceTimer);
+        logger.info({ signal, exitCode }, 'Graceful shutdown completed');
+        if (options.exit !== false) process.exit(exitCode);
+      } catch (err) {
+        clearTimeout(forceTimer);
+        logger.fatal({ err, signal }, 'Graceful shutdown failed');
+        if (options.exit !== false) process.exit(1);
+        throw err;
+      }
+    })();
+
+    return shutdownPromise;
   };
 
   if (options.bindSignals !== false) {
-    process.once('SIGTERM', () => shutdown('SIGTERM'));
-    process.once('SIGINT', () => shutdown('SIGINT'));
+    process.once('SIGTERM', () => void shutdown('SIGTERM', { exitCode: 0 }));
+    process.once('SIGINT', () => void shutdown('SIGINT', { exitCode: 0 }));
+    process.once('unhandledRejection', (reason) => {
+      const error = reason instanceof Error ? reason : new Error(String(reason));
+      void shutdown('unhandledRejection', { exitCode: 1, error });
+    });
+    process.once('uncaughtException', (error) => {
+      void shutdown('uncaughtException', { exitCode: 1, error });
+    });
   }
 
+  shutdown.isShuttingDown = () => shuttingDown;
   return shutdown;
 }
 
-function startupTimeoutMs(envName, fallbackMs) {
-  const value = Number(process.env[envName] || fallbackMs);
-  return Number.isFinite(value) && value > 0 ? value : fallbackMs;
+function startupTimeoutMs(key) {
+  const startup = getRuntimeConfig().startup;
+  if (!Object.prototype.hasOwnProperty.call(startup, key)) {
+    throw new Error(`Startup timeout key không hợp lệ: ${key}`);
+  }
+  return startup[key];
 }
 
 async function runStartupStep(name, task, timeoutMs) {
@@ -341,7 +393,7 @@ async function runStartupStep(name, task, timeoutMs) {
 
 function listenHttpServer() {
   if (!Number.isInteger(PORT) || PORT <= 0 || PORT > 65535) {
-    const error = new Error(`PORT không hợp lệ: ${process.env.PORT}`);
+    const error = new Error(`PORT không hợp lệ: ${PORT}`);
     error.code = 'INVALID_PORT';
     return Promise.reject(error);
   }
@@ -363,6 +415,8 @@ async function closeServerAfterStartupFailure(server) {
 }
 
 async function startServer() {
+  shutdownRequested = false;
+  const runtimeConfig = validateRuntimeConfig(process.env, { profile: 'server' });
   startupState.begin();
   startupState.markStepStarted('http-listen');
   const listenStartedAt = Date.now();
@@ -377,7 +431,7 @@ async function startServer() {
   }
 
   installGracefulShutdown(server);
-  console.log(`✅ HTTP server listening on http://${BIND_HOST}:${PORT}; application bootstrap is starting`);
+  logger.info({ bindHost: BIND_HOST, port: PORT, release: internalReleaseSummary() }, `HTTP server listening on http://${BIND_HOST}:${PORT}; application bootstrap is starting`);
 
   try {
     registerDefaultOutboxHandlers();
@@ -385,14 +439,25 @@ async function startServer() {
     await runStartupStep(
       'mongodb-connect',
       () => connectDB(),
-      startupTimeoutMs('STARTUP_DB_TIMEOUT_MS', 30000)
+      startupTimeoutMs('dbTimeoutMs')
     );
 
-    if (process.env.AUTO_ENSURE_MONGO_INDEXES !== 'false') {
+    webHeartbeat = createHeartbeat({
+      service: 'mk-pro-web',
+      role: 'web',
+      initialStatus: 'starting',
+      logger,
+      metadata: { bindHost: BIND_HOST, port: PORT }
+    });
+    await webHeartbeat.start().catch((error) => {
+      logger.warn({ err: error }, 'Web operational heartbeat could not start');
+    });
+
+    if (runtimeConfig.startup.ensureMongoIndexes) {
       const indexResults = await runStartupStep(
         'mongodb-indexes',
         () => ensureMongoIndexes({ logger }),
-        startupTimeoutMs('STARTUP_INDEX_TIMEOUT_MS', 180000)
+        startupTimeoutMs('indexTimeoutMs')
       );
       console.log(`✅ Mongo indexes ready: ${indexResults.length} indexes checked/created`);
     } else {
@@ -400,22 +465,22 @@ async function startServer() {
       console.log('⏭️ Bỏ qua tạo/check index Mongo khi khởi động (AUTO_ENSURE_MONGO_INDEXES=false)');
     }
 
-    if (process.env.AUTO_BACKFILL_ARLEDGERS === 'true') {
+    if (runtimeConfig.startup.backfillArLedgers) {
       const arBackfill = await runStartupStep(
         'ar-ledger-backfill',
         () => ensureArLedgersBackfillFromJournals({ logger }),
-        startupTimeoutMs('STARTUP_BACKFILL_TIMEOUT_MS', 180000)
+        startupTimeoutMs('backfillTimeoutMs')
       );
       if (!arBackfill.skipped) console.log(`✅ Backfill arLedgers từ journals: ${arBackfill.inserted || 0} dòng`);
     } else {
       startupState.markStepSkipped('ar-ledger-backfill', 'AUTO_BACKFILL_ARLEDGERS!=true');
     }
 
-    if (process.env.AUTO_RECOVER_STALE_IMPORTS !== 'false') {
+    if (runtimeConfig.startup.recoverStaleImports) {
       const recoveredImports = await runStartupStep(
         'stale-import-recovery',
         () => importSessionService.recoverStaleImportSessions(),
-        startupTimeoutMs('STARTUP_IMPORT_RECOVERY_TIMEOUT_MS', 60000)
+        startupTimeoutMs('importRecoveryTimeoutMs')
       );
       if (recoveredImports.recovered) {
         console.warn(`⚠️ Đã đánh dấu thất bại ${recoveredImports.recovered} import bị gián đoạn`);
@@ -440,10 +505,16 @@ async function startServer() {
     startupState.markStepCompleted('background-jobs', jobsStartedAt);
 
     startupState.markReady();
-    console.log(`✅ Application ready on http://${BIND_HOST}:${PORT}`);
+    await webHeartbeat?.beat({ status: 'ready' }).catch((error) => logger.warn({ err: error }, 'Web ready heartbeat failed'));
+    logger.info({ bindHost: BIND_HOST, port: PORT, startup: startupState.snapshot() }, 'Application ready');
     return server;
   } catch (error) {
+    if (shutdownRequested) {
+      logger.info({ err: error }, 'Application bootstrap cancelled by shutdown');
+      return server;
+    }
     startupState.markFailed(error);
+    await webHeartbeat?.beat({ status: 'failed', metadata: { startupErrorCode: error.code || 'STARTUP_FAILED' } }).catch(() => null);
     logger.fatal({ err: error, startup: startupState.snapshot() }, 'Application bootstrap failed');
     stopReconciliationJob();
     stopOutboxJob();
@@ -451,9 +522,7 @@ async function startServer() {
     stopReportingProjectionJob();
     await closeServerAfterStartupFailure(server);
     if (mongoose.connection.readyState !== 0) {
-      await mongoose.disconnect().catch((disconnectError) => {
-        logger.error({ err: disconnectError }, 'Mongo disconnect after startup failure failed');
-      });
+      await closeMongoForShutdown(getRuntimeConfig().app.gracefulShutdownTimeoutMs, logger);
     }
     throw error;
   }
@@ -470,5 +539,6 @@ module.exports = {
   startupReadinessGuard,
   csrfProtection,
   configureTrustProxy,
-  installGracefulShutdown
+  installGracefulShutdown,
+  closeMongoForShutdown
 };

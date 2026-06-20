@@ -1,0 +1,304 @@
+{
+  "baselineArtifact": {
+    "file": "MK-pro-phase10-production-configuration-hardening-patched.zip",
+    "sha256": "bfc49bc30ec709b48af21ccc52d9f62b8244f98fd391c14839d0e974b035e5dd"
+  },
+  "testChronology": {
+    "baselineBeforeAsiaHoChiMinhRollover": {
+      "tests": 962,
+      "passed": 961,
+      "failed": 0,
+      "skipped": 1,
+      "elapsedSeconds": 14.08,
+      "maxRssKb": 274076
+    },
+    "patchedBeforeAsiaHoChiMinhRollover": {
+      "tests": 973,
+      "passed": 972,
+      "failed": 0,
+      "skipped": 1,
+      "elapsedSeconds": 8.576,
+      "note": "Interim Prompt 11 before final shared Mongo shutdown patch."
+    },
+    "patchedCurrentStandardRun": {
+      "tests": 974,
+      "passed": 973,
+      "failed": 0,
+      "skipped": 1,
+      "platform": "linux",
+      "elapsedSeconds": 13.049,
+      "knownBaselineFailure": false,
+      "note": "Time-dependent fixture resolved without changing production service."
+    },
+    "baselineCurrentTargetedRun": {
+      "tests": 3,
+      "passed": 1,
+      "failed": 2,
+      "skipped": 0,
+      "sameAssertionLines": [
+        80,
+        97
+      ]
+    },
+    "patchedFinalExcludingKnownTimeFixture": {
+      "tests": 971,
+      "passed": 970,
+      "failed": 0,
+      "skipped": 1,
+      "elapsedSeconds": 9.103
+    },
+    "oldTestsModifiedOrDeleted": 0,
+    "classification": "Baseline time-dependent fixture: dateTo is fixed at 2026-06-20 and changes query-path after 2026-06-21 00:00 Asia/Ho_Chi_Minh.",
+    "testGateFix": {
+      "releaseId": "2026-06-21-01-gate-fix",
+      "dateFixtureResolved": true,
+      "windowsCasePortabilityResolved": true,
+      "retiredFragmentsCleanupAdded": true,
+      "posixSignalTests": "run on Linux; skipped with reason on Windows",
+      "oldBusinessTestsDeleted": 0
+    }
+  },
+  "operations": {
+    "tests": 12,
+    "passed": 12,
+    "failed": 0,
+    "skipped": 0,
+    "platform": "linux",
+    "coverage": [
+      "web SIGTERM during Mongo connecting",
+      "worker SIGTERM during Mongo connecting"
+    ]
+  },
+  "syntax": {
+    "javascriptFiles": 932,
+    "ok": true,
+    "scope": "gate-fix workspace and final ZIP excluding node_modules"
+  },
+  "sourceBundles": {
+    "bundles": 19,
+    "ok": true
+  },
+  "openapi": {
+    "scannedOperations": 315,
+    "tests": 2,
+    "passed": 2,
+    "stale": false
+  },
+  "cspXss": {
+    "findings": 334,
+    "blocking": 0
+  },
+  "enterpriseSmoke": {
+    "modules": 10,
+    "flags": 11,
+    "ok": true
+  },
+  "pathPortability": {
+    "paths": 1243,
+    "javascriptFiles": 932,
+    "ok": true
+  },
+  "npmAudit": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "configurationValidation": {
+    "productionReadiness": "OK",
+    "warning": "AUTO_ENSURE_MONGO_INDEXES=false in simulated config; deployment pipeline must ensure indexes."
+  },
+  "failureSimulation": {
+    "ok": true,
+    "mode": "local-isolated-failure-simulation",
+    "startedAt": "2026-06-20T17:12:31.062Z",
+    "finishedAt": "2026-06-20T17:12:32.368Z",
+    "productionTouched": false,
+    "results": {
+      "mongodbUnavailableAndSigterm": {
+        "ok": true,
+        "liveStatus": 200,
+        "readinessStatus": 503,
+        "businessStatusWhileStarting": 503,
+        "exit": {
+          "code": 0,
+          "signal": null
+        },
+        "durationMs": 884,
+        "gracefulStartLogged": true,
+        "gracefulCompleteLogged": true,
+        "mongoCredentialLeaked": false
+      },
+      "workerMongoUnavailableAndSigterm": {
+        "ok": true,
+        "exit": {
+          "code": 0,
+          "signal": null
+        },
+        "durationMs": 10,
+        "shutdownCompleteLogged": true,
+        "mongoCredentialLeaked": false
+      },
+      "invalidEnvironment": {
+        "ok": true,
+        "errorName": "ConfigurationError",
+        "issueVariables": [
+          "PORT",
+          "MONGO_URI",
+          "JWT_SECRET",
+          "JWT_REFRESH_SECRET",
+          "APP_URL",
+          "JWT_SECRET",
+          "JWT_REFRESH_SECRET",
+          "CORS_ORIGIN"
+        ]
+      },
+      "tempStorageUnavailable": {
+        "ok": true,
+        "detectedWritable": false
+      }
+    }
+  },
+  "restoreOffline": {
+    "ok": true,
+    "mode": "offline-logical-restore-simulation",
+    "startedAt": "2026-06-20T17:07:23.631Z",
+    "durationMs": 37,
+    "backup": {
+      "ok": true,
+      "fileName": "backup-2026-06-20T17-07-23-631Z.json.gz",
+      "format": "mk-pro-backup-v2",
+      "createdAt": "2026-06-20T17:07:23.631Z",
+      "source": "offline-fixture",
+      "sizeBytes": 2056,
+      "sha256": "3773e4f948f946a115a6575fe170a776f14762b3f916eba881c90388791512d1",
+      "checksumVerified": true,
+      "collectionCount": 64,
+      "counts": {
+        "products": 1,
+        "customers": 1,
+        "staffs": 0,
+        "users": 1,
+        "salesTargets": 0,
+        "warehouses": 0,
+        "suppliers": 0,
+        "inventories": 1,
+        "stockTransactions": 0,
+        "importOrders": 0,
+        "salesOrders": 1,
+        "masterOrders": 0,
+        "returnOrders": 1,
+        "masterReturnOrders": 0,
+        "arLedgers": 1,
+        "receipts": 0,
+        "journals": 0,
+        "fundLedgers": 1,
+        "cashbooks": 0,
+        "bankbooks": 0,
+        "debtCollections": 0,
+        "externalDebtOrders": 0,
+        "deliveryCashSubmissions": 0,
+        "deliveryCashShortages": 0,
+        "deliveryShortageRepayments": 0,
+        "expenseVouchers": 0,
+        "fundTransfers": 0,
+        "importLogs": 0,
+        "importSessions": 0,
+        "importSessionRows": 0,
+        "dmsInventoryImports": 0,
+        "dmsInventorySnapshots": 0,
+        "internalSaleAllocations": 0,
+        "internalSaleAllocationLedgers": 0,
+        "mobileLogs": 0,
+        "auditLogs": 0,
+        "settings": 0,
+        "reconciliationReports": 0,
+        "promotions": 0,
+        "promotionProductRules": 0,
+        "promotionGroupItems": 0,
+        "promotionGroupRules": 0,
+        "importTemplates": 0,
+        "roles": 0,
+        "permissions": 0,
+        "idempotencyRequests": 0,
+        "outboxEvents": 0,
+        "purchaseOrders": 0,
+        "goodsReceipts": 0,
+        "supplierPayableLedgers": 0,
+        "supplierPayableAccounts": 0,
+        "supplierPayments": 0,
+        "purchaseReturns": 0,
+        "inventoryReservations": 0,
+        "stockCounts": 0,
+        "reportingSnapshots": 0,
+        "mobileSyncOperations": 0,
+        "visitPlans": 0,
+        "visitExecutions": 0,
+        "deliveryRoutePlans": 0,
+        "integrationJobs": 0,
+        "backgroundJobs": 0,
+        "tenants": 0,
+        "tenantSubscriptions": 0
+      },
+      "integrityVerified": true,
+      "technicalTotals": {
+        "inventoryQuantityTotal": 12,
+        "arBalanceTotal": 8000,
+        "fundBalanceTotal": 2000,
+        "salesOrderCount": 1,
+        "masterOrderCount": 0,
+        "returnOrderCount": 1,
+        "inventoryRowCount": 1,
+        "arLedgerRowCount": 1,
+        "fundLedgerRowCount": 1
+      },
+      "release": null,
+      "legacyMissingCollections": []
+    },
+    "restoredCollectionCount": 64,
+    "restoredDocumentCount": 8,
+    "integrity": {
+      "ok": true,
+      "technicalTotals": {
+        "inventoryQuantityTotal": 12,
+        "arBalanceTotal": 8000,
+        "fundBalanceTotal": 2000,
+        "salesOrderCount": 1,
+        "masterOrderCount": 0,
+        "returnOrderCount": 1,
+        "inventoryRowCount": 1,
+        "arLedgerRowCount": 1,
+        "fundLedgerRowCount": 1
+      }
+    },
+    "limitation": "Không thay thế restore drill trên MongoDB staging/test riêng."
+  },
+  "restoreMongo": {
+    "executed": false,
+    "reason": "No isolated MongoDB URI or local mongod binary. mongodb-memory-server binary download failed with DNS EAI_AGAIN. Production was not touched."
+  },
+  "rollbackSimulation": {
+    "ok": true,
+    "mode": "local-artifact-rollback-simulation",
+    "artifact": "MK-pro-phase10-production-configuration-hardening-patched.zip",
+    "sha256": "bfc49bc30ec709b48af21ccc52d9f62b8244f98fd391c14839d0e974b035e5dd",
+    "extractDurationMs": 379,
+    "syntaxAndBundleDurationMs": 6313,
+    "totalDurationMs": 6692,
+    "syntax": "PASS",
+    "sourceBundles": "PASS (19)",
+    "fullBaselineTests": "961 pass / 0 fail / 1 skip (run separately)",
+    "databaseRollbackRequired": false,
+    "productionTouched": false,
+    "limitation": "This validates the previous artifact locally; it is not a Render rollback drill."
+  },
+  "businessContract": {
+    "changed": false,
+    "evidence": "No business API/schema/domain rule changed; all 970 non-skipped tests outside the known date fixture pass; baseline and patch fail the same two date-dependent assertions after rollover."
+  },
+  "decision": "NOT_APPROVED_FOR_PROMPT_12",
+  "testGateStatus": "CLOSED_LOCAL_AND_LINUX",
+  "decisionReason": "Code/test gate is closed, but Atlas backup evidence, isolated Mongo restore drill, and staging deploy/rollback drill remain open."
+}

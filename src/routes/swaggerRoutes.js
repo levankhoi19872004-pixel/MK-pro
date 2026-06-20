@@ -5,13 +5,15 @@ const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
+const { getRuntimeConfig, buildRuntimeConfig } = require('../config/app.config');
 
 const router = express.Router();
-const openApiPath = path.join(__dirname, '..', '..', process.env.OPENAPI_JSON_PATH || 'docs/openapi.json');
+const INITIAL_CONFIG = getRuntimeConfig();
+const openApiPath = path.join(__dirname, '..', '..', INITIAL_CONFIG.docs.openApiJsonPath);
 
 const docsRateLimiter = rateLimit({
-  windowMs: Number(process.env.DOCS_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
-  max: Number(process.env.DOCS_RATE_LIMIT_MAX || 60),
+  windowMs: INITIAL_CONFIG.docs.rateLimitWindowMs,
+  max: INITIAL_CONFIG.docs.rateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -32,15 +34,16 @@ function getBearerToken(req) {
 }
 
 function isDocsAuthRequired() {
-  if (process.env.API_DOCS_PUBLIC === 'true') return false;
-  if (process.env.API_DOCS_REQUIRE_AUTH === 'true') return true;
-  return process.env.NODE_ENV === 'production';
+  const config = buildRuntimeConfig(process.env);
+  if (config.docs.public) return false;
+  if (config.docs.requireAuth) return true;
+  return config.app.nodeEnv === 'production';
 }
 
 function docsAuthGuard(req, res, next) {
   if (!isDocsAuthRequired()) return next();
 
-  const secret = process.env.JWT_SECRET;
+  const secret = buildRuntimeConfig(process.env).security.accessSecret;
   if (!secret) {
     return res.status(503).json({
       ok: false,

@@ -3,6 +3,7 @@
 const systemService = require('../services/systemService');
 const ReconciliationService = require('../domain/reconciliation/ReconciliationService');
 const JobSubmissionService = require('../services/background-jobs/JobSubmissionService');
+const operationsService = require('../services/operationsService');
 
 function sendError(res, err, fallbackMessage) {
   const status = err.status || 500;
@@ -114,6 +115,23 @@ async function reset(req, res) {
   }
 }
 
+
+async function operations(req, res) {
+  try {
+    res.json(await operationsService.detailedStatus());
+  } catch (err) {
+    sendError(res, err, 'Không đọc được trạng thái vận hành');
+  }
+}
+
+async function release(req, res) {
+  try {
+    res.json({ ok: true, data: operationsService.internalReleaseSummary() });
+  } catch (err) {
+    sendError(res, err, 'Không đọc được release manifest');
+  }
+}
+
 async function apiMonitor(req, res) {
   try {
     res.json(await systemService.getApiMonitor({
@@ -185,6 +203,8 @@ module.exports = {
   listBackups,
   verifyBackup,
   reset,
+  operations,
+  release,
   apiMonitor,
   resetApiMonitor,
   runReconciliation,

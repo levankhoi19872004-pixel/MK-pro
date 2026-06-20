@@ -1,6 +1,7 @@
 'use strict';
 
 const { paginateDmsExactInvoice } = require('../../src/domain/print/DmsExactPagination');
+const { getCompanyProfile } = require('../../src/config/company-profile.config');
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -55,11 +56,12 @@ function headerOf(data = {}) {
 
 function distributorOf(data = {}) {
   const row = payloadOf(data).distributor || {};
+  const companyProfile = getCompanyProfile();
   return {
-    code: row.code || data.company?.code || '3293',
-    name: row.name || data.company?.name || 'Công Ty TNHH MTV Minh Khai',
-    address: row.address || data.company?.address || '',
-    phone: row.phone || data.company?.phone || ''
+    code: row.code || data.company?.code || companyProfile.code,
+    name: row.name || data.company?.name || companyProfile.name,
+    address: row.address || data.company?.address || companyProfile.address,
+    phone: row.phone || data.company?.phone || companyProfile.phone
   };
 }
 

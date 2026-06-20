@@ -1,0 +1,41 @@
+{
+  "ok": true,
+  "mode": "local-isolated-failure-simulation",
+  "startedAt": "2026-06-20T16:55:15.176Z",
+  "finishedAt": "2026-06-20T16:55:16.116Z",
+  "productionTouched": false,
+  "results": {
+    "mongodbUnavailableAndSigterm": {
+      "ok": true,
+      "liveStatus": 200,
+      "readinessStatus": 503,
+      "businessStatusWhileStarting": 503,
+      "exit": {
+        "code": 0,
+        "signal": null
+      },
+      "durationMs": 916,
+      "gracefulStartLogged": true,
+      "gracefulCompleteLogged": true,
+      "mongoCredentialLeaked": false
+    },
+    "invalidEnvironment": {
+      "ok": true,
+      "errorName": "ConfigurationError",
+      "issueVariables": [
+        "PORT",
+        "MONGO_URI",
+        "JWT_SECRET",
+        "JWT_REFRESH_SECRET",
+        "APP_URL",
+        "JWT_SECRET",
+        "JWT_REFRESH_SECRET",
+        "CORS_ORIGIN"
+      ]
+    },
+    "tempStorageUnavailable": {
+      "ok": true,
+      "detectedWritable": false
+    }
+  }
+}

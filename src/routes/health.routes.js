@@ -1,45 +1,19 @@
 'use strict';
 
+const operationsService = require('../services/operationsService');
+
 function registerHealthRoutes(app) {
-  const EnterpriseStatusService = require('../services/EnterpriseStatusService');
-  const startupState = require('../services/startupState');
-
-  app.get('/api/health/readiness', async (req, res) => {
-    const startup = startupState.snapshot();
-    if (!startupState.isReady()) {
-      return res.status(503).json({
-        ok: false,
-        checks: {
-          bootstrap: false,
-          database: false
-        },
-        startup: {
-          phase: startup.phase,
-          currentStep: startup.currentStep,
-          startedAt: startup.startedAt,
-          error: startup.error
-        }
-      });
-    }
-
-    try {
-      const result = await EnterpriseStatusService.readiness({ tenantId: req.tenantId });
-      return res.status(result.ok ? 200 : 503).json({
-        ok: result.ok,
-        checks: { bootstrap: true, ...result.checks },
-        startup: {
-          phase: startup.phase,
-          readyAt: startup.readyAt
-        }
-      });
-    } catch (error) {
-      return res.status(503).json({
-        ok: false,
-        checks: { bootstrap: true, database: false },
-        startup: { phase: startup.phase, readyAt: startup.readyAt }
-      });
-    }
+  app.get('/api/health/live', (req, res) => {
+    res.status(200).json(operationsService.liveness());
   });
+
+  const ready = async (req, res) => {
+    const result = await operationsService.readiness();
+    return res.status(result.ok ? 200 : 503).json(result);
+  };
+
+  app.get('/api/health/ready', ready);
+  app.get('/api/health/readiness', ready);
 
   app.get('/api/health/db', (req, res) => {
     const mongoose = require('mongoose');

@@ -12,6 +12,8 @@ const { APP_COLLECTION_KEYS } = require('../constants/collectionKeys');
 const { getApiMonitorReport, resetApiMonitor } = require('../middlewares/apiMonitor.middleware');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const { getReconciliationJobState } = require('../jobs/reconciliationJob');
+const { internalReleaseSummary } = require('../operations/releaseMetadata');
+const { buildBackupIntegrity, compareBackupIntegrity } = require('../operations/backupIntegrity');
 
 const repository = new AppDataRepository(APP_COLLECTION_KEYS);
 const gzip = promisify(zlib.gzip);
@@ -124,11 +126,14 @@ async function createBackup() {
   const data = await getDataSnapshot();
   const counts = Object.fromEntries(Object.entries(data).map(([key, rows]) => [key, Array.isArray(rows) ? rows.length : 0]));
   const createdAt = new Date().toISOString();
+  const integrity = buildBackupIntegrity(data);
   const payload = Buffer.from(JSON.stringify({
     format: 'mk-pro-backup-v2',
     createdAt,
     source: 'mongodb',
+    release: internalReleaseSummary(),
     counts,
+    integrity,
     data
   }), 'utf8');
   const compressed = await gzip(payload, { level: zlib.constants.Z_BEST_SPEED });
@@ -146,6 +151,7 @@ async function createBackup() {
     fileName,
     ...(process.env.NODE_ENV === 'production' ? {} : { filePath }),
     counts,
+    integrity,
     sha256,
     sizeBytes: compressed.length,
     compressed: true,
@@ -242,6 +248,16 @@ async function verifyBackup(fileName, options = {}) {
     throw err;
   }
 
+  const integrityCheck = parsed.integrity
+    ? compareBackupIntegrity(parsed.integrity, parsed.data)
+    : { ok: true, mismatches: [], actual: buildBackupIntegrity(parsed.data), legacy: true };
+  if (!integrityCheck.ok) {
+    const err = new Error('Backup không vượt qua kiểm tra integrity nghiệp vụ kỹ thuật');
+    err.status = 422;
+    err.details = { mismatches: integrityCheck.mismatches };
+    throw err;
+  }
+
   return {
     ok: true,
     fileName: safeName,
@@ -253,8 +269,22 @@ async function verifyBackup(fileName, options = {}) {
     checksumVerified: Boolean(expectedSha256),
     collectionCount: APP_COLLECTION_KEYS.length,
     counts: parsed.counts || {},
+    integrityVerified: integrityCheck.ok,
+    technicalTotals: integrityCheck.actual.technicalTotals,
+    release: parsed.release || null,
     legacyMissingCollections
   };
+}
+
+
+async function loadBackupPayload(fileName, options = {}) {
+  const safeName = safeBackupFileName(fileName);
+  const dir = backupDirectory(options);
+  const filePath = path.join(dir, safeName);
+  const verification = await verifyBackup(safeName, options);
+  const compressed = await fs.readFile(filePath);
+  const parsed = JSON.parse((await gunzip(compressed)).toString('utf8'));
+  return { fileName: safeName, filePath, verification, payload: parsed };
 }
 
 const RESET_SCOPES = {
@@ -369,6 +399,7 @@ module.exports = {
   createBackup,
   listBackups,
   verifyBackup,
+  loadBackupPayload,
   resetOperationalData,
   getApiMonitor,
   clearApiMonitor

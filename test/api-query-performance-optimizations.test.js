@@ -6,15 +6,17 @@ const Module = require('node:module');
 const path = require('node:path');
 
 const REPORT_SERVICE_PATH = path.resolve(__dirname, '../src/services/reports/InventoryReportService.js');
+const { todayVN } = require('../src/utils/date.util');
 
 function loadReportServiceFixture() {
+  const businessDate = todayVN();
   const products = [{
     _id: 'p1', id: 'p1', code: 'SP01', productCode: 'SP01', sku: 'sp01',
     name: 'Sản phẩm 1', baseUnit: 'gói', conversionRate: 24
   }];
   const transactions = [{
-    _id: 't1', id: 't1', date: '2026-06-20', _reportBusinessDate: '2026-06-20',
-    createdAt: '2026-06-20T08:00:00.000Z', productId: 'p1', productCode: 'SP01',
+    _id: 't1', id: 't1', date: businessDate, _reportBusinessDate: businessDate,
+    createdAt: `${businessDate}T08:00:00.000Z`, productId: 'p1', productCode: 'SP01',
     productName: 'Sản phẩm 1', type: 'IMPORT', direction: 'IN', quantity: 5,
     refCode: 'IMP-1', note: 'Nhập thử', payload: { mustNotBeProjected: true }
   }];
@@ -71,7 +73,7 @@ function loadReportServiceFixture() {
 test('inventory movement reuses the product read, projects ledger fields, and skips unnecessary sort', async () => {
   const { service, counters } = loadReportServiceFixture();
   const result = await service.inventoryMovementReport({
-    dateFrom: '2026-06-01', dateTo: '2026-06-20', page: 1, limit: 50
+    dateFrom: todayVN(), dateTo: todayVN(), page: 1, limit: 50
   });
 
   assert.equal(counters.productFind, 1, 'Product catalog must be read once per request');
@@ -90,7 +92,7 @@ test('inventory movement reuses the product read, projects ledger fields, and sk
 test('stock card pushes an exact product identity into Mongo and preserves ordered output', async () => {
   const { service, counters } = loadReportServiceFixture();
   const result = await service.stockCardReport({
-    dateFrom: '2026-06-01', dateTo: '2026-06-20', q: 'sp01', page: 1, limit: 50
+    dateFrom: todayVN(), dateTo: todayVN(), q: 'sp01', page: 1, limit: 50
   });
 
   assert.equal(counters.productFind, 1);

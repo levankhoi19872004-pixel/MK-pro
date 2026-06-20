@@ -17,6 +17,7 @@ const BackgroundJobSchema = new mongoose.Schema({
     default: 'pending'
   },
   idempotencyKey: { type: String, default: '', trim: true },
+  requestId: { type: String, default: '', trim: true },
   payload: { type: mongoose.Schema.Types.Mixed, default: {} },
   result: { type: mongoose.Schema.Types.Mixed, default: {} },
   progress: {

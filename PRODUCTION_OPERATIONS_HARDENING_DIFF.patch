@@ -1,0 +1,3086 @@
+--- a/.env.example
++++ b/.env.example
+@@ -11,6 +11,17 @@
+ APP_NAME=KHO Minh Khai Pro V45
+ APP_URL=http://localhost:5000
+ GRACEFUL_SHUTDOWN_TIMEOUT_MS=15000
++# Production operations / health / worker shutdown
++OPERATIONS_HEARTBEAT_INTERVAL_MS=15000
++OPERATIONS_HEARTBEAT_STALE_MS=45000
++OPERATIONS_HEARTBEAT_RETENTION_MS=86400000
++READINESS_DEPENDENCY_TIMEOUT_MS=2000
++WORKER_SHUTDOWN_TIMEOUT_MS=30000
++
++# Release manifest generation (build/deploy pipeline, not secrets)
++RELEASE_ID=
++RELEASED_BY=
++PREVIOUS_RELEASE_ID=phase10
+ 
+ # THÔNG TIN HIỂN THỊ DOANH NGHIỆP / MẪU IN
+ PRINT_COMPANY_CODE=3293
+@@ -35,7 +46,7 @@
+ BCRYPT_ROUNDS=12
+ 
+ # CORS
+-# Để trống hoặc * khi chạy local. Production nên khai báo domain cụ thể.
++# Local: khai báo origin cụ thể; chỉ dùng CORS_ALLOW_ALL=true khi thật sự cần. Production bắt buộc allowlist HTTPS và CORS_ALLOW_ALL=false.
+ CORS_ORIGIN=http://localhost:5000,http://localhost:3000
+ 
+ # RATE LIMIT
+--- a/.env.production.example
++++ b/.env.production.example
+@@ -5,10 +5,21 @@
+ APP_URL=https://erp.example.com
+ LOG_LEVEL=info
+ GRACEFUL_SHUTDOWN_TIMEOUT_MS=15000
++# Production operations / health / worker shutdown
++OPERATIONS_HEARTBEAT_INTERVAL_MS=15000
++OPERATIONS_HEARTBEAT_STALE_MS=45000
++OPERATIONS_HEARTBEAT_RETENTION_MS=86400000
++READINESS_DEPENDENCY_TIMEOUT_MS=2000
++WORKER_SHUTDOWN_TIMEOUT_MS=30000
+ MONGO_URI=mongodb+srv://USER:PASSWORD@CLUSTER/DATABASE
+ 
+ JWT_SECRET=REPLACE_WITH_RANDOM_64_CHAR_ACCESS_SECRET
+ JWT_REFRESH_SECRET=REPLACE_WITH_DIFFERENT_RANDOM_64_CHAR_REFRESH_SECRET
++
++# Release manifest generation (build/deploy pipeline, not secrets)
++RELEASE_ID=
++RELEASED_BY=
++PREVIOUS_RELEASE_ID=phase10
+ 
+ # Thông tin hiển thị trên mẫu in; không phải business rule.
+ PRINT_COMPANY_CODE=3293
+--- a/RELEASE_MANIFEST.json
++++ b/RELEASE_MANIFEST.json
+@@ -0,0 +1,33 @@
++{
++  "application": "MK-Pro",
++  "version": "1.0.0",
++  "releaseId": "2026-06-20-01",
++  "gitCommit": "unavailable",
++  "sourceSha256": "1c1d1f8918009034403f361334019d569c5063e40171a59f3ae0e153773cf31e",
++  "sourceFileCount": 749,
++  "bundleSha256": "5028b4dbd5aedc798dd8ff42151208629b6bb78fc789021184b7418a711e8a66",
++  "bundleCount": 26,
++  "buildTime": "2026-06-20T17:12:32.626Z",
++  "environment": "production",
++  "nodeVersion": "v22.16.0",
++  "packageLockHash": "0ee29e9f7858dd144d9ba6fa6e5b51b4ee4e9fa9024a2f6d9c56ca354d0b2d23",
++  "databaseMigration": [],
++  "configurationVersion": "84ef3c5e422bf22fe01b52a75a2f02cad48da7f1b6e36fe01f30f190b91cc8c8",
++  "releasedBy": "Khoi Le",
++  "previousVersion": "phase10",
++  "sourceHashScope": [
++    "server.js",
++    "package.json",
++    "package-lock.json",
++    ".env.example",
++    ".env.production.example",
++    "src",
++    "services",
++    "scripts",
++    "public",
++    "templates",
++    "config",
++    "utils",
++    "docs/openapi.json"
++  ]
++}
+--- a/RELEASE_MANIFEST_TEMPLATE.json
++++ b/RELEASE_MANIFEST_TEMPLATE.json
+@@ -0,0 +1,33 @@
++{
++  "application": "MK-Pro",
++  "version": "1.0.0",
++  "releaseId": "YYYY-MM-DD-NN",
++  "gitCommit": "<git-commit-or-unavailable>",
++  "sourceSha256": "<generated>",
++  "sourceFileCount": 0,
++  "bundleSha256": "<generated>",
++  "bundleCount": 0,
++  "buildTime": "<ISO-8601>",
++  "environment": "production",
++  "nodeVersion": "<node-version>",
++  "packageLockHash": "<generated>",
++  "databaseMigration": [],
++  "configurationVersion": "<generated>",
++  "releasedBy": "<operator>",
++  "previousVersion": "<previous-release-id>",
++  "sourceHashScope": [
++    "server.js",
++    "package.json",
++    "package-lock.json",
++    ".env.example",
++    ".env.production.example",
++    "src/**",
++    "services/**",
++    "scripts/**",
++    "public/**",
++    "templates/**",
++    "config/**",
++    "utils/**",
++    "docs/openapi.json"
++  ]
++}
+--- a/docs/openapi.json
++++ b/docs/openapi.json
+@@ -14496,6 +14496,46 @@
+         ]
+       }
+     },
++    "/api/system/operations": {
++      "get": {
++        "tags": [
++          "System"
++        ],
++        "summary": "GET /api/system/operations",
++        "operationId": "getSystemOperations",
++        "responses": {
++          "200": {
++            "description": "Success response",
++            "content": {
++              "application/json": {
++                "schema": {
++                  "$ref": "#/components/schemas/ApiSuccessResponse"
++                },
++                "example": {
++                  "ok": true,
++                  "success": true,
++                  "data": {}
++                }
++              }
++            }
++          },
++          "400": {
++            "$ref": "#/components/responses/BadRequest"
++          },
++          "401": {
++            "$ref": "#/components/responses/Unauthorized"
++          },
++          "500": {
++            "$ref": "#/components/responses/InternalServerError"
++          }
++        },
++        "security": [
++          {
++            "bearerAuth": []
++          }
++        ]
++      }
++    },
+     "/api/system/reconciliation-reports": {
+       "get": {
+         "tags": [
+@@ -14545,6 +14585,46 @@
+         "operationId": "postSystemReconciliationRun",
+         "responses": {
+           "201": {
++            "description": "Success response",
++            "content": {
++              "application/json": {
++                "schema": {
++                  "$ref": "#/components/schemas/ApiSuccessResponse"
++                },
++                "example": {
++                  "ok": true,
++                  "success": true,
++                  "data": {}
++                }
++              }
++            }
++          },
++          "400": {
++            "$ref": "#/components/responses/BadRequest"
++          },
++          "401": {
++            "$ref": "#/components/responses/Unauthorized"
++          },
++          "500": {
++            "$ref": "#/components/responses/InternalServerError"
++          }
++        },
++        "security": [
++          {
++            "bearerAuth": []
++          }
++        ]
++      }
++    },
++    "/api/system/release": {
++      "get": {
++        "tags": [
++          "System"
++        ],
++        "summary": "GET /api/system/release",
++        "operationId": "getSystemRelease",
++        "responses": {
++          "200": {
+             "description": "Success response",
+             "content": {
+               "application/json": {
+--- a/package.json
++++ b/package.json
+@@ -70,7 +70,12 @@
+     "benchmark:background-jobs": "node scripts/performance/background-job-isolation-benchmark.js",
+     "benchmark:frontend": "node scripts/performance/frontend-dom-benchmark.js",
+     "audit:frontend-sinks": "node scripts/security/audit-frontend-sinks.js --output=CSP_XSS_SINK_INVENTORY.json",
+-    "check:csp-xss": "node scripts/security/audit-frontend-sinks.js --check --output=CSP_XSS_SINK_INVENTORY.json"
++    "check:csp-xss": "node scripts/security/audit-frontend-sinks.js --check --output=CSP_XSS_SINK_INVENTORY.json",
++    "release:manifest": "node scripts/generate-release-manifest.js",
++    "check:release-manifest": "node scripts/generate-release-manifest.js --check",
++    "restore:drill:offline": "node scripts/restore-drill-offline.js",
++    "test:operations": "node --test test/operations-*.test.js",
++    "simulate:operations": "node scripts/operations-failure-simulation.js"
+   },
+   "dependencies": {
+     "bcryptjs": "^3.0.3",
+--- a/scripts/background-job-worker.js
++++ b/scripts/background-job-worker.js
+@@ -1,21 +1,56 @@
+ 'use strict';
++
+ require('dotenv').config();
+-const mongoose = require('mongoose');
+-const { validateRuntimeConfig } = require('../src/config/app.config');
++const { validateRuntimeConfig, getRuntimeConfig } = require('../src/config/app.config');
+ const connectDB = require('../src/config/db');
+-const { runLoop, stop } = require('../src/jobs/backgroundJobWorker');
++const { runLoop, stop, configureRuntime, getWorkerState } = require('../src/jobs/backgroundJobWorker');
++const { createLogger } = require('../src/observability/logger');
++const { createHeartbeat } = require('../src/operations/heartbeatService');
++const { internalReleaseSummary } = require('../src/operations/releaseMetadata');
++const { closeMongoForShutdown } = require('../src/operations/mongoShutdown');
+ 
+-async function shutdown(code = 0) {
+-  await stop();
+-  if (mongoose.connection.readyState) await mongoose.disconnect().catch(() => {});
+-  process.exit(code);
++const logger = createLogger({ service: 'mk-pro-background-worker' });
++let heartbeat = null;
++let shutdownPromise = null;
++
++async function shutdown(code = 0, signal = 'completed', error = null) {
++  if (shutdownPromise) return shutdownPromise;
++  shutdownPromise = (async () => {
++    logger[code ? 'fatal' : 'info']({ signal, err: error || undefined, worker: getWorkerState() }, 'Background worker shutdown started');
++    await stop({ timeoutMs: getRuntimeConfig().operations.workerShutdownTimeoutMs });
++    await heartbeat?.stop(code ? 'failed' : 'stopped');
++    await closeMongoForShutdown(getRuntimeConfig().operations.workerShutdownTimeoutMs, logger);
++    logger.info({ signal, code }, 'Background worker shutdown completed');
++    process.exit(code);
++  })();
++  return shutdownPromise;
+ }
++
+ async function main() {
+   validateRuntimeConfig(process.env, { profile: 'worker' });
++  logger.info({ release: internalReleaseSummary() }, 'Background worker bootstrap started');
+   await connectDB();
++  heartbeat = createHeartbeat({
++    service: 'mk-pro-background-worker',
++    role: 'worker',
++    initialStatus: 'starting',
++    logger,
++    metadata: { concurrency: getWorkerState().concurrency }
++  });
++  await heartbeat.start();
++  configureRuntime({ logger, heartbeat });
++  await heartbeat.beat({ status: 'ready' });
++  logger.info({ worker: getWorkerState(), release: internalReleaseSummary() }, 'Background worker ready');
+   await runLoop({ once: process.argv.includes('--once') });
+-  await shutdown(0);
++  await shutdown(0, process.argv.includes('--once') ? 'once-completed' : 'loop-stopped');
+ }
+-process.on('SIGINT', () => void shutdown(0));
+-process.on('SIGTERM', () => void shutdown(0));
+-void main().catch((error) => { console.error('[BACKGROUND_WORKER_FATAL]', error); void shutdown(1); });
++
++process.once('SIGINT', () => void shutdown(0, 'SIGINT'));
++process.once('SIGTERM', () => void shutdown(0, 'SIGTERM'));
++process.once('uncaughtException', (error) => void shutdown(1, 'uncaughtException', error));
++process.once('unhandledRejection', (reason) => {
++  const error = reason instanceof Error ? reason : new Error(String(reason));
++  void shutdown(1, 'unhandledRejection', error);
++});
++
++void main().catch((error) => void shutdown(1, 'startup-failure', error));
+--- a/scripts/generate-release-manifest.js
++++ b/scripts/generate-release-manifest.js
+@@ -0,0 +1,127 @@
++'use strict';
++
++const fs = require('fs');
++const path = require('path');
++const crypto = require('crypto');
++const childProcess = require('child_process');
++
++const ROOT = path.resolve(__dirname, '..');
++const MANIFEST_PATH = path.join(ROOT, 'RELEASE_MANIFEST.json');
++const INCLUDE_ROOTS = [
++  'server.js',
++  'package.json',
++  'package-lock.json',
++  '.env.example',
++  '.env.production.example',
++  'src',
++  'services',
++  'scripts',
++  'public',
++  'templates',
++  'config',
++  'utils',
++  'docs/openapi.json'
++];
++const EXCLUDED_NAMES = new Set(['node_modules', '.git', 'artifacts', 'backups', 'coverage']);
++
++function sha256(buffer) {
++  return crypto.createHash('sha256').update(buffer).digest('hex');
++}
++
++function walk(relativePath, files = []) {
++  const absolute = path.join(ROOT, relativePath);
++  if (!fs.existsSync(absolute)) return files;
++  const stat = fs.statSync(absolute);
++  if (stat.isFile()) {
++    files.push(relativePath.replace(/\\/g, '/'));
++    return files;
++  }
++  for (const name of fs.readdirSync(absolute).sort()) {
++    if (EXCLUDED_NAMES.has(name)) continue;
++    walk(path.join(relativePath, name), files);
++  }
++  return files;
++}
++
++function treeHash(files) {
++  const hash = crypto.createHash('sha256');
++  for (const file of files.slice().sort()) {
++    hash.update(file);
++    hash.update('\0');
++    hash.update(fs.readFileSync(path.join(ROOT, file)));
++    hash.update('\0');
++  }
++  return hash.digest('hex');
++}
++
++function gitCommit() {
++  if (process.env.GIT_COMMIT) return String(process.env.GIT_COMMIT).trim();
++  try {
++    return childProcess.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
++  } catch (_) {
++    return 'unavailable';
++  }
++}
++
++function argument(name) {
++  const prefix = `--${name}=`;
++  const match = process.argv.find((item) => item.startsWith(prefix));
++  return match ? match.slice(prefix.length) : '';
++}
++
++function buildManifest() {
++  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
++  const sourceFiles = INCLUDE_ROOTS.flatMap((entry) => walk(entry)).filter((item, index, all) => all.indexOf(item) === index).sort();
++  const bundleConfig = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/source-bundles.json'), 'utf8'));
++  const bundleFiles = bundleConfig.bundles.flatMap((bundle) => {
++    const candidates = Array.isArray(bundle.runtimeFiles) && bundle.runtimeFiles.length ? bundle.runtimeFiles : [bundle.target];
++    return candidates.filter((file) => fs.existsSync(path.join(ROOT, file)));
++  }).filter((item, index, all) => all.indexOf(item) === index).sort();
++  const now = new Date();
++  const defaultReleaseId = `${now.toISOString().slice(0, 10)}-01`;
++  return {
++    application: 'MK-Pro',
++    version: pkg.version,
++    releaseId: argument('release-id') || process.env.RELEASE_ID || defaultReleaseId,
++    gitCommit: gitCommit(),
++    sourceSha256: treeHash(sourceFiles),
++    sourceFileCount: sourceFiles.length,
++    bundleSha256: treeHash(bundleFiles),
++    bundleCount: bundleFiles.length,
++    buildTime: now.toISOString(),
++    environment: argument('environment') || process.env.RELEASE_ENVIRONMENT || 'production',
++    nodeVersion: process.version,
++    packageLockHash: sha256(fs.readFileSync(path.join(ROOT, 'package-lock.json'))),
++    databaseMigration: [],
++    configurationVersion: sha256(fs.readFileSync(path.join(ROOT, '.env.example'))),
++    releasedBy: argument('released-by') || process.env.RELEASED_BY || 'unassigned',
++    previousVersion: argument('previous-version') || process.env.PREVIOUS_RELEASE_ID || 'phase10',
++    sourceHashScope: INCLUDE_ROOTS
++  };
++}
++
++function main() {
++  const manifest = buildManifest();
++  if (process.argv.includes('--check')) {
++    if (!fs.existsSync(MANIFEST_PATH)) {
++      console.error('RELEASE_MANIFEST_MISSING');
++      process.exitCode = 1;
++      return;
++    }
++    const current = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
++    const keys = ['version', 'sourceSha256', 'sourceFileCount', 'bundleSha256', 'bundleCount', 'packageLockHash', 'configurationVersion'];
++    const mismatches = keys.filter((key) => JSON.stringify(current[key]) !== JSON.stringify(manifest[key]));
++    if (mismatches.length) {
++      console.error(`RELEASE_MANIFEST_STALE: ${mismatches.join(', ')}`);
++      process.exitCode = 1;
++      return;
++    }
++    console.log(`RELEASE_MANIFEST_OK ${current.releaseId}`);
++    return;
++  }
++  fs.writeFileSync(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`);
++  console.log(`RELEASE_MANIFEST_WRITTEN ${manifest.releaseId}`);
++}
++
++if (require.main === module) main();
++module.exports = { buildManifest, treeHash, walk };
+--- a/scripts/operations-failure-simulation.js
++++ b/scripts/operations-failure-simulation.js
+@@ -0,0 +1,211 @@
++'use strict';
++
++const fs = require('fs/promises');
++const http = require('http');
++const net = require('net');
++const path = require('path');
++const { spawn } = require('child_process');
++const { validateRuntimeConfig } = require('../src/config/app.config');
++const operationsService = require('../src/services/operationsService');
++
++const ROOT = path.resolve(__dirname, '..');
++
++function arg(name, fallback = '') {
++  const prefix = `--${name}=`;
++  return process.argv.find((value) => value.startsWith(prefix))?.slice(prefix.length) || fallback;
++}
++
++function reservePort() {
++  return new Promise((resolve, reject) => {
++    const server = net.createServer();
++    server.once('error', reject);
++    server.listen(0, '127.0.0.1', () => {
++      const port = server.address().port;
++      server.close((error) => error ? reject(error) : resolve(port));
++    });
++  });
++}
++
++function request(port, pathname) {
++  return new Promise((resolve, reject) => {
++    const req = http.get({ hostname: '127.0.0.1', port, path: pathname, timeout: 1000 }, (res) => {
++      let body = '';
++      res.setEncoding('utf8');
++      res.on('data', (chunk) => { body += chunk; });
++      res.on('end', () => {
++        let parsed = null;
++        try { parsed = JSON.parse(body); } catch (_) { parsed = body; }
++        resolve({ statusCode: res.statusCode, headers: res.headers, body: parsed });
++      });
++    });
++    req.once('timeout', () => req.destroy(new Error('request timeout')));
++    req.once('error', reject);
++  });
++}
++
++async function waitForHttp(port, pathname, timeoutMs = 7000) {
++  const deadline = Date.now() + timeoutMs;
++  let lastError;
++  while (Date.now() < deadline) {
++    try { return await request(port, pathname); } catch (error) { lastError = error; }
++    await new Promise((resolve) => setTimeout(resolve, 50));
++  }
++  throw lastError || new Error('HTTP endpoint did not become available');
++}
++
++function waitForExit(child, timeoutMs = 10000) {
++  return new Promise((resolve, reject) => {
++    const timer = setTimeout(() => {
++      child.kill('SIGKILL');
++      reject(new Error('Process did not exit in time'));
++    }, timeoutMs);
++    child.once('exit', (code, signal) => {
++      clearTimeout(timer);
++      resolve({ code, signal });
++    });
++    child.once('error', (error) => {
++      clearTimeout(timer);
++      reject(error);
++    });
++  });
++}
++
++async function simulateGracefulShutdownDuringDependencyFailure() {
++  const port = await reservePort();
++  const child = spawn(process.execPath, ['server.js'], {
++    cwd: ROOT,
++    env: {
++      ...process.env,
++      NODE_ENV: 'production',
++      PORT: String(port),
++      BIND_HOST: '127.0.0.1',
++      MONGO_URI: 'mongodb://127.0.0.1:27099/mkpro-failure-simulation',
++      JWT_SECRET: 'a'.repeat(64),
++      JWT_REFRESH_SECRET: 'b'.repeat(64),
++      APP_URL: 'https://erp.example.com',
++      CORS_ORIGIN: 'https://erp.example.com',
++      CORS_ALLOW_ALL: 'false',
++      MONGO_SERVER_SELECTION_TIMEOUT_MS: '30000',
++      STARTUP_DB_TIMEOUT_MS: '30000',
++      GRACEFUL_SHUTDOWN_TIMEOUT_MS: '5000',
++      AUTO_ENSURE_MONGO_INDEXES: 'false',
++      AUTO_RECOVER_STALE_IMPORTS: 'false',
++      ENABLE_RECONCILIATION_JOB: 'false',
++      ENABLE_OUTBOX_WORKER: 'false',
++      ENABLE_INTEGRATION_WORKER: 'false',
++      ENABLE_REPORTING_PROJECTION_JOB: 'false'
++    },
++    stdio: ['ignore', 'pipe', 'pipe']
++  });
++  let logs = '';
++  child.stdout.on('data', (chunk) => { logs += chunk.toString(); });
++  child.stderr.on('data', (chunk) => { logs += chunk.toString(); });
++  const started = Date.now();
++  const live = await waitForHttp(port, '/api/health/live');
++  const ready = await request(port, '/api/health/ready');
++  const business = await request(port, '/api/products');
++  child.kill('SIGTERM');
++  const exited = await waitForExit(child);
++  const durationMs = Date.now() - started;
++  return {
++    ok: live.statusCode === 200 && ready.statusCode === 503 && business.statusCode === 503 && exited.code === 0,
++    liveStatus: live.statusCode,
++    readinessStatus: ready.statusCode,
++    businessStatusWhileStarting: business.statusCode,
++    exit: exited,
++    durationMs,
++    gracefulStartLogged: logs.includes('Graceful shutdown started'),
++    gracefulCompleteLogged: logs.includes('Graceful shutdown completed'),
++    mongoCredentialLeaked: /mongodb:\/\/[^\s"']+:[^\s"']+@/.test(logs)
++  };
++}
++
++async function simulateWorkerShutdownDuringDependencyFailure() {
++  const child = spawn(process.execPath, ['scripts/background-job-worker.js'], {
++    cwd: ROOT,
++    env: {
++      ...process.env,
++      NODE_ENV: 'production',
++      MONGO_URI: 'mongodb://127.0.0.1:27099/mkpro-worker-failure-simulation',
++      MONGO_SERVER_SELECTION_TIMEOUT_MS: '30000',
++      WORKER_SHUTDOWN_TIMEOUT_MS: '5000',
++      BACKGROUND_JOB_CONCURRENCY: '1'
++    },
++    stdio: ['ignore', 'pipe', 'pipe']
++  });
++  let logs = '';
++  child.stdout.on('data', (chunk) => { logs += chunk.toString(); });
++  child.stderr.on('data', (chunk) => { logs += chunk.toString(); });
++  const deadline = Date.now() + 7000;
++  while (!logs.includes('Background worker bootstrap started') && Date.now() < deadline) {
++    await new Promise((resolve) => setTimeout(resolve, 25));
++  }
++  if (!logs.includes('Background worker bootstrap started')) {
++    child.kill('SIGKILL');
++    throw new Error('Worker bootstrap log was not observed');
++  }
++  const started = Date.now();
++  child.kill('SIGTERM');
++  const exited = await waitForExit(child);
++  const durationMs = Date.now() - started;
++  return {
++    ok: exited.code === 0 && durationMs < 5000 && logs.includes('Background worker shutdown completed'),
++    exit: exited,
++    durationMs,
++    shutdownCompleteLogged: logs.includes('Background worker shutdown completed'),
++    mongoCredentialLeaked: /mongodb:\/\/[^\s"']+:[^\s"']+@/.test(logs)
++  };
++}
++
++function simulateInvalidConfiguration() {
++  let error = null;
++  try {
++    validateRuntimeConfig({ NODE_ENV: 'production', PORT: '-1', CORS_ORIGIN: '*' }, { profile: 'server' });
++  } catch (caught) {
++    error = caught;
++  }
++  return {
++    ok: Boolean(error),
++    errorName: error?.name || '',
++    issueVariables: Array.isArray(error?.issues) ? error.issues.map((item) => item.variable) : []
++  };
++}
++
++async function simulateUnavailableTempStorage() {
++  const previous = process.env.IMPORT_TMP_DIR;
++  process.env.IMPORT_TMP_DIR = '/dev/null/mkpro-unwritable';
++  try {
++    const result = await operationsService._private.checkTempStorage();
++    return { ok: result.ok === false, detectedWritable: result.ok };
++  } finally {
++    if (previous === undefined) delete process.env.IMPORT_TMP_DIR;
++    else process.env.IMPORT_TMP_DIR = previous;
++  }
++}
++
++async function main() {
++  const startedAt = new Date();
++  const results = {
++    mongodbUnavailableAndSigterm: await simulateGracefulShutdownDuringDependencyFailure(),
++    workerMongoUnavailableAndSigterm: await simulateWorkerShutdownDuringDependencyFailure(),
++    invalidEnvironment: simulateInvalidConfiguration(),
++    tempStorageUnavailable: await simulateUnavailableTempStorage()
++  };
++  const output = {
++    ok: Object.values(results).every((item) => item.ok),
++    mode: 'local-isolated-failure-simulation',
++    startedAt: startedAt.toISOString(),
++    finishedAt: new Date().toISOString(),
++    productionTouched: false,
++    results
++  };
++  const outputPath = path.resolve(arg('output', 'FAILURE_SIMULATION_RESULT.json'));
++  await fs.writeFile(outputPath, `${JSON.stringify(output, null, 2)}\n`);
++  console.log(JSON.stringify(output, null, 2));
++  if (!output.ok) process.exitCode = 1;
++}
++
++main().catch((error) => {
++  console.error(error);
++  process.exitCode = 1;
++});
+--- a/scripts/restore-drill-offline.js
++++ b/scripts/restore-drill-offline.js
+@@ -0,0 +1,87 @@
++'use strict';
++
++const fs = require('fs/promises');
++const os = require('os');
++const path = require('path');
++const crypto = require('crypto');
++const zlib = require('zlib');
++const { promisify } = require('util');
++const { APP_COLLECTION_KEYS } = require('../src/constants/collectionKeys');
++const systemService = require('../src/services/systemService');
++const { buildBackupIntegrity, compareBackupIntegrity } = require('../src/operations/backupIntegrity');
++
++const gzip = promisify(zlib.gzip);
++const gunzip = promisify(zlib.gunzip);
++
++function fixtureData() {
++  const data = Object.fromEntries(APP_COLLECTION_KEYS.map((key) => [key, []]));
++  data.products = [{ code: 'TEST-001', name: 'Restore Drill Product', salePrice: 10000 }];
++  data.customers = [{ code: 'CUS-001', name: 'Restore Drill Customer' }];
++  data.users = [{ username: 'restore-drill', role: 'admin' }];
++  data.salesOrders = [{ id: 'SO-DRILL-001', code: 'SO-DRILL-001', customerCode: 'CUS-001', total: 10000 }];
++  data.returnOrders = [{ id: 'RO-DRILL-001', code: 'RO-DRILL-001', salesOrderCode: 'SO-DRILL-001', status: 'pending' }];
++  data.inventories = [{ productCode: 'TEST-001', warehouseCode: 'MAIN', onHand: 12, availableQty: 12 }];
++  data.arLedgers = [{ id: 'AR-DRILL-001', account: 'AR', debit: 10000, credit: 2000, status: 'active' }];
++  data.fundLedgers = [{ id: 'FUND-DRILL-001', direction: 'in', amount: 2000, status: 'active' }];
++  return data;
++}
++
++async function main() {
++  const started = Date.now();
++  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'mkpro-restore-drill-'));
++  const backupDir = path.join(tempRoot, 'backup');
++  const restoreDir = path.join(tempRoot, 'restored');
++  await fs.mkdir(backupDir, { recursive: true });
++  await fs.mkdir(restoreDir, { recursive: true });
++
++  const data = fixtureData();
++  const counts = Object.fromEntries(Object.entries(data).map(([key, rows]) => [key, rows.length]));
++  const integrity = buildBackupIntegrity(data);
++  const payload = {
++    format: 'mk-pro-backup-v2',
++    createdAt: new Date().toISOString(),
++    source: 'offline-fixture',
++    counts,
++    integrity,
++    data
++  };
++  const compressed = await gzip(Buffer.from(JSON.stringify(payload), 'utf8'));
++  const fileName = `backup-${payload.createdAt.replace(/[:.]/g, '-')}.json.gz`;
++  const filePath = path.join(backupDir, fileName);
++  const sha256 = crypto.createHash('sha256').update(compressed).digest('hex');
++  await fs.writeFile(filePath, compressed);
++  await fs.writeFile(`${filePath}.sha256`, `${sha256}  ${fileName}\n`);
++
++  const verification = await systemService.verifyBackup(fileName, { backupDir });
++  const parsed = JSON.parse((await gunzip(await fs.readFile(filePath))).toString('utf8'));
++  for (const [key, rows] of Object.entries(parsed.data)) {
++    await fs.writeFile(path.join(restoreDir, `${key}.json`), JSON.stringify(rows));
++  }
++  const restored = {};
++  for (const key of Object.keys(parsed.data)) {
++    restored[key] = JSON.parse(await fs.readFile(path.join(restoreDir, `${key}.json`), 'utf8'));
++  }
++  const comparison = compareBackupIntegrity(parsed.integrity, restored);
++  if (!comparison.ok) throw new Error(`Offline restore mismatch: ${comparison.mismatches.join(', ')}`);
++
++  const report = {
++    ok: true,
++    mode: 'offline-logical-restore-simulation',
++    startedAt: payload.createdAt,
++    durationMs: Date.now() - started,
++    backup: verification,
++    restoredCollectionCount: Object.keys(restored).length,
++    restoredDocumentCount: Object.values(restored).reduce((sum, rows) => sum + rows.length, 0),
++    integrity: { ok: comparison.ok, technicalTotals: comparison.actual.technicalTotals },
++    limitation: 'Không thay thế restore drill trên MongoDB staging/test riêng.'
++  };
++  const output = path.resolve(process.argv.find((item) => item.startsWith('--output='))?.slice(9) || 'RESTORE_DRILL_OFFLINE_RESULT.json');
++  await fs.writeFile(output, `${JSON.stringify(report, null, 2)}\n`);
++  console.log(JSON.stringify(report, null, 2));
++  await fs.rm(tempRoot, { recursive: true, force: true });
++}
++
++main().catch((error) => {
++  console.error(error);
++  process.exitCode = 1;
++});
+--- a/scripts/restore-drill.js
++++ b/scripts/restore-drill.js
+@@ -1,75 +1,140 @@
+ 'use strict';
+ 
++require('dotenv').config();
++const fs = require('fs/promises');
++const path = require('path');
+ const mongoose = require('mongoose');
++const { validateRuntimeConfig } = require('../src/config/app.config');
++const systemService = require('../src/services/systemService');
++const { ensureMongoIndexes } = require('../src/services/mongoIndexService');
++const ReconciliationService = require('../src/domain/reconciliation/ReconciliationService');
++const { compareBackupIntegrity, buildBackupIntegrity } = require('../src/operations/backupIntegrity');
++const { createLogger } = require('../src/observability/logger');
+ 
+-const uri = String(process.env.RESTORE_DRILL_MONGODB_URI || '').trim();
+-if (!uri) {
+-  console.error('Thiếu RESTORE_DRILL_MONGODB_URI. Chỉ chạy script trên database restore/staging, không dùng database production.');
+-  process.exit(2);
++const logger = createLogger({ service: 'mk-pro-restore-drill' });
++
++function argument(name) {
++  const prefix = `--${name}=`;
++  const found = process.argv.find((item) => item.startsWith(prefix));
++  return found ? found.slice(prefix.length) : '';
+ }
+ 
+-const REQUIRED_COLLECTIONS = [
+-  'products',
+-  'customers',
+-  'users',
+-  'orders',
+-  'inventories',
+-  'stockTransactions',
+-  'arLedgers',
+-  'fundLedgers'
+-];
++function databaseNameFromUri(uri) {
++  try {
++    return decodeURIComponent(new URL(uri).pathname.replace(/^\//, '').split('?')[0]);
++  } catch (_) {
++    return '';
++  }
++}
+ 
+-const OPTIONAL_MODULE_COLLECTIONS = {
+-  ENABLE_ENTERPRISE_CORE: ['outbox_events'],
+-  ENABLE_PURCHASING: [
+-    'purchase_orders',
+-    'goods_receipts',
+-    'supplier_payable_ledgers',
+-    'supplier_payable_accounts',
+-    'supplier_payments',
+-    'purchase_returns'
+-  ],
+-  ENABLE_WAREHOUSE_ADVANCED: ['inventory_reservations', 'stock_counts'],
+-  ENABLE_ANALYTICS_PROJECTIONS: ['reporting_snapshots'],
+-  ENABLE_MOBILE_OFFLINE_SYNC: ['mobile_sync_operations'],
+-  ENABLE_FIELD_OPERATIONS: ['visit_plans', 'visit_executions'],
+-  ENABLE_DELIVERY_PLANNING: ['delivery_route_plans'],
+-  ENABLE_INTEGRATIONS: ['integration_jobs']
+-};
++function assertIsolatedTarget(uri) {
++  const target = String(uri || '').trim();
++  const productionUri = String(process.env.MONGO_URI || process.env.MONGODB_URI || '').trim();
++  const databaseName = databaseNameFromUri(target);
++  if (!target) throw new Error('Thiếu RESTORE_DRILL_MONGODB_URI');
++  if (target === productionUri) throw new Error('RESTORE_DRILL_MONGODB_URI không được trùng MONGO_URI/MONGODB_URI');
++  if (!/(restore|drill|staging|test|sandbox)/i.test(databaseName)) {
++    throw new Error('Tên database restore phải chứa restore, drill, staging, test hoặc sandbox');
++  }
++  if (process.env.RESTORE_DRILL_CONFIRM !== 'ISOLATED_NON_PRODUCTION_DB') {
++    throw new Error('Thiếu RESTORE_DRILL_CONFIRM=ISOLATED_NON_PRODUCTION_DB');
++  }
++  return databaseName;
++}
+ 
+-for (const [flag, collections] of Object.entries(OPTIONAL_MODULE_COLLECTIONS)) {
+-  if (String(process.env[flag] || '').toLowerCase() === 'true') REQUIRED_COLLECTIONS.push(...collections);
++async function targetDocumentCount(db) {
++  const collections = await db.listCollections({}, { nameOnly: true }).toArray();
++  let total = 0;
++  for (const row of collections) total += await db.collection(row.name).estimatedDocumentCount();
++  return { collectionCount: collections.length, documentCount: total };
+ }
+-if (String(process.env.TENANT_MODE || 'single').toLowerCase() === 'multi') {
+-  REQUIRED_COLLECTIONS.push('tenants', 'tenant_subscriptions');
++
++async function readSmoke() {
++  const MongoStore = require('../src/models');
++  const checks = {};
++  for (const key of ['products', 'customers', 'users', 'salesOrders', 'returnOrders', 'inventories', 'arLedgers', 'fundLedgers']) {
++    checks[key] = await MongoStore[key].countDocuments({});
++  }
++  return checks;
+ }
+ 
+ async function main() {
+-  await mongoose.connect(uri, {
+-    serverSelectionTimeoutMS: Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS || 10000)
++  const startedAt = new Date();
++  const startedMs = Date.now();
++  const targetUri = String(process.env.RESTORE_DRILL_MONGODB_URI || '').trim();
++  const databaseName = assertIsolatedTarget(targetUri);
++  const backupFile = argument('backup') || process.env.RESTORE_DRILL_BACKUP_FILE;
++  if (!backupFile) throw new Error('Thiếu --backup=<backup-file.json.gz> hoặc RESTORE_DRILL_BACKUP_FILE');
++  const backupDir = argument('backup-dir') || process.env.RESTORE_DRILL_BACKUP_DIR || process.env.BACKUP_DIR;
++  const outputPath = path.resolve(argument('output') || process.env.RESTORE_DRILL_OUTPUT || 'RESTORE_DRILL_RESULT.json');
++
++  validateRuntimeConfig({
++    ...process.env,
++    MONGO_URI: targetUri,
++    NODE_ENV: 'staging'
++  }, { profile: 'worker' });
++
++  const loaded = await systemService.loadBackupPayload(backupFile, { backupDir });
++  await mongoose.connect(targetUri, { serverSelectionTimeoutMS: 10000, autoIndex: false });
++  const db = mongoose.connection.db;
++  const before = await targetDocumentCount(db);
++  if (before.documentCount > 0 && process.env.RESTORE_DRILL_ALLOW_REPLACE !== 'true') {
++    throw new Error(`Database restore không rỗng (${before.documentCount} documents). Không ghi đè khi RESTORE_DRILL_ALLOW_REPLACE chưa bật.`);
++  }
++
++  const restoreStartedMs = Date.now();
++  await systemService.persistDataSnapshot(loaded.payload.data);
++  const indexResults = await ensureMongoIndexes({ logger });
++  const restoredData = await systemService.getDataSnapshot();
++  const integrity = compareBackupIntegrity(
++    loaded.payload.integrity || buildBackupIntegrity(loaded.payload.data),
++    restoredData
++  );
++  if (!integrity.ok) {
++    const error = new Error(`Restore integrity mismatch: ${integrity.mismatches.join(', ')}`);
++    error.code = 'RESTORE_INTEGRITY_MISMATCH';
++    throw error;
++  }
++
++  const reconciliation = await ReconciliationService.runReconciliation('all', {
++    source: 'restore_drill',
++    checkedBy: 'restore-drill'
+   });
+-  const db = mongoose.connection.db;
+-  const collections = await db.listCollections({}, { nameOnly: true }).toArray();
+-  const names = new Set(collections.map((row) => row.name));
+-  const missing = REQUIRED_COLLECTIONS.filter((name) => !names.has(name));
+-  const counts = {};
+-  for (const name of REQUIRED_COLLECTIONS.filter((item) => names.has(item))) {
+-    counts[name] = await db.collection(name).estimatedDocumentCount();
+-  }
++  const after = await targetDocumentCount(db);
++  const smoke = await readSmoke();
++  const finishedAt = new Date();
+   const report = {
+-    ok: missing.length === 0,
+-    database: db.databaseName,
+-    checkedAt: new Date().toISOString(),
+-    requiredCollections: REQUIRED_COLLECTIONS,
+-    missing,
+-    counts
++    ok: true,
++    mode: 'isolated-mongodb-restore',
++    targetDatabase: databaseName,
++    startedAt: startedAt.toISOString(),
++    finishedAt: finishedAt.toISOString(),
++    durationMs: Date.now() - startedMs,
++    restoreDurationMs: Date.now() - restoreStartedMs,
++    rtoObservedMs: Date.now() - startedMs,
++    rpoObservedMs: loaded.payload.createdAt ? Math.max(0, startedAt.getTime() - Date.parse(loaded.payload.createdAt)) : null,
++    backup: loaded.verification,
++    targetBefore: before,
++    targetAfter: after,
++    integrity: { ok: integrity.ok, technicalTotals: integrity.actual.technicalTotals },
++    indexes: {
++      checked: indexResults.length,
++      created: indexResults.filter((row) => !row.skipped).length,
++      skipped: indexResults.filter((row) => row.skipped).length
++    },
++    reconciliation: {
++      status: reconciliation.status,
++      reports: reconciliation.results || reconciliation
++    },
++    readSmoke: smoke,
++    productionTouched: false
+   };
++  await fs.writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`);
+   console.log(JSON.stringify(report, null, 2));
+-  if (!report.ok) process.exitCode = 1;
+ }
+ 
+ main().catch((error) => {
+-  console.error(error);
++  logger.error({ err: error }, 'Restore drill failed');
+   process.exitCode = 1;
+ }).finally(async () => {
+   if (mongoose.connection.readyState) await mongoose.disconnect();
+--- a/server.js
++++ b/server.js
+@@ -4,8 +4,9 @@
+ validateRuntimeConfig(process.env, { profile: 'server' });
+ 
+ const { startServer } = require('./src/app');
++const { logger } = require('./src/observability/logger');
+ 
+ startServer().catch((err) => {
+-  console.error('Không thể khởi động server:', err);
++  logger.fatal({ err }, 'Không thể khởi động server');
+   process.exit(1);
+ });
+--- a/src/app.js
++++ b/src/app.js
+@@ -14,7 +14,6 @@
+ const cors = require('cors');
+ const helmet = require('helmet');
+ const rateLimit = require('express-rate-limit');
+-const pino = require('pino');
+ const pinoHttp = require('pino-http');
+ const mongoose = require('mongoose');
+ 
+@@ -40,6 +39,12 @@
+ const { startReportingProjectionJob, stopReportingProjectionJob } = require('./jobs/reportingProjectionJob');
+ const startupState = require('./services/startupState');
+ const { getRuntimeConfig, validateRuntimeConfig } = require('./config/app.config');
++const { logger } = require('./observability/logger');
++const { requestContextMiddleware } = require('./observability/requestContext');
++const { classifyError } = require('./observability/errorClassification');
++const { createHeartbeat } = require('./operations/heartbeatService');
++const { internalReleaseSummary } = require('./operations/releaseMetadata');
++const { closeMongoForShutdown: closeMongoConnectionForShutdown } = require('./operations/mongoShutdown');
+ 
+ const INITIAL_CONFIG = getRuntimeConfig();
+ const PORT = INITIAL_CONFIG.app.port;
+@@ -47,10 +52,8 @@
+ // Kept as a named constant for deployment regression checks; source is centralized.
+ const TRUST_PROXY = INITIAL_CONFIG.http.trustProxy;
+ 
+-const logger = pino({
+-  level: INITIAL_CONFIG.app.logLevel,
+-  redact: ['req.headers.authorization', 'req.body.password', 'req.body.refreshToken']
+-});
++let webHeartbeat = null;
++let shutdownRequested = false;
+ 
+ function inputSanitizer(req, res, next) {
+   const sanitizeObject = (value) => {
+@@ -79,6 +82,8 @@
+   const healthPaths = new Set([
+     '/api/health',
+     '/api/health/db',
++    '/api/health/live',
++    '/api/health/ready',
+     '/api/health/readiness',
+     '/api/system/status',
+     '/api/system/health',
+@@ -173,6 +178,7 @@
+   const app = express();
+ 
+   configureTrustProxy(app);
++  app.use(requestContextMiddleware);
+ 
+   app.use(helmet({ contentSecurityPolicy: false }));
+   app.use(cspHeaders);
+@@ -182,9 +188,24 @@
+     createCspReportHandler(logger)
+   );
+   app.use(cors(createCorsOptions()));
+-  const requestLogger = pinoHttp({ logger });
++  const requestLogger = pinoHttp({
++    logger,
++    genReqId: (req) => req.requestId,
++    autoLogging: {
++      ignore: (req) => String(req.url || '').startsWith('/api/health/')
++    },
++    customProps: (req) => ({
++      userId: req.user?._id || req.user?.id || undefined,
++      role: req.user?.role || undefined
++    })
++  });
+   if (INITIAL_CONFIG.app.nodeEnv !== 'test') {
+     app.use(requestLogger);
++  } else {
++    app.use((req, res, next) => {
++      req.log = logger.child({ requestId: req.requestId });
++      next();
++    });
+   }
+   const { http } = getRuntimeConfig();
+   const URLENCODED_BODY_LIMIT = http.urlencodedBodyLimit;
+@@ -242,13 +263,22 @@
+     res.status(404).json({ ok: false, success: false, message: 'API không tồn tại' });
+   });
+ 
+-  app.use((err, req, res, next) => {
+-    req.log?.error({ err }, 'Unhandled application error');
+-    const status = err.status || err.statusCode || 500;
+-    return res.status(status).json({
++  app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
++    const status = Number(err.status || err.statusCode || 500);
++    const safeStatus = status >= 400 && status < 600 ? status : 500;
++    const errorCode = classifyError(err, safeStatus);
++    req.log?.error({
++      err,
++      errorCode,
++      requestId: req.requestId,
++      route: String(req.originalUrl || req.url || '').split('?')[0],
++      method: req.method,
++      statusCode: safeStatus
++    }, 'Unhandled application error');
++    return res.status(safeStatus).json({
+       ok: false,
+       success: false,
+-      message: status >= 500 ? 'Lỗi hệ thống, vui lòng thử lại sau' : (err.message || 'Yêu cầu không hợp lệ'),
++      message: safeStatus >= 500 ? 'Lỗi hệ thống, vui lòng thử lại sau' : (err.message || 'Yêu cầu không hợp lệ'),
+       error: getRuntimeConfig().app.nodeEnv === 'production' ? undefined : err.message
+     });
+   });
+@@ -258,51 +288,74 @@
+ 
+ const app = createApp();
+ 
+-process.on('unhandledRejection', (reason) => logger.error({ err: reason }, 'Unhandled Promise rejection'));
+-process.on('uncaughtException', (err) => {
+-  logger.fatal({ err }, 'Uncaught exception');
+-  process.exit(1);
+-});
+-
++function closeMongoForShutdown(timeoutMs, log = logger) {
++  return closeMongoConnectionForShutdown(timeoutMs, log, {
++    connection: mongoose.connection,
++    disconnect: () => mongoose.disconnect()
++  });
++}
+ 
+ function installGracefulShutdown(server, options = {}) {
+-  if (!server || typeof server.close !== 'function') return () => {};
++  if (!server || typeof server.close !== 'function') return () => Promise.resolve();
+   const timeoutMs = Math.max(1000, Number(options.timeoutMs || getRuntimeConfig().app.gracefulShutdownTimeoutMs));
+   let shuttingDown = false;
+-
+-  const shutdown = async (signal = 'SIGTERM') => {
+-    if (shuttingDown) return;
++  let shutdownPromise = null;
++
++  const shutdown = async (signal = 'SIGTERM', context = {}) => {
++    if (shutdownPromise) return shutdownPromise;
+     shuttingDown = true;
+-    logger.info({ signal }, 'Graceful shutdown started');
+-    stopReconciliationJob();
+-    stopOutboxJob();
+-    stopIntegrationJob();
+-    stopReportingProjectionJob();
+-
+-    const forceTimer = setTimeout(() => {
+-      logger.error({ signal, timeoutMs }, 'Graceful shutdown timed out');
+-      if (options.exit !== false) process.exit(1);
+-    }, timeoutMs);
+-    forceTimer.unref?.();
+-
+-    try {
+-      await new Promise((resolve) => server.close(resolve));
+-      if (mongoose.connection.readyState !== 0) await mongoose.disconnect();
+-      clearTimeout(forceTimer);
+-      logger.info({ signal }, 'Graceful shutdown completed');
+-      if (options.exit !== false) process.exit(0);
+-    } catch (err) {
+-      clearTimeout(forceTimer);
+-      logger.error({ err, signal }, 'Graceful shutdown failed');
+-      if (options.exit !== false) process.exit(1);
+-    }
++    shutdownRequested = true;
++    const exitCode = Number.isInteger(context.exitCode) ? context.exitCode : 0;
++    const fatalError = context.error instanceof Error ? context.error : null;
++
++    shutdownPromise = (async () => {
++      logger[exitCode ? 'fatal' : 'info']({ signal, err: fatalError || undefined }, 'Graceful shutdown started');
++      stopReconciliationJob();
++      stopOutboxJob();
++      stopIntegrationJob();
++      stopReportingProjectionJob();
++
++      const forceTimer = setTimeout(() => {
++        logger.fatal({ signal, timeoutMs }, 'Graceful shutdown timed out');
++        if (options.exit !== false) process.exit(1);
++      }, timeoutMs);
++      forceTimer.unref?.();
++
++      try {
++        if (server.listening) {
++          await new Promise((resolve, reject) => {
++            server.close((error) => error ? reject(error) : resolve());
++          });
++        }
++        if (webHeartbeat) await webHeartbeat.stop(exitCode ? 'failed' : 'stopped');
++        await closeMongoForShutdown(timeoutMs, logger);
++        clearTimeout(forceTimer);
++        logger.info({ signal, exitCode }, 'Graceful shutdown completed');
++        if (options.exit !== false) process.exit(exitCode);
++      } catch (err) {
++        clearTimeout(forceTimer);
++        logger.fatal({ err, signal }, 'Graceful shutdown failed');
++        if (options.exit !== false) process.exit(1);
++        throw err;
++      }
++    })();
++
++    return shutdownPromise;
+   };
+ 
+   if (options.bindSignals !== false) {
+-    process.once('SIGTERM', () => shutdown('SIGTERM'));
+-    process.once('SIGINT', () => shutdown('SIGINT'));
+-  }
+-
++    process.once('SIGTERM', () => void shutdown('SIGTERM', { exitCode: 0 }));
++    process.once('SIGINT', () => void shutdown('SIGINT', { exitCode: 0 }));
++    process.once('unhandledRejection', (reason) => {
++      const error = reason instanceof Error ? reason : new Error(String(reason));
++      void shutdown('unhandledRejection', { exitCode: 1, error });
++    });
++    process.once('uncaughtException', (error) => {
++      void shutdown('uncaughtException', { exitCode: 1, error });
++    });
++  }
++
++  shutdown.isShuttingDown = () => shuttingDown;
+   return shutdown;
+ }
+ 
+@@ -362,6 +415,7 @@
+ }
+ 
+ async function startServer() {
++  shutdownRequested = false;
+   const runtimeConfig = validateRuntimeConfig(process.env, { profile: 'server' });
+   startupState.begin();
+   startupState.markStepStarted('http-listen');
+@@ -377,7 +431,7 @@
+   }
+ 
+   installGracefulShutdown(server);
+-  console.log(`✅ HTTP server listening on http://${BIND_HOST}:${PORT}; application bootstrap is starting`);
++  logger.info({ bindHost: BIND_HOST, port: PORT, release: internalReleaseSummary() }, `HTTP server listening on http://${BIND_HOST}:${PORT}; application bootstrap is starting`);
+ 
+   try {
+     registerDefaultOutboxHandlers();
+@@ -387,6 +441,17 @@
+       () => connectDB(),
+       startupTimeoutMs('dbTimeoutMs')
+     );
++
++    webHeartbeat = createHeartbeat({
++      service: 'mk-pro-web',
++      role: 'web',
++      initialStatus: 'starting',
++      logger,
++      metadata: { bindHost: BIND_HOST, port: PORT }
++    });
++    await webHeartbeat.start().catch((error) => {
++      logger.warn({ err: error }, 'Web operational heartbeat could not start');
++    });
+ 
+     if (runtimeConfig.startup.ensureMongoIndexes) {
+       const indexResults = await runStartupStep(
+@@ -440,10 +505,16 @@
+     startupState.markStepCompleted('background-jobs', jobsStartedAt);
+ 
+     startupState.markReady();
+-    console.log(`✅ Application ready on http://${BIND_HOST}:${PORT}`);
++    await webHeartbeat?.beat({ status: 'ready' }).catch((error) => logger.warn({ err: error }, 'Web ready heartbeat failed'));
++    logger.info({ bindHost: BIND_HOST, port: PORT, startup: startupState.snapshot() }, 'Application ready');
+     return server;
+   } catch (error) {
++    if (shutdownRequested) {
++      logger.info({ err: error }, 'Application bootstrap cancelled by shutdown');
++      return server;
++    }
+     startupState.markFailed(error);
++    await webHeartbeat?.beat({ status: 'failed', metadata: { startupErrorCode: error.code || 'STARTUP_FAILED' } }).catch(() => null);
+     logger.fatal({ err: error, startup: startupState.snapshot() }, 'Application bootstrap failed');
+     stopReconciliationJob();
+     stopOutboxJob();
+@@ -451,9 +522,7 @@
+     stopReportingProjectionJob();
+     await closeServerAfterStartupFailure(server);
+     if (mongoose.connection.readyState !== 0) {
+-      await mongoose.disconnect().catch((disconnectError) => {
+-        logger.error({ err: disconnectError }, 'Mongo disconnect after startup failure failed');
+-      });
++      await closeMongoForShutdown(getRuntimeConfig().app.gracefulShutdownTimeoutMs, logger);
+     }
+     throw error;
+   }
+@@ -470,5 +539,6 @@
+   startupReadinessGuard,
+   csrfProtection,
+   configureTrustProxy,
+-  installGracefulShutdown
++  installGracefulShutdown,
++  closeMongoForShutdown
+ };
+--- a/src/config/app.config.js
++++ b/src/config/app.config.js
+@@ -169,6 +169,13 @@
+       sessionRowBatchSize: safe('IMPORT_SESSION_ROW_BATCH_SIZE', () => readInteger(env, 'IMPORT_SESSION_ROW_BATCH_SIZE', { defaultValue: 500, min: 1, max: 10000 }), 500),
+       tempDir: safe('IMPORT_TMP_DIR', () => readString(env, 'IMPORT_TMP_DIR', { defaultValue: '', maxLength: 1024 }), '')
+     },
++    operations: {
++      heartbeatIntervalMs: safe('OPERATIONS_HEARTBEAT_INTERVAL_MS', () => readInteger(env, 'OPERATIONS_HEARTBEAT_INTERVAL_MS', { defaultValue: 15000, min: 5000, max: 60000 }), 15000),
++      heartbeatStaleMs: safe('OPERATIONS_HEARTBEAT_STALE_MS', () => readInteger(env, 'OPERATIONS_HEARTBEAT_STALE_MS', { defaultValue: 45000, min: 10000, max: 300000 }), 45000),
++      heartbeatRetentionMs: safe('OPERATIONS_HEARTBEAT_RETENTION_MS', () => readInteger(env, 'OPERATIONS_HEARTBEAT_RETENTION_MS', { defaultValue: 24 * 60 * 60 * 1000, min: 60 * 60 * 1000, max: 30 * 24 * 60 * 60 * 1000 }), 24 * 60 * 60 * 1000),
++      workerShutdownTimeoutMs: safe('WORKER_SHUTDOWN_TIMEOUT_MS', () => readInteger(env, 'WORKER_SHUTDOWN_TIMEOUT_MS', { defaultValue: 30000, min: 1000, max: 300000 }), 30000),
++      readinessDependencyTimeoutMs: safe('READINESS_DEPENDENCY_TIMEOUT_MS', () => readInteger(env, 'READINESS_DEPENDENCY_TIMEOUT_MS', { defaultValue: 2000, min: 250, max: 30000 }), 2000)
++    },
+     worker: {
+       backgroundConcurrency: safe('BACKGROUND_JOB_CONCURRENCY', () => readInteger(env, 'BACKGROUND_JOB_CONCURRENCY', { defaultValue: 2, min: 1, max: 64 }), 2),
+       backgroundPollMs: safe('BACKGROUND_JOB_POLL_MS', () => readInteger(env, 'BACKGROUND_JOB_POLL_MS', { defaultValue: 1000, min: 250, max: 60000 }), 1000),
+@@ -187,6 +194,9 @@
+   }
+   if (config.import.maxTotalSize < config.import.maxFileSize) {
+     issues.push({ variable: 'IMPORT_MAX_TOTAL_SIZE', message: 'không được nhỏ hơn IMPORT_MAX_FILE_SIZE' });
++  }
++  if (config.operations.heartbeatStaleMs <= config.operations.heartbeatIntervalMs) {
++    issues.push({ variable: 'OPERATIONS_HEARTBEAT_STALE_MS', message: 'phải lớn hơn OPERATIONS_HEARTBEAT_INTERVAL_MS' });
+   }
+ 
+   Object.defineProperty(config, 'validationIssues', {
+@@ -287,6 +297,10 @@
+     worker: {
+       concurrency: config.worker.backgroundConcurrency,
+       pollMs: config.worker.backgroundPollMs
++    },
++    operations: {
++      heartbeatIntervalMs: config.operations.heartbeatIntervalMs,
++      heartbeatStaleMs: config.operations.heartbeatStaleMs
+     }
+   };
+ }
+--- a/src/config/db.js
++++ b/src/config/db.js
+@@ -1,5 +1,6 @@
+ const mongoose = require('mongoose');
+ const { getRuntimeConfig } = require('./app.config');
++const { logger } = require('../observability/logger');
+ 
+ const connectDB = async () => {
+   const { app, database } = getRuntimeConfig();
+@@ -29,10 +30,10 @@
+       w: database.writeConcern
+     });
+ 
+-    console.log('✅ MongoDB connected');
++    logger.info({ database: mongoose.connection.name }, 'MongoDB connected');
+     return true;
+   } catch (error) {
+-    console.error('❌ MongoDB connection error:', error.message);
++    logger.error({ err: error }, 'MongoDB connection error');
+     throw error;
+   }
+ };
+--- a/src/controllers/systemController.js
++++ b/src/controllers/systemController.js
+@@ -3,6 +3,7 @@
+ const systemService = require('../services/systemService');
+ const ReconciliationService = require('../domain/reconciliation/ReconciliationService');
+ const JobSubmissionService = require('../services/background-jobs/JobSubmissionService');
++const operationsService = require('../services/operationsService');
+ 
+ function sendError(res, err, fallbackMessage) {
+   const status = err.status || 500;
+@@ -111,6 +112,23 @@
+     res.json(await systemService.resetOperationalData({ confirm: req.body && req.body.confirm, scope: req.body && req.body.scope }));
+   } catch (err) {
+     sendError(res, err, 'Không reset được dữ liệu');
++  }
++}
++
++
++async function operations(req, res) {
++  try {
++    res.json(await operationsService.detailedStatus());
++  } catch (err) {
++    sendError(res, err, 'Không đọc được trạng thái vận hành');
++  }
++}
++
++async function release(req, res) {
++  try {
++    res.json({ ok: true, data: operationsService.internalReleaseSummary() });
++  } catch (err) {
++    sendError(res, err, 'Không đọc được release manifest');
+   }
+ }
+ 
+@@ -185,6 +203,8 @@
+   listBackups,
+   verifyBackup,
+   reset,
++  operations,
++  release,
+   apiMonitor,
+   resetApiMonitor,
+   runReconciliation,
+--- a/src/jobs/backgroundJobExecutor.worker.js
++++ b/src/jobs/backgroundJobExecutor.worker.js
+@@ -1,52 +1,87 @@
+ 'use strict';
+ 
+ require('dotenv').config();
+-const mongoose = require('mongoose');
++const { validateRuntimeConfig, getRuntimeConfig } = require('../config/app.config');
+ const connectDB = require('../config/db');
+ const BackgroundJobService = require('../services/background-jobs/BackgroundJobService');
+ const BackgroundJobHandlers = require('../services/background-jobs/BackgroundJobHandlers');
++const { createLogger } = require('../observability/logger');
++const { runWithRequestContext } = require('../observability/requestContext');
++const { safeError } = require('../observability/redaction');
++const { closeMongoForShutdown } = require('../operations/mongoShutdown');
+ 
++const logger = createLogger({ service: 'mk-pro-background-executor' });
+ let shuttingDown = false;
++
+ function send(message) {
+   if (!process.send || !process.connected) return Promise.resolve(false);
+   return new Promise((resolve) => {
+     try { process.send(message, (error) => resolve(!error)); } catch (_) { resolve(false); }
+   });
+ }
+-async function close() { if (mongoose.connection.readyState) await mongoose.disconnect().catch(() => {}); }
++
++async function close() {
++  await closeMongoForShutdown(getRuntimeConfig().operations.workerShutdownTimeoutMs, logger);
++}
++
+ async function failAndExit(error) {
+   if (shuttingDown) return;
+   shuttingDown = true;
++  const serialized = safeError(error) || {};
++  logger.error({ err: error, jobId: process.argv[2] || '' }, 'Background executor failed');
+   await send({
+     type: 'failed',
+     error: {
+-      code: error?.code || 'BACKGROUND_JOB_EXECUTOR_FAILED',
+-      message: error?.message || String(error || 'Worker thất bại'),
+-      stack: error?.stack || '',
++      code: serialized.code || 'BACKGROUND_JOB_EXECUTOR_FAILED',
++      message: serialized.message || 'Worker thất bại',
++      stack: serialized.stack || '',
+       retryable: error?.retryable !== false,
+-      details: error?.details || null
++      details: serialized.details || null
+     }
+   });
+   await close();
+   process.exit(1);
+ }
++
+ async function main() {
++  validateRuntimeConfig(process.env, { profile: 'worker' });
+   const jobId = String(process.argv[2] || '').trim();
+   if (!jobId) throw new Error('Thiếu background job ID');
+-  await connectDB();
+-  const job = await BackgroundJobService.getRawById(jobId);
+-  if (!job || !['running', 'cancel_requested'].includes(job.status)) {
+-    const error = new Error('Job không tồn tại hoặc không còn ở trạng thái chạy');
+-    error.code = 'BACKGROUND_JOB_NOT_RUNNABLE';
+-    error.retryable = false;
+-    throw error;
+-  }
+-  const output = await BackgroundJobHandlers.execute(job);
+-  await send({ type: 'completed', result: output?.result || {}, artifact: output?.artifact || null });
++
++  return runWithRequestContext({
++    requestId: process.env.PARENT_REQUEST_ID,
++    jobId
++  }, async () => {
++    await connectDB();
++    const job = await BackgroundJobService.getRawById(jobId);
++    if (!job || !['running', 'cancel_requested'].includes(job.status)) {
++      const error = new Error('Job không tồn tại hoặc không còn ở trạng thái chạy');
++      error.code = 'BACKGROUND_JOB_NOT_RUNNABLE';
++      error.retryable = false;
++      throw error;
++    }
++    logger.info({ jobId, jobType: job.type, attemptCount: job.attemptCount }, 'Background executor started');
++    const output = await BackgroundJobHandlers.execute(job);
++    await send({ type: 'completed', result: output?.result || {}, artifact: output?.artifact || null });
++    logger.info({ jobId, jobType: job.type }, 'Background executor completed');
++    await close();
++    process.exit(0);
++  });
++}
++
++process.once('uncaughtException', (error) => void failAndExit(error));
++process.once('unhandledRejection', (reason) => void failAndExit(reason instanceof Error ? reason : new Error(String(reason))));
++process.once('SIGTERM', async () => {
++  shuttingDown = true;
++  logger.warn({ jobId: process.argv[2] || '' }, 'Background executor received SIGTERM');
+   await close();
+-  process.exit(0);
+-}
+-process.on('uncaughtException', failAndExit);
+-process.on('unhandledRejection', (reason) => failAndExit(reason instanceof Error ? reason : new Error(String(reason))));
+-process.on('SIGTERM', async () => { shuttingDown = true; await close(); process.exit(143); });
++  process.exit(143);
++});
++process.once('SIGINT', async () => {
++  shuttingDown = true;
++  logger.warn({ jobId: process.argv[2] || '' }, 'Background executor received SIGINT');
++  await close();
++  process.exit(130);
++});
++
+ void main().catch(failAndExit);
+--- a/src/jobs/backgroundJobWorker.js
++++ b/src/jobs/backgroundJobWorker.js
+@@ -6,6 +6,7 @@
+ const BackgroundJobService = require('../services/background-jobs/BackgroundJobService');
+ const ArtifactStore = require('../services/background-jobs/GridFsArtifactStore');
+ const { getRuntimeConfig } = require('../config/app.config');
++const { redactText } = require('../observability/redaction');
+ 
+ const WORKER_CONFIG = getRuntimeConfig().worker;
+ const BACKGROUND_JOB_CONCURRENCY = WORKER_CONFIG.backgroundConcurrency;
+@@ -16,51 +17,119 @@
+ const active = new Map();
+ let stopped = false;
+ let cleanupAt = 0;
++let runtimeLogger = console;
++let runtimeHeartbeat = null;
++const counters = { completedJobs: 0, failedJobs: 0 };
+ 
+ function executorPath() { return path.join(__dirname, 'backgroundJobExecutor.worker.js'); }
++function log(level, payload, message) {
++  const method = runtimeLogger?.[level] || runtimeLogger?.info || console.log;
++  method.call(runtimeLogger, payload, message);
++}
++function configureRuntime(options = {}) {
++  runtimeLogger = options.logger || runtimeLogger;
++  runtimeHeartbeat = options.heartbeat || runtimeHeartbeat;
++}
++async function heartbeat(patch = {}) {
++  if (!runtimeHeartbeat?.beat) return;
++  await runtimeHeartbeat.beat({
++    status: active.size ? 'busy' : (stopped ? 'stopping' : 'ready'),
++    currentJobs: active.size,
++    completedJobs: counters.completedJobs,
++    failedJobs: counters.failedJobs,
++    ...patch
++  }).catch((error) => log('warn', { err: error }, 'Background worker heartbeat failed'));
++}
+ 
+ async function runClaimed(job) {
+   const child = fork(executorPath(), [job.id], {
+     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+     execArgv: [`--max-old-space-size=${MEMORY_MB}`],
+-    env: { ...process.env, BACKGROUND_EXECUTOR_JOB_ID: job.id }
++    env: {
++      ...process.env,
++      BACKGROUND_EXECUTOR_JOB_ID: job.id,
++      PARENT_REQUEST_ID: job.requestId || ''
++    }
+   });
+-  const state = { job, child, settled: false, timedOut: false, cancelWatch: null, heartbeat: null, timeout: null };
++  let resolveSettled;
++  const settledPromise = new Promise((resolve) => { resolveSettled = resolve; });
++  const state = {
++    job,
++    child,
++    settled: false,
++    timedOut: false,
++    cancelWatch: null,
++    heartbeat: null,
++    timeout: null,
++    settledPromise
++  };
+   active.set(job.id, state);
++  await heartbeat({ status: 'busy', lastJobAt: new Date() });
+ 
+   const settle = async (kind, payload = {}) => {
+-    if (state.settled) return;
++    if (state.settled) return state.settledPromise;
+     state.settled = true;
+     clearInterval(state.heartbeat);
+     clearInterval(state.cancelWatch);
+     clearTimeout(state.timeout);
+     active.delete(job.id);
+-    if (kind === 'completed') {
+-      await BackgroundJobService.complete(job.id, WORKER_ID, payload.result || {}, payload.artifact || null);
+-    } else if (kind === 'cancelled') {
+-      await BackgroundJobService.markCancelled(job.id, WORKER_ID, payload.message || 'Job đã hủy an toàn');
+-    } else {
+-      await BackgroundJobService.fail(job.id, WORKER_ID, payload.error || {
+-        code: state.timedOut ? 'BACKGROUND_JOB_TIMEOUT' : 'BACKGROUND_JOB_WORKER_EXIT',
+-        message: state.timedOut ? `Job vượt timeout ${job.timeoutMs}ms` : 'Executor kết thúc bất thường',
+-        retryable: true
+-      });
+-    }
++    try {
++      if (kind === 'completed') {
++        await BackgroundJobService.complete(job.id, WORKER_ID, payload.result || {}, payload.artifact || null);
++        counters.completedJobs += 1;
++        await heartbeat({ lastSuccessAt: new Date() });
++      } else if (kind === 'cancelled') {
++        await BackgroundJobService.markCancelled(job.id, WORKER_ID, payload.message || 'Job đã hủy an toàn');
++        await heartbeat();
++      } else {
++        await BackgroundJobService.fail(job.id, WORKER_ID, payload.error || {
++          code: state.timedOut ? 'BACKGROUND_JOB_TIMEOUT' : 'BACKGROUND_JOB_WORKER_EXIT',
++          message: state.timedOut ? `Job vượt timeout ${job.timeoutMs}ms` : 'Executor kết thúc bất thường',
++          retryable: true
++        });
++        counters.failedJobs += 1;
++        await heartbeat({ lastFailureAt: new Date() });
++      }
++    } catch (error) {
++      counters.failedJobs += 1;
++      log('error', { err: error, jobId: job.id, jobType: job.type }, 'Background job settlement failed');
++      await heartbeat({ lastFailureAt: new Date() });
++    } finally {
++      resolveSettled({ kind, jobId: job.id });
++    }
++    return state.settledPromise;
+   };
+ 
+-  child.stdout?.on('data', (chunk) => console.info('[BACKGROUND_EXECUTOR]', job.id, String(chunk).slice(0, 2000)));
+-  child.stderr?.on('data', (chunk) => console.error('[BACKGROUND_EXECUTOR_ERROR]', job.id, String(chunk).slice(0, 4000)));
++  child.stdout?.on('data', (chunk) => log('info', {
++    jobId: job.id,
++    stream: 'stdout',
++    output: redactText(String(chunk)).slice(0, 2000)
++  }, 'Background executor output'));
++  child.stderr?.on('data', (chunk) => log('warn', {
++    jobId: job.id,
++    stream: 'stderr',
++    output: redactText(String(chunk)).slice(0, 4000)
++  }, 'Background executor error output'));
+   child.on('message', (message = {}) => {
+     if (message.type === 'completed') void settle('completed', message);
+     if (message.type === 'failed') void settle('failed', message);
+   });
+   child.once('error', (error) => void settle('failed', { error }));
+   child.once('exit', (code, signal) => {
+-    if (!state.settled) void settle('failed', { error: { code: 'BACKGROUND_JOB_EXECUTOR_EXIT', message: `Executor exit ${code ?? 'null'} ${signal || ''}`, retryable: true } });
++    if (!state.settled) {
++      void settle('failed', {
++        error: {
++          code: 'BACKGROUND_JOB_EXECUTOR_EXIT',
++          message: `Executor exit ${code ?? 'null'} ${signal || ''}`,
++          retryable: true
++        }
++      });
++    }
+   });
+ 
+   state.heartbeat = setInterval(() => {
+-    BackgroundJobService.heartbeat(job.id, WORKER_ID).catch((error) => console.error('[BACKGROUND_JOB_HEARTBEAT]', error));
++    BackgroundJobService.heartbeat(job.id, WORKER_ID)
++      .catch((error) => log('warn', { err: error, jobId: job.id }, 'Background job lease heartbeat failed'));
+   }, Math.max(3000, Math.floor(BackgroundJobService.DEFAULT_LEASE_MS / 3)));
+   state.heartbeat.unref?.();
+ 
+@@ -76,9 +145,17 @@
+   state.timeout = setTimeout(() => {
+     state.timedOut = true;
+     child.kill('SIGKILL');
+-    void settle('failed', { error: { code: 'BACKGROUND_JOB_TIMEOUT', message: `Job vượt timeout ${job.timeoutMs}ms`, retryable: true } });
++    void settle('failed', {
++      error: {
++        code: 'BACKGROUND_JOB_TIMEOUT',
++        message: `Job vượt timeout ${job.timeoutMs}ms`,
++        retryable: true
++      }
++    });
+   }, Math.max(1000, Number(job.timeoutMs || 300000)));
+   state.timeout.unref?.();
++
++  return state;
+ }
+ 
+ async function tick() {
+@@ -89,14 +166,16 @@
+   }
+   if (Date.now() > cleanupAt) {
+     cleanupAt = Date.now() + 60_000;
+-    await BackgroundJobService.deadLetterExpiredLeases(50).catch((error) => console.error('[BACKGROUND_LEASE_CLEANUP]', error));
+-    await BackgroundJobService.cleanupExpiredArtifacts(50).catch((error) => console.error('[BACKGROUND_ARTIFACT_CLEANUP]', error));
+-    await ArtifactStore.cleanupExpired(100).catch((error) => console.error('[BACKGROUND_GRIDFS_CLEANUP]', error));
+-  }
++    await BackgroundJobService.deadLetterExpiredLeases(50).catch((error) => log('warn', { err: error }, 'Background lease cleanup failed'));
++    await BackgroundJobService.cleanupExpiredArtifacts(50).catch((error) => log('warn', { err: error }, 'Background artifact cleanup failed'));
++    await ArtifactStore.cleanupExpired(100).catch((error) => log('warn', { err: error }, 'GridFS artifact cleanup failed'));
++  }
++  await heartbeat();
+ }
+ 
+ async function runLoop(options = {}) {
+   const once = Boolean(options.once);
++  stopped = false;
+   do {
+     await tick();
+     if (once) {
+@@ -107,9 +186,49 @@
+   } while (!stopped);
+ }
+ 
+-async function stop() {
++async function stop(options = {}) {
+   stopped = true;
+-  for (const state of active.values()) state.child.kill('SIGTERM');
+-}
+-
+-module.exports = { runLoop, stop, tick, WORKER_ID, CONCURRENCY, _private: { runClaimed } };
++  const timeoutMs = Math.max(1000, Number(options.timeoutMs || getRuntimeConfig().operations.workerShutdownTimeoutMs));
++  const deadline = Date.now() + timeoutMs;
++  await heartbeat({ status: 'stopping' });
++
++  while (active.size && Date.now() < deadline) {
++    await new Promise((resolve) => setTimeout(resolve, 100));
++  }
++
++  if (active.size) {
++    log('warn', { activeJobs: Array.from(active.keys()), timeoutMs }, 'Worker shutdown timeout; returning active jobs through lease-safe failure');
++    for (const state of active.values()) state.child.kill('SIGTERM');
++    await Promise.race([
++      Promise.all(Array.from(active.values()).map((state) => state.settledPromise)),
++      new Promise((resolve) => setTimeout(resolve, 2000))
++    ]);
++  }
++
++  if (active.size) {
++    for (const state of active.values()) state.child.kill('SIGKILL');
++    await Promise.allSettled(Array.from(active.values()).map((state) => state.settledPromise));
++  }
++  await heartbeat({ status: 'stopping', currentJobs: 0 });
++}
++
++function getWorkerState() {
++  return {
++    workerId: WORKER_ID,
++    concurrency: CONCURRENCY,
++    stopped,
++    activeJobs: Array.from(active.keys()),
++    ...counters
++  };
++}
++
++module.exports = {
++  runLoop,
++  stop,
++  tick,
++  configureRuntime,
++  getWorkerState,
++  WORKER_ID,
++  CONCURRENCY,
++  _private: { runClaimed, heartbeat }
++};
+--- a/src/middlewares/apiMonitor.middleware.js
++++ b/src/middlewares/apiMonitor.middleware.js
+@@ -418,7 +418,8 @@
+       at: new Date().toISOString(),
+       method: req.method,
+       path,
+-      originalUrl: req.originalUrl || req.url || path,
++      originalUrl: path,
++      requestId: req.requestId || '',
+       module: moduleName(path),
+       statusCode: res.statusCode,
+       ms,
+@@ -433,8 +434,9 @@
+     recordMetric(metric);
+ 
+     const logPayload = {
++      requestId: metric.requestId,
+       method: metric.method,
+-      route: metric.originalUrl,
++      route: metric.path,
+       path: metric.path,
+       module: metric.module,
+       statusCode: metric.statusCode,
+--- a/src/middlewares/apiSecurity.middleware.js
++++ b/src/middlewares/apiSecurity.middleware.js
+@@ -15,6 +15,8 @@
+   ['GET', /^\/api\/system\/health\/db$/],
+   ['GET', /^\/api\/health$/],
+   ['GET', /^\/api\/health\/db$/],
++  ['GET', /^\/api\/health\/live$/],
++  ['GET', /^\/api\/health\/ready$/],
+   ['GET', /^\/api\/health\/readiness$/],
+ 
+   // Swagger tự có docsAuthGuard riêng
+--- a/src/models/BackgroundJob.js
++++ b/src/models/BackgroundJob.js
+@@ -17,6 +17,7 @@
+     default: 'pending'
+   },
+   idempotencyKey: { type: String, default: '', trim: true },
++  requestId: { type: String, default: '', trim: true },
+   payload: { type: mongoose.Schema.Types.Mixed, default: {} },
+   result: { type: mongoose.Schema.Types.Mixed, default: {} },
+   progress: {
+--- a/src/models/OperationalHeartbeat.js
++++ b/src/models/OperationalHeartbeat.js
+@@ -0,0 +1,27 @@
++'use strict';
++
++const mongoose = require('mongoose');
++
++const OperationalHeartbeatSchema = new mongoose.Schema({
++  instanceId: { type: String, required: true, trim: true },
++  service: { type: String, required: true, trim: true },
++  role: { type: String, required: true, trim: true },
++  status: { type: String, required: true, enum: ['starting', 'ready', 'busy', 'stopping', 'stopped', 'failed'] },
++  version: { type: String, default: 'unknown' },
++  releaseId: { type: String, default: 'unmanifested' },
++  hostname: { type: String, default: '' },
++  pid: { type: Number, default: 0 },
++  startedAt: { type: Date, default: Date.now },
++  lastHeartbeatAt: { type: Date, default: Date.now },
++  lastJobAt: { type: Date, default: null },
++  lastSuccessAt: { type: Date, default: null },
++  lastFailureAt: { type: Date, default: null },
++  currentJobs: { type: Number, default: 0 },
++  completedJobs: { type: Number, default: 0 },
++  failedJobs: { type: Number, default: 0 },
++  metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
++  expireAt: { type: Date, default: null }
++}, { versionKey: false, minimize: false });
++
++module.exports = mongoose.models.OperationalHeartbeat
++  || mongoose.model('OperationalHeartbeat', OperationalHeartbeatSchema, 'operational_heartbeats');
+--- a/src/models/index.js
++++ b/src/models/index.js
+@@ -67,6 +67,7 @@
+   deliveryRoutePlans: require('./DeliveryRoutePlan'),
+   integrationJobs: require('./IntegrationJob'),
+   backgroundJobs: require('./BackgroundJob'),
++  operationalHeartbeats: require('./OperationalHeartbeat'),
+   tenants: require('./Tenant'),
+   tenantSubscriptions: require('./TenantSubscription')
+ };
+--- a/src/observability/errorClassification.js
++++ b/src/observability/errorClassification.js
+@@ -0,0 +1,19 @@
++'use strict';
++
++function classifyError(error = {}, statusOverride) {
++  const status = Number(statusOverride || error.status || error.statusCode || 500);
++  const code = String(error.code || '').toUpperCase();
++  if (status === 401 || /AUTHENTICATION|TOKEN/.test(code)) return 'AUTHENTICATION_ERROR';
++  if (status === 403 || /AUTHORIZATION|FORBIDDEN/.test(code)) return 'AUTHORIZATION_ERROR';
++  if (status === 404) return 'NOT_FOUND';
++  if (status === 409 || /CONFLICT|DUPLICATE|IDEMPOT/.test(code)) return 'CONFLICT';
++  if (status === 400 || status === 422 || /VALIDATION|INVALID|REQUIRED/.test(code)) return 'VALIDATION_ERROR';
++  if (/MONGO|DATABASE|DB_/.test(code) || error.name === 'MongoError' || error.name === 'MongooseError') return 'DATABASE_ERROR';
++  if (/WORKER|JOB/.test(code)) return 'WORKER_ERROR';
++  if (/EXPORT/.test(code)) return 'EXPORT_ERROR';
++  if (/IMPORT/.test(code)) return 'IMPORT_ERROR';
++  if (/DEPENDENCY|TIMEOUT|ECONN|ENOTFOUND/.test(code)) return 'DEPENDENCY_ERROR';
++  return 'INTERNAL_ERROR';
++}
++
++module.exports = { classifyError };
+--- a/src/observability/logger.js
++++ b/src/observability/logger.js
+@@ -0,0 +1,77 @@
++'use strict';
++
++const pino = require('pino');
++const { getRuntimeConfig } = require('../config/app.config');
++const { readReleaseManifest } = require('../operations/releaseMetadata');
++const { safeError, redactValue } = require('./redaction');
++const { getRequestContext } = require('./requestContext');
++
++const REDACT_PATHS = [
++  'req.headers.authorization',
++  'req.headers.cookie',
++  'res.headers.set-cookie',
++  'headers.authorization',
++  'headers.cookie',
++  'authorization',
++  'cookie',
++  'password',
++  'token',
++  'accessToken',
++  'refreshToken',
++  'mongoUri',
++  '*.password',
++  '*.token',
++  '*.accessToken',
++  '*.refreshToken',
++  '*.mongoUri'
++];
++
++function createLogger(options = {}) {
++  const config = getRuntimeConfig();
++  const release = readReleaseManifest();
++  return pino({
++    level: options.level || config.app.logLevel,
++    base: {
++      service: options.service || 'mk-pro-web',
++      environment: config.app.nodeEnv,
++      version: release.version,
++      releaseId: release.releaseId,
++      pid: process.pid
++    },
++    redact: { paths: REDACT_PATHS, censor: '[REDACTED]' },
++    serializers: {
++      err: safeError,
++      error: safeError,
++      req(req) {
++        return {
++          id: req?.id,
++          method: req?.method,
++          url: String(req?.url || '').split('?')[0],
++          remoteAddress: req?.remoteAddress
++        };
++      },
++      res(res) {
++        return { statusCode: res?.statusCode };
++      }
++    },
++    mixin() {
++      const context = getRequestContext();
++      return context?.requestId ? { requestId: context.requestId } : {};
++    },
++    hooks: {
++      logMethod(args, method) {
++        const sanitized = args.map((arg) => {
++          if (arg instanceof Error) return { err: safeError(arg) };
++          if (arg && typeof arg === 'object') return redactValue(arg);
++          if (typeof arg === 'string') return require('./redaction').redactText(arg);
++          return arg;
++        });
++        return method.apply(this, sanitized);
++      }
++    }
++  });
++}
++
++const logger = createLogger();
++
++module.exports = { logger, createLogger, REDACT_PATHS };
+--- a/src/observability/redaction.js
++++ b/src/observability/redaction.js
+@@ -0,0 +1,41 @@
++'use strict';
++
++const SECRET_KEY = /(authorization|cookie|token|secret|password|passwd|mongo(?:db)?_?uri|connectionstring|accountnumber|bankaccount)/i;
++const BEARER_PATTERN = /Bearer\s+[A-Za-z0-9._~+\/-]+=*/gi;
++const MONGO_URI_PATTERN = /mongodb(?:\+srv)?:\/\/[^\s"']+/gi;
++const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g;
++
++function redactText(value) {
++  return String(value ?? '')
++    .replace(BEARER_PATTERN, 'Bearer [REDACTED]')
++    .replace(MONGO_URI_PATTERN, 'mongodb://[REDACTED]')
++    .replace(JWT_PATTERN, '[REDACTED_JWT]');
++}
++
++function redactValue(value, options = {}, seen = new WeakSet()) {
++  if (value == null) return value;
++  if (typeof value === 'string') return redactText(value);
++  if (typeof value !== 'object') return value;
++  if (value instanceof Error) return safeError(value);
++  if (seen.has(value)) return '[Circular]';
++  seen.add(value);
++  if (Array.isArray(value)) return value.slice(0, options.maxArray || 100).map((item) => redactValue(item, options, seen));
++  const result = {};
++  for (const [key, child] of Object.entries(value)) {
++    result[key] = SECRET_KEY.test(key) ? '[REDACTED]' : redactValue(child, options, seen);
++  }
++  return result;
++}
++
++function safeError(error) {
++  if (!error) return error;
++  return {
++    type: error.name || 'Error',
++    code: error.code || undefined,
++    message: redactText(error.message || String(error)),
++    stack: redactText(error.stack || ''),
++    details: redactValue(error.details)
++  };
++}
++
++module.exports = { SECRET_KEY, redactText, redactValue, safeError };
+--- a/src/observability/requestContext.js
++++ b/src/observability/requestContext.js
+@@ -0,0 +1,53 @@
++'use strict';
++
++const crypto = require('crypto');
++const { AsyncLocalStorage } = require('async_hooks');
++
++const storage = new AsyncLocalStorage();
++const REQUEST_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
++
++function normalizeRequestId(value) {
++  const text = String(value || '').trim();
++  return REQUEST_ID_PATTERN.test(text) ? text : '';
++}
++
++function generateRequestId() {
++  return typeof crypto.randomUUID === 'function'
++    ? crypto.randomUUID()
++    : crypto.randomBytes(16).toString('hex');
++}
++
++function requestContextMiddleware(req, res, next) {
++  const requestId = normalizeRequestId(req.get?.('X-Request-Id') || req.headers?.['x-request-id']) || generateRequestId();
++  req.id = requestId;
++  req.requestId = requestId;
++  res.setHeader('X-Request-Id', requestId);
++  const context = {
++    requestId,
++    method: req.method,
++    route: String(req.originalUrl || req.url || '').split('?')[0],
++    startedAt: Date.now()
++  };
++  storage.run(context, next);
++}
++
++function getRequestContext() {
++  return storage.getStore() || null;
++}
++
++function runWithRequestContext(context, callback) {
++  const safe = {
++    ...context,
++    requestId: normalizeRequestId(context?.requestId) || generateRequestId()
++  };
++  return storage.run(safe, callback);
++}
++
++module.exports = {
++  REQUEST_ID_PATTERN,
++  normalizeRequestId,
++  generateRequestId,
++  requestContextMiddleware,
++  getRequestContext,
++  runWithRequestContext
++};
+--- a/src/operations/backupIntegrity.js
++++ b/src/operations/backupIntegrity.js
+@@ -0,0 +1,100 @@
++'use strict';
++
++const crypto = require('crypto');
++
++function number(value) {
++  const parsed = Number(value);
++  return Number.isFinite(parsed) ? parsed : 0;
++}
++
++function isActive(row = {}) {
++  const status = String(row.status || '').toLowerCase();
++  return row.isDeleted !== true && !['deleted', 'cancelled', 'reversed', 'void'].includes(status);
++}
++
++function stable(value) {
++  if (Array.isArray(value)) return value.map(stable);
++  if (!value || typeof value !== 'object') return value;
++  return Object.keys(value).sort().reduce((result, key) => {
++    if (!['_id', '__v'].includes(key)) result[key] = stable(value[key]);
++    return result;
++  }, {});
++}
++
++function digest(value) {
++  return crypto.createHash('sha256').update(JSON.stringify(stable(value))).digest('hex');
++}
++
++function canonicalCollection(rows = []) {
++  return (Array.isArray(rows) ? rows : [])
++    .map((row) => stable(row))
++    .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
++}
++
++function canonicalBackupData(data = {}) {
++  return Object.keys(data).sort().reduce((result, key) => {
++    result[key] = canonicalCollection(data[key]);
++    return result;
++  }, {});
++}
++
++function collectionDigests(data = {}) {
++  const canonical = canonicalBackupData(data);
++  return Object.fromEntries(Object.keys(canonical).map((key) => [key, digest(canonical[key])]));
++}
++
++function technicalTotals(data = {}) {
++  const inventories = (data.inventories || []).filter(isActive);
++  const arLedgers = (data.arLedgers || []).filter(isActive);
++  const fundLedgers = (data.fundLedgers || []).filter(isActive);
++  return {
++    inventoryQuantityTotal: inventories.reduce((sum, row) => sum + number(row.onHand ?? row.availableQty ?? row.qty ?? row.quantity), 0),
++    arBalanceTotal: arLedgers.reduce((sum, row) => sum + number(row.debit) - number(row.credit), 0),
++    fundBalanceTotal: fundLedgers.reduce((sum, row) => {
++      const amount = number(row.amount);
++      return sum + (String(row.direction || '').toLowerCase() === 'out' ? -amount : amount);
++    }, 0),
++    salesOrderCount: Array.isArray(data.salesOrders) ? data.salesOrders.length : 0,
++    masterOrderCount: Array.isArray(data.masterOrders) ? data.masterOrders.length : 0,
++    returnOrderCount: Array.isArray(data.returnOrders) ? data.returnOrders.length : 0,
++    inventoryRowCount: inventories.length,
++    arLedgerRowCount: arLedgers.length,
++    fundLedgerRowCount: fundLedgers.length
++  };
++}
++
++function buildBackupIntegrity(data = {}) {
++  const digests = collectionDigests(data);
++  return {
++    algorithm: 'sha256',
++    dataSha256: digest(canonicalBackupData(data)),
++    collectionDigests: digests,
++    collectionDigestsSha256: digest(digests),
++    technicalTotals: technicalTotals(data),
++    note: 'Technical restore controls only; not a replacement for domain reconciliation reports.'
++  };
++}
++
++function compareBackupIntegrity(expected = {}, data = {}) {
++  const actual = buildBackupIntegrity(data);
++  const mismatches = [];
++  if (expected.dataSha256 && expected.dataSha256 !== actual.dataSha256) mismatches.push('dataSha256');
++  if (expected.collectionDigestsSha256 && expected.collectionDigestsSha256 !== actual.collectionDigestsSha256) mismatches.push('collectionDigestsSha256');
++  if (expected.technicalTotals) {
++    for (const [key, value] of Object.entries(expected.technicalTotals)) {
++      if (Number(value) !== Number(actual.technicalTotals[key])) mismatches.push(`technicalTotals.${key}`);
++    }
++  }
++  return { ok: mismatches.length === 0, mismatches, actual };
++}
++
++module.exports = {
++  stable,
++  digest,
++  canonicalCollection,
++  canonicalBackupData,
++  collectionDigests,
++  technicalTotals,
++  buildBackupIntegrity,
++  compareBackupIntegrity
++};
+--- a/src/operations/heartbeatService.js
++++ b/src/operations/heartbeatService.js
+@@ -0,0 +1,108 @@
++'use strict';
++
++const os = require('os');
++const OperationalHeartbeat = require('../models/OperationalHeartbeat');
++const { readReleaseManifest } = require('./releaseMetadata');
++const { getRuntimeConfig } = require('../config/app.config');
++
++function now() { return new Date(); }
++
++function buildIdentity(options = {}) {
++  const release = readReleaseManifest();
++  const service = String(options.service || 'mk-pro-web');
++  const role = String(options.role || 'web');
++  const instanceId = String(options.instanceId || `${service}:${os.hostname()}:${process.pid}`);
++  return {
++    instanceId,
++    service,
++    role,
++    version: release.version,
++    releaseId: release.releaseId,
++    hostname: os.hostname(),
++    pid: process.pid
++  };
++}
++
++async function writeHeartbeat(identity, patch = {}) {
++  const timestamp = now();
++  const retentionMs = getRuntimeConfig().operations.heartbeatRetentionMs;
++  return OperationalHeartbeat.findOneAndUpdate(
++    { instanceId: identity.instanceId },
++    {
++      $set: {
++        ...identity,
++        ...patch,
++        lastHeartbeatAt: timestamp,
++        expireAt: new Date(timestamp.getTime() + retentionMs)
++      },
++      $setOnInsert: { startedAt: timestamp }
++    },
++    { upsert: true, new: true, setDefaultsOnInsert: true }
++  ).lean();
++}
++
++function createHeartbeat(options = {}) {
++  const identity = buildIdentity(options);
++  const config = getRuntimeConfig().operations;
++  let timer = null;
++  let current = {
++    status: options.initialStatus || 'starting',
++    currentJobs: 0,
++    completedJobs: 0,
++    failedJobs: 0,
++    metadata: options.metadata || {}
++  };
++
++  async function beat(patch = {}) {
++    current = { ...current, ...patch };
++    return writeHeartbeat(identity, current);
++  }
++
++  async function start() {
++    await beat();
++    if (!timer) {
++      timer = setInterval(() => {
++        beat().catch((error) => options.logger?.warn?.({ err: error }, 'Operational heartbeat failed'));
++      }, config.heartbeatIntervalMs);
++      timer.unref?.();
++    }
++    return identity;
++  }
++
++  async function stop(status = 'stopped') {
++    if (timer) clearInterval(timer);
++    timer = null;
++    await beat({ status, currentJobs: 0 }).catch((error) => options.logger?.warn?.({ err: error }, 'Final operational heartbeat failed'));
++  }
++
++  return { identity, start, beat, stop, snapshot: () => ({ ...identity, ...current }) };
++}
++
++async function readHeartbeats(options = {}) {
++  const config = getRuntimeConfig().operations;
++  const staleMs = Number(options.staleMs || config.heartbeatStaleMs);
++  const cutoff = new Date(Date.now() - staleMs);
++  const rows = await OperationalHeartbeat.find({}).sort({ lastHeartbeatAt: -1 }).limit(100).lean();
++  return rows.map((row) => ({
++    instanceId: row.instanceId,
++    service: row.service,
++    role: row.role,
++    status: row.status,
++    healthy: row.lastHeartbeatAt >= cutoff && !['failed', 'stopped'].includes(row.status),
++    version: row.version,
++    releaseId: row.releaseId,
++    hostname: row.hostname,
++    pid: row.pid,
++    startedAt: row.startedAt,
++    lastHeartbeatAt: row.lastHeartbeatAt,
++    lastJobAt: row.lastJobAt,
++    lastSuccessAt: row.lastSuccessAt,
++    lastFailureAt: row.lastFailureAt,
++    currentJobs: row.currentJobs || 0,
++    completedJobs: row.completedJobs || 0,
++    failedJobs: row.failedJobs || 0,
++    metadata: row.metadata || {}
++  }));
++}
++
++module.exports = { buildIdentity, writeHeartbeat, createHeartbeat, readHeartbeats };
+--- a/src/operations/mongoShutdown.js
++++ b/src/operations/mongoShutdown.js
+@@ -0,0 +1,55 @@
++'use strict';
++
++const mongoose = require('mongoose');
++
++async function closeMongoForShutdown(timeoutMs, log = console, options = {}) {
++  const connection = options.connection || mongoose.connection;
++  const disconnect = options.disconnect || (() => mongoose.disconnect());
++  const initialState = connection.readyState;
++  if (initialState === 0) return { closed: true, forced: false, previousState: initialState };
++
++  // A connection still in `connecting` can wait for the full server-selection
++  // timeout. Abort the native client without blocking the process deadline.
++  if (initialState === 2) {
++    try {
++      const client = connection.getClient?.();
++      if (client?.close) {
++        Promise.resolve(client.close(true)).catch((error) => {
++          log.warn?.({ err: error }, 'Mongo connecting client force-close failed');
++        });
++      }
++    } catch (error) {
++      log.warn?.({ err: error }, 'Mongo connecting client could not be force-closed');
++    }
++    return { closed: false, forced: true, previousState: initialState };
++  }
++
++  const totalTimeoutMs = Math.max(1000, Number(timeoutMs) || 15000);
++  const closeTimeoutMs = Math.max(500, Math.min(5000, Math.floor(totalTimeoutMs / 2)));
++  let timer;
++  try {
++    await Promise.race([
++      disconnect(),
++      new Promise((_, reject) => {
++        timer = setTimeout(() => {
++          const error = new Error(`Mongo shutdown exceeded ${closeTimeoutMs}ms`);
++          error.code = 'MONGO_SHUTDOWN_TIMEOUT';
++          reject(error);
++        }, closeTimeoutMs);
++        timer.unref?.();
++      })
++    ]);
++    return { closed: true, forced: false, previousState: initialState };
++  } catch (error) {
++    log.warn?.({ err: error, readyState: connection.readyState }, 'Mongo graceful close timed out; forcing client close');
++    try {
++      const client = connection.getClient?.();
++      if (client?.close) Promise.resolve(client.close(true)).catch(() => null);
++    } catch (_) { /* process shutdown continues */ }
++    return { closed: false, forced: true, previousState: initialState };
++  } finally {
++    if (timer) clearTimeout(timer);
++  }
++}
++
++module.exports = { closeMongoForShutdown };
+--- a/src/operations/releaseMetadata.js
++++ b/src/operations/releaseMetadata.js
+@@ -0,0 +1,76 @@
++'use strict';
++
++const fs = require('fs');
++const path = require('path');
++
++const ROOT_DIR = path.resolve(__dirname, '..', '..');
++const MANIFEST_PATH = path.join(ROOT_DIR, 'RELEASE_MANIFEST.json');
++
++const FALLBACK = Object.freeze({
++  application: 'MK-Pro',
++  version: 'unknown',
++  releaseId: 'unmanifested',
++  gitCommit: 'unavailable',
++  sourceSha256: 'unavailable',
++  bundleSha256: 'unavailable',
++  buildTime: '',
++  environment: process.env.NODE_ENV || 'development',
++  nodeVersion: process.version,
++  packageLockHash: 'unavailable',
++  configurationVersion: 'unavailable',
++  releasedBy: 'unassigned',
++  previousVersion: ''
++});
++
++let cached = null;
++
++function normalizeManifest(value = {}) {
++  return Object.freeze({
++    ...FALLBACK,
++    ...value,
++    environment: process.env.NODE_ENV || value.environment || FALLBACK.environment,
++    nodeVersion: value.nodeVersion || process.version
++  });
++}
++
++function readReleaseManifest(options = {}) {
++  if (cached && options.refresh !== true) return cached;
++  try {
++    const parsed = JSON.parse(fs.readFileSync(options.path || MANIFEST_PATH, 'utf8'));
++    cached = normalizeManifest(parsed);
++  } catch (_) {
++    cached = normalizeManifest();
++  }
++  return cached;
++}
++
++function publicReleaseSummary(options = {}) {
++  const manifest = readReleaseManifest(options);
++  return {
++    application: manifest.application,
++    version: manifest.version,
++    releaseId: manifest.releaseId,
++    buildTime: manifest.buildTime,
++    environment: manifest.environment
++  };
++}
++
++function internalReleaseSummary(options = {}) {
++  const manifest = readReleaseManifest(options);
++  return {
++    ...manifest,
++    manifestPresent: manifest.releaseId !== FALLBACK.releaseId
++  };
++}
++
++function resetReleaseManifestCache() {
++  cached = null;
++}
++
++module.exports = {
++  MANIFEST_PATH,
++  readReleaseManifest,
++  publicReleaseSummary,
++  internalReleaseSummary,
++  resetReleaseManifestCache
++};
+--- a/src/routes/health.routes.js
++++ b/src/routes/health.routes.js
+@@ -1,45 +1,19 @@
+ 'use strict';
+ 
++const operationsService = require('../services/operationsService');
++
+ function registerHealthRoutes(app) {
+-  const EnterpriseStatusService = require('../services/EnterpriseStatusService');
+-  const startupState = require('../services/startupState');
++  app.get('/api/health/live', (req, res) => {
++    res.status(200).json(operationsService.liveness());
++  });
+ 
+-  app.get('/api/health/readiness', async (req, res) => {
+-    const startup = startupState.snapshot();
+-    if (!startupState.isReady()) {
+-      return res.status(503).json({
+-        ok: false,
+-        checks: {
+-          bootstrap: false,
+-          database: false
+-        },
+-        startup: {
+-          phase: startup.phase,
+-          currentStep: startup.currentStep,
+-          startedAt: startup.startedAt,
+-          error: startup.error
+-        }
+-      });
+-    }
++  const ready = async (req, res) => {
++    const result = await operationsService.readiness();
++    return res.status(result.ok ? 200 : 503).json(result);
++  };
+ 
+-    try {
+-      const result = await EnterpriseStatusService.readiness({ tenantId: req.tenantId });
+-      return res.status(result.ok ? 200 : 503).json({
+-        ok: result.ok,
+-        checks: { bootstrap: true, ...result.checks },
+-        startup: {
+-          phase: startup.phase,
+-          readyAt: startup.readyAt
+-        }
+-      });
+-    } catch (error) {
+-      return res.status(503).json({
+-        ok: false,
+-        checks: { bootstrap: true, database: false },
+-        startup: { phase: startup.phase, readyAt: startup.readyAt }
+-      });
+-    }
+-  });
++  app.get('/api/health/ready', ready);
++  app.get('/api/health/readiness', ready);
+ 
+   app.get('/api/health/db', (req, res) => {
+     const mongoose = require('mongoose');
+--- a/src/routes/systemRoutes.js
++++ b/src/routes/systemRoutes.js
+@@ -14,6 +14,8 @@
+ // Phase 2.9.3 clean system endpoints.
+ router.get('/system/status', systemController.status);
+ router.get('/system/api-monitor', requireRole(['admin', 'manager']), systemController.apiMonitor);
++router.get('/system/operations', requireRole(['admin', 'manager']), systemController.operations);
++router.get('/system/release', requireRole(['admin', 'manager']), systemController.release);
+ router.post('/system/api-monitor/reset', requireRole(['admin']), systemController.resetApiMonitor);
+ router.get('/system/reconciliation-reports', requireRole(['admin', 'manager']), systemController.listReconciliationReports);
+ router.post('/system/reconciliation/run', requireRole(['admin']), systemController.runReconciliation);
+--- a/src/services/background-jobs/BackgroundJobService.js
++++ b/src/services/background-jobs/BackgroundJobService.js
+@@ -6,6 +6,8 @@
+ const ArtifactStore = require('./GridFsArtifactStore');
+ const { makeId } = require('../../utils/common.util');
+ const { tenantIdOf } = require('../../utils/tenant.util');
++const { getRequestContext } = require('../../observability/requestContext');
++const { redactText, redactValue } = require('../../observability/redaction');
+ 
+ const TERMINAL = new Set(['completed', 'failed', 'dead_letter', 'cancelled']);
+ const CANCELLABLE_WHILE_RUNNING = new Set(['export_excel', 'import_preview']);
+@@ -67,12 +69,14 @@
+   }
+ 
+   const now = new Date();
++  const requestContext = getRequestContext();
+   const document = {
+     id: text(input.id) || makeId('JOB'),
+     tenantId,
+     type: input.type,
+     status: 'pending',
+     idempotencyKey,
++    requestId: text(input.requestId || requestContext?.requestId).slice(0, 128),
+     payload: input.payload || {},
+     progress: { percent: 0, step: 'queued', message: '' },
+     attemptCount: 0,
+@@ -199,10 +203,10 @@
+ function normalizeFailure(error = {}) {
+   return {
+     code: text(error.code || 'BACKGROUND_JOB_FAILED').slice(0, 100),
+-    message: text(error.message || error).slice(0, 1200),
+-    stack: text(error.stack).slice(0, STACK_LIMIT),
++    message: redactText(error.message || error).slice(0, 1200),
++    stack: redactText(error.stack || '').slice(0, STACK_LIMIT),
+     retryable: error.retryable !== false,
+-    details: error.details || null
++    details: redactValue(error.details) || null
+   };
+ }
+ 
+--- a/src/services/mongoIndexService.js
++++ b/src/services/mongoIndexService.js
+@@ -421,6 +421,11 @@
+     [{ status: 1, nextRetryAt: 1, createdAt: 1 }, { name: 'idx_integration_jobs_status_retry' }],
+     [{ tenantId: 1, provider: 1, createdAt: -1 }, { name: 'idx_integration_jobs_provider_created' }]
+   ],
++  operationalHeartbeats: [
++    [{ instanceId: 1 }, { name: 'uniq_operational_heartbeats_instance', unique: true }],
++    [{ service: 1, role: 1, lastHeartbeatAt: -1 }, { name: 'idx_operational_heartbeats_service_role_time' }],
++    [{ expireAt: 1 }, { name: 'ttl_operational_heartbeats_expireAt', expireAfterSeconds: 0 }]
++  ],
+   backgroundJobs: [
+     [{ tenantId: 1, id: 1 }, { name: 'uniq_background_jobs_tenant_id', unique: true }],
+     [{ tenantId: 1, idempotencyKey: 1 }, { name: 'uniq_background_jobs_idempotency', unique: true, partialFilterExpression: { idempotencyKey: { $gt: '' } } }],
+--- a/src/services/operationsService.js
++++ b/src/services/operationsService.js
+@@ -0,0 +1,169 @@
++'use strict';
++
++const fs = require('fs/promises');
++const os = require('os');
++const path = require('path');
++const mongoose = require('mongoose');
++const BackgroundJob = require('../models/BackgroundJob');
++const startupState = require('./startupState');
++const { getApiMonitorReport } = require('../middlewares/apiMonitor.middleware');
++const { readHeartbeats } = require('../operations/heartbeatService');
++const { publicReleaseSummary, internalReleaseSummary } = require('../operations/releaseMetadata');
++const { getRuntimeConfig, publicConfigSummary } = require('../config/app.config');
++
++let readinessCache = null;
++let readinessCacheAt = 0;
++let readinessCacheKey = '';
++
++function withTimeout(promise, timeoutMs, code) {
++  let timer;
++  return Promise.race([
++    Promise.resolve(promise),
++    new Promise((_, reject) => {
++      timer = setTimeout(() => {
++        const error = new Error(code || 'Dependency timeout');
++        error.code = code || 'DEPENDENCY_TIMEOUT';
++        reject(error);
++      }, timeoutMs);
++      timer.unref?.();
++    })
++  ]).finally(() => clearTimeout(timer));
++}
++
++function liveness() {
++  return {
++    status: 'ok',
++    service: 'mk-pro-web',
++    timestamp: new Date().toISOString()
++  };
++}
++
++async function checkTempStorage() {
++  const configured = getRuntimeConfig().import.tempDir;
++  const directory = path.resolve(configured || os.tmpdir());
++  try {
++    await fs.access(directory, fs.constants.R_OK | fs.constants.W_OK);
++    return { ok: true, pathConfigured: Boolean(configured) };
++  } catch (_) {
++    return { ok: false, pathConfigured: Boolean(configured) };
++  }
++}
++
++async function readiness(options = {}) {
++  const now = Date.now();
++  const startup = startupState.snapshot();
++  const currentCacheKey = `${startup.phase}:${mongoose.connection.readyState}:${getRuntimeConfig().import.tempDir || ''}`;
++  if (!options.refresh && readinessCache && readinessCacheKey === currentCacheKey && now - readinessCacheAt < 1000) {
++    return readinessCache;
++  }
++  const config = getRuntimeConfig();
++  const databaseConnected = mongoose.connection.readyState === 1;
++  let databasePing = false;
++  if (databaseConnected && mongoose.connection.db) {
++    try {
++      await withTimeout(mongoose.connection.db.admin().ping(), config.operations.readinessDependencyTimeoutMs, 'READINESS_DATABASE_TIMEOUT');
++      databasePing = true;
++    } catch (_) {
++      databasePing = false;
++    }
++  }
++  const storage = await checkTempStorage();
++  const checks = {
++    bootstrap: startupState.isReady(),
++    database: databaseConnected && databasePing,
++    models: Object.keys(mongoose.models || {}).length > 0,
++    tempStorage: storage.ok
++  };
++  readinessCache = {
++    ok: Object.values(checks).every(Boolean),
++    status: Object.values(checks).every(Boolean) ? 'ready' : 'not_ready',
++    service: 'mk-pro-web',
++    timestamp: new Date().toISOString(),
++    checks
++  };
++  readinessCacheAt = now;
++  readinessCacheKey = currentCacheKey;
++  return readinessCache;
++}
++
++async function queueSummary() {
++  if (mongoose.connection.readyState !== 1) {
++    return { available: false, statusCounts: {}, stuckJobs: 0, oldestPendingAt: null, latest: {} };
++  }
++  const now = new Date();
++  const [statusRows, stuckJobs, oldestPending, latestCompleted, latestFailed] = await Promise.all([
++    BackgroundJob.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
++    BackgroundJob.countDocuments({ status: 'running', leaseExpiresAt: { $lt: now } }),
++    BackgroundJob.findOne({ status: 'pending' }).sort({ availableAt: 1 }).select('availableAt createdAt').lean(),
++    BackgroundJob.findOne({ status: 'completed' }).sort({ finishedAt: -1 }).select('id type finishedAt').lean(),
++    BackgroundJob.findOne({ status: { $in: ['failed', 'dead_letter'] } }).sort({ updatedAt: -1 }).select('id type status updatedAt lastError.code').lean()
++  ]);
++  return {
++    available: true,
++    statusCounts: Object.fromEntries(statusRows.map((row) => [row._id, row.count])),
++    stuckJobs,
++    oldestPendingAt: oldestPending?.availableAt || oldestPending?.createdAt || null,
++    latest: {
++      completed: latestCompleted || null,
++      failed: latestFailed || null
++    }
++  };
++}
++
++function processSnapshot() {
++  const memory = process.memoryUsage();
++  return {
++    pid: process.pid,
++    uptimeSeconds: Math.round(process.uptime()),
++    nodeVersion: process.version,
++    memory: {
++      rssBytes: memory.rss,
++      heapUsedBytes: memory.heapUsed,
++      heapTotalBytes: memory.heapTotal,
++      externalBytes: memory.external
++    },
++    loadAverage: os.loadavg(),
++    cpuCount: os.cpus().length
++  };
++}
++
++async function detailedStatus() {
++  const [ready, heartbeats, jobs] = await Promise.all([
++    readiness({ refresh: true }),
++    mongoose.connection.readyState === 1 ? readHeartbeats().catch(() => []) : Promise.resolve([]),
++    queueSummary().catch((error) => ({ available: false, error: error.code || 'QUEUE_STATUS_FAILED' }))
++  ]);
++  const api = getApiMonitorReport({ limit: 20 });
++  return {
++    ok: ready.ok,
++    generatedAt: new Date().toISOString(),
++    release: internalReleaseSummary(),
++    config: publicConfigSummary(),
++    readiness: ready,
++    startup: startupState.snapshot(),
++    process: processSnapshot(),
++    database: {
++      connected: mongoose.connection.readyState === 1,
++      readyState: mongoose.connection.readyState
++    },
++    api: {
++      summary: api.summary,
++      topSlowestApis: api.topSlowestApis.slice(0, 10),
++      topCalledApis: api.topCalledApis.slice(0, 10)
++    },
++    workers: heartbeats,
++    jobs
++  };
++}
++
++module.exports = {
++  withTimeout,
++  liveness,
++  readiness,
++  queueSummary,
++  processSnapshot,
++  detailedStatus,
++  publicReleaseSummary,
++  internalReleaseSummary,
++  _private: { checkTempStorage }
++};
+--- a/src/services/systemService.js
++++ b/src/services/systemService.js
+@@ -12,6 +12,8 @@
+ const { getApiMonitorReport, resetApiMonitor } = require('../middlewares/apiMonitor.middleware');
+ const { withMongoTransaction } = require('../utils/transaction.util');
+ const { getReconciliationJobState } = require('../jobs/reconciliationJob');
++const { internalReleaseSummary } = require('../operations/releaseMetadata');
++const { buildBackupIntegrity, compareBackupIntegrity } = require('../operations/backupIntegrity');
+ 
+ const repository = new AppDataRepository(APP_COLLECTION_KEYS);
+ const gzip = promisify(zlib.gzip);
+@@ -124,11 +126,14 @@
+   const data = await getDataSnapshot();
+   const counts = Object.fromEntries(Object.entries(data).map(([key, rows]) => [key, Array.isArray(rows) ? rows.length : 0]));
+   const createdAt = new Date().toISOString();
++  const integrity = buildBackupIntegrity(data);
+   const payload = Buffer.from(JSON.stringify({
+     format: 'mk-pro-backup-v2',
+     createdAt,
+     source: 'mongodb',
++    release: internalReleaseSummary(),
+     counts,
++    integrity,
+     data
+   }), 'utf8');
+   const compressed = await gzip(payload, { level: zlib.constants.Z_BEST_SPEED });
+@@ -146,6 +151,7 @@
+     fileName,
+     ...(process.env.NODE_ENV === 'production' ? {} : { filePath }),
+     counts,
++    integrity,
+     sha256,
+     sizeBytes: compressed.length,
+     compressed: true,
+@@ -242,6 +248,16 @@
+     throw err;
+   }
+ 
++  const integrityCheck = parsed.integrity
++    ? compareBackupIntegrity(parsed.integrity, parsed.data)
++    : { ok: true, mismatches: [], actual: buildBackupIntegrity(parsed.data), legacy: true };
++  if (!integrityCheck.ok) {
++    const err = new Error('Backup không vượt qua kiểm tra integrity nghiệp vụ kỹ thuật');
++    err.status = 422;
++    err.details = { mismatches: integrityCheck.mismatches };
++    throw err;
++  }
++
+   return {
+     ok: true,
+     fileName: safeName,
+@@ -253,8 +269,22 @@
+     checksumVerified: Boolean(expectedSha256),
+     collectionCount: APP_COLLECTION_KEYS.length,
+     counts: parsed.counts || {},
++    integrityVerified: integrityCheck.ok,
++    technicalTotals: integrityCheck.actual.technicalTotals,
++    release: parsed.release || null,
+     legacyMissingCollections
+   };
++}
++
++
++async function loadBackupPayload(fileName, options = {}) {
++  const safeName = safeBackupFileName(fileName);
++  const dir = backupDirectory(options);
++  const filePath = path.join(dir, safeName);
++  const verification = await verifyBackup(safeName, options);
++  const compressed = await fs.readFile(filePath);
++  const parsed = JSON.parse((await gunzip(compressed)).toString('utf8'));
++  return { fileName: safeName, filePath, verification, payload: parsed };
+ }
+ 
+ const RESET_SCOPES = {
+@@ -369,6 +399,7 @@
+   createBackup,
+   listBackups,
+   verifyBackup,
++  loadBackupPayload,
+   resetOperationalData,
+   getApiMonitor,
+   clearApiMonitor
+--- a/test/operations-backup-integrity.test.js
++++ b/test/operations-backup-integrity.test.js
+@@ -0,0 +1,36 @@
++'use strict';
++
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const { buildBackupIntegrity, compareBackupIntegrity, technicalTotals } = require('../src/operations/backupIntegrity');
++
++test('backup integrity detects changed restored data and records technical totals', () => {
++  const data = {
++    inventories: [{ productCode: 'A', onHand: 10 }],
++    arLedgers: [{ debit: 1000, credit: 200, status: 'active' }],
++    fundLedgers: [{ direction: 'in', amount: 300 }, { direction: 'out', amount: 100 }],
++    salesOrders: [{ id: 'SO1' }],
++    masterOrders: [],
++    returnOrders: [{ id: 'RO1' }]
++  };
++  const integrity = buildBackupIntegrity(data);
++  assert.deepEqual(technicalTotals(data), {
++    inventoryQuantityTotal: 10,
++    arBalanceTotal: 800,
++    fundBalanceTotal: 200,
++    salesOrderCount: 1,
++    masterOrderCount: 0,
++    returnOrderCount: 1,
++    inventoryRowCount: 1,
++    arLedgerRowCount: 1,
++    fundLedgerRowCount: 2
++  });
++  assert.equal(compareBackupIntegrity(integrity, structuredClone(data)).ok, true);
++
++  const reordered = structuredClone(data);
++  reordered.fundLedgers.reverse();
++  assert.equal(compareBackupIntegrity(integrity, reordered).ok, true, 'collection document order must not affect restore integrity');
++  const changed = structuredClone(data);
++  changed.inventories[0].onHand = 9;
++  assert.equal(compareBackupIntegrity(integrity, changed).ok, false);
++});
+--- a/test/operations-config-validation.test.js
++++ b/test/operations-config-validation.test.js
+@@ -0,0 +1,26 @@
++'use strict';
++
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const { validateRuntimeConfig } = require('../src/config/app.config');
++
++function base(overrides = {}) {
++  return {
++    NODE_ENV: 'test',
++    MONGO_URI: 'mongodb://127.0.0.1:27017/mkpro-test',
++    JWT_SECRET: 'test-secret',
++    ...overrides
++  };
++}
++
++test('heartbeat stale window must be greater than heartbeat interval', () => {
++  assert.throws(() => validateRuntimeConfig(base({
++    OPERATIONS_HEARTBEAT_INTERVAL_MS: '20000',
++    OPERATIONS_HEARTBEAT_STALE_MS: '15000'
++  }), { profile: 'server' }), /OPERATIONS_HEARTBEAT_STALE_MS/);
++  const config = validateRuntimeConfig(base({
++    OPERATIONS_HEARTBEAT_INTERVAL_MS: '10000',
++    OPERATIONS_HEARTBEAT_STALE_MS: '30000'
++  }), { profile: 'server' });
++  assert.equal(config.operations.heartbeatIntervalMs, 10000);
++});
+--- a/test/operations-contract-static.test.js
++++ b/test/operations-contract-static.test.js
+@@ -0,0 +1,36 @@
++'use strict';
++
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('fs');
++const path = require('path');
++const ROOT = path.join(__dirname, '..');
++const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
++
++test('operational endpoints and release detail keep public/private boundaries', () => {
++  const security = read('src/middlewares/apiSecurity.middleware.js');
++  const routes = read('src/routes/systemRoutes.js');
++  assert.match(security, /api\\\/health\\\/live/);
++  assert.match(security, /api\\\/health\\\/ready/);
++  assert.match(routes, /system\/operations.*requireRole\(\['admin', 'manager'\]\)/);
++  assert.match(routes, /system\/release.*requireRole\(\['admin', 'manager'\]\)/);
++});
++
++test('worker shutdown stops claiming, waits, then uses lease-safe failure rather than blind completion', () => {
++  const worker = read('src/jobs/backgroundJobWorker.js');
++  assert.match(worker, /stopped = true/);
++  assert.match(worker, /while \(active\.size && Date\.now\(\) < deadline\)/);
++  assert.match(worker, /BACKGROUND_JOB_EXECUTOR_EXIT/);
++  assert.doesNotMatch(worker, /complete\([^\n]+WORKER_SHUTDOWN/);
++});
++
++test('release manifest and restore drill are executable controls, not documentation only', () => {
++  const manifest = read('scripts/generate-release-manifest.js');
++  const restore = read('scripts/restore-drill.js');
++  assert.match(manifest, /sourceSha256/);
++  assert.match(manifest, /bundleSha256/);
++  assert.match(restore, /ISOLATED_NON_PRODUCTION_DB/);
++  assert.match(restore, /persistDataSnapshot/);
++  assert.match(restore, /compareBackupIntegrity/);
++  assert.match(restore, /runReconciliation/);
++});
+--- a/test/operations-health-http.test.js
++++ b/test/operations-health-http.test.js
+@@ -0,0 +1,43 @@
++'use strict';
++
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const http = require('node:http');
++
++process.env.NODE_ENV = 'test';
++process.env.MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27099/mkpro-test';
++process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
++
++const { createApp } = require('../src/app');
++
++function request(server, pathname, headers = {}) {
++  const address = server.address();
++  return new Promise((resolve, reject) => {
++    const req = http.request({ hostname: '127.0.0.1', port: address.port, path: pathname, headers }, (res) => {
++      let body = '';
++      res.setEncoding('utf8');
++      res.on('data', (chunk) => { body += chunk; });
++      res.on('end', () => resolve({ statusCode: res.statusCode, headers: res.headers, body: JSON.parse(body) }));
++    });
++    req.once('error', reject);
++    req.end();
++  });
++}
++
++test('liveness is dependency-free, readiness fails closed, and request ID is returned', async (t) => {
++  const app = createApp();
++  const server = app.listen(0, '127.0.0.1');
++  await new Promise((resolve) => server.once('listening', resolve));
++  t.after(() => new Promise((resolve) => server.close(resolve)));
++
++  const live = await request(server, '/api/health/live', { 'x-request-id': 'health-trace-1234' });
++  assert.equal(live.statusCode, 200);
++  assert.equal(live.body.status, 'ok');
++  assert.equal(live.headers['x-request-id'], 'health-trace-1234');
++  assert.equal(Object.hasOwn(live.body, 'version'), false);
++
++  const ready = await request(server, '/api/health/ready');
++  assert.equal(ready.statusCode, 503);
++  assert.equal(ready.body.ok, false);
++  assert.equal(ready.body.checks.database, false);
++});
+--- a/test/operations-redaction.test.js
++++ b/test/operations-redaction.test.js
+@@ -0,0 +1,29 @@
++'use strict';
++
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const { redactText, redactValue, safeError } = require('../src/observability/redaction');
++const { classifyError } = require('../src/observability/errorClassification');
++
++test('redaction removes bearer tokens, JWTs, Mongo URIs and secret fields', () => {
++  const jwt = 'eyJabcdefghijk.abcdefghijklmnop.abcdefghijklmnop';
++  const text = redactText(`Bearer abc.def.ghi ${jwt} mongodb+srv://user:pass@cluster/db`);
++  assert.doesNotMatch(text, /abc\.def\.ghi/);
++  assert.doesNotMatch(text, /user:pass/);
++  assert.doesNotMatch(text, /eyJabcdefghijk/);
++
++  const value = redactValue({ password: 'secret', nested: { refreshToken: 'token', safe: 'ok' } });
++  assert.equal(value.password, '[REDACTED]');
++  assert.equal(value.nested.refreshToken, '[REDACTED]');
++  assert.equal(value.nested.safe, 'ok');
++});
++
++test('safe errors and classification keep diagnostics without leaking credentials', () => {
++  const error = new Error('Mongo failed mongodb://root:pass@localhost/prod');
++  error.code = 'MONGO_TIMEOUT';
++  const serialized = safeError(error);
++  assert.equal(classifyError(error, 500), 'DATABASE_ERROR');
++  assert.doesNotMatch(serialized.message, /root:pass/);
++  assert.equal(classifyError({ status: 409, code: 'DUPLICATE' }), 'CONFLICT');
++  assert.equal(classifyError({ status: 403 }), 'AUTHORIZATION_ERROR');
++});
+--- a/test/operations-request-context.test.js
++++ b/test/operations-request-context.test.js
+@@ -0,0 +1,47 @@
++'use strict';
++
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const {
++  normalizeRequestId,
++  requestContextMiddleware,
++  getRequestContext,
++  runWithRequestContext
++} = require('../src/observability/requestContext');
++
++function invoke(headers = {}) {
++  const req = {
++    method: 'GET',
++    originalUrl: '/api/test?token=secret',
++    headers,
++    get(name) { return this.headers[String(name).toLowerCase()]; }
++  };
++  const responseHeaders = {};
++  const res = { setHeader(name, value) { responseHeaders[name] = value; } };
++  let context;
++  requestContextMiddleware(req, res, () => { context = getRequestContext(); });
++  return { req, responseHeaders, context };
++}
++
++test('request context accepts only bounded safe request IDs and always returns X-Request-Id', () => {
++  assert.equal(normalizeRequestId('trace-12345678'), 'trace-12345678');
++  assert.equal(normalizeRequestId('bad id'), '');
++  const accepted = invoke({ 'x-request-id': 'client-trace-1234' });
++  assert.equal(accepted.req.requestId, 'client-trace-1234');
++  assert.equal(accepted.responseHeaders['X-Request-Id'], 'client-trace-1234');
++  assert.equal(accepted.context.requestId, 'client-trace-1234');
++
++  const generated = invoke({ 'x-request-id': 'x' });
++  assert.match(generated.req.requestId, /^[a-f0-9-]{32,36}$/i);
++  assert.equal(generated.responseHeaders['X-Request-Id'], generated.req.requestId);
++});
++
++test('request context propagates across asynchronous work and normalizes invalid IDs', async () => {
++  await runWithRequestContext({ requestId: 'async-trace-1234' }, async () => {
++    await Promise.resolve();
++    assert.equal(getRequestContext().requestId, 'async-trace-1234');
++  });
++  await runWithRequestContext({ requestId: 'bad id' }, async () => {
++    assert.match(getRequestContext().requestId, /^[a-f0-9-]{32,36}$/i);
++  });
++});
+--- a/test/operations-shutdown-sigterm.test.js
++++ b/test/operations-shutdown-sigterm.test.js
+@@ -0,0 +1,136 @@
++'use strict';
++
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const http = require('http');
++const net = require('net');
++const path = require('path');
++const { spawn } = require('child_process');
++
++const ROOT = path.resolve(__dirname, '..');
++
++function reservePort() {
++  return new Promise((resolve, reject) => {
++    const server = net.createServer();
++    server.once('error', reject);
++    server.listen(0, '127.0.0.1', () => {
++      const port = server.address().port;
++      server.close((error) => error ? reject(error) : resolve(port));
++    });
++  });
++}
++
++function waitForLive(port, timeoutMs = 6000) {
++  const deadline = Date.now() + timeoutMs;
++  return new Promise((resolve, reject) => {
++    const poll = () => {
++      const req = http.get({ hostname: '127.0.0.1', port, path: '/api/health/live', timeout: 500 }, (res) => {
++        res.resume();
++        if (res.statusCode === 200) return resolve();
++        setTimeout(poll, 50);
++      });
++      req.on('timeout', () => req.destroy());
++      req.on('error', () => {
++        if (Date.now() >= deadline) reject(new Error('liveness did not open'));
++        else setTimeout(poll, 50);
++      });
++    };
++    poll();
++  });
++}
++
++function waitForOutput(getOutput, pattern, timeoutMs = 6000) {
++  const deadline = Date.now() + timeoutMs;
++  return new Promise((resolve, reject) => {
++    const poll = () => {
++      const output = getOutput();
++      if (pattern.test(output)) return resolve(output);
++      if (Date.now() >= deadline) return reject(new Error(`log pattern not observed: ${pattern}`));
++      setTimeout(poll, 25);
++    };
++    poll();
++  });
++}
++
++function waitForExit(child, timeoutMs = 8000) {
++  return new Promise((resolve, reject) => {
++    const timer = setTimeout(() => {
++      child.kill('SIGKILL');
++      reject(new Error('server did not exit after SIGTERM'));
++    }, timeoutMs);
++    child.once('exit', (code, signal) => {
++      clearTimeout(timer);
++      resolve({ code, signal });
++    });
++    child.once('error', reject);
++  });
++}
++
++test('SIGTERM during Mongo connection exits cleanly without waiting for server-selection timeout', async (t) => {
++  const port = await reservePort();
++  const child = spawn(process.execPath, ['server.js'], {
++    cwd: ROOT,
++    env: {
++      ...process.env,
++      NODE_ENV: 'production',
++      PORT: String(port),
++      BIND_HOST: '127.0.0.1',
++      MONGO_URI: 'mongodb://127.0.0.1:27099/mkpro-shutdown-test',
++      JWT_SECRET: 'a'.repeat(64),
++      JWT_REFRESH_SECRET: 'b'.repeat(64),
++      APP_URL: 'https://erp.example.com',
++      CORS_ORIGIN: 'https://erp.example.com',
++      CORS_ALLOW_ALL: 'false',
++      MONGO_SERVER_SELECTION_TIMEOUT_MS: '30000',
++      STARTUP_DB_TIMEOUT_MS: '30000',
++      GRACEFUL_SHUTDOWN_TIMEOUT_MS: '5000',
++      AUTO_ENSURE_MONGO_INDEXES: 'false',
++      AUTO_RECOVER_STALE_IMPORTS: 'false',
++      ENABLE_RECONCILIATION_JOB: 'false',
++      ENABLE_OUTBOX_WORKER: 'false',
++      ENABLE_INTEGRATION_WORKER: 'false',
++      ENABLE_REPORTING_PROJECTION_JOB: 'false'
++    },
++    stdio: ['ignore', 'pipe', 'pipe']
++  });
++  let output = '';
++  child.stdout.on('data', (chunk) => { output += chunk.toString(); });
++  child.stderr.on('data', (chunk) => { output += chunk.toString(); });
++  t.after(() => { if (child.exitCode === null) child.kill('SIGKILL'); });
++
++  await waitForLive(port);
++  const started = Date.now();
++  child.kill('SIGTERM');
++  const exited = await waitForExit(child);
++  assert.equal(exited.code, 0, output);
++  assert.ok(Date.now() - started < 5000, output);
++  assert.match(output, /Graceful shutdown completed/);
++});
++
++
++test('background worker SIGTERM during Mongo connection exits cleanly', async (t) => {
++  const child = spawn(process.execPath, ['scripts/background-job-worker.js'], {
++    cwd: ROOT,
++    env: {
++      ...process.env,
++      NODE_ENV: 'production',
++      MONGO_URI: 'mongodb://127.0.0.1:27099/mkpro-worker-shutdown-test',
++      MONGO_SERVER_SELECTION_TIMEOUT_MS: '30000',
++      WORKER_SHUTDOWN_TIMEOUT_MS: '5000',
++      BACKGROUND_JOB_CONCURRENCY: '1'
++    },
++    stdio: ['ignore', 'pipe', 'pipe']
++  });
++  let output = '';
++  child.stdout.on('data', (chunk) => { output += chunk.toString(); });
++  child.stderr.on('data', (chunk) => { output += chunk.toString(); });
++  t.after(() => { if (child.exitCode === null) child.kill('SIGKILL'); });
++
++  await waitForOutput(() => output, /Background worker bootstrap started/);
++  const started = Date.now();
++  child.kill('SIGTERM');
++  const exited = await waitForExit(child);
++  assert.equal(exited.code, 0, output);
++  assert.ok(Date.now() - started < 5000, output);
++  assert.match(output, /Background worker shutdown completed/);
++});

@@ -1,7 +1,10 @@
 const mongoose = require('mongoose');
+const { getRuntimeConfig } = require('./app.config');
+const { logger } = require('../observability/logger');
 
 const connectDB = async () => {
-  const mongoUri = process.env.MONGO_URI;
+  const { app, database } = getRuntimeConfig();
+  const mongoUri = database.mongoUri;
 
   if (!mongoUri) {
     throw new Error('❌ Thiếu MONGO_URI trong environment variables');
@@ -9,28 +12,28 @@ const connectDB = async () => {
 
   try {
     mongoose.set('strictQuery', true);
-    mongoose.set('debug', process.env.MONGOOSE_DEBUG === 'true' || process.env.NODE_ENV === 'development');
+    mongoose.set('debug', database.debug || app.nodeEnv === 'development');
 
     // Index được quản lý tập trung bởi mongoIndexService. Mặc định tắt autoIndex
     // để Mongoose không tự tạo thêm username_1/roleCode_1/... chồng lên policy chuẩn.
-    const autoIndex = process.env.MONGOOSE_AUTO_INDEX === 'true';
+    const autoIndex = database.autoIndex;
     mongoose.set('autoIndex', autoIndex);
 
     await mongoose.connect(mongoUri, {
       autoIndex,
-      maxPoolSize: Number(process.env.MONGO_MAX_POOL_SIZE || 50),
-      minPoolSize: Number(process.env.MONGO_MIN_POOL_SIZE || 5),
-      serverSelectionTimeoutMS: Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS || 5000),
-      socketTimeoutMS: Number(process.env.MONGO_SOCKET_TIMEOUT_MS || 45000),
+      maxPoolSize: database.maxPoolSize,
+      minPoolSize: database.minPoolSize,
+      serverSelectionTimeoutMS: database.serverSelectionTimeoutMs,
+      socketTimeoutMS: database.socketTimeoutMs,
       family: 4,
       retryWrites: true,
-      w: process.env.MONGO_WRITE_CONCERN || 'majority'
+      w: database.writeConcern
     });
 
-    console.log('✅ MongoDB connected');
+    logger.info({ database: mongoose.connection.name }, 'MongoDB connected');
     return true;
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error.message);
+    logger.error({ err: error }, 'MongoDB connection error');
     throw error;
   }
 };

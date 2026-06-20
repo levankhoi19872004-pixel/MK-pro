@@ -1,0 +1,25 @@
+{
+  "baseline": "MK-pro-phase11-production-operations-hardened.zip",
+  "releaseId": "2026-06-21-01-gate-fix",
+  "added": [
+    "PHASE11_TEST_GATE_FIX_CHANGES.json",
+    "PHASE11_TEST_GATE_FIX_DIFF.patch",
+    "PHASE11_TEST_GATE_FIX_REPORT.md"
+  ],
+  "modified": [
+    "BASELINE_TEST_FIXTURE_TIME_DEPENDENCY.md",
+    "PHASE11_TEST_RESULTS.json",
+    "PRODUCTION_OPERATIONS_HARDENING_REPORT.md",
+    "RELEASE_MANIFEST.json",
+    "scripts/cleanup-retired-files.js",
+    "test/api-query-performance-optimizations.test.js",
+    "test/audit-service-case-portability.test.js",
+    "test/operations-shutdown-sigterm.test.js"
+  ],
+  "deleted": [],
+  "counts": {
+    "added": 3,
+    "modified": 8,
+    "deleted": 0
+  }
+}
