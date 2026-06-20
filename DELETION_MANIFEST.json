@@ -1,0 +1,233 @@
+{
+  "schemaVersion": 1,
+  "phase": "02-safe-cleanup",
+  "createdAt": "2026-06-20T12:42:42.805414+00:00",
+  "baseline": {
+    "zip": "MK-pro-master-return-popup-production-grade-patched(1).zip",
+    "sha256": "a8cf9b3b999a570fc836e9a2d524a2e213cfd91a37e8791f2eed040d2a593689",
+    "codebaseReport": "CODEBASE_MODERNIZATION_BASELINE.md",
+    "integrationTestAndCiReport": {
+      "status": "UNAVAILABLE",
+      "note": "Không có trong ZIP và không tìm thấy trong tệp đã tải lên; quality gates hiện hữu được chạy trực tiếp trước/sau."
+    }
+  },
+  "policy": {
+    "onlyHighConfidenceRemove": true,
+    "packagesRemoved": 0,
+    "sourceFragmentsRemoved": 0,
+    "generatedBundlesRemoved": 0,
+    "migrationsReconciliationAuditBackupRollbackRemoved": 0,
+    "businessCriticalTestsRemoved": 0
+  },
+  "deletions": [
+    {
+      "type": "file",
+      "path": "src/config/serverConfig.js",
+      "action": "REMOVE",
+      "confidence": "High",
+      "sizeBytes": 137,
+      "sha256BeforeDelete": "bdae4f7a3eb5ede657f953f4e91fb9a5a8a695857a174edf4c91483e6d3c4bf6",
+      "reason": "Cấu hình PORT/NODE_ENV không được import; src/app.js đọc trực tiếp process.env.",
+      "evidence": {
+        "staticIncomingReferences": 0,
+        "exactPathReferencesOutsideSelf": 0,
+        "basenameModuleReferencesOutsideSelf": 0,
+        "dynamicRequireMatch": false,
+        "npmScriptReference": false,
+        "routeRegistration": false,
+        "modelRegistration": false,
+        "sourceBundleMembership": false,
+        "buildDeployTestReference": false,
+        "operationsDocumentationReference": false
+      },
+      "expectedImpact": "Không ảnh hưởng runtime nội bộ; consumer ngoài repository là rủi ro còn lại.",
+      "rollbackSource": "MK-pro-master-return-popup-production-grade-patched(1).zip"
+    },
+    {
+      "type": "file",
+      "path": "config/printConfig.js",
+      "action": "REMOVE",
+      "confidence": "High",
+      "sizeBytes": 410,
+      "sha256BeforeDelete": "8c4d18d70eb013864f213b8a98420581539c010f4e7526044e58c816837ca692",
+      "reason": "Không có import/require, không thuộc source bundle, npm script, route/model registry, test hoặc tài liệu vận hành; print runtime dùng printDocumentService/domain config khác.",
+      "evidence": {
+        "staticIncomingReferences": 0,
+        "exactPathReferencesOutsideSelf": 0,
+        "basenameModuleReferencesOutsideSelf": 0,
+        "dynamicRequireMatch": false,
+        "npmScriptReference": false,
+        "routeRegistration": false,
+        "modelRegistration": false,
+        "sourceBundleMembership": false,
+        "buildDeployTestReference": false,
+        "operationsDocumentationReference": false
+      },
+      "expectedImpact": "Không ảnh hưởng print runtime hiện tại.",
+      "rollbackSource": "MK-pro-master-return-popup-production-grade-patched(1).zip"
+    },
+    {
+      "type": "file",
+      "path": "src/utils/html.util.js",
+      "action": "REMOVE",
+      "confidence": "High",
+      "sizeBytes": 238,
+      "sha256BeforeDelete": "510f9015ea955964a9456175f2d56727cf0d1e26d43d37224933fa6e5b35643c",
+      "reason": "0 static incoming edge; không dynamic reference, script, route/model registration, test hay docs; các escapeHtml khác là implementation độc lập.",
+      "evidence": {
+        "staticIncomingReferences": 0,
+        "exactPathReferencesOutsideSelf": 0,
+        "basenameModuleReferencesOutsideSelf": 0,
+        "dynamicRequireMatch": false,
+        "npmScriptReference": false,
+        "routeRegistration": false,
+        "modelRegistration": false,
+        "sourceBundleMembership": false,
+        "buildDeployTestReference": false,
+        "operationsDocumentationReference": false
+      },
+      "expectedImpact": "Không ảnh hưởng runtime hiện tại.",
+      "rollbackSource": "MK-pro-master-return-popup-production-grade-patched(1).zip"
+    },
+    {
+      "type": "file",
+      "path": "src/utils/orderKey.util.js",
+      "action": "REMOVE",
+      "confidence": "High",
+      "sizeBytes": 460,
+      "sha256BeforeDelete": "8b538a1f31f903b05c1b4a3271d6ced10269003f5d786e31ef504c4719d9f60a",
+      "reason": "0 static incoming edge; không dynamic reference, script, route/model registration, test hay docs.",
+      "evidence": {
+        "staticIncomingReferences": 0,
+        "exactPathReferencesOutsideSelf": 0,
+        "basenameModuleReferencesOutsideSelf": 0,
+        "dynamicRequireMatch": false,
+        "npmScriptReference": false,
+        "routeRegistration": false,
+        "modelRegistration": false,
+        "sourceBundleMembership": false,
+        "buildDeployTestReference": false,
+        "operationsDocumentationReference": false
+      },
+      "expectedImpact": "Không ảnh hưởng runtime hiện tại; hàm orderKey khác là implementation riêng.",
+      "rollbackSource": "MK-pro-master-return-popup-production-grade-patched(1).zip"
+    },
+    {
+      "type": "file",
+      "path": "src/engines/debt.engine.js",
+      "action": "REMOVE",
+      "confidence": "High",
+      "sizeBytes": 123,
+      "sha256BeforeDelete": "af550615f709a3b8eac89717b83d1f4128f876880c82d772584065c52774deb6",
+      "reason": "Placeholder 5 dòng, 0 incoming edge, không engine/route/model/script registration; AR ledger/posting dùng implementation khác.",
+      "evidence": {
+        "staticIncomingReferences": 0,
+        "exactPathReferencesOutsideSelf": 0,
+        "basenameModuleReferencesOutsideSelf": 0,
+        "dynamicRequireMatch": false,
+        "npmScriptReference": false,
+        "routeRegistration": false,
+        "modelRegistration": false,
+        "sourceBundleMembership": false,
+        "buildDeployTestReference": false,
+        "operationsDocumentationReference": false
+      },
+      "expectedImpact": "Không ảnh hưởng nguồn chuẩn công nợ AR ledger.",
+      "rollbackSource": "MK-pro-master-return-popup-production-grade-patched(1).zip"
+    },
+    {
+      "type": "file",
+      "path": "src/engines/inventory.engine.js",
+      "action": "REMOVE",
+      "confidence": "High",
+      "sizeBytes": 119,
+      "sha256BeforeDelete": "5fa9e449f8a242a090c7c58bf2204d97b14c80fafe1ce7bbf47c648126692706",
+      "reason": "Placeholder 5 dòng, 0 incoming edge, không engine/route/model/script registration; inventory ledger/posting dùng implementation khác.",
+      "evidence": {
+        "staticIncomingReferences": 0,
+        "exactPathReferencesOutsideSelf": 0,
+        "basenameModuleReferencesOutsideSelf": 0,
+        "dynamicRequireMatch": false,
+        "npmScriptReference": false,
+        "routeRegistration": false,
+        "modelRegistration": false,
+        "sourceBundleMembership": false,
+        "buildDeployTestReference": false,
+        "operationsDocumentationReference": false
+      },
+      "expectedImpact": "Không ảnh hưởng nguồn chuẩn tồn kho.",
+      "rollbackSource": "MK-pro-master-return-popup-production-grade-patched(1).zip"
+    },
+    {
+      "type": "file",
+      "path": "src/engines/promotion.engine.js",
+      "action": "REMOVE",
+      "confidence": "High",
+      "sizeBytes": 101,
+      "sha256BeforeDelete": "73d53b4c6ec51f0b99b5a9086285a5d4c97df3a2dff1327d2f446fceaefdf748",
+      "reason": "Placeholder 5 dòng, 0 incoming edge, không engine/route/model/script registration; promotion services/rules hiện hành dùng implementation khác.",
+      "evidence": {
+        "staticIncomingReferences": 0,
+        "exactPathReferencesOutsideSelf": 0,
+        "basenameModuleReferencesOutsideSelf": 0,
+        "dynamicRequireMatch": false,
+        "npmScriptReference": false,
+        "routeRegistration": false,
+        "modelRegistration": false,
+        "sourceBundleMembership": false,
+        "buildDeployTestReference": false,
+        "operationsDocumentationReference": false
+      },
+      "expectedImpact": "Không ảnh hưởng nghiệp vụ khuyến mại hiện hành.",
+      "rollbackSource": "MK-pro-master-return-popup-production-grade-patched(1).zip"
+    }
+  ],
+  "packageDeletions": [],
+  "totalFilesPlanned": 7,
+  "totalBytesPlanned": 1588,
+  "status": "EXECUTED_AND_VERIFIED",
+  "preDeletionManifestSha256": "bf05ad349263dddbb35fd1cdbdd9e88fd8544b17ba23194da4b887c3a540f696",
+  "executedAt": "2026-06-20T12:45:49.457539+00:00",
+  "verification": {
+    "deletedFilesExistAfterCleanup": false,
+    "unexpectedAddedSourceFiles": 0,
+    "unexpectedModifiedSourceFiles": 0,
+    "unchangedSourceFiles": 1019,
+    "packageJsonUnchanged": true,
+    "packageLockUnchanged": true,
+    "directDependenciesBefore": 14,
+    "directDependenciesAfter": 14,
+    "fullTests": {
+      "pass": 905,
+      "fail": 0,
+      "skip": 1,
+      "total": 906
+    },
+    "targetedBusinessTests": {
+      "pass": 29,
+      "fail": 0,
+      "skip": 0,
+      "total": 29
+    },
+    "syntax": {
+      "status": "PASS",
+      "javascriptFiles": 864
+    },
+    "sourceBundles": {
+      "status": "PASS",
+      "bundles": 18
+    },
+    "openapi": {
+      "status": "PASS",
+      "operations": 310
+    },
+    "npmAudit": {
+      "status": "PASS",
+      "vulnerabilities": 0
+    },
+    "startup": {
+      "status": "PARTIAL",
+      "note": "HTTP bind đạt; MongoDB production-like không có, startup dừng đúng tại mongodb-connect."
+    }
+  }
+}

@@ -48,6 +48,8 @@
     "build:source-bundles": "node scripts/build-source-bundles.js",
     "check:source-bundles": "node scripts/build-source-bundles.js --check",
     "source-bundles:refresh": "node scripts/build-source-bundles.js --refresh-hashes",
+    "build:canonical-source-pilot": "node scripts/build-source-bundles.js --target=public/mobile/js/delivery-mobile-view.js",
+    "check:canonical-source-pilot": "node scripts/build-source-bundles.js --check --target=public/mobile/js/delivery-mobile-view.js",
     "check:lock-registry": "node scripts/check-package-lock-registry.js",
     "check:enterprise": "node scripts/enterprise-smoke-check.js",
     "tenant:backfill:dry": "node scripts/migrate-tenant-boundary.js",
@@ -62,7 +64,10 @@
     "audit:mobile-telemetry": "node scripts/audit-mobile-client-telemetry.js",
     "benchmark:mobile": "node scripts/performance/mobile-production-benchmark.js",
     "test:mobile-browser": "node scripts/mobile-browser-smoke.js",
-    "check:mobile-production": "node scripts/audit-mobile-query-plans.js && node scripts/mobile-browser-smoke.js"
+    "check:mobile-production": "node scripts/audit-mobile-query-plans.js && node scripts/mobile-browser-smoke.js",
+    "worker:background": "node scripts/background-job-worker.js",
+    "worker:background:once": "node scripts/background-job-worker.js --once",
+    "benchmark:background-jobs": "node scripts/performance/background-job-isolation-benchmark.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

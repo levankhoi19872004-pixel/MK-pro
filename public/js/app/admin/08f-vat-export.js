@@ -97,20 +97,52 @@
     return `Đã tải ${fileName}${counts}${warning}`;
   }
 
+  async function waitForExportJob(jobId){
+    const deadline=Date.now()+Number(window.EXPORT_JOB_UI_TIMEOUT_MS||10*60*1000);
+    while(Date.now()<deadline){
+      const response=await fetch(`/api/background-jobs/${encodeURIComponent(jobId)}`);
+      if(!response.ok)throw await responseError(response);
+      const payload=await response.json();
+      const job=payload.job||{};
+      const percent=Math.max(0,Math.min(100,Number(job.progress?.percent||0)));
+      setSummary(`Đang tạo file... ${percent}%${job.progress?.step?` · ${job.progress.step}`:''}`);
+      if(job.status==='completed')return job;
+      if(['failed','dead_letter','cancelled'].includes(job.status)){
+        const error=new Error(job.error?.message||'Worker không tạo được file');
+        error.payload=job.error?.details||{};
+        throw error;
+      }
+      await new Promise(resolve=>setTimeout(resolve,600));
+    }
+    throw new Error('Tác vụ tạo file quá thời gian chờ. Có thể kiểm tra lại trạng thái job sau.');
+  }
+
   async function download(url,button,label,fallback){
     if(exportInFlight)return false;
     setBusy(true,button);
-    setSummary(`Đang tạo file ${label}...`);
+    setSummary(`Đang đưa ${label} vào hàng đợi...`);
     try{
-      const response=await fetch(url,{method:'GET',headers:{Accept:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}});
-      if(!response.ok)throw await responseError(response);
-      const contentType=String(response.headers.get('content-type')||'');
+      const separator=url.includes('?')?'&':'?';
+      const idempotencyKey=`export-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const queuedResponse=await fetch(`${url}${separator}async=1`,{
+        method:'GET',
+        headers:{Accept:'application/json',Prefer:'respond-async','X-Idempotency-Key':idempotencyKey}
+      });
+      if(!queuedResponse.ok)throw await responseError(queuedResponse);
+      const queued=await queuedResponse.json();
+      if(!queued.jobId)throw new Error('Máy chủ không trả về mã tác vụ export');
+      const job=await waitForExportJob(queued.jobId);
+      const artifactResponse=await fetch(job.artifact?.downloadUrl||`/api/background-jobs/${encodeURIComponent(queued.jobId)}/artifact`,{
+        headers:{Accept:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
+      });
+      if(!artifactResponse.ok)throw await responseError(artifactResponse);
+      const contentType=String(artifactResponse.headers.get('content-type')||'');
       if(!contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'))throw new Error('Máy chủ không trả về file Excel hợp lệ');
-      const rowCountHeader=response.headers.get('x-export-row-count');
+      const rowCountHeader=artifactResponse.headers.get('x-export-row-count');
       if(rowCountHeader!==null&&rowCountHeader!==''&&Number(rowCountHeader)===0)throw new Error('Không có dữ liệu phù hợp với bộ lọc đã chọn. File trống đã được chặn tải xuống.');
-      const fileName=responseFileName(response,fallback);
-      saveBlob(await response.blob(),fileName);
-      setSummary(successSummary(response,fileName));
+      const fileName=responseFileName(artifactResponse,job.artifact?.fileName||fallback);
+      saveBlob(await artifactResponse.blob(),fileName);
+      setSummary(successSummary(artifactResponse,fileName));
       return true;
     }catch(error){
       console.error('[INVOICE_EXPORT_ERROR]',error);

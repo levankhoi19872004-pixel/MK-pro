@@ -1,4 +1,7 @@
-/* GENERATED FILE — edit public/mobile/js/delivery-mobile-view.source/part-01.jsfrag, public/mobile/js/delivery-mobile-view.source/part-02.jsfrag and run npm run build:source-bundles. */
+/* GENERATED FILE - DO NOT EDIT.
+ * Canonical source: public/mobile/js/delivery-mobile-view.source.js
+ * Build: npm run build:source-bundles
+ */
 !function(){"use strict";function el(id){return document.getElementById(id)}function esc(v){return String(null==v?"":v).replace(/[&<>"']/g,function(c){return{"&":"&amp;",
 "<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}function num(v){return window.DeliveryCore?window.DeliveryCore.toNumber(v):Number(v||0)}function money(v){
 return window.DeliveryCore?window.DeliveryCore.money(v):String(Math.round(Number(v||0)))}function amount(o,k){return num(o&&o.amounts&&o.amounts[k])}function keyOf(o){
@@ -159,3 +162,4 @@ state.selectedKey&&window.DeliveryCore.selectOrder(state.selectedKey),"returns"=
 await loadDeliveryDebts(!0)):(render(),msg(""))}catch(err){el("mBody").innerHTML='<div class="m-empty danger">'+esc(err.message)+"</div>",msg(err.message,!0)}}}
 window.DeliveryMobileView={load:load,select:select,renderShell:renderShell},window.loadDeliveryOrders=function(){return load()},document.addEventListener("DOMContentLoaded",load)
 }();
+//# sourceMappingURL=delivery-mobile-view.js.map

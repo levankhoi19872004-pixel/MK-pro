@@ -10,7 +10,7 @@ function read(relativePath) {
 }
 
 test('sales import commit uses bulk inventory posting and one order status update per chunk', () => {
-  const service = read('src/services/excelImportService.js');
+  const service = read('src/services/import/operations/salesImport.impl.js');
   assert.match(service, /InventoryPostingService\.postSalesOrdersBulkOut\(/);
   assert.match(service, /SalesOrder\.updateMany\(/);
   assert.match(service, /mode:\s*'atomicBulkSalesOrderChunks'/);
@@ -34,17 +34,17 @@ test('inventory service exposes transactional bulk sales OUT posting', () => {
 
 test('import session reports commit progress and frontend polls it', () => {
   const transaction = read('src/services/import/importTransaction.service.js');
-  const importService = read('src/services/excelImportService.js');
+  const importService = read('src/services/import/operations/salesImport.impl.js');
   const sessionService = read('src/services/importSessionService.js');
   const ui = read('public/js/app/admin/08d-import-excel.js');
-  const html = read('public/index.html');
+  const html = require('./helpers/readPublicIndex')(path.join(__dirname, '..'));
 
   assert.match(transaction, /options\.onChunkComplete/);
   assert.match(importService, /step:\s*`committing:\$\{completedChunks\}\/\$\{totalChunks\}`/);
   assert.match(sessionService, /percent:\s*100,[\s\S]*step:\s*'done'/);
   assert.match(ui, /startImportCommitProgressPolling/);
   assert.match(ui, /refreshAfterImport/);
-  assert.match(html, /08d-import-excel\.js\?v=phase79b-source-shards-v1/);
+  assert.match(html, /08d-import-excel\.js\?v=phase07-background-worker-v1/);
   assert.match(html, /08d-import-excel\.part02\.js\?v=phase79b-source-shards-v1/);
   assert.match(html, /08d-import-excel\.part03\.js\?v=phase79b-source-shards-v1/);
 });

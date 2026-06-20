@@ -13,17 +13,22 @@ function normalizeRelativePath(file) {
   return resolved.replace(/\\/g, '/').replace(/^\.\//, '');
 }
 
+function canonicalFiles(entry) {
+  if (entry.canonicalSource) return [entry.canonicalSource];
+  return Array.isArray(entry.parts) ? entry.parts : [];
+}
+
 function readSource(file) {
   const normalized = normalizeRelativePath(file);
   const entry = BY_TARGET.get(normalized);
   if (!entry) return fs.readFileSync(path.join(ROOT, normalized), 'utf8');
-  return entry.parts.map((part) => fs.readFileSync(path.join(ROOT, part), 'utf8')).join('');
+  return canonicalFiles(entry).map((part) => fs.readFileSync(path.join(ROOT, part), 'utf8')).join('');
 }
 
 function sourceParts(file) {
   const normalized = normalizeRelativePath(file);
   const entry = BY_TARGET.get(normalized);
-  return entry ? [...entry.parts] : [normalized];
+  return entry ? canonicalFiles(entry) : [normalized];
 }
 
 module.exports = { readSource, sourceParts };

@@ -1,11 +1,6 @@
 'use strict';
-const legacy = require('../importExportLegacy.service');
-module.exports = {
-  getBuiltInTemplates: legacy.getBuiltInTemplates,
-  buildBuiltInTemplateFile: legacy.buildBuiltInTemplateFile,
-  getFields: legacy.getFields,
-  listCustomTemplates: legacy.listCustomTemplates,
-  saveCustomTemplate: legacy.saveCustomTemplate,
-  deleteCustomTemplate: legacy.deleteCustomTemplate,
-  buildCustomTemplateFile: legacy.buildCustomTemplateFile
-};
+
+// Stable public facade. Template operations no longer load the import/export
+// legacy bundle; the legacy module remains available through its adapter for
+// callers that have not migrated yet.
+module.exports = require('../import-template/ImportTemplateApplicationService');

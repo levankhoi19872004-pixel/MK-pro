@@ -20,7 +20,7 @@
         "src/services/importExportLegacy.service.source/part-02.jsfrag",
         "src/services/importExportLegacy.service.source/part-03.jsfrag"
       ],
-      "sourceSha256": "4e1cd56cc4f70849a7152d977d6b439b74315dfc31e3da209152ab59cf66f3c8"
+      "sourceSha256": "9b511e970d1d9c3077f85220a881e120e22b2d161659f06e8889121a4e644395"
     },
     {
       "target": "src/services/reportLegacy.service.js",
@@ -71,7 +71,7 @@
         "services/printDataBuilder.legacy.source/part-02.jsfrag",
         "services/printDataBuilder.legacy.source/part-03.jsfrag"
       ],
-      "sourceSha256": "73cf3caf2dda4bfa6d0361d6b91dbda88b395e2e36976ce32a69219646791d74"
+      "sourceSha256": "96443e7df7872585a7f4196e597a80040a05c7577ac65f151b881e3888581563"
     },
     {
       "target": "src/services/fundService.js",
@@ -142,7 +142,7 @@
         "public/js/app/admin/08d-import-excel.source/part-02.jsfrag",
         "public/js/app/admin/08d-import-excel.source/part-03.jsfrag"
       ],
-      "sourceSha256": "71784708d4fc4c49e46638d60d37f6e7a4bfdfedb2e1352590f6a8beaf3b3d89",
+      "sourceSha256": "5fa29be6caa45379dec46d88921148764218add79f00f9e2f93489e9ea0c3971",
       "runtimeFiles": [
         "public/js/app/admin/08d-import-excel.js",
         "public/js/app/admin/08d-import-excel.part02.js",
@@ -177,11 +177,11 @@
     {
       "target": "public/mobile/js/delivery-mobile-view.js",
       "mode": "classic-single",
-      "parts": [
-        "public/mobile/js/delivery-mobile-view.source/part-01.jsfrag",
-        "public/mobile/js/delivery-mobile-view.source/part-02.jsfrag"
-      ],
-      "sourceSha256": "2a4b20ad06bccf882a7f3e53a86d4eec9c965c1fba1c5f19e493c84003d9fbe4"
+      "sourceSha256": "2a4b20ad06bccf882a7f3e53a86d4eec9c965c1fba1c5f19e493c84003d9fbe4",
+      "canonicalSource": "public/mobile/js/delivery-mobile-view.source.js",
+      "sourceMap": true,
+      "sourceMapTarget": "public/mobile/js/delivery-mobile-view.js.map",
+      "executableSha256": "4eab33181dd0cbe8d98c7ed13dab608c2fb457bbd8fc2e4b39e8b1c60afa2742"
     },
     {
       "target": "public/mobile/mobile.css",

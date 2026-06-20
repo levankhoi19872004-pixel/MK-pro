@@ -50,12 +50,47 @@ function productNameOf(row = {}, product = {}) {
   return firstText(row, ['productName', 'name']) || firstText(product, ['name', 'productName']);
 }
 
-async function loadProducts() {
-  const products = await Product.find({})
-    .select('id code productCode sku name productName unit baseUnit conversionRate packing')
-    .lean();
+const PRODUCT_PROJECTION = 'id code productCode sku name productName unit baseUnit conversionRate packing packingQty unitsPerCase minStock maxStock';
+
+const STOCK_TRANSACTION_MOVEMENT_PROJECTION = {
+  _id: 1,
+  date: 1,
+  productId: 1,
+  productCode: 1,
+  productName: 1,
+  name: 1,
+  code: 1,
+  sku: 1,
+  unit: 1,
+  type: 1,
+  transactionType: 1,
+  sourceType: 1,
+  refType: 1,
+  direction: 1,
+  quantity: 1,
+  qty: 1,
+  inQty: 1,
+  outQty: 1,
+  reversedFrom: 1,
+  _reportBusinessDate: 1
+};
+
+const STOCK_TRANSACTION_CARD_PROJECTION = {
+  ...STOCK_TRANSACTION_MOVEMENT_PROJECTION,
+  id: 1,
+  createdAt: 1,
+  refCode: 1,
+  sourceCode: 1,
+  note: 1
+};
+
+function loadProductRows() {
+  return Product.find({}).select(PRODUCT_PROJECTION).lean();
+}
+
+function buildProductMap(products = []) {
   const map = new Map();
-  for (const product of products) {
+  for (const product of products || []) {
     const aliases = [product.code, product.productCode, product.sku, product.id, product._id]
       .map((value) => text(value).toUpperCase())
       .filter(Boolean);
@@ -70,25 +105,67 @@ function queryTextMatches(row = {}, q = '') {
   return [row.productCode, row.productName].some((value) => text(value).toUpperCase().includes(needle));
 }
 
-async function loadTransactionsUntil(dateTo) {
-  return StockTransaction.aggregate([
+function transactionIdentityMatch(identities = []) {
+  const values = [...new Set((identities || []).map(text).filter(Boolean))];
+  if (!values.length) return null;
+  return {
+    $or: [
+      { productCode: { $in: values } },
+      { productId: { $in: values } },
+      { code: { $in: values } },
+      { sku: { $in: values } }
+    ]
+  };
+}
+
+function exactProductIdentities(products = [], queryText = '') {
+  const needle = text(queryText).toUpperCase();
+  if (!needle) return [];
+  const identities = [];
+  for (const product of products || []) {
+    const rawAliases = [product.code, product.productCode, product.sku, product.id, product._id]
+      .map(text)
+      .filter(Boolean);
+    const normalizedAliases = rawAliases.map((value) => value.toUpperCase());
+    if (!normalizedAliases.includes(needle)) continue;
+    for (const alias of rawAliases) {
+      identities.push(alias, alias.toUpperCase(), alias.toLowerCase());
+    }
+  }
+  return [...new Set(identities)];
+}
+
+async function loadTransactionsUntil(dateTo, options = {}) {
+  const identityMatch = transactionIdentityMatch(options.identities);
+  const pipeline = [
+    ...(identityMatch ? [{ $match: identityMatch }] : []),
     ...businessDateStages('0000-01-01', dateTo, ['date'], '_reportBusinessDate'),
-    { $sort: { _reportBusinessDate: 1, createdAt: 1, _id: 1 } }
-  ]).allowDiskUse(true).exec();
+    { $project: options.projection || STOCK_TRANSACTION_CARD_PROJECTION }
+  ];
+  if (options.sort !== false) {
+    pipeline.push({ $sort: { _reportBusinessDate: 1, createdAt: 1, _id: 1 } });
+  }
+  return StockTransaction.aggregate(pipeline).allowDiskUse(true).exec();
 }
 
-async function loadTransactionsRange(dateFrom, dateTo) {
+async function loadTransactionsRange(dateFrom, dateTo, options = {}) {
   if (!dateFrom || !dateTo || dateFrom > dateTo) return [];
-  return StockTransaction.aggregate([
+  const identityMatch = transactionIdentityMatch(options.identities);
+  const pipeline = [
+    ...(identityMatch ? [{ $match: identityMatch }] : []),
     ...businessDateStages(dateFrom, dateTo, ['date'], '_reportBusinessDate'),
-    { $sort: { _reportBusinessDate: 1, createdAt: 1, _id: 1 } }
-  ]).allowDiskUse(true).exec();
+    { $project: options.projection || STOCK_TRANSACTION_CARD_PROJECTION }
+  ];
+  if (options.sort !== false) {
+    pipeline.push({ $sort: { _reportBusinessDate: 1, createdAt: 1, _id: 1 } });
+  }
+  return StockTransaction.aggregate(pipeline).allowDiskUse(true).exec();
 }
 
-async function currentStockReport(query = {}) {
+async function currentStockReport(query = {}, options = {}) {
   const result = await inventoryStockService.getInventorySummary({
     q: query.q || query.search || query.keyword || ''
-  });
+  }, options);
   const allRows = (result.stock || []).map((row) => ({
     ...row,
     quantity: toNumber(row.onHand ?? row.quantity ?? row.qty),
@@ -111,15 +188,36 @@ async function currentStockReport(query = {}) {
   };
 }
 
-async function loadInventoryReportContext(dateTo) {
+async function loadInventoryReportContext(dateTo, options = {}) {
   const today = require('../../utils/date.util').todayVN();
-  const [transactions, productMap, currentStock, futureTransactions] = await Promise.all([
-    loadTransactionsUntil(dateTo),
-    loadProducts(),
-    currentStockReport({ full: '1', export: '1' }),
-    dateTo < today ? loadTransactionsRange(dateTo, today) : Promise.resolve([])
+  const productRowsPromise = loadProductRows();
+  const productRowsForFilter = options.exactProductQuery
+    ? await productRowsPromise
+    : null;
+  const identities = exactProductIdentities(productRowsForFilter || [], options.exactProductQuery);
+  const transactionOptions = {
+    identities,
+    sort: options.sortTransactions !== false,
+    projection: options.transactionProjection || STOCK_TRANSACTION_CARD_PROJECTION
+  };
+  const [transactions, productRows, currentStock, futureTransactions] = await Promise.all([
+    loadTransactionsUntil(dateTo, transactionOptions),
+    productRowsPromise,
+    currentStockReport(
+      { full: '1', export: '1', q: options.stockQuery || '' },
+      { preloadedProductsPromise: productRowsPromise }
+    ),
+    dateTo < today
+      ? loadTransactionsRange(dateTo, today, transactionOptions)
+      : Promise.resolve([])
   ]);
-  return { today, transactions, productMap, currentStock, futureTransactions };
+  return {
+    today,
+    transactions,
+    productMap: buildProductMap(productRows),
+    currentStock,
+    futureTransactions
+  };
 }
 
 function buildInventoryMovementReport(query = {}, context = {}) {
@@ -300,7 +398,10 @@ function buildInventoryMovementReport(query = {}, context = {}) {
 
 async function inventoryMovementReport(query = {}) {
   const { dateTo } = dateRange(query);
-  const context = await loadInventoryReportContext(dateTo);
+  const context = await loadInventoryReportContext(dateTo, {
+    sortTransactions: false,
+    transactionProjection: STOCK_TRANSACTION_MOVEMENT_PROJECTION
+  });
   return buildInventoryMovementReport(query, context);
 }
 
@@ -313,7 +414,12 @@ async function stockReport(query = {}) {
 
 async function stockCardReport(query = {}) {
   const { dateFrom, dateTo } = dateRange(query);
-  const context = await loadInventoryReportContext(dateTo);
+  const stockQuery = query.q || query.search || query.keyword || '';
+  const context = await loadInventoryReportContext(dateTo, {
+    exactProductQuery: stockQuery,
+    stockQuery,
+    sortTransactions: true
+  });
   const { transactions, productMap } = context;
   const movement = buildInventoryMovementReport(
     { ...query, full: '1', export: '1', mode: 'movement' },

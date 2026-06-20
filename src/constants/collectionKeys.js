@@ -73,6 +73,7 @@ const APP_COLLECTION_KEYS = [
   'visitExecutions',
   'deliveryRoutePlans',
   'integrationJobs',
+  'backgroundJobs',
   'tenants',
   'tenantSubscriptions'
 ];

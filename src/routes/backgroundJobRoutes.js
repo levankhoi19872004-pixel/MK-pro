@@ -1,0 +1,10 @@
+'use strict';
+const express = require('express');
+const { requireRole } = require('../middlewares/auth.middleware');
+const controller = require('../controllers/backgroundJobController');
+const router = express.Router();
+const allowed = requireRole(['admin', 'manager', 'accountant', 'warehouse']);
+router.get('/:id', allowed, controller.status);
+router.post('/:id/cancel', allowed, controller.cancel);
+router.get('/:id/artifact', allowed, controller.artifact);
+module.exports = router;

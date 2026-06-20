@@ -1,0 +1,386 @@
+{
+  "generatedAt": "2026-06-20",
+  "baseline": "MK-pro-phase05-dependency-god-service-refactor-patched.zip",
+  "engine": "controlled-model-adapter",
+  "limitations": [
+    "No live MongoDB server or MONGO_URI was available; executionStats is NOT RUN.",
+    "10x uses one measured iteration because the controlled dataset contains 100,000 stock transactions."
+  ],
+  "datasets": [
+    {
+      "scale": 1,
+      "dataset": {
+        "productCount": 500,
+        "transactionCount": 10000
+      },
+      "endpoints": [
+        {
+          "endpoint": "GET /api/reports/inventory-movement",
+          "baseline": {
+            "endpoint": "GET /api/reports/inventory-movement",
+            "iterations": 8,
+            "p50Ms": 174.3644589999999,
+            "p95Ms": 182.19706300000007,
+            "p99Ms": 182.19706300000007,
+            "throughputRps": 5.302177164146888,
+            "queryCount": 4,
+            "documentsExamined": 11500,
+            "documentsReturned": 9840,
+            "databaseResponseBytes": 9507200,
+            "responseBytes": 53021,
+            "heapDeltaBytesP95": 26812192,
+            "cpuMsP95": 240,
+            "samplesMs": [
+              182.19706300000007,
+              174.67855200000008,
+              173.87925100000007,
+              172.42323499999998,
+              174.3644589999999,
+              172.21132699999998,
+              174.51147500000025,
+              175.03729399999975
+            ]
+          },
+          "after": {
+            "endpoint": "GET /api/reports/inventory-movement",
+            "iterations": 8,
+            "p50Ms": 124.138461,
+            "p95Ms": 128.23310099999992,
+            "p99Ms": 128.23310099999992,
+            "throughputRps": 7.048118529823336,
+            "queryCount": 3,
+            "documentsExamined": 11000,
+            "documentsReturned": 9340,
+            "databaseResponseBytes": 2178969,
+            "responseBytes": 53021,
+            "heapDeltaBytesP95": 27085440,
+            "cpuMsP95": 210,
+            "samplesMs": [
+              126.68371200000001,
+              124.138461,
+              128.23310099999992,
+              123.69619599999987,
+              126.78598999999986,
+              120.59968700000013,
+              123.234553,
+              125.06174599999986
+            ]
+          },
+          "improvement": {
+            "p50MsPercent": 28.805180991614765,
+            "p95MsPercent": 29.618458778339434,
+            "p99MsPercent": 29.618458778339434,
+            "queryCountPercent": 25.0,
+            "documentsExaminedPercent": 4.3478260869565215,
+            "documentsReturnedPercent": 5.08130081300813,
+            "databaseResponseBytesPercent": 77.08085451026591,
+            "heapDeltaBytesP95Percent": -1.0191184667035056,
+            "cpuMsP95Percent": 12.5,
+            "responseBytesPercent": 0.0,
+            "throughputPercent": 32.92876325375232
+          }
+        },
+        {
+          "endpoint": "GET /api/reports/stock-card",
+          "baseline": {
+            "endpoint": "GET /api/reports/stock-card",
+            "iterations": 8,
+            "p50Ms": 179.73275299999978,
+            "p95Ms": 190.00642600000037,
+            "p99Ms": 190.00642600000037,
+            "throughputRps": 5.194335353680674,
+            "queryCount": 4,
+            "documentsExamined": 11500,
+            "documentsReturned": 9840,
+            "databaseResponseBytes": 9507200,
+            "responseBytes": 3957,
+            "heapDeltaBytesP95": 32067616,
+            "cpuMsP95": 290,
+            "samplesMs": [
+              190.00642600000037,
+              180.4721370000002,
+              182.7914450000003,
+              180.57057099999975,
+              177.10775299999978,
+              178.97181100000034,
+              179.73275299999978,
+              176.06361000000015
+            ]
+          },
+          "after": {
+            "endpoint": "GET /api/reports/stock-card",
+            "iterations": 8,
+            "p50Ms": 16.721108000000186,
+            "p95Ms": 19.81823899999995,
+            "p99Ms": 19.81823899999995,
+            "throughputRps": 31.721221848332526,
+            "queryCount": 3,
+            "documentsExamined": 1020,
+            "documentsReturned": 1020,
+            "databaseResponseBytes": 210688,
+            "responseBytes": 3957,
+            "heapDeltaBytesP95": 13804360,
+            "cpuMsP95": 50,
+            "samplesMs": [
+              16.247416999999814,
+              19.81823899999995,
+              15.999786000000086,
+              16.34066699999994,
+              17.394800000000032,
+              16.846046000000115,
+              16.721108000000186,
+              18.47234400000025
+            ]
+          },
+          "improvement": {
+            "p50MsPercent": 90.69668286892583,
+            "p95MsPercent": 89.56970065843988,
+            "p99MsPercent": 89.56970065843988,
+            "queryCountPercent": 25.0,
+            "documentsExaminedPercent": 91.13043478260869,
+            "documentsReturnedPercent": 89.63414634146342,
+            "databaseResponseBytesPercent": 97.78391114102996,
+            "heapDeltaBytesP95Percent": 56.95233471674352,
+            "cpuMsP95Percent": 82.75862068965517,
+            "responseBytesPercent": 0.0,
+            "throughputPercent": 510.68875396839877
+          }
+        }
+      ]
+    },
+    {
+      "scale": 5,
+      "dataset": {
+        "productCount": 2000,
+        "transactionCount": 50000
+      },
+      "endpoints": [
+        {
+          "endpoint": "GET /api/reports/inventory-movement",
+          "baseline": {
+            "endpoint": "GET /api/reports/inventory-movement",
+            "iterations": 3,
+            "p50Ms": 1159.4889400000002,
+            "p95Ms": 1191.740981,
+            "p99Ms": 1191.740981,
+            "throughputRps": 0.8267560489460261,
+            "queryCount": 4,
+            "documentsExamined": 56000,
+            "documentsReturned": 47670,
+            "databaseResponseBytes": 47163482,
+            "responseBytes": 53020,
+            "heapDeltaBytesP95": 182407256,
+            "cpuMsP95": 1370,
+            "samplesMs": [
+              1159.4889400000002,
+              1191.740981,
+              1137.7363450000003
+            ]
+          },
+          "after": {
+            "endpoint": "GET /api/reports/inventory-movement",
+            "iterations": 3,
+            "p50Ms": 610.07375,
+            "p95Ms": 628.7082439999999,
+            "p99Ms": 628.7082439999999,
+            "throughputRps": 1.5130929850055153,
+            "queryCount": 3,
+            "documentsExamined": 54000,
+            "documentsReturned": 45670,
+            "databaseResponseBytes": 10785561,
+            "responseBytes": 53020,
+            "heapDeltaBytesP95": 75133248,
+            "cpuMsP95": 800,
+            "samplesMs": [
+              605.196659,
+              610.07375,
+              628.7082439999999
+            ]
+          },
+          "improvement": {
+            "p50MsPercent": 47.38425448025404,
+            "p95MsPercent": 47.24455615578097,
+            "p99MsPercent": 47.24455615578097,
+            "queryCountPercent": 25.0,
+            "documentsExaminedPercent": 3.571428571428571,
+            "documentsReturnedPercent": 4.195510803440318,
+            "databaseResponseBytesPercent": 77.13154215373666,
+            "heapDeltaBytesP95Percent": 58.81016487633583,
+            "cpuMsP95Percent": 41.605839416058394,
+            "responseBytesPercent": 0.0,
+            "throughputPercent": 83.01565340035341
+          }
+        },
+        {
+          "endpoint": "GET /api/reports/stock-card",
+          "baseline": {
+            "endpoint": "GET /api/reports/stock-card",
+            "iterations": 3,
+            "p50Ms": 1157.4173790000004,
+            "p95Ms": 1172.723129,
+            "p99Ms": 1172.723129,
+            "throughputRps": 0.8371626791395301,
+            "queryCount": 4,
+            "documentsExamined": 56000,
+            "documentsReturned": 47670,
+            "databaseResponseBytes": 47163482,
+            "responseBytes": 5177,
+            "heapDeltaBytesP95": 173796384,
+            "cpuMsP95": 1330,
+            "samplesMs": [
+              1157.4173790000004,
+              1172.723129,
+              1142.9674989999985
+            ]
+          },
+          "after": {
+            "endpoint": "GET /api/reports/stock-card",
+            "iterations": 3,
+            "p50Ms": 67.15347900000006,
+            "p95Ms": 72.22236800000019,
+            "p99Ms": 72.22236800000019,
+            "throughputRps": 8.423316251521847,
+            "queryCount": 3,
+            "documentsExamined": 4025,
+            "documentsReturned": 4025,
+            "databaseResponseBytes": 834367,
+            "responseBytes": 5177,
+            "heapDeltaBytesP95": 3902200,
+            "cpuMsP95": 160,
+            "samplesMs": [
+              72.22236800000019,
+              67.15347900000006,
+              62.54272800000035
+            ]
+          },
+          "improvement": {
+            "p50MsPercent": 94.19798940136702,
+            "p95MsPercent": 93.8414817433007,
+            "p99MsPercent": 93.8414817433007,
+            "queryCountPercent": 25.0,
+            "documentsExaminedPercent": 92.8125,
+            "documentsReturnedPercent": 91.55653450807635,
+            "databaseResponseBytesPercent": 98.23090457994599,
+            "heapDeltaBytesP95Percent": 97.75472889010165,
+            "cpuMsP95Percent": 87.96992481203007,
+            "responseBytesPercent": 0.0,
+            "throughputPercent": 906.1743626913319
+          }
+        }
+      ]
+    },
+    {
+      "scale": 10,
+      "dataset": {
+        "productCount": 2000,
+        "transactionCount": 100000
+      },
+      "endpoints": [
+        {
+          "endpoint": "GET /api/reports/inventory-movement",
+          "baseline": {
+            "endpoint": "GET /api/reports/inventory-movement",
+            "iterations": 1,
+            "p50Ms": 2686.441735,
+            "p95Ms": 2686.441735,
+            "p99Ms": 2686.441735,
+            "throughputRps": 0.3611849902066116,
+            "queryCount": 4,
+            "documentsExamined": 106000,
+            "documentsReturned": 89340,
+            "databaseResponseBytes": 92259940,
+            "responseBytes": 53339,
+            "heapDeltaBytesP95": 346203944,
+            "cpuMsP95": 3640,
+            "samplesMs": [
+              2686.441735
+            ]
+          },
+          "after": {
+            "endpoint": "GET /api/reports/inventory-movement",
+            "iterations": 1,
+            "p50Ms": 1387.4807670000002,
+            "p95Ms": 1387.4807670000002,
+            "p99Ms": 1387.4807670000002,
+            "throughputRps": 0.680322947017064,
+            "queryCount": 3,
+            "documentsExamined": 104000,
+            "documentsReturned": 87340,
+            "databaseResponseBytes": 20754209,
+            "responseBytes": 53339,
+            "heapDeltaBytesP95": 139879384,
+            "cpuMsP95": 1730,
+            "samplesMs": [
+              1387.4807670000002
+            ]
+          },
+          "improvement": {
+            "p50MsPercent": 48.35247126623424,
+            "p95MsPercent": 48.35247126623424,
+            "p99MsPercent": 48.35247126623424,
+            "queryCountPercent": 25.0,
+            "documentsExaminedPercent": 1.8867924528301887,
+            "documentsReturnedPercent": 2.238638907544213,
+            "databaseResponseBytesPercent": 77.50463635679797,
+            "heapDeltaBytesP95Percent": 59.59624769612677,
+            "cpuMsP95Percent": 52.472527472527474,
+            "responseBytesPercent": 0.0,
+            "throughputPercent": 88.35858783275941
+          }
+        },
+        {
+          "endpoint": "GET /api/reports/stock-card",
+          "baseline": {
+            "endpoint": "GET /api/reports/stock-card",
+            "iterations": 1,
+            "p50Ms": 2389.3865909999995,
+            "p95Ms": 2389.3865909999995,
+            "p99Ms": 2389.3865909999995,
+            "throughputRps": 0.40532166414207804,
+            "queryCount": 4,
+            "documentsExamined": 106000,
+            "documentsReturned": 89340,
+            "databaseResponseBytes": 92259940,
+            "responseBytes": 9979,
+            "heapDeltaBytesP95": 344973000,
+            "cpuMsP95": 2490,
+            "samplesMs": [
+              2389.3865909999995
+            ]
+          },
+          "after": {
+            "endpoint": "GET /api/reports/stock-card",
+            "iterations": 1,
+            "p50Ms": 81.59060799999997,
+            "p95Ms": 81.59060799999997,
+            "p99Ms": 81.59060799999997,
+            "throughputRps": 5.925777737587842,
+            "queryCount": 3,
+            "documentsExamined": 4050,
+            "documentsReturned": 4050,
+            "databaseResponseBytes": 842526,
+            "responseBytes": 9979,
+            "heapDeltaBytesP95": 12596432,
+            "cpuMsP95": 70,
+            "samplesMs": [
+              81.59060799999997
+            ]
+          },
+          "improvement": {
+            "p50MsPercent": 96.58529062198123,
+            "p95MsPercent": 96.58529062198123,
+            "p99MsPercent": 96.58529062198123,
+            "queryCountPercent": 25.0,
+            "documentsExaminedPercent": 96.17924528301887,
+            "documentsReturnedPercent": 95.46675621222298,
+            "databaseResponseBytesPercent": 99.08679108180647,
+            "heapDeltaBytesP95Percent": 96.34857452612233,
+            "cpuMsP95Percent": 97.18875502008032,
+            "responseBytesPercent": 0.0,
+            "throughputPercent": 1361.9938339912346
+          }
+        }
+      ]
+    }
+  ]
+}

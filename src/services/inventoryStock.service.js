@@ -152,16 +152,26 @@ async function getInventorySummary(query = {}, options = {}) {
     return inventorySummaryCache.value;
   }
 
-  let inventoryQuery = InventoryCurrent.find({}).sort({ productCode: 1 });
-  let productQuery = Product.find({})
-    .select('id code productCode sku name productName unit baseUnit conversionRate packing packingQty unitsPerCase minStock maxStock');
-  if (session) {
-    inventoryQuery = inventoryQuery.session(session);
-    productQuery = productQuery.session(session);
+  let inventoryQuery = InventoryCurrent.find({})
+    .select('id productId productCode code sku productName name warehouseCode unit baseUnit conversionRate packing packingQty unitsPerCase onHand quantity qty stockQuantity availableQty reservedQty reserved updatedAt createdAt lastTransactionAt')
+    .sort({ productCode: 1 });
+  let productsPromise = null;
+
+  if (Array.isArray(options.preloadedProducts)) {
+    productsPromise = Promise.resolve(options.preloadedProducts);
+  } else if (options.preloadedProductsPromise) {
+    productsPromise = Promise.resolve(options.preloadedProductsPromise);
+  } else {
+    let productQuery = Product.find({})
+      .select('id code productCode sku name productName unit baseUnit conversionRate packing packingQty unitsPerCase minStock maxStock');
+    if (session) productQuery = productQuery.session(session);
+    productsPromise = productQuery.lean();
   }
+
+  if (session) inventoryQuery = inventoryQuery.session(session);
   const [inventoryRows, products] = await Promise.all([
     inventoryQuery.lean(),
-    productQuery.lean()
+    productsPromise
   ]);
 
   const productMap = new Map();

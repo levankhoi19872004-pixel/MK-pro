@@ -100,10 +100,39 @@ function successfulResponse(fileName = 'Hoa_don_VAT.xlsx') {
   };
 }
 
-test('one click sends one VAT request, keeps filters and restores button state', async () => {
-  let resolveFetch;
-  const fetchPromise = new Promise((resolve) => { resolveFetch = resolve; });
-  const harness = makeHarness(() => fetchPromise);
+
+function jsonResponse(payload, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get(name) { return String(name).toLowerCase() === 'content-type' ? 'application/json' : ''; } },
+    async json() { return payload; }
+  };
+}
+
+test('one click enqueues one VAT job, polls it, keeps filters and restores button state', async () => {
+  let resolveEnqueue;
+  const enqueuePromise = new Promise((resolve) => { resolveEnqueue = resolve; });
+  let call = 0;
+  const harness = makeHarness((url) => {
+    call += 1;
+    if (call === 1) return enqueuePromise;
+    if (String(url).includes('/api/background-jobs/JOB1') && !String(url).endsWith('/artifact')) {
+      return jsonResponse({
+        ok: true,
+        job: {
+          id: 'JOB1',
+          status: 'completed',
+          progress: { percent: 100, step: 'completed' },
+          artifact: {
+            fileName: 'Hoa_don_VAT_01-06-2026_den_20-06-2026.xlsx',
+            downloadUrl: '/api/background-jobs/JOB1/artifact'
+          }
+        }
+      });
+    }
+    return successfulResponse('Hoa_don_VAT_01-06-2026_den_20-06-2026.xlsx');
+  });
   const first = harness.vat.click();
   harness.vat.click();
   assert.equal(harness.urls.length, 1);
@@ -113,8 +142,11 @@ test('one click sends one VAT request, keeps filters and restores button state',
   assert.match(harness.urls[0], /dateFrom=2026-06-01/);
   assert.match(harness.urls[0], /dateTo=2026-06-20/);
   assert.match(harness.urls[0], /salesStaffCode=NVBH01/);
-  resolveFetch(successfulResponse('Hoa_don_VAT_01-06-2026_den_20-06-2026.xlsx'));
+  assert.match(harness.urls[0], /async=1/);
+  resolveEnqueue(jsonResponse({ ok: true, accepted: true, jobId: 'JOB1' }, 202));
   await first;
+  assert.equal(harness.urls.filter((url) => String(url).includes('/api/export/invoice-orders.xlsx')).length, 1);
+  assert.equal(harness.urls.length, 3);
   assert.equal(harness.vat.disabled, false);
   assert.equal(harness.nonVat.disabled, false);
   assert.equal(harness.anchors.length, 1);

@@ -1,0 +1,1311 @@
+{
+  "generatedAt": "2026-06-20",
+  "status": "NOT_RUN",
+  "reason": "MONGO_URI và MongoDB production-like không có trong môi trường. Không giả lập executionStats hoặc tuyên bố IXSCAN/COLLSCAN.",
+  "command": "MONGO_URI=... PERF_PRODUCT_CODE=P00001 node scripts/performance/explain-inventory-report-queries.js API_QUERY_EXPLAIN_LIVE.json",
+  "plans": [
+    {
+      "name": "before_inventory_movement_and_stock_card",
+      "executionStats": null,
+      "pipeline": [
+        {
+          "$set": {
+            "_reportBusinessDate": {
+              "$let": {
+                "vars": {
+                  "normalized": {
+                    "$let": {
+                      "vars": {
+                        "rawValue": "$date",
+                        "rawText": {
+                          "$trim": {
+                            "input": {
+                              "$convert": {
+                                "input": "$date",
+                                "to": "string",
+                                "onError": "",
+                                "onNull": ""
+                              }
+                            }
+                          }
+                        },
+                        "rawType": {
+                          "$type": "$date"
+                        }
+                      },
+                      "in": {
+                        "$switch": {
+                          "branches": [
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$rawType",
+                                  "date"
+                                ]
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": "$$rawValue",
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            },
+                            {
+                              "case": {
+                                "$regexMatch": {
+                                  "input": "$$rawText",
+                                  "regex": "^\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}"
+                                }
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": {
+                                    "$dateFromString": {
+                                      "dateString": {
+                                        "$replaceAll": {
+                                          "input": {
+                                            "$substrCP": [
+                                              "$$rawText",
+                                              0,
+                                              10
+                                            ]
+                                          },
+                                          "find": "/",
+                                          "replacement": "-"
+                                        }
+                                      },
+                                      "onError": null,
+                                      "onNull": null
+                                    }
+                                  },
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            },
+                            {
+                              "case": {
+                                "$regexMatch": {
+                                  "input": "$$rawText",
+                                  "regex": "^\\d{2}/\\d{2}/\\d{4}"
+                                }
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": {
+                                    "$dateFromString": {
+                                      "dateString": {
+                                        "$substrCP": [
+                                          "$$rawText",
+                                          0,
+                                          10
+                                        ]
+                                      },
+                                      "format": "%d/%m/%Y",
+                                      "onError": null,
+                                      "onNull": null
+                                    }
+                                  },
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            },
+                            {
+                              "case": {
+                                "$regexMatch": {
+                                  "input": "$$rawText",
+                                  "regex": "^\\d{2}-\\d{2}-\\d{4}"
+                                }
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": {
+                                    "$dateFromString": {
+                                      "dateString": {
+                                        "$substrCP": [
+                                          "$$rawText",
+                                          0,
+                                          10
+                                        ]
+                                      },
+                                      "format": "%d-%m-%Y",
+                                      "onError": null,
+                                      "onNull": null
+                                    }
+                                  },
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            },
+                            {
+                              "case": {
+                                "$regexMatch": {
+                                  "input": "$$rawText",
+                                  "regex": "^\\d{2}\\.\\d{2}\\.\\d{4}"
+                                }
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": {
+                                    "$dateFromString": {
+                                      "dateString": {
+                                        "$substrCP": [
+                                          "$$rawText",
+                                          0,
+                                          10
+                                        ]
+                                      },
+                                      "format": "%d.%m.%Y",
+                                      "onError": null,
+                                      "onNull": null
+                                    }
+                                  },
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            }
+                          ],
+                          "default": ""
+                        }
+                      }
+                    }
+                  }
+                },
+                "in": {
+                  "$cond": [
+                    {
+                      "$gt": [
+                        {
+                          "$strLenCP": "$$normalized"
+                        },
+                        0
+                      ]
+                    },
+                    "$$normalized",
+                    {
+                      "$let": {
+                        "vars": {
+                          "normalized": {
+                            "$let": {
+                              "vars": {
+                                "rawValue": "$createdAt",
+                                "rawText": {
+                                  "$trim": {
+                                    "input": {
+                                      "$convert": {
+                                        "input": "$createdAt",
+                                        "to": "string",
+                                        "onError": "",
+                                        "onNull": ""
+                                      }
+                                    }
+                                  }
+                                },
+                                "rawType": {
+                                  "$type": "$createdAt"
+                                }
+                              },
+                              "in": {
+                                "$switch": {
+                                  "branches": [
+                                    {
+                                      "case": {
+                                        "$eq": [
+                                          "$$rawType",
+                                          "date"
+                                        ]
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": "$$rawValue",
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "case": {
+                                        "$regexMatch": {
+                                          "input": "$$rawText",
+                                          "regex": "^\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}"
+                                        }
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": {
+                                            "$dateFromString": {
+                                              "dateString": {
+                                                "$replaceAll": {
+                                                  "input": {
+                                                    "$substrCP": [
+                                                      "$$rawText",
+                                                      0,
+                                                      10
+                                                    ]
+                                                  },
+                                                  "find": "/",
+                                                  "replacement": "-"
+                                                }
+                                              },
+                                              "onError": null,
+                                              "onNull": null
+                                            }
+                                          },
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "case": {
+                                        "$regexMatch": {
+                                          "input": "$$rawText",
+                                          "regex": "^\\d{2}/\\d{2}/\\d{4}"
+                                        }
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": {
+                                            "$dateFromString": {
+                                              "dateString": {
+                                                "$substrCP": [
+                                                  "$$rawText",
+                                                  0,
+                                                  10
+                                                ]
+                                              },
+                                              "format": "%d/%m/%Y",
+                                              "onError": null,
+                                              "onNull": null
+                                            }
+                                          },
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "case": {
+                                        "$regexMatch": {
+                                          "input": "$$rawText",
+                                          "regex": "^\\d{2}-\\d{2}-\\d{4}"
+                                        }
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": {
+                                            "$dateFromString": {
+                                              "dateString": {
+                                                "$substrCP": [
+                                                  "$$rawText",
+                                                  0,
+                                                  10
+                                                ]
+                                              },
+                                              "format": "%d-%m-%Y",
+                                              "onError": null,
+                                              "onNull": null
+                                            }
+                                          },
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "case": {
+                                        "$regexMatch": {
+                                          "input": "$$rawText",
+                                          "regex": "^\\d{2}\\.\\d{2}\\.\\d{4}"
+                                        }
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": {
+                                            "$dateFromString": {
+                                              "dateString": {
+                                                "$substrCP": [
+                                                  "$$rawText",
+                                                  0,
+                                                  10
+                                                ]
+                                              },
+                                              "format": "%d.%m.%Y",
+                                              "onError": null,
+                                              "onNull": null
+                                            }
+                                          },
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    }
+                                  ],
+                                  "default": ""
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "in": {
+                          "$cond": [
+                            {
+                              "$gt": [
+                                {
+                                  "$strLenCP": "$$normalized"
+                                },
+                                0
+                              ]
+                            },
+                            "$$normalized",
+                            ""
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "$match": {
+            "_reportBusinessDate": {
+              "$gte": "0000-01-01",
+              "$lte": "2026-06-20"
+            }
+          }
+        },
+        {
+          "$sort": {
+            "_reportBusinessDate": 1,
+            "createdAt": 1,
+            "_id": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "after_inventory_movement",
+      "executionStats": null,
+      "pipeline": [
+        {
+          "$set": {
+            "_reportBusinessDate": {
+              "$let": {
+                "vars": {
+                  "normalized": {
+                    "$let": {
+                      "vars": {
+                        "rawValue": "$date",
+                        "rawText": {
+                          "$trim": {
+                            "input": {
+                              "$convert": {
+                                "input": "$date",
+                                "to": "string",
+                                "onError": "",
+                                "onNull": ""
+                              }
+                            }
+                          }
+                        },
+                        "rawType": {
+                          "$type": "$date"
+                        }
+                      },
+                      "in": {
+                        "$switch": {
+                          "branches": [
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$rawType",
+                                  "date"
+                                ]
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": "$$rawValue",
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            },
+                            {
+                              "case": {
+                                "$regexMatch": {
+                                  "input": "$$rawText",
+                                  "regex": "^\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}"
+                                }
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": {
+                                    "$dateFromString": {
+                                      "dateString": {
+                                        "$replaceAll": {
+                                          "input": {
+                                            "$substrCP": [
+                                              "$$rawText",
+                                              0,
+                                              10
+                                            ]
+                                          },
+                                          "find": "/",
+                                          "replacement": "-"
+                                        }
+                                      },
+                                      "onError": null,
+                                      "onNull": null
+                                    }
+                                  },
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            },
+                            {
+                              "case": {
+                                "$regexMatch": {
+                                  "input": "$$rawText",
+                                  "regex": "^\\d{2}/\\d{2}/\\d{4}"
+                                }
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": {
+                                    "$dateFromString": {
+                                      "dateString": {
+                                        "$substrCP": [
+                                          "$$rawText",
+                                          0,
+                                          10
+                                        ]
+                                      },
+                                      "format": "%d/%m/%Y",
+                                      "onError": null,
+                                      "onNull": null
+                                    }
+                                  },
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            },
+                            {
+                              "case": {
+                                "$regexMatch": {
+                                  "input": "$$rawText",
+                                  "regex": "^\\d{2}-\\d{2}-\\d{4}"
+                                }
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": {
+                                    "$dateFromString": {
+                                      "dateString": {
+                                        "$substrCP": [
+                                          "$$rawText",
+                                          0,
+                                          10
+                                        ]
+                                      },
+                                      "format": "%d-%m-%Y",
+                                      "onError": null,
+                                      "onNull": null
+                                    }
+                                  },
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            },
+                            {
+                              "case": {
+                                "$regexMatch": {
+                                  "input": "$$rawText",
+                                  "regex": "^\\d{2}\\.\\d{2}\\.\\d{4}"
+                                }
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": {
+                                    "$dateFromString": {
+                                      "dateString": {
+                                        "$substrCP": [
+                                          "$$rawText",
+                                          0,
+                                          10
+                                        ]
+                                      },
+                                      "format": "%d.%m.%Y",
+                                      "onError": null,
+                                      "onNull": null
+                                    }
+                                  },
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            }
+                          ],
+                          "default": ""
+                        }
+                      }
+                    }
+                  }
+                },
+                "in": {
+                  "$cond": [
+                    {
+                      "$gt": [
+                        {
+                          "$strLenCP": "$$normalized"
+                        },
+                        0
+                      ]
+                    },
+                    "$$normalized",
+                    {
+                      "$let": {
+                        "vars": {
+                          "normalized": {
+                            "$let": {
+                              "vars": {
+                                "rawValue": "$createdAt",
+                                "rawText": {
+                                  "$trim": {
+                                    "input": {
+                                      "$convert": {
+                                        "input": "$createdAt",
+                                        "to": "string",
+                                        "onError": "",
+                                        "onNull": ""
+                                      }
+                                    }
+                                  }
+                                },
+                                "rawType": {
+                                  "$type": "$createdAt"
+                                }
+                              },
+                              "in": {
+                                "$switch": {
+                                  "branches": [
+                                    {
+                                      "case": {
+                                        "$eq": [
+                                          "$$rawType",
+                                          "date"
+                                        ]
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": "$$rawValue",
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "case": {
+                                        "$regexMatch": {
+                                          "input": "$$rawText",
+                                          "regex": "^\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}"
+                                        }
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": {
+                                            "$dateFromString": {
+                                              "dateString": {
+                                                "$replaceAll": {
+                                                  "input": {
+                                                    "$substrCP": [
+                                                      "$$rawText",
+                                                      0,
+                                                      10
+                                                    ]
+                                                  },
+                                                  "find": "/",
+                                                  "replacement": "-"
+                                                }
+                                              },
+                                              "onError": null,
+                                              "onNull": null
+                                            }
+                                          },
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "case": {
+                                        "$regexMatch": {
+                                          "input": "$$rawText",
+                                          "regex": "^\\d{2}/\\d{2}/\\d{4}"
+                                        }
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": {
+                                            "$dateFromString": {
+                                              "dateString": {
+                                                "$substrCP": [
+                                                  "$$rawText",
+                                                  0,
+                                                  10
+                                                ]
+                                              },
+                                              "format": "%d/%m/%Y",
+                                              "onError": null,
+                                              "onNull": null
+                                            }
+                                          },
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "case": {
+                                        "$regexMatch": {
+                                          "input": "$$rawText",
+                                          "regex": "^\\d{2}-\\d{2}-\\d{4}"
+                                        }
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": {
+                                            "$dateFromString": {
+                                              "dateString": {
+                                                "$substrCP": [
+                                                  "$$rawText",
+                                                  0,
+                                                  10
+                                                ]
+                                              },
+                                              "format": "%d-%m-%Y",
+                                              "onError": null,
+                                              "onNull": null
+                                            }
+                                          },
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "case": {
+                                        "$regexMatch": {
+                                          "input": "$$rawText",
+                                          "regex": "^\\d{2}\\.\\d{2}\\.\\d{4}"
+                                        }
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": {
+                                            "$dateFromString": {
+                                              "dateString": {
+                                                "$substrCP": [
+                                                  "$$rawText",
+                                                  0,
+                                                  10
+                                                ]
+                                              },
+                                              "format": "%d.%m.%Y",
+                                              "onError": null,
+                                              "onNull": null
+                                            }
+                                          },
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    }
+                                  ],
+                                  "default": ""
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "in": {
+                          "$cond": [
+                            {
+                              "$gt": [
+                                {
+                                  "$strLenCP": "$$normalized"
+                                },
+                                0
+                              ]
+                            },
+                            "$$normalized",
+                            ""
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "$match": {
+            "_reportBusinessDate": {
+              "$gte": "0000-01-01",
+              "$lte": "2026-06-20"
+            }
+          }
+        },
+        {
+          "$project": {
+            "_id": 1,
+            "date": 1,
+            "productId": 1,
+            "productCode": 1,
+            "productName": 1,
+            "name": 1,
+            "code": 1,
+            "sku": 1,
+            "unit": 1,
+            "type": 1,
+            "transactionType": 1,
+            "sourceType": 1,
+            "refType": 1,
+            "direction": 1,
+            "quantity": 1,
+            "qty": 1,
+            "inQty": 1,
+            "outQty": 1,
+            "reversedFrom": 1,
+            "_reportBusinessDate": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "after_stock_card_exact_product",
+      "executionStats": null,
+      "pipeline": [
+        {
+          "$match": {
+            "$or": [
+              {
+                "productCode": {
+                  "$in": [
+                    "P00001",
+                    "p00001",
+                    "prod-1",
+                    "PROD-1"
+                  ]
+                }
+              },
+              {
+                "productId": {
+                  "$in": [
+                    "P00001",
+                    "p00001",
+                    "prod-1",
+                    "PROD-1"
+                  ]
+                }
+              },
+              {
+                "code": {
+                  "$in": [
+                    "P00001",
+                    "p00001",
+                    "prod-1",
+                    "PROD-1"
+                  ]
+                }
+              },
+              {
+                "sku": {
+                  "$in": [
+                    "P00001",
+                    "p00001",
+                    "prod-1",
+                    "PROD-1"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "$set": {
+            "_reportBusinessDate": {
+              "$let": {
+                "vars": {
+                  "normalized": {
+                    "$let": {
+                      "vars": {
+                        "rawValue": "$date",
+                        "rawText": {
+                          "$trim": {
+                            "input": {
+                              "$convert": {
+                                "input": "$date",
+                                "to": "string",
+                                "onError": "",
+                                "onNull": ""
+                              }
+                            }
+                          }
+                        },
+                        "rawType": {
+                          "$type": "$date"
+                        }
+                      },
+                      "in": {
+                        "$switch": {
+                          "branches": [
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$rawType",
+                                  "date"
+                                ]
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": "$$rawValue",
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            },
+                            {
+                              "case": {
+                                "$regexMatch": {
+                                  "input": "$$rawText",
+                                  "regex": "^\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}"
+                                }
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": {
+                                    "$dateFromString": {
+                                      "dateString": {
+                                        "$replaceAll": {
+                                          "input": {
+                                            "$substrCP": [
+                                              "$$rawText",
+                                              0,
+                                              10
+                                            ]
+                                          },
+                                          "find": "/",
+                                          "replacement": "-"
+                                        }
+                                      },
+                                      "onError": null,
+                                      "onNull": null
+                                    }
+                                  },
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            },
+                            {
+                              "case": {
+                                "$regexMatch": {
+                                  "input": "$$rawText",
+                                  "regex": "^\\d{2}/\\d{2}/\\d{4}"
+                                }
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": {
+                                    "$dateFromString": {
+                                      "dateString": {
+                                        "$substrCP": [
+                                          "$$rawText",
+                                          0,
+                                          10
+                                        ]
+                                      },
+                                      "format": "%d/%m/%Y",
+                                      "onError": null,
+                                      "onNull": null
+                                    }
+                                  },
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            },
+                            {
+                              "case": {
+                                "$regexMatch": {
+                                  "input": "$$rawText",
+                                  "regex": "^\\d{2}-\\d{2}-\\d{4}"
+                                }
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": {
+                                    "$dateFromString": {
+                                      "dateString": {
+                                        "$substrCP": [
+                                          "$$rawText",
+                                          0,
+                                          10
+                                        ]
+                                      },
+                                      "format": "%d-%m-%Y",
+                                      "onError": null,
+                                      "onNull": null
+                                    }
+                                  },
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            },
+                            {
+                              "case": {
+                                "$regexMatch": {
+                                  "input": "$$rawText",
+                                  "regex": "^\\d{2}\\.\\d{2}\\.\\d{4}"
+                                }
+                              },
+                              "then": {
+                                "$dateToString": {
+                                  "date": {
+                                    "$dateFromString": {
+                                      "dateString": {
+                                        "$substrCP": [
+                                          "$$rawText",
+                                          0,
+                                          10
+                                        ]
+                                      },
+                                      "format": "%d.%m.%Y",
+                                      "onError": null,
+                                      "onNull": null
+                                    }
+                                  },
+                                  "format": "%Y-%m-%d",
+                                  "timezone": "Asia/Ho_Chi_Minh",
+                                  "onNull": ""
+                                }
+                              }
+                            }
+                          ],
+                          "default": ""
+                        }
+                      }
+                    }
+                  }
+                },
+                "in": {
+                  "$cond": [
+                    {
+                      "$gt": [
+                        {
+                          "$strLenCP": "$$normalized"
+                        },
+                        0
+                      ]
+                    },
+                    "$$normalized",
+                    {
+                      "$let": {
+                        "vars": {
+                          "normalized": {
+                            "$let": {
+                              "vars": {
+                                "rawValue": "$createdAt",
+                                "rawText": {
+                                  "$trim": {
+                                    "input": {
+                                      "$convert": {
+                                        "input": "$createdAt",
+                                        "to": "string",
+                                        "onError": "",
+                                        "onNull": ""
+                                      }
+                                    }
+                                  }
+                                },
+                                "rawType": {
+                                  "$type": "$createdAt"
+                                }
+                              },
+                              "in": {
+                                "$switch": {
+                                  "branches": [
+                                    {
+                                      "case": {
+                                        "$eq": [
+                                          "$$rawType",
+                                          "date"
+                                        ]
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": "$$rawValue",
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "case": {
+                                        "$regexMatch": {
+                                          "input": "$$rawText",
+                                          "regex": "^\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}"
+                                        }
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": {
+                                            "$dateFromString": {
+                                              "dateString": {
+                                                "$replaceAll": {
+                                                  "input": {
+                                                    "$substrCP": [
+                                                      "$$rawText",
+                                                      0,
+                                                      10
+                                                    ]
+                                                  },
+                                                  "find": "/",
+                                                  "replacement": "-"
+                                                }
+                                              },
+                                              "onError": null,
+                                              "onNull": null
+                                            }
+                                          },
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "case": {
+                                        "$regexMatch": {
+                                          "input": "$$rawText",
+                                          "regex": "^\\d{2}/\\d{2}/\\d{4}"
+                                        }
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": {
+                                            "$dateFromString": {
+                                              "dateString": {
+                                                "$substrCP": [
+                                                  "$$rawText",
+                                                  0,
+                                                  10
+                                                ]
+                                              },
+                                              "format": "%d/%m/%Y",
+                                              "onError": null,
+                                              "onNull": null
+                                            }
+                                          },
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "case": {
+                                        "$regexMatch": {
+                                          "input": "$$rawText",
+                                          "regex": "^\\d{2}-\\d{2}-\\d{4}"
+                                        }
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": {
+                                            "$dateFromString": {
+                                              "dateString": {
+                                                "$substrCP": [
+                                                  "$$rawText",
+                                                  0,
+                                                  10
+                                                ]
+                                              },
+                                              "format": "%d-%m-%Y",
+                                              "onError": null,
+                                              "onNull": null
+                                            }
+                                          },
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "case": {
+                                        "$regexMatch": {
+                                          "input": "$$rawText",
+                                          "regex": "^\\d{2}\\.\\d{2}\\.\\d{4}"
+                                        }
+                                      },
+                                      "then": {
+                                        "$dateToString": {
+                                          "date": {
+                                            "$dateFromString": {
+                                              "dateString": {
+                                                "$substrCP": [
+                                                  "$$rawText",
+                                                  0,
+                                                  10
+                                                ]
+                                              },
+                                              "format": "%d.%m.%Y",
+                                              "onError": null,
+                                              "onNull": null
+                                            }
+                                          },
+                                          "format": "%Y-%m-%d",
+                                          "timezone": "Asia/Ho_Chi_Minh",
+                                          "onNull": ""
+                                        }
+                                      }
+                                    }
+                                  ],
+                                  "default": ""
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "in": {
+                          "$cond": [
+                            {
+                              "$gt": [
+                                {
+                                  "$strLenCP": "$$normalized"
+                                },
+                                0
+                              ]
+                            },
+                            "$$normalized",
+                            ""
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "$match": {
+            "_reportBusinessDate": {
+              "$gte": "0000-01-01",
+              "$lte": "2026-06-20"
+            }
+          }
+        },
+        {
+          "$project": {
+            "_id": 1,
+            "date": 1,
+            "productId": 1,
+            "productCode": 1,
+            "productName": 1,
+            "name": 1,
+            "code": 1,
+            "sku": 1,
+            "unit": 1,
+            "type": 1,
+            "transactionType": 1,
+            "sourceType": 1,
+            "refType": 1,
+            "direction": 1,
+            "quantity": 1,
+            "qty": 1,
+            "inQty": 1,
+            "outQty": 1,
+            "reversedFrom": 1,
+            "_reportBusinessDate": 1,
+            "id": 1,
+            "createdAt": 1,
+            "refCode": 1,
+            "sourceCode": 1,
+            "note": 1
+          }
+        },
+        {
+          "$sort": {
+            "_reportBusinessDate": 1,
+            "createdAt": 1,
+            "_id": 1
+          }
+        }
+      ]
+    }
+  ],
+  "staticIndexEvidence": [
+    {
+      "name": "idx_stock_tx_product_date",
+      "key": {
+        "productCode": 1,
+        "date": 1
+      },
+      "source": "src/services/mongoIndexService.js"
+    },
+    {
+      "name": "idx_stock_tx_date_product_warehouse",
+      "key": {
+        "date": 1,
+        "productCode": 1,
+        "warehouseCode": 1
+      },
+      "source": "src/services/mongoIndexService.js"
+    }
+  ],
+  "validationRequired": [
+    "Run executionStats on production-like data before creating/dropping any index.",
+    "Verify winningPlan, totalDocsExamined, totalKeysExamined, executionTimeMillis and rejectedPlans."
+  ]
+}

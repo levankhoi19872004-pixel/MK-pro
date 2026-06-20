@@ -1,0 +1,24 @@
+{
+  "phase": 6,
+  "status": "NO_INDEX_CHANGE",
+  "added": [],
+  "removed": [],
+  "modified": [],
+  "reusedExisting": [
+    {
+      "collection": "stockTransactions",
+      "name": "idx_stock_tx_product_date",
+      "key": { "productCode": 1, "date": 1 },
+      "reason": "Exact product stock-card query now places product identity match before date transformation. Live executionStats is still required to confirm the winning plan."
+    },
+    {
+      "collection": "stockTransactions",
+      "name": "idx_stock_tx_date_product_warehouse",
+      "key": { "date": 1, "productCode": 1, "warehouseCode": 1 },
+      "reason": "Existing date/product index remains relevant to broad movement reports; no new write cost introduced."
+    }
+  ],
+  "writeCostChange": "0",
+  "rollbackCommands": [],
+  "note": "No index was added because a trustworthy MongoDB explain('executionStats') could not be run in this environment."
+}

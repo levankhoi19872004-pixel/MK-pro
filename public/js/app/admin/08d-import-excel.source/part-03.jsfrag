@@ -1,5 +1,20 @@
 
 
+
+async function waitForAsyncImportCommit(sessionId,jobId){
+  const deadline=Date.now()+Number(window.IMPORT_COMMIT_UI_TIMEOUT_MS||15*60*1000);
+  while(Date.now()<deadline){
+    const response=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}`);
+    const payload=await response.json().catch(()=>({}));
+    if(payload.status==='done')return {...(payload.result||{}),sessionId,importSessionId:sessionId};
+    if(payload.status==='failed'||(!response.ok&&payload.status!=='importing')){
+      throw new Error(payload.errorMessage||payload.message||`Import worker thất bại${jobId?` (${jobId})`:''}`);
+    }
+    await new Promise(resolve=>setTimeout(resolve,600));
+  }
+  throw new Error(`Import quá thời gian chờ${jobId?` (${jobId})`:''}. Vui lòng kiểm tra lại trạng thái phiên import.`);
+}
+
 async function commitImportExcel(){
   if(!importDataType||!importExcelFile)return;
   let stopProgressPolling=()=>{};
@@ -28,7 +43,7 @@ async function commitImportExcel(){
 
     const res=await fetch('/api/import/commit',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json',Prefer:'respond-async'},
       body:JSON.stringify({
         type:importDataType.value,
         importMode:getSelectedImportMode(),
@@ -37,8 +52,12 @@ async function commitImportExcel(){
         shortageMode:importShortageActionMode||'cut'
       })
     });
-    const json=await res.json();
+    let json=await res.json();
     if(!json.ok)throw new Error(json.error||json.message||'Import thất bại');
+    if(json.accepted&&json.jobId){
+      showMessage(importDataMessage,`Đã tạo job ${json.jobId}. Worker đang xử lý...`);
+      json=await waitForAsyncImportCommit(importPreviewSessionId,json.jobId);
+    }
 
     const shortageText=(json.shortageReport&&json.shortageReport.length)
       ? ` · Đã tự cắt ${displayImportAggregateQty(json.shortageSummary?.totalMissingQty||0)} sản phẩm thiếu (${money(json.shortageSummary?.totalCutAmount||0)})`
@@ -186,7 +205,7 @@ async function saveImportShortageReport(){
   if(button)button.disabled=true;
   try{
     const res=await fetch(`/api/import/shortage-reports/${encodeURIComponent(activeImportShortageReport._id)}`,{
-      method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      method:'PATCH',headers:{'Content-Type':'application/json',Prefer:'respond-async'},body:JSON.stringify({
         status:document.getElementById('importShortageReportEditStatus')?.value||'open',
         note:document.getElementById('importShortageReportEditNote')?.value||'',items
       })

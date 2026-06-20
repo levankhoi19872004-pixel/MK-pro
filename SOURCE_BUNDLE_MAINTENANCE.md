@@ -3,7 +3,8 @@
 ## Quy tắc bắt buộc
 
 - Không sửa trực tiếp file runtime có banner `GENERATED FILE`.
-- Sửa các file trong thư mục `*.source/`.
+- Với bundle legacy chưa migrate, chỉ sửa các file trong thư mục `*.source/`.
+- Với bundle canonical pilot, chỉ sửa file được khai báo bằng `canonicalSource` trong `config/source-bundles.json`.
 - Sau khi review thay đổi nghiệp vụ, chạy:
 
 ```bash
@@ -11,7 +12,26 @@ npm run source-bundles:refresh
 npm run quality
 ```
 
-## Các lệnh
+## Canonical source pilot
+
+Bundle pilot:
+
+```text
+public/mobile/js/delivery-mobile-view.source.js
+  -> public/mobile/js/delivery-mobile-view.js
+  -> public/mobile/js/delivery-mobile-view.js.map
+```
+
+Chỉ `delivery-mobile-view.source.js` được chỉnh sửa thủ công. File runtime và source map được sinh deterministic.
+
+```bash
+npm run build:canonical-source-pilot
+npm run check:canonical-source-pilot
+```
+
+`check:canonical-source-pilot` thất bại nếu runtime hoặc source map lệch khỏi canonical source.
+
+## Các lệnh toàn bộ pipeline
 
 ```bash
 npm run build:source-bundles

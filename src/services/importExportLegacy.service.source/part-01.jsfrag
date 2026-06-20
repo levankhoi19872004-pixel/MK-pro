@@ -3,7 +3,7 @@
 const dateUtil = require('../utils/date.util');
 const { createWorkbook, appendAoaSheet: appendAoaSheetToWorkbook, writeWorkbook } = require('../utils/excelWriter.util');
 const excelImportService = require('./excelImportService');
-const importTemplateService = require('./importTemplateService');
+const importTemplateService = require('./import-template/LegacyImportTemplateAdapter');
 const exportRepository = require('../repositories/exportRepository');
 const SalesOrder = require('../models/SalesOrder');
 const ReturnOrder = require('../models/ReturnOrder');

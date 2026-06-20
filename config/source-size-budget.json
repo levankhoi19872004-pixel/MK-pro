@@ -23,7 +23,17 @@
     "public/js/app/debt/07f-fund-ledger.js": 24576,
     "public/mobile/js/delivery-mobile-view.js": 40960,
     "public/mobile/mobile.css": 2048,
-    "public/print.css": 2048
+    "public/print.css": 2048,
+    "public/mobile/js/delivery-mobile-view.source.js": 65536,
+    "public/mobile/js/delivery-mobile-view.js.map": 131072,
+    "src/services/fundSummary.service.js": 12288,
+    "src/services/fund-summary/FundSummaryDomain.js": 16384,
+    "src/services/fund-summary/FundSummaryFilters.js": 8192,
+    "src/services/fund-summary/FundSummaryQueryBuilder.js": 32768,
+    "src/services/fund-summary/FundSummaryWorkbook.js": 8192,
+    "services/print/PrintDocumentBuilder.js": 4096,
+    "services/print/PrintFormatService.js": 4096,
+    "services/printDataBuilder.js": 4096
   },
   "groups": [
     {

@@ -1,6 +1,6 @@
 'use strict';
 
-const importTemplateService = require('../services/importTemplateService');
+const importTemplateService = require('../services/import-template/ImportTemplateApplicationService');
 
 function sendWorkbook(res, file) {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

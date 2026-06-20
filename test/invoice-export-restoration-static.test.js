@@ -26,7 +26,10 @@ test('frontend uses one validated endpoint, loading state and Blob download with
   assert.match(js, /\/api\/export\/invoice-orders\.xlsx/);
   assert.match(js, /invoiceType/);
   assert.match(js, /exportInFlight/);
-  assert.match(js, /response\.blob\(\)/);
+  assert.match(js, /waitForExportJob/);
+  assert.match(js, /Prefer:'respond-async'/);
+  assert.match(js, /artifactResponse\.blob\(\)/);
+  assert.match(js, /\/api\/background-jobs\//);
   assert.match(js, /aria-busy/);
   assert.doesNotMatch(js, /window\.location(?:\.href)?\s*=/);
   assert.doesNotMatch(js, /exportReportExcel\(/);

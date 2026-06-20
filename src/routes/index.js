@@ -42,6 +42,7 @@ const deliveryPlanningRoutes = require('./deliveryPlanningRoutes');
 const integrationRoutes = require('./integrationRoutes');
 const platformRoutes = require('./platformRoutes');
 const enterpriseRoutes = require('./enterpriseRoutes');
+const backgroundJobRoutes = require('./backgroundJobRoutes');
 
 
 function registerApiRoutes(app) {
@@ -116,6 +117,7 @@ function registerApiRoutes(app) {
   app.use('/api/promotions', promotionRoutes);
   app.use('/api/import', importRouter);
   app.use('/api/export', exportRouter);
+  app.use('/api/background-jobs', backgroundJobRoutes);
   app.use('/api/print', printRoutes);
   // Dashboard tổng quan là module đọc độc lập; route cũ /api/dashboard vẫn được giữ nguyên.
   app.use('/api/dashboard', dashboardRoutes);

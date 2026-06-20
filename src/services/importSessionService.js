@@ -3,6 +3,7 @@
 const { makeId } = require('../utils/common.util');
 const ImportSession = require('../models/ImportSession');
 const ImportSessionRow = require('../models/ImportSessionRow');
+const BackgroundJob = require('../models/BackgroundJob');
 const { cleanupImportFiles, cleanupImportSession } = require('../utils/importTempFileStore');
 
 const IMPORT_PREVIEW_LIMIT = Number(process.env.IMPORT_PREVIEW_LIMIT || 100);
@@ -486,15 +487,32 @@ async function recoverStaleImportSessions({ olderThanMs = Number(process.env.IMP
     updatedAt: { $lt: cutoff }
   }).sort({ updatedAt: 1 }).limit(Math.max(1, Math.min(500, Number(limit) || 100))).lean();
 
+  const sessionIds = stale.map((session) => cleanText(session.sessionId || session.id)).filter(Boolean);
+  const activeJobs = sessionIds.length ? await BackgroundJob.find({
+    type: 'import_preview',
+    idempotencyKey: { $in: sessionIds.map((id) => `import-preview:${id}`) },
+    status: { $in: ['pending', 'running', 'cancel_requested'] }
+  }).select({ idempotencyKey: 1 }).lean() : [];
+  const protectedSessions = new Set(activeJobs.map((job) => cleanText(job.idempotencyKey).replace(/^import-preview:/, '')));
+
+  let recovered = 0;
+  let preserved = 0;
   for (const session of stale) {
     const sessionId = cleanText(session.sessionId || session.id);
-    await markFailed(sessionId, 'Import bị gián đoạn do server restart hoặc worker không phản hồi. Vui lòng tải lại file.');
+    // Persistent jobs survive web/worker restarts through their Mongo lease. Do not
+    // fail a queued session merely because the web process has not updated it recently.
+    if (protectedSessions.has(sessionId)) {
+      preserved += 1;
+      continue;
+    }
+    await markFailed(sessionId, 'Import bị gián đoạn và không còn background job có thể tiếp tục. Vui lòng tải lại file.');
     const files = Array.isArray(session.tempFiles) ? session.tempFiles : [];
     if (files.length) await cleanupImportFiles(files).catch(() => {});
     await cleanupImportSession(sessionId).catch(() => {});
+    recovered += 1;
   }
 
-  return { recovered: stale.length, cutoff };
+  return { recovered, preserved, cutoff };
 }
 
 module.exports = {

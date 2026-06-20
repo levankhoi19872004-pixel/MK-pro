@@ -1,7 +1,12 @@
 'use strict';
 
 const importExportService = require('../services/importExportService');
+const importTemplateService = require('../services/import-template/ImportTemplateApplicationService');
 const excelImportService = require('../services/excelImportService');
+const BackgroundJobService = require('../services/background-jobs/BackgroundJobService');
+const JobSubmissionService = require('../services/background-jobs/JobSubmissionService');
+const AsyncJobHttpAdapter = require('../services/background-jobs/AsyncJobHttpAdapter');
+const ArtifactStore = require('../services/background-jobs/GridFsArtifactStore');
 
 function normalizeUploadedFiles(req) {
   const files = [];
@@ -66,23 +71,20 @@ async function previewImport(req, res) {
 
 async function commitImport(req, res) {
   try {
-    const result = await importExportService.commitImport({
-      type: String(req.body?.type || '').trim(),
-      rows: req.body?.rows,
-      shortageMode: String(req.body?.shortageMode || '').trim(),
-      sessionId: String(req.body?.sessionId || req.body?.importSessionId || '').trim(),
-      selectedOrderCodes: req.body?.selectedOrderCodes || [],
-      userName: req.user?.username || req.user?.fullName || ''
-    });
-    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
-    res.json({ ok: true, source: 'import-export-route', ...result });
+    const sessionId = String(req.body?.sessionId || req.body?.importSessionId || '').trim();
+    const submitted = await AsyncJobHttpAdapter.submitImportCommit(req);
+    if (submitted.error) return res.status(submitted.status || 400).json({ ok: false, message: submitted.error });
+    if (AsyncJobHttpAdapter.prefersAsync(req)) {
+      return res.status(202).json(AsyncJobHttpAdapter.acceptedPayload(submitted, {
+        source: 'import-export-route', sessionId, importSessionId: sessionId
+      }));
+    }
+    const waited = await AsyncJobHttpAdapter.waitImportCompatibility(submitted, sessionId);
+    if (waited.timeout) return res.status(202).json(AsyncJobHttpAdapter.acceptedPayload(submitted, { source: 'import-export-route', sessionId }));
+    if (waited.error) return res.status(waited.status || 500).json({ ok: false, message: waited.error, code: waited.code });
+    return res.json({ ok: true, source: 'import-export-route', ...waited.result });
   } catch (err) {
-    return sendSafeInternalError(
-      res,
-      '[IMPORT_COMMIT_ERROR]',
-      'Không ghi được dữ liệu import',
-      err
-    );
+    return sendSafeInternalError(res, '[IMPORT_COMMIT_ERROR]', 'Không ghi được dữ liệu import', err);
   }
 }
 
@@ -166,24 +168,24 @@ async function importLogs(req, res) {
 }
 
 async function listBuiltInTemplates(req, res) {
-  res.json({ ok: true, templates: importExportService.getBuiltInTemplates() });
+  res.json({ ok: true, templates: importTemplateService.getBuiltInTemplates() });
 }
 
 async function downloadBuiltInTemplate(req, res) {
   try {
-    sendWorkbook(res, await importExportService.buildBuiltInTemplateFile(req.params.type));
+    sendWorkbook(res, await importTemplateService.buildBuiltInTemplateFile(req.params.type));
   } catch (err) {
     res.status(err.statusCode || 500).json({ ok: false, message: err.message || 'Không tạo được mẫu import Excel' });
   }
 }
 
 async function fields(req, res) {
-  res.json({ ok: true, fields: importExportService.getFields(req.params.type) });
+  res.json({ ok: true, fields: importTemplateService.getFields(req.params.type) });
 }
 
 async function listCustomTemplates(req, res) {
   try {
-    res.json({ ok: true, templates: await importExportService.listCustomTemplates() });
+    res.json({ ok: true, templates: await importTemplateService.listCustomTemplates() });
   } catch (err) {
     res.status(500).json({ ok: false, message: 'Không tải được mẫu import tự tạo', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
@@ -191,7 +193,7 @@ async function listCustomTemplates(req, res) {
 
 async function saveCustomTemplate(req, res) {
   try {
-    const result = await importExportService.saveCustomTemplate(req.body || {});
+    const result = await importTemplateService.saveCustomTemplate(req.body || {});
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.json({ ok: true, message: 'Đã lưu mẫu import', template: result.template });
   } catch (err) {
@@ -201,7 +203,7 @@ async function saveCustomTemplate(req, res) {
 
 async function removeCustomTemplate(req, res) {
   try {
-    const result = await importExportService.deleteCustomTemplate(req.params.id);
+    const result = await importTemplateService.deleteCustomTemplate(req.params.id);
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.json({ ok: true, message: 'Đã xóa mẫu import' });
   } catch (err) {
@@ -211,7 +213,7 @@ async function removeCustomTemplate(req, res) {
 
 async function downloadCustomTemplate(req, res) {
   try {
-    sendWorkbook(res, await importExportService.buildCustomTemplateFile(req.params.id));
+    sendWorkbook(res, await importTemplateService.buildCustomTemplateFile(req.params.id));
   } catch (err) {
     res.status(500).json({ ok: false, message: 'Không tạo được file mẫu import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
@@ -223,10 +225,44 @@ async function exportTypes(req, res) {
 
 async function exportExcel(req, res) {
   try {
-    sendWorkbook(res, await importExportService.exportToExcel(req.params.type, req.query || {}, req.user || {}));
+    const idempotencyKey = String(req.headers['x-idempotency-key'] || req.query.idempotencyKey || '').trim();
+    const submitted = await JobSubmissionService.submitExport({
+      type: req.params.type,
+      query: req.query || {},
+      user: req.user || {},
+      idempotencyKey
+    });
+    if (AsyncJobHttpAdapter.prefersAsync(req)) {
+      return res.status(202).json(AsyncJobHttpAdapter.acceptedPayload(submitted, { source: 'import-export-route' }));
+    }
+    const terminal = await BackgroundJobService.waitForTerminal(submitted.job.id, {
+      timeoutMs: Number(process.env.BACKGROUND_JOB_COMPAT_WAIT_MS || 10 * 60 * 1000)
+    });
+    if (!terminal) return res.status(202).json(AsyncJobHttpAdapter.acceptedPayload(submitted, { source: 'import-export-route' }));
+    if (terminal.status !== 'completed') {
+      return res.status(terminal.lastError?.retryable === false ? 422 : 500).json({
+        ok: false,
+        message: terminal.lastError?.message || 'Không export được dữ liệu',
+        code: terminal.lastError?.code || terminal.status,
+        ...(terminal.lastError?.details || {})
+      });
+    }
+    if (!terminal.artifact?.fileId) return res.status(500).json({ ok: false, message: 'Export hoàn thành nhưng thiếu artifact' });
+    res.setHeader('Content-Type', terminal.artifact.contentType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(terminal.artifact.fileName || 'export.xlsx')}`);
+    res.setHeader('Content-Length', String(Number(terminal.artifact.size || 0)));
+    res.setHeader('X-Export-Order-Count', String(Number(terminal.result?.orderCount || 0)));
+    res.setHeader('X-Export-Row-Count', String(Number(terminal.result?.rows || 0)));
+    res.setHeader('X-Export-Warning-Count', String(Number(terminal.result?.warningCount || 0)));
+    const stream = ArtifactStore.openDownloadStream(terminal.artifact.fileId);
+    stream.once('error', (error) => {
+      if (!res.headersSent) res.status(404).json({ ok: false, message: 'Không đọc được artifact export' });
+      else res.destroy(error);
+    });
+    return stream.pipe(res);
   } catch (err) {
     const status = Number(err.statusCode || err.status || 500);
-    res.status(status).json({
+    return res.status(status).json({
       ok: false,
       message: status < 500 ? (err.message || 'Bộ lọc xuất dữ liệu không hợp lệ') : 'Không export được dữ liệu',
       code: err.code,

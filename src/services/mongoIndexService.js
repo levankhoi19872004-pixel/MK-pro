@@ -421,6 +421,13 @@ Object.assign(INDEX_DEFINITIONS, {
     [{ status: 1, nextRetryAt: 1, createdAt: 1 }, { name: 'idx_integration_jobs_status_retry' }],
     [{ tenantId: 1, provider: 1, createdAt: -1 }, { name: 'idx_integration_jobs_provider_created' }]
   ],
+  backgroundJobs: [
+    [{ tenantId: 1, id: 1 }, { name: 'uniq_background_jobs_tenant_id', unique: true }],
+    [{ tenantId: 1, idempotencyKey: 1 }, { name: 'uniq_background_jobs_idempotency', unique: true, partialFilterExpression: { idempotencyKey: { $gt: '' } } }],
+    [{ status: 1, availableAt: 1, createdAt: 1 }, { name: 'idx_background_jobs_status_available' }],
+    [{ status: 1, leaseExpiresAt: 1 }, { name: 'idx_background_jobs_status_lease' }],
+    [{ expireAt: 1 }, { name: 'ttl_background_jobs_expireAt', expireAfterSeconds: 0 }]
+  ],
   tenants: [
     [{ id: 1 }, { name: 'uniq_tenants_id', unique: true }],
     [{ code: 1 }, { name: 'uniq_tenants_code', unique: true }]

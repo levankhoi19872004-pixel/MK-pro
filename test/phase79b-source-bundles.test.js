@@ -16,15 +16,29 @@ function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
-function readParts(entry) {
-  return entry.parts.map((part) => fs.readFileSync(path.join(ROOT, part), 'utf8')).join('');
+function canonicalFiles(entry) {
+  if (entry.canonicalSource) return [entry.canonicalSource];
+  return Array.isArray(entry.parts) ? entry.parts : [];
+}
+
+function readCanonicalSource(entry) {
+  return canonicalFiles(entry).map((file) => fs.readFileSync(path.join(ROOT, file), 'utf8')).join('');
 }
 
 test('phase79b covers every remaining High source file with a locked canonical source bundle', () => {
   assert.equal(CONFIG.bundles.length, 18);
   for (const entry of CONFIG.bundles) {
-    assert.equal(sha256(readParts(entry)), entry.sourceSha256, `${entry.target} canonical hash drifted`);
-    for (const part of entry.parts) {
+    const files = canonicalFiles(entry);
+    assert.ok(files.length > 0, `${entry.target} has no canonical source`);
+    assert.equal(sha256(readCanonicalSource(entry)), entry.sourceSha256, `${entry.target} canonical hash drifted`);
+
+    if (entry.canonicalSource) {
+      assert.equal(entry.parts, undefined, `${entry.target} cannot keep legacy parts beside canonicalSource`);
+      assert.ok(entry.canonicalSource.endsWith('.source.js'), `${entry.canonicalSource} must be an explicit canonical source`);
+      continue;
+    }
+
+    for (const part of files) {
       assert.ok(fs.statSync(path.join(ROOT, part)).size <= 24576, `${part} exceeds 24 KiB source-part budget`);
       if (entry.mode !== 'css-imports') assert.ok(part.endsWith('.jsfrag'), `${part} must remain non-executable source`);
     }

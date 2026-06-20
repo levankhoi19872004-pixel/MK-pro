@@ -1,0 +1,107 @@
+{
+  "generatedAt": "2026-06-20T14:52:25.706Z",
+  "methodology": "Synthetic XLSX workload using production excelWriter.util. Before builds XLSX inside the web process. After measures bounded web-side queue-command preparation and separately measures the same XLSX build in a memory-capped worker process.",
+  "limitations": [
+    "MongoDB enqueue and HTTP network latency are excluded because no production-like MongoDB is available",
+    "Worker completion remains CPU-bound",
+    "The benchmark demonstrates web-process CPU/heap isolation, not faster workbook generation"
+  ],
+  "runsPerDataset": 5,
+  "concurrentExportScenario": {
+    "workers": 2,
+    "rowsPerWorker": 10000,
+    "wallMs": 255.655241,
+    "workerDurationsMs": [
+      184.25898,
+      182.240819
+    ],
+    "workerHeapDeltaBytes": [
+      19926384,
+      20155736
+    ],
+    "outputBytes": [
+      442511,
+      442511
+    ]
+  },
+  "results": [
+    {
+      "scale": "1x",
+      "rows": 2000,
+      "before": {
+        "p50Ms": 21.829667,
+        "p95Ms": 44.894788,
+        "p99Ms": 44.894788,
+        "heapDeltaP95Bytes": 10447152,
+        "cpuUserP95Micros": 80000,
+        "bytes": 90299
+      },
+      "after": {
+        "p50Ms": 0.087562,
+        "p95Ms": 0.374933,
+        "p99Ms": 0.374933,
+        "heapDeltaP95Bytes": 14544,
+        "cpuUserP95Micros": 10000,
+        "bytes": 0,
+        "workerCompletionP95Ms": 46.010029,
+        "workerHeapDeltaP95Bytes": 8821888,
+        "workerOutputBytes": 90299,
+        "responseBytes": 41,
+        "commandBytes": 234
+      },
+      "webP95ImprovementPercent": 99.16486296805768
+    },
+    {
+      "scale": "5x",
+      "rows": 10000,
+      "before": {
+        "p50Ms": 98.548542,
+        "p95Ms": 116.913403,
+        "p99Ms": 116.913403,
+        "heapDeltaP95Bytes": 33626624,
+        "cpuUserP95Micros": 130000,
+        "bytes": 442511
+      },
+      "after": {
+        "p50Ms": 0.089094,
+        "p95Ms": 0.115714,
+        "p99Ms": 0.115714,
+        "heapDeltaP95Bytes": 6784,
+        "cpuUserP95Micros": 0,
+        "bytes": 0,
+        "workerCompletionP95Ms": 182.285959,
+        "workerHeapDeltaP95Bytes": 20020088,
+        "workerOutputBytes": 442511,
+        "responseBytes": 41,
+        "commandBytes": 235
+      },
+      "webP95ImprovementPercent": 99.90102589007695
+    },
+    {
+      "scale": "10x",
+      "rows": 20000,
+      "before": {
+        "p50Ms": 201.646352,
+        "p95Ms": 215.179151,
+        "p99Ms": 215.179151,
+        "heapDeltaP95Bytes": 51186272,
+        "cpuUserP95Micros": 290000,
+        "bytes": 879357
+      },
+      "after": {
+        "p50Ms": 0.11352,
+        "p95Ms": 0.150486,
+        "p99Ms": 0.150486,
+        "heapDeltaP95Bytes": 6096,
+        "cpuUserP95Micros": 0,
+        "bytes": 0,
+        "workerCompletionP95Ms": 339.605701,
+        "workerHeapDeltaP95Bytes": 31428096,
+        "workerOutputBytes": 879357,
+        "responseBytes": 41,
+        "commandBytes": 235
+      },
+      "webP95ImprovementPercent": 99.93006478587697
+    }
+  ]
+}

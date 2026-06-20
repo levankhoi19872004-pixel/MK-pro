@@ -9,8 +9,7 @@ const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../../../constan
 const importRules = require('../../../rules/importRules');
 const importSessionService = require('../../importSessionService');
 const auditService = require('../../auditService');
-const { saveImportFiles, cleanupImportFiles } = require('../../../utils/importTempFileStore');
-const { enqueueImportPreviewJob } = require('../../../jobs/importPreviewQueue');
+const JobSubmissionService = require('../../background-jobs/JobSubmissionService');
 const { runImportPreviewPipeline } = require('../../../jobs/importPreviewRunner');
 const {
   IMPORT_MODE_CREATE,
@@ -716,22 +715,22 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
   const asyncPreview = process.env.IMPORT_PREVIEW_ASYNC !== 'false';
 
   if (asyncPreview) {
-    const storedFiles = await saveImportFiles(session.id, normalizedFiles);
+    await importSessionService.markQueued(session.id, { files: normalizedFiles.map((file) => ({
+      fileName: file.fileName,
+      size: file.size || file.buffer?.length || 0
+    })) });
 
-    await importSessionService.markQueued(session.id, { files: storedFiles });
-
-    let queueResult;
+    let queued;
     try {
-      queueResult = enqueueImportPreviewJob({
+      queued = await JobSubmissionService.submitImportPreview({
         sessionId: session.id,
         type,
-        files: storedFiles,
+        files: normalizedFiles,
         userName,
         importMode: normalizedImportMode
       });
     } catch (err) {
       await importSessionService.markFailed(session.id, err.message || 'Không thể đưa file vào hàng đợi import').catch(() => {});
-      await cleanupImportFiles(storedFiles).catch(() => {});
       return {
         error: err.message || 'Hàng đợi import đang quá tải',
         status: Number(err.statusCode || err.status || 503),
@@ -748,8 +747,9 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
       summary: {
         type,
         importMode: normalizedImportMode,
-        totalFiles: storedFiles.length,
-        fileNames: storedFiles.map((file) => file.fileName)
+        totalFiles: normalizedFiles.length,
+        fileNames: normalizedFiles.map((file) => file.fileName),
+        backgroundJobId: queued.job.id
       }
     }).catch((err) => {
       console.error('[IMPORT_PREVIEW_QUEUED_AUDIT_ERROR]', err && (err.stack || err.message || err));
@@ -759,11 +759,13 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
       ok: true,
       accepted: true,
       status: 'queued',
-      message: 'File import đã được đưa vào hàng chờ xử lý',
+      message: 'File import đã được đưa vào hàng chờ xử lý bền vững',
       sessionId: session.id,
       importSessionId: session.id,
       importMode: normalizedImportMode,
-      queue: queueResult
+      jobId: queued.job.id,
+      jobStatusUrl: `/api/background-jobs/${encodeURIComponent(queued.job.id)}`,
+      queue: { queued: true, persistent: true, jobId: queued.job.id }
     };
   }
 

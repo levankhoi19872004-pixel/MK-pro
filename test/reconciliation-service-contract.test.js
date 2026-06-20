@@ -73,7 +73,10 @@ test('reconciliation job is env guarded and app startup uses it safely', () => {
   const pkg = JSON.parse(read('package.json'));
 
   assert.match(job, /AUTO_RECONCILIATION_JOB/);
-  assert.match(job, /RECONCILIATION_ALREADY_RUNNING/);
+  assert.match(job, /persistent_background_queue/);
+  assert.match(job, /reconciliation:scheduled/);
+  assert.match(job, /submitReconciliation/);
+  assert.doesNotMatch(job, /ReconciliationService\.runReconciliation/);
   assert.match(app, /startReconciliationJob\(\)/);
   assert.match(env, /AUTO_RECONCILIATION_JOB=true/);
   assert.match(job, /process\.env\.AUTO_RECONCILIATION_JOB !== 'false'/);
