@@ -27,6 +27,7 @@ const {
 const { normalizePickingZone, pickingZoneFrom, pickingZoneLabel, PICKING_ZONES } = require('../utils/pickingZone.util');
 const sseInvoiceExportService = require('./sseInvoiceExport.service');
 const invoiceExportQueryService = require('./invoiceExportQuery.service');
+const invoiceNetSalesService = require('./invoiceNetSales.service');
 
 function stripMongoFields(row = {}) {
   const plain = { ...row };
@@ -428,11 +429,11 @@ function paymentMethod(order = {}) {
 }
 
 function buildVatInvoiceRows({ orders, returnOrders, customers, products, query = {} }) {
-  const returnQtyMap = buildReturnQtyMap(returnOrders);
   const customerMap = buildCustomerMap(customers);
   const productMap = buildProductMap(products);
   const resultRows = [];
   const auditRows = [];
+  const warningRows = [];
   let invoiceNo = 0;
 
   const filteredOrders = (orders || [])
@@ -446,44 +447,38 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
     })
     .sort((a, b) => cleanText(a.orderDate || a.date || a.documentDate || a.createdAt).localeCompare(cleanText(b.orderDate || b.date || b.documentDate || b.createdAt)) || orderCode(a).localeCompare(orderCode(b)));
 
-  for (const order of filteredOrders) {
+  const netDataset = invoiceNetSalesService.buildNetSaleDataset({
+    orders: filteredOrders,
+    returnOrders,
+    isEligibleReturnOrder: invoiceExportQueryService.isEligibleReturnOrder
+  });
+
+  for (const netOrder of netDataset.orders) {
+    const order = netOrder.order;
     const detailLines = [];
     const ci = customerInfo(order, customerMap);
     const currentOrderCode = orderCode(order);
-    const orderDate = normalizeDateOnly(order.orderDate || order.date || order.documentDate || order.createdAt || dateUtil.todayVN());
+    const currentOrderDate = normalizeDateOnly(order.orderDate || order.date || order.documentDate || order.createdAt || dateUtil.todayVN());
 
-    for (const item of Array.isArray(order.items) ? order.items : []) {
-      const pcode = productCodeOf(item);
+    for (const line of netOrder.lines) {
+      const item = line.item;
+      const pcode = line.productCode;
       const product = productMap.get(pcode) || {};
       const productName = productNameOf(item) || cleanText(product.name || product.productName);
-      const soldQty = qtyOf(item);
-      const returnInfo = getReturnInfoForOrderLine(returnQtyMap, order, item);
-      const returnQty = returnInfo.qty;
-      const safeReturnQty = Math.min(soldQty, returnQty);
-      const invoiceQty = Math.max(0, soldQty - safeReturnQty);
+      const soldQty = line.soldQty;
+      const returnQty = line.returnedQty;
+      const invoiceQty = line.netQty;
       const priceInclVat = priceInclVatOf(item) || (soldQty ? amountInclVatOf(item) / soldQty : 0);
+      const sourceInfo = invoiceNetSalesService.sourceSummary(line);
 
       if (!pcode || invoiceQty <= 0) {
-        auditRows.push({
-          MaDon: currentOrderCode,
-          MaKhachHang: ci.code,
-          TenKhachHang: ci.name,
-          MaSanPham: pcode,
-          SanPham: productName,
-          'Quy cách': ProductExcelEnrichmentService.catalogPackingQty(product),
-          'Giá bán': ProductExcelEnrichmentService.catalogSalePrice(product),
-          SoLuongBan: soldQty,
-          SoLuongTra: returnQty,
-          SoLuongTraAnToan: safeReturnQty,
-          SoLuongXuatHoaDon: invoiceQty,
-          GiaSauKhuyenMaiCoVAT: priceInclVat,
-          DonGiaTruocVAT: '',
-          ThanhTienTruocVAT: '',
-          ReturnOrderCode: returnInfo.ReturnOrderCode,
-          ReturnOrderId: returnInfo.ReturnOrderId,
-          ReturnQtySource: returnInfo.ReturnQtySource,
-          LyDoBoDong: !pcode ? 'MISSING_PRODUCT_CODE' : 'INVOICE_QTY_ZERO'
-        });
+        if (!pcode) {
+          warningRows.push({
+            code: 'MISSING_PRODUCT_CODE',
+            orderCode: currentOrderCode,
+            message: 'Dòng bán thiếu productCode nên không thể đưa vào dataset hóa đơn.'
+          });
+        }
         continue;
       }
 
@@ -497,84 +492,55 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
         catalogSalePrice: ProductExcelEnrichmentService.catalogSalePrice(product),
         soldQty,
         returnQty,
-        safeReturnQty,
+        safeReturnQty: returnQty,
         invoiceQty,
         priceInclVat,
         unitPriceBeforeVat,
         lineAmountBeforeVat,
-        returnOrderCode: returnInfo.ReturnOrderCode,
-        returnOrderId: returnInfo.ReturnOrderId,
-        returnQtySource: returnInfo.ReturnQtySource
+        returnOrderCode: sourceInfo.ReturnOrderCode,
+        returnOrderId: sourceInfo.ReturnOrderId,
+        returnQtySource: sourceInfo.ReturnQtySource
       });
     }
-    if (!detailLines.length) continue;
+
+    // Quy tắc bắt buộc: đơn trả hết không được tạo header hóa đơn rỗng.
+    if (!detailLines.length || netOrder.fullyReturned) continue;
 
     invoiceNo += 1;
     const invoiceAmountBeforeVat = roundMoney(detailLines.reduce((sum, line) => sum + line.lineAmountBeforeVat, 0), 2);
     const invoiceVat = roundMoney(invoiceAmountBeforeVat * TT78_VAT_RATE, 2);
     const invoiceTotal = Math.round(invoiceAmountBeforeVat + invoiceVat);
+    if (invoiceTotal <= 0) continue;
 
     detailLines.forEach((line, index) => {
       const isFirst = index === 0;
       resultRows.push({
-        STT: isFirst ? invoiceNo : '',
-        NgayHoaDon: isFirst ? orderDate : '',
-        MaKhachHang: isFirst ? ci.code : '',
-        TenKhachHang: isFirst ? ci.name : '',
-        TenNguoiMua: isFirst ? ci.buyer : '',
-        MaSoThue: isFirst ? ci.taxCode : '',
-        DiaChiKhachHang: isFirst ? ci.address : '',
-        DienThoaiKhachHang: isFirst ? ci.phone : '',
-        SoTaiKhoan: isFirst ? ci.bankAccount : '',
-        NganHang: isFirst ? ci.bankName : '',
-        HinhThucTT: isFirst ? paymentMethod(order) : '',
-        MaSanPham: line.productCode,
-        SanPham: line.productName,
-        DonViTinh: line.unit,
-        Extra1SP: line.catalogPackingQty,
-        Extra2SP: line.catalogSalePrice,
-        SoLuong: line.invoiceQty,
-        DonGia: line.unitPriceBeforeVat,
-        TyLeChietKhauHienThi: '',
-        SoTienChietKhau: '',
-        ThanhTien: line.lineAmountBeforeVat,
-        TienBan: isFirst ? invoiceAmountBeforeVat : '',
-        ThueSuat: isFirst ? 8 : '',
-        TienThueSanPham: '',
-        TienThue: isFirst ? invoiceVat : '',
-        TongCong: isFirst ? invoiceTotal : '',
-        TinhChatHangHoa: isFirst ? 0 : 0,
-        DonViTienTe: isFirst ? 'VND' : '',
-        TyGia: '',
-        Fkey: isFirst ? orderCode(order) : '',
-        Extra1: '', Extra2: '', EmailKhachHang: isFirst ? ci.email : '', VungDuLieu: '', Extra3: '', Extra4: '', Extra5: '', Extra6: '', Extra7: '', Extra8: '', Extra9: '', Extra10: '', Extra11: '', Extra12: '', LOONo: '', HDSe: '', xVTNXHan: '', NVChuan: '', PTChuyenKhoan: '', HDKTTu: '', CCCDan: ''
+        STT: isFirst ? invoiceNo : '', NgayHoaDon: isFirst ? currentOrderDate : '', MaKhachHang: isFirst ? ci.code : '',
+        TenKhachHang: isFirst ? ci.name : '', TenNguoiMua: isFirst ? ci.buyer : '', MaSoThue: isFirst ? ci.taxCode : '',
+        DiaChiKhachHang: isFirst ? ci.address : '', DienThoaiKhachHang: isFirst ? ci.phone : '', SoTaiKhoan: isFirst ? ci.bankAccount : '',
+        NganHang: isFirst ? ci.bankName : '', HinhThucTT: isFirst ? paymentMethod(order) : '', MaSanPham: line.productCode,
+        SanPham: line.productName, DonViTinh: line.unit, Extra1SP: line.catalogPackingQty, Extra2SP: line.catalogSalePrice,
+        SoLuong: line.invoiceQty, DonGia: line.unitPriceBeforeVat, TyLeChietKhauHienThi: '', SoTienChietKhau: '',
+        ThanhTien: line.lineAmountBeforeVat, TienBan: isFirst ? invoiceAmountBeforeVat : '', ThueSuat: isFirst ? 8 : '',
+        TienThueSanPham: '', TienThue: isFirst ? invoiceVat : '', TongCong: isFirst ? invoiceTotal : '', TinhChatHangHoa: 0,
+        DonViTienTe: isFirst ? 'VND' : '', TyGia: '', Fkey: isFirst ? currentOrderCode : '', Extra1: '', Extra2: '',
+        EmailKhachHang: isFirst ? ci.email : '', VungDuLieu: '', Extra3: '', Extra4: '', Extra5: '', Extra6: '', Extra7: '',
+        Extra8: '', Extra9: '', Extra10: '', Extra11: '', Extra12: '', LOONo: '', HDSe: '', xVTNXHan: '', NVChuan: '',
+        PTChuyenKhoan: '', HDKTTu: '', CCCDan: ''
       });
       auditRows.push({
-        MaDon: orderCode(order),
-        MaKhachHang: ci.code,
-        TenKhachHang: ci.name,
-        MaSoThue: ci.taxCode,
-        DiaChiHoaDon: ci.address,
-        MaSanPham: line.productCode,
-        SanPham: line.productName,
-        'Quy cách': line.catalogPackingQty,
-        'Giá bán': line.catalogSalePrice,
-        SoLuongBan: line.soldQty,
-        SoLuongTra: line.returnQty,
-        SoLuongTraAnToan: line.safeReturnQty,
-        SoLuongXuatHoaDon: line.invoiceQty,
-        GiaSauKhuyenMaiCoVAT: line.priceInclVat,
-        DonGiaTruocVAT: line.unitPriceBeforeVat,
-        ThanhTienTruocVAT: line.lineAmountBeforeVat,
-        ReturnOrderCode: line.returnOrderCode,
-        ReturnOrderId: line.returnOrderId,
-        ReturnQtySource: line.returnQtySource,
-        LyDoBoDong: ''
+        MaDon: currentOrderCode, MaKhachHang: ci.code, TenKhachHang: ci.name, MaSoThue: ci.taxCode,
+        DiaChiHoaDon: ci.address, MaSanPham: line.productCode, SanPham: line.productName, 'Quy cách': line.catalogPackingQty,
+        'Giá bán': line.catalogSalePrice, SoLuongBan: line.soldQty, SoLuongTra: line.returnQty,
+        SoLuongTraAnToan: line.safeReturnQty, SoLuongXuatHoaDon: line.invoiceQty,
+        GiaSauKhuyenMaiCoVAT: line.priceInclVat, DonGiaTruocVAT: line.unitPriceBeforeVat,
+        ThanhTienTruocVAT: line.lineAmountBeforeVat, ReturnOrderCode: line.returnOrderCode,
+        ReturnOrderId: line.returnOrderId, ReturnQtySource: line.returnQtySource, LyDoBoDong: ''
       });
     });
   }
 
-  return { rows: resultRows, auditRows };
+  return { rows: resultRows, auditRows, warnings: [...netDataset.warnings, ...warningRows] };
 }
 
 async function buildVatInvoiceTT78Workbook(query = {}, currentUser = {}) {

@@ -1,4 +1,4 @@
-  const { rows, auditRows } = buildVatInvoiceRows({ orders, returnOrders, customers, products, query });
+  const { rows, auditRows, warnings = [] } = buildVatInvoiceRows({ orders, returnOrders, customers, products, query });
   if (!rows.length) {
     return {
       error: 'Không có đơn VAT hoặc dòng sản phẩm hợp lệ trong phạm vi bộ lọc đã chọn',
@@ -42,7 +42,7 @@
   const buffer = writeWorkbook(workbook);
   const fromName = dateFrom === '0000-01-01' ? 'all' : dateFrom;
   const toName = dateTo === '9999-12-31' ? dateUtil.todayVN() : dateTo;
-  return { buffer, rows: rows.length, orderCount: summary.invoiceCount, fileName: `Hoa_don_VAT_TT78_${fromName}_${toName}.xlsx` };
+  return { buffer, rows: rows.length, orderCount: summary.invoiceCount, warningCount: warnings.length, warnings: warnings.slice(0, 100), fileName: `Hoa_don_VAT_TT78_${fromName}_${toName}.xlsx` };
 }
 
 

@@ -11,6 +11,7 @@ const {
 } = require('./invoiceExportClassifier');
 const { createWorkbook, appendAoaSheet, writeWorkbook, excelDate, excelText } = require('../utils/excelWriter.util');
 const invoiceExportQueryService = require('./invoiceExportQuery.service');
+const invoiceNetSalesService = require('./invoiceNetSales.service');
 
 const SSE_HEADERS = Object.freeze([
   'Mã khách', 'Tên khách hàng', 'Ngày', 'Số hóa đơn', 'Loại hóa đơn', 'Ký hiệu', 'Diễn giải',
@@ -221,13 +222,12 @@ function buildSseRows({ orders = [], returnOrders = [], customers = [], products
   const requestedType = invoiceExportQueryService.normalizeInvoiceGroup(invoiceType, invoiceExportQueryService.INVOICE_GROUPS.ALL);
   const customerMap = buildCatalogMap(customers, ['_id','id','code','customerCode']);
   const productMap = buildCatalogMap(products, ['_id','id','code','productCode','sku','barcode']);
-  const returnMap = buildReturnMap(returnOrders);
   const rows = [];
   const errors = [];
   const warnings = [];
   const seenOrders = new Set();
-  const exportedOrders = new Set();
-  const seenLines = new Set();
+  const selectedOrders = [];
+
   for (const order of orders || []) {
     const orderType = resolveInvoiceType(order);
     if (!isActiveInvoiceOrder(order)) continue;
@@ -235,35 +235,48 @@ function buildSseRows({ orders = [], returnOrders = [], customers = [], products
     const orderKey = orderIdentity(order);
     if (!orderKey || seenOrders.has(orderKey)) continue;
     seenOrders.add(orderKey);
+    selectedOrders.push(order);
+  }
+
+  const netDataset = invoiceNetSalesService.buildNetSaleDataset({
+    orders: selectedOrders,
+    returnOrders,
+    isEligibleReturnOrder: invoiceExportQueryService.isEligibleReturnOrder
+  });
+  warnings.push(...netDataset.warnings.map((warning) => ({
+    'Mã đơn': warning.orderCode || '',
+    'Khách hàng': '',
+    'Mã sản phẩm': warning.productCode || '',
+    'Tên sản phẩm': '',
+    'Trường bị thiếu': warning.code || 'RETURN_WARNING',
+    'Nguyên nhân': [warning.message || '', warning.returnedQty !== undefined ? `Tổng trả ${warning.returnedQty}` : '', warning.soldQty !== undefined ? `Số lượng bán ${warning.soldQty}` : ''].filter(Boolean).join(' - '),
+    'Hướng xử lý': 'Đối chiếu returnOrders; dữ liệu nguồn không bị thay đổi'
+  })));
+
+  const exportedOrders = new Set();
+  const seenLines = new Set();
+  for (const netOrder of netDataset.orders) {
+    const order = netOrder.order;
+    const orderType = resolveInvoiceType(order);
+    const orderKey = orderIdentity(order);
     const rowConfig = configByType[orderType] || config;
     const customerDoc = customerMap.get(cleanText(order.customerCode)) || customerMap.get(cleanText(order.customerId)) || {};
     const customer = resolveCustomer(order, customerDoc, rowConfig);
-    for (const [itemIndex, item] of (Array.isArray(order.items) ? order.items : []).entries()) {
-      const soldQty = qtyOf(item);
-      if (soldQty <= 0) continue;
-      const productKey = productCodeOf(item);
+
+    for (const line of netOrder.exportableLines) {
+      const item = line.item;
+      const soldQty = line.soldQty;
+      const productKey = line.productCode;
       const catalogProduct = productMap.get(productKey) || productMap.get(productIdOf(item)) || {};
       const product = resolveProduct(item, catalogProduct, rowConfig);
-      const rawReturned = returnedQtyForLine(returnMap, order, item);
-      if (rawReturned > soldQty) {
-        warnings.push(errorRow(
-          order,
-          item,
-          'Số lượng trả vượt bán',
-          `Số lượng bán ${soldQty}, tổng trả hợp lệ ${rawReturned}`,
-          'Đối chiếu phiếu trả; file SSE đã giới hạn số lượng còn lại về 0'
-        ));
-      }
-      const returned = Math.min(soldQty, rawReturned);
-      const quantity = round(Math.max(0, soldQty - returned), 6);
-      if (quantity <= 0) continue;
+      const quantity = line.netQty;
       const directPriceValue = item.finalPrice ?? item.priceAfterPromotion ?? item.promoPrice ?? item.price ?? item.salePrice ?? item.unitPrice ?? item.sellPrice;
       const amountValue = item.amount ?? item.totalAmount ?? item.lineAmount;
       const hasDirectPrice = directPriceValue !== null && directPriceValue !== undefined && cleanText(directPriceValue) !== '' && Number.isFinite(toNumber(directPriceValue, NaN));
       const hasAmountPrice = soldQty > 0 && amountValue !== null && amountValue !== undefined && cleanText(amountValue) !== '' && Number.isFinite(toNumber(amountValue, NaN));
       const sourcePrice = hasDirectPrice ? toNumber(directPriceValue) : (hasAmountPrice ? toNumber(amountValue) / soldQty : NaN);
       const unitPrice = round(orderType === INVOICE_TYPES.VAT ? sourcePrice / (1 + rowConfig.vatRate) : sourcePrice, 6);
-      const lineIdentity = [orderKey, lineKeyOf(item) || itemIndex, productKey].join('@@');
+      const lineIdentity = [orderKey, line.itemIndex, productKey].join('@@');
       if (seenLines.has(lineIdentity)) continue;
       seenLines.add(lineIdentity);
       const lineErrors = validateLine({ order, item, customer, product, quantity, unitPrice, hasPrice: hasDirectPrice || hasAmountPrice, config: rowConfig });
@@ -278,6 +291,7 @@ function buildSseRows({ orders = [], returnOrders = [], customers = [], products
   }
   return { rows, errors, warnings, orderCount: exportedOrders.size };
 }
+
 function sseFileName(invoiceType, query = {}) {
   const normalized = invoiceExportQueryService.normalizeInvoiceGroup(invoiceType, invoiceExportQueryService.INVOICE_GROUPS.ALL);
   const typeLabel = normalized === INVOICE_TYPES.NON_VAT ? 'khong_VAT' : normalized === INVOICE_TYPES.VAT ? 'VAT' : 'tat_ca';
