@@ -25,6 +25,7 @@ const INVOICE_GROUPS = Object.freeze({
 
 const ORDER_PROJECTION = [
   'id', 'tenantId', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode',
+  'masterOrderId', 'masterOrderCode', 'masterId', 'masterCode', 'deliveryMasterId', 'deliveryMasterCode',
   'date', 'orderDate', 'documentDate', 'createdDate', 'createdAt',
   'deleted', 'isDeleted', 'deletedAt',
   'customerId', 'customerCode', 'customerName', 'customerPhone',
@@ -41,6 +42,7 @@ const RETURN_PROJECTION = [
   'id', 'tenantId', 'code', 'returnOrderCode', 'documentCode',
   'salesOrderId', 'orderId', 'sourceOrderId', 'deliveryOrderId',
   'salesOrderCode', 'orderCode', 'sourceOrderCode', 'deliveryOrderCode', 'originalOrderCode',
+  'masterOrderId', 'masterOrderCode', 'masterDeliveryOrderId', 'masterDeliveryOrderCode', 'masterId', 'masterCode',
   'items', 'status', 'returnStatus', 'returnState', 'warehouseReceiveStatus',
   'accountingStatus', 'accountingConfirmed', 'accountingConfirmedAt',
   'arPosted', 'arPostedAt', 'deleted', 'isDeleted', 'deletedAt',
@@ -237,61 +239,75 @@ function uniqueText(values = []) {
 
 function orderLinkValues(order = {}) {
   return {
-    ids: uniqueText([order._id, order.id]),
-    codes: uniqueText([order.code, order.orderCode, order.salesOrderCode, order.documentCode, order.invoiceCode])
+    ids: uniqueText([order._id, order.id, order.orderId, order.salesOrderId, order.sourceOrderId, order.deliveryOrderId]),
+    codes: uniqueText([
+      order.code, order.orderCode, order.salesOrderCode,
+      order.documentCode, order.invoiceCode, order.sourceOrderCode, order.deliveryOrderCode
+    ]),
+    masterIds: uniqueText([order.masterOrderId, order.masterId, order.deliveryMasterId]),
+    masterCodes: uniqueText([order.masterOrderCode, order.masterCode, order.deliveryMasterCode])
   };
 }
 
 function buildReturnLinkFilter(orders = [], currentUser = {}) {
   const ids = [];
   const codes = [];
+  const masterIds = [];
+  const masterCodes = [];
   for (const order of orders || []) {
     const links = orderLinkValues(order);
     ids.push(...links.ids);
     codes.push(...links.codes);
+    masterIds.push(...links.masterIds);
+    masterCodes.push(...links.masterCodes);
   }
   const idValues = uniqueText(ids);
   const codeValues = uniqueText(codes);
+  const masterIdValues = uniqueText(masterIds);
+  const masterCodeValues = uniqueText(masterCodes);
   const links = [];
   if (idValues.length) {
-    links.push({
-      $or: [
-        { salesOrderId: { $in: idValues } },
-        { orderId: { $in: idValues } },
-        { sourceOrderId: { $in: idValues } },
-        { deliveryOrderId: { $in: idValues } }
-      ]
-    });
+    links.push(
+      { salesOrderId: { $in: idValues } },
+      { orderId: { $in: idValues } },
+      { sourceOrderId: { $in: idValues } },
+      { deliveryOrderId: { $in: idValues } }
+    );
   }
   if (codeValues.length) {
-    links.push({
-      $or: [
-        { salesOrderCode: { $in: codeValues } },
-        { orderCode: { $in: codeValues } },
-        { sourceOrderCode: { $in: codeValues } },
-        { deliveryOrderCode: { $in: codeValues } },
-        { originalOrderCode: { $in: codeValues } }
-      ]
-    });
+    links.push(
+      { salesOrderCode: { $in: codeValues } },
+      { orderCode: { $in: codeValues } },
+      { sourceOrderCode: { $in: codeValues } },
+      { deliveryOrderCode: { $in: codeValues } },
+      { originalOrderCode: { $in: codeValues } }
+    );
+  }
+  if (masterIdValues.length) {
+    links.push(
+      { masterOrderId: { $in: masterIdValues } },
+      { masterDeliveryOrderId: { $in: masterIdValues } },
+      { masterId: { $in: masterIdValues } }
+    );
+  }
+  if (masterCodeValues.length) {
+    links.push(
+      { masterOrderCode: { $in: masterCodeValues } },
+      { masterDeliveryOrderCode: { $in: masterCodeValues } },
+      { masterCode: { $in: masterCodeValues } }
+    );
   }
   if (!links.length) return { _id: null };
 
-  const eligibleStateClause = {
-    $or: [
-      { arPosted: true },
-      { arPostedAt: { $exists: true, $nin: [null, ''] } },
-      { accountingConfirmed: true },
-      { accountingConfirmedAt: { $exists: true, $nin: [null, ''] } },
-      { returnState: { $in: ['accounting_confirmed', 'posted_to_ar'] } },
-      { status: { $in: ['accounting_confirmed', 'posted_to_ar', 'confirmed', 'posted', 'completed'] } },
-      { returnStatus: { $in: ['accounting_confirmed', 'posted_to_ar', 'confirmed', 'posted', 'completed'] } },
-      { accountingStatus: { $in: ['accounting_confirmed', 'confirmed', 'posted_to_ar', 'posted', 'completed'] } }
-    ]
-  };
+  // Query all linked return documents once, then apply the same operational
+  // eligibility rule used by the delivery screen in JavaScript. Do not require
+  // accounting confirmation here: delivery returns are commonly stored as
+  // returnStatus='active'/accountingStatus='pending' while already representing
+  // goods physically returned by the customer.
+  const clauses = [{ $or: links }];
   const tenantClause = buildTenantClause(currentUser);
-  const clauses = [{ $or: links }, eligibleStateClause];
   if (tenantClause) clauses.push(tenantClause);
-  return { $and: clauses };
+  return clauses.length === 1 ? clauses[0] : { $and: clauses };
 }
 
 function isDeletedRecord(row = {}) {
@@ -304,11 +320,32 @@ function isDeletedRecord(row = {}) {
 
 function isEligibleReturnOrder(row = {}) {
   if (isDeletedRecord(row)) return false;
+
+  const inactiveStatuses = new Set([
+    'cancelled', 'canceled', 'void', 'voided', 'deleted', 'removed',
+    'cleared', 'duplicate_cancelled', 'rejected', 'inactive'
+  ]);
+  const rawStatuses = [
+    row.returnState,
+    row.status,
+    row.returnStatus,
+    row.accountingStatus,
+    row.warehouseReceiveStatus
+  ].map((value) => cleanText(value).toLowerCase()).filter(Boolean);
+  if (rawStatuses.some((value) => inactiveStatuses.has(value))) return false;
+
   const state = getReturnState(row);
-  if (state === RETURN_STATES.CANCELLED) return false;
-  if (row.arPosted || cleanText(row.arPostedAt)) return true;
-  if (row.accountingConfirmed || cleanText(row.accountingConfirmedAt)) return true;
-  return state === RETURN_STATES.ACCOUNTING_CONFIRMED || state === RETURN_STATES.POSTED_TO_AR;
+  if (state === RETURN_STATES.CANCELLED || state === RETURN_STATES.DRAFT) return false;
+
+  // Operational return documents in this project are frequently waiting_receive
+  // or received while accountingStatus is still pending. They are already shown
+  // as customer returns in “Đơn giao hôm nay” and must reduce the invoice export.
+  return [
+    RETURN_STATES.WAITING_RECEIVE,
+    RETURN_STATES.RECEIVED,
+    RETURN_STATES.ACCOUNTING_CONFIRMED,
+    RETURN_STATES.POSTED_TO_AR
+  ].includes(state);
 }
 
 async function leanResult(query) {

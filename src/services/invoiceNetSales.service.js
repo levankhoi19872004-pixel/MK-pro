@@ -67,7 +67,12 @@ function soldQtyOf(item = {}) {
 
 function returnedQtyOf(item = {}) {
   const rate = conversionRateOf(item);
-  const direct = firstDefined(item, ['returnQty', 'qtyReturn', 'returnQuantity', 'returnedQty', 'baseReturnQty']);
+  const direct = firstDefined(item, [
+    'returnQty', 'qtyReturn', 'returnQuantity', 'returnedQty', 'baseReturnQty',
+    // returnOrders created by the delivery workflow and historical documents
+    // commonly store the returned quantity in quantity/qty.
+    'quantity', 'qty', 'totalQuantity', 'totalQty'
+  ]);
   if (direct !== undefined) {
     const caseLoose = parseCaseLoose(direct, rate);
     return roundQty(Number.isFinite(caseLoose) ? caseLoose : Math.max(0, toNumber(direct)));
@@ -109,6 +114,20 @@ function returnOrderKeys(row = {}) {
   ]);
 }
 
+function salesOrderMasterKeys(order = {}) {
+  return uniqueText([
+    order.masterOrderId, order.masterId, order.deliveryMasterId,
+    order.masterOrderCode, order.masterCode, order.deliveryMasterCode
+  ]);
+}
+
+function returnOrderMasterKeys(row = {}) {
+  return uniqueText([
+    row.masterOrderId, row.masterDeliveryOrderId, row.masterId,
+    row.masterOrderCode, row.masterDeliveryOrderCode, row.masterCode
+  ]);
+}
+
 function returnDocumentIdentity(row = {}, index = 0) {
   return cleanText(row.code || row.returnOrderCode || row.documentCode || row.id || row._id) || `RETURN_DOC_${index}`;
 }
@@ -134,11 +153,14 @@ function selectLatestReturnDocuments(returnOrders = [], isEligibleReturnOrder = 
     if (!isEligibleReturnOrder(row)) return;
     const identity = returnDocumentIdentity(row, index);
     const orderKeys = returnOrderKeys(row);
-    if (!orderKeys.length) return;
+    const masterKeys = returnOrderMasterKeys(row);
+    if (!orderKeys.length && !masterKeys.length) return;
     const key = identity;
     const updatedAt = returnDocumentUpdatedAt(row);
     const previous = latest.get(key);
-    if (!previous || updatedAt >= previous.updatedAt) latest.set(key, { row, updatedAt, identity, orderKeys });
+    if (!previous || updatedAt >= previous.updatedAt) {
+      latest.set(key, { row, updatedAt, identity, orderKeys, masterKeys });
+    }
   });
   return [...latest.values()];
 }
@@ -182,28 +204,53 @@ function buildNetSaleDataset({ orders = [], returnOrders = [], isEligibleReturnO
       priceKey: priceKeyOf(item),
       returnSources: []
     }));
-    return { order, orderIndex, orderKeys: salesOrderKeys(order), lines };
+    return {
+      order,
+      orderIndex,
+      orderKeys: salesOrderKeys(order),
+      masterKeys: salesOrderMasterKeys(order),
+      lines
+    };
   });
 
   const orderByKey = new Map();
+  const orderByMasterKey = new Map();
   for (const record of orderRecords) {
     for (const key of record.orderKeys) {
       if (!orderByKey.has(key)) orderByKey.set(key, new Set());
       orderByKey.get(key).add(record);
     }
+    for (const key of record.masterKeys) {
+      if (!orderByMasterKey.has(key)) orderByMasterKey.set(key, new Set());
+      orderByMasterKey.get(key).add(record);
+    }
   }
 
   const returnDocuments = selectLatestReturnDocuments(returnOrders, isEligibleReturnOrder);
   for (const document of returnDocuments) {
-    const matched = new Set();
+    const directMatched = new Set();
     for (const key of document.orderKeys) {
-      for (const record of orderByKey.get(key) || []) matched.add(record);
+      for (const record of orderByKey.get(key) || []) directMatched.add(record);
     }
+
+    let matched = directMatched;
+    let linkType = 'direct';
+    if (directMatched.size === 0 && document.masterKeys.length) {
+      const masterMatched = new Set();
+      for (const key of document.masterKeys) {
+        for (const record of orderByMasterKey.get(key) || []) masterMatched.add(record);
+      }
+      matched = masterMatched;
+      linkType = 'master';
+    }
+
     if (matched.size !== 1) {
       warnings.push({
         code: matched.size ? 'AMBIGUOUS_RETURN_ORDER_LINK' : 'UNMATCHED_RETURN_ORDER',
         returnOrderCode: document.identity,
         orderKeys: document.orderKeys,
+        masterKeys: document.masterKeys,
+        linkType,
         message: matched.size
           ? 'Phiếu trả liên kết tới nhiều đơn bán; không tự động trừ để tránh sai đơn.'
           : 'Phiếu trả không liên kết được với đơn bán trong dataset xuất.'
@@ -283,6 +330,8 @@ module.exports = {
   priceKeyOf,
   salesOrderKeys,
   returnOrderKeys,
+  salesOrderMasterKeys,
+  returnOrderMasterKeys,
   sourceSummary,
   _private: {
     parseCaseLoose,

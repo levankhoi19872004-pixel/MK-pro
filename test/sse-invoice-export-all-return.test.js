@@ -42,19 +42,19 @@ test('SSE ALL includes VAT and NON_VAT orders and every remaining product line',
   assert.deepEqual(built.rows.map(row=>cellValue(row[3])),['VAT-1','VAT-1','NON-1']);
 });
 
-test('SSE subtracts multiple confirmed returns once; draft/cancelled/received returns are ignored', () => {
+test('SSE subtracts active/received/accounting returns once; draft/cancelled returns are ignored', () => {
   const returns=[
     returnOrder('RO1','SO1','SP1',2,'accounting_confirmed','L1'),
     returnOrder('RO2','SO1','SP1',3,'posted_to_ar','L1'),
     returnOrder('RO3','SO1','SP1',50,'draft','L1'),
-    returnOrder('RO4','SO1','SP1',50,'received','L1'),
+    returnOrder('RO4','SO1','SP1',1,'received','L1'),
     returnOrder('RO5','SO1','SP1',50,'cancelled','L1'),
     { ...returnOrder('RO2','SO1','SP1',3,'posted_to_ar','L1'), _id:'duplicate-copy', updatedAt:'2026-06-11T00:00:00.000Z' }
   ];
   const built=service.buildSseRows({orders:[order('SO1',true,[item('SP1',10,108,'L1')])],returnOrders:returns,customers,products,invoiceType:'ALL',config,configByType:{VAT:config(),NON_VAT:config()}});
   assert.equal(built.errors.length,0);
   assert.equal(built.rows.length,1);
-  assert.equal(built.rows[0][14],5);
+  assert.equal(built.rows[0][14],4);
 });
 
 test('full return removes product/order; over-return never creates a negative row and records a warning', () => {

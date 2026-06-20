@@ -63,7 +63,7 @@ test('fully returned product is removed while another product remains with its n
   assert.deepEqual(result.orders[0].exportableLines.map((line) => [line.productCode, line.netQty]), [['B', 3]]);
 });
 
-test('cancelled/draft/received returns do not make a sales order disappear', () => {
+test('cancelled/draft returns are ignored while received operational returns are subtracted', () => {
   const result = build(
     [order('SO-5', [item('A', 10)])],
     [
@@ -73,8 +73,51 @@ test('cancelled/draft/received returns do not make a sales order disappear', () 
       returned('RO-RECEIVED', 'SO-5', 'A', 5, 'received')
     ]
   );
-  assert.equal(result.orders[0].fullyReturned, false);
-  assert.equal(result.orders[0].lines[0].netQty, 5);
+  assert.equal(result.orders[0].fullyReturned, true);
+  assert.equal(result.orders[0].lines[0].netQty, 0);
+});
+
+test('production-shaped B0037855 active/pending return with quantity fields removes the full order', () => {
+  const result = build(
+    [order('B0037855', [
+      item('65551554', 1),
+      item('65591284', 6),
+      item('65591301', 6),
+      item('65687138', 1)
+    ])],
+    [{
+      code: 'RO-B0037855',
+      orderCode: 'B0037855',
+      returnStatus: 'active',
+      accountingStatus: 'pending',
+      items: [
+        { productCode: '65551554', quantity: 1 },
+        { productCode: '65591284', quantity: 6 },
+        { productCode: '65591301', quantity: 6 },
+        { productCode: '65687138', quantity: 1 }
+      ]
+    }]
+  );
+  assert.equal(result.orders[0].fullyReturned, true);
+  assert.equal(result.orders[0].totalSoldQty, 14);
+  assert.equal(result.orders[0].totalReturnedQty, 14);
+  assert.equal(result.orders[0].exportableLines.length, 0);
+});
+
+test('master-only return is applied only when the exported master has exactly one child order', () => {
+  const salesOrder = {
+    ...order('SO-MASTER-1', [item('A', 10)]),
+    masterOrderId: 'MO-1',
+    masterOrderCode: 'MASTER-1'
+  };
+  const result = build([salesOrder], [{
+    code: 'RO-MASTER-1',
+    masterOrderId: 'MO-1',
+    returnStatus: 'active',
+    accountingStatus: 'pending',
+    items: [{ productCode: 'A', qty: 10 }]
+  }]);
+  assert.equal(result.orders[0].fullyReturned, true);
 });
 
 test('over-return is capped at zero and emits a warning without negative quantities', () => {

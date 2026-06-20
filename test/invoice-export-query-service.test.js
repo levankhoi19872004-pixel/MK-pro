@@ -48,16 +48,33 @@ test('sales staff filter matches canonical code first and legacy code aliases on
   assert.equal(service.matchesInvoiceExportFilters({ salesmanCode: '35128' }, { salesStaffCode: '35128' }, { invoiceGroup: 'ALL' }), true);
 });
 
-test('only accounting-confirmed or AR-posted returns are eligible for invoice/SSE netting', () => {
+test('operational returnOrders shown by delivery reduce VAT/SSE unless draft or cancelled', () => {
   assert.equal(service.isEligibleReturnOrder({ returnState: 'draft' }), false);
-  assert.equal(service.isEligibleReturnOrder({ returnState: 'waiting_receive' }), false);
-  assert.equal(service.isEligibleReturnOrder({ returnState: 'received' }), false);
+  assert.equal(service.isEligibleReturnOrder({ returnStatus: 'active', accountingStatus: 'pending' }), true);
+  assert.equal(service.isEligibleReturnOrder({ returnState: 'waiting_receive', accountingStatus: 'pending' }), true);
+  assert.equal(service.isEligibleReturnOrder({ returnState: 'received' }), true);
   assert.equal(service.isEligibleReturnOrder({ status: 'confirmed' }), true);
   assert.equal(service.isEligibleReturnOrder({ returnState: 'accounting_confirmed' }), true);
   assert.equal(service.isEligibleReturnOrder({ returnState: 'posted_to_ar' }), true);
   assert.equal(service.isEligibleReturnOrder({ arPosted: true }), true);
   assert.equal(service.isEligibleReturnOrder({ returnState: 'cancelled', accountingConfirmedAt: '2026-06-01T00:00:00.000Z' }), false);
+  assert.equal(service.isEligibleReturnOrder({ returnStatus: 'active', accountingStatus: 'cancelled' }), false);
   assert.equal(service.isEligibleReturnOrder({ returnState: 'accounting_confirmed', deleted: true }), false);
+});
+
+test('return query includes operational documents and master links without requiring accounting confirmation', () => {
+  const filter = service.buildReturnLinkFilter([{
+    id: 'SO-ID-1',
+    code: 'B0037855',
+    masterOrderId: 'MO-ID-1',
+    masterOrderCode: 'MO-CODE-1'
+  }]);
+  const text = JSON.stringify(filter);
+  assert.match(text, /salesOrderId/);
+  assert.match(text, /orderCode/);
+  assert.match(text, /masterOrderId/);
+  assert.match(text, /masterOrderCode/);
+  assert.doesNotMatch(text, /accountingConfirmed|posted_to_ar|arPosted/);
 });
 
 test('order Mongo filter applies date, exact staff code and invoice group server-side', () => {
