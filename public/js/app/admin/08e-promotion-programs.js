@@ -176,9 +176,9 @@
       <td>${esc(p.programName||p.content||'')}</td>
       <td>${timeText(p)}</td>
       <td>${statusBadge(p)}</td>
-      <td><button type="button" class="small secondary" onclick="viewPromotionProgramByType('${esc(type)}','${esc(p.programCode)}')">Xem</button></td>
-      <td><button type="button" class="small" onclick="selectPromotionProgramByType('${esc(type)}','${esc(p.programCode)}')">Sửa</button></td>
-      <td><button type="button" class="small danger" onclick="cancelPromotionProgramByType('${esc(type)}','${esc(p.programCode)}')">Huỷ</button></td>
+      <td><button type="button" class="small secondary" data-promo-program-action="view" data-promo-type="${esc(type)}" data-program-code="${esc(p.programCode)}">Xem</button></td>
+      <td><button type="button" class="small" data-promo-program-action="select" data-promo-type="${esc(type)}" data-program-code="${esc(p.programCode)}">Sửa</button></td>
+      <td><button type="button" class="small danger" data-promo-program-action="cancel" data-promo-type="${esc(type)}" data-program-code="${esc(p.programCode)}">Huỷ</button></td>
     </tr>`).join('');
   }
   function renderDetailEmpty(type, text='Chưa chọn chương trình.'){
@@ -206,19 +206,19 @@
     if(type==='productRules'){
       const rows=detail?.productRules||[];
       if(!rows.length){ renderDetailEmpty(type,'Chương trình chưa có dòng CK sản phẩm.'); return; }
-      detailTable.innerHTML=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.productCode)}</td><td>${esc(r.productName)}</td><td>${fmtPct(r.discountPercent)}</td><td><button type="button" class="small" onclick="editProductRuleLine('${esc(p.programCode)}','${rowKey(r)}')">Sửa</button></td><td><button type="button" class="small danger" onclick="deleteProductRuleLine('${esc(p.programCode)}','${rowKey(r)}')">Xóa</button></td></tr>`).join('');
+      detailTable.innerHTML=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.productCode)}</td><td>${esc(r.productName)}</td><td>${fmtPct(r.discountPercent)}</td><td><button type="button" class="small" data-promo-program-action="edit-product-rule" data-program-code="${esc(p.programCode)}" data-row-id="${rowKey(r)}">Sửa</button></td><td><button type="button" class="small danger" data-promo-program-action="delete-product-rule" data-program-code="${esc(p.programCode)}" data-row-id="${rowKey(r)}">Xóa</button></td></tr>`).join('');
       return;
     }
     if(type==='groupItems'){
       const rows=detail?.groupItems||[];
       if(!rows.length){ renderDetailEmpty(type,'Nhóm chưa có sản phẩm.'); return; }
-      detailTable.innerHTML=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.productCode)}</td><td>${esc(r.productName)}</td><td><button type="button" class="small" onclick="editGroupProductLine('${esc(p.programCode)}','${rowKey(r)}')">Sửa</button></td><td><button type="button" class="small danger" onclick="deleteGroupProductLine('${esc(p.programCode)}','${rowKey(r)}')">Xóa</button></td></tr>`).join('');
+      detailTable.innerHTML=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.productCode)}</td><td>${esc(r.productName)}</td><td><button type="button" class="small" data-promo-program-action="edit-group-product" data-program-code="${esc(p.programCode)}" data-row-id="${rowKey(r)}">Sửa</button></td><td><button type="button" class="small danger" data-promo-program-action="delete-group-product" data-program-code="${esc(p.programCode)}" data-row-id="${rowKey(r)}">Xóa</button></td></tr>`).join('');
       return;
     }
     fillTierGroupSelect(detail);
     const rows=detail?.groupRules||[];
     if(!rows.length){ renderDetailEmpty(type,'Chương trình chưa có điều kiện bậc thang.'); return; }
-    detailTable.innerHTML=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.groupCode||r.programCode||'')}</td><td>${fmtMoney(r.minAmount)}</td><td>${fmtPct(r.discountPercent)}</td><td><button type="button" class="small" onclick="editTierLine('${esc(p.programCode)}','${rowKey(r)}')">Sửa</button></td><td><button type="button" class="small danger" onclick="deleteTierLine('${esc(p.programCode)}','${rowKey(r)}')">Xóa</button></td></tr>`).join('');
+    detailTable.innerHTML=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.groupCode||r.programCode||'')}</td><td>${fmtMoney(r.minAmount)}</td><td>${fmtPct(r.discountPercent)}</td><td><button type="button" class="small" data-promo-program-action="edit-tier" data-program-code="${esc(p.programCode)}" data-row-id="${rowKey(r)}">Sửa</button></td><td><button type="button" class="small danger" data-promo-program-action="delete-tier" data-program-code="${esc(p.programCode)}" data-row-id="${rowKey(r)}">Xóa</button></td></tr>`).join('');
   }
   async function loadPromotionProgramsByType(type){
     const cfg=TYPE_CONFIG[type]; const table=$(cfg.table); const state=states[type]; if(!table)return;
@@ -360,6 +360,23 @@
       renderDetailEmpty(type,'Tạo mới CTKM hiện đi theo quy trình import Excel. Có thể dùng popup này để chọn/sửa chương trình sau khi import.');
       openPromotionWorkspace(type,'create');
     });
+  });
+  document.addEventListener('click',event=>{
+    const button=event.target.closest('[data-promo-program-action]');
+    if(!button)return;
+    const action=button.dataset.promoProgramAction;
+    const type=button.dataset.promoType||'';
+    const code=button.dataset.programCode||'';
+    const rowId=button.dataset.rowId||'';
+    if(action==='view')window.viewPromotionProgramByType(type,code);
+    if(action==='select')window.selectPromotionProgramByType(type,code);
+    if(action==='cancel')window.cancelPromotionProgramByType(type,code);
+    if(action==='edit-product-rule')window.editProductRuleLine(code,rowId);
+    if(action==='delete-product-rule')window.deleteProductRuleLine(code,rowId);
+    if(action==='edit-group-product')window.editGroupProductLine(code,rowId);
+    if(action==='delete-group-product')window.deleteGroupProductLine(code,rowId);
+    if(action==='edit-tier')window.editTierLine(code,rowId);
+    if(action==='delete-tier')window.deleteTierLine(code,rowId);
   });
   document.querySelectorAll('[data-promotion-program-tab]').forEach(btn=>btn.addEventListener('click',()=>activateProgramTab(btn.dataset.promotionProgramTab)));
   searchInput?.addEventListener('input',()=>loadPromotionProgramsByType(activeType));

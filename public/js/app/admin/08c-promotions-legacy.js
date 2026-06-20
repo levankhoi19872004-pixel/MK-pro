@@ -18,7 +18,7 @@ async function loadPromotions(){
       <td>${productCodes}${(p.productCodes||[]).length>8?'...':''}</td>
       <td>${escapeImportHtml(p.startDate||'')} ${p.endDate?`→ ${escapeImportHtml(p.endDate)}`:''}</td>
       <td><span class="badge ${p.isActive!==false?'active':'inactive'}">${p.isActive!==false?'Đang áp dụng':'Ngừng'}</span></td>
-      <td class="row-actions"><button class="small" onclick="editPromotion(decodeURIComponent('${encodedId}'))">Sửa</button><button class="small danger" onclick="deletePromotion(decodeURIComponent('${encodedId}'))">Xóa</button></td>
+      <td class="row-actions"><button class="small" data-promotion-action="edit" data-promotion-id="${encodedId}">Sửa</button><button class="small danger" data-promotion-action="delete" data-promotion-id="${encodedId}">Xóa</button></td>
     </tr>`;
     }).join('');
   }catch(err){promotionTable.innerHTML=`<tr><td colspan="6">${escapeImportHtml(err.message)}</td></tr>`}
@@ -45,3 +45,14 @@ async function submitPromotion(event){
 if(promotionForm)promotionForm.addEventListener('submit',submitPromotion);
 if(resetPromotionButton)resetPromotionButton.addEventListener('click',resetPromotionForm);
 if(promotionSearchInput)promotionSearchInput.addEventListener('input',debounce(loadPromotions,250));
+
+if(promotionTable&&!promotionTable.dataset.securityDelegationBound){
+  promotionTable.dataset.securityDelegationBound='1';
+  promotionTable.addEventListener('click',event=>{
+    const button=event.target.closest('[data-promotion-action]');
+    if(!button||!promotionTable.contains(button))return;
+    const id=decodeURIComponent(button.dataset.promotionId||'');
+    if(button.dataset.promotionAction==='edit')editPromotion(id);
+    if(button.dataset.promotionAction==='delete')deletePromotion(id);
+  });
+}

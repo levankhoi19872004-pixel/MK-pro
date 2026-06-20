@@ -1,0 +1,52 @@
+{
+  "generatedAt": "2026-06-20T16:04:08.085Z",
+  "node": "v22.16.0",
+  "platform": "linux/x64",
+  "methodology": "In-process microbenchmark with warmup; excludes Express, network, TLS and MongoDB latency.",
+  "results": [
+    {
+      "name": "baseline_noop_middleware",
+      "batches": 120,
+      "iterationsPerBatch": 5000,
+      "nsPerRequest": {
+        "p50": 7.8758,
+        "p95": 13.6364,
+        "p99": 18.588,
+        "mean": 16.778995000000005
+      }
+    },
+    {
+      "name": "build_policy_main",
+      "batches": 120,
+      "iterationsPerBatch": 5000,
+      "nsPerRequest": {
+        "p50": 1171.2044,
+        "p95": 1470.3192,
+        "p99": 1561.4134,
+        "mean": 1209.926435
+      }
+    },
+    {
+      "name": "build_policy_swagger",
+      "batches": 120,
+      "iterationsPerBatch": 5000,
+      "nsPerRequest": {
+        "p50": 1279.31,
+        "p95": 1514.9404,
+        "p99": 1649.2032,
+        "mean": 1304.7703466666665
+      }
+    },
+    {
+      "name": "csp_headers_report_only",
+      "batches": 120,
+      "iterationsPerBatch": 5000,
+      "nsPerRequest": {
+        "p50": 1723.5302,
+        "p95": 1912.0796,
+        "p99": 2076.6272,
+        "mean": 1746.624670000001
+      }
+    }
+  ]
+}

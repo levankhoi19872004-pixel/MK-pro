@@ -33,6 +33,7 @@ const { securityInputGuard } = require('./middlewares/securityInput.middleware')
 const { maintenanceWriteGuard } = require('./middlewares/maintenance.middleware');
 const { csrfProtection } = require('./middlewares/csrf.middleware');
 const { tenantContext } = require('./middlewares/tenant.middleware');
+const { cspHeaders, createCspReportHandler } = require('./middlewares/csp.middleware');
 const { startOutboxJob, stopOutboxJob } = require('./jobs/outboxJob');
 const { startIntegrationJob, stopIntegrationJob } = require('./jobs/integrationJob');
 const { registerDefaultOutboxHandlers } = require('./services/outbox/registerDefaultHandlers');
@@ -148,6 +149,16 @@ function createApiLimiter() {
   });
 }
 
+function createCspReportLimiter() {
+  return rateLimit({
+    windowMs: 60 * 1000,
+    max: Number(process.env.CSP_REPORT_RATE_LIMIT_MAX || 120),
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: ''
+  });
+}
+
 function configureTrustProxy(app) {
   const raw = String(process.env.TRUST_PROXY ?? '1').trim().toLowerCase();
 
@@ -170,6 +181,12 @@ function createApp() {
   configureTrustProxy(app);
 
   app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(cspHeaders);
+  app.post('/csp-report',
+    createCspReportLimiter(),
+    express.json({ type: ['application/csp-report', 'application/reports+json', 'application/json'], limit: '64kb' }),
+    createCspReportHandler(logger)
+  );
   app.use(cors(createCorsOptions()));
   const requestLogger = pinoHttp({ logger });
   if (process.env.NODE_ENV !== 'test') {
@@ -197,25 +214,12 @@ function createApp() {
 
   registerApiRoutes(app);
 
-  // Mobile UI: online-first cache policy plus a page-scoped CSP.
-  // Inline style/script remains temporarily allowed because the current mobile shell still contains
-  // a small inline runtime bootstrap. External scripts, frames and object embedding stay blocked.
+  // Mobile UI: online-first cache policy. CSP is applied globally by cspHeaders above;
+  // mobile pages no longer require an inline script exception.
   app.use('/mobile', (req, res, next) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.set('Pragma', 'no-cache');
     res.set('Expires', '0');
-    res.set('Content-Security-Policy', [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
-      "font-src 'self' data:",
-      "connect-src 'self'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'none'"
-    ].join('; '));
     res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     next();
   });

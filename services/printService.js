@@ -37,7 +37,7 @@ function stripStandaloneHtml(html = '') {
 
   // Do not parse <body> with a non-greedy regex: the export script contains
   // a literal "</body>" string, which previously truncated all print pages.
-  body = body.replace(/<div class="[^"]*print-preview-actions[^"]*">[\s\S]*?<\/div>\s*(?:<script>[\s\S]*?<\/script>)?/i, '');
+  body = body.replace(/<div class="[^"]*print-preview-actions[^"]*">[\s\S]*?<\/div>\s*(?:<script(?:\s+[^>]*)?>[\s\S]*?<\/script>)?/i, '');
   body = body.replace(/<script>[\s\S]*?<\/script>/gi, '');
   return body.trim();
 }
@@ -45,26 +45,11 @@ function stripStandaloneHtml(html = '') {
 function previewActions() {
   return `
   <div class="print-preview-actions">
-    <button type="button" onclick="window.close()">Bỏ qua</button>
-    <button type="button" onclick="window.print()">In đơn</button>
-    <button type="button" onclick="exportCurrentPrintToExcel()">Xuất Excel</button>
+    <button type="button" data-print-action="close">Bỏ qua</button>
+    <button type="button" data-print-action="print">In đơn</button>
+    <button type="button" data-print-action="excel">Xuất Excel</button>
   </div>
-  <script>
-    function exportCurrentPrintToExcel(){
-      var pages = Array.prototype.slice.call(document.querySelectorAll('.print-page, .dms-print-page, .dmsx-page'));
-      var html = pages.length ? pages.map(function(page){ return page.outerHTML; }).join('') : document.body.innerHTML;
-      var fullHtml = '<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px}.excel-only-column{display:table-cell!important}</style></head><body>' + html + '</body></html>';
-      var blob = new Blob(['\\ufeff' + fullHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      var title = (document.title || 'ban-in').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'ban-in';
-      a.download = title + '.xls';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
-    }
-  </script>`;
+  <script src="/js/print-preview-actions.js?v=phase09-csp-v1"></script>`;
 }
 
 function renderPrintBatchHtml(type, documents = [], options = {}) {

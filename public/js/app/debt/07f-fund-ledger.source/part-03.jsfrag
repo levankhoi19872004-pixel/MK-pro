@@ -53,6 +53,21 @@ function resetFundFilters(){
   if(fundDirectionFilter)fundDirectionFilter.value='all';
   return reloadActiveFundTab();
 }
+if(!document.documentElement.dataset.fundSecurityDelegationBound){
+  document.documentElement.dataset.fundSecurityDelegationBound='1';
+  document.addEventListener('click',event=>{
+    const button=event.target.closest('[data-fund-action]');
+    if(!button)return;
+    const action=button.dataset.fundAction;
+    const type=button.dataset.fundType||'';
+    const code=button.dataset.fundCode||'';
+    if(action==='edit')editFundVoucher(type,code);
+    if(action==='confirm')confirmFundVoucher(type,code,button);
+    if(action==='classify-shortage')classifyDeliveryCashShortages(code);
+    if(action==='open-shortage')openDeliveryShortageRepayment(button.dataset.shortageKey||'');
+    if(action==='confirm-repayment')confirmDeliveryShortageRepayment(code,button);
+  });
+}
 if(fundTabButtons)fundTabButtons.forEach(btn=>btn.addEventListener('click',()=>setActiveFundTab(btn.dataset.fundTab)));
 if(deliverySubmissionTabButtons)deliverySubmissionTabButtons.forEach(btn=>btn.addEventListener('click',()=>setActiveDeliverySubmissionTab(btn.dataset.deliverySubtab)));
 bindFundVoucherModal('delivery',createDeliveryCashSubmissionButton,closeDeliveryCashSubmissionModalButton);

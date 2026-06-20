@@ -134,11 +134,14 @@ test('frontend is online-first and does not silently queue a new order', () => {
 test('mobile hardening adds runtime config, telemetry, CSP and no-store policy', () => {
   const routes = read('src/routes/mobile/index.js');
   const app = read('src/app.js');
+  const csp = read('src/middlewares/csp.middleware.js');
   assert.match(routes, /\/runtime-config/);
   assert.match(routes, /\/telemetry/);
-  assert.match(app, /Content-Security-Policy/);
-  assert.match(app, /object-src 'none'/);
-  assert.match(app, /frame-ancestors 'none'/);
+  assert.match(app, /app\.use\(cspHeaders\)/);
+  assert.match(csp, /Content-Security-Policy/);
+  assert.match(csp, /object-src/);
+  assert.match(csp, /frame-ancestors/);
+  assert.match(csp, /script-src-attr/);
   assert.match(app, /Permissions-Policy/);
   assert.match(app, /Cache-Control', 'no-store, no-cache/);
 });

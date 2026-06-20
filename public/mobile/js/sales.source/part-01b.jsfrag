@@ -20,17 +20,21 @@ function renderSelectedCustomerContext() {
     }
     return;
   }
-
-  const code = customerCodeValue(state.draft.customer);
-  const name = customerNameValue(state.draft.customer);
-  const summary = `<strong>${escapeHtml(code || '')}${code && name ? ' - ' : ''}${escapeHtml(name || '')}</strong><br />`
-    + `<span>SĐT: ${escapeHtml(customerPhoneValue(state.draft.customer))}</span><br />`
-    + `<span>ĐC: ${escapeHtml(customerAddressValue(state.draft.customer))}</span><br />`
-    + `<span>Nợ: ${money(customerDebtValue(state.draft.customer))} · DS tháng: ${money(customerSalesValue(state.draft.customer))}</span>`;
-  selectedCustomerBox.innerHTML = summary;
+  const customer = state.draft.customer;
+  const code = customerCodeValue(customer);
+  const name = customerNameValue(customer);
+  const summary = {
+    heading: `${code || ''}${code && name ? ' - ' : ''}${name || ''}`,
+    lines: [
+      `SĐT: ${customerPhoneValue(customer) || ''}`,
+      `ĐC: ${customerAddressValue(customer) || ''}`,
+      `Nợ: ${money(customerDebtValue(customer))} · DS tháng: ${money(customerSalesValue(customer))}`
+    ]
+  };
+  window.SafeDom.renderSummary(selectedCustomerBox, summary);
   selectedCustomerBox.classList.remove('muted');
   if (cartCustomerContext) {
-    cartCustomerContext.innerHTML = `<span>Đơn đang lập cho</span><br />${summary}`;
+    window.SafeDom.renderSummary(cartCustomerContext, { ...summary, prefix: 'Đơn đang lập cho' });
     cartCustomerContext.classList.remove('muted');
   }
 }

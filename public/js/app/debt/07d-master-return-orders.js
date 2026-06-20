@@ -394,7 +394,7 @@ function renderMasterReturnOrders(rows = []){
       ? `<span class="erp-doc-action-state">Đã hủy</span>`
       : locked
         ? `<span class="erp-doc-action-state">Đã khóa</span>`
-        : `<button class="secondary small danger" type="button" onclick="cancelMasterReturnOrder('${id}')">Hủy</button>`;
+        : `<button class="secondary small danger" type="button" data-master-return-action="cancel" data-master-return-id="${escapeHtml(id)}">Hủy</button>`;
     return `<article class="erp-doc-row master-return-one-line${inactive?' is-inactive':''}">
       <label class="erp-doc-check" title="${escapeHtml(checkboxTitle)}"><input type="checkbox" class="master-return-order-check" data-idx="${idx}" ${checkboxDisabled}></label>
       <strong class="erp-doc-code" title="${escapeHtml(r.code||r.id||'')}">${escapeHtml(r.code||r.id||'')}</strong>
@@ -644,6 +644,14 @@ function runMasterReturnToolbarAction(button,loadingText,task){
   return task();
 }
 
+if(masterReturnOrderTable&&!masterReturnOrderTable.dataset.securityDelegationBound){
+  masterReturnOrderTable.dataset.securityDelegationBound='1';
+  masterReturnOrderTable.addEventListener('click',event=>{
+    const button=event.target.closest('[data-master-return-action]');
+    if(!button||!masterReturnOrderTable.contains(button))return;
+    if(button.dataset.masterReturnAction==='cancel')cancelMasterReturnOrder(button.dataset.masterReturnId);
+  });
+}
 if(reloadUnmergedReturnOrdersButton)reloadUnmergedReturnOrdersButton.addEventListener('click',loadUnmergedReturnOrders);
 if(masterReturnOrderForm)masterReturnOrderForm.addEventListener('submit',submitMasterReturnOrder);
 if(unmergedReturnOrderTable)unmergedReturnOrderTable.addEventListener('change',event=>{

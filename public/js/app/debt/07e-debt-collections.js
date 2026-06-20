@@ -45,7 +45,7 @@ function renderDebtCollections(rows=[], summary={}){
       <td>${escapeHtml(debtCollectionMethodName(row.paymentMethod))}</td>
       <td>${escapeHtml(debtCollectionStatusName(row.status))}</td>
       <td>${allocationText}</td>
-      <td>${canConfirm?`<span class="debt-collection-row-actions"><button type="button" class="small success" data-debt-collection-id="${id}" onclick="confirmDebtCollectionFromWeb('${id}', ${Number(row.amount||0)}, this)">Xác nhận</button><button type="button" class="small danger" data-debt-collection-id="${id}" onclick="rejectDebtCollectionFromWeb('${id}', this)">Từ chối</button></span>`:'-'}</td>
+      <td>${canConfirm?`<span class="debt-collection-row-actions"><button type="button" class="small success" data-debt-collection-action="confirm" data-debt-collection-id="${id}" data-debt-collection-amount="${Number(row.amount||0)}">Xác nhận</button><button type="button" class="small danger" data-debt-collection-action="reject" data-debt-collection-id="${id}">Từ chối</button></span>`:'-'}</td>
     </tr>`;
   }).join('');
 }
@@ -145,6 +145,16 @@ async function rejectDebtCollectionFromWeb(id, triggerButton){
 window.loadDebtCollections=loadDebtCollections;
 window.confirmDebtCollectionFromWeb=confirmDebtCollectionFromWeb;
 window.rejectDebtCollectionFromWeb=rejectDebtCollectionFromWeb;
+if(debtCollectionTable&&!debtCollectionTable.dataset.securityDelegationBound){
+  debtCollectionTable.dataset.securityDelegationBound='1';
+  debtCollectionTable.addEventListener('click',event=>{
+    const button=event.target.closest('[data-debt-collection-action]');
+    if(!button||!debtCollectionTable.contains(button))return;
+    const id=button.dataset.debtCollectionId;
+    if(button.dataset.debtCollectionAction==='confirm')confirmDebtCollectionFromWeb(id,Number(button.dataset.debtCollectionAmount||0),button);
+    if(button.dataset.debtCollectionAction==='reject')rejectDebtCollectionFromWeb(id,button);
+  });
+}
 if(applyDebtCollectionFiltersButton)applyDebtCollectionFiltersButton.addEventListener('click',loadDebtCollections);
 if(clearDebtCollectionFiltersButton)clearDebtCollectionFiltersButton.addEventListener('click',resetDebtCollectionFilters);
 if(reloadDebtCollectionsButton)reloadDebtCollectionsButton.addEventListener('click',loadDebtCollections);

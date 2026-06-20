@@ -216,9 +216,20 @@ function renderCustomerTable(){
     <td>${escapeHtml(c.address||'')}</td>
     <td>${escapeHtml(c.area||'')}</td>
     <td>${escapeHtml(legacyCustomerStaffLabel(c)||'')}</td>
-    <td class="row-actions"><span class="customer-row-actions"><button type="button" class="small" onclick="editCustomerByRow(${rowIndex})">Sửa</button><button type="button" class="small danger" onclick="deleteCustomerByRow(${rowIndex},this)">Xóa</button></span></td>
+    <td class="row-actions"><span class="customer-row-actions"><button type="button" class="small" data-customer-action="edit" data-row-index="${rowIndex}">Sửa</button><button type="button" class="small danger" data-customer-action="delete" data-row-index="${rowIndex}">Xóa</button></span></td>
   </tr>`).join('');
   updateCustomerBulkUI();
+}
+
+if(customerTable&&!customerTable.dataset.securityDelegationBound){
+  customerTable.dataset.securityDelegationBound='1';
+  customerTable.addEventListener('click',event=>{
+    const button=event.target.closest('[data-customer-action]');
+    if(!button||!customerTable.contains(button))return;
+    const rowIndex=Number(button.dataset.rowIndex);
+    if(button.dataset.customerAction==='edit')window.editCustomerByRow(rowIndex);
+    if(button.dataset.customerAction==='delete')window.deleteCustomerByRow(rowIndex,button);
+  });
 }
 function fillCustomerForm(c){
   if(!customerForm||!c)return;

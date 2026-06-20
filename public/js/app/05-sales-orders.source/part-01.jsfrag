@@ -317,14 +317,29 @@ function renderSalesItems(){
   salesItemsTable.innerHTML=salesItems.map((i,idx)=>`<tr>
     <td><strong>${escapeSalesHtml(i.productCode||'')}</strong></td>
     <td class="sales-product-name-cell"><span class="sales-product-name-text">${escapeSalesHtml(i.productName||'')}</span></td>
-    <td><input class="sales-line-input qty-case" type="number" min="0" value="${Number(i.caseQty||0)}" onchange="updateSalesItemCase(${idx}, this.value)"></td>
-    <td><input class="sales-line-input qty-loose" type="number" min="0" value="${Number(i.looseQty||0)}" onchange="updateSalesItemLoose(${idx}, this.value)"></td>
-    <td class="price"><input class="sales-line-input price" type="number" min="0" step="any" value="${Number(i.salePrice||0)}" ${direct?'':'readonly'} onchange="updateSalesItemPrice(${idx}, this.value)"></td>
+    <td><input class="sales-line-input qty-case" type="number" min="0" value="${Number(i.caseQty||0)}" data-sales-line-action="case" data-item-index="${idx}"></td>
+    <td><input class="sales-line-input qty-loose" type="number" min="0" value="${Number(i.looseQty||0)}" data-sales-line-action="loose" data-item-index="${idx}"></td>
+    <td class="price"><input class="sales-line-input price" type="number" min="0" step="any" value="${Number(i.salePrice||0)}" ${direct?'':'readonly'} data-sales-line-action="price" data-item-index="${idx}"></td>
     <td class="price">${money(i.amount)}</td>
-    <td><button type="button" class="small danger" onclick="removeSalesItem(${idx})">Xóa</button></td>
+    <td><button type="button" class="small danger" data-sales-line-action="remove" data-item-index="${idx}">Xóa</button></td>
   </tr>`).join('');
 }
 window.removeSalesItem=async index=>{salesItems.splice(index,1);await recalculateSalesPromotionPrices();renderSalesItems()};
+if(salesItemsTable&&!salesItemsTable.dataset.securityDelegationBound){
+  salesItemsTable.dataset.securityDelegationBound='1';
+  salesItemsTable.addEventListener('change',event=>{
+    const control=event.target.closest('[data-sales-line-action]');
+    if(!control||!salesItemsTable.contains(control))return;
+    const index=Number(control.dataset.itemIndex);
+    if(control.dataset.salesLineAction==='case')updateSalesItemCase(index,control.value);
+    if(control.dataset.salesLineAction==='loose')updateSalesItemLoose(index,control.value);
+    if(control.dataset.salesLineAction==='price')updateSalesItemPrice(index,control.value);
+  });
+  salesItemsTable.addEventListener('click',event=>{
+    const button=event.target.closest('[data-sales-line-action="remove"]');
+    if(button&&salesItemsTable.contains(button))window.removeSalesItem(Number(button.dataset.itemIndex));
+  });
+}
 async function addSalesItem(){
   const p=getSelectedSalesProduct();if(!p){showMessage(salesMessage,'Bạn chưa chọn sản phẩm. Hãy gõ mã/tên rồi nhấn Enter hoặc chọn gợi ý.',true);return}
   const caseQty=Number(salesQuantityCase?.value||0);

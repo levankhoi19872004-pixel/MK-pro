@@ -25,7 +25,7 @@ async function loadUsers(){
       return `<tr>
       <td><strong>${escapeImportHtml(u.code||'')}</strong></td><td>${escapeImportHtml(u.username||'')}</td><td>${escapeImportHtml(u.name||u.fullName||'')}</td><td>${escapeImportHtml(u.phone||'')}</td>
       <td><span class="badge active">${escapeImportHtml(roleText(u.role))}</span></td><td>${u.isActive!==false?'Đang hoạt động':'Ngừng'}</td>
-      <td class="row-actions"><button class="small" onclick="editUser(decodeURIComponent('${encodedId}'))">Sửa</button><button class="small danger" onclick="deleteUser(decodeURIComponent('${encodedId}'))">Xóa</button></td>
+      <td class="row-actions"><button class="small" data-user-action="edit" data-user-id="${encodedId}">Sửa</button><button class="small danger" data-user-action="delete" data-user-id="${encodedId}">Xóa</button></td>
     </tr>`;
     }).join('');
   }catch(err){userTable.innerHTML=`<tr><td colspan="7">${escapeImportHtml(err.message)}</td></tr>`}
@@ -53,3 +53,14 @@ async function submitUser(event){
 if(userForm)userForm.addEventListener('submit',submitUser);
 if(resetUserButton)resetUserButton.addEventListener('click',resetUserForm);
 if(userSearchInput)userSearchInput.addEventListener('input',debounce(loadUsers,250));
+
+if(userTable&&!userTable.dataset.securityDelegationBound){
+  userTable.dataset.securityDelegationBound='1';
+  userTable.addEventListener('click',event=>{
+    const button=event.target.closest('[data-user-action]');
+    if(!button||!userTable.contains(button))return;
+    const id=decodeURIComponent(button.dataset.userId||'');
+    if(button.dataset.userAction==='edit')editUser(id);
+    if(button.dataset.userAction==='delete')deleteUser(id);
+  });
+}

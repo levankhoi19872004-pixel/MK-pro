@@ -133,7 +133,7 @@ async function loadDebts(){
         debtCardList.innerHTML=rows.length?rows.map((d,idx)=>{
           const meta=debtDisplayMeta(d.debt);
           const overdue=Number(d.overdueDays||0);
-          return `<article class="debt-v2-customer-card" data-debt-index="${idx}" onclick="selectDebtCustomerFromCard(${idx})">
+          return `<article class="debt-v2-customer-card" data-debt-index="${idx}" tabindex="0" role="button">
             <div class="debt-v2-card-top"><div><small>${escapeHtml(d.customerCode||'')}</small><b>${escapeHtml(d.customerName||'Chưa rõ khách')}</b></div><strong class="${meta.className}">${meta.text}</strong></div>
             <div class="debt-v2-card-meta"><span>${Number(d.orderCount||0)} đơn</span><span>${overdue>0?'Quá hạn '+overdue+' ngày':'Tuổi nợ '+Number(d.agingDays||0)+' ngày'}</span></div>
             <div class="debt-v2-card-staff"><span>NVBH: ${escapeHtml(debtPersonLabel(d.salesmanCode,d.salesmanName))}</span><span>NVGH: ${escapeHtml(debtPersonLabel(d.deliveryStaffCode,d.deliveryStaffName))}</span></div>
@@ -691,3 +691,16 @@ if(debtClearFiltersButton)debtClearFiltersButton.addEventListener('click',()=>re
 debtInnerTabs.forEach(btn=>btn.addEventListener('click',()=>setDebtPanel(btn.dataset.debtPanel)));
 window.voidReceipt=voidReceipt;
 // PHASE35_DEBT_EVENT_OWNERSHIP_END
+
+if(debtCardList&&!debtCardList.dataset.securityDelegationBound){
+  debtCardList.dataset.securityDelegationBound='1';
+  const activateDebtCard=event=>{
+    const card=event.target.closest('.debt-v2-customer-card[data-debt-index]');
+    if(!card||!debtCardList.contains(card))return;
+    if(event.type==='keydown'&&event.key!=='Enter'&&event.key!==' ')return;
+    if(event.type==='keydown')event.preventDefault();
+    selectDebtCustomerFromCard(Number(card.dataset.debtIndex));
+  };
+  debtCardList.addEventListener('click',activateDebtCard);
+  debtCardList.addEventListener('keydown',activateDebtCard);
+}

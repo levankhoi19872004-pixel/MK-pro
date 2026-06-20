@@ -24,8 +24,8 @@ const status=String(row&&row.status||"pending").toLowerCase();if(status==="confi
 ;return!row.fundPosted&&["pending","draft","submitted","mismatch",""].includes(status)}function fundCanConfirm(row){const status=String(row&&row.status||"").toLowerCase()
 ;return!row.fundPosted&&!["confirmed","cancelled","canceled","void","deleted"].includes(status)}function fundActionButtons(type,row){const rawCode=String(row.code||row.id||"")
 ;const code=fundSafeCode(rawCode);const actions=[]
-;if(fundCanEdit(row))actions.push(`<button type="button" class="secondary compact-action" data-fund-action-key="${escapeHtml(`edit:${type}:${rawCode}`)}" onclick="editFundVoucher('${type}','${code}')">Sửa</button>`)
-;if(fundCanConfirm(row))actions.push(`<button type="button" class="secondary compact-action fund-confirm-action" data-fund-action-key="${escapeHtml(`confirm:${type}:${rawCode}`)}" onclick="confirmFundVoucher('${type}','${code}',this)">Xác nhận</button>`)
+;if(fundCanEdit(row))actions.push(`<button type="button" class="secondary compact-action" data-fund-action-key="${escapeHtml(`edit:${type}:${rawCode}`)}" data-fund-action="edit" data-fund-type="${escapeHtml(type)}" data-fund-code="${escapeHtml(rawCode)}">Sửa</button>`)
+;if(fundCanConfirm(row))actions.push(`<button type="button" class="secondary compact-action fund-confirm-action" data-fund-action-key="${escapeHtml(`confirm:${type}:${rawCode}`)}" data-fund-action="confirm" data-fund-type="${escapeHtml(type)}" data-fund-code="${escapeHtml(rawCode)}">Xác nhận</button>`)
 ;if(!actions.length)return'<span class="muted">Đã xác nhận</span>';return actions.join(" ")}function deliveryShortageStatusText(shortage,row,diff){if(Number(diff||0)>=0)return""
 ;if(!shortage){
 return String(row&&row.status||"").toLowerCase()==="confirmed"?'<span class="fund-shortage-state needs-classification">Chưa phân loại</span>':'<span class="fund-shortage-state pending">Chờ xác nhận</span>'
@@ -35,11 +35,11 @@ adjusted:"Đã điều chỉnh",disputed:"Chờ kiểm tra",cancelled:"Đã hủ
 function deliverySubmissionActions(row,{fundType:fundType="cash",baseActions:baseActions=""}={}){const code=fundSafeCode(row.code||row.id)
 ;const diff=Number(fundType==="bank"?row.differenceBankAmount:row.differenceCashAmount)||0;const shortage=fundType==="bank"?row.bankShortage:row.cashShortage;const actions=[]
 ;if((fundCanEdit(row)||fundCanConfirm(row))&&baseActions)actions.push(baseActions)
-;if(!fundCanConfirm(row)&&diff<0&&!shortage)actions.push(`<button type="button" class="secondary compact-action" onclick="classifyDeliveryCashShortages('${code}')">Phân loại thiếu</button>`)
+;if(!fundCanConfirm(row)&&diff<0&&!shortage)actions.push(`<button type="button" class="secondary compact-action" data-fund-action="classify-shortage" data-fund-code="${escapeHtml(row.code||row.id||"")}">Phân loại thiếu</button>`)
 ;if(shortage){const shortageKey=fundSafeCode(shortage.id||shortage.code);fundRowCache.shortage[shortageKey]=shortage
 ;const label=String(shortage.responsibleType||"")==="delivery_staff"&&Number(shortage.outstandingAmount||0)>0?"Nộp bù / Lịch sử":"Chi tiết thiếu"
-;actions.push(`<button type="button" class="secondary compact-action" onclick="openDeliveryShortageRepayment('${shortageKey}')">${label}</button>`)}
-if(!actions.length)return'<span class="muted">Đã xác nhận</span>';return`<span class="fund-row-actions">${actions.join(" ")}</span>`}function fundSetSubmitLabel(form,label){
+;actions.push(`<button type="button" class="secondary compact-action" data-fund-action="open-shortage" data-shortage-key="${escapeHtml(shortage.id||shortage.code||"")}">${label}</button>`)
+}if(!actions.length)return'<span class="muted">Đã xác nhận</span>';return`<span class="fund-row-actions">${actions.join(" ")}</span>`}function fundSetSubmitLabel(form,label){
 const btn=form&&form.querySelector('button[type="submit"]');if(btn)btn.textContent=label}function fundResetEditing(type){if(!type||type==="delivery"){
 fundSetSubmitLabel(deliveryCashSubmissionForm,"Tạo phiếu nộp quỹ")}if(!type||type==="expense"){fundSetSubmitLabel(expenseVoucherForm,"Ghi phiếu chi")}if(!type||type==="transfer"){
 fundSetSubmitLabel(fundTransferForm,"Ghi chuyển quỹ")}if(!type||fundEditing.type===type)fundEditing={type:"",id:""}}function fundFillForm(form,row,keys){if(!form||!row)return

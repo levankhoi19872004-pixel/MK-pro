@@ -9,15 +9,6 @@ function toMobileProduct(product = {}) {
 
 // MOBILE_PRODUCT_GROUP_FILTER_OPTIONS_START: tải danh sách Nhóm hàng để lọc sản phẩm trước khi tìm kiếm.
 
-function escapeProductGroupHtml(value = '') {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 function currentProductGroupFilter() {
   return normalizeProductGroupName(productGroupFilter?.value || '');
 }
@@ -27,10 +18,17 @@ function renderProductGroupOptions(groups = []) {
   const current = currentProductGroupFilter();
   const uniqueGroups = [...new Set((groups || []).map(normalizeProductGroupName).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }));
-  productGroupFilter.innerHTML = [
-    '<option value="">Tất cả nhóm hàng</option>',
-    ...uniqueGroups.map((name) => `<option value="${escapeProductGroupHtml(name)}">${escapeProductGroupHtml(name)}</option>`)
-  ].join('');
+  productGroupFilter.replaceChildren();
+  const allOption = document.createElement('option');
+  allOption.value = '';
+  allOption.textContent = 'Tất cả nhóm hàng';
+  productGroupFilter.appendChild(allOption);
+  uniqueGroups.forEach((name) => {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    productGroupFilter.appendChild(option);
+  });
   if (current && uniqueGroups.includes(current)) productGroupFilter.value = current;
 }
 
@@ -72,25 +70,24 @@ function pickProduct(product) {
   productSearch.dataset.type = 'product';
   productSearch.value = p.label || [p.code, p.name].filter(Boolean).join(' - ');
 
-  // MOBILE_SELECTED_PRODUCT_CARD_RENDER_START: card SP rõ tồn/giá, phù hợp thao tác nhập hàng trên mobile.
+  // MOBILE_SELECTED_PRODUCT_CARD_RENDER_START: dữ liệu sản phẩm đi qua DOM API dùng chung.
   const selectedProductPrice = Number(p.finalPrice || p.unitPrice || p.salePrice || p.price || 0);
   const selectedProductOriginalPrice = Number(p.originalPrice || p.grossPrice || p.catalogSalePrice || p.salePrice || p.price || 0);
-  const selectedProductPriceLabel = selectedProductOriginalPrice > selectedProductPrice
-    ? `Giá KM<strong>${money(selectedProductPrice)}</strong>`
-    : `Giá bán<strong>${money(selectedProductPrice)}</strong>`;
-  const selectedProductOriginalLabel = selectedProductOriginalPrice > selectedProductPrice
-    ? `<span>Giá gốc<strong>${money(selectedProductOriginalPrice)}</strong></span>`
-    : '';
-  selectedProductBox.innerHTML = `
-    <div class="mobile-selected-product-name">${escapeHtml(p.code || '')} - ${escapeHtml(p.name || '')}</div>
-    <div class="mobile-selected-product-meta">
-      <span>Tồn thực tế<strong>${escapeHtml(p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate))}</strong></span>
-      <span class="mobile-app-quota-meta">Được bán App<strong>${escapeHtml(formatStockTL(p.maxOrderQty, p.conversionRate))}</strong></span>
-      <span>${selectedProductPriceLabel}</span>
-      ${selectedProductOriginalLabel}
-    </div>
-    <div class="mobile-selected-product-quota-note">Hạn mức theo file DMS: ${escapeHtml(p.internalSaleQuota?.snapshotDate || 'chưa cập nhật')}</div>
-  `;
+  const metrics = [
+    { label: 'Tồn thực tế', value: p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate) },
+    { label: 'Được bán App', value: formatStockTL(p.maxOrderQty, p.conversionRate), className: 'mobile-app-quota-meta' }
+  ];
+  if (selectedProductOriginalPrice > selectedProductPrice) {
+    metrics.push({ label: 'Giá KM', value: money(selectedProductPrice) }, { label: 'Giá gốc', value: money(selectedProductOriginalPrice) });
+  } else metrics.push({ label: 'Giá bán', value: money(selectedProductPrice) });
+  window.SafeDom.renderMetricCard(selectedProductBox, {
+    title: `${p.code || ''} - ${p.name || ''}`,
+    titleClass: 'mobile-selected-product-name',
+    metaClass: 'mobile-selected-product-meta',
+    metrics,
+    note: `Hạn mức theo file DMS: ${p.internalSaleQuota?.snapshotDate || 'chưa cập nhật'}`,
+    noteClass: 'mobile-selected-product-quota-note'
+  });
   // MOBILE_SELECTED_PRODUCT_CARD_RENDER_END
   selectedProductBox.classList.remove('muted');
   productSuggestions.innerHTML = '';

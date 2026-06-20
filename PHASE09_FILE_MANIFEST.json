@@ -1,0 +1,611 @@
+{
+  "baseline": "MK-pro-phase08-frontend-professionalization-patched.zip",
+  "phase": "09",
+  "added": [
+    "CSP_HTTP_SMOKE.json",
+    "CSP_MIDDLEWARE_BENCHMARK.csv",
+    "CSP_MIDDLEWARE_BENCHMARK.json",
+    "CSP_POLICY.md",
+    "CSP_XSS_HARDENING_REPORT.md",
+    "CSP_XSS_SINK_BASELINE.json",
+    "CSP_XSS_SINK_INVENTORY.json",
+    "public/js/print-preview-actions.js",
+    "public/js/security/safe-dom.js",
+    "public/js/swagger-init.js",
+    "public/mobile/js/catalog-cache-config.js",
+    "scripts/security/audit-frontend-sinks.js",
+    "src/middlewares/csp.middleware.js",
+    "test/csp-xss-hardening.test.js"
+  ],
+  "modified": [
+    ".env.example",
+    ".env.production.example",
+    "config/source-bundles.json",
+    "package.json",
+    "public/fragments/index/07-index-body.html",
+    "public/js/app/03-customers-autocomplete.js",
+    "public/js/app/04-import-orders.js",
+    "public/js/app/05-sales-orders.js",
+    "public/js/app/05-sales-orders.part02.js",
+    "public/js/app/05-sales-orders.part03.js",
+    "public/js/app/05-sales-orders.source/part-01.jsfrag",
+    "public/js/app/05-sales-orders.source/part-02.jsfrag",
+    "public/js/app/05-sales-orders.source/part-03.jsfrag",
+    "public/js/app/06-master-delivery.js",
+    "public/js/app/admin/08b-users.js",
+    "public/js/app/admin/08c-promotions-legacy.js",
+    "public/js/app/admin/08e-promotion-programs.js",
+    "public/js/app/debt/07a-debt-core.js",
+    "public/js/app/debt/07b-return-orders.js",
+    "public/js/app/debt/07d-master-return-orders.js",
+    "public/js/app/debt/07e-debt-collections.js",
+    "public/js/app/debt/07f-fund-ledger.js",
+    "public/js/app/debt/07f-fund-ledger.part02.js",
+    "public/js/app/debt/07f-fund-ledger.part03.js",
+    "public/js/app/debt/07f-fund-ledger.source/part-01.jsfrag",
+    "public/js/app/debt/07f-fund-ledger.source/part-02.jsfrag",
+    "public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag",
+    "public/mobile/delivery.html",
+    "public/mobile/js/sales.js",
+    "public/mobile/js/sales.source/part-01b.jsfrag",
+    "public/mobile/js/sales.source/part-02.jsfrag",
+    "public/mobile/login.html",
+    "public/mobile/sales.html",
+    "services/printService.js",
+    "src/app.js",
+    "src/routes/swaggerRoutes.js",
+    "templates/print/dmsExactSalesInvoice.template.js",
+    "templates/printTemplates.js",
+    "templates/printTemplates.source/part-01.jsfrag",
+    "test/app-docs-route.test.js",
+    "test/excel-product-catalog-rule.test.js",
+    "test/fixtures/index-page/phase79-assembled.sha256",
+    "test/mobile-sales-phase5-production-hardening.test.js"
+  ],
+  "deleted": [],
+  "details": {
+    "CSP_HTTP_SMOKE.json": {
+      "status": "added",
+      "size": 2389,
+      "sha256": "c767f20b513dced97d332fab9e24350cadcdc8f1d495930ce8b6e595f892cc6b"
+    },
+    "CSP_MIDDLEWARE_BENCHMARK.csv": {
+      "status": "added",
+      "size": 300,
+      "sha256": "45a03c7cd5d02daf0fd7fea582d043d3d742c37405ef4fec35d5c1cef520be80"
+    },
+    "CSP_MIDDLEWARE_BENCHMARK.json": {
+      "status": "added",
+      "size": 1221,
+      "sha256": "8a0b5280a2ef3af69e35a194e7acb9aa009141b511ee618d5388144706ee5bc8"
+    },
+    "CSP_POLICY.md": {
+      "status": "added",
+      "size": 3229,
+      "sha256": "791fccf5e4ca093996c20b1b714ff5f38e05f9d1461da8907de75508d878134c"
+    },
+    "CSP_XSS_HARDENING_REPORT.md": {
+      "status": "added",
+      "size": 14996,
+      "sha256": "359f7392a1ddd1502a1925a9fcbfb4ff081eee3d46ef17db97b6f9db067fd7c7"
+    },
+    "CSP_XSS_SINK_BASELINE.json": {
+      "status": "added",
+      "size": 271321,
+      "sha256": "7deee9a30255bb732847e6caf56687539cb5b2f181f2ee5be864b3f118749e9f"
+    },
+    "CSP_XSS_SINK_INVENTORY.json": {
+      "status": "added",
+      "size": 216357,
+      "sha256": "6a38ade5a7f53f5dd57c5aa65d3bb9f24a5a9e559aedf21d575b8aa65d06e514"
+    },
+    "public/js/print-preview-actions.js": {
+      "status": "added",
+      "size": 1372,
+      "sha256": "ded7475a5f43a7988b141b5b7074f8ca6d5761c076f30258b45b4998eb1a6546"
+    },
+    "public/js/security/safe-dom.js": {
+      "status": "added",
+      "size": 2719,
+      "sha256": "ddd680b1a887fdc8a0eb70bb89e6a15000cc3ac9841a68257450f08b2791b2e5"
+    },
+    "public/js/swagger-init.js": {
+      "status": "added",
+      "size": 344,
+      "sha256": "7e887f05b79ce6364b828e608913c94454621e9d2a1dff85c05c2c7f2a485de7"
+    },
+    "public/mobile/js/catalog-cache-config.js": {
+      "status": "added",
+      "size": 166,
+      "sha256": "8eb8b153759907f5af76ef46a42d3843695f42d901ef80e510401bee0ddbecfd"
+    },
+    "scripts/security/audit-frontend-sinks.js": {
+      "status": "added",
+      "size": 5477,
+      "sha256": "a5f7054730ddaef113716081636126567583fff1a33aee323a58925858d3b08d"
+    },
+    "src/middlewares/csp.middleware.js": {
+      "status": "added",
+      "size": 3236,
+      "sha256": "6017a31da5151e901a079762e86ea2c5bcf9a5c1fe4f323c0866b163311685cb"
+    },
+    "test/csp-xss-hardening.test.js": {
+      "status": "added",
+      "size": 7005,
+      "sha256": "0355aea1186c40c9182ed38a0d1cec4c70a205e58dac1a8c70dcd0cbe4077ddb"
+    },
+    ".env.example": {
+      "status": "modified",
+      "before": {
+        "size": 8749,
+        "sha256": "258060d8358510c4a7f29b01c1012e8cd559b7fd2a83308868bde7b29a9e70c9"
+      },
+      "after": {
+        "size": 8856,
+        "sha256": "3c5bd06511999d1d8fdd1549b8a9e9f52630fa1555688821ab3de4943b554ebc"
+      }
+    },
+    ".env.production.example": {
+      "status": "modified",
+      "before": {
+        "size": 4677,
+        "sha256": "03d6ad6321318783d87392eb1168b8b79cf0880442718a01c3eaa6151df0b0bd"
+      },
+      "after": {
+        "size": 4824,
+        "sha256": "f9f5725df36e364e1575d9ababb4a44b240ce1fc529e04dfc0ae73940a0d4565"
+      }
+    },
+    "config/source-bundles.json": {
+      "status": "modified",
+      "before": {
+        "size": 8621,
+        "sha256": "57cd7439fbcd10abb06f4eb25f0e191f0e372094f6ae48c399d44a006f46069a"
+      },
+      "after": {
+        "size": 8621,
+        "sha256": "0d269771a7ae8f4612222ddb4d165dbb17e0ccd89af96a1e888a810bc552e95b"
+      }
+    },
+    "package.json": {
+      "status": "modified",
+      "before": {
+        "size": 5791,
+        "sha256": "e7c4b613f838310b8cb6b66dc34446f08271298965ff2668f24b11e146e4fa6d"
+      },
+      "after": {
+        "size": 6045,
+        "sha256": "8099ca8afafd4f8210eb592569e5c8202fcce89b35d817454b1787815ceed52f"
+      }
+    },
+    "public/fragments/index/07-index-body.html": {
+      "status": "modified",
+      "before": {
+        "size": 17981,
+        "sha256": "370f315507699e42f65ef99c52c1c77e26f6feda641059c4c5e881c67e64615e"
+      },
+      "after": {
+        "size": 18051,
+        "sha256": "8e549244172a7659f0725d59ea8c54812e277bd0c159db3cde3a988a5625201d"
+      }
+    },
+    "public/js/app/03-customers-autocomplete.js": {
+      "status": "modified",
+      "before": {
+        "size": 19253,
+        "sha256": "7c8a9a946896840727310bc476f53dc5a4a1a05df0bccb8f3559227ad3248354"
+      },
+      "after": {
+        "size": 19807,
+        "sha256": "b577b6047a51abfbcbb1305cd3cf844bfbb6ad461955ba7b784804f2ac4c292c"
+      }
+    },
+    "public/js/app/04-import-orders.js": {
+      "status": "modified",
+      "before": {
+        "size": 13411,
+        "sha256": "ea89f0f7193f6ccb7a5d169e5d84cbbc46a33bfd0ed4f09e3ccacc603253acb4"
+      },
+      "after": {
+        "size": 13809,
+        "sha256": "2be7a5d94291b7168ac58d662a0a9b9729fefcf2cbf935838897eb30fe83afe9"
+      }
+    },
+    "public/js/app/05-sales-orders.js": {
+      "status": "modified",
+      "before": {
+        "size": 20023,
+        "sha256": "d86e1232a456a96e14d42400cc4447611b0f4704e764518fcf70faf6b8d2bf82"
+      },
+      "after": {
+        "size": 20883,
+        "sha256": "d3a3fc8c6996ef7609a216cadbf93a00666ce52ab38f1ed1c8af7b5e08bcc40e"
+      }
+    },
+    "public/js/app/05-sales-orders.part02.js": {
+      "status": "modified",
+      "before": {
+        "size": 20966,
+        "sha256": "16b188cce84339fd7af58ac5e83c0e5967766f72e5860aa36cee692cac88c3b4"
+      },
+      "after": {
+        "size": 20725,
+        "sha256": "c7e5849ebf0f9e2b753c45706496149b17c690062fb244ba8a10d4a7bdb13207"
+      }
+    },
+    "public/js/app/05-sales-orders.part03.js": {
+      "status": "modified",
+      "before": {
+        "size": 17545,
+        "sha256": "f150c3c90ffdee1e39165df0c2c2095ec9983d9b20fc5aa5afb36db02e475762"
+      },
+      "after": {
+        "size": 18165,
+        "sha256": "ddf3fca2e22804220bcf946acbc65d0987298a28e0ffb63aae7c075d3b3652db"
+      }
+    },
+    "public/js/app/05-sales-orders.source/part-01.jsfrag": {
+      "status": "modified",
+      "before": {
+        "size": 21834,
+        "sha256": "d665d3e0b7defdd011366ffd6d28c46835b9436a53f321eab362fb8810ed873b"
+      },
+      "after": {
+        "size": 22749,
+        "sha256": "5ff527cdf3223a962edce71b21bb3de56f2ce0d5227d2fb00565f2b8f20f28e5"
+      }
+    },
+    "public/js/app/05-sales-orders.source/part-02.jsfrag": {
+      "status": "modified",
+      "before": {
+        "size": 22811,
+        "sha256": "c253c69246b02b59306e6cdf1cee78de35004d738ef0af03c333f2a330922e21"
+      },
+      "after": {
+        "size": 22642,
+        "sha256": "76fc1852232370e1f426d4d6c8a51a985598f6ba125fbfe31f63d138d8dd369b"
+      }
+    },
+    "public/js/app/05-sales-orders.source/part-03.jsfrag": {
+      "status": "modified",
+      "before": {
+        "size": 19036,
+        "sha256": "4088db51931cad6bd4b2c9588368f3a1608719984a5965bc762ef91ac399dd73"
+      },
+      "after": {
+        "size": 19695,
+        "sha256": "ba1f8edc24fe04ff65cee4ca54f061424700882ec7c3dfa9afde5145c8a7fedb"
+      }
+    },
+    "public/js/app/06-master-delivery.js": {
+      "status": "modified",
+      "before": {
+        "size": 38047,
+        "sha256": "8843333e00fccc5f4d082ac6a8a087d61a70d0faab5daca1748d81f2876f5188"
+      },
+      "after": {
+        "size": 38070,
+        "sha256": "f4c1297c2d9ae621b8550ce1666b2779db183c266cbe0b323a315a5161a3da83"
+      }
+    },
+    "public/js/app/admin/08b-users.js": {
+      "status": "modified",
+      "before": {
+        "size": 3580,
+        "sha256": "1d6aa27058c65595c01193433be31bd9871cd60a42362685455b1a88359abc0b"
+      },
+      "after": {
+        "size": 4026,
+        "sha256": "114d6acb2822aa2b223b64db02429004b04fca59087a1656f29deff697d3b3dc"
+      }
+    },
+    "public/js/app/admin/08c-promotions-legacy.js": {
+      "status": "modified",
+      "before": {
+        "size": 4313,
+        "sha256": "92a999d2359c7cf4f1427309b665f52d3fe7601231d3c817274017c7e2693bae"
+      },
+      "after": {
+        "size": 4824,
+        "sha256": "e4e2a4567d2eb143f156345cab400d5bfdc5f61aef1f7107d7f7b1918e1f0e04"
+      }
+    },
+    "public/js/app/admin/08e-promotion-programs.js": {
+      "status": "modified",
+      "before": {
+        "size": 24203,
+        "sha256": "f5fede544601f4e3a557fcead490e9cb87822ef642cf95ed6da7f38d7a6636f0"
+      },
+      "after": {
+        "size": 25545,
+        "sha256": "45e531bc1cab937bc9b8240a8b24ddbd4c8406825d7c30f5567e149a69c6cbcc"
+      }
+    },
+    "public/js/app/debt/07a-debt-core.js": {
+      "status": "modified",
+      "before": {
+        "size": 39645,
+        "sha256": "9c47754ea763c54b16fe2348c153e8b20150faa9c582eb9c4c2e93ce5de23f0b"
+      },
+      "after": {
+        "size": 40231,
+        "sha256": "b1b850acb6c9baf5423fd066cd514888fbc19fe5b6c97b6c05cefadfff0f38f0"
+      }
+    },
+    "public/js/app/debt/07b-return-orders.js": {
+      "status": "modified",
+      "before": {
+        "size": 16158,
+        "sha256": "7c9c5ea3696f7a813d1c270dd84463e1981a18ce13052979d7748d4911f6cd2e"
+      },
+      "after": {
+        "size": 16431,
+        "sha256": "767a765494ff546573678a26cdd73864586d8987f68a2f6136faf644a4c74780"
+      }
+    },
+    "public/js/app/debt/07d-master-return-orders.js": {
+      "status": "modified",
+      "before": {
+        "size": 37274,
+        "sha256": "4e8ef206f5823e832bdd6b253196cbca3472b02466cf31918c1c3b3934ab2898"
+      },
+      "after": {
+        "size": 37765,
+        "sha256": "80dec6bfab25836e5d746bc1d20c5fa7718b0dfdbf4012a75b7b03caa13e785b"
+      }
+    },
+    "public/js/app/debt/07e-debt-collections.js": {
+      "status": "modified",
+      "before": {
+        "size": 9755,
+        "sha256": "15df8fa16dd764e3360bf00cb7f6a05c458937cee67b79069d7ba9b52fa245cd"
+      },
+      "after": {
+        "size": 10371,
+        "sha256": "20bc6e7c76442df6d31b9ebdedda6fcfa604ea3e6ad26475aff662f74e8ca11a"
+      }
+    },
+    "public/js/app/debt/07f-fund-ledger.js": {
+      "status": "modified",
+      "before": {
+        "size": 22710,
+        "sha256": "0eeefcd381cbd6265b70adb0fdeb7d8283bae9a22190b45a05b4d892ca99283a"
+      },
+      "after": {
+        "size": 22893,
+        "sha256": "c99e3afa50d35382895ec8aaeb26cbc023e95a42a096158bdb9601514b6f629f"
+      }
+    },
+    "public/js/app/debt/07f-fund-ledger.part02.js": {
+      "status": "modified",
+      "before": {
+        "size": 21569,
+        "sha256": "7b561d5892d0c7e93a8845506fc2d8d7cdae0da3efc39cfc766c784ab392810a"
+      },
+      "after": {
+        "size": 21587,
+        "sha256": "b2b3bd653ad789bf75a0c7c33f210ad8936f9f642f35a58438280e2dfde816f8"
+      }
+    },
+    "public/js/app/debt/07f-fund-ledger.part03.js": {
+      "status": "modified",
+      "before": {
+        "size": 6800,
+        "sha256": "18ce4d00b47b6a540debb9f2445327cdf0ccf3be4ce229bb6bd10ccb2a9a8785"
+      },
+      "after": {
+        "size": 7511,
+        "sha256": "c6439c6172c5a3719c6d608ebee4a1e3087164ab44413d915bc7fc694237a4ee"
+      }
+    },
+    "public/js/app/debt/07f-fund-ledger.source/part-01.jsfrag": {
+      "status": "modified",
+      "before": {
+        "size": 23831,
+        "sha256": "51d8924ca636846adc32fcefd1af745e5c5de1fe6468c89f843798d7f3eb5720"
+      },
+      "after": {
+        "size": 24014,
+        "sha256": "9f047bbc1a4eee220c45683fd9487a76a6d93fcb06efd722fbca6fc749196e0e"
+      }
+    },
+    "public/js/app/debt/07f-fund-ledger.source/part-02.jsfrag": {
+      "status": "modified",
+      "before": {
+        "size": 22362,
+        "sha256": "15e82dce8a35ace98e2f7d1977142faac9b281d9690a4aecf06b45c6add4acfa"
+      },
+      "after": {
+        "size": 22380,
+        "sha256": "483e0c122e4e1039b52159f6886c62cbb37fe0d10c8727d7b88b4a638f4ef95b"
+      }
+    },
+    "public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag": {
+      "status": "modified",
+      "before": {
+        "size": 6773,
+        "sha256": "296969ec59a47680cbb3da2088f8d3c76005357ff0e9f02ceb48a3d50688caff"
+      },
+      "after": {
+        "size": 7543,
+        "sha256": "7c56d2093ca79357aadfdaadfb8c96338c41714797aa04345d64aa3f03d701d5"
+      }
+    },
+    "public/mobile/delivery.html": {
+      "status": "modified",
+      "before": {
+        "size": 1055,
+        "sha256": "4056b294a9a598cf1205dc1daaddafb065bef6fc4c8961131abdc60ab96ee4d2"
+      },
+      "after": {
+        "size": 1123,
+        "sha256": "df8b1f7838f08530a5092465578faaae7f07a6804c10b6cb94899f5fb0be4e37"
+      }
+    },
+    "public/mobile/js/sales.js": {
+      "status": "modified",
+      "before": {
+        "size": 40847,
+        "sha256": "834368d2164cc719f9516a1b1586d57cab01006f3f573a05f71c0c0d5fd45900"
+      },
+      "after": {
+        "size": 40590,
+        "sha256": "cabc7a4f241483b52f07fc37bfe7904fbd9c02b6d9f8af26bfa3787403212a0f"
+      }
+    },
+    "public/mobile/js/sales.source/part-01b.jsfrag": {
+      "status": "modified",
+      "before": {
+        "size": 16112,
+        "sha256": "15fe3e08f325ec8c896eb87e2e504bcbdb3ad787bef82907a156196205bed9a9"
+      },
+      "after": {
+        "size": 16044,
+        "sha256": "21b1544473009c95fa7acdbaa59a0412071b1f507d6503671e87d46daf469102"
+      }
+    },
+    "public/mobile/js/sales.source/part-02.jsfrag": {
+      "status": "modified",
+      "before": {
+        "size": 18335,
+        "sha256": "103f11ae7d7ef5178ec06b7afaf8e2bc04625e78a5d5ad8b4f1fad20e9655c77"
+      },
+      "after": {
+        "size": 18062,
+        "sha256": "3de7c1848e6e2ddf34c82f9bcba342e7b7ae876940a88f1ed83e723737fbaf8d"
+      }
+    },
+    "public/mobile/login.html": {
+      "status": "modified",
+      "before": {
+        "size": 1328,
+        "sha256": "1bcbf44ed579cf950d10981ae8cd081589e1972ce9b5275ac06f7ea6882493dd"
+      },
+      "after": {
+        "size": 1396,
+        "sha256": "a719f295c453fa138468bb9742a0821cd273dfe62c2f8f3d3d748e96578bf5cf"
+      }
+    },
+    "public/mobile/sales.html": {
+      "status": "modified",
+      "before": {
+        "size": 12485,
+        "sha256": "81b3890116821bb42df9e19ce2a7db10f27d659430d458bea8425192b67e40a7"
+      },
+      "after": {
+        "size": 12449,
+        "sha256": "a0ae25915e1c0bf7e3d3b8ce358a8f1d4aaa98814e840aea4ea35258b99cb692"
+      }
+    },
+    "services/printService.js": {
+      "status": "modified",
+      "before": {
+        "size": 4389,
+        "sha256": "011ce25aaa024cbb9241467b59a48e38995f8df0dd437634847bd9accffeb2aa"
+      },
+      "after": {
+        "size": 3429,
+        "sha256": "3f49879cdba40b4ce089ea56ccce5fdd3b7c5753818310d6e14c188f7891d930"
+      }
+    },
+    "src/app.js": {
+      "status": "modified",
+      "before": {
+        "size": 16000,
+        "sha256": "e36814738417c1e245f884ce37334a83daaae5c9150f6677db77677f8df1a5b8"
+      },
+      "after": {
+        "size": 16056,
+        "sha256": "ecdc9074e43465fd0b71f037495f254202c2599d3a6eec0c6fb194720d48ab64"
+      }
+    },
+    "src/routes/swaggerRoutes.js": {
+      "status": "modified",
+      "before": {
+        "size": 3080,
+        "sha256": "04e51b7536fd1a732685b67f9093cc9adfaf0ce5c7f30813bbfe6de6f3ae6239"
+      },
+      "after": {
+        "size": 2858,
+        "sha256": "161e96b8a1265f81a44409e042140c333d910a5065a190f47c0f63434db21432"
+      }
+    },
+    "templates/print/dmsExactSalesInvoice.template.js": {
+      "status": "modified",
+      "before": {
+        "size": 16366,
+        "sha256": "27864a5433d4d7be2ef55f0ec0649a82e11781418f797935a76c81bb8cb03260"
+      },
+      "after": {
+        "size": 15481,
+        "sha256": "d6f3660899b58adffa24a566cd755cd968e5f52db034b486ddf26d30cea2fdb7"
+      }
+    },
+    "templates/printTemplates.js": {
+      "status": "modified",
+      "before": {
+        "size": 36032,
+        "sha256": "34b23e738d2ce7f0fde59c6acc572b2e4ab314a75df00b790e3f2f1f0d6206e5"
+      },
+      "after": {
+        "size": 35041,
+        "sha256": "a85298915dad03cb0bd9acd9381556178a5134b0c35048f6d1577e9f3d458c7f"
+      }
+    },
+    "templates/printTemplates.source/part-01.jsfrag": {
+      "status": "modified",
+      "before": {
+        "size": 23194,
+        "sha256": "f737972e5fc8d0ffa1af2a1a0b1c8a1104bcc952e9ce22213a1ab10194a3b88b"
+      },
+      "after": {
+        "size": 22234,
+        "sha256": "22ffdd711d1d20b5ea452555bb8fb13d58f56628df233ab135d9f628451579c8"
+      }
+    },
+    "test/app-docs-route.test.js": {
+      "status": "modified",
+      "before": {
+        "size": 1317,
+        "sha256": "78c33f6dbc52f20fb03028931f0294c2250ef5bea4dfccacbb593b6ad031fd86"
+      },
+      "after": {
+        "size": 1376,
+        "sha256": "fb21623b9a41147decd9ddbd27605077317acfbcfb91efad51041f1e5bdbdd21"
+      }
+    },
+    "test/excel-product-catalog-rule.test.js": {
+      "status": "modified",
+      "before": {
+        "size": 6920,
+        "sha256": "52d8eecf153ac4072c96af79838cdd3eaf07409c37ab9120d2375caac6c66be9"
+      },
+      "after": {
+        "size": 7103,
+        "sha256": "84a08507d1803b14fb12eb097257605e1ceb52805a3300022cc5862081f2cbe6"
+      }
+    },
+    "test/fixtures/index-page/phase79-assembled.sha256": {
+      "status": "modified",
+      "before": {
+        "size": 65,
+        "sha256": "e99ccd7b4cb58502545b6a270d3da7cbaa814e10c772c4acc0702d1071c9a875"
+      },
+      "after": {
+        "size": 65,
+        "sha256": "203545b1c313045ab203960ebb70056f3fe67ff2627a1c809c3acf4d3ce6162b"
+      }
+    },
+    "test/mobile-sales-phase5-production-hardening.test.js": {
+      "status": "modified",
+      "before": {
+        "size": 6969,
+        "sha256": "f582c43325b067c2238ad7e0c74b94dcd28aecd072213184a5caca3ace1de0ce"
+      },
+      "after": {
+        "size": 7099,
+        "sha256": "f0ef5c8049253aaed31f6d318f0edd48377630473c816e137ea1ce6fec0798c7"
+      }
+    }
+  }
+}

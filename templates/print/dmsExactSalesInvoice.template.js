@@ -116,24 +116,11 @@ function rewardsOf(data = {}) {
 function previewActions() {
   return `
   <div class="print-preview-actions dmsx-preview-actions">
-    <button type="button" onclick="window.close()">Bỏ qua</button>
-    <button type="button" onclick="window.print()">In đơn</button>
-    <button type="button" onclick="exportCurrentPrintToExcel()">Xuất Excel</button>
+    <button type="button" data-print-action="close">Bỏ qua</button>
+    <button type="button" data-print-action="print">In đơn</button>
+    <button type="button" data-print-action="excel">Xuất Excel</button>
   </div>
-  <script>
-    function exportCurrentPrintToExcel(){
-      var pages=Array.prototype.slice.call(document.querySelectorAll('.dmsx-page'));
-      var html=pages.length?pages.map(function(page){return page.outerHTML;}).join(''):document.body.innerHTML;
-      var fullHtml='<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px}.excel-only-column{display:table-cell!important}</style></head><body>'+html+'</body></html>';
-      var blob=new Blob(['\ufeff'+fullHtml],{type:'application/vnd.ms-excel;charset=utf-8;'});
-      var a=document.createElement('a');
-      a.href=URL.createObjectURL(blob);
-      var safe=(document.title||'don-con').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-+|-+$/g,'')||'don-con';
-      a.download=safe+'.xls';
-      document.body.appendChild(a);a.click();a.remove();
-      setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
-    }
-  <\/script>`;
+  <script src="/js/print-preview-actions.js?v=phase09-csp-v1"></script>`;
 }
 
 function renderHeader(data, copyLabel, pageNo, pageCount) {

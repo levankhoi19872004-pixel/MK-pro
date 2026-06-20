@@ -32,7 +32,7 @@
     "migrate:return-state": "node scripts/migrate-return-state-machine.js --write",
     "repair:detached-delivery": "node scripts/repair-detached-delivery-assignments.js",
     "check:syntax": "node scripts/check-js-syntax.js",
-    "quality": "npm run check:lock-registry && npm run check:path-portability && npm run check:syntax && npm run check:source-bundles && npm run check:source-size && npm run check:enterprise && npm run docs:check && npm test && npm audit --omit=dev --audit-level=high",
+    "quality": "npm run check:lock-registry && npm run check:path-portability && npm run check:syntax && npm run check:source-bundles && npm run check:source-size && npm run check:csp-xss && npm run check:enterprise && npm run docs:check && npm test && npm audit --omit=dev --audit-level=high",
     "check:production": "node scripts/production-readiness-check.js",
     "cleanup:retired": "node scripts/cleanup-retired-files.js",
     "pretest": "npm run cleanup:retired && npm run check:source-bundles",
@@ -68,7 +68,9 @@
     "worker:background": "node scripts/background-job-worker.js",
     "worker:background:once": "node scripts/background-job-worker.js --once",
     "benchmark:background-jobs": "node scripts/performance/background-job-isolation-benchmark.js",
-    "benchmark:frontend": "node scripts/performance/frontend-dom-benchmark.js"
+    "benchmark:frontend": "node scripts/performance/frontend-dom-benchmark.js",
+    "audit:frontend-sinks": "node scripts/security/audit-frontend-sinks.js --output=CSP_XSS_SINK_INVENTORY.json",
+    "check:csp-xss": "node scripts/security/audit-frontend-sinks.js --check --output=CSP_XSS_SINK_INVENTORY.json"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

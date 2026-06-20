@@ -220,6 +220,17 @@ async function deleteSalesOrder(idx){
 }
 window.deleteSalesOrder=deleteSalesOrder;
 window.cancelSalesOrder=deleteSalesOrder;
+if(salesOrderList&&!salesOrderList.dataset.securityDelegationBound){
+  salesOrderList.dataset.securityDelegationBound='1';
+  salesOrderList.addEventListener('click',event=>{
+    const button=event.target.closest('[data-sales-order-action]');
+    if(!button||!salesOrderList.contains(button))return;
+    const index=Number(button.dataset.orderIndex);
+    if(button.dataset.salesOrderAction==='toggle-vat')toggleSalesOrderVat(index);
+    if(button.dataset.salesOrderAction==='edit')openSalesOrderEdit(index);
+    if(button.dataset.salesOrderAction==='delete')deleteSalesOrder(index);
+  });
+}
 
 
 
@@ -387,11 +398,11 @@ function renderSalesOrderRows(orders, {append=false} = {}){
         <strong class="sales-order-total-one-line" title="Giá trị đơn hàng">${money(o.totalAmount)}</strong>
         <span class="badge ${getOrderSourceClass(o)} sales-order-source-one-line" title="Nguồn đơn">${getOrderSourceText(o)}</span>
         ${canManageVatInvoiceSetting()
-          ? `<button type="button" class="small sales-vat-badge ${salesOrderVatClass(o)}" title="Đổi thiết lập hóa đơn VAT" onclick="toggleSalesOrderVat(${idx})">${salesOrderVatLabel(o)}</button>`
+          ? `<button type="button" class="small sales-vat-badge ${salesOrderVatClass(o)}" title="Đổi thiết lập hóa đơn VAT" data-sales-order-action="toggle-vat" data-order-index="${idx}">${salesOrderVatLabel(o)}</button>`
           : `<span class="badge sales-vat-badge ${salesOrderVatClass(o)}">${salesOrderVatLabel(o)}</span>`}
         <div class="sales-order-actions sales-order-actions-one-line">
-          <button class="small" onclick="openSalesOrderEdit(${idx})">Sửa</button>
-          ${['cancelled','void','delivered','returned'].includes(String(o.status||'').toLowerCase())?'':`<button class="small danger" onclick="deleteSalesOrder(${idx})">Xóa</button>`}
+          <button class="small" data-sales-order-action="edit" data-order-index="${idx}">Sửa</button>
+          ${['cancelled','void','delivered','returned'].includes(String(o.status||'').toLowerCase())?'':`<button class="small danger" data-sales-order-action="delete" data-order-index="${idx}">Xóa</button>`}
         </div>
       </article>`;
   }).join('');

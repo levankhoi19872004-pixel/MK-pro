@@ -31,7 +31,8 @@ test('Swagger UI and OpenAPI JSON are mounted before legacy guard', { skip: app 
 
   const html = await request(server, '/api/docs');
   assert.equal(html.statusCode, 200);
-  assert.match(html.body, /SwaggerUIBundle/);
+  assert.match(html.body, /swagger-ui-bundle\.js/);
+  assert.match(html.body, /\/js\/swagger-init\.js/);
 
   const json = await request(server, '/api/docs/openapi.json');
   assert.equal(json.statusCode, 200);

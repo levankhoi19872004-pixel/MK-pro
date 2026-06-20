@@ -1,0 +1,42 @@
+{
+  "generatedAt": "2026-06-20T16:10:08.691Z",
+  "results": [
+    {
+      "mode": "report-only",
+      "route": "/mobile/login.html",
+      "status": 200,
+      "csp": null,
+      "cspReportOnly": "default-src 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; report-uri /csp-report",
+      "reportingEndpoints": "csp-endpoint=\"/csp-report\""
+    },
+    {
+      "mode": "report-only",
+      "route": "/api/docs",
+      "status": 200,
+      "csp": null,
+      "cspReportOnly": "default-src 'self'; script-src 'self' https://unpkg.com; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; report-uri /csp-report",
+      "reportingEndpoints": "csp-endpoint=\"/csp-report\""
+    },
+    {
+      "mode": "enforce",
+      "route": "/mobile/login.html",
+      "status": 200,
+      "csp": "default-src 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; report-uri /csp-report",
+      "cspReportOnly": null,
+      "reportingEndpoints": "csp-endpoint=\"/csp-report\""
+    },
+    {
+      "mode": "enforce",
+      "route": "/api/docs",
+      "status": 200,
+      "csp": "default-src 'self'; script-src 'self' https://unpkg.com; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; report-uri /csp-report",
+      "cspReportOnly": null,
+      "reportingEndpoints": "csp-endpoint=\"/csp-report\""
+    },
+    {
+      "mode": "report-endpoint",
+      "route": "/csp-report",
+      "status": 204
+    }
+  ]
+}

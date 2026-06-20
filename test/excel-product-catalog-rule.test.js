@@ -161,5 +161,6 @@ test('exact child-order print Excel adds catalog packing and sale price without 
   assert.match(html, />24<\/td>/);
   assert.match(html, />120\.000<\/td>/);
   assert.match(html, />90\.000<\/td>/);
-  assert.match(html, /exportCurrentPrintToExcel/);
+  assert.match(html, /\/js\/print-preview-actions\.js/);
+  assert.match(require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public/js/print-preview-actions.js'), 'utf8'), /function exportCurrentPrintToExcel/);
 });

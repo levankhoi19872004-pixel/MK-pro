@@ -101,7 +101,7 @@
         "templates/printTemplates.source/part-02.jsfrag",
         "templates/printTemplates.source/part-03.jsfrag"
       ],
-      "sourceSha256": "664b2821c44dde89ded8c2327ed9ece1175d62ca89a17d83ce2871829b038741"
+      "sourceSha256": "c0414cc4beb62ca8117db7028256ee6e81863d8997424de81c56364e659a126f"
     },
     {
       "target": "public/js/app/05-sales-orders.js",
@@ -112,7 +112,7 @@
         "public/js/app/05-sales-orders.source/part-03.jsfrag",
         "public/js/app/05-sales-orders.source/part-04.jsfrag"
       ],
-      "sourceSha256": "c30b94f24e66a3677589a724411c28c5b93a3d45fa872b7df38e4ce5b6f743c1",
+      "sourceSha256": "4f560958b19c1042bdd6aafbb64c5a4f4163470d932dd20a6a9ad18d18c516f9",
       "runtimeFiles": [
         "public/js/app/05-sales-orders.js",
         "public/js/app/05-sales-orders.part02.js",
@@ -132,7 +132,7 @@
         "public/mobile/js/sales.source/part-03.jsfrag",
         "public/mobile/js/sales.source/part-03b.jsfrag"
       ],
-      "sourceSha256": "b176b149c7bbbcceb75c0f1d399b3e5bc30b93768be1f2e7e759168819ab9909"
+      "sourceSha256": "ff766ef12603df60a66483fa3d0307b7144f6198d883480f31a9d0157566f693"
     },
     {
       "target": "public/js/app/admin/08d-import-excel.js",
@@ -167,7 +167,7 @@
         "public/js/app/debt/07f-fund-ledger.source/part-02.jsfrag",
         "public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag"
       ],
-      "sourceSha256": "85c50d40da02355cf84be92b92b088f63182473284c133aac543aaa20b240b88",
+      "sourceSha256": "8af929500fbefb67424d8bf7f4b467abd9db717994aa5f4a7c05ad14fb217ee4",
       "runtimeFiles": [
         "public/js/app/debt/07f-fund-ledger.js",
         "public/js/app/debt/07f-fund-ledger.part02.js",

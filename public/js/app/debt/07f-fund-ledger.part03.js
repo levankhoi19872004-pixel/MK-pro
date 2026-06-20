@@ -15,7 +15,11 @@ async function submitExpenseVoucher(event){event.preventDefault();const payload=
 ;if(activeFundTab==="fundSummaryBook"&&window.FundSummaryBook)return window.FundSummaryBook.load();if(activeFundTab==="deliverySubmission")return loadDeliveryCashSubmissions()
 ;if(activeFundTab==="expenseVoucher")return loadExpenseVouchers();if(activeFundTab==="bankTransfer")return loadFundTransfers();return Promise.resolve()}function resetFundFilters(){
 if(fundSearchInput)fundSearchInput.value="";if(fundDateFrom)fundDateFrom.value="";if(fundDateTo)fundDateTo.value="";if(fundTypeFilter)fundTypeFilter.value="all"
-;if(fundDirectionFilter)fundDirectionFilter.value="all";return reloadActiveFundTab()}
+;if(fundDirectionFilter)fundDirectionFilter.value="all";return reloadActiveFundTab()}if(!document.documentElement.dataset.fundSecurityDelegationBound){
+document.documentElement.dataset.fundSecurityDelegationBound="1";document.addEventListener("click",event=>{const button=event.target.closest("[data-fund-action]");if(!button)return
+;const action=button.dataset.fundAction;const type=button.dataset.fundType||"";const code=button.dataset.fundCode||"";if(action==="edit")editFundVoucher(type,code)
+;if(action==="confirm")confirmFundVoucher(type,code,button);if(action==="classify-shortage")classifyDeliveryCashShortages(code)
+;if(action==="open-shortage")openDeliveryShortageRepayment(button.dataset.shortageKey||"");if(action==="confirm-repayment")confirmDeliveryShortageRepayment(code,button)})}
 if(fundTabButtons)fundTabButtons.forEach(btn=>btn.addEventListener("click",()=>setActiveFundTab(btn.dataset.fundTab)))
 ;if(deliverySubmissionTabButtons)deliverySubmissionTabButtons.forEach(btn=>btn.addEventListener("click",()=>setActiveDeliverySubmissionTab(btn.dataset.deliverySubtab)))
 ;bindFundVoucherModal("delivery",createDeliveryCashSubmissionButton,closeDeliveryCashSubmissionModalButton)

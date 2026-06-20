@@ -89,17 +89,7 @@ router.get('/docs', (req, res) => {
 <body>
   <div id="swagger-ui"></div>
   <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-  <script>
-    window.onload = function () {
-      window.ui = SwaggerUIBundle({
-        url: '/api/docs/openapi.json',
-        dom_id: '#swagger-ui',
-        deepLinking: true,
-        presets: [SwaggerUIBundle.presets.apis],
-        layout: 'BaseLayout'
-      });
-    };
-  </script>
+  <script src="/js/swagger-init.js?v=phase09-csp-v1"></script>
 </body>
 </html>`);
 });

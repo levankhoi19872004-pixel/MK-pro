@@ -255,7 +255,7 @@ async function loadDeliveryShortageHistory(shortageId){
       const rawCode=String(r.code||r.id||'');
       const code=fundSafeCode(rawCode);
       const pending=String(r.status||'').toLowerCase()==='pending'&&!r.fundPosted;
-      return `<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.repaymentDate||'')}</td><td>${escapeHtml(fundTypeName(r.fundType))}</td><td class="price">${money(r.amount||0)}</td><td>${escapeHtml(r.status||'')}</td><td>${pending?`<span class="fund-row-actions"><button type="button" class="secondary compact-action fund-confirm-action" data-fund-action-key="${escapeHtml(`confirm:repayment:${rawCode}`)}" onclick="confirmDeliveryShortageRepayment('${code}',this)">Xác nhận</button></span>`:'<span class="muted">Đã ghi quỹ</span>'}</td></tr>`;
+      return `<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.repaymentDate||'')}</td><td>${escapeHtml(fundTypeName(r.fundType))}</td><td class="price">${money(r.amount||0)}</td><td>${escapeHtml(r.status||'')}</td><td>${pending?`<span class="fund-row-actions"><button type="button" class="secondary compact-action fund-confirm-action" data-fund-action-key="${escapeHtml(`confirm:repayment:${rawCode}`)}" data-fund-action="confirm-repayment" data-fund-code="${escapeHtml(rawCode)}">Xác nhận</button></span>`:'<span class="muted">Đã ghi quỹ</span>'}</td></tr>`;
     }).join(''):'<tr><td colspan="6">Chưa có phiếu nộp bù.</td></tr>';
   }
   return json;

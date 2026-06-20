@@ -419,7 +419,7 @@ async function loadMasterOrders() {
     renderMasterOrders();
   } catch (err) {
     if (masterOrderCount) masterOrderCount.textContent = 'Lỗi tải đơn tổng';
-    if (masterOrderList) masterOrderList.innerHTML = `<div class="empty-cell error">${err.message || 'Không tải được đơn tổng'}</div>`;
+    if (masterOrderList) masterOrderList.innerHTML = `<div class="empty-cell error">${masterOrderEscapeHtml(err.message || 'Không tải được đơn tổng')}</div>`;
   }
 }
 window.loadMasterOrders = loadMasterOrders;

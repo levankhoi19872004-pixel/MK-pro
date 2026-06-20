@@ -111,7 +111,7 @@ function renderReturnOrderDetail(order){
       </div>
       <div class="return-detail-actions">
         <span class="badge ${returnOrderStatusBadgeClass(status)}">${escapeHtml(returnOrderStatusLabel(status))}</span>
-        ${canCancelReturnOrder(order)?`<button type="button" class="secondary small danger" onclick="cancelReturnOrder('${escapeHtml(returnOrderRowKey(order))}')">Huỷ trả hàng</button>`:''}
+        ${canCancelReturnOrder(order)?`<button type="button" class="secondary small danger" data-return-action="cancel" data-return-key="${escapeHtml(returnOrderRowKey(order))}">Huỷ trả hàng</button>`:''}
       </div>
     </div>
     <div class="return-detail-grid">
@@ -268,6 +268,12 @@ const reloadReturnOrdersButton=document.getElementById('reloadReturnOrdersButton
 if(reloadReturnOrdersButton)reloadReturnOrdersButton.addEventListener('click',()=>runReturnOrderLoad(reloadReturnOrdersButton,'Đang tải...'));
 if(returnOrderTable){
   returnOrderTable.addEventListener('click',event=>{
+    const action=event.target.closest('[data-return-action]');
+    if(action&&returnOrderTable.contains(action)){
+      event.stopPropagation();
+      if(action.dataset.returnAction==='cancel')cancelReturnOrder(action.dataset.returnKey);
+      return;
+    }
     const tr=event.target.closest('tr[data-return-key]');
     if(tr)selectReturnOrderByKey(tr.dataset.returnKey);
   });
