@@ -61,14 +61,21 @@ test('only accounting-confirmed or AR-posted returns are eligible for invoice/SS
 });
 
 test('order Mongo filter applies date, exact staff code and invoice group server-side', () => {
-  const filter = service.buildInvoiceOrderMongoFilter(
-    { dateFrom: '2026-06-01', dateTo: '2026-06-30', salesStaffCode: '35128' },
-    { invoiceGroup: 'VAT', currentUser: { tenantId: 'tenant-a' } }
-  );
-  const text = JSON.stringify(filter);
-  assert.match(text, /vatInvoiceRequired/);
-  assert.match(text, /salesStaffCode/);
-  assert.match(text, /orderDate/);
-  assert.match(text, /tenant-a/);
-  assert.doesNotMatch(text, /salesStaffName|staffName/);
+  const previous = process.env.TENANT_MODE;
+  try {
+    process.env.TENANT_MODE = 'multi';
+    const filter = service.buildInvoiceOrderMongoFilter(
+      { dateFrom: '2026-06-01', dateTo: '2026-06-30', salesStaffCode: '35128' },
+      { invoiceGroup: 'VAT', currentUser: { tenantId: 'tenant-a' } }
+    );
+    const text = JSON.stringify(filter);
+    assert.match(text, /vatInvoiceRequired/);
+    assert.match(text, /salesStaffCode/);
+    assert.match(text, /orderDate/);
+    assert.match(text, /tenant-a/);
+    assert.doesNotMatch(text, /salesStaffName|staffName/);
+  } finally {
+    if (previous === undefined) delete process.env.TENANT_MODE;
+    else process.env.TENANT_MODE = previous;
+  }
 });

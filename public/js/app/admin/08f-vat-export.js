@@ -106,6 +106,8 @@
       if(!response.ok)throw await responseError(response);
       const contentType=String(response.headers.get('content-type')||'');
       if(!contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'))throw new Error('Máy chủ không trả về file Excel hợp lệ');
+      const rowCountHeader=response.headers.get('x-export-row-count');
+      if(rowCountHeader!==null&&rowCountHeader!==''&&Number(rowCountHeader)===0)throw new Error('Không có dữ liệu phù hợp với bộ lọc đã chọn. File trống đã được chặn tải xuống.');
       const fileName=responseFileName(response,fallback);
       saveBlob(await response.blob(),fileName);
       setSummary(successSummary(response,fileName));

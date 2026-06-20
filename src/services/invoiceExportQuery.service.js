@@ -181,7 +181,11 @@ function buildSalesStaffMongoClause(salesStaffCode) {
 }
 
 function buildTenantClause(currentUser = {}) {
-  if (cleanText(process.env.TENANT_MODE).toLowerCase() === 'single') return null;
+  // Dự án mặc định single-tenant. Chỉ áp scope tenant khi vận hành đã bật rõ multi-tenant.
+  // Trước đây TENANT_MODE để trống vẫn bị hiểu như multi-tenant, làm dữ liệu đơn cũ
+  // chưa có tenantId bị lọc hết và file xuất chỉ còn tiêu đề.
+  const tenantMode = cleanText(process.env.TENANT_MODE || 'single').toLowerCase();
+  if (tenantMode !== 'multi') return null;
   const tenantId = cleanText(currentUser.tenantId || currentUser.tenantCode);
   return tenantId ? { tenantId } : null;
 }

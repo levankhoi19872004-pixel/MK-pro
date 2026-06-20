@@ -1,4 +1,11 @@
   const { rows, auditRows } = buildVatInvoiceRows({ orders, returnOrders, customers, products, query });
+  if (!rows.length) {
+    return {
+      error: 'Không có đơn VAT hoặc dòng sản phẩm hợp lệ trong phạm vi bộ lọc đã chọn',
+      status: 404,
+      code: 'INVOICE_EXPORT_NO_DATA'
+    };
+  }
   const workbook = createWorkbook();
   const sheetRows = [TT78_HEADERS, ...rows.map((row) => TT78_HEADERS.map((header) => row[header] ?? ''))];
   appendAoaSheetToWorkbook(workbook, 'Sheet1', sheetRows, { autoFilter: true });
@@ -125,6 +132,15 @@ async function buildVatNonInvoiceOrdersWorkbook(query = {}, currentUser = {}) {
     });
   });
 
+  const exportableDetailRows = detailRows.filter((row) => Number(row['Số lượng còn lại']) > 0);
+  if (!orderRows.length || !exportableDetailRows.length) {
+    return {
+      error: 'Không có đơn không VAT hoặc dòng sản phẩm hợp lệ trong phạm vi bộ lọc đã chọn',
+      status: 404,
+      code: 'INVOICE_EXPORT_NO_DATA'
+    };
+  }
+
   const workbook = createWorkbook();
   const orderHeaders = ['STT', 'Ngày bán', 'Mã đơn', 'Mã khách hàng', 'Tên khách hàng', 'NVBH', 'Nguồn đơn', 'Giá trị đơn', 'Tiền đã thu', 'Công nợ', 'Lý do không xuất', 'Người thay đổi', 'Thời gian thay đổi'];
   const detailHeaders = ['Mã đơn', 'Mã sản phẩm', 'Tên sản phẩm', 'Quy cách', 'Giá bán', 'Số lượng bán', 'Số lượng trả', 'Số lượng còn lại', 'Đơn giá', 'Thành tiền'];
@@ -143,7 +159,7 @@ async function buildVatNonInvoiceOrdersWorkbook(query = {}, currentUser = {}) {
   const fromName = dateFrom === '0000-01-01' ? 'all' : dateFrom;
   const toName = dateTo === '9999-12-31' ? dateUtil.todayVN() : dateTo;
   const rangeName = fromName === toName ? fromName : `${fromName}_${toName}`;
-  return { buffer, rows: detailRows.filter((row) => Number(row['Số lượng còn lại']) > 0).length, orderCount: orderRows.length, fileName: `Hoa_don_khong_VAT_${rangeName}.xlsx` };
+  return { buffer, rows: exportableDetailRows.length, orderCount: orderRows.length, fileName: `Hoa_don_khong_VAT_${rangeName}.xlsx` };
 }
 
 
