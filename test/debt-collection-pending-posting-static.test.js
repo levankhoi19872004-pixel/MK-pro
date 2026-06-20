@@ -42,6 +42,6 @@ test('mobile debts endpoint uses DebtReadService and mobile debt collection subm
 
   assert.match(mobileIndex, /router\.use\('\/debts',\s*createMobileDebtRouter\(ctx\)\)/);
   assert.match(mobileIndex, /router\.use\('\/debt-collections',\s*createMobileDebtCollectionRouter\(ctx\)\)/);
-  assert.match(mobileService, /DebtReadService\.getCustomerDebts/);
+  assert.match(mobileService, /DebtReadService\.getMobileCustomerDebts/);
   assert.match(routes, /router\.post\('\/'/);
 });

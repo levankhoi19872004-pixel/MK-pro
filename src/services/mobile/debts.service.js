@@ -1,7 +1,7 @@
 'use strict';
 
-const DebtReadService = require('../DebtReadService');
 const DebtCollectionService = require('../DebtCollectionService');
+const DebtReadService = require('../DebtReadService');
 
 function text(value) {
   return String(value || '').trim();
@@ -29,18 +29,21 @@ function scopeDebtQuery(query = {}, mobileUser = {}) {
     ...query,
     collectorType,
     includePendingCollections: query.includePendingCollections ?? '1',
-    limit: query.limit || 100,
+    page: query.page || 1,
+    limit: query.limit || 30,
     includePaid: query.includePaid || '0'
   };
 
   if (query.customerKeyword && !scopedQuery.q) scopedQuery.q = query.customerKeyword;
 
   if (collectorType === 'delivery') {
-    const value = deliveryStaffCode(mobileUser) || deliveryStaffName(mobileUser);
-    if (value) scopedQuery.delivery = value;
+    const code = deliveryStaffCode(mobileUser);
+    if (code) scopedQuery.deliveryStaffCode = code;
+    else if (deliveryStaffName(mobileUser)) scopedQuery.deliveryStaffName = deliveryStaffName(mobileUser);
   } else {
-    const value = salesStaffCode(mobileUser) || salesStaffName(mobileUser);
-    if (value) scopedQuery.salesman = value;
+    const code = salesStaffCode(mobileUser);
+    if (code) scopedQuery.salesStaffCode = code;
+    else if (salesStaffName(mobileUser)) scopedQuery.salesStaffName = salesStaffName(mobileUser);
   }
 
   return scopedQuery;
@@ -48,10 +51,8 @@ function scopeDebtQuery(query = {}, mobileUser = {}) {
 
 function createMobileDebtService() {
   async function listDebts({ query = {}, mobileUser } = {}) {
-    const result = await DebtReadService.getCustomerDebts(scopeDebtQuery(query, mobileUser));
-    return {
-      body: result
-    };
+    const result = await DebtReadService.getMobileCustomerDebts(scopeDebtQuery(query, mobileUser));
+    return { body: result };
   }
 
   async function submitDebtCollection({ body = {}, mobileUser } = {}) {

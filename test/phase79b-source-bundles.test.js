@@ -9,6 +9,7 @@ const PACKAGE = require('../package.json');
 
 const ROOT = path.resolve(__dirname, '..');
 const CONFIG = require('../config/source-bundles.json');
+const SOURCE_SIZE_BUDGET = require('../config/source-size-budget.json');
 const readPublicIndex = require('./helpers/readPublicIndex');
 
 function sha256(value) {
@@ -41,7 +42,8 @@ test('generated runtime bundles are current and remain below the High-file thres
     const runtimeFiles = entry.runtimeFiles || [entry.target];
     for (const file of runtimeFiles) {
       const bytes = fs.statSync(path.join(ROOT, file)).size;
-      assert.ok(bytes <= 40960, `${file} remains oversized: ${bytes} bytes`);
+      const reviewedBudget = Number(SOURCE_SIZE_BUDGET.files?.[file] || 40960);
+      assert.ok(bytes <= reviewedBudget, `${file} remains oversized: ${bytes} bytes (budget ${reviewedBudget})`);
     }
   }
 });

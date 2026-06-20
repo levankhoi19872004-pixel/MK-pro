@@ -1,0 +1,490 @@
+const SALES_DRAFT_STORAGE_PREFIX = 'mkpro_mobile_sales_draft_v1';
+
+function salesDraftStorageKey() {
+  return `${SALES_DRAFT_STORAGE_PREFIX}:${currentSalesStaffCode() || user.id || user.username || 'sales'}`;
+}
+
+function hasDirtyOrderDraft() {
+  return Boolean(cart.length || editingOrderId || Number(paidAmountInput?.value || 0) > 0);
+}
+
+function persistOrderDraft() {
+  try {
+    if (!hasDirtyOrderDraft()) {
+      localStorage.removeItem(salesDraftStorageKey());
+      return;
+    }
+    localStorage.setItem(salesDraftStorageKey(), JSON.stringify({
+      selectedCustomer,
+      cart,
+      editingOrderId,
+      paidAmount: paidAmountInput?.value || '',
+      savedAt: new Date().toISOString()
+    }));
+  } catch (_) {
+    // Local storage failure must not block order entry.
+  }
+}
+
+function clearPersistedOrderDraft() {
+  try { localStorage.removeItem(salesDraftStorageKey()); } catch (_) { /* noop */ }
+}
+
+function renderSelectedCustomerContext() {
+  if (!selectedCustomer) {
+    selectedCustomerBox.textContent = 'Chưa chọn khách hàng. Hãy sang tab Khách hàng để chọn.';
+    selectedCustomerBox.classList.add('muted');
+    if (cartCustomerContext) {
+      cartCustomerContext.textContent = 'Chưa chọn khách hàng cho đơn này.';
+      cartCustomerContext.classList.add('muted');
+    }
+    return;
+  }
+
+  const code = customerCodeValue(selectedCustomer);
+  const name = customerNameValue(selectedCustomer);
+  const summary = `<strong>${escapeHtml(code || '')}${code && name ? ' - ' : ''}${escapeHtml(name || '')}</strong><br />`
+    + `<span>SĐT: ${escapeHtml(customerPhoneValue(selectedCustomer))}</span><br />`
+    + `<span>ĐC: ${escapeHtml(customerAddressValue(selectedCustomer))}</span><br />`
+    + `<span>Nợ: ${money(customerDebtValue(selectedCustomer))} · DS tháng: ${money(customerSalesValue(selectedCustomer))}</span>`;
+  selectedCustomerBox.innerHTML = summary;
+  selectedCustomerBox.classList.remove('muted');
+  if (cartCustomerContext) {
+    cartCustomerContext.innerHTML = `<span>Đơn đang lập cho</span><br />${summary}`;
+    cartCustomerContext.classList.remove('muted');
+  }
+}
+
+function restoreOrderDraft() {
+  try {
+    const raw = localStorage.getItem(salesDraftStorageKey());
+    if (!raw) return false;
+    const draft = JSON.parse(raw);
+    selectedCustomer = draft.selectedCustomer ? normalizeSelectedCustomerForSubmit(draft.selectedCustomer) : null;
+    cart = Array.isArray(draft.cart) ? draft.cart : [];
+    editingOrderId = String(draft.editingOrderId || '');
+    if (paidAmountInput) paidAmountInput.value = String(draft.paidAmount || '');
+    renderSelectedCustomerContext();
+    if (editingOrderId) {
+      orderFormTitle.textContent = `Tiếp tục sửa đơn ${editingOrderId}`;
+      submitOrderBtn.textContent = `Lưu sửa đơn ${editingOrderId}`;
+    }
+    return hasDirtyOrderDraft();
+  } catch (_) {
+    clearPersistedOrderDraft();
+    return false;
+  }
+}
+
+function offlineOperationToOrder(operation = {}) {
+  const payload = operation.payload || {};
+  const customer = payload.customer || {};
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  const totalAmount = items.reduce((sum, item) => sum + Number(item.amount || (Number(item.quantity || item.qty || 0) * Number(item.salePrice || item.unitPrice || item.price || 0))), 0);
+  const paidAmount = Number(payload.paidAmount || 0);
+  return {
+    id: operation.operationId,
+    code: `OFFLINE-${String(operation.operationId || '').slice(-8).toUpperCase()}`,
+    date: String(operation.clientCreatedAt || '').slice(0, 10),
+    customerName: customerNameValue(customer) || payload.customerName || '',
+    customerCode: customerCodeValue(customer) || payload.customerCode || '',
+    totalAmount,
+    paidAmount,
+    debtAmount: Math.max(0, totalAmount - paidAmount),
+    status: operation.status || 'pending',
+    deliveryStatus: 'pending_sync',
+    pendingSync: true,
+    syncError: operation.lastError || '',
+    canEdit: false,
+    editLockReason: operation.status === 'conflict' ? 'Cần xử lý xung đột đồng bộ' : 'Đang chờ đồng bộ lên máy chủ'
+  };
+}
+
+async function loadPendingOfflineOrders() {
+  try {
+    const operations = await listOperations({ statuses: ['pending', 'failed', 'conflict'], limit: 100 });
+    pendingOfflineOrders = operations
+      .filter((operation) => operation.type === 'sales_order_create')
+      .map(offlineOperationToOrder);
+    if (syncNavBadge) {
+      syncNavBadge.textContent = String(pendingOfflineOrders.length);
+      syncNavBadge.hidden = pendingOfflineOrders.length === 0;
+    }
+    renderTodayOrders(todayOrderCache);
+  } catch (_) {
+    pendingOfflineOrders = [];
+    if (syncNavBadge) syncNavBadge.hidden = true;
+  }
+}
+
+tabs.forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+openCartBtn?.addEventListener('click', () => switchTab('cartTab'));
+backToOrderBtn?.addEventListener('click', () => switchTab('orderTab', { historyMode: 'replace' }));
+
+document.addEventListener('click', (event) => {
+  const retry = event.target.closest('[data-mobile-retry]');
+  if (!retry) return;
+  const action = retry.dataset.mobileRetry;
+  if (action === 'customers') loadCustomers(customerSearch.value.trim(), { reset: true, force: true });
+  if (action === 'orders') loadTodayOrders({ reset: true, force: true });
+  if (action === 'debts') loadDebts({ reset: true, force: true });
+});
+customerSearch.addEventListener('input', debounce(() => loadCustomers(customerSearch.value.trim(), { reset: true }), 250));
+document.getElementById('reloadCustomersBtn')?.addEventListener('click', () => {
+  if (window.CatalogCache) window.CatalogCache.invalidate('customers');
+  loadCustomers(customerSearch.value.trim(), { reset: true, force: true });
+});
+customerLoadMoreBtn?.addEventListener('click', () => loadCustomers(customerQuery, { append: true }));
+document.getElementById('reloadOrdersBtn')?.addEventListener('click', () => loadTodayOrders({ reset: true, force: true }));
+orderLoadMoreBtn?.addEventListener('click', () => loadTodayOrders({ append: true }));
+debtLoadMoreBtn?.addEventListener('click', () => loadDebts({ append: true }));
+orderSearch?.addEventListener('input', debounce(() => {
+  todayOrderLoaded = false;
+  todayOrderLoadedKey = '';
+  loadTodayOrders({ reset: true, force: true });
+}, 300));
+orderDateFilter?.addEventListener('change', () => {
+  todayOrderLoaded = false;
+  todayOrderLoadedKey = '';
+  loadTodayOrders({ reset: true, force: true });
+});
+orderStatusFilter?.addEventListener('change', () => renderTodayOrders(todayOrderCache, todayOrderSummary));
+
+todayOrders?.addEventListener('click', async (event) => {
+  const editButton = event.target.closest('[data-edit-order]');
+  if (editButton && todayOrders.contains(editButton)) {
+    setButtonBusy(editButton, true, 'Đang mở...');
+    try {
+      await editTodayOrder(editButton.dataset.editOrder);
+    } finally {
+      setButtonBusy(editButton, false);
+    }
+    return;
+  }
+
+  const deleteButton = event.target.closest('[data-delete-order]');
+  if (deleteButton && todayOrders.contains(deleteButton)) {
+    setButtonBusy(deleteButton, true, 'Đang xóa...');
+    try {
+      await deleteTodayOrder(deleteButton.dataset.deleteOrder, deleteButton.dataset.orderCode);
+    } finally {
+      setButtonBusy(deleteButton, false);
+    }
+  }
+});
+document.getElementById('reloadDebtsBtn')?.addEventListener('click', () => {
+  if (debtFormDirty && !window.confirm('Bạn đang có phiếu thu chưa gửi. Tải lại sẽ xóa dữ liệu đang nhập.')) return;
+  debtFormDirty = false;
+  loadDebts({ reset: true, force: true });
+});
+debtCustomersSubtab?.addEventListener('click', () => setDebtSubtab('customers'));
+debtCollectSubtab?.addEventListener('click', () => setDebtSubtab('collect'));
+debtCustomerSearch?.addEventListener('input', () => renderDebtCustomerList(debtCache));
+debtCustomerSort?.addEventListener('change', () => renderDebtCustomerList(debtCache));
+document.getElementById('clearOrderBtn')?.addEventListener('click', () => {
+  if (hasDirtyOrderDraft() && !window.confirm('Làm mới sẽ xóa khách hàng và toàn bộ giỏ đang nhập. Bạn có chắc không?')) return;
+  clearOrderForm(true);
+});
+document.getElementById('logoutBtn')?.addEventListener('click', (event) => {
+  if (!hasDirtyOrderDraft()) return;
+  if (window.confirm('Bạn đang có đơn chưa lưu. Thoát ứng dụng vẫn giữ bản nháp trên thiết bị. Bạn có chắc muốn thoát?')) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+}, true);
+paidAmountInput?.addEventListener('input', persistOrderDraft);
+window.addEventListener('beforeunload', (event) => {
+  if (!hasDirtyOrderDraft()) return;
+  event.preventDefault();
+  event.returnValue = '';
+});
+window.addEventListener('mkpro:offline-queued', (event) => {
+  if (event.detail?.type === 'sales_order_create') {
+    loadPendingOfflineOrders();
+    announceMobileStatus('Đơn đã được lưu trên thiết bị và đang chờ đồng bộ.', 'warning', { persist: true });
+  }
+});
+window.addEventListener('mkpro:offline-synced', async () => {
+  await loadPendingOfflineOrders();
+  if (todayOrderLoaded) await loadTodayOrders({ reset: true, force: true });
+  announceMobileStatus('Đã đồng bộ dữ liệu chờ lên máy chủ.', 'success');
+});
+window.addEventListener('online', () => {
+  updateNetworkStatus();
+  announceMobileStatus('Đã có kết nối mạng. Hệ thống sẽ đồng bộ dữ liệu chờ.', 'success');
+});
+window.addEventListener('offline', () => {
+  updateNetworkStatus();
+  announceMobileStatus('Mất kết nối mạng. Đơn mới sẽ được lưu chờ đồng bộ.', 'warning', { persist: true });
+});
+
+initSalesApp();
+
+async function initSalesApp() {
+  updateNetworkStatus();
+  initializeMobileNavigation();
+  if (orderDateFilter && !orderDateFilter.value) orderDateFilter.value = todayValue();
+  bindCartInteractions();
+  renderDebtLedger();
+  setDebtSubtab('customers', { restoreScroll: false });
+  const restoredDraft = restoreOrderDraft();
+  if (restoredDraft) announceMobileStatus('Đã khôi phục đơn đang nhập trên thiết bị này.', 'success');
+  await loadPendingOfflineOrders();
+  await loadCustomers('', { reset: true });
+  renderCart();
+  activateTabData(activeTabId);
+}
+
+async function filterCustomers(keyword = '', options = {}) {
+  return mobileApi.getCustomers(keyword, {
+    page: options.page || 1,
+    limit: options.limit || CUSTOMER_PAGE_LIMIT,
+    requestKey: 'mobile-customers',
+    cancelPrevious: options.cancelPrevious !== false
+  });
+}
+
+function mergeCustomerPages(current = [], incoming = []) {
+  const map = new Map();
+  [...current, ...incoming].forEach((customer) => {
+    const key = uniqueCustomerIdentityKeys(customer)[0] || `ROW:${map.size}`;
+    map.set(key, { ...(map.get(key) || {}), ...customer });
+  });
+  return [...map.values()];
+}
+
+async function loadCustomers(q = '', options = {}) {
+  const append = options.append === true;
+  if (customerLoading) return;
+  if (append && !customerHasMore) return;
+  const requestSeq = ++customerRequestSeq;
+  const nextPage = append ? customerPage + 1 : 1;
+  customerLoading = true;
+  customerQuery = q;
+  setButtonBusy(customerLoadMoreBtn, true, 'Đang tải...');
+  try {
+    if (!append) {
+      renderMobileListState(customerList, {
+        state: 'loading',
+        baseClass: 'customer-list',
+        title: q ? 'Đang tìm khách hàng...' : 'Đang tải khách hàng phụ trách...'
+      });
+    }
+    const data = await filterCustomers(q, { page: nextPage, cancelPrevious: !append });
+    if (requestSeq !== customerRequestSeq) return;
+    const rows = data.items || data.customers || [];
+    customerPage = Number(data.pagination?.page || nextPage);
+    customerHasMore = Boolean(data.pagination?.hasMore);
+    lastCustomers = append ? mergeCustomerPages(lastCustomers, rows) : rows;
+    renderCustomerList(lastCustomers);
+    if (customerLoadMoreBtn) customerLoadMoreBtn.hidden = !customerHasMore;
+  } catch (err) {
+    if (requestSeq !== customerRequestSeq || err?.code === 'REQUEST_ABORTED') return;
+    if (!append) {
+      renderMobileListState(customerList, {
+        state: 'error',
+        baseClass: 'customer-list',
+        title: 'Không tải được khách hàng',
+        detail: err.message || 'Vui lòng kiểm tra kết nối và thử lại.',
+        retryAction: 'customers'
+      });
+    } else {
+      setMessage(message, err.message || 'Không tải thêm được khách hàng', 'error');
+    }
+  } finally {
+    if (requestSeq === customerRequestSeq) customerLoading = false;
+    setButtonBusy(customerLoadMoreBtn, false);
+  }
+}
+
+function renderCustomerList(items) {
+  const debtLookup = buildDebtLookup();
+  const sortedItems = (Array.isArray(items) ? items : [])
+    .map((customer) => mergeCustomerDebt(customer, debtLookup))
+    .sort((a, b) => customerDebtValue(b) - customerDebtValue(a));
+  lastCustomers = sortedItems;
+
+  if (!sortedItems.length) {
+    renderMobileListState(customerList, {
+      state: 'empty',
+      baseClass: 'customer-list',
+      title: 'Không có khách hàng phù hợp',
+      detail: customerSearch.value.trim() ? 'Hãy thử từ khóa ngắn hơn hoặc kiểm tra mã khách.' : 'Danh sách khách hàng phụ trách đang trống.'
+    });
+    return;
+  }
+
+  customerList.className = 'customer-list';
+  customerList.innerHTML = sortedItems.map((customer, index) => {
+    const code = customerCodeValue(customer);
+    const name = customerNameValue(customer);
+    const debt = customerDebtValue(customer);
+    const phone = customerPhoneValue(customer);
+    const address = customerAddressValue(customer);
+    return `
+      <button class="customer-card ${debtClassName(customer)}" data-customer-index="${index}">
+        <strong>${escapeHtml(code || '')}${code && name ? ' - ' : ''}${escapeHtml(name || '')}</strong>
+        <span class="customer-contact">SĐT: ${escapeHtml(phone)}</span>
+        <span class="customer-contact">ĐC: ${escapeHtml(address)}</span>
+        <div class="customer-metrics">
+          <em class="metric-debt">Nợ: ${money(debt)}</em>
+          <em>DS tháng: ${money(customerSalesValue(customer))}</em>
+        </div>
+      </button>
+    `;
+  }).join('');
+
+  customerList.querySelectorAll('[data-customer-index]').forEach((btn) => {
+    btn.addEventListener('click', () => selectCustomer(lastCustomers[Number(btn.dataset.customerIndex)]));
+  });
+}
+
+function selectCustomer(customer) {
+  const mergedCustomer = normalizeSelectedCustomerForSubmit(mergeCustomerDebt(customer));
+  const currentKey = uniqueCustomerIdentityKeys(selectedCustomer || {})[0] || '';
+  const nextKey = uniqueCustomerIdentityKeys(mergedCustomer)[0] || '';
+  const isDifferentCustomer = Boolean(selectedCustomer && (currentKey || nextKey) && currentKey !== nextKey);
+
+  if (isDifferentCustomer && (cart.length || editingOrderId)) {
+    const confirmed = window.confirm('Giỏ hiện tại đang thuộc khách hàng khác. Đổi khách sẽ xóa toàn bộ giỏ đang nhập. Bạn có chắc không?');
+    if (!confirmed) return;
+    cart = [];
+    editingOrderId = '';
+    paidAmountInput.value = '';
+    renderCart();
+  }
+
+  selectedCustomer = mergedCustomer;
+  renderSelectedCustomerContext();
+  persistOrderDraft();
+  setMessage(message, 'Đã chọn khách hàng. Hãy thêm sản phẩm vào giỏ.', 'success');
+  switchTab('orderTab');
+  ensureProductToolsInitialized();
+  setTimeout(() => productSearch.focus(), 200);
+}
+
+
+function normalizePackingRate(source = {}) {
+  const rate = Number(
+    source.conversionRate ??
+    source.unitsPerCase ??
+    source.packingQty ??
+    source.packQty ??
+    source.pack ??
+    source.packageQty ??
+    1
+  );
+  return Number.isFinite(rate) && rate > 0 ? rate : 1;
+}
+
+function attachPackingRate(target = {}, source = {}) {
+  const conversionRate = normalizePackingRate(source);
+  target.conversionRate = conversionRate;
+  target.packingQty = conversionRate;
+  target.unitsPerCase = conversionRate;
+  return target;
+}
+
+function formatStockTL(qty, rate){ return calculateCartonUnit(qty, rate).display; }
+function quantityDisplayTL(item = {}) {
+  const rate = normalizePackingRate(item);
+  return formatStockTL(Number(item.quantity || item.qty || 0), rate);
+}
+
+// MOBILE_SALES_CART_PROMOTION_RECALC_START
+function buildPromotionCartPayloadItem(item = {}) {
+  return {
+    productId: item.productId || item.id || item.productCode,
+    productCode: item.productCode || item.code,
+    productName: item.productName || item.name,
+    quantity: Number(item.quantity || 0),
+    conversionRate: normalizePackingRate(item),
+    grossPrice: Number(item.grossPrice || item.originalPrice || item.catalogSalePrice || item.salePrice || item.price || 0),
+    salePrice: Number(item.grossPrice || item.originalPrice || item.catalogSalePrice || item.salePrice || item.price || 0),
+    price: Number(item.grossPrice || item.originalPrice || item.catalogSalePrice || item.salePrice || item.price || 0)
+  };
+}
+
+async function recalculateCartPromotions(options = {}) {
+  if (!cart.length) return;
+  const silent = !!options.silent;
+  try {
+    const data = await mobileApi.calculatePromotions({
+      date: todayValue(),
+      saleDate: todayValue(),
+      items: cart.map(buildPromotionCartPayloadItem)
+    });
+    const lines = Array.isArray(data?.result?.lines) ? data.result.lines : [];
+    const byCode = new Map(lines.map((line) => [String(line.productCode || line.code || '').trim(), line]));
+
+    cart = cart.map((item) => {
+      const code = String(item.productCode || item.code || '').trim();
+      const line = byCode.get(code) || {};
+      const quantity = Number(item.quantity || 0);
+      const grossPrice = Number(line.catalogSalePrice || item.grossPrice || item.originalPrice || item.catalogSalePrice || item.salePrice || item.price || 0);
+      const grossAmount = Math.round(quantity * grossPrice);
+      const directDiscountAmount = Number(line.directDiscountAmount || 0);
+      const groupDiscountAmount = Number(line.groupDiscountAmount || 0);
+      const discountAmount = Math.min(grossAmount, Math.max(0, directDiscountAmount + groupDiscountAmount));
+      const amount = Math.max(0, grossAmount - discountAmount);
+      const finalPrice = quantity > 0 ? Math.round(amount / quantity) : grossPrice;
+      const promotionRows = Array.isArray(line.promotionRows) ? line.promotionRows : [];
+      const firstPromotion = promotionRows[0] || line.directPromotionRule || {};
+
+      return attachPackingRate({
+        ...item,
+        originalPrice: grossPrice,
+        grossPrice,
+        catalogSalePrice: grossPrice,
+        grossAmount,
+        directDiscountPercent: Number(line.directDiscountPercent || 0),
+        groupDiscountPercent: Number(line.groupDiscountPercent || 0),
+        discountPercent: grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0,
+        directDiscountAmount,
+        groupDiscountAmount,
+        discountAmount,
+        promotionAmount: discountAmount,
+        totalDiscountAmount: discountAmount,
+        finalPrice,
+        unitPrice: finalPrice,
+        salePrice: finalPrice,
+        price: finalPrice,
+        amount,
+        netAmount: amount,
+        saleMethod: 'promotion',
+        saleMode: 'promotion',
+        pricingMode: 'promotion',
+        priceLocked: true,
+        lockedPrice: true,
+        lockedPromotion: true,
+        promotionCalculated: true,
+        promotionCode: line.promotionCode || firstPromotion.promotionCode || firstPromotion.code || firstPromotion.programCode || '',
+        promotionName: line.promotionName || firstPromotion.description || firstPromotion.programName || firstPromotion.name || '',
+        promotionRows
+      }, item);
+    });
+  } catch (err) {
+    if (!silent) setMessage(message, err.message || 'Không tính được khuyến mại cho giỏ hàng', 'error');
+    // Fallback an toàn: vẫn tính theo giá gốc để app không bị treo, backend sẽ tính lại khi lưu đơn.
+    cart = cart.map((item) => {
+      const quantity = Number(item.quantity || 0);
+      const grossPrice = Number(item.grossPrice || item.originalPrice || item.catalogSalePrice || item.salePrice || item.price || 0);
+      return {
+        ...item,
+        originalPrice: grossPrice,
+        grossPrice,
+        catalogSalePrice: grossPrice,
+        unitPrice: grossPrice,
+        salePrice: grossPrice,
+        price: grossPrice,
+        discountAmount: 0,
+        promotionAmount: 0,
+        totalDiscountAmount: 0,
+        amount: Math.round(quantity * grossPrice),
+        saleMethod: 'promotion',
+        saleMode: 'promotion',
+        pricingMode: 'promotion',
+        priceLocked: true
+      };
+    });
+  }
+}

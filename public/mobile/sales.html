@@ -4,25 +4,35 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>V51 Mobile - Bán hàng</title>
-  <link rel="stylesheet" href="./mobile.css?v=phase50-dms-quota-v1" />
+  <link rel="stylesheet" href="./mobile.css?v=phase84-mobile-ux-v1" />
   <link rel="stylesheet" href="/css/97-clearable-search-inputs.css?v=global-search-clear-v1" />
 </head>
 <body>
   <main class="mobile-page sales-app-page">
     <header class="mobile-header">
-      <div>
+      <div class="mobile-header-identity">
         <h1>App bán hàng</h1>
         <p id="staffInfo">Đang tải...</p>
+        <span id="networkStatus" class="network-status" role="status" aria-live="polite">Đang kiểm tra mạng</span>
       </div>
-      <button id="logoutBtn" class="ghost-btn">Thoát</button>
+      <button id="logoutBtn" type="button" class="ghost-btn mobile-header-action">Thoát</button>
     </header>
 
-    <nav class="mobile-tabs sales-tabs-5" aria-label="Điều hướng app bán hàng">
-      <button class="tab-btn active" data-tab="customersTab">1. Khách hàng</button>
-      <button class="tab-btn" data-tab="orderTab">2. Đặt hàng</button>
-      <button class="tab-btn" data-tab="cartTab">3. Giỏ hàng <span id="cartTabBadge" class="tab-badge">0</span></button>
-      <button class="tab-btn" data-tab="debtTab">4. Công nợ</button>
-      <button class="tab-btn" data-tab="reportTab">5. Báo cáo</button>
+    <div id="mobileGlobalStatus" class="mobile-global-status" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+
+    <nav class="mobile-tabs mobile-bottom-nav" aria-label="Điều hướng app bán hàng" role="tablist">
+      <button type="button" class="tab-btn active" data-tab="customersTab" role="tab" aria-selected="true">
+        <span class="nav-icon" aria-hidden="true">KH</span><span>Khách hàng</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="orderTab" role="tab" aria-selected="false">
+        <span class="nav-icon" aria-hidden="true">BH</span><span>Bán hàng</span><span id="cartTabBadge" class="tab-badge" aria-label="Số dòng trong giỏ">0</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="reportTab" role="tab" aria-selected="false">
+        <span class="nav-icon" aria-hidden="true">ĐH</span><span>Đơn hàng</span><span id="syncNavBadge" class="tab-badge sync-badge" aria-label="Số đơn chờ đồng bộ" hidden>0</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="debtTab" role="tab" aria-selected="false">
+        <span class="nav-icon" aria-hidden="true">NỢ</span><span>Công nợ</span>
+      </button>
     </nav>
 
     <section id="customersTab" class="tab-panel active">
@@ -32,8 +42,9 @@
           <button id="reloadCustomersBtn" class="ghost-btn small-btn">Tải lại</button>
         </div>
         <input id="customerSearch" type="search" placeholder="Tìm mã / tên / SĐT / địa chỉ khách hàng" />
-        <p class="help-text">Bấm vào khách hàng để chuyển sang đặt hàng. Danh sách vẫn hiển thị nhanh nợ hiện tại, doanh số tháng và ngày mua gần nhất.</p>
+        <p class="help-text">Bấm vào khách hàng để chuyển sang đặt hàng. Danh sách hiển thị nhanh mã khách, địa chỉ, nợ hiện tại và doanh số tháng.</p>
         <div id="customerList" class="customer-list empty">Đang tải khách hàng...</div>
+        <button id="customerLoadMoreBtn" type="button" class="ghost-btn full-btn mobile-load-more" hidden>Tải thêm khách hàng</button>
       </section>
     </section>
 
@@ -59,14 +70,18 @@
 
         <div id="selectedProduct" class="selected-box muted mobile-selected-product-card">Chưa chọn sản phẩm</div>
 
-        <div class="qty-row three-cols mobile-product-qty-row">
-          <input id="caseQtyInput" class="mobile-qty-input mobile-case-qty-input" type="number" min="0" placeholder="Thùng" />
-          <input id="looseQtyInput" class="mobile-qty-input mobile-loose-qty-input" type="number" min="0" placeholder="Lẻ" />
+        <div class="qty-row three-cols mobile-product-qty-row" aria-label="Số lượng bán">
+          <label class="mobile-qty-field" for="caseQtyInput"><span>Thùng</span><input id="caseQtyInput" class="mobile-qty-input mobile-case-qty-input" type="number" min="0" step="1" inputmode="numeric" placeholder="0" aria-label="Số lượng thùng" /></label>
+          <label class="mobile-qty-field" for="looseQtyInput"><span>Lẻ</span><input id="looseQtyInput" class="mobile-qty-input mobile-loose-qty-input" type="number" min="0" step="1" inputmode="numeric" placeholder="0" aria-label="Số lượng lẻ" /></label>
         </div>
-        <button id="addItemBtn" class="primary-btn mobile-add-to-cart-btn">THÊM VÀO GIỎ HÀNG</button>
+        <button id="addItemBtn" type="button" class="primary-btn mobile-add-to-cart-btn">THÊM VÀO GIỎ HÀNG</button>
         <!-- MOBILE_PRODUCT_ORDER_LAYOUT_END -->
       </section>
 
+      <section id="orderDraftBar" class="order-draft-bar" aria-label="Tóm tắt giỏ hàng" hidden>
+        <div><span id="orderDraftLineCount">0 sản phẩm</span><strong id="orderDraftTotal">0</strong></div>
+        <button id="openCartBtn" type="button" class="primary-btn">Xem giỏ</button>
+      </section>
     </section>
 
     <section id="cartTab" class="tab-panel">
@@ -75,18 +90,23 @@
           <h2>Giỏ hàng</h2>
           <span id="cartCount" class="pill">0 dòng</span>
         </div>
+        <div id="cartCustomerContext" class="selected-box muted cart-customer-context">Chưa chọn khách hàng cho đơn này.</div>
         <div id="cartList" class="cart-list empty">Chưa có sản phẩm</div>
 
-        <div class="total-box">
-          <span>Tổng đơn</span>
-          <strong id="cartTotal">0</strong>
+        <div class="cart-total-summary" aria-label="Tổng tiền đơn hàng">
+          <div><span>Tổng trước khuyến mại</span><strong id="cartGrossTotal">0</strong></div>
+          <div><span>Tổng khuyến mại</span><strong id="cartDiscountTotal">0</strong></div>
+          <div class="cart-payable-row"><span>Tổng thanh toán</span><strong id="cartTotal">0</strong></div>
         </div>
 
-        <label class="field-label">Tiền thu ngay nếu có</label>
-        <input id="paidAmountInput" type="number" min="0" placeholder="Nhập số tiền đã thu" />
+        <label class="field-label" for="paidAmountInput">Tiền thu ngay nếu có</label>
+        <input id="paidAmountInput" type="number" min="0" inputmode="numeric" placeholder="Nhập số tiền đã thu" />
 
-        <button id="submitOrderBtn" class="primary-btn full-btn">Xác nhận đơn</button>
-        <p id="salesMessage" class="message"></p>
+        <p id="salesMessage" class="message" role="status" aria-live="polite"></p>
+        <div class="cart-action-bar">
+          <button id="backToOrderBtn" type="button" class="ghost-btn">Thêm sản phẩm</button>
+          <button id="submitOrderBtn" type="button" class="primary-btn">Xác nhận đơn</button>
+        </div>
       </section>
     </section>
 
@@ -122,7 +142,8 @@
               <option value="oldest_asc">Nợ cũ nhất</option>
             </select>
           </div>
-          <div id="debtList" class="order-list empty">Đang tải công nợ...</div>
+          <div id="debtList" class="order-list empty">Chưa tải công nợ</div>
+          <button id="debtLoadMoreBtn" type="button" class="ghost-btn full-btn mobile-load-more" hidden>Tải thêm công nợ</button>
         </section>
 
         <section id="debtCollectPanel" class="debt-subpanel" role="tabpanel" aria-labelledby="debtCollectSubtab">
@@ -142,7 +163,7 @@
     <section id="reportTab" class="tab-panel">
       <section class="card">
         <div class="section-title-row">
-          <h2>Báo cáo trong ngày</h2>
+          <h2>Tổng hợp đơn hàng</h2>
           <button id="reloadOrdersBtn" type="button" class="ghost-btn small-btn">Tải lại</button>
         </div>
         <div class="mobile-kpi-grid">
@@ -154,8 +175,22 @@
       </section>
 
       <section class="card">
-        <h2>Đơn đã đặt hôm nay</h2>
-        <div id="todayOrders" class="order-list empty">Chưa có đơn</div>
+        <div class="section-title-row">
+          <h2>Danh sách đơn hàng</h2>
+          <span id="orderFilterResultCount" class="pill">0 đơn</span>
+        </div>
+        <div class="order-list-toolbar">
+          <input id="orderSearch" type="search" autocomplete="off" placeholder="Tìm mã đơn / khách hàng" aria-label="Tìm đơn hàng" />
+          <input id="orderDateFilter" type="date" aria-label="Ngày đơn hàng" />
+          <select id="orderStatusFilter" aria-label="Lọc trạng thái đơn">
+            <option value="all">Tất cả trạng thái</option>
+            <option value="pending_sync">Chờ đồng bộ</option>
+            <option value="editable">Có thể sửa</option>
+            <option value="locked">Đã khóa sửa</option>
+          </select>
+        </div>
+        <div id="todayOrders" class="order-list empty">Mở tab để tải đơn hàng</div>
+        <button id="orderLoadMoreBtn" type="button" class="ghost-btn full-btn mobile-load-more" hidden>Tải thêm đơn hàng</button>
       </section>
     </section>
   </main>
@@ -172,7 +207,7 @@
 <script src="../js/search/catalogCacheService.js?v=staff-auto-users-v5"></script>
   <script src="../js/search/unifiedSearchEngine.js?v=mobile-product-suggest-v2"></script>
   <script src="../js/search/productSearchBox.js?v=phase50-dms-quota-v1"></script>
-  <script type="module" src="./js/sales.js?v=phase51-mobile-edit-posted-v1"></script>
+  <script type="module" src="./js/sales.js?v=phase84-mobile-ux-v1"></script>
   <script src="/js/ui/clearable-search-inputs.js?v=global-search-clear-v1"></script>
 </body>
 </html>

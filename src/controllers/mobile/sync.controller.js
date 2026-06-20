@@ -1,8 +1,9 @@
 'use strict';
 
-const service = require('../../services/mobile/MobileSyncService');
+const { createMobileSyncService } = require('../../services/mobile/MobileSyncService');
 
-function createMobileSyncController() {
+function createMobileSyncController(ctx) {
+  const service = createMobileSyncService(ctx);
   return {
     async batch(req, res) {
       try {

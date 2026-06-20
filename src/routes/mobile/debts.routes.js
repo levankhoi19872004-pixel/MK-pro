@@ -15,7 +15,8 @@ function createMobileDebtRouter(ctx) {
     query('customerKeyword').optional().isString().trim(),
     query('q').optional().isString().trim(),
     query('includePendingCollections').optional().isIn(['0', '1']).withMessage('includePendingCollections chỉ nhận 0 hoặc 1'),
-    query('limit').optional().isInt({ min: 1, max: 300 }).withMessage('limit công nợ không hợp lệ')
+    query('page').optional().isInt({ min: 1 }).withMessage('page công nợ không hợp lệ'),
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('limit công nợ không hợp lệ')
   ], validateRequest, controller.listDebts);
 
   return router;

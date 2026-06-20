@@ -47,10 +47,11 @@
       "mode": "commonjs",
       "parts": [
         "src/services/mobile/sales.service.source/part-01.jsfrag",
+        "src/services/mobile/sales.service.source/part-01b.jsfrag",
         "src/services/mobile/sales.service.source/part-02.jsfrag",
         "src/services/mobile/sales.service.source/part-03.jsfrag"
       ],
-      "sourceSha256": "04304bf8c58f3f5f734762d4aca919a4b74ad69f3a28d5f75bd6c7a0e26b6608"
+      "sourceSha256": "b1b47d7e0f13c06513cf84d76e4ed6b50a3340ca5559023849cfa123e1b21a58"
     },
     {
       "target": "src/engines/delivery.legacy.engine.js",
@@ -124,10 +125,14 @@
       "mode": "module",
       "parts": [
         "public/mobile/js/sales.source/part-01.jsfrag",
+        "public/mobile/js/sales.source/part-01c.jsfrag",
+        "public/mobile/js/sales.source/part-01b.jsfrag",
         "public/mobile/js/sales.source/part-02.jsfrag",
-        "public/mobile/js/sales.source/part-03.jsfrag"
+        "public/mobile/js/sales.source/part-02b.jsfrag",
+        "public/mobile/js/sales.source/part-03.jsfrag",
+        "public/mobile/js/sales.source/part-03b.jsfrag"
       ],
-      "sourceSha256": "a59531097a99b8348a70eaca67c43267c88ff93e13e125e9ff67efee8695bc0b"
+      "sourceSha256": "ef37d3bac38da2a8ddb7381fd64796a64cbeafac6c62a4408e32ca2815ba8ead"
     },
     {
       "target": "public/js/app/admin/08d-import-excel.js",
@@ -186,7 +191,7 @@
         "public/mobile/mobile.source/mobile-02.css",
         "public/mobile/mobile.source/mobile-03.css"
       ],
-      "sourceSha256": "967fd88c704479119e47990de35a8477de6041e6d8540016b6455da37318ea1f"
+      "sourceSha256": "bc02e0cf952502b5555b4f31297ebefb39a28a90b045babd0ec5904b24fb0be6"
     },
     {
       "target": "public/print.css",

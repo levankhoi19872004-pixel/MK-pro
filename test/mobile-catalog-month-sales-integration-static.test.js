@@ -11,7 +11,7 @@ test('modular mobile customer catalog loads and attaches monthly sales metrics',
   const source = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'src/services/mobile/catalog.service.js'));
   assert.match(source, /customerMonthlySalesService\.loadMonthlySalesByCustomer\(rawCustomers/);
   assert.match(source, /customerMonthlySalesService\.attachMonthlySales\(rawCustomers/);
-  assert.match(source, /source:\s*'mobile-catalog-route-with-monthly-sales'/);
+  assert.match(source, /source:\s*'mobile-catalog-paged-with-monthly-sales-and-debt'/);
 });
 
 test('sales app renders the monthly metric from customer payload', () => {

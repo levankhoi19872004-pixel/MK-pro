@@ -18,13 +18,13 @@ function readListDebtsBlock() {
   return { source, block: source.slice(start, end) };
 }
 
-test('mobile sales debts must use DebtReadService as single debt source', () => {
+test('mobile sales debts must use DebtReadService as the mobile debt read boundary', () => {
   const { source, block } = readListDebtsBlock();
 
   assert.doesNotMatch(source, /listMobileSalesDebtsDirect/);
   assert.doesNotMatch(source, /mobile-sales-ar-ledger-debts-fast/);
   assert.doesNotMatch(block, /\bArLedger\.(find|aggregate)\b/);
-  assert.match(block, /DebtReadService\.getCustomerDebts\(scopedQuery\)/);
+  assert.match(block, /DebtReadService\.getMobileCustomerDebts\(scopedQuery\)/);
 });
 
 test('DebtReadService wraps reportService.debtCustomers and includes pending collections', () => {

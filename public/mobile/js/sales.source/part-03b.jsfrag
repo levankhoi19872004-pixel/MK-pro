@@ -1,0 +1,133 @@
+function renderTodayOrders(items = todayOrderCache, summary = todayOrderSummary) {
+  todayOrderCache = Array.isArray(items) ? items : [];
+  const serverOrders = todayOrderCache;
+  const selectedDate = String(orderDateFilter?.value || todayValue());
+  const pendingForDate = pendingOfflineOrders.filter((order) => !selectedDate || String(order.date || '').slice(0, 10) === selectedDate);
+  const allDisplayOrders = [...pendingForDate, ...serverOrders];
+  const displayOrders = allDisplayOrders.filter(orderMatchesSearchText).filter(orderMatchesDisplayFilter);
+  const totalAmount = Number(summary?.totalAmount ?? serverOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0));
+  const paidAmount = Number(summary?.paidAmount ?? serverOrders.reduce((sum, order) => sum + Number(order.paidAmount || 0), 0));
+  const debtAmount = Number(summary?.debtAmount ?? serverOrders.reduce((sum, order) => sum + Number(order.debtAmount || 0), 0));
+  const orderCount = Number(summary?.orderCount ?? serverOrders.length);
+
+  document.getElementById('todayRevenue').textContent = money(totalAmount);
+  document.getElementById('todayOrderCount').textContent = String(orderCount);
+  document.getElementById('todayPaid').textContent = money(paidAmount);
+  document.getElementById('todayDebt').textContent = money(debtAmount);
+  if (orderFilterResultCount) orderFilterResultCount.textContent = `${displayOrders.length} đơn`;
+  if (orderLoadMoreBtn) orderLoadMoreBtn.hidden = !todayOrderHasMore || orderStatusFilterValue() === 'pending_sync';
+
+  if (!displayOrders.length) {
+    const hasAnyRows = allDisplayOrders.length > 0;
+    renderMobileListState(todayOrders, {
+      state: 'empty',
+      baseClass: 'order-list',
+      title: hasAnyRows ? 'Không có đơn phù hợp bộ lọc' : 'Chưa có đơn trong ngày đã chọn',
+      detail: hasAnyRows ? 'Hãy đổi từ khóa hoặc trạng thái hiển thị.' : 'Đơn online và đơn chờ đồng bộ sẽ xuất hiện tại đây.'
+    });
+    return;
+  }
+
+  todayOrders.className = 'order-list mobile-order-list';
+  todayOrders.innerHTML = buildOrderCardsHtml(displayOrders, {
+    escapeHtml,
+    money,
+    formatDate: formatDisplayDate
+  });
+
+}
+
+function mergeOrderPages(current = [], incoming = []) {
+  const map = new Map();
+  [...current, ...incoming].forEach((order) => {
+    const key = String(order.id || order.code || `ROW:${map.size}`);
+    map.set(key, { ...(map.get(key) || {}), ...order });
+  });
+  return [...map.values()];
+}
+
+function upsertTodayOrder(order = {}) {
+  if (!order || !(order.id || order.code)) return;
+  const key = String(order.id || order.code);
+  const normalized = {
+    ...order,
+    canEdit: order.canEdit !== false && !order.masterOrderId && !order.masterOrderCode && (order.mergeStatus || 'unmerged') !== 'merged',
+    editLockReason: order.editLockReason || ''
+  };
+  const index = todayOrderCache.findIndex((item) => String(item.id || item.code) === key || String(item.code || '') === String(order.code || ''));
+  if (index >= 0) todayOrderCache[index] = { ...todayOrderCache[index], ...normalized };
+  else todayOrderCache.unshift(normalized);
+  renderTodayOrders(todayOrderCache, todayOrderSummary);
+}
+
+async function loadTodayOrders(options = {}) {
+  const append = options.append === true;
+  const force = options.force === true;
+  const queryKey = currentOrderQueryKey();
+  if (append && todayOrderLoadedKey !== queryKey) return loadTodayOrders({ reset: true, force: true });
+  if (todayOrderLoading) return;
+  if (append && !todayOrderHasMore) return;
+  if (todayOrderLoaded && todayOrderLoadedKey === queryKey && !force && !append) {
+    renderTodayOrders(todayOrderCache, todayOrderSummary);
+    return;
+  }
+
+  const requestSeq = ++todayOrderRequestSeq;
+  const nextPage = append ? todayOrderPage + 1 : 1;
+  todayOrderLoading = true;
+  setButtonBusy(orderLoadMoreBtn, true, 'Đang tải...');
+  try {
+    if (!append) {
+      renderMobileListState(todayOrders, {
+        state: 'loading',
+        baseClass: 'order-list',
+        title: 'Đang tải đơn hàng...'
+      });
+    }
+    const data = await mobileApi.getMySalesOrders({
+      page: nextPage,
+      limit: ORDER_PAGE_LIMIT,
+      date: String(orderDateFilter?.value || todayValue()),
+      q: String(orderSearch?.value || '').trim(),
+      requestKey: 'mobile-sales-orders',
+      cancelPrevious: !append
+    });
+    if (requestSeq !== todayOrderRequestSeq) return;
+    const rawItems = data.items || [];
+    const scopedItems = filterOrdersForCurrentSalesUser(rawItems);
+    todayOrderPage = Number(data.pagination?.page || nextPage);
+    todayOrderHasMore = Boolean(data.pagination?.hasMore);
+    todayOrderSummary = data.summary || todayOrderSummary || {};
+    todayOrderCache = append ? mergeOrderPages(todayOrderCache, scopedItems) : scopedItems;
+    todayOrderLoaded = true;
+    todayOrderLoadedKey = queryKey;
+    renderTodayOrders(todayOrderCache, todayOrderSummary);
+    if (orderLoadMoreBtn) orderLoadMoreBtn.hidden = !todayOrderHasMore || orderStatusFilterValue() === 'pending_sync';
+    if (rawItems.length !== scopedItems.length) {
+      console.warn('[MOBILE_SALES_OWNER_GUARD]', {
+        currentSalesStaffCode: currentSalesStaffCode(),
+        received: rawItems.length,
+        rendered: scopedItems.length
+      });
+    }
+  } catch (err) {
+    if (requestSeq !== todayOrderRequestSeq || err?.code === 'REQUEST_ABORTED') return;
+    if (!append) {
+      todayOrderLoaded = false;
+      todayOrderLoadedKey = '';
+      renderMobileListState(todayOrders, {
+        state: 'error',
+        baseClass: 'order-list',
+        title: 'Không tải được đơn hàng',
+        detail: err.message || 'Vui lòng kiểm tra kết nối và thử lại.',
+        retryAction: 'orders'
+      });
+    } else {
+      announceMobileStatus(err.message || 'Không tải thêm được đơn hàng', 'error', { persist: true });
+    }
+  } finally {
+    if (requestSeq === todayOrderRequestSeq) todayOrderLoading = false;
+    setButtonBusy(orderLoadMoreBtn, false);
+  }
+}
+

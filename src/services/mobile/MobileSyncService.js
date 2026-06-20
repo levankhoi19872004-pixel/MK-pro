@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const MobileSyncOperation = require('../../models/MobileSyncOperation');
 const SalesOrderCommandService = require('../sales-order/SalesOrderCommandService');
+const { createMobileSalesService } = require('./sales.service');
 const DebtCollectionService = require('../DebtCollectionService');
 const FieldOperationService = require('../field/FieldOperationService');
 const dateUtil = require('../../utils/date.util');
@@ -40,6 +41,25 @@ function actorCode(actor = {}) {
   return text(actor.staffCode || actor.salesStaffCode || actor.deliveryStaffCode || actor.code || actor.username);
 }
 
+function bindSalesPayload(payload = {}, actor = {}) {
+  const role = text(actor.role).toLowerCase();
+  if (role !== 'sales') return { ...payload };
+  const staffCode = text(actor.salesStaffCode || actor.salesmanCode || actor.nvbhCode || actor.code || actor.staffCode);
+  const staffName = text(actor.salesStaffName || actor.salesmanName || actor.nvbhName || actor.fullName || actor.name);
+  return {
+    ...payload,
+    salesStaffCode: staffCode,
+    salesStaffName: staffName,
+    salesmanCode: staffCode,
+    salesmanName: staffName,
+    nvbhCode: staffCode,
+    nvbhName: staffName,
+    staffCode: '',
+    staffName: '',
+    source: payload.source || 'mobile_offline_sync',
+    orderSource: 'NVBH'
+  };
+}
 
 function bindDeliveryPayload(payload = {}, actor = {}) {
   const role = text(actor.role).toLowerCase();
@@ -61,12 +81,27 @@ function bindDeliveryPayload(payload = {}, actor = {}) {
 async function dispatch(operation, context) {
   const payload = operation.payload || {};
   switch (text(operation.type || operation.operationType)) {
-    case 'sales_order_create':
-      return SalesOrderCommandService.createOrder({
+    case 'sales_order_create': {
+      const boundPayload = bindSalesPayload({
         ...payload,
-        idempotencyKey: payload.idempotencyKey || operation.operationId,
-        source: payload.source || 'mobile_offline_sync'
+        idempotencyKey: payload.idempotencyKey || operation.operationId
       }, context.actor);
+      if (context.mobileSalesService && typeof context.mobileSalesService.createSalesOrder === 'function') {
+        const result = await context.mobileSalesService.createSalesOrder({
+          body: boundPayload,
+          mobileUser: context.actor
+        });
+        if (Number(result?.statusCode || 200) >= 400 || result?.body?.ok === false) {
+          throw Object.assign(new Error(result?.body?.message || 'Không tạo được đơn offline'), {
+            status: result?.statusCode || 400,
+            code: result?.body?.code || 'MOBILE_OFFLINE_SALES_CREATE_FAILED'
+          });
+        }
+        return result?.body || result;
+      }
+      // Compatibility fallback for direct service consumers that do not provide mobile ctx.
+      return SalesOrderCommandService.createOrder(boundPayload, context.actor);
+    }
     case 'debt_collection_submit':
       return DebtCollectionService.submitDebtCollection({
         body: { ...payload, idempotencyKey: payload.idempotencyKey || operation.operationId },
@@ -272,4 +307,25 @@ async function syncBatch(input = {}, context = {}) {
   };
 }
 
-module.exports = { syncBatch, processOperation, dispatch, stableHash, canonicalize };
+function createMobileSyncService(ctx) {
+  if (!ctx || typeof ctx !== 'object') throw new Error('Mobile sync service requires ctx');
+  const mobileSalesService = createMobileSalesService(ctx);
+  return {
+    syncBatch(input = {}, context = {}) {
+      return syncBatch(input, { ...context, mobileSalesService });
+    },
+    processOperation(operation = {}, context = {}) {
+      return processOperation(operation, { ...context, mobileSalesService });
+    }
+  };
+}
+
+module.exports = {
+  createMobileSyncService,
+  syncBatch,
+  processOperation,
+  dispatch,
+  stableHash,
+  canonicalize,
+  bindSalesPayload
+};

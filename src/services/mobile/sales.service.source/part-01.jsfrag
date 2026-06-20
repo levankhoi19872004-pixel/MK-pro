@@ -22,6 +22,8 @@ const orderStatusUtil = require('../../utils/orderStatus.util');
 const { normalizeText, toNumber } = require('../../utils/common.util');
 const { buildPersistentKey, findRequest, beginRequest, completeRequest } = require('../requestIdempotency.service');
 const { buildInventoryEditMovements, normalizeProductCode: normalizeEditProductCode } = require('../../utils/orderItemDelta.util');
+const { customerOwnershipFilterForSalesUser, combineFilters } = require('../../domain/staff/customerOwnership');
+const { parseMobilePagination, buildPagination } = require('./mobilePagination.util');
 
 
 function inventoryRowOpenSaleQty(row = {}) {
@@ -149,10 +151,11 @@ function customerLookupKeysFromOrderBody(body = {}) {
   ]);
 }
 
-async function findCustomerForOrderBody(body = {}) {
+async function findCustomerForOrderBody(body = {}, mobileUser = {}, session = null) {
   const keys = uniqueClean(customerLookupKeysFromOrderBody(body).flatMap(caseVariants));
   if (!keys.length) return null;
-  return Customer.findOne({
+
+  const lookupFilter = {
     isActive: { $ne: false },
     $or: [
       { id: { $in: keys } },
@@ -160,9 +163,12 @@ async function findCustomerForOrderBody(body = {}) {
       { customerCode: { $in: keys } },
       { phone: { $in: keys } }
     ]
-  })
-    .select('id code customerCode name customerName phone address area route isActive')
-    .lean();
+  };
+  const ownershipFilter = customerOwnershipFilterForSalesUser(mobileUser);
+  let query = Customer.findOne(combineFilters(lookupFilter, ownershipFilter))
+    .select('id code customerCode name customerName phone address area route isActive salesStaffCode salesStaffName salesmanCode salesmanName assignedSalesStaffCode assignedSalesStaffName nvbhCode nvbhName maNVBH tenNVBH staffCode staffName');
+  if (session && typeof query.session === 'function') query = query.session(session);
+  return query.lean();
 }
 
 function productLookupKey(item = {}) {
@@ -404,132 +410,3 @@ function extractPromotionIdentity(rows = []) {
   };
 }
 // MOBILE_PROMOTION_PRICE_LOCK_END
-
-function createMobileSalesService(ctx) {
-  const repo = createMobileSalesRepository(ctx);
-  const {
-    normalizeText,
-    toNumber,
-    formatCaseLooseQty,
-    buildProductLineMeta,
-    makeId,
-    buildSalesCode,
-    buildCashCode,
-    updateSalesOrderWithRepost,
-    writeMobileLog
-  } = ctx;
-
-
-  // MOBILE_SALES_STAFF_CANONICAL_MATCH_START
-  function getMobileSalesStaffCode(mobileUser = {}) {
-    return mobileUserSalesStaffCode(mobileUser);
-  }
-
-  function getMobileSalesStaffName(mobileUser = {}) {
-    return mobileUserSalesStaffName(mobileUser);
-  }
-  // MOBILE_SALES_STAFF_CANONICAL_MATCH_END
-
-  // MOBILE_SALES_CUSTOMER_LOOKUP_CANONICAL_START
-  function cleanLookupValue(value) {
-    return String(value || '').trim();
-  }
-
-  function customerLookupKeysFromBody(body = {}) {
-    const customerPayload = body.customer || {};
-    return [
-      customerPayload.id,
-      customerPayload._id,
-      customerPayload.customerId,
-      customerPayload.code,
-      customerPayload.customerCode,
-      body.customerId,
-      body.customerCode
-    ]
-      .map(cleanLookupValue)
-      .filter(Boolean)
-      .filter((value, index, arr) => arr.indexOf(value) === index);
-  }
-
-  function findCustomerFromOrderPayload(data = {}, body = {}) {
-    const keys = customerLookupKeysFromBody(body);
-    for (const key of keys) {
-      const customer = repo.findCustomer(data, key);
-      if (customer) return customer;
-    }
-    return null;
-  }
-  // MOBILE_SALES_CUSTOMER_LOOKUP_CANONICAL_END
-
-  function returnDraftLineKey(item = {}) {
-    return [String(item.productCode || item.code || item.productId || '').trim(), String(item.unit || item.baseUnit || '').trim(), String(toNumber(item.salePrice ?? item.price ?? item.unitPrice ?? 0))].join('|');
-  }
-
-  function buildReturnDraftForMobileOrder(order = {}, existing = null) {
-    const existingMap = new Map((Array.isArray(existing?.items) ? existing.items : []).map((item) => [String(item.lineKey || returnDraftLineKey(item)), item]));
-    const items = (Array.isArray(order.items) ? order.items : []).map((item) => {
-      const price = toNumber(item.salePrice ?? item.price ?? item.unitPrice ?? 0);
-      const soldQty = toNumber(item.quantity ?? item.qty ?? 0);
-      const key = returnDraftLineKey({ ...item, salePrice: price });
-      const old = existingMap.get(key) || {};
-      const returnQty = toNumber(old.returnQty ?? old.qtyReturn ?? old.quantity ?? 0);
-      return {
-        ...old,
-        productId: item.productId || item.productCode || '',
-        productCode: item.productCode || item.code || item.productId || '',
-        productName: item.productName || item.name || '',
-        unit: item.unit || item.baseUnit || '',
-        soldQty,
-        price,
-        salePrice: price,
-        soldAmount: Math.round(soldQty * price),
-        returnQty,
-        qtyReturn: returnQty,
-        returnQuantity: returnQty,
-        quantity: returnQty,
-        qty: returnQty,
-        returnAmount: Math.round(returnQty * price),
-        amount: Math.round(returnQty * price),
-        lineKey: key
-      };
-    });
-    const totalSoldAmount = items.reduce((sum, item) => sum + toNumber(item.soldAmount), 0);
-    const totalReturnAmount = items.reduce((sum, item) => sum + toNumber(item.returnAmount), 0);
-    const status = totalReturnAmount > 0 ? 'waiting_receive' : 'draft';
-    return {
-      ...(existing || {}),
-      id: existing?.id || `RO-${String(order.code || order.id || makeId('RO')).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`,
-      code: existing?.code || `RO-${String(order.code || order.id || makeId('RO')).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`,
-      date: order.deliveryDate || order.date || dateUtil.todayVN(),
-      documentDate: order.date || dateUtil.todayVN(),
-      salesOrderId: order.id || '',
-      salesOrderCode: order.code || '',
-      orderId: order.id || '',
-      orderCode: order.code || '',
-      customerId: order.customerId || '',
-      customerCode: order.customerCode || '',
-      customerName: order.customerName || '',
-      salesStaffCode: order.salesStaffCode || order.staffCode || '',
-      salesStaffName: order.salesStaffName || order.staffName || '',
-      staffCode: order.salesStaffCode || order.staffCode || '',
-      staffName: order.salesStaffName || order.staffName || '',
-      masterOrderId: order.masterOrderId || '',
-      masterOrderCode: order.masterOrderCode || '',
-      deliveryStaffId: order.deliveryStaffId || '',
-      deliveryStaffCode: order.deliveryStaffCode || '',
-      deliveryStaffName: order.deliveryStaffName || '',
-      deliveryDate: order.deliveryDate || order.date || dateUtil.todayVN(),
-      items,
-      totalSoldAmount,
-      totalReturnAmount,
-      totalQuantity: items.reduce((sum, item) => sum + toNumber(item.returnQty), 0),
-      totalAmount: totalReturnAmount,
-      amount: totalReturnAmount,
-      debtReduction: totalReturnAmount,
-      status,
-      returnStatus: status,
-      returnState: status,
-      returnMergeStatus: existing?.returnMergeStatus || 'unmerged',
-      warehouseReceiveStatus: status === 'waiting_receive' ? 'waiting_receive' : 'draft',
-      source: existing?.source || 'sales_order_draft',
-      createdFrom: existing?.createdFrom || 'sales_order',

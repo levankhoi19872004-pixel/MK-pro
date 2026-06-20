@@ -1,28 +1,9 @@
     if (rawItems) {
-      const items = rawItems.map((item = {}) => {
-        const quantity = toNumber(item.quantity ?? item.qty ?? 0);
-        const salePrice = toNumber(item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.price ?? 0);
-        const grossPrice = toNumber(item.grossPrice ?? item.originalPrice ?? item.catalogSalePrice ?? salePrice);
-        const grossAmount = Math.round(toNumber(item.grossAmount ?? quantity * grossPrice));
-        const discountAmount = toNumber(item.discountAmount ?? item.promotionAmount ?? item.totalDiscountAmount ?? Math.max(0, grossAmount - toNumber(item.amount ?? quantity * salePrice)));
-        const amount = Math.max(0, Math.round(toNumber(item.amount ?? quantity * salePrice)));
-        return {
-          ...item,
-          quantity,
-          qty: quantity,
-          grossPrice,
-          grossAmount,
-          discountAmount,
-          promotionAmount: toNumber(item.promotionAmount ?? discountAmount),
-          totalDiscountAmount: toNumber(item.totalDiscountAmount ?? discountAmount),
-          salePrice,
-          unitPrice: toNumber(item.unitPrice ?? salePrice),
-          finalPrice: toNumber(item.finalPrice ?? item.unitPrice ?? salePrice),
-          price: toNumber(item.price ?? salePrice),
-          amount,
-          netAmount: toNumber(item.netAmount ?? amount)
-        };
-      });
+      const authoritative = await buildAuthoritativeMobileItems(rawItems);
+      if (authoritative.error) {
+        return rememberIdempotentResult(idemKey, fail(authoritative.status || 400, authoritative.error));
+      }
+      const items = authoritative.items;
 
       const invalidItem = items.find((item) => toNumber(item.quantity) <= 0 || !normalizeEditProductCode(item.productCode || item.code || item.sku || item.productId));
       if (invalidItem) {
@@ -30,8 +11,8 @@
       }
 
       const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.quantity), 0);
-      const totalGrossAmount = items.reduce((sum, item) => sum + toNumber(item.grossAmount ?? toNumber(item.quantity) * toNumber(item.grossPrice)), 0);
-      const totalDiscountAmount = items.reduce((sum, item) => sum + toNumber(item.discountAmount ?? item.promotionAmount ?? item.totalDiscountAmount), 0);
+      const totalGrossAmount = items.reduce((sum, item) => sum + toNumber(item.grossAmount), 0);
+      const totalDiscountAmount = items.reduce((sum, item) => sum + toNumber(item.discountAmount), 0);
       const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount), 0);
       const paidAmount = toNumber(body.paidAmount ?? order.paidAmount ?? 0);
       if (paidAmount > totalAmount) return rememberIdempotentResult(idemKey, fail(400, 'Tiền thu không được lớn hơn tổng đơn'));
@@ -51,7 +32,16 @@
         totalAmount,
         paidAmount,
         debtAmount: totalAmount - paidAmount,
-        promotionCodes: Array.from(new Set(items.map((item) => item.promotionCode).filter(Boolean)))
+        promotionCodes: Array.from(new Set(items.map((item) => item.promotionCode).filter(Boolean))),
+        saleMethod: PROMOTION,
+        saleMode: PROMOTION,
+        pricingMode: PROMOTION,
+        orderPricingMode: PROMOTION,
+        isPromotionSale: true,
+        promotionCalculated: true,
+        priceLocked: true,
+        lockedPrice: true,
+        lockedPromotion: true
       });
     }
 
@@ -272,12 +262,24 @@
     const date = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
     const onlyMine = String(query.mine || '1') !== '0';
     const q = String(query.q || '').trim();
+    const { page, limit, skip } = parseMobilePagination(query, { defaultLimit: 30, maxLimit: 100 });
 
     const and = [activeSalesOrderMongoFilter()];
     if (date) and.push({ $or: [{ date }, { orderDate: date }] });
     if (onlyMine) {
       const owner = mobileSalesOwnerMongoFilter(mobileUser);
-      if (!owner) return { body: { ok: true, source: 'mobile-sales-route-direct', date, items: [] } };
+      if (!owner) {
+        return {
+          body: {
+            ok: true,
+            source: 'mobile-sales-paged',
+            date,
+            items: [],
+            summary: { totalAmount: 0, paidAmount: 0, debtAmount: 0, orderCount: 0 },
+            pagination: buildPagination({ page, limit, totalRows: 0 })
+          }
+        };
+      }
       and.push(owner);
     }
     if (q) {
@@ -293,20 +295,98 @@
       ] });
     }
 
-    const rows = await SalesOrder.find(and.length === 1 ? and[0] : { $and: and })
-      .select('id code date orderDate customerId customerCode customerName customerPhone customerAddress salesStaffCode salesStaffName salesPersonCode salesPersonName salesmanCode salesmanName nvbhCode nvbhName maNVBH maNVBHName totalAmount paidAmount debtAmount status lifecycleStatus deliveryStatus accountingStatus accountingConfirmed arStatus deleted isDeleted deletedAt deleteMode deleteReason masterOrderId masterOrderCode masterOrderNo mergeStatus stockPosted stockPostedAt items note createdAt updatedAt version')
-      .sort({ createdAt: -1, date: -1 })
-      .limit(100)
-      .lean();
+    const match = and.length === 1 ? and[0] : { $and: and };
+    const numberValue = (field) => ({ $convert: { input: field, to: 'double', onError: 0, onNull: 0 } });
+    const totalExpr = numberValue({ $ifNull: ['$totalAmount', { $ifNull: ['$amount', '$grandTotal'] }] });
+    const paidExpr = numberValue({ $ifNull: ['$paidAmount', '$paymentAmount'] });
+    const rawDebtExpr = numberValue({
+      $ifNull: ['$debtAmount', { $subtract: [totalExpr, paidExpr] }]
+    });
+    const debtExpr = { $cond: [{ $gt: [rawDebtExpr, 0] }, rawDebtExpr, 0] };
 
-    const items = rows.map((order) => ({
-      id: order.id,
+    const result = await SalesOrder.aggregate([
+      { $match: match },
+      {
+        $facet: {
+          rows: [
+            { $sort: { createdAt: -1, orderDate: -1, date: -1, _id: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+            { $project: {
+              id: 1,
+              code: 1,
+              date: 1,
+              orderDate: 1,
+              customerId: 1,
+              customerCode: 1,
+              customerName: 1,
+              customerPhone: 1,
+              customerAddress: 1,
+              salesStaffCode: 1,
+              salesStaffName: 1,
+              salesPersonCode: 1,
+              salesPersonName: 1,
+              salesmanCode: 1,
+              salesmanName: 1,
+              nvbhCode: 1,
+              nvbhName: 1,
+              maNVBH: 1,
+              maNVBHName: 1,
+              totalAmount: 1,
+              amount: 1,
+              grandTotal: 1,
+              paidAmount: 1,
+              paymentAmount: 1,
+              debtAmount: 1,
+              status: 1,
+              lifecycleStatus: 1,
+              deliveryStatus: 1,
+              accountingStatus: 1,
+              accountingConfirmed: 1,
+              arStatus: 1,
+              deleted: 1,
+              isDeleted: 1,
+              deletedAt: 1,
+              deleteMode: 1,
+              deleteReason: 1,
+              masterOrderId: 1,
+              masterOrderCode: 1,
+              masterOrderNo: 1,
+              mergeStatus: 1,
+              stockPosted: 1,
+              stockPostedAt: 1,
+              items: 1,
+              note: 1,
+              createdAt: 1,
+              updatedAt: 1,
+              version: 1
+            } }
+          ],
+          totals: [{
+            $group: {
+              _id: null,
+              orderCount: { $sum: 1 },
+              totalAmount: { $sum: totalExpr },
+              paidAmount: { $sum: paidExpr },
+              debtAmount: { $sum: debtExpr }
+            }
+          }]
+        }
+      }
+    ]).allowDiskUse(true).exec();
+
+    const facet = result?.[0] || {};
+    const totals = facet.totals?.[0] || {};
+    const items = (facet.rows || []).map((order) => ({
+      id: order.id || String(order._id || ''),
       code: order.code,
       date: order.date || order.orderDate,
       customerName: order.customerName,
-      totalAmount: toNumber(order.totalAmount),
-      paidAmount: toNumber(order.paidAmount),
-      debtAmount: toNumber(order.debtAmount),
+      totalAmount: toNumber(order.totalAmount ?? order.amount ?? order.grandTotal),
+      paidAmount: toNumber(order.paidAmount ?? order.paymentAmount),
+      debtAmount: Math.max(0, toNumber(
+        order.debtAmount ?? (toNumber(order.totalAmount ?? order.amount ?? order.grandTotal) - toNumber(order.paidAmount ?? order.paymentAmount))
+      )),
       status: order.status,
       lifecycleStatus: order.lifecycleStatus || order.status || '',
       deliveryStatus: order.deliveryStatus || 'pending',
@@ -340,7 +420,21 @@
       createdAt: order.createdAt
     })).filter((order) => orderStatusUtil.isOrderVisibleInHistory(order));
 
-    return { body: { ok: true, source: 'mobile-sales-route-direct', date, items } };
+    return {
+      body: {
+        ok: true,
+        source: 'mobile-sales-paged',
+        date,
+        items,
+        summary: {
+          totalAmount: toNumber(totals.totalAmount),
+          paidAmount: toNumber(totals.paidAmount),
+          debtAmount: toNumber(totals.debtAmount),
+          orderCount: toNumber(totals.orderCount)
+        },
+        pagination: buildPagination({ page, limit, totalRows: totals.orderCount || 0 })
+      }
+    };
   }
 
   
@@ -348,7 +442,8 @@
     const scopedQuery = {
       ...query,
       collectorType: 'sales',
-      limit: query.limit || 100,
+      page: query.page || 1,
+      limit: query.limit || 30,
       includePaid: query.includePaid || '0',
       includePendingCollections: query.includePendingCollections ?? '1'
     };
@@ -356,10 +451,11 @@
     if (String(mobileUser?.role || '') === 'sales') {
       const staffCode = getMobileSalesStaffCode(mobileUser);
       const staffName = getMobileSalesStaffName(mobileUser);
-      scopedQuery.salesman = staffCode || staffName;
+      if (staffCode) scopedQuery.salesStaffCode = staffCode;
+      else if (staffName) scopedQuery.salesStaffName = staffName;
     }
 
-    const result = await DebtReadService.getCustomerDebts(scopedQuery);
+    const result = await DebtReadService.getMobileCustomerDebts(scopedQuery);
 
     return {
       body: result

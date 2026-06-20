@@ -71,3 +71,37 @@ export function requireRole(allowedRoles = []) {
   window.location.href = './login.html';
   return false;
 }
+
+export function setButtonBusy(button, busy, busyText = 'Đang lưu...') {
+  if (!button) return;
+  if (busy) {
+    button.dataset.originalText = button.dataset.originalText || button.textContent || '';
+    button.disabled = true;
+    button.textContent = busyText;
+    return;
+  }
+  button.disabled = false;
+  if (button.dataset.originalText) button.textContent = button.dataset.originalText;
+  delete button.dataset.originalText;
+}
+
+export function formatShortDate(value = '') {
+  const raw = String(value || '').trim();
+  let match = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (match) return `${match[1]}-${String(match[2]).padStart(2, '0')}-${String(match[3]).padStart(2, '0')}`;
+  match = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4}|\d{2})/);
+  if (!match) return raw.slice(0, 10);
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  let year = Number(match[3]);
+  if (year < 100) year += year >= 70 ? 1900 : 2000;
+  return month >= 1 && month <= 12 && day >= 1 && day <= 31
+    ? `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    : raw.slice(0, 10);
+}
+
+export function formatDisplayDate(value = '') {
+  const normalized = formatShortDate(value);
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}/${match[2]}` : (normalized || '-');
+}

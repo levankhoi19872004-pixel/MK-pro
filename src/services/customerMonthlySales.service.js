@@ -136,6 +136,26 @@ function summarizeMonthlySales(orders = [], month = '') {
   return map;
 }
 
+function mongoNumberExpression(input) {
+  return { $convert: { input, to: 'double', onError: 0, onNull: 0 } };
+}
+
+function monthlyRevenueExpression() {
+  const revenue = mongoNumberExpression({
+    $ifNull: [
+      '$afterPromoAmount',
+      { $ifNull: [
+        '$totalAfterPromotion',
+        { $ifNull: [
+          '$totalAmount',
+          { $ifNull: ['$amount', { $ifNull: ['$grandTotal', '$payableAmount'] }] }
+        ] }
+      ] }
+    ]
+  });
+  return { $cond: [{ $gt: [revenue, 0] }, revenue, 0] };
+}
+
 async function loadMonthlySalesByCustomer(customers = [], options = {}) {
   const codes = [...new Set((customers || [])
     .map((customer) => text(customer.code || customer.customerCode))
@@ -143,11 +163,23 @@ async function loadMonthlySalesByCustomer(customers = [], options = {}) {
   const monthKey = normalizeMonthKey(options.month);
   if (!codes.length) return new Map();
 
-  const orders = await SalesOrder.find(buildMonthlyOrderFilter(codes, monthKey))
-    .select('customerId customerCode customerName orderDate date documentDate createdAt status lifecycleStatus isDeleted deleted deletedAt afterPromoAmount totalAfterPromotion totalAmount amount grandTotal payableAmount')
-    .lean();
+  const rows = await SalesOrder.aggregate([
+    { $match: buildMonthlyOrderFilter(codes, monthKey) },
+    {
+      $group: {
+        _id: { $toLower: '$customerCode' },
+        revenue: { $sum: monthlyRevenueExpression() },
+        orderCount: { $sum: 1 }
+      }
+    }
+  ]).exec();
 
-  return summarizeMonthlySales(orders, monthKey);
+  return new Map((rows || [])
+    .map((row) => [customerKey(row._id), {
+      revenue: Math.max(0, toNumber(row.revenue)),
+      orderCount: Math.max(0, Math.trunc(toNumber(row.orderCount)))
+    }])
+    .filter(([key]) => Boolean(key)));
 }
 
 function attachMonthlySales(customers = [], metrics = new Map(), month = '') {
@@ -180,6 +212,7 @@ module.exports = {
     isOrderInMonth,
     monthDateContext,
     orderRevenue,
-    summarizeMonthlySales
+    summarizeMonthlySales,
+    monthlyRevenueExpression
   }
 };

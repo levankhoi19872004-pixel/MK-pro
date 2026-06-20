@@ -83,19 +83,25 @@ export async function queueOperation(type, payload = {}, options = {}) {
   return operation;
 }
 
-export async function pendingOperations(limit = 100) {
+export async function listOperations({ statuses = [], limit = 100 } = {}) {
   const db = await openDb();
   try {
     const tx = db.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
     const all = await requestPromise(store.getAll());
+    const allowed = new Set((Array.isArray(statuses) ? statuses : []).map((value) => String(value || '').trim()).filter(Boolean));
     return all
-      .filter((row) => ['pending', 'failed', 'conflict'].includes(row.status))
+      .filter((row) => !allowed.size || allowed.has(String(row.status || 'pending')))
       .sort((a, b) => String(a.clientCreatedAt).localeCompare(String(b.clientCreatedAt)))
-      .slice(0, limit);
+      .slice(0, Math.max(1, Number(limit || 100)));
   } finally {
     db.close();
   }
+}
+
+export async function pendingOperations(limit = 100) {
+  const rows = await listOperations({ statuses: ['pending', 'failed'], limit });
+  return rows.filter((row) => Number(row.attempts || 0) < Number(row.maxAttempts || 8));
 }
 
 async function removeOperations(ids = []) {
@@ -165,5 +171,5 @@ export function startAutoSync() {
   if (navigator.onLine) setTimeout(() => syncPending().catch(() => null), 1000);
 }
 
-window.MobileOfflineSync = { queueOperation, syncPending, pendingOperations, isNetworkError, startAutoSync };
+window.MobileOfflineSync = { queueOperation, syncPending, pendingOperations, listOperations, isNetworkError, startAutoSync };
 startAutoSync();

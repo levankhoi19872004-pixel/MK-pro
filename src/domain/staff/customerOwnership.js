@@ -38,10 +38,11 @@ function customerOwnershipFilter({ salesStaffCode = '', salesStaffName = '', req
   const name = clean(salesStaffName);
   const clauses = [];
 
+  // Canonical identity rule: once a staff code exists, never broaden the
+  // ownership scope with a name match. Names are legacy fallback only.
   if (code) {
     for (const field of CUSTOMER_SALES_CODE_FIELDS) clauses.push({ [field]: code });
-  }
-  if (name) {
+  } else if (name) {
     for (const field of CUSTOMER_SALES_NAME_FIELDS) clauses.push({ [field]: name });
   }
 

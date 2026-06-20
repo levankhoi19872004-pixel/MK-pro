@@ -94,11 +94,11 @@ async function loadProductGroupOptions(force = false) {
   if (productGroupOptionsLoaded && !force) return;
   productGroupOptionsLoaded = true;
   try {
-    const data = await mobileApi.getProducts('', { all: true, limit: 5000, inStockOnly: 0 });
-    const rows = normalizeProductSearchResponse(data).map(toMobileProduct);
-    renderProductGroupOptions(rows.map((row) => row.groupName || row.category));
+    const data = await mobileApi.getProductGroups();
+    renderProductGroupOptions(data.items || data.groups || []);
   } catch (err) {
-    console.warn('[mobile-sales] không tải được nhóm hàng sản phẩm:', err.message || err);
+    productGroupOptionsLoaded = false;
+    if (err?.code !== 'REQUEST_ABORTED') console.warn('[mobile-sales] không tải được nhóm hàng sản phẩm:', err.message || err);
   }
 }
 // MOBILE_PRODUCT_GROUP_FILTER_OPTIONS_END
@@ -201,6 +201,12 @@ async function searchMobileProducts(keyword = '') {
   return [];
 }
 
+function ensureProductToolsInitialized() {
+  if (productToolsInitialized) return;
+  productToolsInitialized = true;
+  initProductAutocomplete();
+}
+
 function initProductAutocomplete() {
   if (!productSearch || !productSuggestions) return;
 
@@ -275,6 +281,8 @@ document.getElementById('addItemBtn').addEventListener('click', async () => {
     if (availableQty > 0 && nextQty > availableQty) return setMessage(message, 'Tổng số lượng vượt tồn thực tế', 'error');
     if (nextQty > maxOrderQty) return setMessage(message, `Tổng số lượng vượt hạn mức bán App. Còn tối đa ${formatStockTL(maxOrderQty, packingRate)}`, 'error');
     existed.quantity = nextQty;
+    existed.availableQty = Math.max(Number(existed.availableQty || 0), availableQty);
+    existed.maxOrderQty = Math.max(Number(existed.maxOrderQty || 0), maxOrderQty);
     existed.originalPrice = Number(existed.originalPrice || existed.grossPrice || existed.catalogSalePrice || grossPrice);
     existed.grossPrice = existed.originalPrice;
     existed.catalogSalePrice = existed.originalPrice;
@@ -309,6 +317,7 @@ document.getElementById('addItemBtn').addEventListener('click', async () => {
       saleMode: 'promotion',
       pricingMode: 'promotion',
       priceLocked: true,
+      availableQty,
       maxOrderQty,
       internalSaleQuota: selectedProduct.internalSaleQuota || {}
     }, selectedProduct));
@@ -326,46 +335,7 @@ document.getElementById('addItemBtn').addEventListener('click', async () => {
   // MOBILE_SALES_CART_PROMOTION_RECALC_ADD_END
 });
 
-function renderCart() {
-  const total = cart.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  cartCount.textContent = `${cart.length} dòng`;
-  if (cartTabBadge) cartTabBadge.textContent = String(cart.length);
-  cartTotal.textContent = money(total);
-
-  if (!cart.length) {
-    cartList.className = 'cart-list empty';
-    cartList.textContent = 'Chưa có sản phẩm';
-    return;
-  }
-
-  cartList.className = 'cart-list';
-  // MOBILE_SALES_CART_PROMOTION_PRICE_DISPLAY_START
-  cartList.innerHTML = cart.map((item, index) => {
-    const originalPrice = Number(item.originalPrice || item.grossPrice || item.catalogSalePrice || item.salePrice || item.price || 0);
-    const unitPrice = Number(item.unitPrice || item.salePrice || item.price || 0);
-    const discountAmount = Number(item.discountAmount || item.promotionAmount || Math.max(0, (originalPrice - unitPrice) * Number(item.quantity || 0)));
-    const priceInfo = discountAmount > 0
-      ? `Giá gốc: ${money(originalPrice)} · KM: -${money(discountAmount)} · Giá bán: ${money(unitPrice)}`
-      : `Giá bán: ${money(unitPrice)}`;
-    return `
-    <div class="cart-item">
-      <strong>${escapeHtml(item.productCode)} - ${escapeHtml(item.productName)}</strong>
-      <span>SL: ${quantityDisplayTL(item)} · ${priceInfo} · Thành tiền: ${money(item.amount)}</span>
-      <button class="danger-btn small-btn" data-remove="${index}">Xóa</button>
-    </div>`;
-  }).join('');
-  // MOBILE_SALES_CART_PROMOTION_PRICE_DISPLAY_END
-
-  cartList.querySelectorAll('[data-remove]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      // MOBILE_SALES_CART_PROMOTION_RECALC_REMOVE_START
-      cart.splice(Number(btn.dataset.remove), 1);
-      await recalculateCartPromotions({ silent: true });
-      renderCart();
-      // MOBILE_SALES_CART_PROMOTION_RECALC_REMOVE_END
-    });
-  });
-}
+// renderCart and cart interaction handlers are defined in part-02b.jsfrag.
 
 
 function debtCustomerKey(item = {}) {
@@ -465,52 +435,78 @@ function filteredAndSortedDebts(items = debtCache) {
   return rows;
 }
 
-async function loadDebts(options = {}) {
-  const silent = !!options.silent;
-  const force = !!options.force;
-  const isDebtTabActive = document.getElementById('debtTab')?.classList.contains('active');
+function mergeDebtPages(current = [], incoming = []) {
+  const map = new Map();
+  [...current, ...incoming].forEach((item) => {
+    const key = debtCustomerKey(item) || `ROW:${map.size}`;
+    const previous = map.get(key);
+    map.set(key, previous ? { ...previous, ...item } : item);
+  });
+  return [...map.values()];
+}
 
+async function loadDebts(options = {}) {
+  const append = options.append === true;
+  const force = options.force === true;
+  const isDebtTabActive = document.getElementById('debtTab')?.classList.contains('active');
   if (debtLoading) return;
-  if (debtLoaded && !force && debtCache.length && !silent) {
-    renderDebts(debtCache, {
-      totalDebt: debtCache.reduce((sum, item) => sum + Number(item.debtAmount || 0), 0),
-      pendingCollected: debtCache.reduce((sum, item) => sum + customerPendingCollectedValue(item), 0),
-      customerCount: debtCache.length
-    });
+  if (append && !debtHasMore) return;
+  if (debtLoaded && !force && !append) {
+    renderDebts(debtCache, debtSummary);
     return;
   }
 
   const requestSeq = ++debtRequestSeq;
+  const nextPage = append ? debtPage + 1 : 1;
   debtLoading = true;
+  setButtonBusy(debtLoadMoreBtn, true, 'Đang tải...');
 
   try {
-    if (debtList && (!silent || isDebtTabActive)) {
-      debtList.className = 'order-list empty';
-      debtList.textContent = 'Đang tải công nợ...';
+    if (debtList && !append && isDebtTabActive) {
+      renderMobileListState(debtList, {
+        state: 'loading',
+        baseClass: 'order-list',
+        title: 'Đang tải công nợ...'
+      });
     }
 
-    const data = await mobileApi.getSalesDebts({ limit: 100, includePaid: '0', includePendingCollections: '1', collectorType: 'sales' });
+    const data = await mobileApi.getSalesDebts({
+      page: nextPage,
+      limit: DEBT_PAGE_LIMIT,
+      includePaid: '0',
+      includePendingCollections: '1',
+      collectorType: 'sales',
+      cancelPrevious: !append
+    });
 
     if (requestSeq !== debtRequestSeq) return;
-
-    debtCache = Array.isArray(data.items) ? data.items : [];
+    const rows = Array.isArray(data.items) ? data.items : [];
+    debtPage = Number(data.pagination?.page || nextPage);
+    debtHasMore = Boolean(data.pagination?.hasMore);
+    debtSummary = data.summary || debtSummary || {};
+    debtCache = append ? mergeDebtPages(debtCache, rows) : rows;
     debtLoaded = true;
 
-    renderDebts(debtCache, data.summary || {});
+    renderDebts(debtCache, debtSummary);
+    if (debtLoadMoreBtn) debtLoadMoreBtn.hidden = !debtHasMore;
     if (Array.isArray(lastCustomers) && lastCustomers.length) renderCustomerList(lastCustomers);
   } catch (err) {
-    if (requestSeq !== debtRequestSeq) return;
-    debtLoaded = false;
-
-    if (debtList && (!silent || isDebtTabActive)) {
-      debtList.className = 'order-list empty error-text';
-      debtList.textContent = err.message || 'Không tải được công nợ';
+    if (requestSeq !== debtRequestSeq || err?.code === 'REQUEST_ABORTED') return;
+    if (!append) debtLoaded = false;
+    if (debtList && isDebtTabActive && !append) {
+      renderMobileListState(debtList, {
+        state: 'error',
+        baseClass: 'order-list',
+        title: 'Không tải được công nợ',
+        detail: err.message || 'Vui lòng kiểm tra kết nối và thử lại.',
+        retryAction: 'debts'
+      });
+    } else {
+      setMessage(debtTabMessage, err.message || 'Không tải thêm được công nợ', 'error');
     }
-    if (debtTotalAmount && (!silent || isDebtTabActive)) debtTotalAmount.textContent = '0';
-    if (debtCustomerCount && (!silent || isDebtTabActive)) debtCustomerCount.textContent = '0';
-    if (debtPendingAmount && (!silent || isDebtTabActive)) debtPendingAmount.textContent = '0';
   } finally {
     if (requestSeq === debtRequestSeq) debtLoading = false;
+    setButtonBusy(debtLoadMoreBtn, false);
   }
 }
 

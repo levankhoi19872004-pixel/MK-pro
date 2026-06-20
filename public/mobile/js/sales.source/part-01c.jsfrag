@@ -1,0 +1,70 @@
+// MOBILE_SALES_PHASE3_UX_START
+const mobileSalesNavigation = createMobileSalesNavigation({
+  tabs,
+  panels,
+  panelIds: ['customersTab', 'orderTab', 'cartTab', 'debtTab', 'reportTab'],
+  initialPanel: 'customersTab',
+  fallbackPanel: 'customersTab',
+  hashByPanel: {
+    customersTab: '#khach-hang',
+    orderTab: '#ban-hang',
+    cartTab: '#gio-hang',
+    debtTab: '#cong-no',
+    reportTab: '#don-hang'
+  },
+  onActivate(tabId) {
+    activeTabId = tabId;
+    if (tabId === 'debtTab') loadDebts();
+    if (tabId === 'reportTab') loadTodayOrders();
+    if (tabId === 'orderTab' || tabId === 'cartTab') ensureProductToolsInitialized();
+  }
+});
+
+function switchTab(tabId, options = {}) {
+  activeTabId = mobileSalesNavigation.switchPanel(tabId, options);
+}
+
+function initializeMobileNavigation() {
+  activeTabId = mobileSalesNavigation.initialize();
+}
+
+const announceMobileStatus = createStatusAnnouncer(mobileGlobalStatus);
+
+function updateNetworkStatus() {
+  if (!networkStatus) return;
+  const online = navigator.onLine !== false;
+  networkStatus.textContent = online ? 'Đang online' : 'Đang offline';
+  networkStatus.classList.toggle('offline', !online);
+  networkStatus.classList.toggle('online', online);
+}
+
+function renderMobileListState(container, options = {}) {
+  renderSharedMobileListState(container, options, escapeHtml);
+}
+
+function orderStatusFilterValue() {
+  return String(orderStatusFilter?.value || 'all');
+}
+
+function orderMatchesDisplayFilter(order = {}) {
+  const filter = orderStatusFilterValue();
+  if (filter === 'pending_sync') return order.pendingSync === true;
+  if (filter === 'editable') return order.pendingSync !== true && order.canEdit === true;
+  if (filter === 'locked') return order.pendingSync !== true && order.canEdit !== true;
+  return true;
+}
+
+function orderMatchesSearchText(order = {}) {
+  const keyword = String(orderSearch?.value || '').trim().toLowerCase();
+  if (!keyword) return true;
+  return [order.code, order.customerCode, order.customerName]
+    .some((value) => String(value || '').toLowerCase().includes(keyword));
+}
+
+function currentOrderQueryKey() {
+  return JSON.stringify({
+    date: String(orderDateFilter?.value || todayValue()),
+    q: String(orderSearch?.value || '').trim()
+  });
+}
+// MOBILE_SALES_PHASE3_UX_END

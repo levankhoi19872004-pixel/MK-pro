@@ -6,17 +6,27 @@ const InternalSaleAllocation = require('../../models/InternalSaleAllocation');
 const inventoryStockService = require('../inventoryStock.service');
 const internalSaleAllocationService = require('../internalSaleAllocation.service');
 const customerMonthlySalesService = require('../customerMonthlySales.service');
+const DebtReadService = require('../DebtReadService');
+const { parseMobilePagination, buildPagination } = require('./mobilePagination.util');
 const { toNumber, stripMongoFields, formatCaseLooseQty } = require('../../utils/common.util');
 const { normalizeText } = require('../../utils/search.util');
 const { escapeRegex } = require('../../utils/query.util');
 const { customerOwnershipFilterForSalesUser, combineFilters } = require('../../domain/staff/customerOwnership');
 
-const MOBILE_CATALOG_PRODUCTS_CACHE_TTL_MS = Math.max(0, Number(process.env.MOBILE_CATALOG_PRODUCTS_CACHE_TTL_MS || 5000));
-const MOBILE_CATALOG_PRODUCTS_CACHE_MAX_ENTRIES = Math.max(10, Number(process.env.MOBILE_CATALOG_PRODUCTS_CACHE_MAX_ENTRIES || 200));
-const mobileCatalogProductsCache = new Map();
+const MOBILE_CATALOG_METADATA_CACHE_TTL_MS = Math.max(
+  0,
+  Number(process.env.MOBILE_CATALOG_METADATA_CACHE_TTL_MS || process.env.MOBILE_CATALOG_PRODUCTS_CACHE_TTL_MS || 15000)
+);
+const MOBILE_CATALOG_METADATA_CACHE_MAX_ENTRIES = Math.max(
+  10,
+  Number(process.env.MOBILE_CATALOG_METADATA_CACHE_MAX_ENTRIES || process.env.MOBILE_CATALOG_PRODUCTS_CACHE_MAX_ENTRIES || 200)
+);
+const mobileCatalogProductMetadataCache = new Map();
+const mobileCatalogProductGroupCache = new Map();
 
 function invalidateMobileCatalogProductsCache() {
-  mobileCatalogProductsCache.clear();
+  mobileCatalogProductMetadataCache.clear();
+  mobileCatalogProductGroupCache.clear();
 }
 
 function cacheGet(map, key) {
@@ -33,7 +43,7 @@ function pruneCache(map) {
   for (const [key, row] of map.entries()) {
     if (!row || row.expiresAt <= now) map.delete(key);
   }
-  while (map.size >= MOBILE_CATALOG_PRODUCTS_CACHE_MAX_ENTRIES) {
+  while (map.size >= MOBILE_CATALOG_METADATA_CACHE_MAX_ENTRIES) {
     const oldestKey = map.keys().next().value;
     if (oldestKey === undefined) break;
     map.delete(oldestKey);
@@ -64,6 +74,10 @@ function truthyFlag(value) {
 
 function cleanCode(value = '') {
   return String(value || '').trim();
+}
+
+function lower(value = '') {
+  return cleanCode(value).toLowerCase();
 }
 
 function normalizeProductCode(value = '') {
@@ -166,81 +180,185 @@ async function enrichProductsWithInventory(products = []) {
         display: formatCaseLooseQty(recommendedRemainingQty, conversionRate)
       },
       inventorySource: 'inventories',
-      stockSource: 'inventoryStock.service'
+      stockSource: 'inventoryStock.service',
+      stockFreshAt: new Date().toISOString()
     };
   });
+}
+
+function productGroupFilter(rawGroup = '') {
+  const group = String(rawGroup || '').trim();
+  if (!group) return {};
+  const exact = new RegExp(`^${escapeRegex(group)}$`, 'i');
+  return {
+    $or: [
+      { category: exact },
+      { categoryName: exact },
+      { group: exact },
+      { groupName: exact },
+      { productGroup: exact },
+      { productGroupName: exact }
+    ]
+  };
+}
+
+function customerDebtValue(customer = {}, debtMap = new Map()) {
+  const keys = [customer.code, customer.customerCode, customer.id, customer._id, customer.customerId]
+    .map(lower)
+    .filter(Boolean);
+  const found = keys.map((key) => debtMap.get(key)).find((value) => value !== undefined);
+  return Math.max(0, toNumber(found));
+}
+
+async function loadProductMetadataPage({ filter, page, limit, skip }) {
+  const [rows, totalRows] = await Promise.all([
+    Product.find(filter)
+      .select('id code productCode sku barcode name productName unit baseUnit conversionRate packing packingQty unitsPerCase brand category categoryName group groupName productGroup productGroupName salePrice price isActive')
+      .sort({ code: 1, _id: 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Product.countDocuments(filter)
+  ]);
+  return { rows, totalRows, page, limit };
 }
 
 function createMobileCatalogService(ctx = {}) {
   async function customers({ query = {}, mobileUser = {} } = {}) {
     const q = String(query.q || query.search || '').trim();
-    const limit = Math.min(Math.max(toNumber(query.limit || (q ? 200 : 500)), 1), 1000);
+    const all = truthyFlag(query.all);
+    const paginationInput = all
+      ? { page: 1, limit: Math.min(Math.max(toNumber(query.limit || 1000), 1), 1000), skip: 0 }
+      : parseMobilePagination(query, { defaultLimit: q ? 40 : 40, maxLimit: 100 });
+    const { page, limit, skip } = paginationInput;
     const role = String(mobileUser.role || '').trim().toLowerCase();
     const ownershipFilter = role === 'sales' ? customerOwnershipFilterForSalesUser(mobileUser) : {};
     const filter = combineFilters(
-      regexFilter(q, ['code', 'customerCode', 'name', 'customerName', 'phone', 'address', 'area', 'route']),
+      regexFilter(q, ['code', 'customerCode', 'name', 'customerName', 'phone', 'address', 'area', 'route', 'searchText']),
       ownershipFilter
     );
-    const rows = await Customer.find(filter)
-      .sort({ code: 1 })
-      .limit(limit)
-      .lean();
+
+    const [rows, totalRows] = await Promise.all([
+      Customer.find(filter)
+        .select('id code customerCode name customerName businessName phone address area route salesStaffCode salesStaffName salesmanCode salesmanName assignedSalesStaffCode assignedSalesStaffName nvbhCode nvbhName maNVBH tenNVBH isActive')
+        .sort({ code: 1, _id: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Customer.countDocuments(filter)
+    ]);
+
     const rawCustomers = rows.map(stripMongoFields);
     const salesMonth = customerMonthlySalesService.normalizeMonthKey(query.month);
-    const monthlySales = await customerMonthlySalesService.loadMonthlySalesByCustomer(rawCustomers, { month: salesMonth });
-    const customers = customerMonthlySalesService.attachMonthlySales(rawCustomers, monthlySales, salesMonth);
+    const [monthlySales, debtMap] = await Promise.all([
+      customerMonthlySalesService.loadMonthlySalesByCustomer(rawCustomers, { month: salesMonth }),
+      DebtReadService.loadDebtBalancesForCustomers(rawCustomers)
+    ]);
+    const customersWithSales = customerMonthlySalesService.attachMonthlySales(rawCustomers, monthlySales, salesMonth);
+    const customers = customersWithSales.map((customer) => ({
+      ...customer,
+      debtAmount: customerDebtValue(customer, debtMap),
+      currentDebt: customerDebtValue(customer, debtMap)
+    }));
+    const pagination = buildPagination({ page, limit, totalRows });
+
     return {
       body: {
         ok: true,
         success: true,
-        source: 'mobile-catalog-route-with-monthly-sales',
+        source: 'mobile-catalog-paged-with-monthly-sales-and-debt',
         salesMonth,
         customers,
         items: customers,
-        total: customers.length
+        total: totalRows,
+        pagination
+      }
+    };
+  }
+
+  async function productGroups() {
+    const cacheKey = 'active-groups';
+    let groups = cacheGet(mobileCatalogProductGroupCache, cacheKey);
+    const cacheHit = Boolean(groups);
+    if (!groups) {
+      const rows = await Product.aggregate([
+        { $match: { isActive: { $ne: false } } },
+        {
+          $project: {
+            values: [
+              '$category',
+              '$categoryName',
+              '$group',
+              '$groupName',
+              '$productGroup',
+              '$productGroupName'
+            ]
+          }
+        },
+        { $unwind: '$values' },
+        { $project: { value: { $trim: { input: { $ifNull: ['$values', ''] } } } } },
+        { $match: { value: { $ne: '' } } },
+        { $group: { _id: { $toLower: '$value' }, name: { $first: '$value' } } },
+        { $sort: { name: 1 } },
+        { $limit: 500 }
+      ]).exec();
+      groups = rows.map((row) => cleanCode(row.name)).filter(Boolean);
+      cacheSet(mobileCatalogProductGroupCache, cacheKey, groups, MOBILE_CATALOG_METADATA_CACHE_TTL_MS);
+    }
+    return {
+      body: {
+        ok: true,
+        success: true,
+        source: 'mobile-product-groups-distinct',
+        cacheHit,
+        groups,
+        items: groups,
+        total: groups.length
       }
     };
   }
 
   async function products({ query = {} } = {}) {
     const q = String(query.q || query.search || '').trim();
-    const group = normalizeText(query.group || query.category || query.productGroup || '');
-    const limit = Math.min(Math.max(toNumber(query.limit || (q ? 500 : 1000)), 1), 2000);
+    const rawGroup = String(query.group || query.category || query.productGroup || '').trim();
+    const normalizedGroup = normalizeText(rawGroup);
+    const all = truthyFlag(query.all);
+    const paginationInput = all
+      ? { page: 1, limit: Math.min(Math.max(toNumber(query.limit || 1000), 1), 2000), skip: 0 }
+      : parseMobilePagination(query, { defaultLimit: q ? 50 : 40, maxLimit: 100 });
+    const { page, limit, skip } = paginationInput;
     const inStockFlag = truthyFlag(query.inStockOnly || query.onlyInStock);
-    const cacheKey = JSON.stringify({ q, group, limit, inStockFlag });
-    const cached = cacheGet(mobileCatalogProductsCache, cacheKey);
-    if (cached) return cached;
-
-    const filter = regexFilter(q, ['code', 'productCode', 'sku', 'name', 'productName', 'barcode', 'brand', 'category', 'groupName', 'productGroup']);
-    let rows = await Product.find(filter)
-      .select('id code productCode sku barcode name productName unit baseUnit conversionRate packing packingQty unitsPerCase brand category groupName productGroup salePrice price isActive')
-      .sort({ code: 1 })
-      .limit(limit)
-      .lean();
-    if (group) {
-      rows = rows.filter((row) => [row.category, row.categoryName, row.group, row.groupName, row.productGroup, row.productGroupName]
-        .some((value) => normalizeText(value).includes(group)));
+    const filter = combineFilters(
+      regexFilter(q, ['code', 'productCode', 'sku', 'name', 'productName', 'barcode', 'brand', 'category', 'groupName', 'productGroup', 'searchText']),
+      productGroupFilter(rawGroup)
+    );
+    const cacheKey = JSON.stringify({ q, group: normalizedGroup, page, limit });
+    let metadata = cacheGet(mobileCatalogProductMetadataCache, cacheKey);
+    const metadataCacheHit = Boolean(metadata);
+    if (!metadata) {
+      metadata = await loadProductMetadataPage({ filter, page, limit, skip });
+      cacheSet(mobileCatalogProductMetadataCache, cacheKey, metadata, MOBILE_CATALOG_METADATA_CACHE_TTL_MS);
     }
 
-    let products = await enrichProductsWithInventory(rows);
-    if (inStockFlag) {
-      products = products.filter((product) => toNumber(product.availableQty) > 0);
-    }
+    let products = await enrichProductsWithInventory(metadata.rows);
+    if (inStockFlag) products = products.filter((product) => toNumber(product.availableQty) > 0);
+    const pagination = buildPagination({ page, limit, totalRows: metadata.totalRows });
 
-    const response = {
+    return {
       body: {
         ok: true,
         success: true,
-        source: 'mobile-catalog-route',
+        source: 'mobile-catalog-metadata-cache-live-stock',
         inventorySource: 'inventories',
-        cacheTtlMs: MOBILE_CATALOG_PRODUCTS_CACHE_TTL_MS,
-        cacheMaxEntries: MOBILE_CATALOG_PRODUCTS_CACHE_MAX_ENTRIES,
+        metadataCacheHit,
+        metadataCacheTtlMs: MOBILE_CATALOG_METADATA_CACHE_TTL_MS,
+        stockCached: false,
         products,
         items: products,
-        total: products.length
+        total: metadata.totalRows,
+        pagination
       }
     };
-    return cacheSet(mobileCatalogProductsCache, cacheKey, response, MOBILE_CATALOG_PRODUCTS_CACHE_TTL_MS);
   }
 
   async function stock({ query = {} } = {}) {
@@ -251,7 +369,15 @@ function createMobileCatalogService(ctx = {}) {
     return { body: { ok: true, success: true, source: 'mobile-catalog-route', inventorySource: 'inventories', stock } };
   }
 
-  return { customers, products, stock };
+  return { customers, productGroups, products, stock };
 }
 
-module.exports = { createMobileCatalogService, invalidateMobileCatalogProductsCache };
+module.exports = {
+  createMobileCatalogService,
+  invalidateMobileCatalogProductsCache,
+  _internal: {
+    productGroupFilter,
+    customerDebtValue,
+    loadProductMetadataPage
+  }
+};

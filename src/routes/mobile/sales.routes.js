@@ -29,12 +29,15 @@ function createMobileSalesRouter(ctx) {
   router.get('/orders', ...onlySales, [
     query('date').optional().isISO8601().withMessage('Ngày không hợp lệ'),
     query('mine').optional().isIn(['0', '1']).withMessage('mine chỉ nhận 0 hoặc 1'),
-    query('q').optional().isString().trim()
+    query('q').optional().isString().trim(),
+    query('page').optional().isInt({ min: 1 }).withMessage('page đơn hàng không hợp lệ'),
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('limit đơn hàng không hợp lệ')
   ], validateRequest, controller.listOrders);
 
   router.get('/debts', ...onlySales, [
     query('q').optional().isString().trim(),
-    query('limit').optional().isInt({ min: 1, max: 300 }).withMessage('limit công nợ không hợp lệ'),
+    query('page').optional().isInt({ min: 1 }).withMessage('page công nợ không hợp lệ'),
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('limit công nợ không hợp lệ'),
     query('includePaid').optional().isIn(['0', '1']).withMessage('includePaid chỉ nhận 0 hoặc 1')
   ], validateRequest, controller.listDebts);
 

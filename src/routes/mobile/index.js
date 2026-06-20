@@ -20,6 +20,7 @@ function forwardTo(router, targetPath) {
 function addCompatibilityAliases(router) {
   // Alias cũ app bán hàng: giữ API flat để frontend/mobile cũ không rơi vào 404.
   router.get('/customers', forwardTo(router, '/catalog/customers'));
+  router.get('/product-groups', forwardTo(router, '/catalog/product-groups'));
   router.get('/products', forwardTo(router, '/catalog/products'));
   router.get('/stock', forwardTo(router, '/catalog/stock'));
 

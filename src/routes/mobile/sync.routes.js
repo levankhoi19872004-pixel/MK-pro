@@ -7,7 +7,7 @@ const { FLAGS } = require('../../config/featureFlags');
 
 function createMobileSyncRouter(ctx) {
   const router = express.Router();
-  const controller = createMobileSyncController();
+  const controller = createMobileSyncController(ctx);
   router.use(requireFeature(FLAGS.mobileOfflineSync, 'đồng bộ mobile offline'));
   router.post('/batch', ctx.requireMobileLogin, ctx.requireMobileRole(['sales', 'delivery']), controller.batch);
   return router;

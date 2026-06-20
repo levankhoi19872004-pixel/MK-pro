@@ -1,0 +1,233 @@
+function createMobileSalesService(ctx) {
+  const repo = createMobileSalesRepository(ctx);
+  const {
+    normalizeText,
+    toNumber,
+    formatCaseLooseQty,
+    buildProductLineMeta,
+    makeId,
+    buildSalesCode,
+    buildCashCode,
+    updateSalesOrderWithRepost,
+    writeMobileLog
+  } = ctx;
+
+
+  // MOBILE_SALES_STAFF_CANONICAL_MATCH_START
+  function getMobileSalesStaffCode(mobileUser = {}) {
+    return mobileUserSalesStaffCode(mobileUser);
+  }
+
+  function getMobileSalesStaffName(mobileUser = {}) {
+    return mobileUserSalesStaffName(mobileUser);
+  }
+  // MOBILE_SALES_STAFF_CANONICAL_MATCH_END
+
+  // MOBILE_SALES_SERVER_AUTHORITATIVE_PRICING_START
+  async function buildAuthoritativeMobileItems(rawItems = []) {
+    const sourceItems = Array.isArray(rawItems) ? rawItems : [];
+    if (!sourceItems.length) return { error: 'Đơn mobile chưa có sản phẩm', status: 400 };
+
+    const products = await findProductsForOrderItems(sourceItems);
+    const productAliasMap = indexProductsByAlias(products);
+    const baseItems = [];
+    const productByCode = new Map();
+
+    for (const rawItem of sourceItems) {
+      const lookupKey = productLookupKey(rawItem);
+      const product = productAliasMap.get(lookupKey)
+        || productAliasMap.get(String(lookupKey).toUpperCase())
+        || productAliasMap.get(String(lookupKey).toLowerCase());
+      if (!product) {
+        return { error: `Không tìm thấy sản phẩm: ${rawItem.productCode || rawItem.code || ''}`, status: 400 };
+      }
+
+      const quantity = toNumber(rawItem.quantity ?? rawItem.qty ?? 0);
+      if (quantity <= 0) {
+        return { error: `Số lượng phải lớn hơn 0: ${product.code || product.productCode || ''}`, status: 400 };
+      }
+
+      // Giá đầu vào từ mobile chỉ phục vụ hiển thị. Backend luôn lấy giá danh mục
+      // rồi tính lại khuyến mại để tránh sửa request làm sai doanh số/công nợ.
+      const catalogSalePrice = toNumber(product.salePrice ?? product.price ?? 0);
+      const productCode = String(product.code || product.productCode || product.sku || '').trim();
+      baseItems.push({
+        productId: product.id || String(product._id || productCode || ''),
+        productCode,
+        productName: product.name || product.productName || '',
+        ...buildProductLineMeta(product),
+        quantity,
+        grossPrice: catalogSalePrice,
+        catalogSalePrice,
+        salePrice: catalogSalePrice,
+        price: catalogSalePrice,
+        amount: Math.round(quantity * catalogSalePrice)
+      });
+      productByCode.set(productCode, product);
+    }
+
+    const promotionResult = await promotionService.calculatePromotions(baseItems);
+    const promotionByCode = new Map((promotionResult.lines || []).map((line) => [String(line.productCode || '').trim(), line]));
+    const items = baseItems.map((item) => {
+      const line = promotionByCode.get(String(item.productCode || '').trim()) || {};
+      const grossPrice = toNumber(line.catalogSalePrice ?? item.grossPrice ?? item.salePrice);
+      const grossAmount = Math.round(item.quantity * grossPrice);
+      const directDiscountAmount = toNumber(line.directDiscountAmount || 0);
+      const groupDiscountAmount = toNumber(line.groupDiscountAmount || 0);
+      const discountAmount = Math.min(grossAmount, directDiscountAmount + groupDiscountAmount);
+      const amount = Math.max(0, grossAmount - discountAmount);
+      const finalPrice = item.quantity > 0 ? Math.round(amount / item.quantity) : 0;
+      const promotionRows = Array.isArray(line.promotionRows) ? line.promotionRows : [];
+      const promotionIdentity = extractPromotionIdentity(promotionRows);
+
+      return {
+        ...item,
+        originalPrice: grossPrice,
+        grossPrice,
+        catalogSalePrice: grossPrice,
+        grossAmount,
+        directDiscountPercent: toNumber(line.directDiscountPercent || 0),
+        groupDiscountPercent: toNumber(line.groupDiscountPercent || 0),
+        discountPercent: grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0,
+        directDiscountAmount,
+        groupDiscountAmount,
+        discountAmount,
+        promotionAmount: discountAmount,
+        totalDiscountAmount: discountAmount,
+        finalPrice,
+        unitPrice: finalPrice,
+        salePrice: finalPrice,
+        price: finalPrice,
+        preTaxPriceAtOrder: Math.round(grossPrice / 1.08),
+        vatAmountAtOrder: Math.round((finalPrice - (finalPrice / 1.08)) * item.quantity),
+        lineAmountAtOrder: amount,
+        amount,
+        netAmount: amount,
+        saleMethod: PROMOTION,
+        saleMode: PROMOTION,
+        pricingMode: PROMOTION,
+        priceLocked: true,
+        lockedPrice: true,
+        lockedPromotion: true,
+        promotionCalculated: true,
+        promotionRows,
+        appliedPromotionRows: promotionRows,
+        productSnapshot: {
+          ...(item.productSnapshot || {}),
+          salePrice: grossPrice,
+          conversionRate: item.conversionRateAtOrder || item.conversionRate || 1,
+          pickingZone: item.pickingZoneAtOrder || item.productSnapshot?.pickingZone || ((item.warehouseCodeAtOrder || item.warehouseCode) === 'KHO_PC' ? 'PC' : 'HC'),
+          warehouseCode: item.warehouseCodeAtOrder || item.warehouseCode || 'KHO_HC',
+          defaultWarehouse: item.warehouseCodeAtOrder || item.warehouseCode || 'KHO_HC'
+        },
+        ...promotionIdentity
+      };
+    });
+
+    return { items, products, productByCode };
+  }
+  // MOBILE_SALES_SERVER_AUTHORITATIVE_PRICING_END
+
+  // MOBILE_SALES_CUSTOMER_LOOKUP_CANONICAL_START
+  function cleanLookupValue(value) {
+    return String(value || '').trim();
+  }
+
+  function customerLookupKeysFromBody(body = {}) {
+    const customerPayload = body.customer || {};
+    return [
+      customerPayload.id,
+      customerPayload._id,
+      customerPayload.customerId,
+      customerPayload.code,
+      customerPayload.customerCode,
+      body.customerId,
+      body.customerCode
+    ]
+      .map(cleanLookupValue)
+      .filter(Boolean)
+      .filter((value, index, arr) => arr.indexOf(value) === index);
+  }
+
+  function findCustomerFromOrderPayload(data = {}, body = {}) {
+    const keys = customerLookupKeysFromBody(body);
+    for (const key of keys) {
+      const customer = repo.findCustomer(data, key);
+      if (customer) return customer;
+    }
+    return null;
+  }
+  // MOBILE_SALES_CUSTOMER_LOOKUP_CANONICAL_END
+
+  function returnDraftLineKey(item = {}) {
+    return [String(item.productCode || item.code || item.productId || '').trim(), String(item.unit || item.baseUnit || '').trim(), String(toNumber(item.salePrice ?? item.price ?? item.unitPrice ?? 0))].join('|');
+  }
+
+  function buildReturnDraftForMobileOrder(order = {}, existing = null) {
+    const existingMap = new Map((Array.isArray(existing?.items) ? existing.items : []).map((item) => [String(item.lineKey || returnDraftLineKey(item)), item]));
+    const items = (Array.isArray(order.items) ? order.items : []).map((item) => {
+      const price = toNumber(item.salePrice ?? item.price ?? item.unitPrice ?? 0);
+      const soldQty = toNumber(item.quantity ?? item.qty ?? 0);
+      const key = returnDraftLineKey({ ...item, salePrice: price });
+      const old = existingMap.get(key) || {};
+      const returnQty = toNumber(old.returnQty ?? old.qtyReturn ?? old.quantity ?? 0);
+      return {
+        ...old,
+        productId: item.productId || item.productCode || '',
+        productCode: item.productCode || item.code || item.productId || '',
+        productName: item.productName || item.name || '',
+        unit: item.unit || item.baseUnit || '',
+        soldQty,
+        price,
+        salePrice: price,
+        soldAmount: Math.round(soldQty * price),
+        returnQty,
+        qtyReturn: returnQty,
+        returnQuantity: returnQty,
+        quantity: returnQty,
+        qty: returnQty,
+        returnAmount: Math.round(returnQty * price),
+        amount: Math.round(returnQty * price),
+        lineKey: key
+      };
+    });
+    const totalSoldAmount = items.reduce((sum, item) => sum + toNumber(item.soldAmount), 0);
+    const totalReturnAmount = items.reduce((sum, item) => sum + toNumber(item.returnAmount), 0);
+    const status = totalReturnAmount > 0 ? 'waiting_receive' : 'draft';
+    return {
+      ...(existing || {}),
+      id: existing?.id || `RO-${String(order.code || order.id || makeId('RO')).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`,
+      code: existing?.code || `RO-${String(order.code || order.id || makeId('RO')).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`,
+      date: order.deliveryDate || order.date || dateUtil.todayVN(),
+      documentDate: order.date || dateUtil.todayVN(),
+      salesOrderId: order.id || '',
+      salesOrderCode: order.code || '',
+      orderId: order.id || '',
+      orderCode: order.code || '',
+      customerId: order.customerId || '',
+      customerCode: order.customerCode || '',
+      customerName: order.customerName || '',
+      salesStaffCode: order.salesStaffCode || order.staffCode || '',
+      salesStaffName: order.salesStaffName || order.staffName || '',
+      staffCode: order.salesStaffCode || order.staffCode || '',
+      staffName: order.salesStaffName || order.staffName || '',
+      masterOrderId: order.masterOrderId || '',
+      masterOrderCode: order.masterOrderCode || '',
+      deliveryStaffId: order.deliveryStaffId || '',
+      deliveryStaffCode: order.deliveryStaffCode || '',
+      deliveryStaffName: order.deliveryStaffName || '',
+      deliveryDate: order.deliveryDate || order.date || dateUtil.todayVN(),
+      items,
+      totalSoldAmount,
+      totalReturnAmount,
+      totalQuantity: items.reduce((sum, item) => sum + toNumber(item.returnQty), 0),
+      totalAmount: totalReturnAmount,
+      amount: totalReturnAmount,
+      debtReduction: totalReturnAmount,
+      status,
+      returnStatus: status,
+      returnState: status,
+      returnMergeStatus: existing?.returnMergeStatus || 'unmerged',
+      warehouseReceiveStatus: status === 'waiting_receive' ? 'waiting_receive' : 'draft',
+      source: existing?.source || 'sales_order_draft',
+      createdFrom: existing?.createdFrom || 'sales_order',

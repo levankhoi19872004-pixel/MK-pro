@@ -7,6 +7,10 @@ const dateUtil = require('../utils/date.util');
 const { toNumber } = require('../utils/common.util');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 const { arEntryBalanceEffect } = require('../utils/arLedger.util');
+const {
+  getMobileCustomerDebts: getPagedMobileCustomerDebts,
+  loadDebtBalancesForCustomers
+} = require('./mobile/mobileDebtQuery.service');
 
 const PENDING_STATUSES = ['submitted', 'under_review'];
 const INACTIVE_AR_STATUSES = ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed'];
@@ -445,6 +449,8 @@ async function checkAvailableDebt(input = {}) {
 
 module.exports = {
   getCustomerDebts,
+  getMobileCustomerDebts: getPagedMobileCustomerDebts,
+  loadDebtBalancesForCustomers,
   checkAvailableDebt,
   getOrderDebt,
   sumPendingAllocation,
