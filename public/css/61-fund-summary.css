@@ -1,0 +1,54 @@
+/* Sổ quỹ tổng hợp: chỉ bổ sung layout, tái sử dụng token/nút/bảng hiện hữu. */
+#fundsTab .fund-summary-book{min-width:0;}
+#fundsTab .fund-summary-toolbar{margin:0 0 10px;}
+#fundsTab .fund-summary-filter-grid{display:grid;grid-template-columns:repeat(6,minmax(150px,1fr));gap:10px;align-items:end;}
+#fundsTab .fund-summary-person-field{grid-column:span 2;}
+#fundsTab .fund-summary-actions{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
+#fundsTab .fund-summary-message{min-height:22px;margin:4px 0 8px;}
+#fundsTab .fund-summary-message.error,#fundSummaryDetailMessage.error{color:#b91c1c;}
+#fundsTab .fund-summary-kpis{display:grid;grid-template-columns:repeat(7,minmax(135px,1fr));gap:8px;margin:8px 0 12px;}
+#fundsTab .fund-summary-kpis>div,#fundSummaryDetailModal .fund-summary-detail-kpis>div{min-width:0;}
+#fundsTab .fund-summary-kpis b,#fundSummaryDetailModal .fund-summary-detail-kpis b{font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+#fundsTab .fund-summary-table-scroll{max-height:calc(100vh - 430px);}
+#fundsTab #fundSummaryTable{min-width:1480px;}
+#fundsTab #fundSummaryTable th:nth-child(1),
+#fundsTab #fundSummaryTable td:nth-child(1),
+#fundsTab #fundSummaryTable th:nth-child(6),
+#fundsTab #fundSummaryTable td:nth-child(6),
+#fundsTab #fundSummaryTable th:nth-child(8),
+#fundsTab #fundSummaryTable td:nth-child(8){text-align:center;}
+#fundsTab #fundSummaryTable th:nth-child(5),
+#fundsTab #fundSummaryTable td:nth-child(5),
+#fundsTab #fundSummaryTable th:nth-child(7),
+#fundsTab #fundSummaryTable td:nth-child(7),
+#fundsTab #fundSummaryTable th:nth-child(9),
+#fundsTab #fundSummaryTable td:nth-child(9),
+#fundsTab #fundSummaryTable th:nth-child(10),
+#fundsTab #fundSummaryTable td:nth-child(10){text-align:right;font-variant-numeric:tabular-nums;}
+#fundsTab .fund-summary-negative{color:#b91c1c;font-weight:800;}
+#fundsTab .fund-summary-sort{border:0;background:transparent;color:inherit;padding:0;font:inherit;font-weight:800;cursor:pointer;box-shadow:none;text-align:inherit;white-space:normal;}
+#fundsTab .fund-summary-sort.active{text-decoration:underline;text-underline-offset:3px;}
+.fund-summary-pagination{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:10px;}
+.fund-summary-pagination button{min-width:104px;}
+#fundSummaryDetailModal .fund-summary-detail-card{width:min(1320px,97vw);max-height:94vh;display:flex;flex-direction:column;overflow:hidden;}
+#fundSummaryDetailModal .fund-summary-detail-body{padding:14px 18px 18px;overflow:auto;background:#f8fbff;}
+#fundSummaryDetailModal .fund-summary-detail-kpis{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:8px;margin:0 0 10px;}
+#fundSummaryDetailModal .fund-summary-detail-scroll{max-height:58vh;border:1px solid #dbe7f6;border-radius:12px;overflow:auto;}
+#fundSummaryDetailModal table{min-width:1200px;}
+#fundSummaryDetailModal th:nth-child(6),#fundSummaryDetailModal td:nth-child(6),
+#fundSummaryDetailModal th:nth-child(7),#fundSummaryDetailModal td:nth-child(7){text-align:right;font-variant-numeric:tabular-nums;}
+@media(max-width:1280px){
+  #fundsTab .fund-summary-filter-grid{grid-template-columns:repeat(3,minmax(160px,1fr));}
+  #fundsTab .fund-summary-kpis{grid-template-columns:repeat(4,minmax(140px,1fr));}
+}
+@media(max-width:760px){
+  #fundsTab .fund-summary-filter-grid{grid-template-columns:1fr;}
+  #fundsTab .fund-summary-person-field{grid-column:auto;}
+  #fundsTab .fund-summary-actions{grid-column:auto;display:grid;grid-template-columns:1fr;}
+  #fundsTab .fund-summary-actions button{width:100%;}
+  #fundsTab .fund-summary-kpis,#fundSummaryDetailModal .fund-summary-detail-kpis{grid-template-columns:1fr 1fr;}
+  .fund-summary-pagination{justify-content:space-between;flex-wrap:wrap;}
+}
+@media(max-width:460px){
+  #fundsTab .fund-summary-kpis,#fundSummaryDetailModal .fund-summary-detail-kpis{grid-template-columns:1fr;}
+}

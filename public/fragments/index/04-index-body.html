@@ -232,6 +232,7 @@
 
           <div class="fund-tab-nav" role="tablist" aria-label="Quỹ tiền">
             <button type="button" class="fund-tab-button active" data-fund-tab="fundLedger" role="tab" aria-selected="true">Sổ quỹ</button>
+            <button type="button" class="fund-tab-button" data-fund-tab="fundSummaryBook" role="tab" aria-selected="false">Sổ quỹ tổng hợp</button>
             <button type="button" class="fund-tab-button" data-fund-tab="deliverySubmission" role="tab" aria-selected="false">Nộp quỹ giao hàng</button>
             <button type="button" class="fund-tab-button" data-fund-tab="expenseVoucher" role="tab" aria-selected="false">Phiếu chi</button>
             <button type="button" class="fund-tab-button" data-fund-tab="bankTransfer" role="tab" aria-selected="false">Nộp ngân hàng</button>
@@ -287,6 +288,99 @@
                 <thead><tr><th>Ngày</th><th>Mã phiếu</th><th>Quỹ</th><th>Thu</th><th>Chi</th><th>Tồn sau GD</th><th>Nguồn</th><th>Đối tượng</th><th>Ghi chú</th></tr></thead>
                 <tbody id="fundLedgerTable"><tr><td colspan="9">Đang tải sổ quỹ...</td></tr></tbody>
               </table>
+            </div>
+          </div>
+
+          <div class="fund-tab-panel fund-summary-book" data-fund-panel="fundSummaryBook">
+            <div class="ui-list-toolbar fund-summary-toolbar">
+              <div class="ui-search-filter-bar fund-summary-filter-grid" role="search" aria-label="Lọc Sổ quỹ tổng hợp">
+                <label class="ui-toolbar-field ui-field-date">
+                  <span>Từ ngày</span>
+                  <input id="fundSummaryDateFrom" type="date" />
+                </label>
+                <label class="ui-toolbar-field ui-field-date">
+                  <span>Đến ngày</span>
+                  <input id="fundSummaryDateTo" type="date" />
+                </label>
+                <label class="ui-toolbar-field ui-field-search fund-summary-person-field">
+                  <span>Người nộp hoặc nhận</span>
+                  <input id="fundSummaryPersonSearch" type="search" placeholder="Mã hoặc tên người" autocomplete="off" />
+                </label>
+                <label class="ui-toolbar-field">
+                  <span>Vai trò</span>
+                  <select id="fundSummaryRoleFilter">
+                    <option value="">Tất cả</option>
+                    <option value="nvbh">NVBH</option>
+                    <option value="nvgh">NVGH</option>
+                    <option value="accountant">Kế toán</option>
+                    <option value="cashier">Thủ quỹ</option>
+                    <option value="supplier">Nhà cung cấp</option>
+                    <option value="customer">Khách hàng</option>
+                    <option value="other">Khác</option>
+                    <option value="unknown">Chưa xác định</option>
+                  </select>
+                </label>
+                <label class="ui-toolbar-field">
+                  <span>Loại giao dịch</span>
+                  <select id="fundSummaryTransactionFilter">
+                    <option value="all">Tất cả</option>
+                    <option value="deposit">Nộp tiền</option>
+                    <option value="expense">Chi tiền</option>
+                    <option value="transfer">Chuyển quỹ nội bộ</option>
+                  </select>
+                </label>
+                <label class="ui-toolbar-field">
+                  <span>Quỹ</span>
+                  <select id="fundSummaryFundFilter">
+                    <option value="">Tất cả</option>
+                    <option value="cash">Tiền mặt</option>
+                    <option value="bank">Ngân hàng</option>
+                  </select>
+                </label>
+                <div class="ui-toolbar-actions fund-summary-actions">
+                  <button id="applyFundSummaryFiltersButton" class="ui-action-primary" type="button">Tìm kiếm</button>
+                  <button id="resetFundSummaryFiltersButton" class="secondary" type="button">Đặt lại</button>
+                  <button id="exportFundSummaryButton" class="secondary ui-button-ghost" type="button">Xuất Excel</button>
+                </div>
+              </div>
+            </div>
+
+            <p id="fundSummaryBookMessage" class="message fund-summary-message" aria-live="polite"></p>
+            <div class="kpi-row debt-v2-kpis fund-summary-kpis">
+              <div><span>Tổng tiền đã nộp</span><b id="fundSummaryDepositedKpi">0</b></div>
+              <div><span>Tổng tiền đã chi</span><b id="fundSummaryExpenseKpi">0</b></div>
+              <div><span>Chênh lệch thuần</span><b id="fundSummaryNetKpi">0</b></div>
+              <div><span>Số người phát sinh</span><b id="fundSummaryPeopleKpi">0</b></div>
+              <div><span>Số phiếu nộp</span><b id="fundSummaryDepositCountKpi">0</b></div>
+              <div><span>Số phiếu chi</span><b id="fundSummaryExpenseCountKpi">0</b></div>
+              <div><span>Chuyển quỹ nội bộ</span><b id="fundSummaryTransferKpi">0</b></div>
+            </div>
+
+            <div class="table-scroll funds-main-table-scroll fund-summary-table-scroll">
+              <table id="fundSummaryTable">
+                <thead>
+                  <tr>
+                    <th>STT</th>
+                    <th>Mã người</th>
+                    <th>Tên người</th>
+                    <th>Vai trò</th>
+                    <th class="numeric"><button type="button" class="fund-summary-sort" data-sort="depositedAmount">Tổng tiền đã nộp</button></th>
+                    <th class="center"><button type="button" class="fund-summary-sort" data-sort="depositVoucherCount">Số phiếu nộp</button></th>
+                    <th class="numeric"><button type="button" class="fund-summary-sort" data-sort="expenseAmount">Tổng tiền đã nhận</button></th>
+                    <th class="center"><button type="button" class="fund-summary-sort" data-sort="expenseVoucherCount">Số phiếu chi</button></th>
+                    <th class="numeric"><button type="button" class="fund-summary-sort" data-sort="netAmount">Chênh lệch thuần</button></th>
+                    <th class="numeric"><button type="button" class="fund-summary-sort" data-sort="internalTransferAmount">Chuyển quỹ nội bộ</button></th>
+                    <th>Giao dịch gần nhất</th>
+                    <th>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody id="fundSummaryTableBody"><tr><td colspan="12">Chọn bộ lọc để tải Sổ quỹ tổng hợp.</td></tr></tbody>
+              </table>
+            </div>
+            <div class="fund-summary-pagination" aria-label="Phân trang Sổ quỹ tổng hợp">
+              <button id="fundSummaryPrevPage" class="secondary" type="button">Trang trước</button>
+              <span id="fundSummaryPageInfo" class="muted">Trang 1/1</span>
+              <button id="fundSummaryNextPage" class="secondary" type="button">Trang sau</button>
             </div>
           </div>
 

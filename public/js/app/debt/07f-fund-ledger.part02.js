@@ -115,13 +115,14 @@ window.confirmDeliveryShortageRepayment=confirmDeliveryShortageRepayment;functio
 alert("Không tìm thấy dữ liệu phiếu để sửa");return}if(!fundCanEdit(row)){alert("Phiếu đã xác nhận hoặc đã khóa, không được sửa");return}fundResetVoucherForm(type);fundEditing={
 type:type,id:code};if(type==="delivery"){fundFillForm(deliveryCashSubmissionForm,row,["deliveryDate","deliveryStaffCode","submittedCashAmount","submittedBankAmount","note"])
 ;fundSetSubmitLabel(deliveryCashSubmissionForm,"Cập nhật phiếu nộp quỹ")}else if(type==="expense"){
-fundFillForm(expenseVoucherForm,row,["date","fundType","expenseType","amount","receiverName","note"]);fundSetSubmitLabel(expenseVoucherForm,"Cập nhật phiếu chi")
-}else if(type==="transfer"){fundFillForm(fundTransferForm,row,["date","fromFund","toFund","amount","bankName","note"]);fundSetSubmitLabel(fundTransferForm,"Cập nhật chuyển quỹ")}
-openFundVoucherModal(type)}window.editFundVoucher=editFundVoucher;async function confirmFundVoucher(type,code,triggerButton){
-if(type==="delivery")return confirmDeliveryCashSubmission(code,triggerButton);const label=type==="expense"?"phiếu chi":"phiếu chuyển quỹ"
-;const base=type==="expense"?"/api/funds/expenses":"/api/funds/transfers";if(!code)return;if(!confirm(`Xác nhận ${label} ${code} và ghi vào fundLedgers?`))return
-;const actionKey=`confirm:${type}:${code}`;try{const json=await runFundActionRequest(actionKey,triggerButton,async()=>{
-const res=await fetch(`${base}/${encodeURIComponent(code)}/confirm`,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})
-;const payload=await fundReadJsonResponse(res,`Không xác nhận được ${label}`);if(!payload.ok)throw new Error(payload.message||`Không xác nhận được ${label}`)
-;if(type==="expense")await loadExpenseVouchers();else await loadFundTransfers();await loadFundLedger();return payload});alert(json.message||"Đã xác nhận và ghi sổ quỹ")}catch(err){
-alert(err.message||`Không xác nhận được ${label}`)}}window.confirmFundVoucher=confirmFundVoucher;
+fundFillForm(expenseVoucherForm,row,["date","fundType","expenseType","amount","receiverCode","receiverName","receiverRole","note"])
+;fundSetSubmitLabel(expenseVoucherForm,"Cập nhật phiếu chi")}else if(type==="transfer"){fundFillForm(fundTransferForm,row,["date","fromFund","toFund","amount","bankName","note"])
+;fundSetSubmitLabel(fundTransferForm,"Cập nhật chuyển quỹ")}openFundVoucherModal(type)}window.editFundVoucher=editFundVoucher
+;async function confirmFundVoucher(type,code,triggerButton){if(type==="delivery")return confirmDeliveryCashSubmission(code,triggerButton)
+;const label=type==="expense"?"phiếu chi":"phiếu chuyển quỹ";const base=type==="expense"?"/api/funds/expenses":"/api/funds/transfers";if(!code)return
+;if(!confirm(`Xác nhận ${label} ${code} và ghi vào fundLedgers?`))return;const actionKey=`confirm:${type}:${code}`;try{
+const json=await runFundActionRequest(actionKey,triggerButton,async()=>{const res=await fetch(`${base}/${encodeURIComponent(code)}/confirm`,{method:"POST",headers:{
+"Content-Type":"application/json"},body:"{}"});const payload=await fundReadJsonResponse(res,`Không xác nhận được ${label}`)
+;if(!payload.ok)throw new Error(payload.message||`Không xác nhận được ${label}`);if(type==="expense")await loadExpenseVouchers();else await loadFundTransfers()
+;await loadFundLedger();return payload});alert(json.message||"Đã xác nhận và ghi sổ quỹ")}catch(err){alert(err.message||`Không xác nhận được ${label}`)}}
+window.confirmFundVoucher=confirmFundVoucher;

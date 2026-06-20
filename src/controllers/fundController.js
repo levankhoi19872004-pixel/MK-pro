@@ -1,6 +1,7 @@
 'use strict';
 
 const fundService = require('../services/fundService');
+const fundSummaryService = require('../services/fundSummary.service');
 const DeliverySettlementService = require('../domain/settlement/DeliverySettlementService');
 
 function sendResult(res, result, successMessage = 'OK', statusCode = 200) {
@@ -66,6 +67,52 @@ function actorCode(req) {
   return String(
     req.user?.staffCode || req.user?.code || req.user?.username || req.user?.name || req.user?.fullName || ''
   ).trim();
+}
+
+function summaryContext(req) {
+  return { tenantId: req.tenantId, actor: req.user || {} };
+}
+
+function sendSummaryError(res, error, fallbackMessage) {
+  const status = Number(error?.status || 500);
+  return res.status(status).json({
+    ok: false,
+    success: false,
+    code: error?.code || (status >= 500 ? 'FUND_SUMMARY_ERROR' : 'INVALID_REQUEST'),
+    message: status >= 500 ? fallbackMessage : (error?.message || fallbackMessage),
+    error: process.env.NODE_ENV === 'production' || status < 500 ? undefined : error?.message
+  });
+}
+
+async function getSummary(req, res) {
+  try {
+    return res.json(await fundSummaryService.getFundSummary(req.query || {}, summaryContext(req)));
+  } catch (error) {
+    return sendSummaryError(res, error, 'Không tải được Sổ quỹ tổng hợp');
+  }
+}
+
+async function getSummaryTransactions(req, res) {
+  try {
+    return res.json(await fundSummaryService.getFundSummaryTransactions(
+      req.params.personKey,
+      req.query || {},
+      summaryContext(req)
+    ));
+  } catch (error) {
+    return sendSummaryError(res, error, 'Không tải được chi tiết Sổ quỹ tổng hợp');
+  }
+}
+
+async function exportSummary(req, res) {
+  try {
+    const result = await fundSummaryService.exportFundSummary(req.query || {}, summaryContext(req));
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(result.fileName)}`);
+    return res.send(result.buffer);
+  } catch (error) {
+    return sendSummaryError(res, error, 'Không xuất được Excel Sổ quỹ tổng hợp');
+  }
 }
 
 async function confirmDeliverySubmission(req, res) {
@@ -155,4 +202,4 @@ async function confirmTransfer(req, res) {
   catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không xác nhận được phiếu chuyển quỹ' }); }
 }
 
-module.exports = { listLedger, listDeliverySubmissions, deliveryCashInTransit, listExpenses, listTransfers, previewDeliverySubmission, createDeliverySubmission, updateDeliverySubmission, confirmDeliverySubmission, classifyDeliveryShortages, getDeliveryShortageHistory, createDeliveryShortageRepayment, confirmDeliveryShortageRepayment, createExpense, updateExpense, confirmExpense, createTransfer, updateTransfer, confirmTransfer };
+module.exports = { listLedger, getSummary, getSummaryTransactions, exportSummary, listDeliverySubmissions, deliveryCashInTransit, listExpenses, listTransfers, previewDeliverySubmission, createDeliverySubmission, updateDeliverySubmission, confirmDeliverySubmission, classifyDeliveryShortages, getDeliveryShortageHistory, createDeliveryShortageRepayment, confirmDeliveryShortageRepayment, createExpense, updateExpense, confirmExpense, createTransfer, updateTransfer, confirmTransfer };

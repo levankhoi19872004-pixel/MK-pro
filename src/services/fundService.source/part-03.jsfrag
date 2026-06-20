@@ -1,4 +1,4 @@
-    ledger = await postFundLedger({ date: updated.date, fundType: updated.fundType, direction: 'out', amount, sourceType: 'EXPENSE_VOUCHER', sourceId: updated.id, sourceCode: updated.code, referenceType: 'EXPENSE_VOUCHER', referenceId: updated.id, referenceCode: updated.code, note: updated.note || `Phiếu chi ${updated.code}` }, { session });
+    ledger = await postFundLedger({ date: updated.date, fundType: updated.fundType, direction: 'out', amount, sourceType: 'EXPENSE_VOUCHER', sourceId: updated.id, sourceCode: updated.code, referenceType: 'EXPENSE_VOUCHER', referenceId: updated.id, referenceCode: updated.code, receiverCode: updated.receiverCode, receiverName: updated.receiverName, receiverRole: updated.receiverRole, note: updated.note || `Phiếu chi ${updated.code}` }, { session });
     await expenseVoucherRepository.upsert(updated, { session });
   });
   return { voucher: updated, ledger, message: 'Đã xác nhận phiếu chi và ghi fundLedgers' };

@@ -109,7 +109,7 @@ async function listExpenseVouchers(query = {}) {
   if (query.fundType && query.fundType !== 'all') filter.fundType = String(query.fundType);
   let rows = await expenseVoucherRepository.findAll(filter, { sort: { date: -1, createdAt: -1, code: -1 }, limit: query.limit || 500 });
   const q = normalizeText(query.q || query.search || '');
-  if (q) rows = rows.filter((row) => [row.code, row.expenseType, row.receiverName, row.note, row.status].some((value) => normalizeText(value).includes(q)));
+  if (q) rows = rows.filter((row) => [row.code, row.expenseType, row.receiverCode, row.receiverName, row.receiverRole, row.note, row.status].some((value) => normalizeText(value).includes(q)));
   return { vouchers: rows };
 }
 
@@ -419,7 +419,9 @@ async function createExpenseVoucher(body = {}) {
     fundType: String(body.fundType || 'cash').toLowerCase() === 'bank' ? 'bank' : 'cash',
     amount,
     expenseType: String(body.expenseType || 'other').trim(),
+    receiverCode: String(body.receiverCode || '').trim(),
     receiverName: String(body.receiverName || '').trim(),
+    receiverRole: String(body.receiverRole || '').trim(),
     note: String(body.note || '').trim(),
     status: 'pending',
     fundPosted: false,
@@ -443,7 +445,9 @@ async function updateExpenseVoucher(idOrCode, body = {}) {
     fundType: String(body.fundType || current.fundType || 'cash').toLowerCase() === 'bank' ? 'bank' : 'cash',
     amount,
     expenseType: String(body.expenseType ?? current.expenseType ?? 'other').trim(),
+    receiverCode: String(body.receiverCode ?? current.receiverCode ?? '').trim(),
     receiverName: String(body.receiverName ?? current.receiverName ?? '').trim(),
+    receiverRole: String(body.receiverRole ?? current.receiverRole ?? '').trim(),
     note: String(body.note ?? current.note ?? '').trim(),
     status: 'pending',
     updatedAt: dateUtil.nowIso()

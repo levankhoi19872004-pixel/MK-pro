@@ -316,7 +316,7 @@ function editFundVoucher(type,code){
     fundFillForm(deliveryCashSubmissionForm,row,['deliveryDate','deliveryStaffCode','submittedCashAmount','submittedBankAmount','note']);
     fundSetSubmitLabel(deliveryCashSubmissionForm,'Cập nhật phiếu nộp quỹ');
   }else if(type==='expense'){
-    fundFillForm(expenseVoucherForm,row,['date','fundType','expenseType','amount','receiverName','note']);
+    fundFillForm(expenseVoucherForm,row,['date','fundType','expenseType','amount','receiverCode','receiverName','receiverRole','note']);
     fundSetSubmitLabel(expenseVoucherForm,'Cập nhật phiếu chi');
   }else if(type==='transfer'){
     fundFillForm(fundTransferForm,row,['date','fromFund','toFund','amount','bankName','note']);

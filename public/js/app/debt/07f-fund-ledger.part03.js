@@ -12,10 +12,11 @@ async function submitExpenseVoucher(event){event.preventDefault();const payload=
 ;if(!json.ok)throw new Error(json.message||"Không lưu được chuyển quỹ");fundTransferForm.reset();if(fundTransferForm.elements.date)fundTransferForm.elements.date.value=today()
 ;fundResetEditing("transfer");showMessage(fundTransferMessage,json.message||"Đã lưu chuyển quỹ");await loadFundTransfers();await loadFundLedger();closeFundVoucherModal("transfer")
 }catch(err){showMessage(fundTransferMessage,err.message,true)}}function reloadActiveFundTab(){if(activeFundTab==="fundLedger")return loadFundLedger()
-;if(activeFundTab==="deliverySubmission")return loadDeliveryCashSubmissions();if(activeFundTab==="expenseVoucher")return loadExpenseVouchers()
-;if(activeFundTab==="bankTransfer")return loadFundTransfers();return Promise.resolve()}function resetFundFilters(){if(fundSearchInput)fundSearchInput.value=""
-;if(fundDateFrom)fundDateFrom.value="";if(fundDateTo)fundDateTo.value="";if(fundTypeFilter)fundTypeFilter.value="all";if(fundDirectionFilter)fundDirectionFilter.value="all"
-;return reloadActiveFundTab()}if(fundTabButtons)fundTabButtons.forEach(btn=>btn.addEventListener("click",()=>setActiveFundTab(btn.dataset.fundTab)))
+;if(activeFundTab==="fundSummaryBook"&&window.FundSummaryBook)return window.FundSummaryBook.load();if(activeFundTab==="deliverySubmission")return loadDeliveryCashSubmissions()
+;if(activeFundTab==="expenseVoucher")return loadExpenseVouchers();if(activeFundTab==="bankTransfer")return loadFundTransfers();return Promise.resolve()}function resetFundFilters(){
+if(fundSearchInput)fundSearchInput.value="";if(fundDateFrom)fundDateFrom.value="";if(fundDateTo)fundDateTo.value="";if(fundTypeFilter)fundTypeFilter.value="all"
+;if(fundDirectionFilter)fundDirectionFilter.value="all";return reloadActiveFundTab()}
+if(fundTabButtons)fundTabButtons.forEach(btn=>btn.addEventListener("click",()=>setActiveFundTab(btn.dataset.fundTab)))
 ;if(deliverySubmissionTabButtons)deliverySubmissionTabButtons.forEach(btn=>btn.addEventListener("click",()=>setActiveDeliverySubmissionTab(btn.dataset.deliverySubtab)))
 ;bindFundVoucherModal("delivery",createDeliveryCashSubmissionButton,closeDeliveryCashSubmissionModalButton)
 ;bindFundVoucherModal("expense",createExpenseVoucherButton,closeExpenseVoucherModalButton);bindFundVoucherModal("transfer",createFundTransferButton,closeFundTransferModalButton)

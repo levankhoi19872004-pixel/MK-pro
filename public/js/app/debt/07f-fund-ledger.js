@@ -126,6 +126,7 @@ if(deliveryCashPreviewTimer)clearTimeout(deliveryCashPreviewTimer);if(immediate)
 ;deliveryCashPreviewTimer=setTimeout(()=>{deliveryCashPreviewTimer=null;loadDeliveryCashSubmissionPreview({syncSubmitted:syncSubmitted})},350)}function setActiveFundTab(tab){
 activeFundTab=tab||"fundLedger";if(fundTabButtons)fundTabButtons.forEach(btn=>{const active=btn.dataset.fundTab===activeFundTab;btn.classList.toggle("active",active)
 ;btn.setAttribute("aria-selected",active?"true":"false")});if(fundTabPanels)fundTabPanels.forEach(panel=>panel.classList.toggle("active",panel.dataset.fundPanel===activeFundTab))
+;const commonToolbar=fundToolbarGrid&&fundToolbarGrid.closest(".fund-module-toolbar");if(commonToolbar)commonToolbar.hidden=activeFundTab==="fundSummaryBook"
 ;const showLedgerFilters=activeFundTab==="fundLedger";if(fundLedgerOnlyFields)fundLedgerOnlyFields.forEach(field=>{field.hidden=!showLedgerFilters})
 ;if(fundToolbarGrid)fundToolbarGrid.classList.toggle("fund-toolbar-compact",!showLedgerFilters);reloadActiveFundTab()}function buildFundLedgerParams(){
 const params=new URLSearchParams;const q=fundSearchInput?fundSearchInput.value.trim():"";if(q)params.set("q",q)

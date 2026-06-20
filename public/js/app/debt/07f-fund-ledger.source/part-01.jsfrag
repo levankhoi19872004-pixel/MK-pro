@@ -379,6 +379,8 @@ function setActiveFundTab(tab){
     btn.setAttribute('aria-selected',active?'true':'false');
   });
   if(fundTabPanels)fundTabPanels.forEach(panel=>panel.classList.toggle('active',panel.dataset.fundPanel===activeFundTab));
+  const commonToolbar=fundToolbarGrid&&fundToolbarGrid.closest('.fund-module-toolbar');
+  if(commonToolbar)commonToolbar.hidden=activeFundTab==='fundSummaryBook';
   const showLedgerFilters=activeFundTab==='fundLedger';
   if(fundLedgerOnlyFields)fundLedgerOnlyFields.forEach(field=>{field.hidden=!showLedgerFilters;});
   if(fundToolbarGrid)fundToolbarGrid.classList.toggle('fund-toolbar-compact',!showLedgerFilters);

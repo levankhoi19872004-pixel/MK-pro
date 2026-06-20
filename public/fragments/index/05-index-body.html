@@ -144,11 +144,45 @@
                   <label>Quỹ chi<select name="fundType"><option value="cash">Tiền mặt</option><option value="bank">Ngân hàng</option></select></label>
                   <label>Loại chi<input name="expenseType" placeholder="xang_xe / boc_vac / khac" /></label>
                   <label>Số tiền<input name="amount" type="number" min="0" step="1" /></label>
+                  <label>Mã người nhận<input name="receiverCode" placeholder="Mã NV/NCC/KH nếu có" /></label>
                   <label>Người nhận<input name="receiverName" /></label>
+                  <label>Vai trò người nhận<select name="receiverRole"><option value="other">Khác</option><option value="sales">NVBH</option><option value="delivery">NVGH</option><option value="accountant">Kế toán</option><option value="cashier">Thủ quỹ</option><option value="supplier">Nhà cung cấp</option><option value="customer">Khách hàng</option></select></label>
                   <label>Ghi chú<input name="note" /></label>
                   <div class="form-actions full-span"><button type="submit">Ghi phiếu chi</button></div>
                   <p id="expenseVoucherMessage" class="message full-span"></p>
                 </form>
+              </div>
+            </section>
+          </div>
+
+          <div id="fundSummaryDetailModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-summary-detail-card" role="dialog" aria-modal="true" aria-labelledby="fundSummaryDetailTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="fundSummaryDetailTitle">Chi tiết Sổ quỹ tổng hợp</h3>
+                  <p id="fundSummaryDetailSubtitle" class="muted">Các chứng từ cấu thành số tổng hợp.</p>
+                </div>
+                <button id="closeFundSummaryDetailModal" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-summary-detail-body">
+                <div class="kpi-row debt-v2-kpis fund-summary-detail-kpis">
+                  <div><span>Đã nộp</span><b id="fundSummaryDetailDeposited">0</b></div>
+                  <div><span>Đã nhận</span><b id="fundSummaryDetailExpense">0</b></div>
+                  <div><span>Chênh lệch</span><b id="fundSummaryDetailNet">0</b></div>
+                  <div><span>Chuyển quỹ</span><b id="fundSummaryDetailTransfer">0</b></div>
+                </div>
+                <p id="fundSummaryDetailMessage" class="message" aria-live="polite"></p>
+                <div class="table-scroll fund-summary-detail-scroll">
+                  <table>
+                    <thead><tr><th>Ngày giờ</th><th>Mã chứng từ</th><th>Loại giao dịch</th><th>Quỹ</th><th>Nội dung</th><th>Số tiền nộp</th><th>Số tiền chi</th><th>Người tạo</th><th>Trạng thái</th></tr></thead>
+                    <tbody id="fundSummaryDetailTable"><tr><td colspan="9">Chưa chọn người cần xem.</td></tr></tbody>
+                  </table>
+                </div>
+                <div class="fund-summary-pagination">
+                  <button id="fundSummaryDetailPrevPage" class="secondary" type="button">Trang trước</button>
+                  <span id="fundSummaryDetailPageInfo" class="muted">Trang 1/1</span>
+                  <button id="fundSummaryDetailNextPage" class="secondary" type="button">Trang sau</button>
+                </div>
               </div>
             </section>
           </div>

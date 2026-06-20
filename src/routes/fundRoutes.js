@@ -9,6 +9,9 @@ const viewFund = requireRole(['admin', 'accountant', 'manager']);
 const manageFund = requireRole(['admin', 'accountant']);
 
 router.get('/ledger', viewFund, fundController.listLedger);
+router.get('/summary', viewFund, fundController.getSummary);
+router.get('/summary/export', viewFund, fundController.exportSummary);
+router.get('/summary/:personKey/transactions', viewFund, fundController.getSummaryTransactions);
 router.get(
   '/delivery-cash-in-transit',
   requireRole(['admin', 'accountant', 'manager']),
