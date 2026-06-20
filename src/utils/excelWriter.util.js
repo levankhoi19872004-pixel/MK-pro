@@ -47,6 +47,27 @@ function createWorkbook() {
   return { sheets: [] };
 }
 
+function excelDate(value, numberFormat = 'dd/mm/yyyy') {
+  return { __excelCell: true, type: 'date', value, numberFormat };
+}
+
+function excelText(value) {
+  return { __excelCell: true, type: 'text', value: value ?? '' };
+}
+
+function excelDateSerial(value) {
+  const text = String(value ?? '').trim().slice(0, 10);
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return NaN;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const utc = Date.UTC(year, month - 1, day);
+  const date = new Date(utc);
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return NaN;
+  return utc / 86400000 + 25569;
+}
+
 function appendAoaSheet(workbook, name, rows, options = {}) {
   if (!workbook || !Array.isArray(workbook.sheets)) throw new Error('Workbook không hợp lệ');
   const safeRows = normalizeRows(rows);
@@ -70,6 +91,17 @@ function sheetXml(sheet) {
     const cells = row.map((value, c) => {
       const ref = cellRef(r, c);
       if (value === null || value === undefined || value === '') return '';
+      if (value && typeof value === 'object' && value.__excelCell === true) {
+        if (value.type === 'date') {
+          const serial = excelDateSerial(value.value);
+          if (!Number.isFinite(serial)) return '';
+          return `<c r="${ref}" s="1"><v>${serial}</v></c>`;
+        }
+        if (value.type === 'text') {
+          if (value.value === null || value.value === undefined || value.value === '') return '';
+          return `<c r="${ref}" t="inlineStr"><is><t>${escapeXml(value.value)}</t></is></c>`;
+        }
+      }
       if (typeof value === 'number' && Number.isFinite(value)) return `<c r="${ref}"><v>${value}</v></c>`;
       if (typeof value === 'boolean') return `<c r="${ref}" t="b"><v>${value ? 1 : 0}</v></c>`;
       return `<c r="${ref}" t="inlineStr"><is><t>${escapeXml(value)}</t></is></c>`;
@@ -100,7 +132,7 @@ function rootRelsXml() {
 }
 
 function stylesXml() {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs></styleSheet>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/></numFmts><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>`;
 }
 
 const CRC_TABLE = (() => {
@@ -173,4 +205,4 @@ function writeWorkbook(workbook) {
   return zipFiles(files);
 }
 
-module.exports = { createWorkbook, appendAoaSheet, writeWorkbook };
+module.exports = { createWorkbook, appendAoaSheet, writeWorkbook, excelDate, excelText, excelDateSerial };

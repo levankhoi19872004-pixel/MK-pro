@@ -429,11 +429,24 @@ async function buildCustomTemplateFile(id) {
 }
 
 function getExportTypes() {
-  return [...new Set([...exportRepository.getExportTypes(), 'vatInvoiceTT78', 'vat-non-invoice-orders', ...BUSINESS_REPORT_TYPES])].sort();
+  return [...new Set([...exportRepository.getExportTypes(), 'invoice-orders', 'vatInvoiceTT78', 'vat-non-invoice-orders', 'sse-invoice-orders', 'sse-invoice-errors', ...BUSINESS_REPORT_TYPES])].sort();
 }
 
-async function exportToExcel(type, query = {}) {
+async function exportToExcel(type, query = {}, currentUser = {}) {
   const normalizedType = String(type || '').trim();
+  if (['sse-invoice-orders', 'sseInvoiceOrders'].includes(normalizedType)) {
+    return sseInvoiceExportService.buildSseInvoiceWorkbook(query, currentUser);
+  }
+  if (['sse-invoice-errors', 'sseInvoiceErrors'].includes(normalizedType)) {
+    return sseInvoiceExportService.buildSseErrorReportWorkbook(query, currentUser);
+  }
+  if (['invoice-orders', 'invoiceOrders'].includes(normalizedType)) {
+    const invoiceType = normalizeInvoiceType(query.invoiceType);
+    if (!invoiceType) return { error: 'invoiceType chỉ nhận VAT hoặc NON_VAT', status: 400 };
+    return invoiceType === INVOICE_TYPES.VAT
+      ? buildVatInvoiceTT78Workbook(query)
+      : buildVatNonInvoiceOrdersWorkbook(query);
+  }
   if (['vatInvoiceTT78', 'vat-invoice-tt78', 'hoa-don-vat-tt78'].includes(normalizedType)) {
     return buildVatInvoiceTT78Workbook(query);
   }

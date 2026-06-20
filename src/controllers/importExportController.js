@@ -16,7 +16,7 @@ function normalizeUploadedFiles(req) {
 }
 
 function sendWorkbook(res, result) {
-  if (result?.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
+  if (result?.error) return res.status(result.status || 400).json({ ok: false, message: result.error, code: result.code, errors: result.errors, totalErrors: result.totalErrors, errorReportUrl: result.errorReportUrl });
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(result.fileName || 'export.xlsx')}"`);
   return res.send(result.buffer);
@@ -220,7 +220,7 @@ async function exportTypes(req, res) {
 
 async function exportExcel(req, res) {
   try {
-    sendWorkbook(res, await importExportService.exportToExcel(req.params.type, req.query || {}));
+    sendWorkbook(res, await importExportService.exportToExcel(req.params.type, req.query || {}, req.user || {}));
   } catch (err) {
     res.status(500).json({ ok: false, message: 'Không export được dữ liệu', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }

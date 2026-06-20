@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "sheetName": "TỔNG",
+  "invoiceType": "3",
+  "invoiceSymbol": "01_010824",
+  "warehouseCode": "TP0101",
+  "currencyCode": "Vnd",
+  "exchangeRate": 1,
+  "taxCode": "00",
+  "debitAccount": "13111",
+  "revenueAccount": "51111",
+  "cogsAccount": "63211",
+  "outputTaxAccount": "333111",
+  "discountAccount": "13121",
+  "defaultSalesmanCode": "BANBUON",
+  "vatRate": 0.08,
+  "allowCanonicalCustomerCodeFallback": true,
+  "allowCanonicalProductCodeFallback": true,
+  "maxOrders": 20000,
+  "maxRows": 100000
+}

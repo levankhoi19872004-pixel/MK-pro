@@ -10,6 +10,13 @@ const ReturnOrder = require('../models/ReturnOrder');
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
 const ProductExcelEnrichmentService = require('./excel/ProductExcelEnrichmentService');
+const {
+  INVOICE_TYPES,
+  normalizeInvoiceType,
+  resolveInvoiceType,
+  isActiveInvoiceOrder,
+  buildInvoiceOrderFilter
+} = require('./invoiceExportClassifier');
 const models = require('../models');
 const reportService = require('./reportService');
 const {
@@ -19,6 +26,7 @@ const {
   pickDeliveryStaffName
 } = require('../domain/staff/staffIdentity');
 const { normalizePickingZone, pickingZoneFrom, pickingZoneLabel, PICKING_ZONES } = require('../utils/pickingZone.util');
+const sseInvoiceExportService = require('./sseInvoiceExport.service');
 
 function stripMongoFields(row = {}) {
   const plain = { ...row };
@@ -131,8 +139,7 @@ function dateInRange(value, query = {}) {
 }
 
 function isActiveDoc(row = {}) {
-  const status = cleanText(row.status || row.deliveryStatus || row.lifecycleStatus).toLowerCase();
-  return !['void', 'cancelled', 'canceled', 'deleted', 'removed'].includes(status);
+  return isActiveInvoiceOrder(row);
 }
 
 function orderIdValues(order = {}) {
@@ -430,7 +437,7 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
 
   const filteredOrders = (orders || [])
     .filter(isActiveDoc)
-    .filter((order) => order.vatInvoiceRequired !== false)
+    .filter((order) => resolveInvoiceType(order) === INVOICE_TYPES.VAT)
     .filter((order) => dateInRange(order.orderDate || order.date || order.documentDate || order.createdAt, query))
     .filter((order) => {
       if (!query.customerCode && !query.customerId) return true;
@@ -578,14 +585,6 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
 async function buildVatInvoiceTT78Workbook(query = {}) {
   const dateFrom = normalizeDateOnly(query.dateFrom || query.from || query.fromDate || '') || '0000-01-01';
   const dateTo = normalizeDateOnly(query.dateTo || query.to || query.toDate || '') || '9999-12-31';
-  const orderFilter = { vatInvoiceRequired: { $ne: false } };
-  if (dateFrom || dateTo) {
-    orderFilter.$or = [
-      { orderDate: { ...(dateFrom ? { $gte: dateFrom } : {}), ...(dateTo ? { $lte: dateTo } : {}) } },
-      { date: { ...(dateFrom ? { $gte: dateFrom } : {}), ...(dateTo ? { $lte: dateTo } : {}) } },
-      { documentDate: { ...(dateFrom ? { $gte: dateFrom } : {}), ...(dateTo ? { $lte: dateTo } : {}) } },
-      { createdAt: { ...(dateFrom ? { $gte: `${dateFrom}T00:00:00.000Z` } : {}), ...(dateTo ? { $lte: `${dateTo}T23:59:59.999Z` } : {}) } }
-    ];
-  }
+  const orderFilter = buildInvoiceOrderFilter(query, INVOICE_TYPES.VAT);
   const [orders, returnOrders, customers, products] = await Promise.all([
     SalesOrder.find(orderFilter).sort({ orderDate: 1, date: 1, code: 1 }).limit(Math.min(Math.max(Number(query.limit || 20000), 1), 100000)).lean(),

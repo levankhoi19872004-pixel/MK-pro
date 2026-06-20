@@ -25,12 +25,16 @@ test('VAT setting uses isolated patch endpoint and does not call stock reverse p
   assert.match(routes, /requireRole\(\['admin', 'accountant'\]\)/);
 });
 
-test('VAT TT78 includes old orders and excludes explicit false orders', () => {
+test('VAT exports use one normalized partition and keep old orders in VAT by default', () => {
   const source = read('src/services/importExportLegacy.service.js');
-  assert.match(source, /order\.vatInvoiceRequired !== false/);
-  assert.match(source, /vatInvoiceRequired:\s*\{\s*\$ne:\s*false\s*\}/);
+  const classifier = read('src/services/invoiceExportClassifier.js');
+  assert.match(source, /resolveInvoiceType\(order\) === INVOICE_TYPES\.VAT/);
+  assert.match(source, /resolveInvoiceType\(order\) === INVOICE_TYPES\.NON_VAT/);
+  assert.match(source, /buildInvoiceOrderFilter/);
   assert.match(source, /buildVatNonInvoiceOrdersWorkbook/);
   assert.match(source, /vat-non-invoice-orders/);
+  assert.match(classifier, /value === null \|\| value === undefined/);
+  assert.match(classifier, /return INVOICE_TYPES\.VAT/);
   const orderService = read('src/services/orderLegacy.service.js');
   assert.match(orderService, /vatInvoiceRequired:\s*1/);
   assert.match(orderService, /vatInvoiceRequired:\s*order\.vatInvoiceRequired !== false/);
