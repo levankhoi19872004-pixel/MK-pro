@@ -57,11 +57,15 @@ test('master return dates no longer auto-load and toolbar actions are guarded', 
 
 test('master return popup keeps its primary action last', () => {
   const html = read('public/fragments/index/03-index-body.html');
-  const start = html.indexOf('<div class="button-row master-return-popup-actions">');
-  const end = html.indexOf('</div>', start);
-  const actions = html.slice(start, end);
-  assert.ok(actions.indexOf('clearMasterReturnSelectionButton') < actions.indexOf('reloadUnmergedReturnOrdersButton'));
-  assert.ok(actions.indexOf('reloadUnmergedReturnOrdersButton') < actions.indexOf('Tạo đơn tổng trả'));
+  const start = html.indexOf('<form id="masterReturnOrderForm"');
+  const end = html.indexOf('</form>', start);
+  const form = html.slice(start, end);
+  const submitIndex = form.indexOf('id="submitMasterReturnOrderButton"');
+  assert.ok(form.indexOf('name="note"') < submitIndex);
+  assert.ok(form.indexOf('name="returnDate"') < submitIndex);
+  assert.ok(form.indexOf('name="deliveryStaffCode"') < submitIndex);
+  assert.ok(form.indexOf('name="deliveryStaffName"') < submitIndex);
+  assert.equal(form.lastIndexOf('<button'), form.lastIndexOf('<button id="submitMasterReturnOrderButton"'));
 });
 
 test('return responsive rules remain scoped to the two return screens', () => {

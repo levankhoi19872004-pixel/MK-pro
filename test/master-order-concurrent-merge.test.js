@@ -18,8 +18,9 @@ test('master sales order atomically claims only unmerged active children', () =>
   assert.match(sales, /CHILD_ORDER_ALREADY_CLAIMED/);
 });
 
-test('master return order deduplicates input and atomically claims unmerged children', () => {
+test('master return order rejects duplicate input and atomically claims unmerged children', () => {
   assert.match(returns, /const returnOrderIds = \[\.\.\.new Set/);
+  assert.match(returns, /Danh sách phiếu trả hàng có ID trùng/);
   assert.match(returns, /MongoStore\.returnOrders\.updateMany/);
   assert.match(returns, /masterReturnOrderId: \{ \$exists: false \}/);
   assert.match(returns, /returnMergeStatus: \{ \$ne: 'merged' \}/);

@@ -256,7 +256,8 @@
       onlyActive: true,
       limit: 20,
       fill: [
-        { targetId: 'masterReturnDeliveryStaff', value: 'businessStaffCode' }
+        { targetId: 'masterReturnDeliveryStaff', value: 'businessStaffCode' },
+        { targetId: 'masterReturnDeliveryStaffName', value: 'businessStaffName' }
       ],
       afterSelect: 'loadUnmergedReturnOrders',
       emptyText: 'Không tìm thấy nhân viên giao hàng'

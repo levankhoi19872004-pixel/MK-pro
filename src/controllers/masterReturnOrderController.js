@@ -41,7 +41,7 @@ async function create(req, res) {
     const result = await masterReturnOrderService.createMasterReturnOrder(req.body || {});
     return handleServiceResult(res, result, 201, (r) => ({ message: `Đã tạo đơn tổng trả hàng ${r.masterReturnOrder.code}`, masterReturnOrder: r.masterReturnOrder }));
   } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không tạo được đơn tổng trả hàng' });
+    res.status(err.status || 400).json({ ok: false, code: err.code || undefined, message: err.message || 'Không tạo được đơn tổng trả hàng' });
   }
 }
 

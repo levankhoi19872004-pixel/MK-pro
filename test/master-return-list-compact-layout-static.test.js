@@ -14,5 +14,5 @@ test('master return list keeps header and rows packed at the top of the scroll a
   assert.match(css, /#masterReturnOrdersTab \.master-return-fixed-list\{[\s\S]*grid-auto-rows:max-content!important;/);
   assert.match(css, /height:min\(620px,calc\(100vh - 300px\)\)!important;/);
   assert.match(css, /min-height:260px!important;/);
-  assert.match(html, /\/css\/70-master-return-orders\.css\?v=phase37-master-return-list-v1/);
+  assert.match(html, /\/css\/70-master-return-orders\.css\?v=phase82-master-return-popup-v1/);
 });

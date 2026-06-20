@@ -38,7 +38,9 @@ async function findManyByIdentityMatches(keys = [], options = {}) {
 
   // Giữ _id chỉ trong identityKeys để batch caller có thể map lại ObjectId;
   // masterOrder vẫn theo contract repository hiện tại và không lộ Mongo fields.
-  let query = collectionRepository.getModel(MASTER_KEY).find({ $or: identityFilters }).lean();
+  let query = collectionRepository.getModel(MASTER_KEY)
+    .find({ $or: identityFilters }, options.projection || undefined)
+    .lean();
   if (options.session) query = query.session(options.session);
   const rows = await query;
   return rows.map((row) => ({

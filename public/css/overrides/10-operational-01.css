@@ -747,3 +747,48 @@
   min-height:60px!important;
   resize:vertical!important;
 }
+/* Return order NVGH column: canonical delivery identity, compact and responsive. */
+#returnOrdersTab .return-order-one-line-wrap th:nth-child(4),
+#returnOrdersTab .return-order-one-line-wrap td.return-order-delivery-cell{
+  min-width:170px!important;
+  max-width:230px!important;
+}
+#returnOrdersTab .return-order-delivery-staff{
+  display:flex!important;
+  align-items:baseline!important;
+  gap:6px!important;
+  min-width:0!important;
+  max-width:100%!important;
+  color:#334155!important;
+}
+#returnOrdersTab .return-order-delivery-code{
+  flex:0 0 auto!important;
+  color:#0f172a!important;
+  font-weight:800!important;
+}
+#returnOrdersTab .return-order-delivery-name{
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+#returnOrdersTab .return-order-delivery-unknown{
+  color:#64748b!important;
+  font-style:italic!important;
+  white-space:nowrap!important;
+}
+@media(max-width:760px){
+  #returnOrdersTab .return-order-one-line-wrap th:nth-child(4),
+  #returnOrdersTab .return-order-one-line-wrap td.return-order-delivery-cell{
+    min-width:150px!important;
+    max-width:190px!important;
+  }
+  #returnOrdersTab .return-order-delivery-staff{
+    display:block!important;
+    line-height:1.25!important;
+  }
+  #returnOrdersTab .return-order-delivery-code,
+  #returnOrdersTab .return-order-delivery-name{
+    display:block!important;
+  }
+}

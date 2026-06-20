@@ -147,55 +147,78 @@
           <div class="modal-header">
             <div>
               <h2 id="masterReturnOrderModalTitle">Tạo đơn tổng trả</h2>
-              <p class="muted">Chọn các phiếu trả hàng chưa gộp rồi tạo đơn tổng trả trong popup.</p>
+              <p class="muted">Chọn các phiếu trả hàng chưa gộp, chuyển sang danh sách gộp rồi tạo đơn tổng trả.</p>
             </div>
             <button id="closeMasterReturnOrderModalButton" type="button" class="secondary">Đóng</button>
           </div>
-          <div class="master-return-popup-layout">
-            <section class="card master-return-popup-info">
-              <form id="masterReturnOrderForm" class="form master-return-popup-form">
-                <label>Ngày trả hàng<input name="returnDate" id="masterReturnDate" type="date" /></label>
-                <label>NV giao hàng<input name="deliveryStaffCode" id="masterReturnDeliveryStaff" placeholder="Mã/tên NVGH" /></label>
-                <label class="master-return-note">Ghi chú<input name="note" placeholder="VD: Kho nhận hàng trả cuối ngày" /></label>
+
+          <div class="master-return-three-layer">
+            <section class="card master-return-layer master-return-layer-info">
+              <div class="toolbar compact-toolbar master-return-info-header">
+                <div>
+                  <h3>1. Thông tin đơn tổng trả</h3>
+                  <p class="muted">Mỗi đơn tổng trả chỉ gộp phiếu của cùng một mã NVGH.</p>
+                </div>
                 <div class="master-selection-summary master-return-popup-summary">
-                  <span>Đã chọn: <strong id="selectedMasterReturnCount">0</strong> phiếu</span>
+                  <span>Đã đưa vào gộp: <strong id="selectedMasterReturnCount">0</strong> phiếu</span>
                   <span>Tổng SL: <strong id="selectedMasterReturnQty">0</strong></span>
                   <span>Tổng giá trị: <strong id="selectedMasterReturnValue">0</strong></span>
-                  <span id="unmergedReturnOrderSummary">Chưa tải phiếu trả hàng chưa gộp.</span>
                 </div>
-                <div class="button-row master-return-popup-actions">
-                  <button type="button" id="clearMasterReturnSelectionButton" class="secondary">Bỏ chọn</button>
-                  <button id="reloadUnmergedReturnOrdersButton" class="secondary" type="button">Tải phiếu</button>
-                  <button type="submit" class="primary">Tạo đơn tổng trả</button>
-                </div>
-              </form>
+              </div>
 
-              <section class="master-return-selected-card">
-                <div class="toolbar compact-toolbar">
-                  <div>
-                    <h3>Phiếu đã chọn</h3>
-                    <p class="muted">Danh sách này giống lớp chọn ở phần Đơn tổng.</p>
+              <form id="masterReturnOrderForm" class="form master-return-form master-return-form-v2">
+                <label class="master-return-note-field">Ghi chú
+                  <input name="note" placeholder="VD: Kho nhận hàng trả cuối ngày" />
+                </label>
+                <label>Ngày tạo đơn tổng trả
+                  <input name="returnDate" id="masterReturnDate" type="date" required />
+                </label>
+                <label>Mã NVGH / lọc phiếu
+                  <div class="autocomplete">
+                    <input name="deliveryStaffCode" id="masterReturnDeliveryStaff" placeholder="VD: GH01" autocomplete="off" required />
+                    <div id="masterReturnDeliveryStaffSuggestions" class="suggestions" hidden></div>
                   </div>
-                </div>
-                <div id="selectedMasterReturnOrderList" class="order-list compact-order-list selected-master-return-list">
-                  <div class="empty-cell">Chưa có phiếu trả hàng nào được chọn để gộp.</div>
-                </div>
-              </section>
+                </label>
+                <label>Tên NVGH
+                  <input name="deliveryStaffName" id="masterReturnDeliveryStaffName" placeholder="Tự động theo mã NVGH" readonly aria-readonly="true" />
+                </label>
+                <button id="submitMasterReturnOrderButton" class="primary master-return-submit-button" type="submit">Tạo đơn tổng trả</button>
+              </form>
+              <p id="masterReturnOrderMessage" class="message"></p>
             </section>
 
-            <section class="card master-return-popup-unmerged">
-              <div class="toolbar master-return-popup-toolbar">
+            <section class="card master-return-layer master-return-layer-unmerged">
+              <div class="toolbar compact-toolbar master-return-popup-toolbar">
                 <div>
-                  <h3>Phiếu trả hàng chưa gộp</h3>
-                  <p class="muted">Lọc theo NV giao ở form bên trái và tìm nhanh theo mã/khách.</p>
+                  <h3>2. Phiếu trả chưa gộp</h3>
+                  <p id="unmergedReturnOrderSummary" class="muted">Đang tải phiếu trả hàng chưa gộp...</p>
                 </div>
-                <button id="selectAllUnmergedReturnOrdersButton" type="button" class="secondary small">Chọn tất cả</button>
+                <div class="button-row">
+                  <button id="reloadUnmergedReturnOrdersButton" class="secondary small" type="button">Tải lại</button>
+                  <button id="selectAllUnmergedReturnOrdersButton" type="button" class="secondary small">Chọn tất cả</button>
+                  <button id="moveToGroupedReturnOrdersButton" type="button" class="primary small">Gộp phiếu đã chọn →</button>
+                </div>
               </div>
-              <div class="master-filter-row master-return-popup-filter-row">
-                <input id="unmergedReturnOrderSearchInput" placeholder="Tìm mã trả hàng, khách, NVGH..." />
-                <button id="reloadUnmergedReturnOrdersInlineButton" class="secondary" type="button">Tải lại</button>
+              <div class="master-return-popup-filter-row" role="search" aria-label="Lọc phiếu trả chưa gộp">
+                <input id="unmergedReturnOrderSearchInput" placeholder="Tìm mã phiếu, khách hàng..." />
+                <input id="unmergedReturnDateFrom" type="date" title="Từ ngày trả" />
+                <input id="unmergedReturnDateTo" type="date" title="Đến ngày trả" />
               </div>
-              <div id="unmergedReturnOrderTable" class="order-list compact-order-list master-return-unmerged-list master-return-popup-list">Đang tải phiếu trả hàng chưa gộp...</div>
+              <p class="master-return-filter-hint">Danh sách được lọc chính xác theo mã NVGH ở khối thông tin phía trên.</p>
+              <div id="unmergedReturnOrderTable" class="order-list compact-order-list master-return-popup-list">Đang tải phiếu trả hàng chưa gộp...</div>
+            </section>
+
+            <section class="card master-return-layer master-return-layer-selected">
+              <div class="toolbar compact-toolbar master-return-popup-toolbar">
+                <div>
+                  <h3>3. Phiếu trả được chọn</h3>
+                  <p class="muted">Chỉ các phiếu ở danh sách này mới được gửi tạo đơn tổng trả.</p>
+                </div>
+                <button id="removeFromGroupedReturnOrdersButton" type="button" class="secondary small">← Bỏ khỏi danh sách gộp</button>
+              </div>
+              <div id="selectedMasterReturnOrderList" class="order-list compact-order-list master-return-popup-list selected-master-return-list">
+                <div class="empty-cell">Chưa có phiếu trả hàng nào được đưa vào danh sách gộp.</div>
+              </div>
             </section>
           </div>
         </div>

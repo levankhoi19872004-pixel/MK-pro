@@ -12,6 +12,11 @@ const ReturnStateMachine = require('../domain/lifecycle/ReturnStateMachine');
 const { RETURN_STATES } = ReturnStateMachine;
 const { pickDeliveryStaffCode, pickDeliveryStaffName } = require('../domain/staff/staffIdentity');
 const MongoStore = require('../models');
+const {
+  pickReturnDeliveryStaffCode,
+  pickReturnDeliveryStaffName,
+  hydrateReturnOrderDeliveryStaff
+} = require('./return-order/ReturnOrderDeliveryStaffHydrator');
 
 
 const INACTIVE_RETURN_STATUSES = new Set([
@@ -68,13 +73,31 @@ function groupableReturnOrderMongoFilter(extra = {}) {
   return {
     ...extra,
     status: { $nin: [...INACTIVE_RETURN_STATUSES] },
-    $or: [
-      { masterReturnOrderId: { $exists: false } },
-      { masterReturnOrderId: null },
-      { masterReturnOrderId: '' },
-      { masterReturnOrderCode: { $exists: false } },
-      { masterReturnOrderCode: null },
-      { masterReturnOrderCode: '' },
+    returnStatus: { $nin: [...NON_GROUPABLE_RETURN_STATUSES] },
+    warehouseReceiveStatus: { $nin: [...NON_GROUPABLE_RETURN_STATUSES] },
+    returnState: {
+      $nin: [
+        RETURN_STATES.RECEIVED,
+        RETURN_STATES.ACCOUNTING_CONFIRMED,
+        RETURN_STATES.POSTED_TO_AR,
+        RETURN_STATES.CANCELLED
+      ]
+    },
+    $and: [
+      {
+        $or: [
+          { masterReturnOrderId: { $exists: false } },
+          { masterReturnOrderId: null },
+          { masterReturnOrderId: '' }
+        ]
+      },
+      {
+        $or: [
+          { masterReturnOrderCode: { $exists: false } },
+          { masterReturnOrderCode: null },
+          { masterReturnOrderCode: '' }
+        ]
+      },
       { returnMergeStatus: { $ne: 'merged' } }
     ]
   };
@@ -113,8 +136,87 @@ function buildMasterReturnCode(existingRows = []) {
   return `DTH${String(max + 1).padStart(5, '0')}`;
 }
 
+
+function normalizeStaffCode(value = '') {
+  return String(value || '').trim().toLocaleLowerCase('vi-VN');
+}
+
+function escapeRegex(value = '') {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function exactCodeRegex(value = '') {
+  return new RegExp(`^${escapeRegex(String(value || '').trim())}$`, 'i');
+}
+
+function appendAndClauses(filter = {}, clauses = []) {
+  const next = { ...filter };
+  next.$and = [...(Array.isArray(filter.$and) ? filter.$and : []), ...clauses.filter(Boolean)];
+  return next;
+}
+
+function returnOrderIdentityClause(row = {}) {
+  const identities = [];
+  const id = String(row.id || '').trim();
+  const code = String(row.code || '').trim();
+  if (id) identities.push({ id });
+  if (code) identities.push({ code });
+  const identityClause = identities.length === 1 ? identities[0] : { $or: identities };
+  if (!String(row.updatedAt || '').trim()) return identityClause;
+  return { $and: [identityClause, { updatedAt: row.updatedAt }] };
+}
+
+function isDuplicateKeyError(error) {
+  return Number(error?.code) === 11000 || /E11000|duplicate key/i.test(String(error?.message || ''));
+}
+
+function unmergedReturnProjection() {
+  return {
+    id: 1,
+    code: 1,
+    customerId: 1,
+    customerCode: 1,
+    customerName: 1,
+    date: 1,
+    documentDate: 1,
+    deliveryDate: 1,
+    returnDate: 1,
+    deliveryStaffId: 1,
+    deliveryStaffCode: 1,
+    deliveryStaffName: 1,
+    deliveryCode: 1,
+    deliveryName: 1,
+    nvghCode: 1,
+    nvghName: 1,
+    salesOrderId: 1,
+    salesOrderCode: 1,
+    orderId: 1,
+    orderCode: 1,
+    sourceOrderId: 1,
+    sourceOrderCode: 1,
+    masterOrderId: 1,
+    masterOrderCode: 1,
+    status: 1,
+    returnStatus: 1,
+    returnState: 1,
+    returnMergeStatus: 1,
+    masterReturnOrderId: 1,
+    masterReturnOrderCode: 1,
+    warehouseStatus: 1,
+    warehouseReceiveStatus: 1,
+    totalQuantity: 1,
+    totalAmount: 1,
+    debtReduction: 1,
+    amount: 1,
+    note: 1,
+    items: 1,
+    createdAt: 1,
+    updatedAt: 1
+  };
+}
+
 async function resolveDeliveryStaff(body = {}) {
-  const value = pickDeliveryStaffCode(body);
+  const value = pickReturnDeliveryStaffCode(body) || pickDeliveryStaffCode(body);
   if (!value) return null;
   return staffRules.resolveDeliveryStaffByCode(value);
 }
@@ -164,22 +266,110 @@ async function getChildren(masterReturnOrder = {}, options = {}) {
   });
 }
 
-async function listUnmergedReturnOrders(query = {}) {
-  const q = normalizeText(query.q);
-  const date = dateUtil.toDateOnly(query.date || query.returnDate);
-  const delivery = normalizeText(query.delivery || query.deliveryStaff);
-  const filter = groupableReturnOrderMongoFilter();
-  if (date) {
-    filter.$and = [{ $or: [{ deliveryDate: date }, { date }, { documentDate: date }, { returnDate: date }] }];
+
+async function getChildrenForMasterRows(masterRows = []) {
+  const rows = Array.isArray(masterRows) ? masterRows : [];
+  const childIds = [...new Set(rows.flatMap((row) => Array.isArray(row.returnOrderIds) ? row.returnOrderIds : [])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean))];
+  if (!childIds.length) return rows.map((row) => toClient(row, []));
+
+  const children = await returnOrderRepository.findAll({
+    $or: [
+      { id: { $in: childIds } },
+      { code: { $in: childIds } }
+    ]
+  }, {
+    sort: { createdAt: 1 },
+    limit: Math.max(childIds.length, 1)
+  });
+  const childByIdentity = new Map();
+  for (const child of children) {
+    for (const identity of [child.id, child.code].map((value) => String(value || '').trim()).filter(Boolean)) {
+      childByIdentity.set(identity, child);
+    }
   }
-  const rows = await returnOrderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, limit: 500 });
-  return rows
+  return rows.map((row) => {
+    const rowChildren = (Array.isArray(row.returnOrderIds) ? row.returnOrderIds : [])
+      .map((identity) => childByIdentity.get(String(identity || '').trim()))
+      .filter(Boolean);
+    return toClient(row, rowChildren);
+  });
+}
+
+async function listUnmergedReturnOrders(query = {}) {
+  const rawQuery = String(query.q || query.keyword || query.search || '').trim();
+  const q = normalizeText(rawQuery);
+  const deliveryCode = String(query.deliveryStaffCode || query.delivery || query.deliveryStaff || '').trim();
+  const dateFrom = dateUtil.toDateOnly(query.dateFrom || query.date || query.returnDate);
+  const dateTo = dateUtil.toDateOnly(query.dateTo || query.date || query.returnDate);
+  const requestedLimit = Math.max(1, Math.min(Number.parseInt(query.limit, 10) || 500, 500));
+  let filter = groupableReturnOrderMongoFilter();
+  const clauses = [];
+
+  if (dateFrom || dateTo) {
+    const range = {};
+    if (dateFrom) range.$gte = dateFrom;
+    if (dateTo) range.$lte = dateTo;
+    clauses.push({
+      $or: [
+        { deliveryDate: range },
+        { returnDate: range },
+        { date: range },
+        { documentDate: range }
+      ]
+    });
+  }
+
+  if (deliveryCode) {
+    const rx = exactCodeRegex(deliveryCode);
+    clauses.push({
+      $or: [
+        { deliveryStaffCode: rx },
+        { deliveryCode: rx },
+        { nvghCode: rx },
+        {
+          $and: [
+            { $or: [{ deliveryStaffCode: { $exists: false } }, { deliveryStaffCode: null }, { deliveryStaffCode: '' }] },
+            { $or: [{ deliveryCode: { $exists: false } }, { deliveryCode: null }, { deliveryCode: '' }] },
+            { $or: [{ nvghCode: { $exists: false } }, { nvghCode: null }, { nvghCode: '' }] }
+          ]
+        }
+      ]
+    });
+  }
+
+  if (rawQuery) {
+    const rx = queryGuard.buildRegex(rawQuery);
+    clauses.push({
+      $or: [
+        { code: rx },
+        { customerCode: rx },
+        { customerName: rx },
+        { salesOrderCode: rx },
+        { orderCode: rx },
+        { note: rx }
+      ]
+    });
+  }
+
+  filter = appendAndClauses(filter, clauses);
+  const rows = await returnOrderRepository.findAll(filter, {
+    sort: { createdAt: -1, code: -1 },
+    limit: requestedLimit,
+    projection: unmergedReturnProjection()
+  });
+  const hydratedRows = await hydrateReturnOrderDeliveryStaff(rows);
+  const deliveryKey = normalizeStaffCode(deliveryCode);
+
+  return hydratedRows
     .filter((row) => !isInactiveStatus(row))
     .filter((row) => isGroupableReturnStatus(row))
-    .filter((row) => hasPositiveReturnItemsOrValue(row))
+    .filter((row) => hasPositiveReturnValue(row))
     .filter((row) => (row.returnMergeStatus || 'unmerged') !== 'merged' && !row.masterReturnOrderId && !row.masterReturnOrderCode)
-    .filter((row) => !delivery || [row.deliveryStaffCode, row.deliveryStaffName, row.shipperCode, row.shipperName].some((value) => normalizeText(value).includes(delivery)))
-    .filter((row) => !q || [row.code, row.customerCode, row.customerName, row.salesOrderCode, row.orderCode, row.note].some((value) => normalizeText(value).includes(q)))
+    .filter((row) => !deliveryKey || normalizeStaffCode(pickReturnDeliveryStaffCode(row)) === deliveryKey)
+    .filter((row) => !q || [row.code, row.customerCode, row.customerName, row.salesOrderCode, row.orderCode, row.note]
+      .some((value) => normalizeText(value).includes(q)))
     .map((row) => ({
       ...row,
       returnDate: dateUtil.toDateOnly(row.deliveryDate || row.returnDate || row.date || row.documentDate || row.createdAt),
@@ -217,13 +407,12 @@ async function listMasterReturnOrders(query = {}) {
     if (clauses.length) filter.$and = clauses;
   }
 
-  const rows = await masterReturnOrderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, skip: page.skip, limit: page.limit });
-  const result = [];
-  for (const row of rows) {
-    const children = await getChildren(row);
-    result.push(toClient(row, children));
-  }
-  return result;
+  const rows = await masterReturnOrderRepository.findAll(filter, {
+    sort: { createdAt: -1, code: -1 },
+    skip: page.skip,
+    limit: page.limit
+  });
+  return getChildrenForMasterRows(rows);
 }
 
 async function getMasterReturnOrder(id) {
@@ -234,18 +423,28 @@ async function getMasterReturnOrder(id) {
 }
 
 async function createMasterReturnOrder(body = {}) {
-  const returnOrderIds = [...new Set((Array.isArray(body.returnOrderIds) ? body.returnOrderIds : [])
+  const rawReturnOrderIds = (Array.isArray(body.returnOrderIds) ? body.returnOrderIds : [])
     .map((value) => String(value || '').trim())
-    .filter(Boolean))];
+    .filter(Boolean);
+  const returnOrderIds = [...new Set(rawReturnOrderIds)];
   if (!returnOrderIds.length) return { error: 'Chưa chọn phiếu trả hàng để gộp', status: 400 };
+  if (returnOrderIds.length !== rawReturnOrderIds.length) {
+    return { error: 'Danh sách phiếu trả hàng có ID trùng', status: 400 };
+  }
 
-  const children = await returnOrderRepository.findAll({
-    ...groupableReturnOrderMongoFilter(),
-    $and: [
-      { $or: [{ id: { $in: returnOrderIds } }, { code: { $in: returnOrderIds } }] }
-    ]
-  }, { limit: Math.max(returnOrderIds.length, 1) });
-  if (children.length !== returnOrderIds.length) return { error: 'Một số phiếu trả hàng không tồn tại', status: 400 };
+  let childFilter = groupableReturnOrderMongoFilter();
+  childFilter = appendAndClauses(childFilter, [
+    { $or: [{ id: { $in: returnOrderIds } }, { code: { $in: returnOrderIds } }] }
+  ]);
+  const rawChildren = await returnOrderRepository.findAll(childFilter, {
+    limit: Math.max(returnOrderIds.length, 1),
+    projection: unmergedReturnProjection()
+  });
+  if (rawChildren.length !== returnOrderIds.length) {
+    return { error: 'Một số phiếu trả hàng không tồn tại, đã bị gộp hoặc không còn đủ điều kiện', status: 409 };
+  }
+
+  const children = await hydrateReturnOrderDeliveryStaff(rawChildren);
   if (children.some((row) => isInactiveStatus(row))) return { error: 'Có phiếu trả hàng đã hủy/xóa', status: 400 };
   if (children.some((row) => !isGroupableReturnStatus(row))) {
     return { error: 'Chỉ được gộp phiếu trả hàng có trạng thái đã phát sinh/chờ kho nhận', status: 400 };
@@ -254,126 +453,176 @@ async function createMasterReturnOrder(body = {}) {
     return { error: 'Không được gộp phiếu trả hàng có giá trị bằng 0', status: 400 };
   }
   if (children.some((row) => row.masterReturnOrderId || row.masterReturnOrderCode || (row.returnMergeStatus || 'unmerged') === 'merged')) {
-    return { error: 'Có phiếu trả hàng đã được gộp trước đó', status: 400 };
+    return { error: 'Có phiếu trả hàng đã được gộp trước đó', status: 409 };
   }
 
-  const existing = await masterReturnOrderRepository.findAll();
-  const deliveryStaff = await resolveDeliveryStaff(body);
-  const first = children[0] || {};
-  const returnDate = dateUtil.toDateOnly(body.returnDate || body.date || first.date || dateUtil.todayVN());
+  const childCodes = children.map((row) => pickReturnDeliveryStaffCode(row));
+  if (childCodes.some((code) => !String(code || '').trim())) {
+    return { error: 'Có phiếu trả hàng chưa xác định mã NVGH, không thể gộp an toàn', status: 400 };
+  }
+  const distinctChildCodes = [...new Set(childCodes.map(normalizeStaffCode))];
+  if (distinctChildCodes.length !== 1) {
+    const incompatibleCodes = [...new Set(childCodes.map((code) => String(code || '').trim()).filter(Boolean))];
+    return { error: `Một đơn tổng trả chỉ được chứa phiếu của cùng một NVGH. Đang có: ${incompatibleCodes.join(', ')}`, status: 400 };
+  }
+
+  const canonicalChild = children[0] || {};
+  const canonicalChildCode = pickReturnDeliveryStaffCode(canonicalChild);
+  const requestedDeliveryCode = pickReturnDeliveryStaffCode(body) || pickDeliveryStaffCode(body);
+  if (requestedDeliveryCode && normalizeStaffCode(requestedDeliveryCode) !== normalizeStaffCode(canonicalChildCode)) {
+    return { error: `NVGH trên form (${requestedDeliveryCode}) không khớp NVGH của phiếu trả (${canonicalChildCode})`, status: 400 };
+  }
+
+  const deliveryStaff = await resolveDeliveryStaff({ deliveryStaffCode: requestedDeliveryCode || canonicalChildCode });
+  if (requestedDeliveryCode && !deliveryStaff) {
+    return { error: `Mã NVGH ${requestedDeliveryCode} không tồn tại trong danh sách tài khoản`, status: 400 };
+  }
+  const deliveryStaffCode = String(
+    pickDeliveryStaffCode(deliveryStaff) ||
+    requestedDeliveryCode ||
+    canonicalChildCode
+  ).trim();
+  const deliveryStaffName = String(
+    pickDeliveryStaffName(deliveryStaff) ||
+    pickReturnDeliveryStaffName(canonicalChild) ||
+    pickReturnDeliveryStaffName(body)
+  ).trim();
+
+  const returnDate = dateUtil.toDateOnly(body.returnDate || body.date || dateUtil.todayVN());
+  if (!returnDate) return { error: 'Thiếu ngày tạo đơn tổng trả', status: 400 };
   const summary = summarizeReturnOrders(children);
-  const masterReturnOrder = {
-    // V46 rule: masterReturnOrders stores header + returnOrderIds only.
-    // Do not copy return order items/children/returnOrders into the master document.
-    id: String(body.id || makeId('MRO')).trim(),
-    code: String(body.code || buildMasterReturnCode(existing)).trim(),
-    date: dateUtil.toDateOnly(body.date || returnDate),
-    returnDate,
-    deliveryStaffId: deliveryStaff?.id || body.deliveryStaffId || first.deliveryStaffId || '',
-    deliveryStaffCode: pickDeliveryStaffCode(deliveryStaff) || pickDeliveryStaffCode(body) || pickDeliveryStaffCode(first),
-    deliveryStaffName: pickDeliveryStaffName(deliveryStaff) || pickDeliveryStaffName(body) || pickDeliveryStaffName(first),
-    returnOrderIds: children.map((row) => row.id || row.code),
-    status: body.status || 'pending',
-    warehouseStatus: body.warehouseStatus || 'pending',
-    warehouseReceiveStatus: body.warehouseReceiveStatus || 'pending',
-    accountingStatus: body.accountingStatus || 'pending',
-    note: String(body.note || '').trim(),
-    source: body.source || 'master_return_order_route',
-    ...summary,
-    createdAt: body.createdAt || dateUtil.nowIso(),
-    updatedAt: dateUtil.nowIso()
-  };
-  delete masterReturnOrder.items;
-  delete masterReturnOrder.children;
-  delete masterReturnOrder.returnOrders;
-  delete masterReturnOrder.returnItems;
+  const claimIdentityClauses = children.map(returnOrderIdentityClause).filter(Boolean);
+  const maxCodeAttempts = 3;
+  let lastDuplicateError = null;
 
-  await withMongoTransaction(async (session) => {
-    const now = dateUtil.nowIso();
-    const claimResult = await MongoStore.returnOrders.updateMany(
-      {
-        $and: [
-          { $or: [{ id: { $in: returnOrderIds } }, { code: { $in: returnOrderIds } }] },
+  for (let attempt = 0; attempt < maxCodeAttempts; attempt += 1) {
+    const existing = await masterReturnOrderRepository.findAll({}, {
+      projection: { code: 1 },
+      sort: { code: -1 },
+      limit: 10000
+    });
+    const masterReturnOrder = {
+      // Header-only aggregate. Product lines remain exclusively on returnOrders.
+      id: makeId('MRO'),
+      code: buildMasterReturnCode(existing),
+      date: dateUtil.toDateOnly(body.date || returnDate),
+      returnDate,
+      deliveryStaffId: deliveryStaff?.id || canonicalChild.deliveryStaffId || '',
+      deliveryStaffCode,
+      deliveryStaffName,
+      returnOrderIds: children.map((row) => row.id || row.code),
+      status: 'pending',
+      warehouseStatus: 'pending',
+      warehouseReceiveStatus: 'pending',
+      accountingStatus: 'pending',
+      note: String(body.note || '').trim(),
+      source: body.source || 'master_return_order_route',
+      ...summary,
+      createdAt: dateUtil.nowIso(),
+      updatedAt: dateUtil.nowIso()
+    };
+
+    try {
+      await withMongoTransaction(async (session) => {
+        const now = dateUtil.nowIso();
+        const baseClaimFilter = groupableReturnOrderMongoFilter();
+        const claimFilter = appendAndClauses(baseClaimFilter, [
+          { $or: claimIdentityClauses }
+        ]);
+        const claimResult = await MongoStore.returnOrders.updateMany(
+          claimFilter,
           {
-            $or: [
-              { masterReturnOrderId: { $exists: false } },
-              { masterReturnOrderId: null },
-              { masterReturnOrderId: '' }
-            ]
-          },
-          { returnMergeStatus: { $ne: 'merged' } },
-          {
-            status: {
-              $nin: [
-                ...INACTIVE_RETURN_STATUSES,
-                'grouped', 'merged', 'received', 'accounting_confirmed', 'posted_to_ar'
-              ]
+            $set: {
+              ...ReturnStateMachine.patchForState({}, RETURN_STATES.WAITING_RECEIVE),
+              masterReturnOrderId: masterReturnOrder.id,
+              masterReturnOrderCode: masterReturnOrder.code,
+              returnMergeStatus: 'merged',
+              warehouseStatus: 'pending',
+              stateChangedAt: now,
+              updatedAt: now
             }
           },
-          {
-            returnState: {
-              $nin: [
-                RETURN_STATES.RECEIVED,
-                RETURN_STATES.ACCOUNTING_CONFIRMED,
-                RETURN_STATES.POSTED_TO_AR,
-                RETURN_STATES.CANCELLED
-              ]
-            }
-          }
-        ]
-      },
-      {
-        $set: {
-          ...ReturnStateMachine.patchForState({}, RETURN_STATES.WAITING_RECEIVE),
-          masterReturnOrderId: masterReturnOrder.id,
-          masterReturnOrderCode: masterReturnOrder.code,
-          returnMergeStatus: 'merged',
-          warehouseStatus: 'pending',
-          deliveryStaffId: masterReturnOrder.deliveryStaffId,
-          deliveryStaffCode: masterReturnOrder.deliveryStaffCode,
-          deliveryStaffName: masterReturnOrder.deliveryStaffName,
-          stateChangedAt: now,
-          updatedAt: now
+          { session }
+        );
+
+        const claimedCount = Number(
+          claimResult.matchedCount ??
+          claimResult.nMatched ??
+          claimResult.result?.nMatched ??
+          claimResult.modifiedCount ??
+          0
+        );
+        if (claimedCount !== children.length) {
+          const error = new Error('Một hoặc nhiều phiếu trả hàng đã thay đổi hoặc được gộp bởi thao tác khác');
+          error.code = 'RETURN_ORDER_ALREADY_CLAIMED';
+          error.status = 409;
+          throw error;
         }
-      },
-      { session }
-    );
 
-    const claimedCount = Number(
-      claimResult.matchedCount ??
-      claimResult.nMatched ??
-      claimResult.result?.nMatched ??
-      claimResult.modifiedCount ??
-      0
-    );
-    if (claimedCount !== children.length) {
-      const error = new Error('Một hoặc nhiều phiếu trả hàng đã được gộp bởi thao tác khác');
-      error.code = 'RETURN_ORDER_ALREADY_CLAIMED';
-      error.status = 409;
-      throw error;
+        await masterReturnOrderRepository.upsert(masterReturnOrder, { session });
+      });
+
+      const updatedChildren = await getChildren(masterReturnOrder);
+      return { masterReturnOrder: toClient(masterReturnOrder, updatedChildren) };
+    } catch (error) {
+      if (!isDuplicateKeyError(error)) throw error;
+      lastDuplicateError = error;
     }
+  }
 
-    await masterReturnOrderRepository.upsert(masterReturnOrder, { session });
-  });
-
-  const updatedChildren = await getChildren(masterReturnOrder);
-  return { masterReturnOrder: toClient(masterReturnOrder, updatedChildren) };
+  const conflict = new Error('Không thể cấp mã đơn tổng trả duy nhất sau nhiều lần thử');
+  conflict.code = 'MASTER_RETURN_CODE_CONFLICT';
+  conflict.status = 409;
+  conflict.cause = lastDuplicateError;
+  throw conflict;
 }
 
 async function updateMasterReturnOrder(id, body = {}) {
   const current = await masterReturnOrderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy đơn tổng trả hàng', status: 404 };
   if (isInactiveStatus(current)) return { error: 'Đơn tổng trả hàng đã hủy/xóa, không thể cập nhật', status: 400 };
-  const children = await getChildren(current);
-  const deliveryStaff = await resolveDeliveryStaff({ ...current, ...body });
+
+  const rawChildren = await getChildren(current);
+  const children = await hydrateReturnOrderDeliveryStaff(rawChildren);
+  const childCodes = [...new Set(children
+    .map((row) => pickReturnDeliveryStaffCode(row))
+    .map((code) => String(code || '').trim())
+    .filter(Boolean))];
+  if (childCodes.length > 1) {
+    return { error: `Đơn tổng trả đang chứa nhiều NVGH (${childCodes.join(', ')}), không được đổi thông tin NVGH`, status: 409 };
+  }
+
+  const requestedCode = pickReturnDeliveryStaffCode(body) || pickDeliveryStaffCode(body);
+  const canonicalChildCode = childCodes[0] || pickReturnDeliveryStaffCode(current);
+  if (requestedCode && canonicalChildCode && normalizeStaffCode(requestedCode) !== normalizeStaffCode(canonicalChildCode)) {
+    return { error: `Không được đổi NVGH của đơn tổng trả khác với NVGH phiếu con (${canonicalChildCode})`, status: 400 };
+  }
+
+  const deliveryStaff = await resolveDeliveryStaff({ deliveryStaffCode: requestedCode || canonicalChildCode });
+  if (requestedCode && !deliveryStaff) {
+    return { error: `Mã NVGH ${requestedCode} không tồn tại trong danh sách tài khoản`, status: 400 };
+  }
+  const updatedDeliveryCode = String(
+    pickDeliveryStaffCode(deliveryStaff) ||
+    requestedCode ||
+    canonicalChildCode ||
+    pickReturnDeliveryStaffCode(current)
+  ).trim();
+  const updatedDeliveryName = String(
+    pickDeliveryStaffName(deliveryStaff) ||
+    pickReturnDeliveryStaffName(children[0] || {}) ||
+    pickReturnDeliveryStaffName(body) ||
+    pickReturnDeliveryStaffName(current)
+  ).trim();
+
   const updated = {
     ...current,
     ...body,
     returnDate: dateUtil.toDateOnly(body.returnDate || body.date || current.returnDate || current.date || dateUtil.todayVN()),
     date: dateUtil.toDateOnly(body.date || current.date || body.returnDate || current.returnDate || dateUtil.todayVN()),
-    deliveryStaffId: deliveryStaff?.id || body.deliveryStaffId || current.deliveryStaffId || '',
-    deliveryStaffCode: pickDeliveryStaffCode(deliveryStaff) || pickDeliveryStaffCode(body) || pickDeliveryStaffCode(current),
-    deliveryStaffName: pickDeliveryStaffName(deliveryStaff) || pickDeliveryStaffName(body) || pickDeliveryStaffName(current),
+    deliveryStaffId: deliveryStaff?.id || current.deliveryStaffId || '',
+    deliveryStaffCode: updatedDeliveryCode,
+    deliveryStaffName: updatedDeliveryName,
     note: String(body.note ?? current.note ?? '').trim(),
     status: String(body.status === 'received' || body.status === 'posted' ? current.status : (body.status || current.status || 'pending')).trim(),
     warehouseStatus: String(body.warehouseStatus || current.warehouseStatus || current.warehouseReceiveStatus || 'pending').trim(),
@@ -382,14 +631,12 @@ async function updateMasterReturnOrder(id, body = {}) {
     ...summarizeReturnOrders(children),
     updatedAt: dateUtil.nowIso()
   };
+
   await withMongoTransaction(async (session) => {
     await masterReturnOrderRepository.upsert(updated, { session });
-    for (const child of children) {
+    for (const child of rawChildren) {
       await returnOrderRepository.upsert({
         ...child,
-        deliveryStaffId: updated.deliveryStaffId,
-        deliveryStaffCode: updated.deliveryStaffCode,
-        deliveryStaffName: updated.deliveryStaffName,
         warehouseStatus: updated.warehouseStatus,
         warehouseReceiveStatus: updated.warehouseReceiveStatus,
         updatedAt: dateUtil.nowIso()

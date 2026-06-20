@@ -16,7 +16,7 @@ test('index loads CSS and JavaScript modules in explicit order', () => {
   const html=read('public/index.html');
   assert.match(html,/\/css\/base\/00-base-01\.css\?v=phase79-source-split-v1/);
   assert.match(html,/\/css\/base\/00-base-06\.css\?v=phase79-source-split-v1/);
-  assert.match(html,/\/css\/overrides\/10-operational-01\.css\?v=phase79-source-split-v1/);
+  assert.match(html,/\/css\/overrides\/10-operational-01\.css\?v=return-order-nvgh-v1/);
   assert.match(html,/\/css\/overrides\/10-operational-04\.css\?v=phase79-source-split-v1/);
   assert.match(html,/\/css\/70-master-return-orders\.css/);
   assert.match(html,/\/js\/app\/state\/00a-catalog-orders-state\.js/);

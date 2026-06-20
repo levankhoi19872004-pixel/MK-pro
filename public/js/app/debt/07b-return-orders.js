@@ -23,6 +23,22 @@ function returnItemAmount(item){
   if(Number.isFinite(direct) && direct) return direct;
   return returnItemQty(item) * returnItemPrice(item);
 }
+function returnOrderDeliveryStaff(order={}){
+  const code=String(order?.deliveryStaffCode||order?.deliveryCode||order?.nvghCode||'').trim();
+  const name=String(order?.deliveryStaffName||order?.deliveryName||order?.nvghName||'').trim();
+  const display=String(order?.deliveryStaffDisplay||[code,name].filter(Boolean).join(' - ')||'Chưa xác định').trim();
+  return {code,name,display:display||'Chưa xác định'};
+}
+function renderReturnOrderDeliveryStaff(order={}){
+  const staff=returnOrderDeliveryStaff(order);
+  if(!staff.code&&!staff.name){
+    return `<span class="return-order-delivery-unknown" title="Chưa xác định nhân viên giao hàng">Chưa xác định</span>`;
+  }
+  return `<div class="return-order-delivery-staff" title="${escapeHtml(staff.display)}">
+    ${staff.code?`<strong class="return-order-delivery-code">${escapeHtml(staff.code)}</strong>`:''}
+    ${staff.name?`<span class="return-order-delivery-name">${escapeHtml(staff.name)}</span>`:''}
+  </div>`;
+}
 function returnOrderStatusLabel(status){
   const s=String(status||'posted');
   const map={posted:'Đã ghi',waiting_receive:'Chờ kho nhận',pending_warehouse_receive:'Chờ kho nhận',received:'Kho đã nhận',void:'Đã hủy',cancelled:'Đã hủy',canceled:'Đã hủy'};
@@ -75,7 +91,7 @@ function renderReturnOrderDetail(order){
   const items=returnOrderItems(order);
   const totalQty=items.reduce((sum,it)=>sum+returnItemQty(it),0) || Number(order.totalQuantity||0);
   const totalAmount=items.reduce((sum,it)=>sum+returnItemAmount(it),0) || Number(order.debtReduction ?? order.totalAmount ?? order.amount ?? 0);
-  const staff=canonicalDeliveryStaffLabel(order)||canonicalSalesStaffLabel(order);
+  const staff=returnOrderDeliveryStaff(order).display;
   const source=String(order.source||order.refType||'returnOrders');
   const status=String(order.status||'posted');
   const rows=items.map((it,idx)=>{
@@ -102,7 +118,7 @@ function renderReturnOrderDetail(order){
       <div><span>Ngày trả</span><strong>${escapeHtml(order.deliveryDate||order.returnDate||order.date||order.documentDate||'')}</strong></div>
       <div><span>Đơn bán</span><strong>${escapeHtml(order.salesOrderCode||order.orderCode||order.refCode||'')}</strong></div>
       <div><span>Khách hàng</span><strong>${escapeHtml((order.customerCode||'')+' '+(order.customerName||''))}</strong></div>
-      <div><span>NV liên quan</span><strong>${escapeHtml(staff)}</strong></div>
+      <div><span>NVGH phụ trách</span><strong>${escapeHtml(staff)}</strong></div>
       <div><span>Nguồn</span><strong>${escapeHtml(source)}</strong></div>
       <div><span>Thao tác</span><strong>${canCancelReturnOrder(order)?'Có thể hủy':'Readonly'}</strong></div>
     </div>
@@ -163,7 +179,7 @@ async function loadReturnOrders(){
   const dateTo=String(returnOrderDateTo?.value||'').trim();
   if(dateFrom&&dateTo&&dateFrom>dateTo){
     if(returnOrderCount)returnOrderCount.textContent='Từ ngày không được lớn hơn đến ngày.';
-    returnOrderTable.innerHTML='<tr><td colspan="7">Vui lòng kiểm tra lại khoảng ngày.</td></tr>';
+    returnOrderTable.innerHTML='<tr><td colspan="8">Vui lòng kiểm tra lại khoảng ngày.</td></tr>';
     return;
   }
 
@@ -195,7 +211,7 @@ async function loadReturnOrders(){
     returnOrdersCache=rows;
     if(!rows.length){
       selectedReturnOrderKey='';
-      returnOrderTable.innerHTML='<tr><td colspan="7">Không có phiếu trả hàng phù hợp bộ lọc.</td></tr>';
+      returnOrderTable.innerHTML='<tr><td colspan="8">Không có phiếu trả hàng phù hợp bộ lọc.</td></tr>';
       renderReturnOrderDetail(null);
       return;
     }
@@ -213,6 +229,7 @@ async function loadReturnOrders(){
         <td><strong>${escapeHtml(r.code||r.id||'')}</strong><div class="muted tiny-text">${escapeHtml(r.salesOrderCode||r.orderCode||'')}</div></td>
         <td>${escapeHtml(typeof formatDateVN==='function'?formatDateVN(returnDate):returnDate)}</td>
         <td>${escapeHtml((r.customerCode||'')+' '+(r.customerName||''))}</td>
+        <td class="return-order-delivery-cell">${renderReturnOrderDeliveryStaff(r)}</td>
         <td class="price">${money(totalQty)}</td>
         <td class="price cash-in">${money(totalAmount)}</td>
         <td><span class="badge ${returnOrderStatusBadgeClass(status)}">${escapeHtml(returnOrderStatusLabel(status))}</span></td>
@@ -223,7 +240,7 @@ async function loadReturnOrders(){
   }catch(err){
     if(requestSeq!==returnOrderRequestSeq)return;
     if(returnOrderCount) returnOrderCount.textContent='Không tải được đơn trả hàng';
-    returnOrderTable.innerHTML=`<tr><td colspan="7">${escapeHtml(err.message||'Không tải được đơn trả hàng')}</td></tr>`;
+    returnOrderTable.innerHTML=`<tr><td colspan="8">${escapeHtml(err.message||'Không tải được đơn trả hàng')}</td></tr>`;
     renderReturnOrderDetail(null);
   }
 }

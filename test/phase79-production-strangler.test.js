@@ -47,7 +47,7 @@ test('split CSS parts preserve exact legacy cascade order', () => {
   const base = walk(path.join(ROOT, 'public/css/base')).filter((file) => file.endsWith('.css')).sort().map((file) => fs.readFileSync(file)).join('');
   const overrides = walk(path.join(ROOT, 'public/css/overrides')).filter((file) => file.endsWith('.css')).sort().map((file) => fs.readFileSync(file)).join('');
   assert.equal(sha256(base), '3241a50ace3f5d18b9ab1f25f9295c3d8606f5b0e80997a781b9e6527d1d5b6e');
-  assert.equal(sha256(overrides), '9d3477c5401db927af4b0f23a8e0f0dc5c19f186f0c7cc289510928b3bfa326b');
+  assert.equal(sha256(overrides), '2b201385219e49d988319457eaaf18ea50b3494cd6fe526095df1545056e6783');
 });
 
 test('source size budget blocks new God Files in extracted domains', () => {

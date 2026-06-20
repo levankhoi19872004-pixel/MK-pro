@@ -1,7 +1,11 @@
 'use strict';
 
-const selectedReturnOrderIdsForMaster = new Set();
-
+let availableReturnOrders = [];
+let selectedReturnOrders = [];
+const checkedAvailableReturnIds = new Set();
+const checkedSelectedReturnIds = new Set();
+let unmergedReturnRequestSeq = 0;
+let masterReturnSubmitInFlight = false;
 
 const MASTER_RETURN_INACTIVE_STATES=new Set(['cancelled','canceled','void','voided','deleted','removed','duplicate_cancelled','cleared']);
 const MASTER_RETURN_RECEIVED_STATES=new Set(['posted','received','confirmed','completed','accounting_confirmed','posted_to_ar']);
@@ -24,22 +28,211 @@ function canReceiveMasterReturnOrder(order={}){
   return !isInactiveMasterReturnOrder(order) && !isReceivedMasterReturnOrder(order);
 }
 
-function getUnmergedReturnOrdersCache(){
-  return Array.isArray(window.__unmergedReturnOrdersCache) ? window.__unmergedReturnOrdersCache : [];
+function masterReturnOrderIdentity(row={}){
+  return String(row._id||row.id||row.code||'').trim();
+}
+
+function masterReturnDeliveryCode(row={}){
+  return String(row.deliveryStaffCode||row.deliveryCode||row.nvghCode||'').trim();
+}
+
+function masterReturnDeliveryName(row={}){
+  return String(row.deliveryStaffName||row.deliveryName||row.nvghName||'').trim();
+}
+
+function masterReturnStaffDisplay(row={}){
+  const code=masterReturnDeliveryCode(row);
+  const name=masterReturnDeliveryName(row);
+  return [code,name].filter(Boolean).join(' - ')||'Chưa xác định';
+}
+
+function masterReturnNormalizeCode(value=''){
+  return String(value||'').trim().toLocaleLowerCase('vi-VN');
+}
+
+function masterReturnNormalizeSearch(value=''){
+  return String(value||'')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .trim()
+    .toLowerCase();
+}
+
+function masterReturnAmount(row={}){
+  return Number(row.debtReduction??row.totalAmount??row.amount??0)||0;
+}
+
+function masterReturnQuantity(row={}){
+  return Number(row.totalQuantity||0)||0;
+}
+
+function masterReturnDateValue(row={}){
+  return String(row.returnDate||row.deliveryDate||row.date||row.documentDate||row.displayDate||'').slice(0,10);
+}
+
+function dedupeMasterReturnRows(rows=[]){
+  const map=new Map();
+  (Array.isArray(rows)?rows:[]).forEach(row=>{
+    const key=masterReturnOrderIdentity(row);
+    if(key&&!map.has(key))map.set(key,row);
+  });
+  return [...map.values()];
+}
+
+function selectedMasterReturnIdSet(){
+  return new Set(selectedReturnOrders.map(masterReturnOrderIdentity).filter(Boolean));
+}
+
+function matchesCurrentReturnFilters(row={}){
+  const q=masterReturnNormalizeSearch(document.getElementById('unmergedReturnOrderSearchInput')?.value||'');
+  const code=masterReturnNormalizeCode(masterReturnDeliveryStaff?.value||'');
+  const dateFrom=String(unmergedReturnDateFrom?.value||'');
+  const dateTo=String(unmergedReturnDateTo?.value||'');
+  const rowCode=masterReturnNormalizeCode(masterReturnDeliveryCode(row));
+  const rowDate=masterReturnDateValue(row);
+  if(code&&rowCode!==code)return false;
+  if(dateFrom&&rowDate&&rowDate<dateFrom)return false;
+  if(dateTo&&rowDate&&rowDate>dateTo)return false;
+  if(q){
+    const haystack=[row.code,row.id,row.customerCode,row.customerName,row.salesOrderCode,row.orderCode]
+      .map(masterReturnNormalizeSearch)
+      .join(' ');
+    if(!haystack.includes(q))return false;
+  }
+  return true;
+}
+
+function visibleAvailableReturnOrders(){
+  const selectedIds=selectedMasterReturnIdSet();
+  return availableReturnOrders
+    .filter(row=>!selectedIds.has(masterReturnOrderIdentity(row)))
+    .filter(matchesCurrentReturnFilters);
+}
+
+function setMasterReturnStaffLock(){
+  if(masterReturnDeliveryStaff)masterReturnDeliveryStaff.readOnly=selectedReturnOrders.length>0;
+}
+
+function syncMasterReturnHeaderFromSelection(){
+  const first=selectedReturnOrders[0];
+  if(!first){setMasterReturnStaffLock();return;}
+  const code=masterReturnDeliveryCode(first);
+  const name=masterReturnDeliveryName(first);
+  if(masterReturnDeliveryStaff&&code)masterReturnDeliveryStaff.value=code;
+  if(masterReturnDeliveryStaffName)masterReturnDeliveryStaffName.value=name;
+  setMasterReturnStaffLock();
+}
+
+function updateMasterReturnSelectionSummary(){
+  const totalQty=selectedReturnOrders.reduce((sum,row)=>sum+masterReturnQuantity(row),0);
+  const totalValue=selectedReturnOrders.reduce((sum,row)=>sum+masterReturnAmount(row),0);
+  const selectedCountEl=document.getElementById('selectedMasterReturnCount');
+  const selectedQtyEl=document.getElementById('selectedMasterReturnQty');
+  const selectedValueEl=document.getElementById('selectedMasterReturnValue');
+  if(selectedCountEl)selectedCountEl.textContent=money(selectedReturnOrders.length);
+  if(selectedQtyEl)selectedQtyEl.textContent=money(totalQty);
+  if(selectedValueEl)selectedValueEl.textContent=money(totalValue);
+}
+
+function renderAvailableReturnOrders(){
+  if(!unmergedReturnOrderTable)return;
+  const rows=visibleAvailableReturnOrders();
+  const visibleIds=new Set(rows.map(masterReturnOrderIdentity));
+  [...checkedAvailableReturnIds].forEach(id=>{if(!visibleIds.has(id))checkedAvailableReturnIds.delete(id);});
+  const totalValue=rows.reduce((sum,row)=>sum+masterReturnAmount(row),0);
+  const totalQty=rows.reduce((sum,row)=>sum+masterReturnQuantity(row),0);
+  if(masterReturnKpiUnmerged)masterReturnKpiUnmerged.textContent=money(rows.length);
+  if(masterReturnKpiUnmergedQty)masterReturnKpiUnmergedQty.textContent=money(totalQty);
+  if(masterReturnKpiUnmergedValue)masterReturnKpiUnmergedValue.textContent=money(totalValue);
+  if(unmergedReturnOrderSummary)unmergedReturnOrderSummary.textContent=`${rows.length} phiếu · Tổng SL ${money(totalQty)} · Tổng giá trị ${money(totalValue)}`;
+  const selectAllButton=document.getElementById('selectAllUnmergedReturnOrdersButton');
+  if(selectAllButton)selectAllButton.textContent=rows.length&&rows.every(row=>checkedAvailableReturnIds.has(masterReturnOrderIdentity(row)))?'Bỏ chọn tất cả':'Chọn tất cả';
+
+  const head=`<div class="master-return-grid-row master-return-grid-head master-return-available-row" aria-hidden="true">
+    <span></span><span>Mã trả</span><span>Khách hàng</span><span>NVGH</span><span>Ngày trả</span><span>SL</span><span>Giá trị</span>
+  </div>`;
+  if(!rows.length){
+    unmergedReturnOrderTable.innerHTML=head+'<div class="master-return-empty">Không có phiếu trả hàng chưa gộp phù hợp.</div>';
+    return;
+  }
+  const body=rows.map(row=>{
+    const id=masterReturnOrderIdentity(row);
+    const checked=checkedAvailableReturnIds.has(id);
+    const code=String(row.code||row.id||id);
+    const customer=[row.customerCode,row.customerName].filter(Boolean).join(' - ')||'Không rõ khách';
+    const staff=masterReturnStaffDisplay(row);
+    return `<label class="master-return-grid-row master-return-available-row${checked?' is-checked':''}" title="${escapeHtml(code)} | ${escapeHtml(customer)} | ${escapeHtml(staff)}">
+      <input type="checkbox" class="master-return-available-check" data-id="${escapeHtml(id)}" ${checked?'checked':''} />
+      <strong class="master-return-cell master-return-cell-code" title="${escapeHtml(code)}">${escapeHtml(code)}</strong>
+      <span class="master-return-cell" title="${escapeHtml(customer)}">${escapeHtml(customer)}</span>
+      <span class="master-return-cell" title="${escapeHtml(staff)}">${escapeHtml(staff)}</span>
+      <span class="master-return-cell">${escapeHtml(masterReturnDateValue(row))}</span>
+      <span class="master-return-cell master-return-cell-qty">${money(masterReturnQuantity(row))}</span>
+      <strong class="master-return-cell master-return-cell-money">${money(masterReturnAmount(row))}</strong>
+    </label>`;
+  }).join('');
+  unmergedReturnOrderTable.innerHTML=head+body;
+}
+
+function renderSelectedMasterReturnOrderList(){
+  if(!selectedMasterReturnOrderList)return;
+  const selectedIds=new Set(selectedReturnOrders.map(masterReturnOrderIdentity));
+  [...checkedSelectedReturnIds].forEach(id=>{if(!selectedIds.has(id))checkedSelectedReturnIds.delete(id);});
+  const head=`<div class="master-return-grid-row master-return-grid-head master-return-selected-row" aria-hidden="true">
+    <span></span><span>Mã trả</span><span>Khách hàng</span><span>NVGH</span><span>SL</span><span>Giá trị</span>
+  </div>`;
+  if(!selectedReturnOrders.length){
+    selectedMasterReturnOrderList.innerHTML=head+'<div class="master-return-empty">Chưa có phiếu trả hàng nào được đưa vào danh sách gộp.</div>';
+    updateMasterReturnSelectionSummary();
+    setMasterReturnStaffLock();
+    return;
+  }
+  const body=selectedReturnOrders.map(row=>{
+    const id=masterReturnOrderIdentity(row);
+    const checked=checkedSelectedReturnIds.has(id);
+    const code=String(row.code||row.id||id);
+    const customer=[row.customerCode,row.customerName].filter(Boolean).join(' - ')||'Không rõ khách';
+    const staff=masterReturnStaffDisplay(row);
+    return `<label class="master-return-grid-row master-return-selected-row${checked?' is-checked':''}" title="${escapeHtml(code)} | ${escapeHtml(customer)} | ${escapeHtml(staff)}">
+      <input type="checkbox" class="master-return-selected-check" data-id="${escapeHtml(id)}" ${checked?'checked':''} />
+      <strong class="master-return-cell master-return-cell-code" title="${escapeHtml(code)}">${escapeHtml(code)}</strong>
+      <span class="master-return-cell" title="${escapeHtml(customer)}">${escapeHtml(customer)}</span>
+      <span class="master-return-cell" title="${escapeHtml(staff)}">${escapeHtml(staff)}</span>
+      <span class="master-return-cell master-return-cell-qty">${money(masterReturnQuantity(row))}</span>
+      <strong class="master-return-cell master-return-cell-money">${money(masterReturnAmount(row))}</strong>
+    </label>`;
+  }).join('');
+  selectedMasterReturnOrderList.innerHTML=head+body;
+  updateMasterReturnSelectionSummary();
+  setMasterReturnStaffLock();
+}
+
+function renderMasterReturnPopupLists(){
+  renderAvailableReturnOrders();
+  renderSelectedMasterReturnOrderList();
 }
 
 function isMasterReturnOrderModalOpen(){
-  return !!(masterReturnOrderModal && masterReturnOrderModal.classList.contains('show'));
+  return !!(masterReturnOrderModal&&masterReturnOrderModal.classList.contains('show'));
 }
 window.isMasterReturnOrderModalOpen=isMasterReturnOrderModalOpen;
+
+function setUnmergedReturnOrdersLoading(isLoading){
+  const layer=document.querySelector('#masterReturnOrderModal .master-return-layer-unmerged');
+  if(layer)layer.classList.toggle('is-loading',Boolean(isLoading));
+  [reloadUnmergedReturnOrdersButton,document.getElementById('selectAllUnmergedReturnOrdersButton'),moveToGroupedReturnOrdersButton]
+    .filter(Boolean)
+    .forEach(button=>{button.disabled=Boolean(isLoading);});
+  if(reloadUnmergedReturnOrdersButton)reloadUnmergedReturnOrdersButton.textContent=isLoading?'Đang tải...':'Tải lại';
+}
 
 function openMasterReturnOrderModal(options={}){
   if(!masterReturnOrderModal)return;
   masterReturnOrderModal.classList.add('show');
   masterReturnOrderModal.setAttribute('aria-hidden','false');
-  if(masterReturnDate && !masterReturnDate.value && typeof today==='function')masterReturnDate.value=today();
+  if(masterReturnDate&&!masterReturnDate.value&&typeof today==='function')masterReturnDate.value=today();
+  renderMasterReturnPopupLists();
   if(options.skipLoad!==true)loadUnmergedReturnOrders();
-  renderSelectedMasterReturnOrderList();
 }
 window.openMasterReturnOrderModal=openMasterReturnOrderModal;
 
@@ -50,149 +243,131 @@ function closeMasterReturnOrderModal(){
 }
 window.closeMasterReturnOrderModal=closeMasterReturnOrderModal;
 
-function resetSelectedMasterReturnOrders(){
-  selectedReturnOrderIdsForMaster.clear();
-  renderUnmergedReturnOrders(getUnmergedReturnOrdersCache());
-}
-window.resetSelectedMasterReturnOrders=resetSelectedMasterReturnOrders;
-
 function resetMasterReturnOrderModal(){
-  selectedReturnOrderIdsForMaster.clear();
+  unmergedReturnRequestSeq+=1;
+  availableReturnOrders=[];
+  selectedReturnOrders=[];
+  checkedAvailableReturnIds.clear();
+  checkedSelectedReturnIds.clear();
   if(masterReturnOrderForm){
-    const keepDate=(masterReturnOrderForm.elements.returnDate && masterReturnOrderForm.elements.returnDate.value) || (typeof today==='function' ? today() : '');
     masterReturnOrderForm.reset();
-    if(masterReturnOrderForm.elements.returnDate)masterReturnOrderForm.elements.returnDate.value=keepDate;
+    if(masterReturnOrderForm.elements.returnDate)masterReturnOrderForm.elements.returnDate.value=typeof today==='function'?today():'';
   }
+  if(masterReturnDeliveryStaffName)masterReturnDeliveryStaffName.value='';
+  if(unmergedReturnDateFrom)unmergedReturnDateFrom.value='';
+  if(unmergedReturnDateTo)unmergedReturnDateTo.value='';
   showMessage(masterReturnOrderMessage,'');
-  window.__unmergedReturnOrdersCache=[];
   if(unmergedReturnOrderSummary)unmergedReturnOrderSummary.textContent='Chưa tải phiếu trả hàng chưa gộp.';
-  if(selectedMasterReturnOrderList)selectedMasterReturnOrderList.innerHTML='<div class="empty-cell">Chưa có phiếu trả hàng nào được chọn để gộp.</div>';
-  if(unmergedReturnOrderTable)unmergedReturnOrderTable.innerHTML='<div class="empty-state">Đang tải phiếu trả hàng chưa gộp...</div>';
+  renderMasterReturnPopupLists();
 }
 window.resetMasterReturnOrderModal=resetMasterReturnOrderModal;
 
-function toggleMasterReturnSelection(id, forceValue){
+function toggleAvailableReturnSelection(id,checked){
   const key=String(id||'').trim();
   if(!key)return;
-  if(forceValue===false)selectedReturnOrderIdsForMaster.delete(key);
-  else if(forceValue===true)selectedReturnOrderIdsForMaster.add(key);
-  else if(selectedReturnOrderIdsForMaster.has(key))selectedReturnOrderIdsForMaster.delete(key);
-  else selectedReturnOrderIdsForMaster.add(key);
-  renderUnmergedReturnOrders(getUnmergedReturnOrdersCache());
+  if(checked)checkedAvailableReturnIds.add(key);
+  else checkedAvailableReturnIds.delete(key);
+  renderAvailableReturnOrders();
 }
-window.toggleMasterReturnSelection=toggleMasterReturnSelection;
+
+function toggleSelectedReturnSelection(id,checked){
+  const key=String(id||'').trim();
+  if(!key)return;
+  if(checked)checkedSelectedReturnIds.add(key);
+  else checkedSelectedReturnIds.delete(key);
+  renderSelectedMasterReturnOrderList();
+}
 
 function toggleSelectAllUnmergedReturnOrders(){
-  const rows=getUnmergedReturnOrdersCache();
+  const rows=visibleAvailableReturnOrders();
   if(!rows.length)return;
-  const keys=rows.map(r=>String(r.id||r.code||'')).filter(Boolean);
-  const shouldSelect=keys.some(key=>!selectedReturnOrderIdsForMaster.has(key));
-  keys.forEach(key=>{
-    if(shouldSelect)selectedReturnOrderIdsForMaster.add(key);
-    else selectedReturnOrderIdsForMaster.delete(key);
+  const allChecked=rows.every(row=>checkedAvailableReturnIds.has(masterReturnOrderIdentity(row)));
+  rows.forEach(row=>{
+    const id=masterReturnOrderIdentity(row);
+    if(allChecked)checkedAvailableReturnIds.delete(id);
+    else checkedAvailableReturnIds.add(id);
   });
-  renderUnmergedReturnOrders(rows);
+  renderAvailableReturnOrders();
 }
 window.toggleSelectAllUnmergedReturnOrders=toggleSelectAllUnmergedReturnOrders;
 
-function renderSelectedMasterReturnOrderList(){
-  if(!selectedMasterReturnOrderList)return;
-  const rows=getUnmergedReturnOrdersCache().filter(r=>selectedReturnOrderIdsForMaster.has(String(r.id||r.code||'')));
-  if(!rows.length){
-    selectedMasterReturnOrderList.innerHTML='<div class="empty-cell">Chưa có phiếu trả hàng nào được chọn để gộp.</div>';
+function moveSelectedReturnOrdersToGrouped(){
+  const candidates=visibleAvailableReturnOrders().filter(row=>checkedAvailableReturnIds.has(masterReturnOrderIdentity(row)));
+  if(!candidates.length){showMessage(masterReturnOrderMessage,'Chưa chọn phiếu trả hàng ở danh sách bên trái',true);return;}
+  const candidateCodes=candidates.map(masterReturnDeliveryCode);
+  if(candidateCodes.some(code=>!code)){
+    showMessage(masterReturnOrderMessage,'Có phiếu chưa xác định mã NVGH, không thể đưa vào gộp',true);
     return;
   }
-  const totalQty=rows.reduce((sum,r)=>sum+Number(r.totalQuantity||0),0);
-  const totalValue=rows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
-  const head=`<div class="master-return-selected-head"><span>${rows.length} phiếu</span><span>Tổng SL ${money(totalQty)}</span><span>Tổng giá trị ${money(totalValue)}</span></div>`;
-  const body=rows.map(r=>{
-    const id=String(r.id||r.code||'');
-    const customer=[r.customerCode,r.customerName].filter(Boolean).join(' - ') || 'Không rõ khách';
-    return `<article class="master-return-selected-item">
-      <div class="master-return-selected-main">
-        <strong title="${escapeHtml(r.code||r.id||'')}">${escapeHtml(r.code||r.id||'')}</strong>
-        <span title="${escapeHtml(customer)}">${escapeHtml(customer)}</span>
-        <small>${escapeHtml(r.deliveryDate||r.returnDate||r.date||r.documentDate||'')}</small>
-      </div>
-      <div class="master-return-selected-side">
-        <b>${money(r.debtReduction??r.totalAmount)}</b>
-        <button type="button" class="secondary small" onclick="toggleMasterReturnSelection('${escapeHtml(id)}', false)">Bỏ</button>
-      </div>
-    </article>`;
-  }).join('');
-  selectedMasterReturnOrderList.innerHTML=head+body;
+  const requiredCode=masterReturnDeliveryCode(selectedReturnOrders[0]||{})||String(masterReturnDeliveryStaff?.value||'').trim()||candidateCodes[0];
+  const incompatible=candidates.filter(row=>masterReturnNormalizeCode(masterReturnDeliveryCode(row))!==masterReturnNormalizeCode(requiredCode));
+  if(incompatible.length){
+    const codes=[...new Set(incompatible.map(masterReturnDeliveryCode).filter(Boolean))];
+    showMessage(masterReturnOrderMessage,`Một đơn tổng trả chỉ được chứa cùng NVGH ${requiredCode}. Phiếu không phù hợp: ${codes.join(', ')}`,true);
+    return;
+  }
+  selectedReturnOrders=dedupeMasterReturnRows([...selectedReturnOrders,...candidates]);
+  candidates.forEach(row=>checkedAvailableReturnIds.delete(masterReturnOrderIdentity(row)));
+  syncMasterReturnHeaderFromSelection();
+  showMessage(masterReturnOrderMessage,`Đã đưa ${candidates.length} phiếu sang danh sách gộp`);
+  renderMasterReturnPopupLists();
 }
+window.moveSelectedReturnOrdersToGrouped=moveSelectedReturnOrdersToGrouped;
 
-function renderUnmergedReturnOrders(rows = []){
-  if(!unmergedReturnOrderTable)return;
-  window.__unmergedReturnOrdersCache=Array.isArray(rows)?rows:[];
-  const selectAllUnmergedReturnOrdersButton=document.getElementById('selectAllUnmergedReturnOrdersButton');
-  const totalValue=rows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
-  const totalQty=rows.reduce((sum,r)=>sum+Number(r.totalQuantity||0),0);
-  const selectedRows=rows.filter(r=>selectedReturnOrderIdsForMaster.has(String(r.id||r.code||'')));
-  const selectedQty=selectedRows.reduce((sum,r)=>sum+Number(r.totalQuantity||0),0);
-  const selectedValue=selectedRows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
-  const selectedCountEl=document.getElementById('selectedMasterReturnCount');
-  const selectedQtyEl=document.getElementById('selectedMasterReturnQty');
-  const selectedValueEl=document.getElementById('selectedMasterReturnValue');
-  if(selectedCountEl)selectedCountEl.textContent=money(selectedReturnOrderIdsForMaster.size);
-  if(selectedQtyEl)selectedQtyEl.textContent=money(selectedQty);
-  if(selectedValueEl)selectedValueEl.textContent=money(selectedValue);
-  if(masterReturnKpiUnmerged)masterReturnKpiUnmerged.textContent=money(rows.length);
-  if(masterReturnKpiUnmergedQty)masterReturnKpiUnmergedQty.textContent=money(totalQty);
-  if(masterReturnKpiUnmergedValue)masterReturnKpiUnmergedValue.textContent=money(totalValue);
-  if(unmergedReturnOrderSummary)unmergedReturnOrderSummary.textContent=`${rows.length} phiếu chưa gộp · Tổng SL ${money(totalQty)} · Tổng giá trị ${money(totalValue)} · Đã chọn ${selectedReturnOrderIdsForMaster.size}`;
-  if(selectAllUnmergedReturnOrdersButton)selectAllUnmergedReturnOrdersButton.textContent=rows.length && rows.every(r=>selectedReturnOrderIdsForMaster.has(String(r.id||r.code||''))) ? 'Bỏ chọn tất cả' : 'Chọn tất cả';
-  const head=`<div class="return-list-head"><span></span><span>Mã trả hàng</span><span>Khách hàng</span><span>NV giao</span><span>Ngày trả</span><span>SL</span><span>Giá trị</span></div>`;
-  if(!rows.length){
-    unmergedReturnOrderTable.innerHTML=head+'<div class="empty-state">Không có phiếu trả hàng chưa gộp.</div>';
-    renderSelectedMasterReturnOrderList();
-    return;
-  }
-  unmergedReturnOrderTable.innerHTML=head+rows.map(r=>{
-    const id=String(r.id||r.code||'');
-    const checked=selectedReturnOrderIdsForMaster.has(id)?'checked':'';
-    const staff=canonicalDeliveryStaffLabel(r);
-    const customer=[r.customerCode,r.customerName].filter(Boolean).join(' - ');
-    const selected=checked?' selected':'';
-    return `<label class="return-one-line-row${selected}">
-      <input type="checkbox" class="master-return-check" data-id="${escapeHtml(id)}" ${checked}>
-      <strong class="return-row-code" title="${escapeHtml(r.code||r.id||'')}">${escapeHtml(r.code||r.id||'')}</strong>
-      <span class="return-row-customer" title="${escapeHtml(customer||'Không rõ khách')}">${escapeHtml(customer||'Không rõ khách')}</span>
-      <span class="return-row-staff" title="${escapeHtml(staff)}">${escapeHtml(staff)}</span>
-      <span class="return-row-date">${escapeHtml(r.deliveryDate||r.returnDate||r.date||r.documentDate||'')}</span>
-      <span class="return-row-qty">${money(r.totalQuantity)}</span>
-      <strong class="return-row-money">${money(r.debtReduction??r.totalAmount)}</strong>
-    </label>`;
-  }).join('');
-  renderSelectedMasterReturnOrderList();
+function removeSelectedReturnOrdersFromGrouped(){
+  const ids=new Set([...checkedSelectedReturnIds]);
+  if(!ids.size){showMessage(masterReturnOrderMessage,'Chưa chọn phiếu ở danh sách bên phải để bỏ',true);return;}
+  const removed=selectedReturnOrders.filter(row=>ids.has(masterReturnOrderIdentity(row)));
+  selectedReturnOrders=selectedReturnOrders.filter(row=>!ids.has(masterReturnOrderIdentity(row)));
+  availableReturnOrders=dedupeMasterReturnRows([...availableReturnOrders,...removed]);
+  checkedSelectedReturnIds.clear();
+  if(selectedReturnOrders.length)syncMasterReturnHeaderFromSelection();
+  else setMasterReturnStaffLock();
+  showMessage(masterReturnOrderMessage,`Đã bỏ ${removed.length} phiếu khỏi danh sách gộp`);
+  renderMasterReturnPopupLists();
+}
+window.removeSelectedReturnOrdersFromGrouped=removeSelectedReturnOrdersFromGrouped;
+
+function buildUnmergedReturnOrderParams(){
+  const params=new URLSearchParams();
+  const q=document.getElementById('unmergedReturnOrderSearchInput')?.value.trim()||'';
+  const deliveryStaffCode=String(masterReturnDeliveryStaff?.value||'').trim();
+  const dateFrom=String(unmergedReturnDateFrom?.value||'');
+  const dateTo=String(unmergedReturnDateTo?.value||'');
+  if(q)params.set('q',q);
+  if(deliveryStaffCode)params.set('deliveryStaffCode',deliveryStaffCode);
+  if(dateFrom)params.set('dateFrom',dateFrom);
+  if(dateTo)params.set('dateTo',dateTo);
+  params.set('limit','500');
+  return params;
 }
 
 async function loadUnmergedReturnOrders(){
   if(!unmergedReturnOrderTable)return;
-  const params=new URLSearchParams();
-  const unmergedSearchInput=document.getElementById('unmergedReturnOrderSearchInput');
-  const q=unmergedSearchInput?unmergedSearchInput.value.trim():'';
-  // Lưu ý nghiệp vụ: ngày trong form là NGÀY TẠO ĐƠN TỔNG/KHO NHẬN,
-  // không phải ngày lọc phiếu trả chưa gộp. Nếu dùng ngày này để lọc,
-  // phiếu trả phát sinh từ đơn giao ngày 29/05 sẽ bị ẩn khi kho tạo tổng trả ngày 30/05.
-  // Vì vậy danh sách chờ gộp chỉ lọc theo NVGH + ô tìm kiếm; ngày tạo tổng trả chỉ gửi khi bấm Tạo.
-  const delivery=masterReturnDeliveryStaff?.value.trim() || '';
-  if(q)params.set('q',q);
-  if(delivery)params.set('delivery',delivery);
+  const requestSeq=++unmergedReturnRequestSeq;
+  setUnmergedReturnOrdersLoading(true);
+  unmergedReturnOrderTable.innerHTML='<div class="master-return-loading">Đang tải phiếu trả hàng chưa gộp...</div>';
+  if(unmergedReturnOrderSummary)unmergedReturnOrderSummary.textContent='Đang tải phiếu trả hàng chưa gộp...';
   try{
-    const res=await fetch(`/api/master-return-orders/unmerged-return-orders?${params.toString()}`);
+    const params=buildUnmergedReturnOrderParams();
+    const res=await (window.fetchWithTimeout||fetch)(`/api/master-return-orders/unmerged-return-orders?${params.toString()}`,{},15000);
     const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không tải được phiếu trả hàng chưa gộp');
-    renderUnmergedReturnOrders(json.returnOrders||[]);
+    if(!res.ok||json.ok===false)throw new Error(json.message||'Không tải được phiếu trả hàng chưa gộp');
+    if(requestSeq!==unmergedReturnRequestSeq)return;
+    availableReturnOrders=dedupeMasterReturnRows(json.returnOrders||[]);
+    renderMasterReturnPopupLists();
   }catch(err){
+    if(requestSeq!==unmergedReturnRequestSeq)return;
     if(masterReturnKpiUnmerged)masterReturnKpiUnmerged.textContent='0';
     if(masterReturnKpiUnmergedQty)masterReturnKpiUnmergedQty.textContent='0';
     if(masterReturnKpiUnmergedValue)masterReturnKpiUnmergedValue.textContent='0';
     if(unmergedReturnOrderSummary)unmergedReturnOrderSummary.textContent='Không tải được phiếu trả hàng chưa gộp';
-    unmergedReturnOrderTable.innerHTML=`<div class="empty-state danger-text">${escapeHtml(err.message||'Không tải được phiếu trả hàng chưa gộp')}</div>`;
+    unmergedReturnOrderTable.innerHTML=`<div class="master-return-error">${escapeHtml(err.message||'Không tải được phiếu trả hàng chưa gộp')}</div>`;
+  }finally{
+    if(requestSeq===unmergedReturnRequestSeq)setUnmergedReturnOrdersLoading(false);
   }
 }
+window.loadUnmergedReturnOrders=loadUnmergedReturnOrders;
 
 function renderMasterReturnOrders(rows = []){
   if(!masterReturnOrderTable)return;
@@ -254,30 +429,60 @@ async function loadMasterReturnOrders(){
 
 async function submitMasterReturnOrder(event){
   event.preventDefault();
-  if(!masterReturnOrderForm)return;
-  const returnOrderIds=[...selectedReturnOrderIdsForMaster];
-  if(!returnOrderIds.length){showMessage(masterReturnOrderMessage,'Chưa chọn phiếu trả hàng để gộp',true);return}
-  const payload=Object.fromEntries(new FormData(masterReturnOrderForm).entries());
-  payload.returnOrderIds=returnOrderIds;
-  try{
-    const res=await fetch('/api/master-return-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không tạo được đơn tổng trả hàng');
-    selectedReturnOrderIdsForMaster.clear();
-    if(masterReturnOrderForm){
-      const keepDate=(masterReturnOrderForm.elements.returnDate && masterReturnOrderForm.elements.returnDate.value) || (typeof today==='function' ? today() : '');
-      masterReturnOrderForm.reset();
-      if(masterReturnOrderForm.elements.returnDate)masterReturnOrderForm.elements.returnDate.value=keepDate;
-    }
-    closeMasterReturnOrderModal();
-    showMessage(masterReturnOrderMessage,json.message||'Đã tạo đơn tổng trả hàng');
-    renderSelectedMasterReturnOrderList();
-    await loadUnmergedReturnOrders();
-    await loadMasterReturnOrders();
-    if(typeof loadReturnOrders==='function')await loadReturnOrders();
-  }catch(err){showMessage(masterReturnOrderMessage,err.message,true)}
-}
+  if(!masterReturnOrderForm||masterReturnSubmitInFlight)return;
+  selectedReturnOrders=dedupeMasterReturnRows(selectedReturnOrders);
+  if(!selectedReturnOrders.length){showMessage(masterReturnOrderMessage,'Chưa có phiếu trả hàng trong danh sách gộp',true);return;}
+  const selectedCodes=[...new Set(selectedReturnOrders.map(masterReturnDeliveryCode).map(masterReturnNormalizeCode).filter(Boolean))];
+  if(selectedCodes.length!==1){showMessage(masterReturnOrderMessage,'Danh sách gộp phải thuộc đúng một mã NVGH',true);return;}
+  const deliveryStaffCode=String(masterReturnDeliveryStaff?.value||'').trim();
+  if(!deliveryStaffCode){showMessage(masterReturnOrderMessage,'Chưa chọn mã NVGH',true);return;}
+  if(masterReturnNormalizeCode(deliveryStaffCode)!==selectedCodes[0]){
+    showMessage(masterReturnOrderMessage,'Mã NVGH trên form không khớp các phiếu đã chọn',true);
+    return;
+  }
+  const returnDate=String(masterReturnDate?.value||'').trim();
+  if(!returnDate){showMessage(masterReturnOrderMessage,'Chưa chọn ngày tạo đơn tổng trả',true);return;}
 
+  const payload=Object.fromEntries(new FormData(masterReturnOrderForm).entries());
+  payload.returnOrderIds=selectedReturnOrders.map(masterReturnOrderIdentity);
+  payload.deliveryStaffCode=deliveryStaffCode;
+  payload.deliveryStaffName=String(masterReturnDeliveryStaffName?.value||'').trim();
+  masterReturnSubmitInFlight=true;
+  const oldText=submitMasterReturnOrderButton?.textContent||'Tạo đơn tổng trả';
+  if(submitMasterReturnOrderButton){submitMasterReturnOrderButton.disabled=true;submitMasterReturnOrderButton.textContent='Đang tạo...';}
+  try{
+    const res=await (window.fetchWithTimeout||fetch)('/api/master-return-orders',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    },20000);
+    const json=await res.json();
+    if(!res.ok||json.ok===false){
+      const error=new Error(json.message||'Không tạo được đơn tổng trả hàng');
+      error.status=res.status;
+      error.code=json.code||'';
+      throw error;
+    }
+    const successMessage=json.message||`Đã tạo đơn tổng trả hàng ${json.masterReturnOrder?.code||''}`;
+    selectedReturnOrders=[];
+    checkedAvailableReturnIds.clear();
+    checkedSelectedReturnIds.clear();
+    renderMasterReturnPopupLists();
+    alert(successMessage);
+    closeMasterReturnOrderModal();
+    await Promise.all([
+      loadUnmergedReturnOrders(),
+      loadMasterReturnOrders(),
+      typeof loadReturnOrders==='function'?loadReturnOrders():Promise.resolve()
+    ]);
+  }catch(err){
+    showMessage(masterReturnOrderMessage,err.message||'Không tạo được đơn tổng trả hàng',true);
+    if(Number(err.status)===409)await loadUnmergedReturnOrders();
+  }finally{
+    masterReturnSubmitInFlight=false;
+    if(submitMasterReturnOrderButton){submitMasterReturnOrderButton.disabled=false;submitMasterReturnOrderButton.textContent=oldText;}
+  }
+}
 
 async function editMasterReturnOrder(idx){
   const order=window.__masterReturnOrdersCache?.[Number(idx)];
@@ -428,9 +633,6 @@ if(selectAllMasterReturnOrdersButton)selectAllMasterReturnOrdersButton.addEventL
 if(printSelectedMasterReturnOrdersButton)printSelectedMasterReturnOrdersButton.addEventListener('click',()=>runMasterReturnToolbarAction(printSelectedMasterReturnOrdersButton,'Đang in...',printSelectedMasterReturnOrders));
 if(receiveSelectedMasterReturnOrdersButton)receiveSelectedMasterReturnOrdersButton.addEventListener('click',()=>runMasterReturnToolbarAction(receiveSelectedMasterReturnOrdersButton,'Đang nhập...',receiveSelectedMasterReturnOrders).catch(err=>showMessage(masterReturnOrderMessage,err.message,true)));
 
-
-
-
 // PHASE35_EVENT_OWNERSHIP_START: this module is the single owner of master-return UI events.
 window.cancelMasterReturnOrder=cancelMasterReturnOrder;
 window.viewMasterReturnOrder=viewMasterReturnOrder;
@@ -444,19 +646,30 @@ function runMasterReturnToolbarAction(button,loadingText,task){
 
 if(reloadUnmergedReturnOrdersButton)reloadUnmergedReturnOrdersButton.addEventListener('click',loadUnmergedReturnOrders);
 if(masterReturnOrderForm)masterReturnOrderForm.addEventListener('submit',submitMasterReturnOrder);
-if(clearMasterReturnSelectionButton)clearMasterReturnSelectionButton.addEventListener('click',()=>resetSelectedMasterReturnOrders());
 if(unmergedReturnOrderTable)unmergedReturnOrderTable.addEventListener('change',event=>{
-  const check=event.target.closest('.master-return-check');
+  const check=event.target.closest('.master-return-available-check');
   if(!check)return;
-  toggleMasterReturnSelection(check.dataset.id,check.checked);
+  toggleAvailableReturnSelection(check.dataset.id,check.checked);
+});
+if(selectedMasterReturnOrderList)selectedMasterReturnOrderList.addEventListener('change',event=>{
+  const check=event.target.closest('.master-return-selected-check');
+  if(!check)return;
+  toggleSelectedReturnSelection(check.dataset.id,check.checked);
 });
 const masterReturnSelectAllButton=document.getElementById('selectAllUnmergedReturnOrdersButton');
 if(masterReturnSelectAllButton)masterReturnSelectAllButton.addEventListener('click',toggleSelectAllUnmergedReturnOrders);
-const masterReturnReloadInlineButton=document.getElementById('reloadUnmergedReturnOrdersInlineButton');
-if(masterReturnReloadInlineButton)masterReturnReloadInlineButton.addEventListener('click',loadUnmergedReturnOrders);
+if(moveToGroupedReturnOrdersButton)moveToGroupedReturnOrdersButton.addEventListener('click',moveSelectedReturnOrdersToGrouped);
+if(removeFromGroupedReturnOrdersButton)removeFromGroupedReturnOrdersButton.addEventListener('click',removeSelectedReturnOrdersFromGrouped);
 const masterReturnSearchInput=document.getElementById('unmergedReturnOrderSearchInput');
-if(masterReturnSearchInput)masterReturnSearchInput.addEventListener('input',debounce(loadUnmergedReturnOrders,250));
-if(masterReturnDeliveryStaff)masterReturnDeliveryStaff.addEventListener('input',debounce(loadUnmergedReturnOrders,250));
+if(masterReturnSearchInput)masterReturnSearchInput.addEventListener('input',debounce(loadUnmergedReturnOrders,300));
+if(unmergedReturnDateFrom)unmergedReturnDateFrom.addEventListener('change',loadUnmergedReturnOrders);
+if(unmergedReturnDateTo)unmergedReturnDateTo.addEventListener('change',loadUnmergedReturnOrders);
+if(masterReturnDeliveryStaff)masterReturnDeliveryStaff.addEventListener('input',debounce(()=>{
+  if(!selectedReturnOrders.length){
+    if(masterReturnDeliveryStaffName)masterReturnDeliveryStaffName.value='';
+    loadUnmergedReturnOrders();
+  }
+},300));
 const applyMasterReturnFiltersButton=document.getElementById('applyMasterReturnFiltersButton');
 const clearMasterReturnFiltersButton=document.getElementById('clearMasterReturnFiltersButton');
 if(applyMasterReturnFiltersButton)applyMasterReturnFiltersButton.addEventListener('click',()=>runMasterReturnToolbarAction(applyMasterReturnFiltersButton,'Đang tìm...',loadMasterReturnOrders));
