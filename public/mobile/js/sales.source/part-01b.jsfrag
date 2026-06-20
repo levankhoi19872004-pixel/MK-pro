@@ -76,6 +76,21 @@ tabs.forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.
 openCartBtn?.addEventListener('click', () => switchTab('cartTab'));
 backToOrderBtn?.addEventListener('click', () => switchTab('orderTab', { historyMode: 'replace' }));
 
+mobileSalesLifecycle.delegate(customerList, 'click', '[data-customer-index]', (_event, button) => {
+    const customer = state.customer.rows[Number(button.dataset.customerIndex)];
+    if (customer) selectCustomer(customer);
+  });
+mobileSalesLifecycle.delegate(debtList, 'click', '[data-debt-index]:not([disabled])', (_event, button) => {
+    const customer = state.debt.rows[Number(button.dataset.debtIndex)];
+    if (customer) openDebtCollection(customer);
+  });
+mobileSalesLifecycle.listen(window, 'pagehide', () => {
+  customerListRenderer.cancel();
+  debtCustomerListRenderer.cancel();
+  todayOrderListRenderer.cancel();
+  mobileSalesLifecycle.destroy();
+}, { once: true });
+
 document.addEventListener('click', (event) => {
   const retry = event.target.closest('[data-mobile-retry]');
   if (!retry) return;
@@ -263,7 +278,7 @@ function renderCustomerList(items) {
   }
 
   customerList.className = 'customer-list';
-  customerList.innerHTML = sortedItems.map((customer, index) => {
+  const renderCustomerCard = (customer, index) => {
     const code = customerCodeValue(customer);
     const name = customerNameValue(customer);
     const debt = customerDebtValue(customer);
@@ -280,11 +295,8 @@ function renderCustomerList(items) {
         </div>
       </button>
     `;
-  }).join('');
-
-  customerList.querySelectorAll('[data-customer-index]').forEach((btn) => {
-    btn.addEventListener('click', () => selectCustomer(state.customer.rows[Number(btn.dataset.customerIndex)]));
-  });
+  };
+  customerListRenderer.render(sortedItems, renderCustomerCard);
 }
 
 function selectCustomer(customer) {

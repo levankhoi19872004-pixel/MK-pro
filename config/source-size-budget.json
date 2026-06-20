@@ -33,7 +33,10 @@
     "src/services/fund-summary/FundSummaryWorkbook.js": 8192,
     "services/print/PrintDocumentBuilder.js": 4096,
     "services/print/PrintFormatService.js": 4096,
-    "services/printDataBuilder.js": 4096
+    "services/printDataBuilder.js": 4096,
+    "public/mobile/js/ui-runtime.source.js": 16384,
+    "public/mobile/js/ui-runtime.js": 8192,
+    "public/mobile/js/ui-runtime.js.map": 32768
   },
   "groups": [
     {

@@ -26,7 +26,7 @@ function readCanonicalSource(entry) {
 }
 
 test('phase79b covers every remaining High source file with a locked canonical source bundle', () => {
-  assert.equal(CONFIG.bundles.length, 18);
+  assert.equal(CONFIG.bundles.length, 19);
   for (const entry of CONFIG.bundles) {
     const files = canonicalFiles(entry);
     assert.ok(files.length > 0, `${entry.target} has no canonical source`);

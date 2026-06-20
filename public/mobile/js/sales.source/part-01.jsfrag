@@ -5,7 +5,7 @@ const calculateCartonUnit = v45Common.calculateCartonUnit;
 import { mobileApi, getUser } from './api.js?v=phase86-production-hardening-v1';
 import { queueOperation, canQueueOfflineOperation, isNetworkError, listOperations } from './offline-sync.js?v=phase86-production-hardening-v1';
 import { bindLogout, debounce, escapeHtml, formatDisplayDate, formatShortDate, money, requireLogin, requireRole, setButtonBusy, setMessage } from './ui.js';
-import { buildCartItemsHtml, buildOrderCardsHtml, createMobileSalesNavigation, createStatusAnnouncer, renderMobileListState as renderSharedMobileListState } from './sales-ux.js?v=phase86-production-hardening-v1';
+import { buildCartItemsHtml, buildOrderCardsHtml, createMobileSalesNavigation, createStatusAnnouncer } from './sales-ux.js?v=phase86-production-hardening-v1';
 import { collectMobileSalesDom } from './sales/dom.js?v=phase86-production-hardening-v1';
 import { createMobileSalesState, OrderDraftStore } from './sales/state.js?v=phase86-production-hardening-v1';
 import {
@@ -47,6 +47,12 @@ const {
   debtCustomersSubtab, debtCollectSubtab, debtCustomersPanel, debtCollectPanel, debtCustomerSearch,
   debtCustomerSort
 } = collectMobileSalesDom();
+
+const mobileUiRuntime = window.MobileUiRuntime;
+const mobileSalesLifecycle = mobileUiRuntime.createLifecycle();
+const customerListRenderer = mobileUiRuntime.createChunkedHtmlRenderer(customerList, { initialCount: 60, chunkSize: 80 });
+const debtCustomerListRenderer = mobileUiRuntime.createChunkedHtmlRenderer(debtList, { initialCount: 60, chunkSize: 80 });
+const todayOrderListRenderer = mobileUiRuntime.createChunkedHtmlRenderer(todayOrders, { initialCount: 60, chunkSize: 80 });
 
 const CUSTOMER_PAGE_LIMIT = 40;
 const DEBT_PAGE_LIMIT = 30;

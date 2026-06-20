@@ -132,7 +132,7 @@
         "public/mobile/js/sales.source/part-03.jsfrag",
         "public/mobile/js/sales.source/part-03b.jsfrag"
       ],
-      "sourceSha256": "301fb4ad65aadc8890a1b57d9b3c154f760585fb8a74040113c1b8a639f6b9f7"
+      "sourceSha256": "b176b149c7bbbcceb75c0f1d399b3e5bc30b93768be1f2e7e759168819ab9909"
     },
     {
       "target": "public/js/app/admin/08d-import-excel.js",
@@ -177,11 +177,11 @@
     {
       "target": "public/mobile/js/delivery-mobile-view.js",
       "mode": "classic-single",
-      "sourceSha256": "2a4b20ad06bccf882a7f3e53a86d4eec9c965c1fba1c5f19e493c84003d9fbe4",
+      "sourceSha256": "88b2019848826b31972b3da5fab97765f16891678492047d8ec7b4f84c011eed",
       "canonicalSource": "public/mobile/js/delivery-mobile-view.source.js",
       "sourceMap": true,
       "sourceMapTarget": "public/mobile/js/delivery-mobile-view.js.map",
-      "executableSha256": "4eab33181dd0cbe8d98c7ed13dab608c2fb457bbd8fc2e4b39e8b1c60afa2742"
+      "executableSha256": "92a5b302d63085164e5f3fb198d4d98f26b9a342eed340703c5ef3befa75b5f8"
     },
     {
       "target": "public/mobile/mobile.css",
@@ -201,6 +201,14 @@
         "public/print.source/print-02.css"
       ],
       "sourceSha256": "2d5e76addfd25dfc5838cc486caf4aa7ff890e021bc939078749f68edfdf4e8d"
+    },
+    {
+      "target": "public/mobile/js/ui-runtime.js",
+      "mode": "classic-single",
+      "canonicalSource": "public/mobile/js/ui-runtime.source.js",
+      "sourceMap": true,
+      "sourceMapTarget": "public/mobile/js/ui-runtime.js.map",
+      "sourceSha256": "1683093fe1c11b591e54cb70e93315eb1884cca690cb8a007ea9fd754a697126"
     }
   ]
 }

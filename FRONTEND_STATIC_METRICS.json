@@ -1,0 +1,188 @@
+{
+  "before": {
+    "salesRawLocalJsBytes": 104547,
+    "salesScripts": [
+      {
+        "src": "../js/utils/v45-speed-monitor.js",
+        "bytes": 7564
+      },
+      {
+        "src": "/js/utils/v45-common-utils.js",
+        "bytes": 6773
+      },
+      {
+        "src": "../js/search/autocompleteEngine.js",
+        "bytes": 7954
+      },
+      {
+        "src": "../js/search/catalogCacheService.js",
+        "bytes": 8390
+      },
+      {
+        "src": "../js/search/unifiedSearchEngine.js",
+        "bytes": 8167
+      },
+      {
+        "src": "../js/search/productSearchBox.js",
+        "bytes": 9710
+      },
+      {
+        "src": "./js/sales.js",
+        "bytes": 40536
+      },
+      {
+        "src": "/js/ui/clearable-search-inputs.js",
+        "bytes": 15453
+      }
+    ],
+    "deliveryRawLocalJsBytes": 82129,
+    "deliveryScripts": [
+      {
+        "src": "/mobile/js/offline-sync.js",
+        "bytes": 8859
+      },
+      {
+        "src": "/js/delivery/delivery-core.js",
+        "bytes": 25471
+      },
+      {
+        "src": "/mobile/js/delivery-mobile-view.js",
+        "bytes": 32041
+      },
+      {
+        "src": "/mobile/js/delivery.js",
+        "bytes": 305
+      },
+      {
+        "src": "/js/ui/clearable-search-inputs.js",
+        "bytes": 15453
+      }
+    ],
+    "allMobileJsBytesIncludingCanonicalSources": 183350,
+    "mobileJsFileCount": 19,
+    "inlineHandlerAttributes": 0,
+    "windowAssignments": 7,
+    "canonicalSourcePerRowListenerLoops": 8,
+    "canonicalSourcePerRowListenerLoopLocations": [
+      {
+        "file": "public/mobile/js/delivery-mobile-view.source.js",
+        "line": 102
+      },
+      {
+        "file": "public/mobile/js/delivery-mobile-view.source.js",
+        "line": 209
+      },
+      {
+        "file": "public/mobile/js/delivery-mobile-view.source.js",
+        "line": 474
+      },
+      {
+        "file": "public/mobile/js/delivery-mobile-view.source.js",
+        "line": 484
+      },
+      {
+        "file": "public/mobile/js/sales.source/part-01b.jsfrag",
+        "line": 75
+      },
+      {
+        "file": "public/mobile/js/sales.source/part-01b.jsfrag",
+        "line": 285
+      },
+      {
+        "file": "public/mobile/js/sales.source/part-03.jsfrag",
+        "line": 45
+      },
+      {
+        "file": "public/mobile/js/sales.source/part-03.jsfrag",
+        "line": 167
+      }
+    ]
+  },
+  "after": {
+    "salesRawLocalJsBytes": 110426,
+    "salesScripts": [
+      {
+        "src": "../js/utils/v45-speed-monitor.js",
+        "bytes": 7564
+      },
+      {
+        "src": "/js/utils/v45-common-utils.js",
+        "bytes": 6773
+      },
+      {
+        "src": "../js/search/autocompleteEngine.js",
+        "bytes": 7954
+      },
+      {
+        "src": "../js/search/catalogCacheService.js",
+        "bytes": 8390
+      },
+      {
+        "src": "../js/search/unifiedSearchEngine.js",
+        "bytes": 8167
+      },
+      {
+        "src": "../js/search/productSearchBox.js",
+        "bytes": 9710
+      },
+      {
+        "src": "./js/ui-runtime.js",
+        "bytes": 5568
+      },
+      {
+        "src": "./js/sales.js",
+        "bytes": 40847
+      },
+      {
+        "src": "/js/ui/clearable-search-inputs.js",
+        "bytes": 15453
+      }
+    ],
+    "deliveryRawLocalJsBytes": 90848,
+    "deliveryScripts": [
+      {
+        "src": "/mobile/js/offline-sync.js",
+        "bytes": 8859
+      },
+      {
+        "src": "/js/delivery/delivery-core.js",
+        "bytes": 26116
+      },
+      {
+        "src": "/mobile/js/ui-runtime.js",
+        "bytes": 5568
+      },
+      {
+        "src": "/mobile/js/delivery-mobile-view.js",
+        "bytes": 34547
+      },
+      {
+        "src": "/mobile/js/delivery.js",
+        "bytes": 305
+      },
+      {
+        "src": "/js/ui/clearable-search-inputs.js",
+        "bytes": 15453
+      }
+    ],
+    "allMobileJsBytesIncludingCanonicalSources": 202536,
+    "mobileJsFileCount": 21,
+    "inlineHandlerAttributes": 0,
+    "windowAssignments": 7,
+    "canonicalSourcePerRowListenerLoops": 3,
+    "canonicalSourcePerRowListenerLoopLocations": [
+      {
+        "file": "public/mobile/js/delivery-mobile-view.source.js",
+        "line": 516
+      },
+      {
+        "file": "public/mobile/js/sales.source/part-01b.jsfrag",
+        "line": 75
+      },
+      {
+        "file": "public/mobile/js/sales.source/part-03.jsfrag",
+        "line": 164
+      }
+    ]
+  }
+}

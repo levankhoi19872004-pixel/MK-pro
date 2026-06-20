@@ -39,7 +39,7 @@ function updateNetworkStatus() {
 }
 
 function renderMobileListState(container, options = {}) {
-  renderSharedMobileListState(container, options, escapeHtml);
+  mobileUiRuntime.renderState(container, { ...options, className: options.baseClass || 'order-list' });
 }
 
 

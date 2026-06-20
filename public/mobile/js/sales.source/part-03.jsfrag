@@ -26,7 +26,7 @@ function renderDebtCustomerList(items = state.debt.rows) {
   }
 
   debtList.className = 'order-list debt-customer-list';
-  debtList.innerHTML = visible.map(({ item, originalIndex }) => {
+  const renderDebtCustomerCard = ({ item, originalIndex }) => {
     const available = customerAvailableDebtValue(item);
     const disabled = available <= 0;
     return `
@@ -40,11 +40,8 @@ function renderDebtCustomerList(items = state.debt.rows) {
           ${disabled ? 'Đang chờ KT' : 'Thu nợ'}
         </button>
       </article>`;
-  }).join('');
-
-  debtList.querySelectorAll('[data-debt-index]:not([disabled])').forEach((btn) => {
-    btn.addEventListener('click', () => openDebtCollection(source[Number(btn.dataset.debtIndex)]));
-  });
+  };
+  debtCustomerListRenderer.render(visible, renderDebtCustomerCard);
 }
 
 function debtOrderRows(item = {}) {

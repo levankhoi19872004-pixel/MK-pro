@@ -1,0 +1,64 @@
+{
+  "environment": {
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/144.0.0.0 Safari/537.36"
+  },
+  "datasets": {
+    "100": {
+      "baseline": {
+        "firstInteractionMs": 1.200000001117587,
+        "totalRenderMs": 1.200000001117587,
+        "initialDomNodes": 600,
+        "domNodes": 600,
+        "rowListeners": 100
+      },
+      "optimized": {
+        "firstInteractionMs": 1.299999998882413,
+        "totalRenderMs": 6.900000000372529,
+        "initialDomNodes": 360,
+        "domNodes": 600,
+        "rowListeners": 1
+      }
+    },
+    "500": {
+      "baseline": {
+        "firstInteractionMs": 6.400000000372529,
+        "totalRenderMs": 6.400000000372529,
+        "initialDomNodes": 3000,
+        "domNodes": 3000,
+        "rowListeners": 500
+      },
+      "optimized": {
+        "firstInteractionMs": 0.8000000007450581,
+        "totalRenderMs": 62.30000000074506,
+        "initialDomNodes": 360,
+        "domNodes": 3000,
+        "rowListeners": 1
+      }
+    },
+    "1000": {
+      "baseline": {
+        "firstInteractionMs": 11.800000000745058,
+        "totalRenderMs": 11.800000000745058,
+        "initialDomNodes": 6000,
+        "domNodes": 6000,
+        "rowListeners": 1000
+      },
+      "optimized": {
+        "firstInteractionMs": 0.5,
+        "totalRenderMs": 100,
+        "initialDomNodes": 360,
+        "domNodes": 6000,
+        "rowListeners": 1
+      }
+    }
+  },
+  "requestsForTenKeystrokes": {
+    "baseline": 1,
+    "optimized": 1
+  },
+  "memoryAfter50ScreenSwitchesBytes": {
+    "baseline": 25468,
+    "optimized": 0
+  },
+  "generatedAt": "2026-06-20T15:22:18.158Z"
+}

@@ -67,7 +67,8 @@
     "check:mobile-production": "node scripts/audit-mobile-query-plans.js && node scripts/mobile-browser-smoke.js",
     "worker:background": "node scripts/background-job-worker.js",
     "worker:background:once": "node scripts/background-job-worker.js --once",
-    "benchmark:background-jobs": "node scripts/performance/background-job-isolation-benchmark.js"
+    "benchmark:background-jobs": "node scripts/performance/background-job-isolation-benchmark.js",
+    "benchmark:frontend": "node scripts/performance/frontend-dom-benchmark.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

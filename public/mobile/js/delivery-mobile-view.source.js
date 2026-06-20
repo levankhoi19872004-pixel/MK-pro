@@ -13,6 +13,13 @@
     return `${values.year}-${values.month}-${values.day}`;
   }
 
+  var mobileUiRuntime = window.MobileUiRuntime || null;
+  var deliveryLifecycle = mobileUiRuntime ? mobileUiRuntime.createLifecycle() : null;
+  var deliveryLoadGate = mobileUiRuntime ? mobileUiRuntime.createRequestGate() : null;
+  var deliveryOrderRenderer = null;
+  var deliveryDebtRenderer = null;
+  var deliveryDebtRendererContainer = null;
+
   var state = {
     selectedKey: '',
     tab: 'orders',
@@ -94,13 +101,22 @@
       '<section id="mBody" class="m-delivery-body">Đang tải...</section>' +
       '<p id="mMsg" class="m-delivery-msg"></p>';
     el('mDate').value = today();
-    el('mReload').addEventListener('click', load);
-    el('mLogout').addEventListener('click', logout);
-    el('mDate').addEventListener('change', load);
-    el('mStatusFilter').addEventListener('change', load);
-    el('mSearch').addEventListener('input', debounce(load, 250));
+    deliveryOrderRenderer = mobileUiRuntime
+      ? mobileUiRuntime.createChunkedHtmlRenderer(el('mBody'), { initialCount: 60, chunkSize: 80 })
+      : null;
+    var bind = deliveryLifecycle ? deliveryLifecycle.listen : function (target, type, handler) {
+      target.addEventListener(type, handler);
+      return function () { target.removeEventListener(type, handler); };
+    };
+    bind(el('mReload'), 'click', load);
+    bind(el('mLogout'), 'click', logout);
+    bind(el('mDate'), 'change', load);
+    bind(el('mStatusFilter'), 'change', load);
+    var debouncedSearch = mobileUiRuntime ? mobileUiRuntime.debounce(load, 250) : debounce(load, 250);
+    bind(el('mSearch'), 'input', debouncedSearch);
+    if (deliveryLifecycle) deliveryLifecycle.add(function () { if (debouncedSearch.cancel) debouncedSearch.cancel(); });
     document.querySelectorAll('[data-m-tab]').forEach(function (button) {
-      button.addEventListener('click', function () {
+      bind(button, 'click', function () {
         var nextTab = button.getAttribute('data-m-tab');
         if (
           state.tab === 'debt' &&
@@ -117,6 +133,20 @@
         if (state.tab === 'debt') loadDeliveryDebts();
       });
     });
+    if (deliveryLifecycle) {
+      deliveryLifecycle.delegate(el('mBody'), 'click', '[data-order-key]', function (_event, button) {
+        select(button.getAttribute('data-order-key'));
+      });
+      deliveryLifecycle.delegate(el('mBody'), 'click', '[data-debt-index]:not([disabled])', function (_event, button) {
+        openDeliveryDebtCollection(Number(button.getAttribute('data-debt-index')));
+      });
+      deliveryLifecycle.listen(window, 'pagehide', function () {
+        if (deliveryOrderRenderer) deliveryOrderRenderer.cancel();
+        if (deliveryDebtRenderer) deliveryDebtRenderer.cancel();
+        deliveryLoadGate.cancel();
+        deliveryLifecycle.destroy();
+      }, { once: true });
+    }
   }
 
   function debounce(fn, wait) {
@@ -185,6 +215,8 @@
     document.querySelectorAll('[data-m-tab]').forEach(function (button) { button.classList.toggle('active', button.getAttribute('data-m-tab') === state.tab); });
     var body = el('mBody');
     if (!body) return;
+    if (state.tab !== 'orders' && deliveryOrderRenderer) deliveryOrderRenderer.cancel();
+    if (state.tab !== 'debt' && deliveryDebtRenderer) deliveryDebtRenderer.cancel();
     if (state.tab === 'products') return renderProducts(body);
     if (state.tab === 'returns') return renderReturns(body);
     if (state.tab === 'payment') return renderPayment(body);
@@ -192,21 +224,30 @@
     return renderOrders(body);
   }
 
+  function renderOrderCard(order) {
+    var key = keyOf(order);
+    var selected = key === state.selectedKey ? ' selected' : '';
+    var delivered = isDelivered(order);
+    var dotClass = delivered ? 'delivered' : 'pending';
+    var dotTitle = delivered ? 'Đã giao' : 'Chưa giao';
+    return '<button type="button" class="m-order-card' + selected + '" data-order-key="' + esc(key) + '">' +
+      '<div class="m-order-top"><b>' + esc(order.orderCode) + '</b><span class="m-order-customer"><span class="m-customer-name">' + esc(order.customerName || order.customerCode) + '</span><i class="delivery-status-dot ' + dotClass + '" title="' + esc(dotTitle) + '"></i></span></div>' +
+      '<div class="m-order-metrics"><span>PT ' + money(amount(order, 'receivable')) + '</span><span>TM ' + money(amount(order, 'cash')) + '</span><span>CK ' + money(amount(order, 'bank')) + '</span><span>TH ' + money(amount(order, 'returnAmount')) + '</span><span>HT ' + money(amount(order, 'reward')) + '</span><span>CN ' + (amount(order, 'debt') > 0 ? money(amount(order, 'debt')) : 'Đủ') + '</span></div>' +
+    '</button>';
+  }
+
   function renderOrders(body) {
     var rows = window.DeliveryCore.state.orders || [];
-    if (!rows.length) { body.innerHTML = '<div class="m-empty">Không có đơn giao.</div>'; return; }
-    body.innerHTML = rows.map(function (order) {
-      var key = keyOf(order);
-      var selected = key === state.selectedKey ? ' selected' : '';
-      var delivered = isDelivered(order);
-      var dotClass = delivered ? 'delivered' : 'pending';
-      var dotTitle = delivered ? 'Đã giao' : 'Chưa giao';
-      return '<button type="button" class="m-order-card' + selected + '" data-order-key="' + esc(key) + '">' +
-        '<div class="m-order-top"><b>' + esc(order.orderCode) + '</b><span class="m-order-customer"><span class="m-customer-name">' + esc(order.customerName || order.customerCode) + '</span><i class="delivery-status-dot ' + dotClass + '" title="' + esc(dotTitle) + '"></i></span></div>' +
-        '<div class="m-order-metrics"><span>PT ' + money(amount(order, 'receivable')) + '</span><span>TM ' + money(amount(order, 'cash')) + '</span><span>CK ' + money(amount(order, 'bank')) + '</span><span>TH ' + money(amount(order, 'returnAmount')) + '</span><span>HT ' + money(amount(order, 'reward')) + '</span><span>CN ' + (amount(order, 'debt') > 0 ? money(amount(order, 'debt')) : 'Đủ') + '</span></div>' +
-      '</button>';
-    }).join('');
-    body.querySelectorAll('[data-order-key]').forEach(function (button) { button.addEventListener('click', function () { select(button.getAttribute('data-order-key')); }); });
+    if (!rows.length) {
+      if (mobileUiRuntime) mobileUiRuntime.renderState(body, { state: 'empty', className: 'm-delivery-body', title: 'Không có đơn giao.' });
+      else body.innerHTML = '<div class="m-empty">Không có đơn giao.</div>';
+      return;
+    }
+    if (deliveryOrderRenderer) {
+      deliveryOrderRenderer.render(rows, renderOrderCard, { className: 'm-delivery-body' });
+    } else {
+      body.innerHTML = rows.map(renderOrderCard).join('');
+    }
   }
 
   function currentOrder() { return window.DeliveryCore.state.selectedOrder; }
@@ -389,7 +430,8 @@
     var summary = state.debtSummary || {};
 
     if (state.debtLoading && !rows.length) {
-      body.innerHTML = '<div class="m-empty">Đang tải công nợ...</div>';
+      if (mobileUiRuntime) mobileUiRuntime.renderState(body, { state: 'loading', className: 'm-delivery-body', title: 'Đang tải công nợ...' });
+      else body.innerHTML = '<div class="m-empty">Đang tải công nợ...</div>';
       return;
     }
 
@@ -419,7 +461,7 @@
             '<option value="oldest_asc"' + (state.debtSort === 'oldest_asc' ? ' selected' : '') + '>Nợ cũ nhất</option>' +
           '</select>' +
         '</div>' +
-        '<div id="mDebtCustomerList" class="m-debt-list">' + renderDebtCustomers(visibleDeliveryDebtCustomers()) + '</div>' +
+        '<div id="mDebtCustomerList" class="m-debt-list"></div>' +
       '</section>' +
       '<section id="mDebtCollectPanel" class="debt-subpanel' + (!customerTabActive ? ' active' : '') + '">' +
         '<div id="mDebtDetailContainer" class="m-debt-detail">' + renderDebtCustomerDetail(selected) + '</div>' +
@@ -460,7 +502,7 @@
       renderDeliveryDebtCustomerList();
     });
 
-    bindDeliveryDebtCustomerActions(body);
+    renderDeliveryDebtCustomerList();
 
     var form = el('mDeliveryDebtCollectionForm');
     if (form && selected) {
@@ -479,52 +521,59 @@
     });
   }
 
-  function bindDeliveryDebtCustomerActions(container) {
-    if (!container) return;
-    container.querySelectorAll('[data-debt-index]:not([disabled])').forEach(function (button) {
-      button.addEventListener('click', function () {
-        openDeliveryDebtCollection(Number(button.getAttribute('data-debt-index')));
-      });
-    });
-  }
-
   function renderDeliveryDebtCustomerList() {
     var list = el('mDebtCustomerList');
     if (!list) return;
-    list.innerHTML = renderDebtCustomers(visibleDeliveryDebtCustomers());
-    bindDeliveryDebtCustomerActions(list);
+    var entries = visibleDeliveryDebtCustomers();
+    if (!(state.debts || []).length) {
+      if (mobileUiRuntime) mobileUiRuntime.renderState(list, { state: 'empty', className: 'm-debt-customer-list', title: 'Không có khách hàng còn nợ.' });
+      else list.innerHTML = '<div class="m-empty">Không có khách hàng còn nợ.</div>';
+      return;
+    }
+    if (!entries.length) {
+      if (mobileUiRuntime) mobileUiRuntime.renderState(list, { state: 'empty', className: 'm-debt-customer-list', title: 'Không tìm thấy khách hàng phù hợp.' });
+      else list.innerHTML = '<div class="m-empty">Không tìm thấy khách hàng phù hợp.</div>';
+      return;
+    }
+    if (mobileUiRuntime) {
+      if (deliveryDebtRendererContainer !== list) {
+        if (deliveryDebtRenderer) deliveryDebtRenderer.cancel();
+        deliveryDebtRendererContainer = list;
+        deliveryDebtRenderer = mobileUiRuntime.createChunkedHtmlRenderer(list, { initialCount: 60, chunkSize: 80 });
+      }
+      deliveryDebtRenderer.render(entries, renderDebtCustomerCard, { className: 'm-debt-customer-list' });
+    } else {
+      list.innerHTML = entries.map(renderDebtCustomerCard).join('');
+    }
+  }
+
+  function renderDebtCustomerCard(entry) {
+    var customer = entry.customer;
+    var index = entry.originalIndex;
+    var selected = deliveryDebtCustomerKey(customer) === state.selectedDebtKey ? ' selected' : '';
+    var available = debtAvailableValue(customer);
+    var disabled = available <= 0;
+
+    return '<article class="m-order-card m-debt-customer-card' + selected + '">' +
+      '<div class="m-order-top">' +
+        '<b>' + esc(customer.customerCode || '') + ' - ' + esc(customer.customerName || '') + '</b>' +
+      '</div>' +
+      '<div class="m-order-metrics">' +
+        '<span>Nợ ' + money(debtMoneyValue(customer)) + '</span>' +
+        '<span>Chờ KT ' + money(debtPendingValue(customer)) + '</span>' +
+        '<span>Có thể thu ' + money(available) + '</span>' +
+        '<span>' + esc(customer.orderCount || 0) + ' đơn</span>' +
+      '</div>' +
+      '<button type="button" class="m-debt-collect-action' + (disabled ? ' disabled' : '') + '" data-debt-index="' + index + '"' + (disabled ? ' disabled aria-disabled="true"' : '') + '>' +
+        (disabled ? 'Đang chờ KT' : 'Thu nợ') +
+      '</button>' +
+    '</article>';
   }
 
   function renderDebtCustomers(entries) {
-    if (!(state.debts || []).length) {
-      return '<div class="m-empty">Không có khách hàng còn nợ.</div>';
-    }
-    if (!entries.length) {
-      return '<div class="m-empty">Không tìm thấy khách hàng phù hợp.</div>';
-    }
-
-    return entries.map(function (entry) {
-      var customer = entry.customer;
-      var index = entry.originalIndex;
-      var selected = deliveryDebtCustomerKey(customer) === state.selectedDebtKey ? ' selected' : '';
-      var available = debtAvailableValue(customer);
-      var disabled = available <= 0;
-
-      return '<article class="m-order-card m-debt-customer-card' + selected + '">' +
-        '<div class="m-order-top">' +
-          '<b>' + esc(customer.customerCode || '') + ' - ' + esc(customer.customerName || '') + '</b>' +
-        '</div>' +
-        '<div class="m-order-metrics">' +
-          '<span>Nợ ' + money(debtMoneyValue(customer)) + '</span>' +
-          '<span>Chờ KT ' + money(debtPendingValue(customer)) + '</span>' +
-          '<span>Có thể thu ' + money(available) + '</span>' +
-          '<span>' + esc(customer.orderCount || 0) + ' đơn</span>' +
-        '</div>' +
-        '<button type="button" class="m-debt-collect-action' + (disabled ? ' disabled' : '') + '" data-debt-index="' + index + '"' + (disabled ? ' disabled aria-disabled="true"' : '') + '>' +
-          (disabled ? 'Đang chờ KT' : 'Thu nợ') +
-        '</button>' +
-      '</article>';
-    }).join('');
+    if (!(state.debts || []).length) return '<div class="m-empty">Không có khách hàng còn nợ.</div>';
+    if (!entries.length) return '<div class="m-empty">Không tìm thấy khách hàng phù hợp.</div>';
+    return entries.map(renderDebtCustomerCard).join('');
   }
 
   function renderDebtCustomerDetail(customer) {
@@ -860,10 +909,14 @@
     }
     if (state.tab === 'debt') state.debtFormDirty = false;
     if (!el('mBody')) renderShell();
-    el('mBody').innerHTML = '<div class="m-empty">Đang tải...</div>';
+    var requestToken = deliveryLoadGate ? deliveryLoadGate.begin() : null;
+    if (mobileUiRuntime) mobileUiRuntime.renderState(el('mBody'), { state: 'loading', className: 'm-delivery-body', title: 'Đang tải dữ liệu giao hàng...' });
+    else el('mBody').innerHTML = '<div class="m-empty">Đang tải...</div>';
     try {
       await window.DeliveryCore.loadOrders(filters());
+      if (deliveryLoadGate && !deliveryLoadGate.isCurrent(requestToken)) return;
       await window.DeliveryCore.loadReturns(filters());
+      if (deliveryLoadGate && !deliveryLoadGate.isCurrent(requestToken)) return;
       if (!state.selectedKey && window.DeliveryCore.state.orders[0]) state.selectedKey = keyOf(window.DeliveryCore.state.orders[0]);
       if (state.selectedKey) window.DeliveryCore.selectOrder(state.selectedKey);
       if (state.tab === 'returns') {
@@ -875,7 +928,12 @@
         render();
         msg('');
       }
-    } catch (err) { el('mBody').innerHTML = '<div class="m-empty danger">' + esc(err.message) + '</div>'; msg(err.message, true); }
+    } catch (err) {
+      if (deliveryLoadGate && !deliveryLoadGate.isCurrent(requestToken)) return;
+      if (mobileUiRuntime) mobileUiRuntime.renderState(el('mBody'), { state: 'error', className: 'm-delivery-body', title: 'Không tải được dữ liệu giao hàng', detail: err.message || 'Vui lòng thử lại.' });
+      else el('mBody').innerHTML = '<div class="m-empty danger">' + esc(err.message) + '</div>';
+      msg(err.message, true);
+    }
   }
 
   window.DeliveryMobileView = { load: load, select: select, renderShell: renderShell };

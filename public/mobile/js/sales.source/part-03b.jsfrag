@@ -29,11 +29,12 @@ function renderTodayOrders(items = state.orders.rows, summary = state.orders.sum
   }
 
   todayOrders.className = 'order-list mobile-order-list';
-  todayOrders.innerHTML = buildOrderCardsHtml(displayOrders, {
+  const renderOrderCard = (order) => buildOrderCardsHtml([order], {
     escapeHtml,
     money,
     formatDate: formatDisplayDate
   });
+  todayOrderListRenderer.render(displayOrders, renderOrderCard);
 
 }
 
