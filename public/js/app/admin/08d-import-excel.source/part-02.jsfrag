@@ -185,9 +185,9 @@ function describeImportPreviewQueue(json={}, attempt=0){
   const jobStatus=String(queue.status||job.status||'').trim();
   const jobId=String(queue.jobId||job.id||'').trim();
   const suffix=[];
-  if(jobStatus)suffix.push(`worker: ${jobStatus}`);
+  if(jobStatus)suffix.push(`job nền: ${jobStatus}`);
   if(jobId)suffix.push(`job: ${jobId}`);
-  if(attempt>=10&&status==='queued')suffix.push('nếu đứng lâu, kiểm tra Worker Service trên Render');
+  if(attempt>=10&&status==='queued')suffix.push('nếu đứng lâu, hãy bấm Xem trước lại hoặc bật IMPORT_PREVIEW_ASYNC=false để xử lý trực tiếp');
   return `Đang xử lý file Excel... ${percent}% (${step})${suffix.length?' · '+suffix.join(' · '):''}`;
 }
 
@@ -260,7 +260,7 @@ async function waitImportPreviewSession(sessionId,options={}){
     await sleepImportPreview(delayMs);
   }
 
-  throw new Error('Import preview đã được tạo session nhưng chưa hoàn tất trong 2 phút. Nếu vẫn đứng 0% queued, hãy kiểm tra Worker Service chạy lệnh npm run worker:background hoặc tạm thời đặt IMPORT_PREVIEW_ASYNC=false cho staging.');
+  throw new Error('Import preview đã được tạo session nhưng chưa hoàn tất trong 2 phút. Nếu vẫn đứng 0% queued, hãy bấm Xem trước lại; worker chỉ là tùy chọn khi IMPORT_PREVIEW_ASYNC=true.');
 }
 
 async function downloadImportBlob(url,fileName){
@@ -415,7 +415,7 @@ function startImportCommitProgressPolling(sessionId,selectedCount){
         return;
       }
       if(res.ok&&json.ok){
-        if(status==='importing'){
+        if(status==='importing'||status==='processing'){
           showMessage(importDataMessage,describeImportCommitProgress(json.progress||{},selectedCount));
         }else if(status==='done'){
           stopped=true;

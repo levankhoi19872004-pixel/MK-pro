@@ -57,8 +57,8 @@ throw new Error(`Phiên import đọc thiếu dòng: Mongo đã ghi nhận ${for
 }return rows}function describeImportPreviewQueue(json={},attempt=0){const status=String(json.status||"").toLowerCase();const progress=json.progress||{}
 ;const percent=Math.max(0,Math.min(100,Number(progress.percent||0)));const step=String(progress.step||status||"queued").trim();const queue=json.queue||{}
 ;const job=json.backgroundJob||{};const jobStatus=String(queue.status||job.status||"").trim();const jobId=String(queue.jobId||job.id||"").trim();const suffix=[]
-;if(jobStatus)suffix.push(`worker: ${jobStatus}`);if(jobId)suffix.push(`job: ${jobId}`)
-;if(attempt>=10&&status==="queued")suffix.push("nếu đứng lâu, kiểm tra Worker Service trên Render")
+;if(jobStatus)suffix.push(`job nền: ${jobStatus}`);if(jobId)suffix.push(`job: ${jobId}`)
+;if(attempt>=10&&status==="queued")suffix.push("nếu đứng lâu, hãy bấm Xem trước lại hoặc bật IMPORT_PREVIEW_ASYNC=false để xử lý trực tiếp")
 ;return`Đang xử lý file Excel... ${percent}% (${step})${suffix.length?" · "+suffix.join(" · "):""}`}async function waitImportPreviewSession(sessionId,options={}){
 const safeSessionId=String(sessionId||"").trim();if(!safeSessionId)throw new Error("Thiếu mã phiên import do backend tạo");const maxAttempts=80;const delayMs=1500
 ;const pollingStatuses=new Set(["uploaded","queued","parsing"]);for(let attempt=0;attempt<maxAttempts;attempt+=1){
@@ -76,7 +76,7 @@ const failure=json.result&&json.result.importFailure?json.result.importFailure:n
 ;throw new Error(failure&&failure.message||json.errorMessage||json.message||"Import thất bại khi đọc file Excel")}if(!pollingStatuses.has(status)){
 throw new Error(`Trạng thái phiên import không hợp lệ: ${status||"trống"}. Vui lòng bấm Xem trước lại.`)}showMessage(importDataMessage,describeImportPreviewQueue({...json,
 queue:json.queue||{jobId:options.jobId,status:""}},attempt));await sleepImportPreview(delayMs)}
-throw new Error("Import preview đã được tạo session nhưng chưa hoàn tất trong 2 phút. Nếu vẫn đứng 0% queued, hãy kiểm tra Worker Service chạy lệnh npm run worker:background hoặc tạm thời đặt IMPORT_PREVIEW_ASYNC=false cho staging.")
+throw new Error("Import preview đã được tạo session nhưng chưa hoàn tất trong 2 phút. Nếu vẫn đứng 0% queued, hãy bấm Xem trước lại; worker chỉ là tùy chọn khi IMPORT_PREVIEW_ASYNC=true.")
 }async function downloadImportBlob(url,fileName){const res=await fetch(url);const blob=await res.blob();if(!res.ok){let message="Không tải được file Excel";try{
 const text=await blob.text();const json=JSON.parse(text);message=json.message||json.error||message}catch(_){}throw new Error(message)}const objectUrl=URL.createObjectURL(blob)
 ;const a=document.createElement("a");a.href=objectUrl;a.download=fileName||"template.xlsx";document.body.appendChild(a);a.click();a.remove()
@@ -109,8 +109,8 @@ revalidating_orders:"Đang kiểm tra lại mã đơn, khách hàng, sản phẩ
 let stopped=false;let timer=null;const poll=async()=>{if(stopped||!sessionId)return;try{
 const res=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}?t=${Date.now()}`,{cache:"no-store"});const json=await res.json()
 ;const status=String(json.status||"").toLowerCase();if(status==="failed"){showMessage(importDataMessage,json.errorMessage||json.message||"Import thất bại",true);stopped=true;return
-}if(res.ok&&json.ok){if(status==="importing"){showMessage(importDataMessage,describeImportCommitProgress(json.progress||{},selectedCount))}else if(status==="done"){stopped=true
-;return}}}catch(_){}if(!stopped)timer=setTimeout(poll,1200)};timer=setTimeout(poll,500);return()=>{stopped=true;if(timer)clearTimeout(timer)}}
+}if(res.ok&&json.ok){if(status==="importing"||status==="processing"){showMessage(importDataMessage,describeImportCommitProgress(json.progress||{},selectedCount))
+}else if(status==="done"){stopped=true;return}}}catch(_){}if(!stopped)timer=setTimeout(poll,1200)};timer=setTimeout(poll,500);return()=>{stopped=true;if(timer)clearTimeout(timer)}}
 async function refreshAfterImport(type){if(["promotionProductRules","promotionGroupItems","promotionGroupRules"].includes(type)){
 if(typeof window.reloadPromotionRules==="function")await window.reloadPromotionRules();return}if(type==="users"){if(typeof loadUsers==="function")await loadUsers();return}
 const tasks=[];const add=fn=>{if(typeof fn==="function")tasks.push(Promise.resolve().then(fn))};if(type==="salesOrders"){add(loadSalesOrders);add(loadStock)

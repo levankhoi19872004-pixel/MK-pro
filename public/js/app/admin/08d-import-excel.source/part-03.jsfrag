@@ -7,8 +7,8 @@ async function waitForAsyncImportCommit(sessionId,jobId){
     const response=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}`);
     const payload=await response.json().catch(()=>({}));
     if(payload.status==='done')return {...(payload.result||{}),sessionId,importSessionId:sessionId};
-    if(payload.status==='failed'||(!response.ok&&payload.status!=='importing')){
-      throw new Error(payload.errorMessage||payload.message||`Import worker thất bại${jobId?` (${jobId})`:''}`);
+    if(payload.status==='failed'||(!response.ok&&!['importing','processing'].includes(String(payload.status||'').toLowerCase()))){
+      throw new Error(payload.errorMessage||payload.message||`Import nền thất bại${jobId?` (${jobId})`:''}`);
     }
     await new Promise(resolve=>setTimeout(resolve,600));
   }
@@ -41,9 +41,10 @@ async function commitImportExcel(){
     showMessage(importDataMessage,`Đang import ${formatNumber(selectedRows.length)} đơn/dòng đã chọn...`);
     stopProgressPolling=startImportCommitProgressPolling(importPreviewSessionId,selectedRows.length);
 
-    const res=await fetch('/api/import/commit',{
+    const commitUrl=`/api/import/sessions/${encodeURIComponent(importPreviewSessionId)}/commit`;
+    const res=await fetch(commitUrl,{
       method:'POST',
-      headers:{'Content-Type':'application/json',Prefer:'respond-async'},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         type:importDataType.value,
         importMode:getSelectedImportMode(),
@@ -52,10 +53,10 @@ async function commitImportExcel(){
         shortageMode:importShortageActionMode||'cut'
       })
     });
-    let json=await res.json();
+    let json=await res.json().catch(()=>({ok:false,message:`API import không trả JSON hợp lệ (HTTP ${res.status})`}));
     if(!json.ok)throw new Error(json.error||json.message||'Import thất bại');
     if(json.accepted&&json.jobId){
-      showMessage(importDataMessage,`Đã tạo job ${json.jobId}. Worker đang xử lý...`);
+      showMessage(importDataMessage,`Đã tạo job ${json.jobId}. Tác vụ nền đang xử lý...`);
       json=await waitForAsyncImportCommit(importPreviewSessionId,json.jobId);
     }
 

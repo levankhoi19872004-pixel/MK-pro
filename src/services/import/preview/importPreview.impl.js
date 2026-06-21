@@ -719,7 +719,9 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
     fileCount: normalizedFiles.length
   });
 
-  const asyncPreview = process.env.IMPORT_PREVIEW_ASYNC !== 'false';
+  // Quy mô hiện tại ưu tiên Web direct để không bắt buộc chạy Render Worker.
+  // Worker preview vẫn giữ lại như đường mở rộng, chỉ bật khi IMPORT_PREVIEW_ASYNC=true.
+  const asyncPreview = process.env.IMPORT_PREVIEW_ASYNC === 'true';
 
   if (asyncPreview) {
     await importSessionService.markQueued(session.id, { files: normalizedFiles.map((file) => ({

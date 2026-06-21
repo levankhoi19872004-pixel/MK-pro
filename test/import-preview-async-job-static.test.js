@@ -8,7 +8,7 @@ function read(file) {
   return require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', file));
 }
 
-test('import preview uses the persistent background queue instead of only inline execution', () => {
+test('import preview defaults to web direct and keeps persistent background queue optional', () => {
   const service = read('src/services/excelImportService.js');
   const preview = read('src/services/import/preview/importPreview.impl.js');
   const submission = read('src/services/background-jobs/JobSubmissionService.js');
@@ -20,6 +20,8 @@ test('import preview uses the persistent background queue instead of only inline
 
   assert.match(service, /preview:\s*preview\.preview/);
   assert.match(preview, /IMPORT_PREVIEW_ASYNC/);
+  assert.match(preview, /process\.env\.IMPORT_PREVIEW_ASYNC === 'true'/);
+  assert.match(preview, /runImportPreviewPipeline/);
   assert.match(preview, /submitImportPreview/);
   assert.match(preview, /markQueued\(session\.id/);
   assert.doesNotMatch(preview, /enqueueImportPreviewJob\(/);

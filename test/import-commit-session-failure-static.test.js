@@ -10,7 +10,7 @@ function read(file) {
 }
 
 test('excel import commit marks session failed when commit implementation throws', () => {
-  const service = read('src/services/excelImportService.js');
+  const service = read('src/services/import/importCommit.impl.js');
 
   assert.match(service, /safeMarkImportFailed/);
   assert.match(service, /async function commit/);
@@ -31,7 +31,7 @@ test('excel import commit marks session failed when commit implementation throws
 });
 
 test('excel import commit audit log is best effort after markDone', () => {
-  const service = read('src/services/excelImportService.js');
+  const service = read('src/services/import/importCommit.impl.js');
 
   const markDoneIndex = service.indexOf('await importSessionService.markDone(currentSessionId, result)');
   const auditIndex = service.indexOf("await auditService.log('IMPORT_COMMIT'");

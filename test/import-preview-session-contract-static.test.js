@@ -19,7 +19,7 @@ test('import preview frontend creates backend session before polling', () => {
   assert.doesNotMatch(source, /makeId\(['"]IMP/);
 });
 
-test('import session polling fails closed for unknown sessions and exposes worker queue state', () => {
+test('import session polling fails closed for unknown sessions and exposes optional background queue state', () => {
   const service = read('src/services/import/importCommit.impl.js');
   const controller = read('src/controllers/importExportController.js');
   const ui = read('public/js/app/admin/08d-import-excel.js');
@@ -30,6 +30,6 @@ test('import session polling fails closed for unknown sessions and exposes worke
   assert.match(service, /idempotencyKey:\s*`import-preview:\$\{safeSessionId\}`/);
   assert.match(service, /backgroundJob/);
   assert.match(controller, /Cache-Control',\s*'no-store'/);
-  assert.match(ui, /Worker Service/);
-  assert.match(ui, /npm run worker:background/);
+  assert.match(ui, /IMPORT_PREVIEW_ASYNC=true/);
+  assert.match(ui, /job nền/);
 });

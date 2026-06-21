@@ -6,13 +6,19 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 
-test('import preview and commit use persistent background jobs', () => {
+test('import preview keeps optional persistent queue and import commit defaults to web direct', () => {
   const preview = read('src/services/import/preview/importPreview.impl.js');
   const controller = read('src/controllers/importExportController.js');
+  const directCommit = read('src/services/import/ImportWebDirectCommitService.js');
+
+  assert.match(preview, /process\.env\.IMPORT_PREVIEW_ASYNC === 'true'/);
   assert.match(preview, /submitImportPreview/);
   assert.doesNotMatch(preview, /enqueueImportPreviewJob\(/);
-  assert.match(controller, /submitImportCommit/);
-  assert.match(controller, /Prefer|prefersAsync/);
+
+  assert.match(controller, /ImportWebDirectCommitService\.commitSession/);
+  assert.doesNotMatch(controller, /submitImportCommit\(req\)/);
+  assert.match(directCommit, /excelImportService\.commit/);
+  assert.doesNotMatch(directCommit, /BackgroundJobService|JobSubmissionService|submitImportCommit/);
 });
 
 test('invoice export defaults to direct workbook download and keeps async job compatibility', () => {

@@ -25,6 +25,7 @@ router.post(
 
 router.get('/sessions/:sessionId/rows', manageImports, excelImportController.sessionRows);
 router.get('/sessions/:sessionId', manageImports, excelImportController.sessionStatus);
+router.post('/sessions/:sessionId/commit', manageImports, excelImportController.commit);
 router.post('/commit', manageImports, excelImportController.commit);
 
 // Direct import đã bị khóa, không được gắn upload middleware để tránh tốn RAM.

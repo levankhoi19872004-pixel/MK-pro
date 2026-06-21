@@ -1,7 +1,7 @@
 'use strict';
 
 const excelImportService = require('../services/excelImportService');
-const AsyncJobHttpAdapter = require('../services/background-jobs/AsyncJobHttpAdapter');
+const ImportWebDirectCommitService = require('../services/import/ImportWebDirectCommitService');
 
 async function preview(req, res) {
   try {
@@ -17,18 +17,20 @@ async function preview(req, res) {
 
 async function commit(req, res) {
   try {
-    const sessionId = String(req.body?.sessionId || req.body?.importSessionId || '').trim();
-    const submitted = await AsyncJobHttpAdapter.submitImportCommit(req);
-    if (submitted.error) return res.status(submitted.status || 400).json({ ok: false, message: submitted.error });
-    if (AsyncJobHttpAdapter.prefersAsync(req)) {
-      return res.status(202).json(AsyncJobHttpAdapter.acceptedPayload(submitted, {
-        source: 'mongo-native-import-controller', sessionId, importSessionId: sessionId
-      }));
+    const result = await ImportWebDirectCommitService.commitSession({
+      ...(req.body || {}),
+      sessionId: req.params?.sessionId || req.body?.sessionId || req.body?.importSessionId
+    }, req.user || {});
+
+    if (result.error) {
+      return res.status(result.status || 400).json({
+        ok: false,
+        message: result.error,
+        ...result
+      });
     }
-    const waited = await AsyncJobHttpAdapter.waitImportCompatibility(submitted, sessionId);
-    if (waited.timeout) return res.status(202).json(AsyncJobHttpAdapter.acceptedPayload(submitted, { source: 'mongo-native-import-controller', sessionId }));
-    if (waited.error) return res.status(waited.status || 500).json({ ok: false, message: waited.error, code: waited.code });
-    return res.json({ ok: true, source: 'mongo-native-import-controller', ...waited.result });
+
+    return res.json({ ok: true, source: 'mongo-native-import-controller', ...result });
   } catch (err) {
     return res.status(500).json({ ok: false, message: 'Không ghi được dữ liệu import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }

@@ -24,6 +24,7 @@ router.post(
 
 router.get('/sessions/:sessionId/rows', manageImports, importRuntimeController.sessionRows);
 router.get('/sessions/:sessionId', manageImports, importRuntimeController.sessionStatus);
+router.post('/sessions/:sessionId/commit', manageImports, importRuntimeController.commit);
 router.post('/commit', manageImports, importRuntimeController.commit);
 router.get('/logs', manageImports, importRuntimeController.logs);
 

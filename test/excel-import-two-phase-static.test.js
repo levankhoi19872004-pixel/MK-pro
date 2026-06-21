@@ -10,7 +10,8 @@ function read(file) {
 }
 
 test('Excel import is two-phase and direct import is disabled', () => {
-  const service = read('src/services/excelImportService.js');
+  const service = read('src/services/import/importCommit.impl.js');
+  const previewService = read('src/services/import/preview/importPreview.impl.js');
   const sessionService = read('src/services/importSessionService.js');
   const model = read('src/models/ImportSession.js');
   const controller = read('src/controllers/excelImportController.js');
@@ -31,8 +32,8 @@ test('Excel import is two-phase and direct import is disabled', () => {
   assert.match(job, /runImportPreviewJob/);
   assert.match(job, /parseExcelBuffer/);
 
-  assert.match(service, /buildPreviewFromRows/);
-  assert.match(service, /createUploadedSession/);
+  assert.match(previewService, /buildPreviewFromRows/);
+  assert.match(previewService, /createUploadedSession/);
   assert.match(service, /markImporting/);
   assert.match(service, /markDone/);
   assert.match(service, /Import trực tiếp đã bị khóa/);
