@@ -53,10 +53,11 @@ test('delivery role cannot spoof another NVGH in reconciliation mobile compatibi
   assert.match(mobileDeliveryServiceSource, /canonicalRoute: '\/api\/delivery\/reconciliation'/);
 });
 
-test('mobile app exposes a small lazy-loaded reconciliation entry in the secondary menu', () => {
+test('mobile app exposes lazy-loaded reconciliation through a secondary shortcut', () => {
   assert.match(deliveryCoreSource, /async loadReconciliation\(filters\)/);
   assert.match(deliveryCoreSource, /this\.state\.reconciliationReport = report/);
-  assert.match(deliveryMobileViewSource, /data-m-menu-tab="reconciliation"/);
+  assert.match(deliveryMobileViewSource, /mReconShortcut/);
+  assert.doesNotMatch(deliveryMobileViewSource, /data-m-tab="reconciliation"/);
   assert.match(deliveryMobileViewSource, /function loadDeliveryReconciliation\(force\)/);
   assert.match(deliveryMobileViewSource, /function renderReconciliationApp\(body\)/);
   assert.match(deliveryMobileViewSource, /buildDeliveryReconciliationUrl\(\)/);

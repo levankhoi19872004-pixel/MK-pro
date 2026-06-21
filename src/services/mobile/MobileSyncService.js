@@ -78,9 +78,30 @@ function bindDeliveryPayload(payload = {}, actor = {}) {
   };
 }
 
+const FINANCIAL_OR_STOCK_OFFLINE_OPERATION_TYPES = new Set([
+  'debt_collection_submit',
+  'delivery_return_save',
+  'delivery_payment_save',
+  'delivery_confirm'
+]);
+
+function isFinancialOrStockOfflineOperation(type) {
+  return FINANCIAL_OR_STOCK_OFFLINE_OPERATION_TYPES.has(text(type));
+}
+
+function assertOfflineOperationAllowed(type) {
+  if (!isFinancialOrStockOfflineOperation(type)) return;
+  throw Object.assign(new Error('Mất kết nối. Vui lòng thử lại khi có mạng. Giao dịch chưa được ghi nhận.'), {
+    status: 409,
+    code: 'MOBILE_OFFLINE_FINANCIAL_STOCK_QUEUE_DISABLED'
+  });
+}
+
 async function dispatch(operation, context) {
   const payload = operation.payload || {};
-  switch (text(operation.type || operation.operationType)) {
+  const operationType = text(operation.type || operation.operationType);
+  assertOfflineOperationAllowed(operationType);
+  switch (operationType) {
     case 'sales_order_create': {
       const boundPayload = bindSalesPayload({
         ...payload,
@@ -327,5 +348,7 @@ module.exports = {
   dispatch,
   stableHash,
   canonicalize,
-  bindSalesPayload
+  bindSalesPayload,
+  isFinancialOrStockOfflineOperation,
+  assertOfflineOperationAllowed
 };

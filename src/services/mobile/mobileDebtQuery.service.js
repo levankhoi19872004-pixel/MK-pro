@@ -427,6 +427,8 @@ async function getMobileCustomerDebts(query = {}) {
   });
 
   const pagination = buildPagination({ page, limit, totalRows: totals.totalRows || 0 });
+  pagination.total = pagination.totalRows;
+  pagination.nextPage = pagination.hasMore ? page + 1 : null;
   return {
     ok: true,
     source: 'mobile-ar-ledger-paged',

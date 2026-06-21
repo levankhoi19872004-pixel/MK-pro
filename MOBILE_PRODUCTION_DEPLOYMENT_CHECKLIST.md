@@ -16,7 +16,7 @@ MOBILE_COMMAND_TIMEOUT_MS=30000
 API_MONITOR_SAMPLE_SIZE=200
 ```
 
-Không bật lại `ENABLE_MOBILE_OFFLINE_QUEUE` ở production.
+Không bật lại `ENABLE_MOBILE_OFFLINE_QUEUE` ở production. Render Web Service phải giữ `ENABLE_MOBILE_OFFLINE_SYNC=false` và `ENABLE_MOBILE_OFFLINE_QUEUE=false`; chỉ xem xét bật queue sau khi có đối soát/idempotency offline production-grade cho tiền, tồn kho và công nợ.
 
 ## 2. Trước deploy
 
@@ -40,9 +40,10 @@ npm run check:production
 - Tải khách hàng/sản phẩm/đơn/công nợ.
 - Tạo, sửa, xóa một đơn test.
 - Bấm tạo đơn nhiều lần trên mạng chậm.
-- Ngắt mạng trước khi gửi: app phải giữ draft và báo chưa gửi.
+- Ngắt mạng trước khi gửi đơn bán: app phải giữ draft và báo chưa gửi.
+- Ngắt mạng ở app giao hàng khi lưu trả hàng/thu tiền: phải báo “Mất kết nối. Vui lòng thử lại khi có mạng. Giao dịch chưa được ghi nhận.”
 - Kết nối lại và gửi: chỉ có một đơn.
-- Kiểm tra operation legacy cũ vẫn drain khi flag còn bật.
+- Kiểm tra operation legacy cũ vẫn drain khi flag còn bật, nhưng operation tiền/trả hàng/xác nhận giao hàng phải bị từ chối.
 - Kiểm tra console không có lỗi mới.
 - Kiểm tra Android 320/360/390/412 px.
 
@@ -95,7 +96,7 @@ Sau một chu kỳ phát hành ổn định mới xem xét loại code sync lega
 ## 7. Rollback
 
 - Deploy ZIP Giai đoạn 4.
-- Giữ offline queue tắt.
+- Giữ offline queue tắt (`ENABLE_MOBILE_OFFLINE_SYNC=false`, `ENABLE_MOBILE_OFFLINE_QUEUE=false`).
 - Có thể tắt telemetry bằng ENV.
 - Không sửa dữ liệu production bằng tay.
 - Đối chiếu idempotency key trước khi xử lý đơn nghi trùng.

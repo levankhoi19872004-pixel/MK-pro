@@ -9,7 +9,10 @@ const ROOT = path.resolve(__dirname, '..');
 const read = (file) => require('./helpers/sourceBundle.util').readSource(file);
 
 test('delivery mobile replaces report tab with independent debt tab', () => {
-  const source = read('public/mobile/js/delivery-mobile-view.js');
+  const source = [
+    read('public/mobile/js/delivery-mobile-view.js'),
+    read('public/mobile/js/delivery-state.js')
+  ].join('\n');
 
   assert.match(source, /tab:\s*'orders'/);
   assert.match(source, /debts:\s*\[\]/);
@@ -25,7 +28,7 @@ test('delivery mobile replaces report tab with independent debt tab', () => {
   assert.doesNotMatch(source, /state\.tab\s*=\s*['"]report['"]/);
   assert.doesNotMatch(source, /function renderReport\(/);
 
-  assert.match(source, /if \(state\.tab === 'debt'\) loadDeliveryDebts\(\)/);
+  assert.match(source, /if \(state\.tab === 'debt'\) loadDeliveryDebts\(false\)/);
   assert.match(source, /if \(state\.tab === 'debt'\) return renderDebtApp\(body\)/);
 });
 
@@ -33,7 +36,11 @@ test('delivery mobile debt tab uses shared mobile debts API and pending collecti
   const source = read('public/mobile/js/delivery-mobile-view.js');
   const html = read('public/mobile/delivery.html');
 
-  assert.match(source, /\/api\/mobile\/debts\?collectorType=delivery&includePendingCollections=1&includePaid=0&limit=100/);
+  assert.match(source, /function buildDeliveryDebtUrl\(page\)/);
+  assert.match(source, /params\.set\('collectorType', 'delivery'\)/);
+  assert.match(source, /params\.set\('includePendingCollections', '1'\)/);
+  assert.match(source, /params\.set\('includePaid', '0'\)/);
+  assert.match(source, /params\.set\('limit', String\(state\.debtLimit \|\| DELIVERY_DEBT_PAGE_LIMIT\)\)/);
   assert.match(source, /function renderDebtApp\(body\)/);
   assert.match(source, /function renderDebtCustomers\(entries\)/);
   assert.match(source, /function renderDebtCustomerDetail\(customer\)/);
@@ -42,7 +49,7 @@ test('delivery mobile debt tab uses shared mobile debts API and pending collecti
   assert.match(source, /collectorType:\s*'delivery'/);
   assert.match(source, /Công nợ chỉ giảm sau khi kế toán xác nhận trên web/);
 
-  assert.match(html, /delivery-debt-subtabs-v2/);
+  assert.match(html, /delivery-mobile-view\.js/);
   assert.match(source, /mDebtCustomersSubtab/);
   assert.match(source, /mDebtCollectSubtab/);
   assert.match(source, /setDeliveryDebtSubtab/);

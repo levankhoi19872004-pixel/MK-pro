@@ -457,8 +457,10 @@
         json = await this.api('/api/delivery/return', { method: 'POST', body: JSON.stringify(payload) });
       } catch (err) {
         if (window.MobileOfflineSync && window.MobileOfflineSync.isNetworkError(err)) {
-          await window.MobileOfflineSync.queueOperation('delivery_return_save', payload);
-          return { ok: true, offlineQueued: true, message: 'Đã lưu hàng trả offline, sẽ tự đồng bộ khi có mạng', order: order };
+          var offlineError = new Error('Mất kết nối. Vui lòng thử lại khi có mạng. Giao dịch chưa được ghi nhận.');
+          offlineError.code = 'DELIVERY_OFFLINE_TRANSACTION_NOT_RECORDED';
+          offlineError.cause = err;
+          throw offlineError;
         }
         throw err;
       }
@@ -490,8 +492,10 @@
         json = await this.api('/api/delivery/payment', { method: 'POST', body: JSON.stringify(payload) });
       } catch (err) {
         if (window.MobileOfflineSync && window.MobileOfflineSync.isNetworkError(err)) {
-          await window.MobileOfflineSync.queueOperation('delivery_payment_save', payload);
-          return { ok: true, offlineQueued: true, message: 'Đã lưu tiền thu offline, sẽ tự đồng bộ khi có mạng', order: normalizeOrder(order) };
+          var offlineError = new Error('Mất kết nối. Vui lòng thử lại khi có mạng. Giao dịch chưa được ghi nhận.');
+          offlineError.code = 'DELIVERY_OFFLINE_TRANSACTION_NOT_RECORDED';
+          offlineError.cause = err;
+          throw offlineError;
         }
         throw err;
       }
@@ -507,8 +511,10 @@
         if (value !== undefined && value !== null && String(value).trim() !== '') params.set(key, value);
       });
       var json = await this.api('/api/delivery/reconciliation' + (params.toString() ? '?' + params.toString() : ''));
-      this.state.reconciliation = json.reconciliation || json.summary || {};
-      return this.state.reconciliation;
+      var report = json.data && json.data.summary ? json.data : { summary: json.reconciliation || json.summary || {} };
+      this.state.reconciliationReport = report;
+      this.state.reconciliation = report.summary || {};
+      return report;
     },
 
     async confirmAccounting(orderIds, filters) {

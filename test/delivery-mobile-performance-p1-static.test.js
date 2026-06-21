@@ -6,7 +6,8 @@ const test = require('node:test');
 
 const source = fs.readFileSync('public/mobile/js/delivery-mobile-view.source.js', 'utf8');
 const stateModule = fs.readFileSync('public/mobile/js/delivery-state.js', 'utf8');
-const combinedSource = source + '\n' + stateModule;
+const ordersViewSource = fs.readFileSync('public/mobile/js/delivery-orders-view.js', 'utf8');
+const combinedSource = source + '\n' + stateModule + '\n' + ordersViewSource;
 const benchmarkMd = fs.readFileSync('MOBILE_DELIVERY_PERFORMANCE_BENCHMARK.md', 'utf8');
 const benchmarkCsv = fs.readFileSync('MOBILE_DELIVERY_PERFORMANCE_BENCHMARK.csv', 'utf8');
 
@@ -37,11 +38,11 @@ test('delivery mobile initial load only loads orders and does not preload all re
   assert.match(loadBody, /state\.tab === 'debt'/);
 });
 
-test('selecting an order stays on order list and no longer fires direct returnOrders request', () => {
+test('default order selection opens product check without preloading all returns', () => {
   const selectBody = functionBody('select');
-  assert.doesNotMatch(selectBody, /state\.tab = 'products'/);
-  assert.doesNotMatch(selectBody, /loadSelectedReturnsDirect/);
-  assert.match(source, /data-m-menu-tab="products"/);
+  assert.match(selectBody, /state\.tab = options\.tab \|\| 'products'/);
+  assert.match(combinedSource, /data-open-tab=\"products\"/);
+  assert.doesNotMatch(selectBody, /DeliveryCore\.loadReturns\(filters\(\)/);
 });
 
 test('returns and debt tabs use cache and in-flight guards', () => {

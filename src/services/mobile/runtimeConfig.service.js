@@ -22,7 +22,7 @@ function isLegacyDrainAvailable(env = process.env, now = Date.now()) {
 }
 
 function getMobileRuntimeConfig(env = process.env) {
-  const offlineQueueEnabled = FLAGS.mobileOfflineQueue();
+  const offlineQueueEnabled = FLAGS.mobileOfflineSync() && FLAGS.mobileOfflineQueue();
   return {
     onlineFirst: !offlineQueueEnabled,
     offlineQueueEnabled,

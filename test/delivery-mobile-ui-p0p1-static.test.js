@@ -10,29 +10,20 @@ const moduleSource = [
   'public/mobile/js/delivery-orders-view.js'
 ].map((file) => fs.readFileSync(file, 'utf8')).join('\n');
 const source = entrySource + '\n' + moduleSource;
-const css = ['public/mobile/mobile.source/mobile-03.css', 'public/mobile/mobile.source/mobile-04.css']
-  .filter((file) => fs.existsSync(file))
-  .map((file) => fs.readFileSync(file, 'utf8'))
-  .join('\n');
+const css = fs.readFileSync('public/mobile/mobile.source/mobile-03.css', 'utf8');
 
-test('delivery mobile main screen uses compact field KPIs', () => {
-  ['Tổng đơn', 'Chưa giao', 'Đã giao', 'Phải thu'].forEach((label) => {
+test('delivery mobile UI uses readable KPI and order metric labels', () => {
+  ['Phải thu', 'Tiền mặt', 'Chuyển khoản', 'Trả hàng', 'Trả thưởng', 'Công nợ'].forEach((label) => {
     assert.match(source, new RegExp(label));
   });
-  assert.match(source, /mKpiTotalOrders/);
-  assert.match(source, /mKpiPendingOrders/);
-  assert.match(source, /mKpiDeliveredOrders/);
-  assert.doesNotMatch(entrySource, /mKpiTm|mKpiCk|mKpiHt|mKpiCn/);
   assert.doesNotMatch(source, /<span>PT<\/span>|<span>TM<\/span>|<span>CK<\/span>|<span>CN<\/span>/);
 });
 
-test('delivery order cards expose primary field actions without API changes', () => {
+test('delivery order cards expose field actions without API changes', () => {
   assert.match(source, /function orderQuickActions/);
-  assert.match(source, /data-order-confirm/);
-  assert.match(source, /data-order-pay/);
-  assert.match(source, /Bản đồ/);
+  assert.match(source, /href="' \+ esc\(phoneHref\(phone\)\)/);
+  assert.match(source, /data-copy-address/);
   assert.match(source, /google\.com\/maps\/search/);
-  assert.doesNotMatch(moduleSource, /Copy địa chỉ/);
 });
 
 test('delivery mobile error states include retry actions', () => {
