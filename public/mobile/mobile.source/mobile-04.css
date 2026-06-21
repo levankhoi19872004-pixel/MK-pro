@@ -72,3 +72,29 @@
   .m-workflow-bar{left:50%;right:auto;transform:translateX(-50%);width:min(744px,calc(100vw - 16px));}
 }
 /* DELIVERY_REAL_WORKFLOW_UI_P1_END */
+/* DELIVERY_CUSTOMER_WORKFLOW_UI_P1_START */
+.m-delivery-tabs.workflow.customer-flow{grid-template-columns:repeat(6,minmax(56px,1fr));overflow-x:auto;scrollbar-width:none;}
+.m-delivery-tabs.workflow.customer-flow::-webkit-scrollbar{display:none;}
+.m-delivery-tabs.workflow.customer-flow button{white-space:nowrap;}
+.m-order-flow-actions.customer-list{grid-template-columns:repeat(3,minmax(0,1fr));}
+.m-order-flow-btn.call{background:#ecfdf5;color:#047857;border-color:#bbf7d0;}
+.m-workflow-step.phase23{background:#f0fdf4;border-color:#bbf7d0;}
+.m-product-summary.phase23{grid-template-columns:repeat(3,minmax(0,1fr));}
+.m-product-return-form{display:grid;gap:8px;}
+.products-with-return-input .m-product-row.phase23,.m-product-row.phase23{grid-template-columns:minmax(0,1fr) minmax(96px,112px);align-items:center;gap:8px;}
+.m-return-inline-input{display:grid;gap:4px;align-items:center;margin:0;font-size:11px;font-weight:900;color:#475569;}
+.m-return-inline-input input{width:100%;min-height:42px;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:11px;padding:8px 9px;font-size:15px;font-weight:900;text-align:center;background:#fff;}
+.m-return-total.phase23{margin-top:0;}
+.m-return-total.phase23.due b{color:#047857;}
+.m-action-row.workflow-next.phase23{grid-template-columns:2fr 1fr;}
+.m-action-row .danger,#mFullReturnOrder.danger{background:#fee2e2!important;color:#991b1b!important;border-color:#fecaca!important;}
+.m-empty.soft{background:#f8fafc;color:#475569;border:1px dashed #cbd5e1;}
+@media (max-width:380px){
+  .m-delivery-tabs.workflow.customer-flow{grid-template-columns:repeat(6,74px);}
+  .products-with-return-input .m-product-row.phase23,.m-product-row.phase23{grid-template-columns:1fr;}
+  .m-action-row.workflow-next.phase23{grid-template-columns:1fr;}
+  .m-order-flow-actions.customer-list{grid-template-columns:1fr 1fr;}
+  .m-order-flow-actions.customer-list .primary{grid-column:1/-1;}
+}
+@media (min-width:768px){.m-delivery-tabs.workflow.customer-flow{grid-template-columns:repeat(6,minmax(0,1fr));}}
+/* DELIVERY_CUSTOMER_WORKFLOW_UI_P1_END */

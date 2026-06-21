@@ -72,9 +72,8 @@
     var debtAmount = amount(order, 'debt');
     var mapUrl = ui.mapHref(address);
     var phoneUrl = ui.phoneHref(phone);
-    var fallbackAction = mapUrl
-      ? '<a class="m-order-flow-btn map" target="_blank" rel="noopener" href="' + esc(mapUrl) + '">Bản đồ</a>'
-      : (phoneUrl ? '<a class="m-order-flow-btn map" href="' + esc(phoneUrl) + '">Gọi</a>' : '');
+    var phoneAction = phoneUrl ? '<a class="m-order-flow-btn call" href="' + esc(phoneUrl) + '">Gọi</a>' : '';
+    var mapAction = mapUrl ? '<a class="m-order-flow-btn map" target="_blank" rel="noopener" href="' + esc(mapUrl) + '">Bản đồ</a>' : '';
 
     return '<article class="m-order-card workflow' + selected + '">' +
       '<button type="button" class="m-order-main" data-order-key="' + esc(key) + '" data-open-tab="products">' +
@@ -92,11 +91,10 @@
         '</div>' +
         (note ? '<p class="m-order-note">Ghi chú: ' + esc(note) + '</p>' : '') +
       '</button>' +
-      '<div class="m-order-flow-actions" aria-label="Thao tác theo quy trình đơn giao">' +
-        flowButton('Hàng giao', key, 'products') +
-        flowButton('Trả hàng', key, 'returns') +
-        flowButton('Thu tiền', key, 'payment', 'primary') +
-        fallbackAction +
+      '<div class="m-order-flow-actions customer-list" aria-label="Thao tác khách cần giao">' +
+        phoneAction +
+        mapAction +
+        flowButton('Vào giao hàng', key, 'products', 'primary') +
       '</div>' +
     '</article>';
   }

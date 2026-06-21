@@ -9,12 +9,12 @@ const ordersViewSource = fs.readFileSync('public/mobile/js/delivery-orders-view.
 const css = fs.readFileSync('public/mobile/mobile.source/mobile-04.css', 'utf8');
 const combined = entrySource + '\n' + ordersViewSource;
 
-test('phase22 keeps real NVGH workflow as first-class tabs', () => {
-  ['Đơn giao', 'Hàng giao', 'Trả hàng', 'Thu tiền', 'Công nợ'].forEach((label) => {
+test('phase23 keeps customer delivery workflow as first-class tabs', () => {
+  ['Khách giao', 'Hàng giao', 'Hàng trả', 'Thu tiền', 'Đối soát', 'Công nợ'].forEach((label) => {
     assert.match(entrySource, new RegExp(label));
   });
   assert.match(entrySource, /mReconShortcut/);
-  assert.doesNotMatch(entrySource, /data-m-tab="reconciliation"/);
+  assert.match(entrySource, /data-m-tab="reconciliation"/);
 });
 
 test('route KPI focuses on orders, receivable, returns and remaining debt', () => {
@@ -25,24 +25,23 @@ test('route KPI focuses on orders, receivable, returns and remaining debt', () =
   assert.match(ordersViewSource, /a\.pending \+= delivered \? 0 : 1/);
 });
 
-test('order card is workflow-oriented, not shipper-only', () => {
+test('order card remains customer-list oriented and opens the workflow screen', () => {
   assert.match(ordersViewSource, /orderProductSummary/);
   assert.match(ordersViewSource, /m-order-workflow-summary/);
-  assert.match(ordersViewSource, /Hàng giao/);
-  assert.match(ordersViewSource, /Trả hàng/);
-  assert.match(ordersViewSource, /Thu tiền/);
+  assert.match(ordersViewSource, /customer-list/);
+  assert.match(ordersViewSource, /Vào giao hàng/);
   assert.match(ordersViewSource, /data-open-tab=\"products\"/);
-  assert.match(ordersViewSource, /flowButton\('Trả hàng', key, 'returns'\)/);
-  assert.match(ordersViewSource, /flowButton\('Thu tiền', key, 'payment', 'primary'\)/);
   assert.doesNotMatch(ordersViewSource, />Đã giao<\/button>/);
 });
 
-test('returns and payment keep the correct delivery sequence', () => {
-  assert.match(entrySource, /Bước 1\/4 · Kiểm hàng giao/);
-  assert.match(entrySource, /Bước 2\/4 · Hàng trả nếu có/);
-  assert.match(entrySource, /Bước 3\/4 · Thu tiền & xác nhận/);
+test('products, returns and payment keep the customer workflow sequence', () => {
+  assert.match(entrySource, /Bước 1 · Hàng giao kiêm nhập hàng trả/);
+  assert.match(entrySource, /Xác nhận hàng & thu tiền/);
+  assert.match(entrySource, /Trả hết đơn/);
+  assert.match(entrySource, /Hàng trả · xem\/sửa lại/);
   assert.match(entrySource, /Còn thiếu \/ ghi công nợ/);
   assert.match(entrySource, /Lưu thu tiền & xác nhận giao/);
+  assert.match(entrySource, /state\.tab = 'reconciliation'/);
 });
 
 test('one-hand workflow bar is present without changing API contract', () => {

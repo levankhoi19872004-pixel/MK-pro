@@ -41,7 +41,7 @@ test('delivery mobile touch targets are at least 44px in CSS', () => {
   assert.match(css, /@media \(min-width:\s*768px\)/);
 });
 
-test('potentially destructive skip-return action requires confirmation', () => {
-  assert.match(source, /Bỏ qua hàng trả sẽ ghi số lượng trả về 0/);
+test('potentially destructive return reset action requires confirmation', () => {
+  assert.match(source, /Xóa hàng trả sẽ ghi số lượng trả về 0/);
   assert.match(source, /window\.confirm/);
 });

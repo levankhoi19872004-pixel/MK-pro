@@ -72,7 +72,7 @@
     var accountText = displayName ? (displayName + (staffCode && staffCode !== displayName ? ' - ' + staffCode : '')) : 'Chưa xác định tài khoản';
     root().innerHTML = '' +
       '<header class="m-delivery-header workflow">' +
-        '<div class="m-delivery-header-main"><h1>Giao hàng hôm nay</h1><div class="m-account-info"><b>' + esc(accountText) + '</b><span>Quy trình: Đơn → Hàng → Trả → Thu → Xác nhận</span></div></div>' +
+        '<div class="m-delivery-header-main"><h1>Giao hàng hôm nay</h1><div class="m-account-info"><b>' + esc(accountText) + '</b><span>Quy trình: Khách → Hàng giao → Thu tiền → Đối soát</span></div></div>' +
         '<div class="m-delivery-header-actions"><button id="mReload" type="button">Tải</button><button id="mReconShortcut" type="button" class="secondary">Đối soát</button><button id="mLogout" type="button" class="ghost">Thoát</button></div>' +
       '</header>' +
       '<section class="m-delivery-filter"><input id="mDate" type="date"><select id="mStatusFilter"><option value="all">Tất cả</option><option value="pending">Chưa giao</option><option value="delivered">Đã giao</option><option value="return">Có trả hàng</option><option value="debt">Còn công nợ</option></select><input id="mSearch" placeholder="Tìm khách / mã đơn / SĐT"></section>' +
@@ -80,11 +80,12 @@
         '<div><span title="Tổng số đơn trong tuyến">Tổng đơn</span><b id="mKpiTotal">0</b></div><div><span title="Đơn chưa giao">Chưa giao</span><b id="mKpiPending">0</b></div><div><span title="Đơn đã giao">Đã giao</span><b id="mKpiDelivered">0</b></div>' +
         '<div><span title="Tổng tiền phải thu">Phải thu</span><b id="mKpiPt">0</b></div><div><span title="Tiền hàng trả">Trả hàng</span><b id="mKpiTh">0</b></div><div><span title="Công nợ còn lại">Còn thiếu</span><b id="mKpiCn">0</b></div>' +
       '</section>' +
-      '<nav class="m-delivery-tabs workflow">' +
-        '<button data-m-tab="orders" class="active">Đơn giao</button>' +
+      '<nav class="m-delivery-tabs workflow customer-flow">' +
+        '<button data-m-tab="orders" class="active">Khách giao</button>' +
         '<button data-m-tab="products">Hàng giao</button>' +
-        '<button data-m-tab="returns">Trả hàng</button>' +
+        '<button data-m-tab="returns">Hàng trả</button>' +
         '<button data-m-tab="payment">Thu tiền</button>' +
+        '<button data-m-tab="reconciliation">Đối soát</button>' +
         '<button data-m-tab="debt">Công nợ</button>' +
       '</nav>' +
       '<section id="mBody" class="m-delivery-body">Đang tải...</section>' +
@@ -982,30 +983,59 @@
   }
 
 
+  function lineQty(item) {
+    return num(item && (item.quantity || item.deliveredQty || item.qty || item.orderQty || item.soldQty));
+  }
+
+  function linePrice(item) {
+    return num(item && (item.unitPrice || item.price || item.salePrice || item.finalPrice));
+  }
+
+  function bindReturnTotal(formEl, targetId) {
+    function update() {
+      var total = 0;
+      var byIdx = {};
+      formEl.querySelectorAll('[data-m-return-field]').forEach(function (input) {
+        var idx = input.getAttribute('data-idx');
+        var field = input.getAttribute('data-m-return-field');
+        byIdx[idx] = byIdx[idx] || {};
+        byIdx[idx][field] = input.value;
+      });
+      Object.keys(byIdx).forEach(function (idx) {
+        total += num(byIdx[idx].returnQty) * num(byIdx[idx].price);
+      });
+      var target = el(targetId || 'mReturnTotal');
+      if (target) target.textContent = money(total);
+      var dueTarget = el('mProductDueAfterReturn');
+      if (dueTarget) dueTarget.textContent = money(Math.max(0, amount(currentOrder(), 'receivable') - total));
+    }
+    formEl.addEventListener('input', update);
+    update();
+  }
+
   function renderProducts(body) {
     var order = currentOrder();
-    if (!order) { body.innerHTML = '<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>'; return; }
-    var items = Array.isArray(order.items) ? order.items : [];
-    var totalQty = items.reduce(function (sum, it) { return sum + num(it.quantity || it.deliveredQty || it.qty || it.orderQty || it.soldQty); }, 0);
-    var totalAmount = items.reduce(function (sum, it) {
-      var price = num(it.unitPrice || it.price || it.salePrice || it.finalPrice);
-      var qty = num(it.quantity || it.deliveredQty || it.qty || it.orderQty || it.soldQty);
-      return sum + price * qty;
-    }, 0);
+    if (!order) { body.innerHTML = '<div class="m-empty">Chọn khách/đơn ở danh sách cần giao trước.</div>'; return; }
+    var baseRows = buildReturnInputRows(order, returnsForOrder(order));
+    var totalQty = baseRows.reduce(function (sum, it) { return sum + num(it.deliveredQty); }, 0);
+    var totalAmount = baseRows.reduce(function (sum, it) { return sum + num(it.price) * num(it.deliveredQty); }, 0);
+    var totalReturnAmount = baseRows.reduce(function (sum, it) { return sum + num(it.returnQty) * num(it.price); }, 0);
     body.innerHTML = selectedOrderSummary(order) +
-      '<section class="m-workflow-step"><b>Bước 1/4 · Kiểm hàng giao</b><span>NVGH xem đủ hàng trước khi nhập trả hàng hoặc thu tiền.</span></section>' +
-      '<section class="m-product-summary"><div><span>Số dòng</span><b>' + esc(items.length) + '</b></div><div><span>Tổng SL</span><b>' + money(totalQty) + '</b></div><div><span>Giá trị hàng</span><b>' + money(totalAmount) + '</b></div></section>' +
-      '<div class="m-return-scroll products-readonly">' +
-      (items.map(function (it) {
-        var code = it.productCode || it.code || it.productId || '';
-        var name = it.productName || it.name || '';
-        var price = num(it.unitPrice || it.price || it.salePrice || it.finalPrice);
-        var qty = num(it.quantity || it.deliveredQty || it.qty || it.orderQty || it.soldQty);
-        return '<div class="m-product-row readonly"><div><b>' + esc(code) + '</b><small>' + esc(name) + '</small><em>SL giao ' + money(qty) + ' · Giá cố định ' + money(price) + ' · Thành tiền ' + money(qty * price) + '</em></div></div>';
+      '<section class="m-workflow-step phase23"><b>Bước 1 · Hàng giao kiêm nhập hàng trả</b><span>NVGH kiểm từng dòng hàng. Nếu khách trả một phần, nhập số lượng trả ngay trên dòng sản phẩm rồi bấm Xác nhận hàng & thu tiền.</span></section>' +
+      '<section class="m-product-summary phase23"><div><span>Số dòng</span><b>' + esc(baseRows.length) + '</b></div><div><span>Tổng SL giao</span><b>' + money(totalQty) + '</b></div><div><span>Giá trị hàng</span><b>' + money(totalAmount) + '</b></div></section>' +
+      '<form id="mProductReturnForm" class="m-product-return-form"><div class="m-return-scroll products-with-return-input">' +
+      (baseRows.map(function (it, idx) {
+        var qtyText = 'SL giao ' + money(it.deliveredQty);
+        var amount = num(it.returnQty) * num(it.price);
+        return '<div class="m-product-row phase23"><div><b>' + esc(it.productCode) + '</b><small>' + esc(it.productName) + '</small><em>' + qtyText + ' · Giá ' + money(it.price) + ' · Tiền trả ' + money(amount) + '</em>' + hidden(idx, 'productCode', it.productCode) + hidden(idx, 'productName', it.productName) + hidden(idx, 'price', it.price) + hidden(idx, 'deliveredQty', it.deliveredQty) + '</div><label class="m-return-inline-input"><span>SL trả</span><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(it.returnQty) + '" aria-label="Số lượng hàng trả"></label></div>';
       }).join('') || '<div class="m-empty">Đơn chưa có dòng hàng để đối chiếu.</div>') +
-      '</div><div class="m-action-row workflow-next"><button id="mGoReturnInput" type="button">Nhập hàng trả</button><button id="mGoPayment" type="button" class="secondary">Sang thu tiền</button></div>';
-    el('mGoReturnInput').addEventListener('click', function () { state.tab = 'returns'; render(); loadSelectedReturnsDirect({ force: false }); });
-    el('mGoPayment').addEventListener('click', function () { state.tab = 'payment'; render(); });
+      '</div><div class="m-return-total phase23"><span>Tổng hàng trả</span><b id="mReturnTotal">' + money(totalReturnAmount) + '</b></div>' +
+      '<div class="m-return-total phase23 due"><span>Phải thu sau trả</span><b id="mProductDueAfterReturn">' + money(Math.max(0, amount(order, 'receivable') - totalReturnAmount)) + '</b></div>' +
+      '<div class="m-action-row workflow-next phase23"><button type="submit" class="m-confirm">Xác nhận hàng & thu tiền</button><button id="mFullReturnOrder" type="button" class="danger">Trả hết đơn</button></div></form>';
+    var formEl = el('mProductReturnForm');
+    formEl.addEventListener('submit', function (event) { saveReturn(event, { nextTab: 'payment', successMessage: 'Đã xác nhận hàng trả, chuyển sang Thu tiền' }); });
+    bindReturnTotal(formEl, 'mReturnTotal');
+    el('mFullReturnOrder').addEventListener('click', fullReturnOrder);
   }
 
   function hidden(idx, field, value) { return '<input type="hidden" data-m-return-field="' + esc(field) + '" data-idx="' + idx + '" value="' + esc(value) + '">'; }
@@ -1026,25 +1056,41 @@
   }
 
   function buildReturnInputRows(order, rows) {
-    if (!Array.isArray(rows) || !rows.length) {
-      rows = (Array.isArray(order && order.items) ? order.items : []).map(function (item) {
+    var returnByProduct = new Map();
+    (Array.isArray(rows) ? rows : []).forEach(function (row) {
+      var code = String(row.productCode || row.code || row.productId || '').trim();
+      if (!code) return;
+      returnByProduct.set(code, row);
+    });
+    var orderItems = Array.isArray(order && order.items) ? order.items : [];
+    if (orderItems.length) {
+      return orderItems.map(function (item) {
+        var code = item.productCode || item.code || item.productId || '';
+        var saved = returnByProduct.get(String(code).trim()) || {};
         return {
-          productCode: item.productCode || item.code || item.productId || '',
-          productName: item.productName || item.name || '',
-          price: num(item.unitPrice || item.price || item.salePrice || item.finalPrice),
-          returnQty: num(item.returnQty || item.qtyReturn || item.returnQuantity || item.returnedQty || 0),
-          deliveredQty: num(item.quantity || item.deliveredQty || item.qty || item.orderQty || item.soldQty)
+          productCode: code,
+          productName: item.productName || item.name || saved.productName || saved.name || '',
+          price: linePrice(saved) || linePrice(item),
+          returnQty: num(saved.returnQty || saved.qtyReturn || saved.returnQuantity || saved.returnedQty || item.returnQty || item.qtyReturn || 0),
+          deliveredQty: lineQty(item)
         };
       });
     }
-    return rows;
+    return (Array.isArray(rows) ? rows : []).map(function (item) {
+      return {
+        productCode: item.productCode || item.code || item.productId || '',
+        productName: item.productName || item.name || '',
+        price: linePrice(item),
+        returnQty: num(item.returnQty || item.qtyReturn || item.returnQuantity || item.returnedQty || 0),
+        deliveredQty: lineQty(item)
+      };
+    });
   }
 
   function renderReturns(body) {
     var order = currentOrder();
-    if (!order) { body.innerHTML = '<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>'; return; }
+    if (!order) { body.innerHTML = '<div class="m-empty">Chọn khách/đơn ở danh sách cần giao trước.</div>'; return; }
     var rows = returnsForOrder(order);
-    // Safety fallback: /api/delivery/orders already overlays returnItems from returnOrders.
     if (!rows.length && Array.isArray(order.returnItems) && order.returnItems.length) {
       rows = order.returnItems.map(function (item) {
         return Object.assign({}, item, {
@@ -1057,27 +1103,25 @@
         });
       });
     }
-    if (!rows.length && amount(order, 'returnAmount') > 0) {
-      body.innerHTML = selectedOrderSummary(order) + '<div class="m-empty">Đơn có tiền hàng trả ' + money(amount(order, 'returnAmount')) + ' nhưng app chưa lấy được dòng sản phẩm. Bấm Tải lại hàng trả để gọi trực tiếp returnOrders.</div><div class="m-action-row"><button id="mReloadReturns" type="button">Tải lại hàng trả</button><button id="mUseOrderItems" type="button" class="secondary">Nhập theo hàng giao</button></div>';
-      el('mReloadReturns').addEventListener('click', loadSelectedReturnsDirect);
-      el('mUseOrderItems').addEventListener('click', function () { window.DeliveryCore.state.returns = window.DeliveryCore.state.returns || []; renderReturns(body); });
-      return;
-    }
     rows = buildReturnInputRows(order, rows);
     var totalReturnAmount = rows.reduce(function (sum, it) { return sum + num(it.returnQty) * num(it.price); }, 0);
+    var hasReturn = rows.some(function (it) { return num(it.returnQty) > 0; });
     body.innerHTML = selectedOrderSummary(order) +
-      '<section class="m-workflow-step"><b>Bước 2/4 · Hàng trả nếu có</b><span>Không có hàng trả thì bấm Bỏ qua để sang Thu tiền. Có trả thì nhập SL trả theo từng sản phẩm.</span></section>' +
+      '<section class="m-workflow-step phase23"><b>Hàng trả · xem/sửa lại</b><span>Tab này lấy lại số lượng đã nhập ở Hàng giao. Có thể sửa rồi lưu lại trước khi Thu tiền.</span></section>' +
+      (!hasReturn ? '<div class="m-empty soft">Chưa ghi nhận hàng trả cho đơn này. Có thể nhập trực tiếp tại đây hoặc quay lại tab Hàng giao.</div>' : '') +
       '<form id="mReturnSaveForm"><div class="m-return-scroll">' +
       (rows.map(function (it, idx) {
-        var qtyText = it.deliveredQty != null ? ' · SL giao ' + money(it.deliveredQty) : '';
+        var qtyText = ' · SL giao ' + money(it.deliveredQty);
         var amount = num(it.returnQty) * num(it.price);
-        return '<div class="m-product-row"><div><b>' + esc(it.productCode) + '</b><small>' + esc(it.productName) + '</small><em>Giá cố định ' + money(it.price) + qtyText + ' · Tiền trả ' + money(amount) + '</em>' + hidden(idx, 'productCode', it.productCode) + hidden(idx, 'productName', it.productName) + hidden(idx, 'price', it.price) + '</div><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(it.returnQty) + '" aria-label="Số lượng trả"></div>';
+        return '<div class="m-product-row phase23"><div><b>' + esc(it.productCode) + '</b><small>' + esc(it.productName) + '</small><em>Giá ' + money(it.price) + qtyText + ' · Tiền trả ' + money(amount) + '</em>' + hidden(idx, 'productCode', it.productCode) + hidden(idx, 'productName', it.productName) + hidden(idx, 'price', it.price) + hidden(idx, 'deliveredQty', it.deliveredQty) + '</div><label class="m-return-inline-input"><span>SL trả</span><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(it.returnQty) + '" aria-label="Số lượng trả"></label></div>';
       }).join('') || '<div class="m-empty">Đơn chưa có dòng hàng để nhập trả hàng.</div>') +
-      '</div><div class="m-return-total"><span>Tổng hàng trả</span><b id="mReturnTotal">' + money(totalReturnAmount) + '</b></div><div class="m-action-row"><button type="submit">Lưu hàng trả</button><button id="mSkipReturns" type="button" class="secondary">Bỏ qua hàng trả</button></div></form>';
-    el('mReturnSaveForm').addEventListener('submit', saveReturn);
+      '</div><div class="m-return-total"><span>Tổng hàng trả</span><b id="mReturnTotal">' + money(totalReturnAmount) + '</b></div><div class="m-action-row"><button type="submit">Lưu hàng trả & sang Thu tiền</button><button id="mSkipReturns" type="button" class="secondary">Xóa hàng trả</button></div></form>';
+    var formEl = el('mReturnSaveForm');
+    formEl.addEventListener('submit', function (event) { saveReturn(event, { nextTab: 'payment', successMessage: 'Đã cập nhật hàng trả, chuyển sang Thu tiền' }); });
+    bindReturnTotal(formEl, 'mReturnTotal');
     el('mSkipReturns').addEventListener('click', function () {
-      if (!window.confirm('Bỏ qua hàng trả sẽ ghi số lượng trả về 0 cho đơn này. Bạn chắc chắn muốn tiếp tục?')) return;
-      saveReturn({ preventDefault: function () {}, forceZero: true });
+      if (!window.confirm('Xóa hàng trả sẽ ghi số lượng trả về 0 cho đơn này. Bạn chắc chắn muốn tiếp tục?')) return;
+      saveReturn({ preventDefault: function () {}, forceZero: true }, { nextTab: 'payment', successMessage: 'Đã xóa hàng trả, chuyển sang Thu tiền' });
     });
   }
 
@@ -1102,25 +1146,52 @@
     updateRemaining();
   }
 
-  function collectReturnItems(forceZero) {
+  function collectReturnItems(options) {
+    if (typeof options === 'boolean') options = { forceZero: options };
+    options = options || {};
     var byIdx = {};
     document.querySelectorAll('[data-m-return-field]').forEach(function (input) {
       var idx = input.getAttribute('data-idx');
       var field = input.getAttribute('data-m-return-field');
       byIdx[idx] = byIdx[idx] || {};
-      byIdx[idx][field] = (forceZero && field === 'returnQty') ? 0 : input.value;
+      byIdx[idx][field] = input.value;
     });
-    return Object.keys(byIdx).map(function (idx) { return byIdx[idx]; });
+    return Object.keys(byIdx).map(function (idx) {
+      var row = byIdx[idx];
+      if (options.forceZero) row.returnQty = 0;
+      if (options.forceFull) row.returnQty = num(row.deliveredQty);
+      return row;
+    });
   }
 
-  async function saveReturn(event) {
+  async function saveReturn(event, options) {
     if (event && event.preventDefault) event.preventDefault();
+    options = options || {};
     try {
       msg('Đang lưu hàng trả...');
-      await window.DeliveryCore.saveReturn(currentOrder(), collectReturnItems(event && event.forceZero));
-      msg('Đã lưu hàng trả vào returnOrders');
+      await window.DeliveryCore.saveReturn(currentOrder(), collectReturnItems({ forceZero: event && event.forceZero }), { returnType: options.returnType || 'partial' });
+      msg(options.successMessage || 'Đã lưu hàng trả vào returnOrders');
       state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
-      state.tab = 'payment';
+      state.tab = options.nextTab || 'payment';
+      render();
+    } catch (err) { msg(err.message, true); }
+  }
+
+  async function fullReturnOrder(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    var order = currentOrder();
+    if (!order) return;
+    if (!window.confirm('Khách trả lại toàn bộ đơn này?\n\nToàn bộ hàng trong đơn sẽ được ghi nhận là hàng trả. Đơn sẽ thoát khỏi giao diện giao hàng hiện tại.')) return;
+    try {
+      msg('Đang ghi nhận trả hết đơn...');
+      await window.DeliveryCore.saveReturn(order, collectReturnItems({ forceFull: true }), { returnType: 'full', note: 'Khách trả lại toàn bộ đơn từ App giao hàng' });
+      await window.DeliveryCore.confirmDelivery(currentOrder(), { deliveryStatus: 'failed', status: 'failed', note: 'Khách trả lại toàn bộ đơn' });
+      var removedKey = keyOf(window.DeliveryCore.state.selectedOrder || order);
+      window.DeliveryCore.state.orders = (window.DeliveryCore.state.orders || []).filter(function (row) { return keyOf(row) !== removedKey; });
+      window.DeliveryCore.state.selectedOrder = null;
+      state.selectedKey = '';
+      state.tab = 'orders';
+      msg('Đã ghi nhận trả hết đơn và quay về danh sách khách');
       render();
     } catch (err) { msg(err.message, true); }
   }
@@ -1133,10 +1204,11 @@
       msg('Đang lưu thu tiền...');
       await window.DeliveryCore.savePayment(currentOrder(), { cash: form.get('cash'), bank: form.get('bank'), reward: form.get('reward') });
       await window.DeliveryCore.confirmDelivery(currentOrder(), { deliveryStatus: 'delivered' });
-      msg('Đã lưu thu tiền và xác nhận giao');
+      msg('Đã lưu thu tiền và xác nhận giao, chuyển sang Đối soát');
       state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
-      state.tab = 'orders';
+      state.tab = 'reconciliation';
       render();
+      loadDeliveryReconciliation(true).catch(function () {});
     } catch (err) { msg(err.message, true); }
   }
 

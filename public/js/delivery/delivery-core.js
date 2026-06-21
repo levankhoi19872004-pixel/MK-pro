@@ -413,8 +413,9 @@
       return Object.assign({}, amounts, { processed: processed, debt: debt });
     },
 
-    buildReturnPayload(order, items) {
+    buildReturnPayload(order, items, options) {
       order = normalizeOrder(order);
+      options = options || {};
       return {
         orderId: order.orderId,
         orderCode: order.orderCode,
@@ -427,9 +428,10 @@
         deliveryStaffName: order.deliveryStaffName,
         salesStaffCode: order.salesStaffCode,
         salesStaffName: order.salesStaffName,
-        returnType: 'partial',
+        returnType: text(options.returnType || 'partial') || 'partial',
         replaceReturnItems: true,
         allowEmptyReturn: true,
+        note: text(options.note || ''),
         items: (Array.isArray(items) ? items : []).map(normalizeItem)
       };
     },
@@ -449,9 +451,9 @@
       };
     },
 
-    async saveReturn(order, items) {
+    async saveReturn(order, items, options) {
       order = normalizeOrder(order || this.state.selectedOrder);
-      var payload = this.buildReturnPayload(order, items);
+      var payload = this.buildReturnPayload(order, items, options);
       var json;
       try {
         json = await this.api('/api/delivery/return', { method: 'POST', body: JSON.stringify(payload) });
