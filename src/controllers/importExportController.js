@@ -49,6 +49,13 @@ function sendSafeInternalError(res, logCode, publicMessage, err) {
 async function previewImport(req, res) {
   try {
     const files = req.importFiles || normalizeUploadedFiles(req);
+    console.info('[IMPORT_PREVIEW_POST_STARTED]', {
+      type: String(req.body?.type || '').trim(),
+      importMode: String(req.body?.importMode || req.query?.importMode || '').trim(),
+      fileCount: files.length,
+      fileNames: files.map((file) => file.originalname || file.fileName || '').filter(Boolean),
+      userName: req.user?.username || req.user?.fullName || ''
+    });
     const result = await importExportService.previewImport({
       type: String(req.body?.type || '').trim(),
       files,

@@ -712,6 +712,13 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
     importMode: normalizedImportMode
   });
 
+  console.info('[IMPORT_PREVIEW_SESSION_CREATED]', {
+    sessionId: session.id,
+    type,
+    importMode: normalizedImportMode,
+    fileCount: normalizedFiles.length
+  });
+
   const asyncPreview = process.env.IMPORT_PREVIEW_ASYNC !== 'false';
 
   if (asyncPreview) {
@@ -728,6 +735,11 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
         files: normalizedFiles,
         userName,
         importMode: normalizedImportMode
+      });
+      console.info('[IMPORT_PREVIEW_JOB_ENQUEUED]', {
+        sessionId: session.id,
+        jobId: queued?.job?.id,
+        created: Boolean(queued?.created)
       });
     } catch (err) {
       await importSessionService.markFailed(session.id, err.message || 'Không thể đưa file vào hàng đợi import').catch(() => {});

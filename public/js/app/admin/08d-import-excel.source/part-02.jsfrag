@@ -176,30 +176,40 @@ async function loadAllImportSessionRows(sessionId,totalRows){
 }
 
 async function waitImportPreviewSession(sessionId){
-  if(!sessionId)throw new Error('Thiếu mã phiên import');
+  const safeSessionId=String(sessionId||'').trim();
+  if(!safeSessionId)throw new Error('Thiếu mã phiên import do backend tạo');
 
   const maxAttempts=80;
   const delayMs=1500;
+  const pollingStatuses=new Set(['uploaded','queued','parsing']);
 
   for(let attempt=0;attempt<maxAttempts;attempt+=1){
-    const res=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}`);
-    const json=await res.json();
+    const res=await fetch(`/api/import/sessions/${encodeURIComponent(safeSessionId)}`,{cache:'no-store'});
+    const json=await res.json().catch(()=>({
+      ok:false,
+      message:`API trạng thái import không trả JSON hợp lệ (HTTP ${res.status})`
+    }));
 
-    if(!json.ok){
-      throw new Error(json.error||json.message||'Không đọc được trạng thái phiên import');
+    if(!res.ok||!json.ok){
+      const message=json.error||json.message||`Không đọc được trạng thái phiên import (HTTP ${res.status})`;
+      throw new Error(message);
     }
 
     const status=String(json.status||'').toLowerCase();
 
+    if(status==='not_found'){
+      throw new Error(json.message||`Không tìm thấy phiên import ${safeSessionId}. Vui lòng bấm Xem trước lại để backend tạo phiên mới.`);
+    }
+
     if(status==='preview_ready'){
       const totalRows=Math.max(0,Number(json.totalRows||0));
-      const rows=await loadAllImportSessionRows(json.sessionId||sessionId,totalRows);
+      const rows=await loadAllImportSessionRows(json.sessionId||safeSessionId,totalRows);
       if(importDataMode&&json.importMode==='update')importDataMode.value='update';
       return {
         ok:true,
         source:'import-session-status',
-        sessionId:json.sessionId||sessionId,
-        importSessionId:json.importSessionId||json.sessionId||sessionId,
+        sessionId:json.sessionId||safeSessionId,
+        importSessionId:json.importSessionId||json.sessionId||safeSessionId,
         status,
         importMode:json.importMode||getSelectedImportMode(),
         rows,
@@ -212,7 +222,11 @@ async function waitImportPreviewSession(sessionId){
     }
 
     if(status==='failed'){
-      throw new Error(json.errorMessage||'Import thất bại khi đọc file Excel');
+      throw new Error(json.errorMessage||json.message||'Import thất bại khi đọc file Excel');
+    }
+
+    if(!pollingStatuses.has(status)){
+      throw new Error(`Trạng thái phiên import không hợp lệ: ${status||'trống'}. Vui lòng bấm Xem trước lại.`);
     }
 
     const percent=json.progress&&json.progress.percent?json.progress.percent:0;
@@ -281,6 +295,9 @@ async function previewImportExcel(){
     showMessage(importDataMessage,`Đã đọc ${fileCount} file: ${modeText}, ${invalidNow} lỗi. Hãy chọn dòng rồi xác nhận.`);
   }catch(err){
     importPreviewRows=[];
+    importPreviewSessionId='';
+    window.__importPreviewRows=importPreviewRows;
+    window.__importPreviewSessionId=importPreviewSessionId;
     if(commitImportButton)commitImportButton.disabled=true;
     showMessage(importDataMessage,err.message,true);
   }
@@ -292,31 +309,48 @@ async function previewImportExcelSilent(){
   const files=Array.from(importExcelFile.files||[]);
   if(!files.length)throw new Error('Bạn chưa chọn file Excel');
 
+  const type=importDataType.value;
+  const importMode=getSelectedImportMode();
   const formData=new FormData();
-  formData.append('type',importDataType.value);
-  formData.append('importMode',getSelectedImportMode());
+  formData.append('type',type);
+  formData.append('importMode',importMode);
 
   files.forEach(file=>formData.append('files',file));
+
+  console.info('[IMPORT_PREVIEW_POST_STARTED]',{
+    type,
+    importMode,
+    fileCount:files.length,
+    fileNames:files.map(file=>file&&file.name).filter(Boolean)
+  });
 
   const res=await fetch('/api/import/preview',{
     method:'POST',
     body:formData
   });
 
-  const json=await res.json();
+  const json=await res.json().catch(()=>({
+    ok:false,
+    message:`API preview import không trả JSON hợp lệ (HTTP ${res.status})`
+  }));
 
-  if(!json.ok){
-    throw new Error(json.error||json.message||'Không đọc được file import');
+  if(!res.ok||!json.ok){
+    throw new Error(json.error||json.message||`Không đọc được file import (HTTP ${res.status})`);
+  }
+
+  const sessionId=String(json.sessionId||json.importSessionId||'').trim();
+  if(!sessionId){
+    throw new Error('Backend preview không trả importSessionId sau khi tạo phiên. Hệ thống đã dừng để tránh poll phiên giả.');
   }
 
   // Backend đang chạy async preview: 202 queued.
   // Không render ngay, phải poll session đến khi preview_ready.
   if(res.status===202||json.accepted||String(json.status||'').toLowerCase()==='queued'){
-    const sessionId=json.sessionId||json.importSessionId;
+    console.info('[IMPORT_PREVIEW_POST_ACCEPTED]',{sessionId,status:json.status||'queued'});
     return await waitImportPreviewSession(sessionId);
   }
 
-  return json;
+  return {...json,sessionId,importSessionId:json.importSessionId||sessionId};
 }
 
 async function handleImportExcelAction(){

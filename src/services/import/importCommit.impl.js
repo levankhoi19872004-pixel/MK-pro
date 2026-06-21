@@ -36,9 +36,11 @@ async function getSessionStatus(sessionId) {
   const session = await importSessionService.getSession(sessionId);
 
   if (!session) {
+    console.warn('[IMPORT_PREVIEW_POLL_SESSION_NOT_FOUND]', { sessionId: String(sessionId || '').trim() });
     return {
-      error: 'Không tìm thấy phiên import',
-      status: 404
+      error: 'Không tìm thấy phiên import. Vui lòng bấm Xem trước lại để backend tạo phiên mới.',
+      status: 404,
+      code: 'IMPORT_SESSION_NOT_FOUND'
     };
   }
 
