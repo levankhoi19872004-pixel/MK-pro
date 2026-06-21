@@ -187,7 +187,7 @@ function renderSelectedGroupedChildOrders() {
     selectedMasterChildOrderList.innerHTML = '<div class="empty-cell">Chưa có đơn con nào được đưa vào danh sách gộp.</div>';
     return;
   }
-  const header = `<div class="master-child-one-line master-child-header" aria-hidden="true">
+  const header = `<div class="master-child-one-line master-child-header master-selected-child-header" aria-hidden="true">
     <span></span><span>Mã đơn</span><span>Khách hàng</span><span>NVBH</span><span>Ngày bán</span><span>Giá trị</span>
   </div>`;
   const body = rows.map((order) => {
@@ -198,7 +198,7 @@ function renderSelectedGroupedChildOrders() {
     const customer = order.customerName || order.customerCode || 'Khách hàng';
     const staff = canonicalSalesStaffLabel(order);
     const saleDate = masterOrderDate(masterOrderSaleDateRaw(order));
-    return `<label class="master-child-one-line${selectedClass}" title="${masterOrderEscapeHtml(code)} | ${masterOrderEscapeHtml(customer)} | ${masterOrderEscapeHtml(staff)}">
+    return `<label class="master-child-one-line master-selected-child-row${selectedClass}" title="${masterOrderEscapeHtml(code)} | ${masterOrderEscapeHtml(customer)} | ${masterOrderEscapeHtml(staff)}">
       <input type="checkbox" class="grouped-child-order-check" data-id="${masterOrderEscapeHtml(key)}" ${checked} />
       <span class="master-child-code">${masterOrderEscapeHtml(code)}</span>
       <span class="master-child-customer">${masterOrderEscapeHtml(customer)}</span>
@@ -207,7 +207,7 @@ function renderSelectedGroupedChildOrders() {
       <span class="master-child-money">${masterOrderMoney(masterOrderChildAmount(order))}</span>
     </label>`;
   }).join('');
-  selectedMasterChildOrderList.innerHTML = header + body;
+  selectedMasterChildOrderList.innerHTML = `<div class="master-selected-child-list-shell">${header}${body}</div>`;
 }
 window.renderSelectedGroupedChildOrders = renderSelectedGroupedChildOrders;
 
