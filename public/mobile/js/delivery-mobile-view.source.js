@@ -74,7 +74,7 @@
     root().innerHTML = '' +
       '<header class="m-delivery-header workflow">' +
         '<div class="m-delivery-header-main"><h1>Giao hàng hôm nay</h1><div class="m-account-info"><b>' + esc(accountText) + '</b><span>Quy trình: Khách → Hàng giao → Thu tiền → Đối soát</span></div></div>' +
-        '<div class="m-delivery-header-actions"><button id="mReload" type="button">Tải</button><button id="mReconShortcut" type="button" class="secondary">Đối soát</button><button id="mLogout" type="button" class="ghost">Thoát</button></div>' +
+        '<div class="m-delivery-header-actions dedupe"><button id="mReload" type="button">Tải</button><div class="m-delivery-menu-wrap"><button id="mDeliveryMenuToggle" type="button" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="mDeliveryMenu">⋮</button><div id="mDeliveryMenu" class="m-delivery-menu" hidden><button id="mDeliveryAccountInfo" type="button">Thông tin tài khoản</button><button id="mLogout" type="button">Đăng xuất</button></div></div></div>' +
       '</header>' +
       '<section class="m-delivery-filter"><input id="mDate" type="date"><select id="mStatusFilter"><option value="all">Tất cả</option><option value="pending">Chưa giao</option><option value="delivered">Đã giao</option><option value="return">Có trả hàng</option><option value="debt">Còn công nợ</option></select><input id="mSearch" placeholder="Tìm khách / mã đơn / SĐT"></section>' +
       '<section class="m-delivery-kpis workflow" aria-label="Chỉ số tuyến giao hàng">' +
@@ -101,7 +101,32 @@
       return function () { target.removeEventListener(type, handler); };
     };
     bind(el('mReload'), 'click', function () { load({ force: true, refreshActiveTab: true }); });
-    bind(el('mReconShortcut'), 'click', function () { state.tab = 'reconciliation'; render(); loadDeliveryReconciliation(false); });
+    bind(el('mDeliveryMenuToggle'), 'click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      var menu = el('mDeliveryMenu');
+      var toggle = el('mDeliveryMenuToggle');
+      if (!menu || !toggle) return;
+      var nextHidden = !menu.hidden;
+      menu.hidden = nextHidden;
+      toggle.setAttribute('aria-expanded', String(!nextHidden));
+    });
+    bind(document, 'click', function () {
+      var menu = el('mDeliveryMenu');
+      var toggle = el('mDeliveryMenuToggle');
+      if (!menu || menu.hidden) return;
+      menu.hidden = true;
+      if (toggle) toggle.setAttribute('aria-expanded', 'false');
+    });
+    bind(el('mDeliveryAccountInfo'), 'click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      var menu = el('mDeliveryMenu');
+      var toggle = el('mDeliveryMenuToggle');
+      if (menu) menu.hidden = true;
+      if (toggle) toggle.setAttribute('aria-expanded', 'false');
+      msg(accountText);
+    });
     bind(el('mLogout'), 'click', logout);
     bind(el('mDate'), 'change', function () { load({ force: true }); });
     bind(el('mStatusFilter'), 'change', function () { load({ force: true }); });
@@ -979,8 +1004,7 @@
     }
 
     if (!state.reconciliationLoaded) {
-      body.innerHTML = '<div class="m-empty"><b>Chưa tải báo cáo đối soát</b><span>Bấm tải để đối chiếu tiền, hàng trả và phiếu thu nợ cuối ngày.</span><button id="mLoadReconciliation" type="button">Tải đối soát</button></div>';
-      el('mLoadReconciliation').addEventListener('click', function () { loadDeliveryReconciliation(true); });
+      body.innerHTML = '<div class="m-empty"><b>Chưa tải báo cáo đối soát</b><span>Bấm Tải ở header để đối chiếu tiền, hàng trả và phiếu thu nợ cuối ngày.</span></div>';
       return;
     }
 
@@ -992,7 +1016,6 @@
       '<section class="m-recon-header-card' + (mismatch ? ' danger' : '') + '">' +
         '<div><b>Đối soát ngày ' + esc(report.date || (el('mDate') && el('mDate').value) || today()) + '</b>' +
         '<span>' + (mismatch ? 'Có chênh lệch cần xử lý' : 'Đối soát tạm ổn trong ngưỡng cho phép') + '</span></div>' +
-        '<button id="mReloadReconciliation" type="button">Tải lại</button>' +
       '</section>' +
       '<section class="m-recon-grid">' +
         renderReconciliationMetric('Đơn đã giao', summary.deliveredOrders || 0) +
@@ -1016,7 +1039,6 @@
         }).join('') || '<div class="m-empty">Chưa có phiếu thu nợ gửi trong ngày.</div>') +
       '</section>';
 
-    el('mReloadReconciliation').addEventListener('click', function () { loadDeliveryReconciliation(true); });
   }
 
 

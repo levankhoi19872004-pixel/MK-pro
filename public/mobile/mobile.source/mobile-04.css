@@ -133,3 +133,14 @@
 .m-map-fallback-actions button.primary{background:#16a34a;border-color:#16a34a;color:#fff;}
 .m-map-fallback-actions button.secondary{background:#e2e8f0;color:#334155;}
 /* DELIVERY_MAP_EXTERNAL_WEBVIEW_FIX_END */
+/* DELIVERY_DEDUPLICATE_ACTIONS_UI_START */
+.m-delivery-header-actions.dedupe{grid-template-columns:auto auto;position:relative;}
+.m-delivery-menu-wrap{position:relative;display:inline-flex;}
+.m-delivery-menu-wrap>button{min-width:42px;}
+.m-delivery-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:60;display:grid;gap:4px;min-width:172px;padding:7px;border:1px solid #cbd5e1;border-radius:12px;background:#ffffff;box-shadow:0 16px 32px rgba(15,23,42,.22);}
+.m-delivery-menu[hidden]{display:none!important;}
+.m-delivery-menu button{justify-content:flex-start;width:100%;min-height:38px;border:0;background:#ffffff;color:#0f172a;text-align:left;font-size:12px;font-weight:900;padding:8px 10px;border-radius:9px;}
+.m-delivery-menu button:hover,.m-delivery-menu button:focus{background:#eff6ff;color:#1d4ed8;}
+.m-recon-header-card{grid-template-columns:1fr;}
+@media (max-width:380px){.m-delivery-header-actions.dedupe{grid-template-columns:1fr auto;}.m-delivery-menu{right:0;}}
+/* DELIVERY_DEDUPLICATE_ACTIONS_UI_END */

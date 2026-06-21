@@ -13,7 +13,7 @@ test('phase23 keeps customer delivery workflow as first-class tabs', () => {
   ['Khách giao', 'Hàng giao', 'Hàng trả', 'Thu tiền', 'Đối soát', 'Công nợ'].forEach((label) => {
     assert.match(entrySource, new RegExp(label));
   });
-  assert.match(entrySource, /mReconShortcut/);
+  assert.doesNotMatch(entrySource, /mReconShortcut/);
   assert.match(entrySource, /data-m-tab="reconciliation"/);
 });
 
