@@ -1,6 +1,7 @@
 'use strict';
 
 const ImportLog = require('../../models/ImportLog');
+const BackgroundJob = require('../../models/BackgroundJob');
 const importSessionService = require('../importSessionService');
 const auditService = require('../auditService');
 const importShortageReportService = require('../importShortageReportService');
@@ -32,17 +33,55 @@ const {
   importPromotionGroupRules
 } = require('./operations/adminImport.impl');
 
+async function getImportPreviewJobSnapshot(sessionId) {
+  const safeSessionId = String(sessionId || '').trim();
+  if (!safeSessionId) return null;
+
+  const job = await BackgroundJob
+    .findOne({ type: 'import_preview', idempotencyKey: `import-preview:${safeSessionId}` })
+    .sort({ createdAt: -1 })
+    .lean()
+    .catch(() => null);
+
+  if (!job) return null;
+
+  return {
+    id: job.id || '',
+    type: job.type || '',
+    status: job.status || '',
+    progress: job.progress || { percent: 0, step: '' },
+    attemptCount: Number(job.attemptCount || 0),
+    maxAttempts: Number(job.maxAttempts || 0),
+    error: job.lastError || {},
+    createdAt: job.createdAt,
+    startedAt: job.startedAt,
+    finishedAt: job.finishedAt,
+    availableAt: job.availableAt,
+    leaseOwner: job.leaseOwner || '',
+    leaseExpiresAt: job.leaseExpiresAt || null,
+    lastHeartbeatAt: job.lastHeartbeatAt || null
+  };
+}
+
+function isImportPreviewPendingSession(status) {
+  return ['uploaded', 'queued', 'parsing'].includes(String(status || '').toLowerCase());
+}
+
 async function getSessionStatus(sessionId) {
-  const session = await importSessionService.getSession(sessionId);
+  const safeSessionId = String(sessionId || '').trim();
+  const session = await importSessionService.getSession(safeSessionId);
 
   if (!session) {
-    console.warn('[IMPORT_PREVIEW_POLL_SESSION_NOT_FOUND]', { sessionId: String(sessionId || '').trim() });
+    console.warn('[IMPORT_PREVIEW_POLL_SESSION_NOT_FOUND]', { sessionId: safeSessionId });
     return {
       error: 'Không tìm thấy phiên import. Vui lòng bấm Xem trước lại để backend tạo phiên mới.',
       status: 404,
       code: 'IMPORT_SESSION_NOT_FOUND'
     };
   }
+
+  const backgroundJob = await getImportPreviewJobSnapshot(session.sessionId || session.id || safeSessionId);
+  const jobFailed = backgroundJob && ['failed', 'dead_letter', 'cancelled'].includes(String(backgroundJob.status || '').toLowerCase());
 
   const storedResult = session.result && typeof session.result === 'object' && !Array.isArray(session.result)
     ? session.result
@@ -64,22 +103,34 @@ async function getSessionStatus(sessionId) {
     };
   }
 
+  const jobFailure = jobFailed ? backgroundJob.error || {} : null;
+  const effectiveStatus = jobFailed && isImportPreviewPendingSession(session.status) ? 'failed' : session.status;
+  const effectiveErrorMessage = session.errorMessage || jobFailure?.message || '';
+
   return {
     sessionId: session.sessionId || session.id,
     importSessionId: session.sessionId || session.id,
     type: session.type,
     importMode: normalizeImportMode(session.importMode, session.type),
-    status: session.status,
-    progress: session.progress || { percent: 0, step: '' },
+    status: effectiveStatus,
+    progress: session.progress || backgroundJob?.progress || { percent: 0, step: '' },
     totalRows: session.totalRows || 0,
     validRows: session.validRows || 0,
     errorRows: session.errorRows || 0,
     storedRows: session.storedRows || 0,
     previewRows: session.previewRows || [],
     importErrors: session.importErrors || [],
-    errorMessage: session.errorMessage || '',
-    errorCode: storedFailure?.code || '',
-    errorKind: storedFailure?.kind || '',
+    errorMessage: effectiveErrorMessage,
+    errorCode: storedFailure?.code || jobFailure?.code || '',
+    errorKind: storedFailure?.kind || (jobFailure ? 'system' : ''),
+    backgroundJob,
+    queue: backgroundJob ? {
+      jobId: backgroundJob.id,
+      status: backgroundJob.status,
+      progress: backgroundJob.progress,
+      attemptCount: backgroundJob.attemptCount,
+      maxAttempts: backgroundJob.maxAttempts
+    } : null,
     result: publicResult,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,

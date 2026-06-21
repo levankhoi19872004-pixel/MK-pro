@@ -54,35 +54,44 @@ const res=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}/row
 ;if(!json.ok)throw new Error(json.error||json.message||"Không tải được toàn bộ dòng import");const pageRows=Array.isArray(json.rows)?json.rows:[];rows.push(...pageRows)
 ;offset+=pageRows.length;if(!json.hasMore)break;if(!pageRows.length)throw new Error("Phiên import bị thiếu dữ liệu dòng. Vui lòng tải lại file.")}if(rows.length!==expected){
 throw new Error(`Phiên import đọc thiếu dòng: Mongo đã ghi nhận ${formatNumber(expected)} nhưng chỉ tải được ${formatNumber(rows.length)}. Hệ thống đã dừng để tránh cập nhật thiếu.`)
-}return rows}async function waitImportPreviewSession(sessionId){const safeSessionId=String(sessionId||"").trim()
-;if(!safeSessionId)throw new Error("Thiếu mã phiên import do backend tạo");const maxAttempts=80;const delayMs=1500;const pollingStatuses=new Set(["uploaded","queued","parsing"])
-;for(let attempt=0;attempt<maxAttempts;attempt+=1){const res=await fetch(`/api/import/sessions/${encodeURIComponent(safeSessionId)}`,{cache:"no-store"})
-;const json=await res.json().catch(()=>({ok:false,message:`API trạng thái import không trả JSON hợp lệ (HTTP ${res.status})`}));if(!res.ok||!json.ok){
-const message=json.error||json.message||`Không đọc được trạng thái phiên import (HTTP ${res.status})`;throw new Error(message)}const status=String(json.status||"").toLowerCase()
-;if(status==="not_found"){throw new Error(json.message||`Không tìm thấy phiên import ${safeSessionId}. Vui lòng bấm Xem trước lại để backend tạo phiên mới.`)}
-if(status==="preview_ready"){const totalRows=Math.max(0,Number(json.totalRows||0));const rows=await loadAllImportSessionRows(json.sessionId||safeSessionId,totalRows)
+}return rows}function describeImportPreviewQueue(json={},attempt=0){const status=String(json.status||"").toLowerCase();const progress=json.progress||{}
+;const percent=Math.max(0,Math.min(100,Number(progress.percent||0)));const step=String(progress.step||status||"queued").trim();const queue=json.queue||{}
+;const job=json.backgroundJob||{};const jobStatus=String(queue.status||job.status||"").trim();const jobId=String(queue.jobId||job.id||"").trim();const suffix=[]
+;if(jobStatus)suffix.push(`worker: ${jobStatus}`);if(jobId)suffix.push(`job: ${jobId}`)
+;if(attempt>=10&&status==="queued")suffix.push("nếu đứng lâu, kiểm tra Worker Service trên Render")
+;return`Đang xử lý file Excel... ${percent}% (${step})${suffix.length?" · "+suffix.join(" · "):""}`}async function waitImportPreviewSession(sessionId,options={}){
+const safeSessionId=String(sessionId||"").trim();if(!safeSessionId)throw new Error("Thiếu mã phiên import do backend tạo");const maxAttempts=80;const delayMs=1500
+;const pollingStatuses=new Set(["uploaded","queued","parsing"]);for(let attempt=0;attempt<maxAttempts;attempt+=1){
+const res=await fetch(`/api/import/sessions/${encodeURIComponent(safeSessionId)}?t=${Date.now()}`,{cache:"no-store"});const json=await res.json().catch(()=>({ok:false,
+message:`API trạng thái import không trả JSON hợp lệ (HTTP ${res.status})`}));if(!res.ok||!json.ok){
+const message=json.error||json.message||`Không đọc được trạng thái phiên import (HTTP ${res.status})`;if(res.status===404||json.code==="IMPORT_SESSION_NOT_FOUND"){
+throw new Error(json.message||`Không tìm thấy phiên import ${safeSessionId}. Vui lòng bấm Xem trước lại để backend tạo phiên mới.`)}throw new Error(message)}
+const status=String(json.status||"").toLowerCase();if(status==="not_found"){
+throw new Error(json.message||`Không tìm thấy phiên import ${safeSessionId}. Vui lòng bấm Xem trước lại để backend tạo phiên mới.`)}if(status==="preview_ready"){
+const totalRows=Math.max(0,Number(json.totalRows||0));const rows=await loadAllImportSessionRows(json.sessionId||safeSessionId,totalRows)
 ;if(importDataMode&&json.importMode==="update")importDataMode.value="update";return{ok:true,source:"import-session-status",sessionId:json.sessionId||safeSessionId,
 importSessionId:json.importSessionId||json.sessionId||safeSessionId,status:status,importMode:json.importMode||getSelectedImportMode(),rows:rows,total:totalRows,
 valid:json.validRows||0,invalid:json.errorRows||0,importErrors:json.importErrors||[],result:json.result||{}}}if(status==="failed"){
-throw new Error(json.errorMessage||json.message||"Import thất bại khi đọc file Excel")}if(!pollingStatuses.has(status)){
-throw new Error(`Trạng thái phiên import không hợp lệ: ${status||"trống"}. Vui lòng bấm Xem trước lại.`)}const percent=json.progress&&json.progress.percent?json.progress.percent:0
-;const step=json.progress&&json.progress.step?json.progress.step:status;showMessage(importDataMessage,`Đang xử lý file Excel... ${percent}% (${step||"queued"})`)
-;await sleepImportPreview(delayMs)}throw new Error("Import xử lý quá lâu, vui lòng thử lại hoặc tách nhỏ file Excel")}async function downloadImportBlob(url,fileName){
-const res=await fetch(url);const blob=await res.blob();if(!res.ok){let message="Không tải được file Excel";try{const text=await blob.text();const json=JSON.parse(text)
-;message=json.message||json.error||message}catch(_){}throw new Error(message)}const objectUrl=URL.createObjectURL(blob);const a=document.createElement("a");a.href=objectUrl
-;a.download=fileName||"template.xlsx";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),1e3)}async function downloadImportTemplate(){
-if(!importDataType)return;try{const type=encodeURIComponent(importDataType.value);await downloadImportBlob(`/api/import/template/${type}`,`import-template-${type}.xlsx`)
-}catch(err){showMessage(importDataMessage,err.message||"Không tải được mẫu Excel",true)}}async function previewImportExcel(){if(!importDataType||!importExcelFile)return;try{
-showMessage(importDataMessage,"Đang đọc file và kiểm tra dữ liệu...");const json=await previewImportExcelSilent();await ensureImportUsersCache();renderImportPreview(json)
-;const validNow=importPreviewRows.filter(r=>r&&r.valid).length;const selectableNow=importPreviewRows.filter(r=>r&&r.valid&&r.canImport!==false).length
-;const unchangedNow=importPreviewRows.filter(r=>r&&r.action==="no_change").length;const invalidNow=Math.max(0,importPreviewRows.length-validNow)
-;const fileCount=Array.from(importExcelFile.files||[]).length
+const failure=json.result&&json.result.importFailure?json.result.importFailure:null
+;throw new Error(failure&&failure.message||json.errorMessage||json.message||"Import thất bại khi đọc file Excel")}if(!pollingStatuses.has(status)){
+throw new Error(`Trạng thái phiên import không hợp lệ: ${status||"trống"}. Vui lòng bấm Xem trước lại.`)}showMessage(importDataMessage,describeImportPreviewQueue({...json,
+queue:json.queue||{jobId:options.jobId,status:""}},attempt));await sleepImportPreview(delayMs)}
+throw new Error("Import preview đã được tạo session nhưng chưa hoàn tất trong 2 phút. Nếu vẫn đứng 0% queued, hãy kiểm tra Worker Service chạy lệnh npm run worker:background hoặc tạm thời đặt IMPORT_PREVIEW_ASYNC=false cho staging.")
+}async function downloadImportBlob(url,fileName){const res=await fetch(url);const blob=await res.blob();if(!res.ok){let message="Không tải được file Excel";try{
+const text=await blob.text();const json=JSON.parse(text);message=json.message||json.error||message}catch(_){}throw new Error(message)}const objectUrl=URL.createObjectURL(blob)
+;const a=document.createElement("a");a.href=objectUrl;a.download=fileName||"template.xlsx";document.body.appendChild(a);a.click();a.remove()
+;setTimeout(()=>URL.revokeObjectURL(objectUrl),1e3)}async function downloadImportTemplate(){if(!importDataType)return;try{const type=encodeURIComponent(importDataType.value)
+;await downloadImportBlob(`/api/import/template/${type}`,`import-template-${type}.xlsx`)}catch(err){showMessage(importDataMessage,err.message||"Không tải được mẫu Excel",true)}}
+async function previewImportExcel(){if(!importDataType||!importExcelFile)return;try{showMessage(importDataMessage,"Đang đọc file và kiểm tra dữ liệu...")
+;const json=await previewImportExcelSilent();await ensureImportUsersCache();renderImportPreview(json);const validNow=importPreviewRows.filter(r=>r&&r.valid).length
+;const selectableNow=importPreviewRows.filter(r=>r&&r.valid&&r.canImport!==false).length;const unchangedNow=importPreviewRows.filter(r=>r&&r.action==="no_change").length
+;const invalidNow=Math.max(0,importPreviewRows.length-validNow);const fileCount=Array.from(importExcelFile.files||[]).length
 ;const modeText=getSelectedImportMode()==="update"?`${selectableNow} dòng có thay đổi, ${unchangedNow} dòng giữ nguyên`:`${validNow} dòng/đơn hợp lệ`
 ;showMessage(importDataMessage,`Đã đọc ${fileCount} file: ${modeText}, ${invalidNow} lỗi. Hãy chọn dòng rồi xác nhận.`)}catch(err){importPreviewRows=[];importPreviewSessionId=""
 ;window.__importPreviewRows=importPreviewRows;window.__importPreviewSessionId=importPreviewSessionId;if(commitImportButton)commitImportButton.disabled=true
 ;showMessage(importDataMessage,err.message,true)}}async function previewImportExcelSilent(){if(!importDataType||!importExcelFile)throw new Error("Thiếu thông tin import")
 ;const files=Array.from(importExcelFile.files||[]);if(!files.length)throw new Error("Bạn chưa chọn file Excel");const type=importDataType.value
-;const importMode=getSelectedImportMode();const formData=new FormData;formData.append("type",type);formData.append("importMode",importMode)
+;const importMode=getSelectedImportMode();const formData=new FormData;formData.append("type",importDataType.value);formData.append("importMode",getSelectedImportMode())
 ;files.forEach(file=>formData.append("files",file));console.info("[IMPORT_PREVIEW_POST_STARTED]",{type:type,importMode:importMode,fileCount:files.length,
 fileNames:files.map(file=>file&&file.name).filter(Boolean)});const res=await fetch("/api/import/preview",{method:"POST",body:formData});const json=await res.json().catch(()=>({
 ok:false,message:`API preview import không trả JSON hợp lệ (HTTP ${res.status})`}));if(!res.ok||!json.ok){

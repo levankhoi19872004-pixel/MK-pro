@@ -44,7 +44,7 @@ test('import session reports commit progress and frontend polls it', () => {
   assert.match(sessionService, /percent:\s*100,[\s\S]*step:\s*'done'/);
   assert.match(ui, /startImportCommitProgressPolling/);
   assert.match(ui, /refreshAfterImport/);
-  assert.match(html, /08d-import-excel\.js\?v=phase07-background-worker-v1/);
-  assert.match(html, /08d-import-excel\.part02\.js\?v=phase79b-source-shards-v1/);
-  assert.match(html, /08d-import-excel\.part03\.js\?v=phase79b-source-shards-v1/);
+  assert.match(html, /08d-import-excel\.js\?v=phase11-import-session-contract-v2/);
+  assert.match(html, /08d-import-excel\.part02\.js\?v=phase11-import-session-contract-v2/);
+  assert.match(html, /08d-import-excel\.part03\.js\?v=phase11-import-session-contract-v2/);
 });

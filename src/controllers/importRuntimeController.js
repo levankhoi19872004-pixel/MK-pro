@@ -36,6 +36,7 @@ async function commit(req, res) {
 
 
 async function sessionRows(req, res) {
+  if (typeof res.set === 'function') res.set('Cache-Control', 'no-store');
   try {
     const result = await excelImportService.getSessionRows(
       String(req.params.sessionId || req.query.sessionId || '').trim(),
@@ -64,6 +65,7 @@ async function sessionRows(req, res) {
 }
 
 async function sessionStatus(req, res) {
+  if (typeof res.set === 'function') res.set('Cache-Control', 'no-store');
   try {
     const result = await excelImportService.getSessionStatus(
       String(req.params.sessionId || req.query.sessionId || '').trim()

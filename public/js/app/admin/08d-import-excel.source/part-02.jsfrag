@@ -175,7 +175,23 @@ async function loadAllImportSessionRows(sessionId,totalRows){
   return rows;
 }
 
-async function waitImportPreviewSession(sessionId){
+function describeImportPreviewQueue(json={}, attempt=0){
+  const status=String(json.status||'').toLowerCase();
+  const progress=json.progress||{};
+  const percent=Math.max(0,Math.min(100,Number(progress.percent||0)));
+  const step=String(progress.step||status||'queued').trim();
+  const queue=json.queue||{};
+  const job=json.backgroundJob||{};
+  const jobStatus=String(queue.status||job.status||'').trim();
+  const jobId=String(queue.jobId||job.id||'').trim();
+  const suffix=[];
+  if(jobStatus)suffix.push(`worker: ${jobStatus}`);
+  if(jobId)suffix.push(`job: ${jobId}`);
+  if(attempt>=10&&status==='queued')suffix.push('nếu đứng lâu, kiểm tra Worker Service trên Render');
+  return `Đang xử lý file Excel... ${percent}% (${step})${suffix.length?' · '+suffix.join(' · '):''}`;
+}
+
+async function waitImportPreviewSession(sessionId,options={}){
   const safeSessionId=String(sessionId||'').trim();
   if(!safeSessionId)throw new Error('Thiếu mã phiên import do backend tạo');
 
@@ -184,7 +200,7 @@ async function waitImportPreviewSession(sessionId){
   const pollingStatuses=new Set(['uploaded','queued','parsing']);
 
   for(let attempt=0;attempt<maxAttempts;attempt+=1){
-    const res=await fetch(`/api/import/sessions/${encodeURIComponent(safeSessionId)}`,{cache:'no-store'});
+    const res=await fetch(`/api/import/sessions/${encodeURIComponent(safeSessionId)}?t=${Date.now()}`,{cache:'no-store'});
     const json=await res.json().catch(()=>({
       ok:false,
       message:`API trạng thái import không trả JSON hợp lệ (HTTP ${res.status})`
@@ -192,6 +208,9 @@ async function waitImportPreviewSession(sessionId){
 
     if(!res.ok||!json.ok){
       const message=json.error||json.message||`Không đọc được trạng thái phiên import (HTTP ${res.status})`;
+      if(res.status===404||json.code==='IMPORT_SESSION_NOT_FOUND'){
+        throw new Error(json.message||`Không tìm thấy phiên import ${safeSessionId}. Vui lòng bấm Xem trước lại để backend tạo phiên mới.`);
+      }
       throw new Error(message);
     }
 
@@ -222,25 +241,26 @@ async function waitImportPreviewSession(sessionId){
     }
 
     if(status==='failed'){
-      throw new Error(json.errorMessage||json.message||'Import thất bại khi đọc file Excel');
+      const failure=json.result&&json.result.importFailure?json.result.importFailure:null;
+      throw new Error((failure&&failure.message)||json.errorMessage||json.message||'Import thất bại khi đọc file Excel');
     }
 
     if(!pollingStatuses.has(status)){
       throw new Error(`Trạng thái phiên import không hợp lệ: ${status||'trống'}. Vui lòng bấm Xem trước lại.`);
     }
 
-    const percent=json.progress&&json.progress.percent?json.progress.percent:0;
-    const step=json.progress&&json.progress.step?json.progress.step:status;
-
     showMessage(
       importDataMessage,
-      `Đang xử lý file Excel... ${percent}% (${step||'queued'})`
+      describeImportPreviewQueue({
+        ...json,
+        queue:json.queue||{jobId:options.jobId,status:''}
+      },attempt)
     );
 
     await sleepImportPreview(delayMs);
   }
 
-  throw new Error('Import xử lý quá lâu, vui lòng thử lại hoặc tách nhỏ file Excel');
+  throw new Error('Import preview đã được tạo session nhưng chưa hoàn tất trong 2 phút. Nếu vẫn đứng 0% queued, hãy kiểm tra Worker Service chạy lệnh npm run worker:background hoặc tạm thời đặt IMPORT_PREVIEW_ASYNC=false cho staging.');
 }
 
 async function downloadImportBlob(url,fileName){
@@ -312,8 +332,8 @@ async function previewImportExcelSilent(){
   const type=importDataType.value;
   const importMode=getSelectedImportMode();
   const formData=new FormData();
-  formData.append('type',type);
-  formData.append('importMode',importMode);
+  formData.append('type',importDataType.value);
+  formData.append('importMode',getSelectedImportMode());
 
   files.forEach(file=>formData.append('files',file));
 
