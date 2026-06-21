@@ -8,7 +8,9 @@
   function createInitialState() {
     return {
       selectedKey: '',
+      viewMode: 'list',
       tab: 'orders',
+      productSearchKeyword: '',
       debts: [],
       debtSummary: {},
       selectedDebtIndex: -1,

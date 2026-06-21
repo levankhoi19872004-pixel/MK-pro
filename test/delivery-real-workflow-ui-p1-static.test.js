@@ -14,7 +14,7 @@ test('phase23 keeps customer delivery workflow as first-class tabs', () => {
     assert.match(entrySource, new RegExp(label));
   });
   assert.doesNotMatch(entrySource, /mReconShortcut/);
-  assert.match(entrySource, /data-m-tab="reconciliation"/);
+  assert.match(entrySource, /label: 'Đối soát'/);
 });
 
 test('route KPI focuses on orders, receivable, returns and remaining debt', () => {
@@ -41,7 +41,7 @@ test('products, returns and payment keep the customer workflow sequence', () => 
   assert.match(entrySource, /Hàng trả · xem\/sửa lại/);
   assert.match(entrySource, /Còn thiếu \/ ghi công nợ/);
   assert.match(entrySource, /Xác nhận thu tiền/);
-  assert.match(entrySource, /state\.tab = 'reconciliation'/);
+  assert.match(entrySource, /state\.tab = 'customerReconciliation'/);
 });
 
 test('one-hand workflow bar is present without changing API contract', () => {

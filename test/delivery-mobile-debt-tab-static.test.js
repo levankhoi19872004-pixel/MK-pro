@@ -23,13 +23,13 @@ test('delivery mobile replaces report tab with independent debt tab', () => {
   assert.match(source, /debtLoaded:\s*false/);
   assert.match(source, /debtLoading:\s*false/);
 
-  assert.match(source, /data-m-tab="debt">Công nợ/);
+  assert.match(source, /label: 'Công nợ'/);
   assert.doesNotMatch(source, /data-m-tab="report">Báo cáo/);
   assert.doesNotMatch(source, /state\.tab\s*=\s*['"]report['"]/);
   assert.doesNotMatch(source, /function renderReport\(/);
 
   assert.match(source, /if \(state\.tab === 'debt'\) loadDeliveryDebts\(false\)/);
-  assert.match(source, /if \(state\.tab === 'debt'\) return renderDebtApp\(body\)/);
+  assert.match(source, /!isCustomerMode\(\) && state\.tab === 'debt'/);
 });
 
 test('delivery mobile debt tab uses shared mobile debts API and pending collection submit API', () => {

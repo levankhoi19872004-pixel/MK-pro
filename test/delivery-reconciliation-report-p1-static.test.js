@@ -57,7 +57,7 @@ test('mobile app exposes lazy-loaded reconciliation through workflow tab', () =>
   assert.match(deliveryCoreSource, /async loadReconciliation\(filters\)/);
   assert.match(deliveryCoreSource, /this\.state\.reconciliationReport = report/);
   assert.doesNotMatch(deliveryMobileViewSource, /mReconShortcut/);
-  assert.match(deliveryMobileViewSource, /data-m-tab="reconciliation"/);
+  assert.match(deliveryMobileViewSource, /label: 'Đối soát'/);
   assert.match(deliveryMobileViewSource, /function loadDeliveryReconciliation\(force\)/);
   assert.match(deliveryMobileViewSource, /function renderReconciliationApp\(body\)/);
   assert.match(deliveryMobileViewSource, /buildDeliveryReconciliationUrl\(\)/);

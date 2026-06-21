@@ -40,7 +40,7 @@ test('delivery mobile initial load only loads orders and does not preload all re
 
 test('default order selection opens product check without preloading all returns', () => {
   const selectBody = functionBody('select');
-  assert.match(selectBody, /state\.tab = options\.tab \|\| 'products'/);
+  assert.match(selectBody, /switchToCustomerMode\(options\.tab \|\| 'products'\)/);
   assert.match(combinedSource, /data-open-tab=\"products\"/);
   assert.doesNotMatch(selectBody, /DeliveryCore\.loadReturns\(filters\(\)/);
 });

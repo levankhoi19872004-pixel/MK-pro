@@ -33,14 +33,14 @@ test('phase23 full-return flow is explicit and does not require payment', () => 
   assert.match(entrySource, /forceFull/);
   assert.match(entrySource, /returnType: 'full'/);
   assert.match(entrySource, /deliveryStatus: 'failed'/);
-  assert.match(entrySource, /state\.tab = 'orders'/);
+  assert.match(entrySource, /switchToListMode\(\{ clearSelected: true, forceOrders: true \}\)/);
 });
 
-test('phase23 payment completion moves to reconciliation', () => {
-  assert.match(entrySource, /Đã lưu thu tiền và xác nhận giao, chuyển sang Đối soát/);
-  assert.match(entrySource, /state\.tab = 'reconciliation'/);
-  assert.match(entrySource, /loadDeliveryReconciliation\(true\)/);
-  assert.match(entrySource, /data-m-tab="reconciliation"/);
+test('phase23 payment completion moves to a reconciliation step', () => {
+  assert.match(entrySource, /Đã lưu thu tiền và xác nhận giao, mở đối soát nhanh/);
+  assert.match(entrySource, /state\.tab = 'customerReconciliation'/);
+  assert.match(entrySource, /function renderCustomerReconciliation/);
+  assert.match(entrySource, /label: 'Đối soát'/);
 });
 
 test('phase23 delivery core supports full return type without backend contract changes', () => {
@@ -52,7 +52,7 @@ test('phase23 delivery core supports full return type without backend contract c
 
 test('phase23 CSS supports six-step customer workflow and return inputs', () => {
   assert.match(css, /DELIVERY_CUSTOMER_WORKFLOW_UI_P1_START/);
-  assert.match(css, /customer-flow/);
+  assert.match(css, /customer-flow|split-mode/);
   assert.match(css, /m-return-inline-input/);
   assert.match(css, /m-action-row\.workflow-next\.phase23/);
 });

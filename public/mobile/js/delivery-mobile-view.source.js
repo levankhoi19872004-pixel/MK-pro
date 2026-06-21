@@ -40,6 +40,49 @@
   var DELIVERY_DEBT_PAGE_LIMIT = deliveryMobileState.DELIVERY_DEBT_PAGE_LIMIT;
 
   var state = deliveryMobileState.createInitialState();
+  var LIST_MODE_TABS = [
+    { key: 'orders', label: 'Khách giao' },
+    { key: 'reconciliation', label: 'Đối soát' },
+    { key: 'debt', label: 'Công nợ' }
+  ];
+  var CUSTOMER_MODE_TABS = [
+    { key: 'products', label: 'Hàng giao' },
+    { key: 'returns', label: 'Hàng trả' },
+    { key: 'payment', label: 'Thu tiền' }
+  ];
+
+  function isCustomerMode() {
+    return state.viewMode === 'customer' && !!currentOrder();
+  }
+
+  function tabListForCurrentMode() {
+    return isCustomerMode() ? CUSTOMER_MODE_TABS : LIST_MODE_TABS;
+  }
+
+  function ensureTabForMode() {
+    var tabs = tabListForCurrentMode().map(function (tab) { return tab.key; });
+    if (isCustomerMode() && state.tab === 'customerReconciliation') return;
+    if (tabs.indexOf(state.tab) < 0) state.tab = isCustomerMode() ? 'products' : 'orders';
+  }
+
+  function switchToListMode(options) {
+    options = options || {};
+    state.viewMode = 'list';
+    state.productSearchKeyword = '';
+    if (options.clearSelected) {
+      state.selectedKey = '';
+      if (window.DeliveryCore && window.DeliveryCore.state) window.DeliveryCore.state.selectedOrder = null;
+    }
+    if (['orders', 'reconciliation', 'debt'].indexOf(state.tab) < 0 || options.forceOrders) state.tab = 'orders';
+    render();
+    if (state.tab === 'debt') loadDeliveryDebts(false);
+    if (state.tab === 'reconciliation') loadDeliveryReconciliation(false);
+  }
+
+  function switchToCustomerMode(tab) {
+    state.viewMode = 'customer';
+    state.tab = ['products', 'returns', 'payment'].indexOf(tab) >= 0 ? tab : 'products';
+  }
 
   function requireDeliveryLogin() {
     var user = readUser();
@@ -76,19 +119,13 @@
         '<div class="m-delivery-header-main"><h1>Giao hàng hôm nay</h1><div class="m-account-info"><b>' + esc(accountText) + '</b><span>Quy trình: Khách → Hàng giao → Thu tiền → Đối soát</span></div></div>' +
         '<div class="m-delivery-header-actions dedupe"><button id="mReload" type="button">Tải</button><div class="m-delivery-menu-wrap"><button id="mDeliveryMenuToggle" type="button" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="mDeliveryMenu">⋮</button><div id="mDeliveryMenu" class="m-delivery-menu" hidden><button id="mDeliveryAccountInfo" type="button">Thông tin tài khoản</button><button id="mLogout" type="button">Đăng xuất</button></div></div></div>' +
       '</header>' +
-      '<section class="m-delivery-filter"><input id="mDate" type="date"><select id="mStatusFilter"><option value="all">Tất cả</option><option value="pending">Chưa giao</option><option value="delivered">Đã giao</option><option value="return">Có trả hàng</option><option value="debt">Còn công nợ</option></select><input id="mSearch" placeholder="Tìm khách / mã đơn / SĐT"></section>' +
-      '<section class="m-delivery-kpis workflow" aria-label="Chỉ số tuyến giao hàng">' +
+      '<section id="mDeliveryFilter" class="m-delivery-filter"><input id="mDate" type="date"><select id="mStatusFilter"><option value="all">Tất cả</option><option value="pending">Chưa giao</option><option value="delivered">Đã giao</option><option value="return">Có trả hàng</option><option value="debt">Còn công nợ</option></select><input id="mSearch" placeholder="Tìm khách / mã đơn / SĐT"></section>' +
+      '<section id="mDeliveryKpis" class="m-delivery-kpis workflow" aria-label="Chỉ số tuyến giao hàng">' +
         '<div><span title="Tổng số đơn trong tuyến">Tổng đơn</span><b id="mKpiTotal">0</b></div><div><span title="Đơn chưa giao">Chưa giao</span><b id="mKpiPending">0</b></div><div><span title="Đơn đã giao">Đã giao</span><b id="mKpiDelivered">0</b></div>' +
         '<div><span title="Tổng tiền phải thu">Phải thu</span><b id="mKpiPt">0</b></div><div><span title="Tiền hàng trả">Trả hàng</span><b id="mKpiTh">0</b></div><div><span title="Công nợ còn lại">Còn thiếu</span><b id="mKpiCn">0</b></div>' +
       '</section>' +
-      '<nav class="m-delivery-tabs workflow customer-flow">' +
-        '<button data-m-tab="orders" class="active">Khách giao</button>' +
-        '<button data-m-tab="products">Hàng giao</button>' +
-        '<button data-m-tab="returns">Hàng trả</button>' +
-        '<button data-m-tab="payment">Thu tiền</button>' +
-        '<button data-m-tab="reconciliation">Đối soát</button>' +
-        '<button data-m-tab="debt">Công nợ</button>' +
-      '</nav>' +
+      '<section id="mCustomerContext" class="m-customer-context" hidden></section>' +
+      '<nav id="mDeliveryTabs" class="m-delivery-tabs workflow split-mode"></nav>' +
       '<section id="mBody" class="m-delivery-body">Đang tải...</section>' +
       '<section id="mWorkflowBar" class="m-workflow-bar" hidden></section>' +
       '<p id="mMsg" class="m-delivery-msg"></p>';
@@ -133,24 +170,25 @@
     var debouncedSearch = mobileUiRuntime ? mobileUiRuntime.debounce(function () { load({ force: true }); }, 250) : debounce(function () { load({ force: true }); }, 250);
     bind(el('mSearch'), 'input', debouncedSearch);
     if (deliveryLifecycle) deliveryLifecycle.add(function () { if (debouncedSearch.cancel) debouncedSearch.cancel(); });
-    document.querySelectorAll('[data-m-tab]').forEach(function (button) {
-      bind(button, 'click', function () {
-        var nextTab = button.getAttribute('data-m-tab');
-        if (
-          state.tab === 'debt' &&
-          nextTab !== 'debt' &&
-          state.debtFormDirty &&
-          !window.confirm('Bạn đang có phiếu thu chưa gửi. Rời Công nợ sẽ xóa dữ liệu đang nhập.')
-        ) {
-          return;
-        }
-        if (state.tab === 'debt' && nextTab !== 'debt') state.debtFormDirty = false;
-        state.tab = nextTab;
-        render();
-        if (state.tab === 'returns') loadSelectedReturnsDirect({ force: false });
-        if (state.tab === 'debt') loadDeliveryDebts(false);
-        if (state.tab === 'reconciliation') loadDeliveryReconciliation(false);
-      });
+    bind(el('mDeliveryTabs'), 'click', function (event) {
+      var button = event.target && event.target.closest ? event.target.closest('[data-m-tab]') : null;
+      if (!button) return;
+      event.preventDefault();
+      var nextTab = button.getAttribute('data-m-tab');
+      if (
+        state.tab === 'debt' &&
+        nextTab !== 'debt' &&
+        state.debtFormDirty &&
+        !window.confirm('Bạn đang có phiếu thu chưa gửi. Rời Công nợ sẽ xóa dữ liệu đang nhập.')
+      ) {
+        return;
+      }
+      if (state.tab === 'debt' && nextTab !== 'debt') state.debtFormDirty = false;
+      state.tab = nextTab;
+      render();
+      if (state.tab === 'returns') loadSelectedReturnsDirect({ force: false });
+      if (state.tab === 'debt') loadDeliveryDebts(false);
+      if (state.tab === 'reconciliation') loadDeliveryReconciliation(false);
     });
     if (deliveryLifecycle) {
       deliveryLifecycle.delegate(el('mBody'), 'click', '[data-order-key]', function (_event, button) {
@@ -178,6 +216,14 @@
       deliveryLifecycle.delegate(el('mBody'), 'click', '[data-debt-index]:not([disabled])', function (_event, button) {
         openDeliveryDebtCollection(Number(button.getAttribute('data-debt-index')));
       });
+      deliveryLifecycle.delegate(el('mCustomerContext'), 'click', '[data-back-to-list]', function (event) {
+        event.preventDefault();
+        switchToListMode({ clearSelected: true, forceOrders: true });
+      });
+      deliveryLifecycle.delegate(el('mBody'), 'input', '#mProductSearch', function (_event, input) {
+        state.productSearchKeyword = input.value || '';
+        filterProductRows(state.productSearchKeyword);
+      });
       deliveryLifecycle.delegate(el('mWorkflowBar'), 'click', '[data-workflow-tab]', function (_event, button) {
         state.tab = button.getAttribute('data-workflow-tab') || 'products';
         render();
@@ -186,8 +232,7 @@
         if (state.tab === 'reconciliation') loadDeliveryReconciliation(false);
       });
       deliveryLifecycle.delegate(el('mWorkflowBar'), 'click', '[data-workflow-complete]', function () {
-        state.tab = 'orders';
-        render();
+        switchToListMode({ clearSelected: true, forceOrders: true });
       });
       deliveryLifecycle.listen(window, 'pagehide', function () {
         if (deliveryOrderRenderer) deliveryOrderRenderer.cancel();
@@ -221,6 +266,43 @@
     };
   }
 
+  function renderTabNavigation() {
+    ensureTabForMode();
+    var nav = el('mDeliveryTabs');
+    if (!nav) return;
+    nav.classList.toggle('list-mode', !isCustomerMode());
+    nav.classList.toggle('customer-mode', isCustomerMode());
+    nav.innerHTML = tabListForCurrentMode().map(function (tab) {
+      return '<button data-m-tab="' + esc(tab.key) + '" class="' + (state.tab === tab.key ? 'active' : '') + '">' + esc(tab.label) + '</button>';
+    }).join('');
+  }
+
+  function renderCustomerContext() {
+    var context = el('mCustomerContext');
+    if (!context) return;
+    var order = currentOrder();
+    if (!isCustomerMode() || !order) {
+      context.hidden = true;
+      context.innerHTML = '';
+      return;
+    }
+    var address = deliveryMobileUi.orderAddress ? deliveryMobileUi.orderAddress(order) : '';
+    var name = order.customerName || order.customerCode || order.orderCode || 'Khách đang giao';
+    var customerCode = order.customerCode || order.customerId || '';
+    context.hidden = false;
+    context.innerHTML = '<button type="button" class="m-back-to-list" data-back-to-list>← Danh sách</button>' +
+      '<div class="m-customer-context-main"><b>' + esc(name) + (customerCode ? ' · ' + esc(customerCode) : '') + '</b>' +
+      '<span>' + (address ? esc(address) + ' · ' : '') + 'Phải thu ' + money(amount(order, 'receivable')) + '</span></div>';
+  }
+
+  function renderListChromeVisibility() {
+    var listMode = !isCustomerMode();
+    var filter = el('mDeliveryFilter');
+    var kpis = el('mDeliveryKpis');
+    if (filter) filter.hidden = !listMode;
+    if (kpis) kpis.hidden = !listMode;
+  }
+
   function renderKpis() {
     var rows = window.DeliveryCore.state.orders || [];
     var s = buildRouteKpi(rows);
@@ -236,7 +318,7 @@
     var bar = el('mWorkflowBar');
     if (!bar) return;
     var order = currentOrder();
-    if (!order || state.tab === 'orders') {
+    if (!isCustomerMode() || !order || state.tab === 'orders') {
       bar.hidden = true;
       bar.innerHTML = '';
       return;
@@ -261,7 +343,7 @@
         '<div class="m-workflow-actions step-only phase24 payment"><button type="submit" form="mPaymentForm" class="primary">Xác nhận thu tiền</button></div>';
       return;
     }
-    if (state.tab === 'reconciliation') {
+    if (state.tab === 'customerReconciliation') {
       bar.innerHTML = '<div class="m-workflow-actions step-only phase24 reconciliation">' +
         '<button type="button" class="primary" data-workflow-complete>Hoàn tất - về danh sách</button>' +
       '</div>';
@@ -277,18 +359,22 @@
   }
 
   function render() {
+    ensureTabForMode();
+    renderListChromeVisibility();
     renderKpis();
-    document.querySelectorAll('[data-m-tab]').forEach(function (button) { button.classList.toggle('active', button.getAttribute('data-m-tab') === state.tab); });
+    renderCustomerContext();
+    renderTabNavigation();
     renderWorkflowBar();
     var body = el('mBody');
     if (!body) return;
     if (state.tab !== 'orders' && deliveryOrderRenderer) deliveryOrderRenderer.cancel();
     if (state.tab !== 'debt' && deliveryDebtRenderer) deliveryDebtRenderer.cancel();
-    if (state.tab === 'products') return renderProducts(body);
-    if (state.tab === 'returns') return renderReturns(body);
-    if (state.tab === 'payment') return renderPayment(body);
-    if (state.tab === 'debt') return renderDebtApp(body);
-    if (state.tab === 'reconciliation') return renderReconciliationApp(body);
+    if (isCustomerMode() && state.tab === 'products') return renderProducts(body);
+    if (isCustomerMode() && state.tab === 'returns') return renderReturns(body);
+    if (isCustomerMode() && state.tab === 'payment') return renderPayment(body);
+    if (isCustomerMode() && state.tab === 'customerReconciliation') return renderCustomerReconciliation(body);
+    if (!isCustomerMode() && state.tab === 'debt') return renderDebtApp(body);
+    if (!isCustomerMode() && state.tab === 'reconciliation') return renderReconciliationApp(body);
     return renderOrders(body);
   }
 
@@ -1072,26 +1158,43 @@
     update();
   }
 
+  function filterProductRows(keyword) {
+    keyword = String(keyword || '').toLowerCase().trim();
+    var visible = 0;
+    document.querySelectorAll('[data-product-search-text]').forEach(function (row) {
+      var text = String(row.getAttribute('data-product-search-text') || '').toLowerCase();
+      var matched = !keyword || text.indexOf(keyword) >= 0;
+      row.hidden = !matched;
+      if (matched) visible += 1;
+    });
+    var empty = el('mProductSearchEmpty');
+    if (empty) empty.hidden = visible > 0 || !keyword;
+  }
+
   function renderProducts(body) {
     var order = currentOrder();
     if (!order) { body.innerHTML = '<div class="m-empty">Chọn khách/đơn ở danh sách cần giao trước.</div>'; return; }
     var baseRows = buildReturnInputRows(order, returnsForOrder(order));
+    var productKeyword = String(state.productSearchKeyword || '').toLowerCase().trim();
     var totalQty = baseRows.reduce(function (sum, it) { return sum + num(it.deliveredQty); }, 0);
     var totalAmount = baseRows.reduce(function (sum, it) { return sum + num(it.price) * num(it.deliveredQty); }, 0);
     var totalReturnAmount = baseRows.reduce(function (sum, it) { return sum + num(it.returnQty) * num(it.price); }, 0);
-    body.innerHTML = selectedOrderSummary(order) +
-      '<section class="m-product-compact-brief phase24"><b>' + esc(baseRows.length) + ' dòng · ' + money(totalQty) + ' SL · Giá trị ' + money(totalAmount) + '</b><span>Nhập SL trả trên từng dòng hàng, sau đó bấm “Xác nhận hàng & thu tiền”.</span></section>' +
+    body.innerHTML = '<section class="m-product-compact-brief phase24"><b>' + esc(baseRows.length) + ' dòng · ' + money(totalQty) + ' SL · Giá trị ' + money(totalAmount) + '</b><span>Nhập SL trả trên từng dòng hàng, sau đó bấm “Xác nhận hàng & thu tiền”.</span></section>' +
+      '<label class="m-product-search"><span>Tìm sản phẩm / mã hàng</span><input id="mProductSearch" type="search" placeholder="Tìm sản phẩm / mã hàng" value="' + esc(state.productSearchKeyword || '') + '"></label>' +
       '<form id="mProductReturnForm" class="m-product-return-form"><div class="m-return-scroll products-with-return-input">' +
       (baseRows.map(function (it, idx) {
         var qtyText = 'SL giao ' + money(it.deliveredQty);
         var amount = num(it.returnQty) * num(it.price);
-        return '<div class="m-product-row phase23"><div><b>' + esc(it.productCode) + '</b><small>' + esc(it.productName) + '</small><em>' + qtyText + ' · Giá ' + money(it.price) + ' · Tiền trả ' + money(amount) + '</em>' + hidden(idx, 'productCode', it.productCode) + hidden(idx, 'productName', it.productName) + hidden(idx, 'price', it.price) + hidden(idx, 'deliveredQty', it.deliveredQty) + '</div><label class="m-return-inline-input"><span>SL trả</span><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(it.returnQty) + '" aria-label="Số lượng hàng trả"></label></div>';
+        var searchText = [it.productCode, it.productName, it.barcode].join(' ');
+        return '<div class="m-product-row phase23" data-product-search-text="' + esc(searchText) + '"><div><b>' + esc(it.productCode) + '</b><small>' + esc(it.productName) + '</small><em>' + qtyText + ' · Giá ' + money(it.price) + ' · Tiền trả ' + money(amount) + '</em>' + hidden(idx, 'productCode', it.productCode) + hidden(idx, 'productName', it.productName) + hidden(idx, 'price', it.price) + hidden(idx, 'deliveredQty', it.deliveredQty) + '</div><label class="m-return-inline-input"><span>SL trả</span><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(it.returnQty) + '" aria-label="Số lượng hàng trả"></label></div>';
       }).join('') || '<div class="m-empty">Đơn chưa có dòng hàng để đối chiếu.</div>') +
+      '<div id="mProductSearchEmpty" class="m-empty" hidden>Không tìm thấy sản phẩm trong đơn này</div>' +
       '</div><div class="m-return-total phase23"><span>Tổng hàng trả</span><b id="mReturnTotal">' + money(totalReturnAmount) + '</b></div>' +
       '<div class="m-return-total phase23 due"><span>Phải thu sau trả</span><b id="mProductDueAfterReturn">' + money(Math.max(0, amount(order, 'receivable') - totalReturnAmount)) + '</b></div></form>';
     var formEl = el('mProductReturnForm');
     formEl.addEventListener('submit', function (event) { saveReturn(event, { nextTab: 'payment', successMessage: 'Đã xác nhận hàng trả, chuyển sang Thu tiền' }); });
     bindReturnTotal(formEl, 'mReturnTotal');
+    filterProductRows(productKeyword);
     if (el('mFullReturnOrder')) el('mFullReturnOrder').addEventListener('click', fullReturnOrder);
   }
 
@@ -1127,6 +1230,7 @@
         return {
           productCode: code,
           productName: item.productName || item.name || saved.productName || saved.name || '',
+          barcode: item.barcode || item.productBarcode || saved.barcode || saved.productBarcode || '',
           price: linePrice(saved) || linePrice(item),
           returnQty: num(saved.returnQty || saved.qtyReturn || saved.returnQuantity || saved.returnedQty || item.returnQty || item.qtyReturn || 0),
           deliveredQty: lineQty(item)
@@ -1137,6 +1241,7 @@
       return {
         productCode: item.productCode || item.code || item.productId || '',
         productName: item.productName || item.name || '',
+        barcode: item.barcode || item.productBarcode || '',
         price: linePrice(item),
         returnQty: num(item.returnQty || item.qtyReturn || item.returnQuantity || item.returnedQty || 0),
         deliveredQty: lineQty(item)
@@ -1163,8 +1268,7 @@
     rows = buildReturnInputRows(order, rows);
     var totalReturnAmount = rows.reduce(function (sum, it) { return sum + num(it.returnQty) * num(it.price); }, 0);
     var hasReturn = rows.some(function (it) { return num(it.returnQty) > 0; });
-    body.innerHTML = selectedOrderSummary(order) +
-      '<section class="m-workflow-step phase23"><b>Hàng trả · xem/sửa lại</b><span>Tab này lấy lại số lượng đã nhập ở Hàng giao. Có thể sửa rồi lưu lại trước khi Thu tiền.</span></section>' +
+    body.innerHTML = '<section class="m-workflow-step phase23"><b>Hàng trả · xem/sửa lại</b><span>Tab này lấy lại số lượng đã nhập ở Hàng giao. Có thể sửa rồi lưu lại trước khi Thu tiền.</span></section>' +
       (!hasReturn ? '<div class="m-empty soft">Chưa ghi nhận hàng trả cho đơn này. Có thể nhập trực tiếp tại đây hoặc quay lại tab Hàng giao.</div>' : '') +
       '<form id="mReturnSaveForm"><div class="m-return-scroll">' +
       (rows.map(function (it, idx) {
@@ -1182,13 +1286,36 @@
     });
   }
 
+  function renderCustomerReconciliation(body) {
+    var order = currentOrder();
+    if (!order) { body.innerHTML = '<div class="m-empty">Chọn khách/đơn ở danh sách cần giao trước.</div>'; return; }
+    var receivable = amount(order, 'receivable');
+    var returnAmount = amount(order, 'returnAmount');
+    var cash = amount(order, 'cash');
+    var bank = amount(order, 'bank');
+    var reward = amount(order, 'reward');
+    var collected = cash + bank + reward;
+    var remaining = Math.max(0, receivable - returnAmount - collected);
+    body.innerHTML = '<section class="m-customer-reconciliation-panel">' +
+      '<h3>Đối soát nhanh đơn vừa giao</h3>' +
+      '<div class="m-recon-grid customer-quick">' +
+        renderReconciliationMetric('Tổng tiền', receivable || 0) +
+        renderReconciliationMetric('Hàng trả', returnAmount || 0) +
+        renderReconciliationMetric('Phải thu', Math.max(0, receivable - returnAmount)) +
+        renderReconciliationMetric('Đã thu', collected || 0) +
+        renderReconciliationMetric('Còn thiếu', remaining || 0, remaining > 0) +
+      '</div>' +
+      '<div class="m-empty soft">Kiểm tra nhanh tiền và hàng trả của khách này trước khi về danh sách.</div>' +
+    '</section>';
+  }
+
   function renderPayment(body) {
+
     var order = currentOrder();
     if (!order) { body.innerHTML = '<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>'; return; }
     var receivable = amount(order, 'receivable');
     var returnAmount = amount(order, 'returnAmount');
-    body.innerHTML = selectedOrderSummary(order) +
-      '<section class="m-workflow-step"><b>Bước 3/4 · Thu tiền & xác nhận</b><span>App sẽ lưu tiền rồi xác nhận giao. Nếu thu thiếu, phần còn lại chuyển sang công nợ theo logic backend hiện có.</span></section>' +
+    body.innerHTML = '<section class="m-workflow-step"><b>Bước 3/4 · Thu tiền & xác nhận</b><span>App sẽ lưu tiền rồi xác nhận giao. Nếu thu thiếu, phần còn lại chuyển sang công nợ theo logic backend hiện có.</span></section>' +
       '<section class="m-product-summary payment-context"><div><span>Phải thu</span><b>' + money(receivable) + '</b></div><div><span>Hàng trả</span><b>' + money(returnAmount) + '</b></div><div><span>Còn phải xử lý</span><b id="mPaymentRemainingTop">0</b></div></section>' +
       '<form id="mPaymentForm" class="m-payment-form"><h3>Thu tiền đơn giao</h3><label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label><label>Còn thiếu / ghi công nợ<input id="mPaymentRemaining" type="text" readonly value="0"></label></form>';
     var formEl = el('mPaymentForm');
@@ -1248,9 +1375,8 @@
       window.DeliveryCore.state.orders = (window.DeliveryCore.state.orders || []).filter(function (row) { return keyOf(row) !== removedKey; });
       window.DeliveryCore.state.selectedOrder = null;
       state.selectedKey = '';
-      state.tab = 'orders';
       msg('Đã ghi nhận trả hết đơn và quay về danh sách khách');
-      render();
+      switchToListMode({ clearSelected: true, forceOrders: true });
     } catch (err) { msg(err.message, true); }
   }
 
@@ -1262,11 +1388,11 @@
       msg('Đang lưu thu tiền...');
       await window.DeliveryCore.savePayment(currentOrder(), { cash: form.get('cash'), bank: form.get('bank'), reward: form.get('reward') });
       await window.DeliveryCore.confirmDelivery(currentOrder(), { deliveryStatus: 'delivered' });
-      msg('Đã lưu thu tiền và xác nhận giao, chuyển sang Đối soát');
+      msg('Đã lưu thu tiền và xác nhận giao, mở đối soát nhanh');
       state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
-      state.tab = 'reconciliation';
+      state.viewMode = 'customer';
+      state.tab = 'customerReconciliation';
       render();
-      loadDeliveryReconciliation(true).catch(function () {});
     } catch (err) { msg(err.message, true); }
   }
 
@@ -1276,8 +1402,7 @@
       await window.DeliveryCore.confirmDelivery(currentOrder(), { deliveryStatus: 'delivered' });
       msg('Đã xác nhận giao');
       state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
-      state.tab = 'orders';
-      render();
+      switchToListMode({ clearSelected: true, forceOrders: true });
     } catch (err) { msg(err.message, true); }
   }
 
@@ -1312,12 +1437,11 @@
   function select(key, options) {
     options = options || {};
     state.selectedKey = key;
+    state.productSearchKeyword = '';
     window.DeliveryCore.selectOrder(key);
-    state.tab = options.tab || 'products';
+    switchToCustomerMode(options.tab || 'products');
     render();
     if (state.tab === 'returns') loadSelectedReturnsDirect({ force: false });
-    if (state.tab === 'debt') loadDeliveryDebts(false);
-    if (state.tab === 'reconciliation') loadDeliveryReconciliation(false);
   }
 
   async function load(options) {
@@ -1344,7 +1468,6 @@
       try {
         await window.DeliveryCore.loadOrders(filters(), requestToken);
         if (deliveryLoadGate && !deliveryLoadGate.isCurrent(requestToken)) return;
-        if (!state.selectedKey && window.DeliveryCore.state.orders[0]) state.selectedKey = keyOf(window.DeliveryCore.state.orders[0]);
         if (state.selectedKey) window.DeliveryCore.selectOrder(state.selectedKey);
         render();
         msg('');

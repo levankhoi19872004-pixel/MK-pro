@@ -30,7 +30,7 @@ test('phase26 removes duplicated reconciliation shortcut from header while keepi
   const header = headerMarkup(entrySource);
   assert.doesNotMatch(header, /mReconShortcut/);
   assert.doesNotMatch(header, />Đối soát<\/button>/);
-  assert.match(entrySource, /data-m-tab="reconciliation"[^>]*>Đối soát<\/button>/);
+  assert.match(entrySource, /label: 'Đối soát'/);
 });
 
 test('phase26 keeps only the global Tải action and removes large reload buttons from reconciliation tab', () => {
@@ -58,7 +58,7 @@ test('phase26 moves logout into menu instead of keeping Thoát as a primary head
 test('phase26 reconciliation sticky action remains a single completion action', () => {
   assert.match(entrySource, /step-only phase24 reconciliation/);
   assert.match(entrySource, /data-workflow-complete>Hoàn tất - về danh sách<\/button>/);
-  const stickyBlock = entrySource.slice(entrySource.indexOf("state.tab === 'reconciliation'"), entrySource.indexOf("state.tab === 'debt'"));
+  const stickyBlock = entrySource.slice(entrySource.indexOf("state.tab === 'customerReconciliation'"), entrySource.indexOf("state.tab === 'debt'"));
   assert.doesNotMatch(stickyBlock, /data-workflow-tab/);
   assert.doesNotMatch(stickyBlock, />Đối soát<\/button>/);
 });
