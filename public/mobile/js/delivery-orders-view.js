@@ -70,10 +70,9 @@
     var salesStaff = ui.orderSalesStaff(order);
     var returnAmount = amount(order, 'returnAmount');
     var debtAmount = amount(order, 'debt');
-    var mapUrl = ui.mapHref(address);
     var phoneUrl = ui.phoneHref(phone);
     var phoneAction = phoneUrl ? '<a class="m-order-flow-btn call" href="' + esc(phoneUrl) + '">Gọi</a>' : '';
-    var mapAction = mapUrl ? '<a class="m-order-flow-btn map" target="_blank" rel="noopener" href="' + esc(mapUrl) + '">Bản đồ</a>' : '';
+    var mapAction = address ? '<button type="button" class="m-order-flow-btn map" data-delivery-map data-map-address="' + esc(address) + '" data-map-customer="' + esc(order.customerName || order.customerCode || 'Khách hàng') + '">Bản đồ</button>' : '';
 
     return '<article class="m-order-card workflow' + selected + '">' +
       '<button type="button" class="m-order-main" data-order-key="' + esc(key) + '" data-open-tab="products">' +

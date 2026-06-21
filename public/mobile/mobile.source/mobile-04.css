@@ -122,3 +122,14 @@
   .m-workflow-actions.step-only.phase24.products,.m-workflow-actions.step-only.phase24.returns{grid-template-columns:1fr;}
 }
 /* DELIVERY_COMPACT_CUSTOMER_WORKFLOW_UI_P1_END */
+/* DELIVERY_MAP_EXTERNAL_WEBVIEW_FIX_START */
+.m-map-fallback-backdrop{position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.58);display:flex;align-items:flex-end;justify-content:center;padding:12px;box-sizing:border-box;}
+.m-map-fallback-card{width:min(100%,420px);background:#fff;border:1px solid #cbd5e1;border-radius:18px;padding:16px;box-shadow:0 18px 48px rgba(15,23,42,.24);color:#0f172a;}
+.m-map-fallback-card h3{margin:0 0 10px;font-size:18px;font-weight:900;}
+.m-map-fallback-card p{margin:5px 0;font-size:14px;line-height:1.35;}
+.m-map-fallback-card small{display:block;margin-top:10px;color:#64748b;font-size:12px;line-height:1.35;}
+.m-map-fallback-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;}
+.m-map-fallback-actions button{min-height:44px;border-radius:12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:800;color:#0f172a;}
+.m-map-fallback-actions button.primary{background:#16a34a;border-color:#16a34a;color:#fff;}
+.m-map-fallback-actions button.secondary{background:#e2e8f0;color:#334155;}
+/* DELIVERY_MAP_EXTERNAL_WEBVIEW_FIX_END */

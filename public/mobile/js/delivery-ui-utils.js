@@ -60,7 +60,126 @@
     return cleaned ? 'tel:' + cleaned : '';
   }
 
+  function isLikelyAndroidWebView() {
+    var ua = String((navigator && navigator.userAgent) || '');
+    return /Android/i.test(ua) && /; wv\)|Version\/\d+\.\d+ Chrome\//i.test(ua);
+  }
+
   function mapHref(address) { return address ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address) : ''; }
+
+  function buildDeliveryMapUrls(input) {
+    input = input || {};
+    var address = String(input.address || '').trim();
+    var customerName = String(input.customerName || '').trim();
+    var lat = input.lat != null && input.lat !== '' ? Number(input.lat) : null;
+    var lng = input.lng != null && input.lng !== '' ? Number(input.lng) : null;
+    var hasLatLng = isFinite(lat) && isFinite(lng);
+    var label = customerName || address || 'Khách hàng';
+    var query = hasLatLng ? (String(lat) + ',' + String(lng) + (label ? ' (' + label + ')' : '')) : address;
+    var encodedQuery = encodeURIComponent(query || address || label);
+    var webUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodedQuery;
+    var geoUrl = hasLatLng
+      ? 'geo:' + lat + ',' + lng + '?q=' + encodedQuery
+      : 'geo:0,0?q=' + encodedQuery;
+    var intentUrl = 'intent://maps.google.com/maps?daddr=' + encodedQuery + '#Intent;scheme=https;package=com.google.android.apps.maps;S.browser_fallback_url=' + encodeURIComponent(webUrl) + ';end';
+    return { address: address, customerName: customerName, webUrl: webUrl, geoUrl: geoUrl, intentUrl: intentUrl };
+  }
+
+  function tryOpenExternalUrl(url) {
+    url = String(url || '').trim();
+    if (!url) return false;
+    try {
+      if (window.Android && typeof window.Android.openExternalUrl === 'function') {
+        window.Android.openExternalUrl(url);
+        return true;
+      }
+      if (window.Android && typeof window.Android.openUrl === 'function') {
+        window.Android.openUrl(url);
+        return true;
+      }
+      if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'OPEN_EXTERNAL_URL', url: url }));
+        return true;
+      }
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.openExternalUrl) {
+        window.webkit.messageHandlers.openExternalUrl.postMessage({ url: url });
+        return true;
+      }
+    } catch (bridgeErr) {
+      return false;
+    }
+    if (typeof window.open === 'function') {
+      try {
+        var popup = window.open(url, '_blank', 'noopener,noreferrer');
+        if (popup && typeof popup.opener !== 'undefined') popup.opener = null;
+        return !!popup;
+      } catch (openErr) {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  function closeDeliveryMapFallback() {
+    var old = document.getElementById('deliveryMapFallback');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }
+
+  function showDeliveryMapFallback(input, urls) {
+    urls = urls || buildDeliveryMapUrls(input);
+    closeDeliveryMapFallback();
+    var wrap = document.createElement('div');
+    wrap.id = 'deliveryMapFallback';
+    wrap.className = 'm-map-fallback-backdrop';
+    wrap.setAttribute('role', 'dialog');
+    wrap.setAttribute('aria-modal', 'true');
+    wrap.innerHTML = '<div class="m-map-fallback-card">' +
+      '<h3>Mở bản đồ cho khách</h3>' +
+      '<p><b>' + esc(urls.customerName || 'Khách hàng') + '</b></p>' +
+      '<p>' + esc(urls.address || 'Chưa có địa chỉ') + '</p>' +
+      '<div class="m-map-fallback-actions">' +
+        '<button type="button" data-map-copy>Copy địa chỉ</button>' +
+        '<button type="button" class="primary" data-map-open>Mở Google Maps</button>' +
+        '<button type="button" class="secondary" data-map-close>Đóng</button>' +
+      '</div>' +
+      '<small>Nếu APK chưa cấu hình mở link ngoài, hãy copy địa chỉ rồi mở Google Maps bên ngoài.</small>' +
+    '</div>';
+    wrap.addEventListener('click', function (event) {
+      if (event.target === wrap || event.target.hasAttribute('data-map-close')) {
+        event.preventDefault();
+        closeDeliveryMapFallback();
+        return;
+      }
+      if (event.target.hasAttribute('data-map-copy')) {
+        event.preventDefault();
+        copyText(urls.address).then(function () { msg('Đã copy địa chỉ khách hàng'); }).catch(function (err) { msg(err.message || 'Không copy được địa chỉ', true); });
+        return;
+      }
+      if (event.target.hasAttribute('data-map-open')) {
+        event.preventDefault();
+        if (!tryOpenExternalUrl(isLikelyAndroidWebView() ? urls.intentUrl : urls.webUrl)) {
+          msg('APK chưa cho mở bản đồ ngoài. Hãy copy địa chỉ để mở Google Maps.', true);
+        }
+      }
+    });
+    document.body.appendChild(wrap);
+  }
+
+  function openDeliveryMapExternal(input) {
+    var urls = buildDeliveryMapUrls(input);
+    if (!urls.address && !urls.webUrl) {
+      msg('Khách chưa có địa chỉ để mở bản đồ', true);
+      return false;
+    }
+    var opened = false;
+    if (isLikelyAndroidWebView()) {
+      opened = tryOpenExternalUrl(urls.intentUrl) || tryOpenExternalUrl(urls.geoUrl);
+    } else {
+      opened = tryOpenExternalUrl(urls.webUrl);
+    }
+    if (!opened) showDeliveryMapFallback(input, urls);
+    return opened;
+  }
 
   function deliveryStatusOf(order) {
     var st = order && order.status && typeof order.status === 'object' ? order.status.deliveryStatus : '';
@@ -96,7 +215,7 @@
     var actions = [];
     if (phoneHref(phone)) actions.push('<a class="m-order-quick-btn" href="' + esc(phoneHref(phone)) + '" aria-label="Gọi khách hàng">Gọi</a>');
     if (address) actions.push('<button type="button" class="m-order-quick-btn" data-copy-address="' + esc(address) + '">Copy địa chỉ</button>');
-    if (mapHref(address)) actions.push('<a class="m-order-quick-btn" target="_blank" rel="noopener" href="' + esc(mapHref(address)) + '">Bản đồ</a>');
+    if (address) actions.push('<button type="button" class="m-order-quick-btn" data-delivery-map data-map-address="' + esc(address) + '" data-map-customer="' + esc(order && (order.customerName || order.customerCode) || 'Khách hàng') + '">Bản đồ</button>');
     return actions.length ? '<div class="m-order-quick-actions">' + actions.join('') + '</div>' : '';
   }
 
@@ -147,6 +266,8 @@
     orderSalesStaff: orderSalesStaff,
     phoneHref: phoneHref,
     mapHref: mapHref,
+    buildDeliveryMapUrls: buildDeliveryMapUrls,
+    openDeliveryMapExternal: openDeliveryMapExternal,
     deliveryStatusOf: deliveryStatusOf,
     isDelivered: isDelivered,
     statusLabel: statusLabel,

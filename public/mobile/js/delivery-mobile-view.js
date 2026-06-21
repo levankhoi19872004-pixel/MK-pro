@@ -5,7 +5,7 @@
 !function(){"use strict";var deliveryMobileState=window.DeliveryMobileState,deliveryMobileUi=window.DeliveryMobileUiUtils,deliveryOrdersView=window.DeliveryMobileOrdersView
 ;if(!deliveryMobileState||!deliveryMobileUi||!deliveryOrdersView)throw new Error("Delivery mobile modules are not loaded.")
 ;var el=deliveryMobileUi.el,esc=deliveryMobileUi.esc,num=deliveryMobileUi.num,money=deliveryMobileUi.money,amount=deliveryMobileUi.amount,keyOf=deliveryMobileUi.keyOf,today=deliveryMobileUi.today,readUser=deliveryMobileUi.readUser,userDisplayName=deliveryMobileUi.userDisplayName,userStaffCode=deliveryMobileUi.userStaffCode,selectedOrderSummary=(deliveryMobileUi.userRoleLabel,
-deliveryMobileUi.selectedOrderSummary),copyText=deliveryMobileUi.copyText,debounce=deliveryMobileUi.debounce,msg=deliveryMobileUi.msg,buildRouteKpi=(deliveryOrdersView.buildOrderKpi,
+deliveryMobileUi.selectedOrderSummary),copyText=deliveryMobileUi.copyText,openDeliveryMapExternal=deliveryMobileUi.openDeliveryMapExternal,debounce=deliveryMobileUi.debounce,msg=deliveryMobileUi.msg,buildRouteKpi=(deliveryOrdersView.buildOrderKpi,
 deliveryOrdersView.buildRouteKpi),mobileUiRuntime=(deliveryOrdersView.orderProductSummary,
 window.MobileUiRuntime||null),deliveryLifecycle=mobileUiRuntime?mobileUiRuntime.createLifecycle():null,deliveryLoadGate=mobileUiRuntime?mobileUiRuntime.createRequestGate():null,deliveryOrderRenderer=null,deliveryDebtRenderer=null,deliveryDebtRendererContainer=null,DELIVERY_TAB_CACHE_TTL_MS=deliveryMobileState.DELIVERY_TAB_CACHE_TTL_MS,DELIVERY_REFRESH_THROTTLE_MS=deliveryMobileState.DELIVERY_REFRESH_THROTTLE_MS,DELIVERY_DEBT_PAGE_LIMIT=deliveryMobileState.DELIVERY_DEBT_PAGE_LIMIT,state=deliveryMobileState.createInitialState()
 ;function logout(){["mk_web_token","mk_web_refresh_token","mk_web_user","v43_mobile_token","v43_mobile_refresh_token","v43_mobile_user"].forEach(function(key){
@@ -28,8 +28,10 @@ state.tab=nextTab,render(),"returns"===state.tab&&loadSelectedReturnsDirect({for
 select(button.getAttribute("data-order-key"),{tab:button.getAttribute("data-open-tab")||"products"})}),
 deliveryLifecycle.delegate(el("mBody"),"click","[data-copy-address]",function(event,button){event.preventDefault(),event.stopPropagation(),
 copyText(button.getAttribute("data-copy-address")).then(function(){msg("Đã copy địa chỉ khách hàng")}).catch(function(err){msg(err.message||"Không copy được địa chỉ",!0)})}),
-deliveryLifecycle.delegate(el("mBody"),"click","[data-debt-index]:not([disabled])",function(_event,button){!function(index){var customer=(state.debts||[])[index]
-;if(customer&&!(debtAvailableValue(customer)<=0)){var nextKey=deliveryDebtCustomerKey(customer);if(state.selectedDebtKey!==nextKey){
+deliveryLifecycle.delegate(el("mBody"),"click","[data-delivery-map]",function(event,button){event.preventDefault(),event.stopPropagation(),openDeliveryMapExternal({
+address:button.getAttribute("data-map-address")||"",customerName:button.getAttribute("data-map-customer")||"",lat:button.getAttribute("data-map-lat")||"",
+lng:button.getAttribute("data-map-lng")||""})}),deliveryLifecycle.delegate(el("mBody"),"click","[data-debt-index]:not([disabled])",function(_event,button){!function(index){
+var customer=(state.debts||[])[index];if(customer&&!(debtAvailableValue(customer)<=0)){var nextKey=deliveryDebtCustomerKey(customer);if(state.selectedDebtKey!==nextKey){
 if(!state.debtFormDirty||!state.selectedDebtKey||state.selectedDebtKey===nextKey||window.confirm("Bạn đang có phiếu thu chưa gửi. Dữ liệu hiện tại sẽ bị xóa khi chuyển khách hàng.")){
 state.debtListScrollTop=window.scrollY||document.documentElement.scrollTop||0,state.selectedDebtIndex=index,state.selectedDebtKey=nextKey,state.debtFormDirty=!1,
 state.debtSubtab="collect",render();var body=el("mBody");body&&body.scrollIntoView({block:"start",behavior:"smooth"})}}else setDeliveryDebtSubtab("collect")}

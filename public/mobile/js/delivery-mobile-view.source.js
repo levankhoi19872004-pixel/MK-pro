@@ -22,6 +22,7 @@
   var userRoleLabel = deliveryMobileUi.userRoleLabel;
   var selectedOrderSummary = deliveryMobileUi.selectedOrderSummary;
   var copyText = deliveryMobileUi.copyText;
+  var openDeliveryMapExternal = deliveryMobileUi.openDeliveryMapExternal;
   var debounce = deliveryMobileUi.debounce;
   var msg = deliveryMobileUi.msg;
   var buildOrderKpi = deliveryOrdersView.buildOrderKpi;
@@ -137,6 +138,16 @@
           msg('Đã copy địa chỉ khách hàng');
         }).catch(function (err) {
           msg(err.message || 'Không copy được địa chỉ', true);
+        });
+      });
+      deliveryLifecycle.delegate(el('mBody'), 'click', '[data-delivery-map]', function (event, button) {
+        event.preventDefault();
+        event.stopPropagation();
+        openDeliveryMapExternal({
+          address: button.getAttribute('data-map-address') || '',
+          customerName: button.getAttribute('data-map-customer') || '',
+          lat: button.getAttribute('data-map-lat') || '',
+          lng: button.getAttribute('data-map-lng') || ''
         });
       });
       deliveryLifecycle.delegate(el('mBody'), 'click', '[data-debt-index]:not([disabled])', function (_event, button) {
