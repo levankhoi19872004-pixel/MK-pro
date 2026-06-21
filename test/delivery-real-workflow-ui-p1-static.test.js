@@ -35,20 +35,20 @@ test('order card remains customer-list oriented and opens the workflow screen', 
 });
 
 test('products, returns and payment keep the customer workflow sequence', () => {
-  assert.match(entrySource, /Bước 1 · Hàng giao kiêm nhập hàng trả/);
+  assert.match(entrySource, /m-product-compact-brief phase24/);
   assert.match(entrySource, /Xác nhận hàng & thu tiền/);
   assert.match(entrySource, /Trả hết đơn/);
   assert.match(entrySource, /Hàng trả · xem\/sửa lại/);
   assert.match(entrySource, /Còn thiếu \/ ghi công nợ/);
-  assert.match(entrySource, /Lưu thu tiền & xác nhận giao/);
+  assert.match(entrySource, /Xác nhận thu tiền/);
   assert.match(entrySource, /state\.tab = 'reconciliation'/);
 });
 
 test('one-hand workflow bar is present without changing API contract', () => {
   assert.match(entrySource, /mWorkflowBar/);
-  assert.match(entrySource, /data-workflow-tab="products"/);
-  assert.match(entrySource, /data-workflow-tab="returns"/);
-  assert.match(entrySource, /data-workflow-tab="payment"/);
+  assert.match(entrySource, /form="mProductReturnForm"/);
+  assert.match(entrySource, /form="mPaymentForm"/);
+  assert.match(entrySource, /data-workflow-complete/);
   assert.match(css, /m-workflow-bar/);
   assert.match(css, /DELIVERY_REAL_WORKFLOW_UI_P1_START/);
 });

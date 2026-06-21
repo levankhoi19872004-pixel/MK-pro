@@ -79,13 +79,14 @@
   }
 
   function selectedOrderSummary(order) {
+    order = order || {};
     var address = orderAddress(order);
-    var phone = orderPhone(order);
-    return '<div class="m-selected-order">' +
-      '<b>' + esc(order.orderCode) + '</b>' +
-      '<span>' + esc(order.customerName || order.customerCode || '') + '</span>' +
-      (address ? '<small>Địa chỉ: ' + esc(address) + '</small>' : '') +
-      (phone ? '<small>SĐT: ' + esc(phone) + '</small>' : '') +
+    var name = order.customerName || order.customerCode || order.orderCode || 'Khách đang giao';
+    var customerCode = order.customerCode || order.customerId || '';
+    var due = amount(order, 'receivable');
+    return '<div class="m-selected-order compact phase24" aria-label="Khách đang xử lý">' +
+      '<b>' + esc(name) + (customerCode ? ' · ' + esc(customerCode) : '') + '</b>' +
+      '<span>' + (address ? esc(address) + ' · ' : '') + 'Phải thu ' + money(due) + '</span>' +
     '</div>';
   }
 

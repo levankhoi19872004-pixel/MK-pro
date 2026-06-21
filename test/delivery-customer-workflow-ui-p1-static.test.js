@@ -19,7 +19,7 @@ test('phase23 starts from customer list and opens a single-customer workflow', (
 });
 
 test('phase23 enters returns directly on the products tab', () => {
-  assert.match(entrySource, /Bước 1 · Hàng giao kiêm nhập hàng trả/);
+  assert.match(entrySource, /m-product-compact-brief phase24/);
   assert.match(entrySource, /mProductReturnForm/);
   assert.match(entrySource, /m-return-inline-input/);
   assert.match(entrySource, /data-m-return-field="returnQty"/);

@@ -98,3 +98,27 @@
 }
 @media (min-width:768px){.m-delivery-tabs.workflow.customer-flow{grid-template-columns:repeat(6,minmax(0,1fr));}}
 /* DELIVERY_CUSTOMER_WORKFLOW_UI_P1_END */
+/* DELIVERY_COMPACT_CUSTOMER_WORKFLOW_UI_P1_START */
+.mobile-delivery-v46{padding-bottom:calc(74px + env(safe-area-inset-bottom));}
+.m-selected-order.compact.phase24{display:grid;gap:2px;margin-bottom:6px;padding:7px 10px;border-radius:12px;background:#ffffff;border:1px solid #dbe4f0;box-shadow:none;min-height:0;}
+.m-selected-order.compact.phase24 b{display:block;font-size:14px;line-height:1.18;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.m-selected-order.compact.phase24 span{display:block;font-size:12px;line-height:1.2;color:#475569;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.m-product-compact-brief.phase24{display:grid;gap:2px;margin-bottom:6px;padding:7px 10px;border:1px solid #bbf7d0;border-radius:12px;background:#f0fdf4;}
+.m-product-compact-brief.phase24 b{font-size:12px;line-height:1.2;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.m-product-compact-brief.phase24 span{font-size:11px;line-height:1.25;color:#166534;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.m-workflow-bar:has(.step-only.phase24){grid-template-columns:1fr;padding:7px 8px;border-color:#cbd5e1;border-radius:14px;}
+.m-workflow-actions.step-only.phase24{display:grid;width:100%;gap:7px;}
+.m-workflow-actions.step-only.phase24.products{grid-template-columns:minmax(108px,.85fr) minmax(0,1.6fr);}
+.m-workflow-actions.step-only.phase24.returns{grid-template-columns:minmax(0,1.5fr) minmax(96px,.8fr);}
+.m-workflow-actions.step-only.phase24.payment,.m-workflow-actions.step-only.phase24.reconciliation{grid-template-columns:1fr;}
+.m-workflow-actions.step-only.phase24 button{min-height:42px;border-radius:12px;font-size:12px;padding:8px 10px;}
+.m-workflow-actions.step-only.phase24 .danger{background:#fee2e2;color:#991b1b;border-color:#fecaca;}
+.m-workflow-actions.step-only.phase24 .secondary{background:#f8fafc;color:#334155;border-color:#cbd5e1;}
+.m-workflow-payment-remaining{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:900;color:#92400e;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:8px 10px;}
+.m-workflow-payment-remaining b{font-size:14px;color:#c2410c;}
+@media (max-width:380px){
+  .m-selected-order.compact.phase24 b{font-size:13px;}
+  .m-selected-order.compact.phase24 span,.m-product-compact-brief.phase24 b,.m-product-compact-brief.phase24 span{white-space:normal;}
+  .m-workflow-actions.step-only.phase24.products,.m-workflow-actions.step-only.phase24.returns{grid-template-columns:1fr;}
+}
+/* DELIVERY_COMPACT_CUSTOMER_WORKFLOW_UI_P1_END */

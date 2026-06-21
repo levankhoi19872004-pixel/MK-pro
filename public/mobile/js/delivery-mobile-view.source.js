@@ -149,6 +149,10 @@
         if (state.tab === 'debt') loadDeliveryDebts(false);
         if (state.tab === 'reconciliation') loadDeliveryReconciliation(false);
       });
+      deliveryLifecycle.delegate(el('mWorkflowBar'), 'click', '[data-workflow-complete]', function () {
+        state.tab = 'orders';
+        render();
+      });
       deliveryLifecycle.listen(window, 'pagehide', function () {
         if (deliveryOrderRenderer) deliveryOrderRenderer.cancel();
         if (deliveryDebtRenderer) deliveryDebtRenderer.cancel();
@@ -196,22 +200,44 @@
     var bar = el('mWorkflowBar');
     if (!bar) return;
     var order = currentOrder();
-    if (!order || state.tab === 'orders' || state.tab === 'reconciliation') {
+    if (!order || state.tab === 'orders') {
       bar.hidden = true;
       bar.innerHTML = '';
       return;
     }
-    var phone = deliveryMobileUi.orderPhone(order);
-    var phoneUrl = deliveryMobileUi.phoneHref(phone);
-    var title = (order.customerName || order.customerCode || order.orderCode || 'Đơn đang chọn');
     bar.hidden = false;
-    bar.innerHTML = '<div><b>' + esc(title) + '</b><span>' + esc(order.orderCode || '') + ' · ' + money(amount(order, 'receivable')) + '</span></div>' +
-      '<div class="m-workflow-actions">' +
-        (phoneUrl ? '<a href="' + esc(phoneUrl) + '">Gọi</a>' : '') +
-        '<button type="button" data-workflow-tab="products">Hàng</button>' +
-        '<button type="button" data-workflow-tab="returns">Trả</button>' +
-        '<button type="button" data-workflow-tab="payment" class="primary">Thu</button>' +
+    if (state.tab === 'products') {
+      bar.innerHTML = '<div class="m-workflow-actions step-only phase24 products">' +
+        '<button id="mFullReturnOrder" type="button" class="danger">Trả hết đơn</button>' +
+        '<button type="submit" form="mProductReturnForm" class="primary">Xác nhận hàng & thu tiền</button>' +
       '</div>';
+      return;
+    }
+    if (state.tab === 'returns') {
+      bar.innerHTML = '<div class="m-workflow-actions step-only phase24 returns">' +
+        '<button type="submit" form="mReturnSaveForm" class="primary">Lưu hàng trả & sang Thu tiền</button>' +
+        '<button id="mSkipReturns" type="button" class="secondary">Xóa hàng trả</button>' +
+      '</div>';
+      return;
+    }
+    if (state.tab === 'payment') {
+      bar.innerHTML = '<div class="m-workflow-payment-remaining">Còn thiếu: <b id="mWorkflowRemaining">0</b></div>' +
+        '<div class="m-workflow-actions step-only phase24 payment"><button type="submit" form="mPaymentForm" class="primary">Xác nhận thu tiền</button></div>';
+      return;
+    }
+    if (state.tab === 'reconciliation') {
+      bar.innerHTML = '<div class="m-workflow-actions step-only phase24 reconciliation">' +
+        '<button type="button" class="primary" data-workflow-complete>Hoàn tất - về danh sách</button>' +
+      '</div>';
+      return;
+    }
+    if (state.tab === 'debt') {
+      bar.hidden = true;
+      bar.innerHTML = '';
+      return;
+    }
+    bar.hidden = true;
+    bar.innerHTML = '';
   }
 
   function render() {
@@ -1021,8 +1047,7 @@
     var totalAmount = baseRows.reduce(function (sum, it) { return sum + num(it.price) * num(it.deliveredQty); }, 0);
     var totalReturnAmount = baseRows.reduce(function (sum, it) { return sum + num(it.returnQty) * num(it.price); }, 0);
     body.innerHTML = selectedOrderSummary(order) +
-      '<section class="m-workflow-step phase23"><b>Bước 1 · Hàng giao kiêm nhập hàng trả</b><span>NVGH kiểm từng dòng hàng. Nếu khách trả một phần, nhập số lượng trả ngay trên dòng sản phẩm rồi bấm Xác nhận hàng & thu tiền.</span></section>' +
-      '<section class="m-product-summary phase23"><div><span>Số dòng</span><b>' + esc(baseRows.length) + '</b></div><div><span>Tổng SL giao</span><b>' + money(totalQty) + '</b></div><div><span>Giá trị hàng</span><b>' + money(totalAmount) + '</b></div></section>' +
+      '<section class="m-product-compact-brief phase24"><b>' + esc(baseRows.length) + ' dòng · ' + money(totalQty) + ' SL · Giá trị ' + money(totalAmount) + '</b><span>Nhập SL trả trên từng dòng hàng, sau đó bấm “Xác nhận hàng & thu tiền”.</span></section>' +
       '<form id="mProductReturnForm" class="m-product-return-form"><div class="m-return-scroll products-with-return-input">' +
       (baseRows.map(function (it, idx) {
         var qtyText = 'SL giao ' + money(it.deliveredQty);
@@ -1030,12 +1055,11 @@
         return '<div class="m-product-row phase23"><div><b>' + esc(it.productCode) + '</b><small>' + esc(it.productName) + '</small><em>' + qtyText + ' · Giá ' + money(it.price) + ' · Tiền trả ' + money(amount) + '</em>' + hidden(idx, 'productCode', it.productCode) + hidden(idx, 'productName', it.productName) + hidden(idx, 'price', it.price) + hidden(idx, 'deliveredQty', it.deliveredQty) + '</div><label class="m-return-inline-input"><span>SL trả</span><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(it.returnQty) + '" aria-label="Số lượng hàng trả"></label></div>';
       }).join('') || '<div class="m-empty">Đơn chưa có dòng hàng để đối chiếu.</div>') +
       '</div><div class="m-return-total phase23"><span>Tổng hàng trả</span><b id="mReturnTotal">' + money(totalReturnAmount) + '</b></div>' +
-      '<div class="m-return-total phase23 due"><span>Phải thu sau trả</span><b id="mProductDueAfterReturn">' + money(Math.max(0, amount(order, 'receivable') - totalReturnAmount)) + '</b></div>' +
-      '<div class="m-action-row workflow-next phase23"><button type="submit" class="m-confirm">Xác nhận hàng & thu tiền</button><button id="mFullReturnOrder" type="button" class="danger">Trả hết đơn</button></div></form>';
+      '<div class="m-return-total phase23 due"><span>Phải thu sau trả</span><b id="mProductDueAfterReturn">' + money(Math.max(0, amount(order, 'receivable') - totalReturnAmount)) + '</b></div></form>';
     var formEl = el('mProductReturnForm');
     formEl.addEventListener('submit', function (event) { saveReturn(event, { nextTab: 'payment', successMessage: 'Đã xác nhận hàng trả, chuyển sang Thu tiền' }); });
     bindReturnTotal(formEl, 'mReturnTotal');
-    el('mFullReturnOrder').addEventListener('click', fullReturnOrder);
+    if (el('mFullReturnOrder')) el('mFullReturnOrder').addEventListener('click', fullReturnOrder);
   }
 
   function hidden(idx, field, value) { return '<input type="hidden" data-m-return-field="' + esc(field) + '" data-idx="' + idx + '" value="' + esc(value) + '">'; }
@@ -1115,11 +1139,11 @@
         var amount = num(it.returnQty) * num(it.price);
         return '<div class="m-product-row phase23"><div><b>' + esc(it.productCode) + '</b><small>' + esc(it.productName) + '</small><em>Giá ' + money(it.price) + qtyText + ' · Tiền trả ' + money(amount) + '</em>' + hidden(idx, 'productCode', it.productCode) + hidden(idx, 'productName', it.productName) + hidden(idx, 'price', it.price) + hidden(idx, 'deliveredQty', it.deliveredQty) + '</div><label class="m-return-inline-input"><span>SL trả</span><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(it.returnQty) + '" aria-label="Số lượng trả"></label></div>';
       }).join('') || '<div class="m-empty">Đơn chưa có dòng hàng để nhập trả hàng.</div>') +
-      '</div><div class="m-return-total"><span>Tổng hàng trả</span><b id="mReturnTotal">' + money(totalReturnAmount) + '</b></div><div class="m-action-row"><button type="submit">Lưu hàng trả & sang Thu tiền</button><button id="mSkipReturns" type="button" class="secondary">Xóa hàng trả</button></div></form>';
+      '</div><div class="m-return-total"><span>Tổng hàng trả</span><b id="mReturnTotal">' + money(totalReturnAmount) + '</b></div></form>';
     var formEl = el('mReturnSaveForm');
     formEl.addEventListener('submit', function (event) { saveReturn(event, { nextTab: 'payment', successMessage: 'Đã cập nhật hàng trả, chuyển sang Thu tiền' }); });
     bindReturnTotal(formEl, 'mReturnTotal');
-    el('mSkipReturns').addEventListener('click', function () {
+    if (el('mSkipReturns')) el('mSkipReturns').addEventListener('click', function () {
       if (!window.confirm('Xóa hàng trả sẽ ghi số lượng trả về 0 cho đơn này. Bạn chắc chắn muốn tiếp tục?')) return;
       saveReturn({ preventDefault: function () {}, forceZero: true }, { nextTab: 'payment', successMessage: 'Đã xóa hàng trả, chuyển sang Thu tiền' });
     });
@@ -1133,13 +1157,14 @@
     body.innerHTML = selectedOrderSummary(order) +
       '<section class="m-workflow-step"><b>Bước 3/4 · Thu tiền & xác nhận</b><span>App sẽ lưu tiền rồi xác nhận giao. Nếu thu thiếu, phần còn lại chuyển sang công nợ theo logic backend hiện có.</span></section>' +
       '<section class="m-product-summary payment-context"><div><span>Phải thu</span><b>' + money(receivable) + '</b></div><div><span>Hàng trả</span><b>' + money(returnAmount) + '</b></div><div><span>Còn phải xử lý</span><b id="mPaymentRemainingTop">0</b></div></section>' +
-      '<form id="mPaymentForm" class="m-payment-form"><h3>Thu tiền đơn giao</h3><label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label><label>Còn thiếu / ghi công nợ<input id="mPaymentRemaining" type="text" readonly value="0"></label><button type="submit" class="m-confirm">Lưu thu tiền & xác nhận giao</button></form>';
+      '<form id="mPaymentForm" class="m-payment-form"><h3>Thu tiền đơn giao</h3><label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label><label>Còn thiếu / ghi công nợ<input id="mPaymentRemaining" type="text" readonly value="0"></label></form>';
     var formEl = el('mPaymentForm');
     function updateRemaining() {
       var form = new FormData(formEl);
       var remaining = Math.max(0, receivable - returnAmount - num(form.get('cash')) - num(form.get('bank')) - num(form.get('reward')));
       if (el('mPaymentRemaining')) el('mPaymentRemaining').value = money(remaining);
       if (el('mPaymentRemainingTop')) el('mPaymentRemainingTop').textContent = money(remaining);
+      if (el('mWorkflowRemaining')) el('mWorkflowRemaining').textContent = money(remaining);
     }
     formEl.addEventListener('input', updateRemaining);
     formEl.addEventListener('submit', savePayment);

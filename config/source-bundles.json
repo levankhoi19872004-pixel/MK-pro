@@ -177,11 +177,11 @@
     {
       "target": "public/mobile/js/delivery-mobile-view.js",
       "mode": "classic-single",
-      "sourceSha256": "2edf9228850171d493aaf502fdff65002e6e357c74a84e9beb4a33edaff300d0",
+      "sourceSha256": "a0ad9a67010c8371dfff7d349b6312632aabb7bcda24b8ab2411cdf0b12ed038",
       "canonicalSource": "public/mobile/js/delivery-mobile-view.source.js",
       "sourceMap": true,
       "sourceMapTarget": "public/mobile/js/delivery-mobile-view.js.map",
-      "executableSha256": "8ba8c525587fad9a419864e1b287ad36b85933b555659fe90aef9d3070b7f27e"
+      "executableSha256": "edc91db5beb8e99895f7083f7545d8abccb37ccbb999034bfcda3570f8393939"
     },
     {
       "target": "public/mobile/mobile.css",
@@ -192,7 +192,7 @@
         "public/mobile/mobile.source/mobile-03.css",
         "public/mobile/mobile.source/mobile-04.css"
       ],
-      "sourceSha256": "3fe26f1b199da91b0d13698c9d20828fbef7939a72e2baffd72e343d57fc2e9b"
+      "sourceSha256": "44be647f871786894ec2ee8cd9144b9800ce95e2351a45b79af6faf8418702a3"
     },
     {
       "target": "public/print.css",
