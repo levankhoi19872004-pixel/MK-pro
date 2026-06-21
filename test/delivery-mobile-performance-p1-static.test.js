@@ -37,10 +37,11 @@ test('delivery mobile initial load only loads orders and does not preload all re
   assert.match(loadBody, /state\.tab === 'debt'/);
 });
 
-test('selecting an order no longer fires direct returnOrders request', () => {
+test('selecting an order stays on order list and no longer fires direct returnOrders request', () => {
   const selectBody = functionBody('select');
-  assert.match(selectBody, /state\.tab = 'products'/);
+  assert.doesNotMatch(selectBody, /state\.tab = 'products'/);
   assert.doesNotMatch(selectBody, /loadSelectedReturnsDirect/);
+  assert.match(source, /data-m-menu-tab="products"/);
 });
 
 test('returns and debt tabs use cache and in-flight guards', () => {

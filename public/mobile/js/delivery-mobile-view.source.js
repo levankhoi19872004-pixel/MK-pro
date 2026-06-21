@@ -21,6 +21,8 @@
   var userStaffCode = deliveryMobileUi.userStaffCode;
   var userRoleLabel = deliveryMobileUi.userRoleLabel;
   var selectedOrderSummary = deliveryMobileUi.selectedOrderSummary;
+  var phoneHref = deliveryMobileUi.phoneHref;
+  var mapHref = deliveryMobileUi.mapHref;
   var copyText = deliveryMobileUi.copyText;
   var debounce = deliveryMobileUi.debounce;
   var msg = deliveryMobileUi.msg;
@@ -70,24 +72,23 @@
     var staffCode = userStaffCode(user);
     var accountText = displayName ? (displayName + (staffCode && staffCode !== displayName ? ' - ' + staffCode : '')) : 'Chưa xác định tài khoản';
     root().innerHTML = '' +
-      '<header class="m-delivery-header">' +
-        '<div><h1>App giao hàng</h1><p>Đồng bộ 100% với Đơn giao hôm nay</p><div class="m-account-info"><b>' + esc(accountText) + '</b><span>' + esc(userRoleLabel(user)) + '</span></div></div>' +
-        '<div style="display:flex;gap:8px;align-items:center"><button id="mReload" type="button">Tải</button><button id="mLogout" type="button">Thoát</button></div>' +
+      '<header class="m-delivery-header m-delivery-header-compact">' +
+        '<div class="m-delivery-title-block"><h1>Giao hàng hôm nay</h1><div class="m-account-info"><b>NVGH: ' + esc(accountText) + '</b><span>' + esc(userRoleLabel(user)) + '</span></div></div>' +
+        '<div class="m-delivery-header-actions"><button id="mReload" type="button">Tải</button><details class="m-delivery-more"><summary aria-label="Mở menu phụ">⋮</summary><div class="m-delivery-more-menu"><button type="button" data-m-menu-tab="products">Sản phẩm đơn</button><button type="button" data-m-menu-tab="reconciliation">Đối soát ngày</button><button id="mLogout" type="button">Đăng xuất</button></div></details></div>' +
       '</header>' +
-      '<section class="m-delivery-filter"><input id="mDate" type="date"><select id="mStatusFilter"><option value="all">Tất cả</option><option value="delivered">Đã giao</option><option value="pending">Chưa giao</option><option value="return">Trả hàng</option><option value="debt">Công nợ</option></select><input id="mSearch" placeholder="Tìm khách/mã đơn"></section>' +
-      '<section class="m-delivery-kpis" aria-label="Chỉ số tuyến giao hàng">' +
-        '<div><span title="Tổng tiền phải thu">Phải thu</span><b id="mKpiPt">0</b></div><div><span title="Tiền mặt đã nhập">Tiền mặt</span><b id="mKpiTm">0</b></div><div><span title="Tiền chuyển khoản đã nhập">Chuyển khoản</span><b id="mKpiCk">0</b></div>' +
-        '<div><span title="Tiền hàng trả">Trả hàng</span><b id="mKpiTh">0</b></div><div><span title="Tiền trả thưởng/khuyến mại">Trả thưởng</span><b id="mKpiHt">0</b></div><div><span title="Công nợ còn lại">Công nợ</span><b id="mKpiCn">0</b></div>' +
+      '<section class="m-delivery-filter m-delivery-filter-compact"><input id="mDate" type="date"><select id="mStatusFilter"><option value="all">Tất cả</option><option value="pending" selected>Chưa giao</option><option value="delivered">Đã giao</option><option value="return">Trả hàng</option><option value="debt">Công nợ</option></select><input id="mSearch" type="search" placeholder="Tìm khách / mã đơn / SĐT"></section>' +
+      '<section class="m-delivery-kpis m-delivery-kpis-compact" aria-label="Tóm tắt tuyến giao hàng">' +
+        '<div><span title="Tổng số đơn trong tuyến">Tổng đơn</span><b id="mKpiTotalOrders">0</b></div><div><span title="Số đơn chưa giao">Chưa giao</span><b id="mKpiPendingOrders">0</b></div>' +
+        '<div><span title="Số đơn đã giao">Đã giao</span><b id="mKpiDeliveredOrders">0</b></div><div><span title="Tổng tiền còn phải thu">Phải thu</span><b id="mKpiPt">0</b></div>' +
       '</section>' +
-      '<nav class="m-delivery-tabs">' +
+      '<nav class="m-delivery-tabs m-delivery-tabs-main" aria-label="Chức năng chính app giao hàng">' +
         '<button data-m-tab="orders" class="active">Đơn giao</button>' +
-        '<button data-m-tab="products">Sản phẩm giao</button>' +
-        '<button data-m-tab="returns">Hàng trả</button>' +
         '<button data-m-tab="payment">Thu tiền</button>' +
+        '<button data-m-tab="returns">Hàng trả</button>' +
         '<button data-m-tab="debt">Công nợ</button>' +
-        '<button data-m-tab="reconciliation">Đối soát</button>' +
       '</nav>' +
       '<section id="mBody" class="m-delivery-body">Đang tải...</section>' +
+      '<section id="mBottomAction" class="m-delivery-bottom-action" aria-live="polite"></section>' +
       '<p id="mMsg" class="m-delivery-msg"></p>';
     el('mDate').value = today();
     deliveryOrderRenderer = mobileUiRuntime
@@ -106,21 +107,14 @@
     if (deliveryLifecycle) deliveryLifecycle.add(function () { if (debouncedSearch.cancel) debouncedSearch.cancel(); });
     document.querySelectorAll('[data-m-tab]').forEach(function (button) {
       bind(button, 'click', function () {
-        var nextTab = button.getAttribute('data-m-tab');
-        if (
-          state.tab === 'debt' &&
-          nextTab !== 'debt' &&
-          state.debtFormDirty &&
-          !window.confirm('Bạn đang có phiếu thu chưa gửi. Rời Công nợ sẽ xóa dữ liệu đang nhập.')
-        ) {
-          return;
-        }
-        if (state.tab === 'debt' && nextTab !== 'debt') state.debtFormDirty = false;
-        state.tab = nextTab;
-        render();
-        if (state.tab === 'returns') loadSelectedReturnsDirect({ force: false });
-        if (state.tab === 'debt') loadDeliveryDebts(false);
-        if (state.tab === 'reconciliation') loadDeliveryReconciliation(false);
+        switchTab(button.getAttribute('data-m-tab'));
+      });
+    });
+    document.querySelectorAll('[data-m-menu-tab]').forEach(function (button) {
+      bind(button, 'click', function () {
+        var menu = button.closest('details');
+        if (menu) menu.open = false;
+        switchTab(button.getAttribute('data-m-menu-tab'));
       });
     });
     if (deliveryLifecycle) {
@@ -136,6 +130,16 @@
           msg(err.message || 'Không copy được địa chỉ', true);
         });
       });
+      deliveryLifecycle.delegate(el('mBody'), 'click', '[data-order-pay]', function (event, button) {
+        event.preventDefault();
+        event.stopPropagation();
+        goToOrderAction(button.getAttribute('data-order-pay'), 'payment');
+      });
+      deliveryLifecycle.delegate(el('mBody'), 'click', '[data-order-confirm]', function (event, button) {
+        event.preventDefault();
+        event.stopPropagation();
+        goToOrderAction(button.getAttribute('data-order-confirm'), 'confirm');
+      });
       deliveryLifecycle.delegate(el('mBody'), 'click', '[data-debt-index]:not([disabled])', function (_event, button) {
         openDeliveryDebtCollection(Number(button.getAttribute('data-debt-index')));
       });
@@ -146,6 +150,69 @@
         deliveryLifecycle.destroy();
       }, { once: true });
     }
+  }
+
+  function switchTab(nextTab) {
+    if (!nextTab) return;
+    if (
+      state.tab === 'debt' &&
+      nextTab !== 'debt' &&
+      state.debtFormDirty &&
+      !window.confirm('Bạn đang có phiếu thu chưa gửi. Rời Công nợ sẽ xóa dữ liệu đang nhập.')
+    ) {
+      return;
+    }
+    if (state.tab === 'debt' && nextTab !== 'debt') state.debtFormDirty = false;
+    state.tab = nextTab;
+    render();
+    if (state.tab === 'returns') loadSelectedReturnsDirect({ force: false });
+    if (state.tab === 'debt') loadDeliveryDebts(false);
+    if (state.tab === 'reconciliation') loadDeliveryReconciliation(false);
+  }
+
+  function goToOrderAction(orderKey, action) {
+    if (orderKey) {
+      state.selectedKey = orderKey;
+      window.DeliveryCore.selectOrder(orderKey);
+    }
+    if (action === 'payment') {
+      switchTab('payment');
+      return;
+    }
+    if (action === 'returns') {
+      switchTab('returns');
+      return;
+    }
+    if (action === 'products') {
+      switchTab('products');
+      return;
+    }
+    if (action === 'confirm') {
+      confirmDelivery();
+    }
+  }
+
+  function renderBottomAction() {
+    var node = el('mBottomAction');
+    if (!node) return;
+    var order = currentOrder();
+    if (!order || state.tab !== 'orders') {
+      node.innerHTML = '';
+      node.className = 'm-delivery-bottom-action';
+      return;
+    }
+    var key = keyOf(order);
+    var phone = deliveryMobileUi.orderPhone(order);
+    var call = phoneHref(phone);
+    node.className = 'm-delivery-bottom-action active';
+    node.innerHTML = '<div><b>' + esc(order.customerName || order.customerCode || 'Khách hàng') + '</b><span>' + money(amount(order, 'receivable')) + '</span></div>' +
+      (call ? '<a href="' + esc(call) + '">Gọi</a>' : '<button type="button" disabled>Gọi</button>') +
+      '<button type="button" data-bottom-pay="' + esc(key) + '">Thu tiền</button>' +
+      '<button type="button" data-bottom-return="' + esc(key) + '">Trả hàng</button>';
+    var pay = node.querySelector('[data-bottom-pay]');
+    var ret = node.querySelector('[data-bottom-return]');
+    if (pay) pay.addEventListener('click', function () { goToOrderAction(key, 'payment'); });
+    if (ret) ret.addEventListener('click', function () { goToOrderAction(key, 'returns'); });
   }
 
   function selectedReturnCacheKey(order) {
@@ -171,25 +238,19 @@
     };
   }
 
-  function shouldUseSelectedOrderKpi() {
-    return !!currentOrder() && ['products', 'returns', 'payment'].indexOf(state.tab) >= 0;
-  }
-
   function renderKpis() {
     var rows = window.DeliveryCore.state.orders || [];
-    var selected = currentOrder();
-    var s = shouldUseSelectedOrderKpi() ? buildOrderKpi(selected) : buildRouteKpi(rows);
+    var s = buildRouteKpi(rows);
+    if (el('mKpiTotalOrders')) el('mKpiTotalOrders').textContent = String(s.totalOrders || 0);
+    if (el('mKpiPendingOrders')) el('mKpiPendingOrders').textContent = String(s.pendingOrders || 0);
+    if (el('mKpiDeliveredOrders')) el('mKpiDeliveredOrders').textContent = String(s.deliveredOrders || 0);
     if (el('mKpiPt')) el('mKpiPt').textContent = money(s.pt);
-    if (el('mKpiTm')) el('mKpiTm').textContent = money(s.tm);
-    if (el('mKpiCk')) el('mKpiCk').textContent = money(s.ck);
-    if (el('mKpiTh')) el('mKpiTh').textContent = money(s.th);
-    if (el('mKpiHt')) el('mKpiHt').textContent = money(s.ht);
-    if (el('mKpiCn')) el('mKpiCn').textContent = money(s.cn);
   }
 
   function render() {
     renderKpis();
     document.querySelectorAll('[data-m-tab]').forEach(function (button) { button.classList.toggle('active', button.getAttribute('data-m-tab') === state.tab); });
+    renderBottomAction();
     var body = el('mBody');
     if (!body) return;
     if (state.tab !== 'orders' && deliveryOrderRenderer) deliveryOrderRenderer.cancel();
@@ -1020,8 +1081,8 @@
       return;
     }
     if (!rows.length) {
-      body.innerHTML = selectedOrderSummary(order) + '<div class="m-empty">Chưa có hàng trả trong returnOrders. Nhập SL trả ở tab Sản phẩm giao rồi bấm Lưu hàng trả hoặc bấm Bỏ qua hàng trả để sang Thu tiền.</div><div class="m-action-row"><button id="mGoProducts" type="button">Quay lại sản phẩm</button><button id="mSkipReturns" type="button" class="secondary">Bỏ qua hàng trả</button></div>';
-      el('mGoProducts').addEventListener('click', function () { state.tab = 'products'; render(); });
+      body.innerHTML = selectedOrderSummary(order) + '<div class="m-empty">Chưa có hàng trả trong returnOrders. Nhập SL trả ở mục Sản phẩm đơn rồi bấm Lưu hàng trả hoặc bấm Bỏ qua hàng trả để sang Thu tiền.</div><div class="m-action-row"><button id="mGoProducts" type="button">Mở sản phẩm đơn</button><button id="mSkipReturns" type="button" class="secondary">Bỏ qua hàng trả</button></div>';
+      el('mGoProducts').addEventListener('click', function () { switchTab('products'); });
       el('mSkipReturns').addEventListener('click', function () { state.tab = 'payment'; render(); });
       return;
     }
@@ -1030,9 +1091,9 @@
       rows.map(function (it, idx) {
         var amount = num(it.returnQty) * num(it.price);
         return '<div class="m-product-row"><div><b>' + esc(it.productCode) + '</b><small>' + esc(it.productName) + '</small><em>Giá cố định ' + money(it.price) + ' · Thành tiền ' + money(amount) + '</em>' + hidden(idx, 'productCode', it.productCode) + hidden(idx, 'productName', it.productName) + hidden(idx, 'price', it.price) + '</div><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(it.returnQty) + '"></div>';
-      }).join('') + '</div><div class="m-action-row"><button type="submit">Cập nhật hàng trả</button><button id="mBackProducts" type="button" class="secondary">Sửa từ sản phẩm giao</button></div></form>';
+      }).join('') + '</div><div class="m-action-row"><button type="submit">Cập nhật hàng trả</button><button id="mBackProducts" type="button" class="secondary">Sửa từ sản phẩm đơn</button></div></form>';
     el('mReturnSaveForm').addEventListener('submit', saveReturn);
-    el('mBackProducts').addEventListener('click', function () { state.tab = 'products'; render(); });
+    el('mBackProducts').addEventListener('click', function () { switchTab('products'); });
   }
 
   function renderPayment(body) {
@@ -1123,7 +1184,6 @@
   function select(key) {
     state.selectedKey = key;
     window.DeliveryCore.selectOrder(key);
-    state.tab = 'products';
     render();
   }
 

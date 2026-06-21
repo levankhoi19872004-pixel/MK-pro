@@ -91,12 +91,14 @@
 
   function orderQuickActions(order) {
     var address = orderAddress(order);
-    var phone = orderPhone(order);
-    var actions = [];
-    if (phoneHref(phone)) actions.push('<a class="m-order-quick-btn" href="' + esc(phoneHref(phone)) + '" aria-label="Gọi khách hàng">Gọi</a>');
-    if (address) actions.push('<button type="button" class="m-order-quick-btn" data-copy-address="' + esc(address) + '">Copy địa chỉ</button>');
+    var key = keyOf(order);
+    var actions = [
+      '<button type="button" class="m-order-quick-btn primary" data-order-confirm="' + esc(key) + '">Đã giao</button>',
+      '<button type="button" class="m-order-quick-btn" data-order-pay="' + esc(key) + '">Thu tiền</button>'
+    ];
     if (mapHref(address)) actions.push('<a class="m-order-quick-btn" target="_blank" rel="noopener" href="' + esc(mapHref(address)) + '">Bản đồ</a>');
-    return actions.length ? '<div class="m-order-quick-actions">' + actions.join('') + '</div>' : '';
+    else actions.push('<button type="button" class="m-order-quick-btn" disabled>Bản đồ</button>');
+    return '<div class="m-order-quick-actions m-order-primary-actions">' + actions.join('') + '</div>';
   }
 
   function copyText(value) {
