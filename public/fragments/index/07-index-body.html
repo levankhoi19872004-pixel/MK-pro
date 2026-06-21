@@ -84,7 +84,22 @@
           <div class="api-monitor-tab-panel active" data-api-monitor-panel="all">
             <h4>Tab 1. Tất cả API</h4>
             <div class="table-wrap api-monitor-table-wrap">
-              <table>
+              <table class="api-performance-table api-performance-table--routes" data-table-align="off">
+                <colgroup>
+                  <col class="api-col-module">
+                  <col class="api-col-api">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-query">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-status">
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Module</th>
@@ -108,7 +123,19 @@
 
             <h4>Báo cáo API chạy chậm gần nhất</h4>
             <div class="table-wrap api-monitor-table-wrap">
-              <table>
+              <table class="api-performance-table api-performance-table--slow-log" data-table-align="off">
+                <colgroup>
+                  <col class="api-col-time">
+                  <col class="api-col-module">
+                  <col class="api-col-api">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-query">
+                  <col class="api-col-number">
+                  <col class="api-col-status">
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Thời gian</th>
@@ -131,7 +158,19 @@
           <div class="api-monitor-tab-panel" data-api-monitor-panel="slowest">
             <h4>Tab 2. Top API chậm nhất</h4>
             <div class="table-wrap api-monitor-table-wrap">
-              <table>
+              <table class="api-performance-table api-performance-table--top-slow" data-table-align="off">
+                <colgroup>
+                  <col class="api-col-module">
+                  <col class="api-col-api">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-query">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-status">
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Module</th>
@@ -154,7 +193,18 @@
           <div class="api-monitor-tab-panel" data-api-monitor-panel="most-called">
             <h4>Tab 3. Top API gọi nhiều nhất</h4>
             <div class="table-wrap api-monitor-table-wrap">
-              <table>
+              <table class="api-performance-table api-performance-table--top-called" data-table-align="off">
+                <colgroup>
+                  <col class="api-col-module">
+                  <col class="api-col-api">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-status">
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Module</th>
@@ -176,7 +226,18 @@
           <div class="api-monitor-tab-panel" data-api-monitor-panel="most-rows">
             <h4>Tab 4. API có nhiều rows nhất</h4>
             <div class="table-wrap api-monitor-table-wrap">
-              <table>
+              <table class="api-performance-table api-performance-table--top-rows" data-table-align="off">
+                <colgroup>
+                  <col class="api-col-module">
+                  <col class="api-col-api">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-status">
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Module</th>
@@ -199,7 +260,19 @@
             <h4>Tab 5. Query Trace - query Mongo chậm nhất theo API</h4>
             <p class="muted">Dùng tab này để biết trong một API, query Mongo nào đang kéo chậm: MasterOrder.find, SalesOrder.find, ReturnOrder.find, ArLedger.find...</p>
             <div class="table-wrap api-monitor-table-wrap">
-              <table>
+              <table class="api-performance-table api-performance-table--query-trace" data-table-align="off">
+                <colgroup>
+                  <col class="api-col-module">
+                  <col class="api-col-api">
+                  <col class="api-col-query">
+                  <col class="api-col-input">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-status">
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Module</th>
