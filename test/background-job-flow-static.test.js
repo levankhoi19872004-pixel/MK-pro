@@ -15,14 +15,16 @@ test('import preview and commit use persistent background jobs', () => {
   assert.match(controller, /Prefer|prefersAsync/);
 });
 
-test('invoice export UI polls job and downloads artifact without changing file endpoint semantics', () => {
+test('invoice export defaults to direct workbook download and keeps async job compatibility', () => {
   const frontend = read('public/js/app/admin/08f-vat-export.js');
   const controller = read('src/controllers/importExportController.js');
   assert.match(frontend, /waitForExportJob/);
-  assert.match(frontend, /respond-async/);
+  assert.match(frontend, /application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet/);
   assert.match(frontend, /artifact/);
-  assert.match(controller, /waitForTerminal/);
-  assert.match(controller, /openDownloadStream/);
+  assert.doesNotMatch(frontend, /respond-async/);
+  assert.match(controller, /exportExcelDirect/);
+  assert.match(controller, /EXPORT_ASYNC_ENABLED/);
+  assert.match(controller, /submitExport/);
 });
 
 test('scheduled reconciliation only enqueues and uses deterministic schedule idempotency', () => {

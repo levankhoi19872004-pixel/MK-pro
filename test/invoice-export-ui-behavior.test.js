@@ -110,29 +110,10 @@ function jsonResponse(payload, status = 200) {
   };
 }
 
-test('one click enqueues one VAT job, polls it, keeps filters and restores button state', async () => {
-  let resolveEnqueue;
-  const enqueuePromise = new Promise((resolve) => { resolveEnqueue = resolve; });
-  let call = 0;
-  const harness = makeHarness((url) => {
-    call += 1;
-    if (call === 1) return enqueuePromise;
-    if (String(url).includes('/api/background-jobs/JOB1') && !String(url).endsWith('/artifact')) {
-      return jsonResponse({
-        ok: true,
-        job: {
-          id: 'JOB1',
-          status: 'completed',
-          progress: { percent: 100, step: 'completed' },
-          artifact: {
-            fileName: 'Hoa_don_VAT_01-06-2026_den_20-06-2026.xlsx',
-            downloadUrl: '/api/background-jobs/JOB1/artifact'
-          }
-        }
-      });
-    }
-    return successfulResponse('Hoa_don_VAT_01-06-2026_den_20-06-2026.xlsx');
-  });
+test('one click downloads VAT workbook directly, keeps filters and restores button state', async () => {
+  let resolveDownload;
+  const downloadPromise = new Promise((resolve) => { resolveDownload = resolve; });
+  const harness = makeHarness(() => downloadPromise);
   const first = harness.vat.click();
   harness.vat.click();
   assert.equal(harness.urls.length, 1);
@@ -142,16 +123,46 @@ test('one click enqueues one VAT job, polls it, keeps filters and restores butto
   assert.match(harness.urls[0], /dateFrom=2026-06-01/);
   assert.match(harness.urls[0], /dateTo=2026-06-20/);
   assert.match(harness.urls[0], /salesStaffCode=NVBH01/);
-  assert.match(harness.urls[0], /async=1/);
-  resolveEnqueue(jsonResponse({ ok: true, accepted: true, jobId: 'JOB1' }, 202));
+  assert.doesNotMatch(harness.urls[0], /async=1/);
+  resolveDownload(successfulResponse('Hoa_don_VAT_01-06-2026_den_20-06-2026.xlsx'));
   await first;
   assert.equal(harness.urls.filter((url) => String(url).includes('/api/export/invoice-orders.xlsx')).length, 1);
-  assert.equal(harness.urls.length, 3);
+  assert.equal(harness.urls.length, 1);
   assert.equal(harness.vat.disabled, false);
   assert.equal(harness.nonVat.disabled, false);
   assert.equal(harness.anchors.length, 1);
   assert.equal(harness.anchors[0].download, 'Hoa_don_VAT_01-06-2026_den_20-06-2026.xlsx');
   assert.match(harness.summary.textContent, /Đã tải/);
+});
+
+
+test('JSON accepted export response still polls job and downloads artifact for worker mode', async () => {
+  let call = 0;
+  const harness = makeHarness((url) => {
+    call += 1;
+    if (call === 1) return jsonResponse({ ok: true, accepted: true, jobId: 'JOB1' }, 202);
+    if (String(url).includes('/api/background-jobs/JOB1') && !String(url).endsWith('/artifact')) {
+      return jsonResponse({
+        ok: true,
+        job: {
+          id: 'JOB1',
+          status: 'completed',
+          progress: { percent: 100, step: 'completed' },
+          artifact: {
+            fileName: 'Hoa_don_VAT_async.xlsx',
+            downloadUrl: '/api/background-jobs/JOB1/artifact'
+          }
+        }
+      });
+    }
+    return successfulResponse('Hoa_don_VAT_async.xlsx');
+  });
+  await harness.vat.click();
+  assert.equal(harness.urls.length, 3);
+  assert.match(harness.urls[1], /\/api\/background-jobs\/JOB1/);
+  assert.match(harness.urls[2], /\/api\/background-jobs\/JOB1\/artifact/);
+  assert.equal(harness.anchors.length, 1);
+  assert.equal(harness.anchors[0].download, 'Hoa_don_VAT_async.xlsx');
 });
 
 test('NON_VAT button calls only NON_VAT and surfaces server errors without fake Excel download', async () => {

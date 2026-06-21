@@ -3,10 +3,8 @@
 const importExportService = require('../services/importExportService');
 const importTemplateService = require('../services/import-template/ImportTemplateApplicationService');
 const excelImportService = require('../services/excelImportService');
-const BackgroundJobService = require('../services/background-jobs/BackgroundJobService');
 const JobSubmissionService = require('../services/background-jobs/JobSubmissionService');
 const AsyncJobHttpAdapter = require('../services/background-jobs/AsyncJobHttpAdapter');
-const ArtifactStore = require('../services/background-jobs/GridFsArtifactStore');
 
 function normalizeUploadedFiles(req) {
   const files = [];
@@ -232,8 +230,24 @@ async function exportTypes(req, res) {
   res.json({ ok: true, types: importExportService.getExportTypes() });
 }
 
+function exportAsyncEnabled() {
+  return String(process.env.EXPORT_ASYNC_ENABLED || '').trim().toLowerCase() !== 'false';
+}
+
+async function exportExcelDirect(req, res) {
+  const query = { ...(req.query || {}) };
+  delete query.async;
+  delete query.idempotencyKey;
+  const result = await importExportService.exportToExcel(req.params.type, query, req.user || {});
+  return sendWorkbook(res, result);
+}
+
 async function exportExcel(req, res) {
   try {
+    if (!exportAsyncEnabled() || !AsyncJobHttpAdapter.prefersAsync(req)) {
+      return await exportExcelDirect(req, res);
+    }
+
     const idempotencyKey = String(req.headers['x-idempotency-key'] || req.query.idempotencyKey || '').trim();
     const submitted = await JobSubmissionService.submitExport({
       type: req.params.type,
@@ -241,34 +255,7 @@ async function exportExcel(req, res) {
       user: req.user || {},
       idempotencyKey
     });
-    if (AsyncJobHttpAdapter.prefersAsync(req)) {
-      return res.status(202).json(AsyncJobHttpAdapter.acceptedPayload(submitted, { source: 'import-export-route' }));
-    }
-    const terminal = await BackgroundJobService.waitForTerminal(submitted.job.id, {
-      timeoutMs: Number(process.env.BACKGROUND_JOB_COMPAT_WAIT_MS || 10 * 60 * 1000)
-    });
-    if (!terminal) return res.status(202).json(AsyncJobHttpAdapter.acceptedPayload(submitted, { source: 'import-export-route' }));
-    if (terminal.status !== 'completed') {
-      return res.status(terminal.lastError?.retryable === false ? 422 : 500).json({
-        ok: false,
-        message: terminal.lastError?.message || 'Không export được dữ liệu',
-        code: terminal.lastError?.code || terminal.status,
-        ...(terminal.lastError?.details || {})
-      });
-    }
-    if (!terminal.artifact?.fileId) return res.status(500).json({ ok: false, message: 'Export hoàn thành nhưng thiếu artifact' });
-    res.setHeader('Content-Type', terminal.artifact.contentType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(terminal.artifact.fileName || 'export.xlsx')}`);
-    res.setHeader('Content-Length', String(Number(terminal.artifact.size || 0)));
-    res.setHeader('X-Export-Order-Count', String(Number(terminal.result?.orderCount || 0)));
-    res.setHeader('X-Export-Row-Count', String(Number(terminal.result?.rows || 0)));
-    res.setHeader('X-Export-Warning-Count', String(Number(terminal.result?.warningCount || 0)));
-    const stream = ArtifactStore.openDownloadStream(terminal.artifact.fileId);
-    stream.once('error', (error) => {
-      if (!res.headersSent) res.status(404).json({ ok: false, message: 'Không đọc được artifact export' });
-      else res.destroy(error);
-    });
-    return stream.pipe(res);
+    return res.status(202).json(AsyncJobHttpAdapter.acceptedPayload(submitted, { source: 'import-export-route' }));
   } catch (err) {
     const status = Number(err.statusCode || err.status || 500);
     return res.status(status).json({
