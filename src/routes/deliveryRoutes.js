@@ -8,7 +8,6 @@ const StockTransaction = require('../models/StockTransaction');
 const ArLedger = require('../models/ArLedger');
 const User = require('../models/User');
 const { DeliveryEngine } = require('../engines/delivery.engine');
-const deliveryReconciliationService = require('../services/deliveryReconciliation.service');
 const { requireAuth, requireRole } = require('../middlewares/auth.middleware');
 const { withMongoTransaction } = require('../utils/transaction.util');
 
@@ -39,20 +38,9 @@ function bindDeliveryUser(input = {}, user = {}) {
   };
 }
 
-function buildErrorPayload(err, fallback) {
-  const status = Number(err && err.status) || 500;
-  const code = (err && err.code) || `DELIVERY_${status}`;
-  return {
-    ok: false,
-    success: false,
-    message: (err && err.message) || fallback || 'API giao hàng lỗi',
-    error: code
-  };
-}
-
 function sendError(res, err, fallback) {
   const status = Number(err && err.status) || 500;
-  return res.status(status).json(buildErrorPayload(err, fallback));
+  return res.status(status).json({ ok: false, success: false, message: (err && err.message) || fallback || 'API giao hàng lỗi' });
 }
 
 router.get('/orders', requireAuth, deliveryReadRoles, async (req, res) => {
@@ -62,23 +50,13 @@ router.get('/orders', requireAuth, deliveryReadRoles, async (req, res) => {
     return res.json({
       ok: true,
       success: true,
-      message: 'Đã tải đơn giao hàng',
-      data: {
-        orders: result.rows,
-        rows: result.rows,
-        items: result.rows,
-        total: result.rows.length,
-        summary: result.summary,
-        reconciliation: result.reconciliation
-      },
       orders: result.rows,
       rows: result.rows,
       items: result.rows,
       total: result.rows.length,
       summary: result.summary,
       reconciliation: result.reconciliation,
-      source: 'delivery-engine',
-      canonicalRoute: '/api/delivery/orders'
+      source: 'delivery-engine'
     });
   } catch (err) {
     return sendError(res, err, 'Không tải được đơn giao hàng');
@@ -92,21 +70,12 @@ router.get('/returns', requireAuth, deliveryReadRoles, async (req, res) => {
     return res.json({
       ok: true,
       success: true,
-      message: 'Đã tải danh sách hàng trả',
-      data: {
-        returns: result.rows,
-        returnOrders: result.rows,
-        rows: result.rows,
-        total: result.rows.length,
-        summary: result.summary
-      },
       returns: result.rows,
       returnOrders: result.rows,
       rows: result.rows,
       total: result.rows.length,
       summary: result.summary,
-      source: 'returnOrders',
-      canonicalRoute: '/api/delivery/returns'
+      source: 'returnOrders'
     });
   } catch (err) {
     return sendError(res, err, 'Không tải được danh sách hàng trả');
@@ -122,15 +91,13 @@ router.post('/return', requireAuth, deliveryWriteRoles, async (req, res) => {
     return res.json({
       ok: true,
       success: true,
-      message: result.message || 'Đã lưu hàng trả',
-      data: { order, returnOrder: result.returnOrder, returns: rows, returnOrders: rows, rows },
+      message: result.message,
       order,
       returnOrder: result.returnOrder,
       returns: rows,
       returnOrders: rows,
       rows,
-      source: 'returnOrders',
-      canonicalRoute: '/api/delivery/return'
+      source: 'returnOrders'
     });
   } catch (err) {
     return sendError(res, err, 'Không lưu được hàng trả');
@@ -141,16 +108,7 @@ router.post('/payment', requireAuth, deliveryWriteRoles, async (req, res) => {
   try {
     const body = bindDeliveryUser(req.body || {}, req.user);
     const result = await withMongoTransaction((session) => engine.savePayment(body, { session }));
-    return res.json({
-      ok: true,
-      success: true,
-      message: result.message || 'Đã lưu tiền thu',
-      data: { order: result.order, allocation: result.allocation },
-      order: result.order,
-      allocation: result.allocation,
-      source: 'delivery-engine',
-      canonicalRoute: '/api/delivery/payment'
-    });
+    return res.json({ ok: true, success: true, message: result.message, order: result.order, allocation: result.allocation });
   } catch (err) {
     return sendError(res, err, 'Không lưu được tiền thu');
   }
@@ -160,15 +118,7 @@ router.post('/confirm', requireAuth, deliveryWriteRoles, async (req, res) => {
   try {
     const body = bindDeliveryUser(req.body || {}, req.user);
     const result = await withMongoTransaction((session) => engine.confirm(body, { session }));
-    return res.json({
-      ok: true,
-      success: true,
-      message: result.message || 'Đã xác nhận giao hàng',
-      data: { order: result.order },
-      order: result.order,
-      source: 'delivery-engine',
-      canonicalRoute: '/api/delivery/confirm'
-    });
+    return res.json({ ok: true, success: true, message: result.message, order: result.order });
   } catch (err) {
     return sendError(res, err, 'Không xác nhận được giao hàng');
   }
@@ -177,21 +127,8 @@ router.post('/confirm', requireAuth, deliveryWriteRoles, async (req, res) => {
 router.get('/reconciliation', requireAuth, deliveryReadRoles, async (req, res) => {
   try {
     const query = bindDeliveryUser(req.query || {}, req.user);
-    const report = await deliveryReconciliationService.buildDeliveryReconciliationReport(query);
-    return res.json({
-      ok: true,
-      success: true,
-      message: 'Đã tải báo cáo đối soát cuối ngày',
-      data: report,
-      reconciliation: report.summary,
-      summary: report.summary,
-      orders: report.orders,
-      returns: report.returns,
-      collections: report.collections,
-      fundLedgers: report.fundLedgers,
-      source: 'delivery-reconciliation-report',
-      canonicalRoute: '/api/delivery/reconciliation'
-    });
+    const reconciliation = await engine.reconciliation(query);
+    return res.json({ ok: true, success: true, reconciliation, summary: reconciliation });
   } catch (err) {
     return sendError(res, err, 'Không đối soát được giao hàng');
   }

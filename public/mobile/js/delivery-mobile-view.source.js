@@ -1,14 +1,19 @@
 (function () {
   'use strict';
 
-  var deliveryMobileState = window.DeliveryMobileState;
-  var deliveryMobileUi = window.DeliveryMobileUiUtils;
-  var deliveryOrdersView = window.DeliveryMobileOrdersView;
-
-  if (!deliveryMobileState || !deliveryMobileUi || !deliveryOrdersView) {
-    throw new Error('Delivery mobile modules are not loaded.');
+  function el(id) { return document.getElementById(id); }
+  function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
+  function num(v) { return window.DeliveryCore ? window.DeliveryCore.toNumber(v) : Number(v || 0); }
+  function money(v) { return window.DeliveryCore ? window.DeliveryCore.money(v) : String(Math.round(Number(v || 0))); }
+  function amount(o, k) { return num(o && o.amounts && o.amounts[k]); }
+  function keyOf(o) { return window.DeliveryCore.orderKey(o); }
+  function today() {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
   }
 
+<<<<<<< HEAD
   var el = deliveryMobileUi.el;
   var esc = deliveryMobileUi.esc;
   var num = deliveryMobileUi.num;
@@ -29,18 +34,46 @@
   var buildOrderKpi = deliveryOrdersView.buildOrderKpi;
   var buildRouteKpi = deliveryOrdersView.buildRouteKpi;
 
+=======
+>>>>>>> parent of 5f06eb5 (a)
   var mobileUiRuntime = window.MobileUiRuntime || null;
   var deliveryLifecycle = mobileUiRuntime ? mobileUiRuntime.createLifecycle() : null;
   var deliveryLoadGate = mobileUiRuntime ? mobileUiRuntime.createRequestGate() : null;
   var deliveryOrderRenderer = null;
   var deliveryDebtRenderer = null;
   var deliveryDebtRendererContainer = null;
-  var DELIVERY_TAB_CACHE_TTL_MS = deliveryMobileState.DELIVERY_TAB_CACHE_TTL_MS;
-  var DELIVERY_REFRESH_THROTTLE_MS = deliveryMobileState.DELIVERY_REFRESH_THROTTLE_MS;
-  var DELIVERY_DEBT_PAGE_LIMIT = deliveryMobileState.DELIVERY_DEBT_PAGE_LIMIT;
 
-  var state = deliveryMobileState.createInitialState();
+  var state = {
+    selectedKey: '',
+    tab: 'orders',
+    debts: [],
+    debtSummary: {},
+    selectedDebtIndex: -1,
+    selectedDebtKey: '',
+    debtSubtab: 'customers',
+    debtSearch: '',
+    debtSort: 'debt_desc',
+    debtFormDirty: false,
+    debtListScrollTop: 0,
+    debtLoaded: false,
+    debtLoading: false
+  };
 
+  function readUser() { try { return JSON.parse(localStorage.getItem('v43_mobile_user') || localStorage.getItem('mk_web_user') || '{}'); } catch (err) { return {}; } }
+  function userDisplayName(user) { return String((user && (user.fullName || user.name || user.username || user.staffCode || user.code)) || '').trim(); }
+  function userStaffCode(user) { return String((user && (user.staffCode || user.code)) || '').trim(); }
+  function userRoleLabel(user) {
+    var role = String((user && user.role) || '').toLowerCase();
+    if (user && user.roleLabel) return String(user.roleLabel);
+    if (role === 'delivery') return 'Nhân viên giao hàng';
+    if (role === 'admin') return 'Admin';
+    return role || 'Tài khoản';
+  }
+  function deliveryStatusOf(order) {
+    var st = order && order.status && typeof order.status === 'object' ? order.status.deliveryStatus : '';
+    return String(st || (order && (order.deliveryStatus || order.status)) || 'pending').toLowerCase();
+  }
+  function isDelivered(order) { return ['delivered', 'success', 'done', 'completed'].indexOf(deliveryStatusOf(order)) >= 0; }
   function requireDeliveryLogin() {
     var user = readUser();
     var role = String(user.role || '').toLowerCase();
@@ -76,10 +109,17 @@
         '<div class="m-delivery-title-block"><h1>Giao hàng hôm nay</h1><div class="m-account-info"><b>NVGH: ' + esc(accountText) + '</b><span>' + esc(userRoleLabel(user)) + '</span></div></div>' +
         '<div class="m-delivery-header-actions"><button id="mReload" type="button">Tải</button><details class="m-delivery-more"><summary aria-label="Mở menu phụ">⋮</summary><div class="m-delivery-more-menu"><button type="button" data-m-menu-tab="products">Sản phẩm đơn</button><button type="button" data-m-menu-tab="reconciliation">Đối soát ngày</button><button id="mLogout" type="button">Đăng xuất</button></div></details></div>' +
       '</header>' +
+<<<<<<< HEAD
       '<section class="m-delivery-filter m-delivery-filter-compact"><input id="mDate" type="date"><select id="mStatusFilter"><option value="all">Tất cả</option><option value="pending" selected>Chưa giao</option><option value="delivered">Đã giao</option><option value="return">Trả hàng</option><option value="debt">Công nợ</option></select><input id="mSearch" type="search" placeholder="Tìm khách / mã đơn / SĐT"></section>' +
       '<section class="m-delivery-kpis m-delivery-kpis-compact" aria-label="Tóm tắt tuyến giao hàng">' +
         '<div><span title="Tổng số đơn trong tuyến">Tổng đơn</span><b id="mKpiTotalOrders">0</b></div><div><span title="Số đơn chưa giao">Chưa giao</span><b id="mKpiPendingOrders">0</b></div>' +
         '<div><span title="Số đơn đã giao">Đã giao</span><b id="mKpiDeliveredOrders">0</b></div><div><span title="Tổng tiền còn phải thu">Phải thu</span><b id="mKpiPt">0</b></div>' +
+=======
+      '<section class="m-delivery-filter"><input id="mDate" type="date"><select id="mStatusFilter"><option value="all">Tất cả</option><option value="delivered">Đã giao</option><option value="pending">Chưa giao</option><option value="return">Trả hàng</option><option value="debt">Công nợ</option></select><input id="mSearch" placeholder="Tìm khách/mã đơn"></section>' +
+      '<section class="m-delivery-kpis">' +
+        '<div><span>PT</span><b id="mKpiPt">0</b></div><div><span>TM</span><b id="mKpiTm">0</b></div><div><span>CK</span><b id="mKpiCk">0</b></div>' +
+        '<div><span>TH</span><b id="mKpiTh">0</b></div><div><span>HT</span><b id="mKpiHt">0</b></div><div><span>CN</span><b id="mKpiCn">0</b></div>' +
+>>>>>>> parent of 5f06eb5 (a)
       '</section>' +
       '<nav class="m-delivery-tabs m-delivery-tabs-main" aria-label="Chức năng chính app giao hàng">' +
         '<button data-m-tab="orders" class="active">Đơn giao</button>' +
@@ -98,15 +138,16 @@
       target.addEventListener(type, handler);
       return function () { target.removeEventListener(type, handler); };
     };
-    bind(el('mReload'), 'click', function () { load({ force: true, refreshActiveTab: true }); });
+    bind(el('mReload'), 'click', load);
     bind(el('mLogout'), 'click', logout);
-    bind(el('mDate'), 'change', function () { load({ force: true }); });
-    bind(el('mStatusFilter'), 'change', function () { load({ force: true }); });
-    var debouncedSearch = mobileUiRuntime ? mobileUiRuntime.debounce(function () { load({ force: true }); }, 250) : debounce(function () { load({ force: true }); }, 250);
+    bind(el('mDate'), 'change', load);
+    bind(el('mStatusFilter'), 'change', load);
+    var debouncedSearch = mobileUiRuntime ? mobileUiRuntime.debounce(load, 250) : debounce(load, 250);
     bind(el('mSearch'), 'input', debouncedSearch);
     if (deliveryLifecycle) deliveryLifecycle.add(function () { if (debouncedSearch.cancel) debouncedSearch.cancel(); });
     document.querySelectorAll('[data-m-tab]').forEach(function (button) {
       bind(button, 'click', function () {
+<<<<<<< HEAD
         switchTab(button.getAttribute('data-m-tab'));
       });
     });
@@ -115,12 +156,29 @@
         var menu = button.closest('details');
         if (menu) menu.open = false;
         switchTab(button.getAttribute('data-m-menu-tab'));
+=======
+        var nextTab = button.getAttribute('data-m-tab');
+        if (
+          state.tab === 'debt' &&
+          nextTab !== 'debt' &&
+          state.debtFormDirty &&
+          !window.confirm('Bạn đang có phiếu thu chưa gửi. Rời Công nợ sẽ xóa dữ liệu đang nhập.')
+        ) {
+          return;
+        }
+        if (state.tab === 'debt' && nextTab !== 'debt') state.debtFormDirty = false;
+        state.tab = nextTab;
+        render();
+        if (state.tab === 'returns') loadSelectedReturnsDirect();
+        if (state.tab === 'debt') loadDeliveryDebts();
+>>>>>>> parent of 5f06eb5 (a)
       });
     });
     if (deliveryLifecycle) {
       deliveryLifecycle.delegate(el('mBody'), 'click', '[data-order-key]', function (_event, button) {
         select(button.getAttribute('data-order-key'));
       });
+<<<<<<< HEAD
       deliveryLifecycle.delegate(el('mBody'), 'click', '[data-copy-address]', function (event, button) {
         event.preventDefault();
         event.stopPropagation();
@@ -140,6 +198,8 @@
         event.stopPropagation();
         goToOrderAction(button.getAttribute('data-order-confirm'), 'confirm');
       });
+=======
+>>>>>>> parent of 5f06eb5 (a)
       deliveryLifecycle.delegate(el('mBody'), 'click', '[data-debt-index]:not([disabled])', function (_event, button) {
         openDeliveryDebtCollection(Number(button.getAttribute('data-debt-index')));
       });
@@ -152,6 +212,7 @@
     }
   }
 
+<<<<<<< HEAD
   function switchTab(nextTab) {
     if (!nextTab) return;
     if (
@@ -217,17 +278,18 @@
 
   function selectedReturnCacheKey(order) {
     return keyOf(order || currentOrder() || {});
+=======
+  function debounce(fn, wait) {
+    var timer = null;
+    return function () { clearTimeout(timer); timer = setTimeout(fn, wait); };
+>>>>>>> parent of 5f06eb5 (a)
   }
 
-  function markSelectedReturnsFresh(order) {
-    var key = selectedReturnCacheKey(order);
-    if (!key) return;
-    state.returnsCache[key] = Date.now();
-  }
-
-  function selectedReturnsAreFresh(order) {
-    var key = selectedReturnCacheKey(order);
-    return !!key && deliveryMobileState.isFresh(state.returnsCache[key], DELIVERY_TAB_CACHE_TTL_MS);
+  function msg(text, danger) {
+    var node = el('mMsg');
+    if (!node) return;
+    node.textContent = text || '';
+    node.className = 'm-delivery-msg ' + (danger ? 'danger' : '');
   }
 
   function filters() {
@@ -238,6 +300,38 @@
     };
   }
 
+<<<<<<< HEAD
+=======
+  function buildOrderKpi(order) {
+    return {
+      pt: amount(order, 'receivable'),
+      tm: amount(order, 'cash'),
+      ck: amount(order, 'bank'),
+      // TH = tiền hàng trả, HT = trả thưởng. Không đảo nhãn giữa return/reward.
+      th: amount(order, 'returnAmount'),
+      ht: amount(order, 'reward'),
+      cn: amount(order, 'debt')
+    };
+  }
+
+  function buildRouteKpi(rows) {
+    return (rows || []).reduce(function (a, o) {
+      a.pt += amount(o, 'receivable');
+      a.tm += amount(o, 'cash');
+      a.ck += amount(o, 'bank');
+      // TH = tiền hàng trả, HT = trả thưởng.
+      a.th += amount(o, 'returnAmount');
+      a.ht += amount(o, 'reward');
+      a.cn += amount(o, 'debt');
+      return a;
+    }, { pt: 0, tm: 0, ck: 0, th: 0, ht: 0, cn: 0 });
+  }
+
+  function shouldUseSelectedOrderKpi() {
+    return !!currentOrder() && ['products', 'returns', 'payment'].indexOf(state.tab) >= 0;
+  }
+
+>>>>>>> parent of 5f06eb5 (a)
   function renderKpis() {
     var rows = window.DeliveryCore.state.orders || [];
     var s = buildRouteKpi(rows);
@@ -259,12 +353,19 @@
     if (state.tab === 'returns') return renderReturns(body);
     if (state.tab === 'payment') return renderPayment(body);
     if (state.tab === 'debt') return renderDebtApp(body);
-    if (state.tab === 'reconciliation') return renderReconciliationApp(body);
     return renderOrders(body);
   }
 
   function renderOrderCard(order) {
-    return deliveryOrdersView.renderOrderCard(order, { selectedKey: state.selectedKey });
+    var key = keyOf(order);
+    var selected = key === state.selectedKey ? ' selected' : '';
+    var delivered = isDelivered(order);
+    var dotClass = delivered ? 'delivered' : 'pending';
+    var dotTitle = delivered ? 'Đã giao' : 'Chưa giao';
+    return '<button type="button" class="m-order-card' + selected + '" data-order-key="' + esc(key) + '">' +
+      '<div class="m-order-top"><b>' + esc(order.orderCode) + '</b><span class="m-order-customer"><span class="m-customer-name">' + esc(order.customerName || order.customerCode) + '</span><i class="delivery-status-dot ' + dotClass + '" title="' + esc(dotTitle) + '"></i></span></div>' +
+      '<div class="m-order-metrics"><span>PT ' + money(amount(order, 'receivable')) + '</span><span>TM ' + money(amount(order, 'cash')) + '</span><span>CK ' + money(amount(order, 'bank')) + '</span><span>TH ' + money(amount(order, 'returnAmount')) + '</span><span>HT ' + money(amount(order, 'reward')) + '</span><span>CN ' + (amount(order, 'debt') > 0 ? money(amount(order, 'debt')) : 'Đủ') + '</span></div>' +
+    '</button>';
   }
 
   function renderOrders(body) {
@@ -324,63 +425,6 @@
       customer.customerName ||
       ''
     ).trim();
-  }
-
-  function normalizeDebtPagination(pagination) {
-    pagination = pagination || {};
-    var page = Math.max(1, Number(pagination.page || state.debtPage || 1) || 1);
-    var limit = Math.max(1, Number(pagination.limit || state.debtLimit || DELIVERY_DEBT_PAGE_LIMIT) || DELIVERY_DEBT_PAGE_LIMIT);
-    var totalRows = Math.max(0, Number(pagination.totalRows || pagination.total || 0) || 0);
-    var totalPages = Math.max(0, Number(pagination.totalPages || (totalRows ? Math.ceil(totalRows / limit) : 0)) || 0);
-    var hasMore = Boolean(pagination.hasMore);
-    if (!hasMore && totalRows) hasMore = page * limit < totalRows;
-    var nextPage = pagination.nextPage != null ? Number(pagination.nextPage) : (hasMore ? page + 1 : null);
-    if (!Number.isFinite(nextPage) || nextPage < 1) nextPage = null;
-    return { page: page, limit: limit, totalRows: totalRows, totalPages: totalPages, hasMore: hasMore, nextPage: nextPage };
-  }
-
-  function resetDeliveryDebtPaging(options) {
-    options = options || {};
-    state.debtPage = 0;
-    state.debtHasMore = false;
-    state.debtTotalRows = 0;
-    state.debtTotalPages = 0;
-    state.debtNextPage = 1;
-    if (options.clearRows !== false) state.debts = [];
-    state.debtLoaded = false;
-    state.debtCacheAt = 0;
-    state.debtError = '';
-  }
-
-  function mergeDeliveryDebtRows(existingRows, newRows) {
-    var rows = Array.isArray(existingRows) ? existingRows.slice() : [];
-    var indexByKey = new Map();
-    rows.forEach(function (customer, index) {
-      var key = deliveryDebtCustomerKey(customer);
-      if (key) indexByKey.set(key, index);
-    });
-    (Array.isArray(newRows) ? newRows : []).forEach(function (customer) {
-      var key = deliveryDebtCustomerKey(customer);
-      if (key && indexByKey.has(key)) {
-        rows[indexByKey.get(key)] = customer;
-      } else {
-        if (key) indexByKey.set(key, rows.length);
-        rows.push(customer);
-      }
-    });
-    return rows;
-  }
-
-  function buildDeliveryDebtUrl(page) {
-    var params = new URLSearchParams();
-    params.set('collectorType', 'delivery');
-    params.set('includePendingCollections', '1');
-    params.set('includePaid', '0');
-    params.set('limit', String(state.debtLimit || DELIVERY_DEBT_PAGE_LIMIT));
-    params.set('page', String(Math.max(1, Number(page || 1) || 1)));
-    var keyword = String(state.debtSearch || '').trim();
-    if (keyword) params.set('q', keyword);
-    return '/api/mobile/debts?' + params.toString();
   }
 
   function selectedDeliveryDebtCustomer() {
@@ -474,44 +518,25 @@
     if (body) body.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
-  async function loadDeliveryDebts(force, options) {
-    options = options || {};
-    force = !!force;
-    var append = !!options.append;
-    if (append && !state.debtHasMore) return state.debts;
-    if (state.debtPromise && !(force && !append)) return state.debtPromise;
-    if (!append && state.debtLoaded && !force && deliveryMobileState.isFresh(state.debtCacheAt, DELIVERY_TAB_CACHE_TTL_MS)) {
+  async function loadDeliveryDebts(force) {
+    if (state.debtLoading) return;
+    if (state.debtLoaded && !force) {
       render();
-      return state.debts;
+      return;
     }
 
-    if (!append && force) resetDeliveryDebtPaging({ clearRows: true });
+    state.debtLoading = true;
+    msg('Đang tải công nợ...');
 
-    var page = append
-      ? (state.debtNextPage || (state.debtPage + 1) || 2)
-      : 1;
-    state.debtLoading = !append;
-    state.debtLoadingMore = append;
-    state.debtRequestSeq += 1;
-    var requestSeq = state.debtRequestSeq;
-    msg(append ? 'Đang tải thêm công nợ...' : 'Đang tải công nợ...');
-
-    state.debtPromise = window.DeliveryCore.api(buildDeliveryDebtUrl(page)).then(function (json) {
-      if (requestSeq !== state.debtRequestSeq) return state.debts;
+    try {
       var previousKey = state.selectedDebtKey;
-      var incomingRows = Array.isArray(json.items) ? json.items : [];
-      var pagination = normalizeDebtPagination(json.pagination || {});
-      state.debtError = '';
-      state.debts = append ? mergeDeliveryDebtRows(state.debts, incomingRows) : incomingRows;
-      state.debtSummary = json.summary || state.debtSummary || {};
-      state.debtPage = pagination.page;
-      state.debtLimit = pagination.limit;
-      state.debtHasMore = pagination.hasMore;
-      state.debtTotalRows = pagination.totalRows || state.debts.length;
-      state.debtTotalPages = pagination.totalPages;
-      state.debtNextPage = pagination.nextPage;
+      var json = await window.DeliveryCore.api(
+        '/api/mobile/debts?collectorType=delivery&includePendingCollections=1&includePaid=0&limit=100'
+      );
+
+      state.debts = Array.isArray(json.items) ? json.items : [];
+      state.debtSummary = json.summary || {};
       state.debtLoaded = true;
-      state.debtCacheAt = Date.now();
       state.selectedDebtIndex = previousKey
         ? state.debts.findIndex(function (customer) { return deliveryDebtCustomerKey(customer) === previousKey; })
         : -1;
@@ -523,26 +548,13 @@
       }
 
       msg('');
-      return state.debts;
-    }).catch(function (err) {
-      if (requestSeq !== state.debtRequestSeq) return state.debts;
-      if (!append) {
-        state.debtLoaded = false;
-        state.debtCacheAt = 0;
-      }
-      state.debtError = err.message || 'Không tải được công nợ giao hàng';
-      msg(state.debtError, true);
-      throw err;
-    }).finally(function () {
-      if (requestSeq === state.debtRequestSeq) {
-        state.debtLoading = false;
-        state.debtLoadingMore = false;
-        state.debtPromise = null;
-        render();
-      }
-    });
-
-    return state.debtPromise;
+    } catch (err) {
+      state.debtLoaded = false;
+      msg(err.message || 'Không tải được công nợ giao hàng', true);
+    } finally {
+      state.debtLoading = false;
+      render();
+    }
   }
 
   function renderDebtApp(body) {
@@ -552,15 +564,6 @@
     if (state.debtLoading && !rows.length) {
       if (mobileUiRuntime) mobileUiRuntime.renderState(body, { state: 'loading', className: 'm-delivery-body', title: 'Đang tải công nợ...' });
       else body.innerHTML = '<div class="m-empty">Đang tải công nợ...</div>';
-      return;
-    }
-
-    if (state.debtError && !rows.length) {
-      body.innerHTML = '<div class="m-empty danger"><b>Không tải được công nợ</b><span>' + esc(state.debtError) + '</span><button id="mRetryDebt" type="button">Thử lại</button></div>';
-      el('mRetryDebt').addEventListener('click', function () {
-        state.debtError = '';
-        loadDeliveryDebts(true);
-      });
       return;
     }
 
@@ -591,7 +594,6 @@
           '</select>' +
         '</div>' +
         '<div id="mDebtCustomerList" class="m-debt-list"></div>' +
-        '<div id="mDebtPaging" class="m-debt-paging"></div>' +
       '</section>' +
       '<section id="mDebtCollectPanel" class="debt-subpanel' + (!customerTabActive ? ' active' : '') + '">' +
         '<div id="mDebtDetailContainer" class="m-debt-detail">' + renderDebtCustomerDetail(selected) + '</div>' +
@@ -601,7 +603,7 @@
     if (reload) reload.addEventListener('click', function () {
       if (state.debtFormDirty && !window.confirm('Bạn đang có phiếu thu chưa gửi. Tải lại sẽ xóa dữ liệu đang nhập.')) return;
       state.debtFormDirty = false;
-      resetDeliveryDebtPaging({ clearRows: true });
+      state.debtLoaded = false;
       loadDeliveryDebts(true);
     });
 
@@ -623,9 +625,8 @@
     var search = el('mDebtCustomerSearch');
     if (search) search.addEventListener('input', debounce(function () {
       state.debtSearch = search.value || '';
-      resetDeliveryDebtPaging({ clearRows: true });
-      loadDeliveryDebts(true);
-    }, 300));
+      renderDeliveryDebtCustomerList();
+    }, 120));
 
     var sort = el('mDebtCustomerSort');
     if (sort) sort.addEventListener('change', function () {
@@ -659,13 +660,11 @@
     if (!(state.debts || []).length) {
       if (mobileUiRuntime) mobileUiRuntime.renderState(list, { state: 'empty', className: 'm-debt-customer-list', title: 'Không có khách hàng còn nợ.' });
       else list.innerHTML = '<div class="m-empty">Không có khách hàng còn nợ.</div>';
-      renderDeliveryDebtPaging();
       return;
     }
     if (!entries.length) {
       if (mobileUiRuntime) mobileUiRuntime.renderState(list, { state: 'empty', className: 'm-debt-customer-list', title: 'Không tìm thấy khách hàng phù hợp.' });
       else list.innerHTML = '<div class="m-empty">Không tìm thấy khách hàng phù hợp.</div>';
-      renderDeliveryDebtPaging();
       return;
     }
     if (mobileUiRuntime) {
@@ -678,31 +677,6 @@
     } else {
       list.innerHTML = entries.map(renderDebtCustomerCard).join('');
     }
-    renderDeliveryDebtPaging();
-  }
-
-  function renderDeliveryDebtPaging() {
-    var paging = el('mDebtPaging');
-    if (!paging) return;
-    var loaded = (state.debts || []).length;
-    var total = state.debtTotalRows || loaded;
-    var statusText = total > 0
-      ? 'Đã tải ' + loaded + '/' + total + ' khách nợ'
-      : 'Chưa có khách nợ cần tải';
-    var buttonHtml = '';
-    if (state.debtHasMore) {
-      buttonHtml = '<button id="mLoadMoreDebt" type="button" class="secondary"' + (state.debtLoadingMore ? ' disabled' : '') + '>' +
-        (state.debtLoadingMore ? 'Đang tải thêm...' : 'Tải thêm') +
-      '</button>';
-    } else if (state.debtLoaded && loaded > 0) {
-      buttonHtml = '<span class="m-debt-paging-done">Đã tải hết</span>';
-    }
-    paging.innerHTML = '<span>' + esc(statusText) + '</span>' + buttonHtml;
-    var loadMore = el('mLoadMoreDebt');
-    if (loadMore) loadMore.addEventListener('click', function () {
-      if (state.debtLoadingMore || state.debtLoading) return;
-      loadDeliveryDebts(false, { append: true });
-    });
   }
 
   function renderDebtCustomerCard(entry) {
@@ -886,7 +860,7 @@
       state.selectedDebtIndex = -1;
       state.selectedDebtKey = '';
       state.debtSubtab = 'customers';
-      resetDeliveryDebtPaging({ clearRows: true });
+      state.debtLoaded = false;
       await loadDeliveryDebts(true);
       msg('Đã ghi nhận thu nợ, chờ kế toán xác nhận');
       window.requestAnimationFrame(function () {
@@ -901,126 +875,11 @@
     }
   }
 
-
-  function reconciliationSummaryValue(summary, key) {
-    return num(summary && summary[key]);
-  }
-
-  function buildDeliveryReconciliationUrl() {
-    var params = new URLSearchParams();
-    var currentFilters = filters();
-    if (currentFilters.date) params.set('date', currentFilters.date);
-    return '/api/delivery/reconciliation' + (params.toString() ? '?' + params.toString() : '');
-  }
-
-  async function loadDeliveryReconciliation(force) {
-    force = !!force;
-    if (state.reconciliationPromise && !force) return state.reconciliationPromise;
-    if (state.reconciliationLoaded && !force && deliveryMobileState.isFresh(state.reconciliationCacheAt, DELIVERY_TAB_CACHE_TTL_MS)) {
-      render();
-      return state.reconciliationReport;
-    }
-
-    state.reconciliationLoading = true;
-    state.reconciliationError = '';
-    msg('Đang tải đối soát cuối ngày...');
-
-    state.reconciliationPromise = window.DeliveryCore.api(buildDeliveryReconciliationUrl()).then(function (json) {
-      var report = json.data && json.data.summary ? json.data : {
-        date: (el('mDate') && el('mDate').value) || today(),
-        summary: json.summary || json.reconciliation || {},
-        orders: json.orders || [],
-        returns: json.returns || [],
-        collections: json.collections || []
-      };
-      state.reconciliationReport = report;
-      state.reconciliationLoaded = true;
-      state.reconciliationCacheAt = Date.now();
-      state.reconciliationError = '';
-      msg('');
-      return report;
-    }).catch(function (err) {
-      state.reconciliationLoaded = false;
-      state.reconciliationCacheAt = 0;
-      state.reconciliationError = err.message || 'Không tải được đối soát cuối ngày';
-      msg(state.reconciliationError, true);
-      throw err;
-    }).finally(function () {
-      state.reconciliationLoading = false;
-      state.reconciliationPromise = null;
-      render();
-    });
-
-    return state.reconciliationPromise;
-  }
-
-  function renderReconciliationMetric(label, value, danger) {
-    return '<div class="m-recon-metric' + (danger ? ' danger' : '') + '"><span>' + esc(label) + '</span><b>' + money(value || 0) + '</b></div>';
-  }
-
-  function renderReconciliationApp(body) {
-    var report = state.reconciliationReport || {};
-    var summary = report.summary || {};
-
-    if (state.reconciliationLoading && !state.reconciliationLoaded) {
-      if (mobileUiRuntime) mobileUiRuntime.renderState(body, { state: 'loading', className: 'm-delivery-body', title: 'Đang tải đối soát cuối ngày...' });
-      else body.innerHTML = '<div class="m-empty">Đang tải đối soát cuối ngày...</div>';
-      return;
-    }
-
-    if (state.reconciliationError && !state.reconciliationLoaded) {
-      body.innerHTML = '<div class="m-empty danger"><b>Không tải được đối soát</b><span>' + esc(state.reconciliationError) + '</span><button id="mRetryReconciliation" type="button">Thử lại</button></div>';
-      el('mRetryReconciliation').addEventListener('click', function () { loadDeliveryReconciliation(true); });
-      return;
-    }
-
-    if (!state.reconciliationLoaded) {
-      body.innerHTML = '<div class="m-empty"><b>Chưa tải báo cáo đối soát</b><span>Bấm tải để đối chiếu tiền, hàng trả và phiếu thu nợ cuối ngày.</span><button id="mLoadReconciliation" type="button">Tải đối soát</button></div>';
-      el('mLoadReconciliation').addEventListener('click', function () { loadDeliveryReconciliation(true); });
-      return;
-    }
-
-    var mismatch = !!summary.hasMismatch || Math.abs(reconciliationSummaryValue(summary, 'difference')) > 1000;
-    var orderRows = Array.isArray(report.orders) ? report.orders : [];
-    var collectionRows = Array.isArray(report.collections) ? report.collections : [];
-
-    body.innerHTML =
-      '<section class="m-recon-header-card' + (mismatch ? ' danger' : '') + '">' +
-        '<div><b>Đối soát ngày ' + esc(report.date || (el('mDate') && el('mDate').value) || today()) + '</b>' +
-        '<span>' + (mismatch ? 'Có chênh lệch cần xử lý' : 'Đối soát tạm ổn trong ngưỡng cho phép') + '</span></div>' +
-        '<button id="mReloadReconciliation" type="button">Tải lại</button>' +
-      '</section>' +
-      '<section class="m-recon-grid">' +
-        renderReconciliationMetric('Đơn đã giao', summary.deliveredOrders || 0) +
-        renderReconciliationMetric('Đơn chưa giao', summary.pendingOrders || 0) +
-        renderReconciliationMetric('Phải thu sau trả', summary.mustCollect || 0) +
-        renderReconciliationMetric('Tiền mặt', summary.collectedCash || 0) +
-        renderReconciliationMetric('Chuyển khoản', summary.collectedTransfer || 0) +
-        renderReconciliationMetric('Còn thiếu', summary.remainingDebt || 0, summary.remainingDebt > 0) +
-        renderReconciliationMetric('Hàng trả', summary.returnAmount || 0) +
-        renderReconciliationMetric('Phiếu chờ KT', summary.pendingDebtCollectionAmount || 0, summary.pendingDebtCollections > 0) +
-        renderReconciliationMetric('Chênh lệch', summary.difference || 0, mismatch) +
-      '</section>' +
-      '<section class="m-recon-section"><h3>Đơn cần chú ý</h3>' +
-        (orderRows.filter(function (row) { return !row.delivered || num(row.remainingDebt) > 0 || Math.abs(num(row.difference)) > 1000; }).slice(0, 20).map(function (row) {
-          return '<article class="m-recon-row"><b>' + esc(row.customerName || row.customerCode || row.orderCode) + '</b><span>' + esc(row.orderCode || '') + ' · ' + (row.delivered ? 'Đã giao' : 'Chưa giao') + '</span><em>Còn thiếu ' + money(row.remainingDebt || 0) + ' · Lệch ' + money(row.difference || 0) + '</em></article>';
-        }).join('') || '<div class="m-empty">Không có đơn cần chú ý.</div>') +
-      '</section>' +
-      '<section class="m-recon-section"><h3>Phiếu thu nợ đã gửi</h3>' +
-        (collectionRows.slice(0, 20).map(function (row) {
-          return '<article class="m-recon-row"><b>' + esc(row.customerName || row.customerCode || row.code) + '</b><span>' + esc(row.code || '') + ' · ' + esc(row.status || '') + '</span><em>' + money(row.amount || 0) + (row.pendingAccounting ? ' · Chờ kế toán' : ' · Đã xử lý') + '</em></article>';
-        }).join('') || '<div class="m-empty">Chưa có phiếu thu nợ gửi trong ngày.</div>') +
-      '</section>';
-
-    el('mReloadReconciliation').addEventListener('click', function () { loadDeliveryReconciliation(true); });
-  }
-
-
   function renderProducts(body) {
     var order = currentOrder();
     if (!order) { body.innerHTML = '<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>'; return; }
     var items = Array.isArray(order.items) ? order.items : [];
-    body.innerHTML = selectedOrderSummary(order) +
+    body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div>' +
       '<form id="mReturnForm"><div class="m-return-scroll">' +
       items.map(function (it, idx) {
         var code = it.productCode || it.code || it.productId || '';
@@ -1034,10 +893,7 @@
         return '<div class="m-product-row"><div><b>' + esc(code) + '</b><small>' + esc(name) + '</small><em>SL giao ' + money(qty) + ' · Giá cố định ' + money(price) + '</em>' + hidden(idx, 'productCode', code) + hidden(idx, 'productName', name) + hidden(idx, 'price', price) + '</div><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(rqty) + '"></div>';
       }).join('') + '</div><div class="m-action-row"><button type="submit">Lưu hàng trả</button><button id="mClearReturn" type="button" class="secondary">Bỏ qua hàng trả</button></div></form>';
     el('mReturnForm').addEventListener('submit', saveReturn);
-    el('mClearReturn').addEventListener('click', function () {
-      if (!window.confirm('Bỏ qua hàng trả sẽ ghi số lượng trả về 0 cho đơn này. Bạn chắc chắn muốn tiếp tục?')) return;
-      saveReturn({ preventDefault: function () {}, forceZero: true });
-    });
+    el('mClearReturn').addEventListener('click', function () { saveReturn({ preventDefault: function () {}, forceZero: true }); });
   }
 
   function hidden(idx, field, value) { return '<input type="hidden" data-m-return-field="' + esc(field) + '" data-idx="' + idx + '" value="' + esc(value) + '">'; }
@@ -1076,17 +932,22 @@
       });
     }
     if (!rows.length && amount(order, 'returnAmount') > 0) {
-      body.innerHTML = selectedOrderSummary(order) + '<div class="m-empty">Đơn có tiền hàng trả ' + money(amount(order, 'returnAmount')) + ' nhưng app chưa lấy được dòng sản phẩm. Bấm Tải lại hàng trả để gọi trực tiếp returnOrders.</div><div class="m-action-row"><button id="mReloadReturns" type="button">Tải lại hàng trả</button></div>';
+      body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div><div class="m-empty">Đơn có tiền hàng trả ' + money(amount(order, 'returnAmount')) + ' nhưng app chưa lấy được dòng sản phẩm. Bấm Tải lại hàng trả để gọi trực tiếp returnOrders.</div><div class="m-action-row"><button id="mReloadReturns" type="button">Tải lại hàng trả</button></div>';
       el('mReloadReturns').addEventListener('click', loadSelectedReturnsDirect);
       return;
     }
     if (!rows.length) {
+<<<<<<< HEAD
       body.innerHTML = selectedOrderSummary(order) + '<div class="m-empty">Chưa có hàng trả trong returnOrders. Nhập SL trả ở mục Sản phẩm đơn rồi bấm Lưu hàng trả hoặc bấm Bỏ qua hàng trả để sang Thu tiền.</div><div class="m-action-row"><button id="mGoProducts" type="button">Mở sản phẩm đơn</button><button id="mSkipReturns" type="button" class="secondary">Bỏ qua hàng trả</button></div>';
       el('mGoProducts').addEventListener('click', function () { switchTab('products'); });
+=======
+      body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div><div class="m-empty">Chưa có hàng trả trong returnOrders. Nhập SL trả ở tab Sản phẩm giao rồi bấm Lưu hàng trả hoặc bấm Bỏ qua hàng trả để sang Thu tiền.</div><div class="m-action-row"><button id="mGoProducts" type="button">Quay lại sản phẩm</button><button id="mSkipReturns" type="button" class="secondary">Bỏ qua hàng trả</button></div>';
+      el('mGoProducts').addEventListener('click', function () { state.tab = 'products'; render(); });
+>>>>>>> parent of 5f06eb5 (a)
       el('mSkipReturns').addEventListener('click', function () { state.tab = 'payment'; render(); });
       return;
     }
-    body.innerHTML = selectedOrderSummary(order) +
+    body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div>' +
       '<form id="mReturnSaveForm"><div class="m-return-scroll">' +
       rows.map(function (it, idx) {
         var amount = num(it.returnQty) * num(it.price);
@@ -1099,8 +960,8 @@
   function renderPayment(body) {
     var order = currentOrder();
     if (!order) { body.innerHTML = '<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>'; return; }
-    body.innerHTML = selectedOrderSummary(order) +
-      '<form id="mPaymentForm" class="m-payment-form"><h3>Thu tiền đơn giao</h3><label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label><button type="submit" class="m-confirm">Lưu thu tiền & xác nhận giao</button></form>';
+    body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div>' +
+      '<form id="mPaymentForm" class="m-payment-form"><h3>Thu tiền đơn giao</h3><label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label><button type="submit">Lưu thu tiền</button></form>';
     el('mPaymentForm').addEventListener('submit', savePayment);
   }
 
@@ -1153,31 +1014,16 @@
     } catch (err) { msg(err.message, true); }
   }
 
-  async function loadSelectedReturnsDirect(options) {
-    options = options || {};
-    var force = !!options.force;
+  async function loadSelectedReturnsDirect() {
     var order = currentOrder();
-    if (!order || !window.DeliveryCore || !window.DeliveryCore.loadReturnsForOrder) return [];
-    if (!force && selectedReturnsAreFresh(order)) {
-      render();
-      return returnsForOrder(order);
-    }
-    if (state.returnsLoading && state.returnsPromise) return state.returnsPromise;
-    state.returnsLoading = true;
+    if (!order || !window.DeliveryCore || !window.DeliveryCore.loadReturnsForOrder) return;
     try {
-      msg('Đang tải hàng trả từ returnOrders...');
-      state.returnsPromise = window.DeliveryCore.loadReturnsForOrder(order);
-      var rows = await state.returnsPromise;
-      markSelectedReturnsFresh(order);
+      msg('Đang tải hàng trả trực tiếp từ returnOrders...');
+      await window.DeliveryCore.loadReturnsForOrder(order);
       msg('');
       render();
-      return rows;
     } catch (err) {
-      msg('Không tải được hàng trả: ' + err.message, true);
-      throw err;
-    } finally {
-      state.returnsLoading = false;
-      state.returnsPromise = null;
+      msg('Không tải trực tiếp được hàng trả: ' + err.message, true);
     }
   }
 
@@ -1185,14 +1031,11 @@
     state.selectedKey = key;
     window.DeliveryCore.selectOrder(key);
     render();
+    loadSelectedReturnsDirect();
   }
 
-  async function load(options) {
-    options = options || {};
-    var force = !!options.force;
+  async function load() {
     if (!requireDeliveryLogin()) return;
-    if (state.loadPromise && !force) return state.loadPromise;
-    if (options.refreshActiveTab && deliveryMobileState.isFresh(state.lastLoadAt, DELIVERY_REFRESH_THROTTLE_MS)) return state.loadPromise || Promise.resolve(window.DeliveryCore.state.orders);
     if (
       state.tab === 'debt' &&
       state.debtFormDirty &&
@@ -1202,41 +1045,32 @@
     }
     if (state.tab === 'debt') state.debtFormDirty = false;
     if (!el('mBody')) renderShell();
-    state.lastLoadAt = Date.now();
     var requestToken = deliveryLoadGate ? deliveryLoadGate.begin() : null;
     if (mobileUiRuntime) mobileUiRuntime.renderState(el('mBody'), { state: 'loading', className: 'm-delivery-body', title: 'Đang tải dữ liệu giao hàng...' });
     else el('mBody').innerHTML = '<div class="m-empty">Đang tải...</div>';
-
-    state.loadPromise = (async function () {
-      try {
-        await window.DeliveryCore.loadOrders(filters(), requestToken);
-        if (deliveryLoadGate && !deliveryLoadGate.isCurrent(requestToken)) return;
-        if (!state.selectedKey && window.DeliveryCore.state.orders[0]) state.selectedKey = keyOf(window.DeliveryCore.state.orders[0]);
-        if (state.selectedKey) window.DeliveryCore.selectOrder(state.selectedKey);
+    try {
+      await window.DeliveryCore.loadOrders(filters());
+      if (deliveryLoadGate && !deliveryLoadGate.isCurrent(requestToken)) return;
+      await window.DeliveryCore.loadReturns(filters());
+      if (deliveryLoadGate && !deliveryLoadGate.isCurrent(requestToken)) return;
+      if (!state.selectedKey && window.DeliveryCore.state.orders[0]) state.selectedKey = keyOf(window.DeliveryCore.state.orders[0]);
+      if (state.selectedKey) window.DeliveryCore.selectOrder(state.selectedKey);
+      if (state.tab === 'returns') {
+        await loadSelectedReturnsDirect();
+      } else if (state.tab === 'debt') {
+        state.debtLoaded = false;
+        await loadDeliveryDebts(true);
+      } else {
         render();
         msg('');
-
-        // Lazy-load tab phụ: không gọi /api/delivery/returns hoặc /api/mobile/debts khi đang ở tab Đơn giao.
-        if (state.tab === 'returns') {
-          await loadSelectedReturnsDirect({ force: force || !!options.refreshActiveTab });
-        } else if (state.tab === 'debt') {
-          await loadDeliveryDebts(force || !!options.refreshActiveTab);
-        } else if (state.tab === 'reconciliation') {
-          await loadDeliveryReconciliation(force || !!options.refreshActiveTab);
-        }
-      } catch (err) {
-        if (deliveryLoadGate && !deliveryLoadGate.isCurrent(requestToken)) return;
-        el('mBody').innerHTML = '<div class="m-empty danger"><b>Không tải được dữ liệu giao hàng</b><span>' + esc(err.message || 'Vui lòng thử lại.') + '</span><button id="mRetryLoad" type="button">Thử lại</button></div>';
-        el('mRetryLoad').addEventListener('click', function () { load({ force: true }); });
-        msg(err.message, true);
-      } finally {
-        if (!deliveryLoadGate || deliveryLoadGate.isCurrent(requestToken)) state.loadPromise = null;
       }
-    }());
-
-    return state.loadPromise;
+    } catch (err) {
+      if (deliveryLoadGate && !deliveryLoadGate.isCurrent(requestToken)) return;
+      if (mobileUiRuntime) mobileUiRuntime.renderState(el('mBody'), { state: 'error', className: 'm-delivery-body', title: 'Không tải được dữ liệu giao hàng', detail: err.message || 'Vui lòng thử lại.' });
+      else el('mBody').innerHTML = '<div class="m-empty danger">' + esc(err.message) + '</div>';
+      msg(err.message, true);
+    }
   }
-
 
   window.DeliveryMobileView = { load: load, select: select, renderShell: renderShell };
   window.loadDeliveryOrders = function () { return load(); };

@@ -30,10 +30,7 @@ test('sales debt tab separates customer list and collection workflow into two su
 });
 
 test('delivery debt tab uses the same two-subtab interaction and preserves list position', () => {
-  const js = [
-    read('public/mobile/js/delivery-mobile-view.js'),
-    read('public/mobile/js/delivery-state.js')
-  ].join('\n');
+  const js = read('public/mobile/js/delivery-mobile-view.js');
   const css = read('public/mobile/mobile.css');
 
   assert.match(js, /debtSubtab:\s*'customers'/);

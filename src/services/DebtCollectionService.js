@@ -78,17 +78,15 @@ function buildCollectorFields(mobileUser = {}, body = {}) {
   const collectorType = collectorTypeOf(mobileUser, body);
   const collectorCode = collectorCodeOf(mobileUser);
   const collectorName = collectorNameOf(mobileUser);
-  const authenticatedRole = text(mobileUser.role).toLowerCase();
-  const canUseClientStaffScope = !['sales', 'delivery'].includes(authenticatedRole);
   const fields = {
     collectorType,
     collectorUserId: text(mobileUser.id || mobileUser._id),
     collectorCode,
     collectorName,
-    salesStaffCode: text((canUseClientStaffScope ? body.salesStaffCode : '') || mobileUser.salesStaffCode || mobileUser.salesmanCode || mobileUser.nvbhCode || (collectorType === 'sales' ? collectorCode : '')),
-    salesStaffName: text((canUseClientStaffScope ? body.salesStaffName : '') || mobileUser.salesStaffName || mobileUser.salesmanName || mobileUser.nvbhName || (collectorType === 'sales' ? collectorName : '')),
-    deliveryStaffCode: text((canUseClientStaffScope ? body.deliveryStaffCode : '') || mobileUser.deliveryStaffCode || mobileUser.shipperCode || mobileUser.nvghCode || (collectorType === 'delivery' ? collectorCode : '')),
-    deliveryStaffName: text((canUseClientStaffScope ? body.deliveryStaffName : '') || mobileUser.deliveryStaffName || mobileUser.shipperName || mobileUser.nvghName || (collectorType === 'delivery' ? collectorName : ''))
+    salesStaffCode: text(body.salesStaffCode || mobileUser.salesStaffCode || mobileUser.salesmanCode || mobileUser.nvbhCode || (collectorType === 'sales' ? collectorCode : '')),
+    salesStaffName: text(body.salesStaffName || mobileUser.salesStaffName || mobileUser.salesmanName || mobileUser.nvbhName || (collectorType === 'sales' ? collectorName : '')),
+    deliveryStaffCode: text(body.deliveryStaffCode || mobileUser.deliveryStaffCode || mobileUser.shipperCode || mobileUser.nvghCode || (collectorType === 'delivery' ? collectorCode : '')),
+    deliveryStaffName: text(body.deliveryStaffName || mobileUser.deliveryStaffName || mobileUser.shipperName || mobileUser.nvghName || (collectorType === 'delivery' ? collectorName : ''))
   };
   return fields;
 }

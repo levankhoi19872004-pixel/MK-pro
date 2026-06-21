@@ -58,13 +58,6 @@ function createMobileDeliveryRouter(ctx) {
     body('idempotencyKey').optional().isString().trim().isLength({ max: 160 })
   ], validateRequest, controller.submitPayment);
 
-
-
-  router.get('/reconciliation', ...onlyDelivery, [
-    query('date').optional().isISO8601().withMessage('Ngày đối soát không hợp lệ'),
-    query('deliveryStaffCode').optional().isString().trim()
-  ], validateRequest, controller.reconciliation);
-
   router.post('/cash/submit', ...onlyDelivery, [
     body('amount').isFloat({ gt: 0 }).withMessage('Số tiền nộp quỹ phải lớn hơn 0'),
     body('note').optional().isString().trim(),

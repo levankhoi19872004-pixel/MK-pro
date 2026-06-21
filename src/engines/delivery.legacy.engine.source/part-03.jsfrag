@@ -214,11 +214,7 @@
           { id: value }, { code: value }
         );
       }
-      const directReturnsRaw = or.length ? (await this.ReturnOrder.find({ ...activeReturnFilter(), $or: or }).lean()).map(canonicalizeReturnDocument).filter(hasPositiveReturnDocument) : [];
-      const directReturns = filterDeliveryOwnedRows(directReturnsRaw, query);
-      if (directReturnsRaw.length && !directReturns.length && isDeliveryOwnershipEnforced(query)) {
-        return { rows: [], returnOrdersRaw: [], summary: summarizeReturnRows([]) };
-      }
+      const directReturns = or.length ? (await this.ReturnOrder.find({ ...activeReturnFilter(), $or: or }).lean()).map(canonicalizeReturnDocument).filter(hasPositiveReturnDocument) : [];
       if (directReturns.length) {
         let fallbackOrder = {};
         for (const key of directKeys) {
@@ -231,10 +227,7 @@
 
       for (const key of directKeys) {
         const order = await this.getCanonicalOrderByKey(key);
-        if (order && deliveryOwnershipMatches(order, query)) { orders = [order]; break; }
-      }
-      if (!orders.length && isDeliveryOwnershipEnforced(query)) {
-        return { rows: [], returnOrdersRaw: [], summary: summarizeReturnRows([]) };
+        if (order) { orders = [order]; break; }
       }
       result = { rows: orders };
     } else {

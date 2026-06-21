@@ -61,7 +61,7 @@
         "src/engines/delivery.legacy.engine.source/part-02.jsfrag",
         "src/engines/delivery.legacy.engine.source/part-03.jsfrag"
       ],
-      "sourceSha256": "e2b5741a8434a1356bb7e4b1835c5a8b2298643b1a9ba88bbdc95ac12e9818e2"
+      "sourceSha256": "d38fdbacfd12113828d6d418d5d789fdd34808ea24895cb282cfa48d7099cd39"
     },
     {
       "target": "services/printDataBuilder.legacy.js",
@@ -177,11 +177,19 @@
     {
       "target": "public/mobile/js/delivery-mobile-view.js",
       "mode": "classic-single",
+<<<<<<< HEAD
       "sourceSha256": "876d29e64248179e658629ef7c34fd859f911f7a1fbc06a3831af9947d757612",
       "canonicalSource": "public/mobile/js/delivery-mobile-view.source.js",
       "sourceMap": true,
       "sourceMapTarget": "public/mobile/js/delivery-mobile-view.js.map",
       "executableSha256": "4f2054704da709d6bfdca9b0fda28cb38d91955e72f00b4fb452bce8d12a1b7d"
+=======
+      "sourceSha256": "88b2019848826b31972b3da5fab97765f16891678492047d8ec7b4f84c011eed",
+      "canonicalSource": "public/mobile/js/delivery-mobile-view.source.js",
+      "sourceMap": true,
+      "sourceMapTarget": "public/mobile/js/delivery-mobile-view.js.map",
+      "executableSha256": "92a5b302d63085164e5f3fb198d4d98f26b9a342eed340703c5ef3befa75b5f8"
+>>>>>>> parent of 5f06eb5 (a)
     },
     {
       "target": "public/mobile/mobile.css",
@@ -192,7 +200,11 @@
         "public/mobile/mobile.source/mobile-03.css",
         "public/mobile/mobile.source/mobile-04.css"
       ],
+<<<<<<< HEAD
       "sourceSha256": "42414a442fab959fdc3bea7bca54e541ddc65e48738c6117c2c9cafaa5d67581"
+=======
+      "sourceSha256": "bc02e0cf952502b5555b4f31297ebefb39a28a90b045babd0ec5904b24fb0be6"
+>>>>>>> parent of 5f06eb5 (a)
     },
     {
       "target": "public/print.css",
