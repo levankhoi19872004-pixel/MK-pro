@@ -224,6 +224,12 @@
         state.productSearchKeyword = input.value || '';
         filterProductRows(state.productSearchKeyword);
       });
+      deliveryLifecycle.delegate(el('mBody'), 'click', '[data-workflow-tab]', function (event, button) {
+        event.preventDefault();
+        state.tab = button.getAttribute('data-workflow-tab') || 'products';
+        render();
+        if (state.tab === 'returns') loadSelectedReturnsDirect({ force: false });
+      });
       deliveryLifecycle.delegate(el('mWorkflowBar'), 'click', '[data-workflow-tab]', function (_event, button) {
         state.tab = button.getAttribute('data-workflow-tab') || 'products';
         render();
@@ -299,8 +305,13 @@
     var listMode = !isCustomerMode();
     var filter = el('mDeliveryFilter');
     var kpis = el('mDeliveryKpis');
+    var rootEl = el('mobileDeliveryRoot');
     if (filter) filter.hidden = !listMode;
     if (kpis) kpis.hidden = !listMode;
+    if (rootEl) {
+      rootEl.classList.toggle('list-workflow-mode', listMode);
+      rootEl.classList.toggle('customer-workflow-mode', !listMode);
+    }
   }
 
   function renderKpis() {
@@ -332,6 +343,12 @@
       return;
     }
     if (state.tab === 'returns') {
+      if (!hasReturnedRowsForCurrentOrder(order)) {
+        bar.innerHTML = '<div class="m-workflow-actions step-only phase24 returns empty">' +
+          '<button type="button" class="primary" data-workflow-tab="products">Quay lại Hàng giao</button>' +
+        '</div>';
+        return;
+      }
       bar.innerHTML = '<div class="m-workflow-actions step-only phase24 returns">' +
         '<button type="submit" form="mReturnSaveForm" class="primary">Lưu hàng trả & sang Thu tiền</button>' +
         '<button id="mSkipReturns" type="button" class="secondary">Xóa hàng trả</button>' +
@@ -1249,11 +1266,9 @@
     });
   }
 
-  function renderReturns(body) {
-    var order = currentOrder();
-    if (!order) { body.innerHTML = '<div class="m-empty">Chọn khách/đơn ở danh sách cần giao trước.</div>'; return; }
+  function sourceReturnRowsForOrder(order) {
     var rows = returnsForOrder(order);
-    if (!rows.length && Array.isArray(order.returnItems) && order.returnItems.length) {
+    if (!rows.length && Array.isArray(order && order.returnItems) && order.returnItems.length) {
       rows = order.returnItems.map(function (item) {
         return Object.assign({}, item, {
           salesOrderId: order.salesOrderId,
@@ -1265,21 +1280,39 @@
         });
       });
     }
-    rows = buildReturnInputRows(order, rows);
+    return buildReturnInputRows(order, rows);
+  }
+
+  function returnedRowsForOrder(order) {
+    return sourceReturnRowsForOrder(order).filter(function (it) {
+      return num(it.returnQty) > 0;
+    });
+  }
+
+  function hasReturnedRowsForCurrentOrder(order) {
+    return returnedRowsForOrder(order || currentOrder()).length > 0;
+  }
+
+  function renderReturns(body) {
+    var order = currentOrder();
+    if (!order) { body.innerHTML = '<div class="m-empty">Chọn khách/đơn ở danh sách cần giao trước.</div>'; return; }
+    var rows = returnedRowsForOrder(order);
     var totalReturnAmount = rows.reduce(function (sum, it) { return sum + num(it.returnQty) * num(it.price); }, 0);
-    var hasReturn = rows.some(function (it) { return num(it.returnQty) > 0; });
-    body.innerHTML = '<section class="m-workflow-step phase23"><b>Hàng trả · xem/sửa lại</b><span>Tab này lấy lại số lượng đã nhập ở Hàng giao. Có thể sửa rồi lưu lại trước khi Thu tiền.</span></section>' +
-      (!hasReturn ? '<div class="m-empty soft">Chưa ghi nhận hàng trả cho đơn này. Có thể nhập trực tiếp tại đây hoặc quay lại tab Hàng giao.</div>' : '') +
-      '<form id="mReturnSaveForm"><div class="m-return-scroll">' +
-      (rows.map(function (it, idx) {
+    var hasReturn = rows.length > 0;
+    body.innerHTML = '<section class="m-workflow-step phase23 returns-only"><b>Hàng trả · xem/sửa lại</b><span>Chỉ hiển thị sản phẩm đã có SL trả. Muốn thêm hàng trả mới, quay lại tab Hàng giao.</span></section>' +
+      (!hasReturn ? '<div class="m-empty soft returns-only-empty"><b>Chưa có hàng trả cho đơn này.</b><span>Nhập số lượng trả ở tab Hàng giao nếu khách trả hàng.</span><button type="button" data-workflow-tab="products">Quay lại Hàng giao</button></div>' : '') +
+      (hasReturn ? '<form id="mReturnSaveForm"><div class="m-return-scroll returns-only-list">' +
+      rows.map(function (it, idx) {
         var qtyText = ' · SL giao ' + money(it.deliveredQty);
         var amount = num(it.returnQty) * num(it.price);
-        return '<div class="m-product-row phase23"><div><b>' + esc(it.productCode) + '</b><small>' + esc(it.productName) + '</small><em>Giá ' + money(it.price) + qtyText + ' · Tiền trả ' + money(amount) + '</em>' + hidden(idx, 'productCode', it.productCode) + hidden(idx, 'productName', it.productName) + hidden(idx, 'price', it.price) + hidden(idx, 'deliveredQty', it.deliveredQty) + '</div><label class="m-return-inline-input"><span>SL trả</span><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(it.returnQty) + '" aria-label="Số lượng trả"></label></div>';
-      }).join('') || '<div class="m-empty">Đơn chưa có dòng hàng để nhập trả hàng.</div>') +
-      '</div><div class="m-return-total"><span>Tổng hàng trả</span><b id="mReturnTotal">' + money(totalReturnAmount) + '</b></div></form>';
+        return '<div class="m-product-row phase23 returned-only"><div><b>' + esc(it.productCode) + '</b><small>' + esc(it.productName) + '</small><em>Giá ' + money(it.price) + qtyText + ' · Tiền trả ' + money(amount) + '</em>' + hidden(idx, 'productCode', it.productCode) + hidden(idx, 'productName', it.productName) + hidden(idx, 'price', it.price) + hidden(idx, 'deliveredQty', it.deliveredQty) + '</div><label class="m-return-inline-input"><span>SL trả</span><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(it.returnQty) + '" aria-label="Số lượng trả"></label></div>';
+      }).join('') +
+      '</div><div class="m-return-total"><span>Tổng hàng trả</span><b id="mReturnTotal">' + money(totalReturnAmount) + '</b></div></form>' : '<div class="m-return-total empty"><span>Tổng hàng trả</span><b>0</b></div>');
     var formEl = el('mReturnSaveForm');
-    formEl.addEventListener('submit', function (event) { saveReturn(event, { nextTab: 'payment', successMessage: 'Đã cập nhật hàng trả, chuyển sang Thu tiền' }); });
-    bindReturnTotal(formEl, 'mReturnTotal');
+    if (formEl) {
+      formEl.addEventListener('submit', function (event) { saveReturn(event, { nextTab: 'payment', successMessage: 'Đã cập nhật hàng trả, chuyển sang Thu tiền' }); });
+      bindReturnTotal(formEl, 'mReturnTotal');
+    }
     if (el('mSkipReturns')) el('mSkipReturns').addEventListener('click', function () {
       if (!window.confirm('Xóa hàng trả sẽ ghi số lượng trả về 0 cho đơn này. Bạn chắc chắn muốn tiếp tục?')) return;
       saveReturn({ preventDefault: function () {}, forceZero: true }, { nextTab: 'payment', successMessage: 'Đã xóa hàng trả, chuyển sang Thu tiền' });

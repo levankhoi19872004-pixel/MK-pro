@@ -160,3 +160,15 @@
 .m-recon-grid.customer-quick{grid-template-columns:repeat(2,minmax(0,1fr));}
 @media (max-width:380px){.m-customer-context{grid-template-columns:1fr;}.m-back-to-list{width:100%;}.m-recon-grid.customer-quick{grid-template-columns:1fr;}}
 /* DELIVERY_SPLIT_LIST_CUSTOMER_WORKFLOW_UI_END */
+/* DELIVERY_RETURN_TAB_ONLY_RETURNED_ITEMS_START */
+.mobile-delivery-v46.customer-workflow-mode #mDeliveryFilter,
+.mobile-delivery-v46.customer-workflow-mode #mDeliveryKpis{display:none!important;}
+.m-workflow-step.returns-only{margin-bottom:8px;}
+.m-empty.returns-only-empty{display:grid;gap:8px;justify-items:start;padding:14px 16px;}
+.m-empty.returns-only-empty b{font-size:15px;color:#0f172a;}
+.m-empty.returns-only-empty span{font-size:13px;color:#475569;font-weight:800;line-height:1.35;}
+.m-empty.returns-only-empty button{min-height:40px;border:1px solid #bfdbfe;border-radius:11px;background:#eff6ff;color:#1d4ed8;font-weight:900;padding:8px 12px;}
+.returns-only-list .m-product-row.returned-only{border-left:3px solid #16a34a;background:#ffffff;}
+.m-return-total.empty{margin-top:8px;background:#f8fafc;}
+.m-workflow-actions.step-only.phase24.returns.empty{grid-template-columns:1fr;}
+/* DELIVERY_RETURN_TAB_ONLY_RETURNED_ITEMS_END */

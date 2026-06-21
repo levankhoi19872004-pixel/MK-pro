@@ -52,26 +52,31 @@ state.debtSubtab="collect",render();var body=el("mBody");body&&body.scrollIntoVi
 }(Number(button.getAttribute("data-debt-index")))}),deliveryLifecycle.delegate(el("mCustomerContext"),"click","[data-back-to-list]",function(event){event.preventDefault(),
 switchToListMode({clearSelected:!0,forceOrders:!0})}),deliveryLifecycle.delegate(el("mBody"),"input","#mProductSearch",function(_event,input){
 state.productSearchKeyword=input.value||"",filterProductRows(state.productSearchKeyword)}),
-deliveryLifecycle.delegate(el("mWorkflowBar"),"click","[data-workflow-tab]",function(_event,button){state.tab=button.getAttribute("data-workflow-tab")||"products",render(),
-"returns"===state.tab&&loadSelectedReturnsDirect({force:!1}),"debt"===state.tab&&loadDeliveryDebts(!1),"reconciliation"===state.tab&&loadDeliveryReconciliation(!1)}),
-deliveryLifecycle.delegate(el("mWorkflowBar"),"click","[data-workflow-complete]",function(){switchToListMode({clearSelected:!0,forceOrders:!0})}),
-deliveryLifecycle.listen(window,"pagehide",function(){deliveryOrderRenderer&&deliveryOrderRenderer.cancel(),deliveryDebtRenderer&&deliveryDebtRenderer.cancel(),
-deliveryLoadGate.cancel(),deliveryLifecycle.destroy()},{once:!0}))}function selectedReturnCacheKey(order){return keyOf(order||currentOrder()||{})}function filters(){return{
-date:el("mDate")&&el("mDate").value,q:el("mSearch")&&el("mSearch").value,statusFilter:el("mStatusFilter")&&el("mStatusFilter").value}}function render(){
-var listMode,filter,kpis,rows,s;ensureTabForMode(),listMode=!isCustomerMode(),filter=el("mDeliveryFilter"),kpis=el("mDeliveryKpis"),filter&&(filter.hidden=!listMode),
-kpis&&(kpis.hidden=!listMode),rows=window.DeliveryCore.state.orders||[],s=buildRouteKpi(rows),el("mKpiTotal")&&(el("mKpiTotal").textContent=String(s.total||0)),
-el("mKpiPending")&&(el("mKpiPending").textContent=String(s.pending||0)),el("mKpiDelivered")&&(el("mKpiDelivered").textContent=String(s.delivered||0)),
-el("mKpiPt")&&(el("mKpiPt").textContent=money(s.pt)),el("mKpiTh")&&(el("mKpiTh").textContent=money(s.th)),el("mKpiCn")&&(el("mKpiCn").textContent=money(s.cn)),function(){
-var context=el("mCustomerContext");if(context){var order=currentOrder();if(!isCustomerMode()||!order)return context.hidden=!0,void(context.innerHTML="")
+deliveryLifecycle.delegate(el("mBody"),"click","[data-workflow-tab]",function(event,button){event.preventDefault(),state.tab=button.getAttribute("data-workflow-tab")||"products",
+render(),"returns"===state.tab&&loadSelectedReturnsDirect({force:!1})}),deliveryLifecycle.delegate(el("mWorkflowBar"),"click","[data-workflow-tab]",function(_event,button){
+state.tab=button.getAttribute("data-workflow-tab")||"products",render(),"returns"===state.tab&&loadSelectedReturnsDirect({force:!1}),"debt"===state.tab&&loadDeliveryDebts(!1),
+"reconciliation"===state.tab&&loadDeliveryReconciliation(!1)}),deliveryLifecycle.delegate(el("mWorkflowBar"),"click","[data-workflow-complete]",function(){switchToListMode({
+clearSelected:!0,forceOrders:!0})}),deliveryLifecycle.listen(window,"pagehide",function(){deliveryOrderRenderer&&deliveryOrderRenderer.cancel(),
+deliveryDebtRenderer&&deliveryDebtRenderer.cancel(),deliveryLoadGate.cancel(),deliveryLifecycle.destroy()},{once:!0}))}function selectedReturnCacheKey(order){
+return keyOf(order||currentOrder()||{})}function filters(){return{date:el("mDate")&&el("mDate").value,q:el("mSearch")&&el("mSearch").value,
+statusFilter:el("mStatusFilter")&&el("mStatusFilter").value}}function render(){var listMode,filter,kpis,rootEl,rows,s;ensureTabForMode(),listMode=!isCustomerMode(),
+filter=el("mDeliveryFilter"),kpis=el("mDeliveryKpis"),rootEl=el("mobileDeliveryRoot"),filter&&(filter.hidden=!listMode),kpis&&(kpis.hidden=!listMode),
+rootEl&&(rootEl.classList.toggle("list-workflow-mode",listMode),rootEl.classList.toggle("customer-workflow-mode",!listMode)),rows=window.DeliveryCore.state.orders||[],
+s=buildRouteKpi(rows),el("mKpiTotal")&&(el("mKpiTotal").textContent=String(s.total||0)),el("mKpiPending")&&(el("mKpiPending").textContent=String(s.pending||0)),
+el("mKpiDelivered")&&(el("mKpiDelivered").textContent=String(s.delivered||0)),el("mKpiPt")&&(el("mKpiPt").textContent=money(s.pt)),
+el("mKpiTh")&&(el("mKpiTh").textContent=money(s.th)),el("mKpiCn")&&(el("mKpiCn").textContent=money(s.cn)),function(){var context=el("mCustomerContext");if(context){
+var order=currentOrder();if(!isCustomerMode()||!order)return context.hidden=!0,void(context.innerHTML="")
 ;var address=deliveryMobileUi.orderAddress?deliveryMobileUi.orderAddress(order):"",name=order.customerName||order.customerCode||order.orderCode||"Khách đang giao",customerCode=order.customerCode||order.customerId||""
 ;context.hidden=!1,
 context.innerHTML='<button type="button" class="m-back-to-list" data-back-to-list>← Danh sách</button><div class="m-customer-context-main"><b>'+esc(name)+(customerCode?" · "+esc(customerCode):"")+"</b><span>"+(address?esc(address)+" · ":"")+"Phải thu "+money(amount(order,"receivable"))+"</span></div>"
 }}(),function(){ensureTabForMode();var nav=el("mDeliveryTabs");nav&&(nav.classList.toggle("list-mode",!isCustomerMode()),nav.classList.toggle("customer-mode",isCustomerMode()),
 nav.innerHTML=tabListForCurrentMode().map(function(tab){return'<button data-m-tab="'+esc(tab.key)+'" class="'+(state.tab===tab.key?"active":"")+'">'+esc(tab.label)+"</button>"
 }).join(""))}(),function(){var bar=el("mWorkflowBar");if(bar){var order=currentOrder();if(!isCustomerMode()||!order||"orders"===state.tab)return bar.hidden=!0,
-void(bar.innerHTML="");if(bar.hidden=!1,"products"!==state.tab)if("returns"!==state.tab)if("payment"!==state.tab)if("customerReconciliation"!==state.tab){
-if("debt"===state.tab)return bar.hidden=!0,void(bar.innerHTML="");bar.hidden=!0,bar.innerHTML=""
-}else bar.innerHTML='<div class="m-workflow-actions step-only phase24 reconciliation"><button type="button" class="primary" data-workflow-complete>Hoàn tất - về danh sách</button></div>';else bar.innerHTML='<div class="m-workflow-payment-remaining">Còn thiếu: <b id="mWorkflowRemaining">0</b></div><div class="m-workflow-actions step-only phase24 payment"><button type="submit" form="mPaymentForm" class="primary">Xác nhận thu tiền</button></div>';else bar.innerHTML='<div class="m-workflow-actions step-only phase24 returns"><button type="submit" form="mReturnSaveForm" class="primary">Lưu hàng trả & sang Thu tiền</button><button id="mSkipReturns" type="button" class="secondary">Xóa hàng trả</button></div>';else bar.innerHTML='<div class="m-workflow-actions step-only phase24 products"><button id="mFullReturnOrder" type="button" class="danger">Trả hết đơn</button><button type="submit" form="mProductReturnForm" class="primary">Xác nhận hàng & thu tiền</button></div>'
+void(bar.innerHTML="");if(bar.hidden=!1,"products"!==state.tab){if("returns"===state.tab)return function(order){return returnedRowsForOrder(order||currentOrder()).length>0
+}(order)?void(bar.innerHTML='<div class="m-workflow-actions step-only phase24 returns"><button type="submit" form="mReturnSaveForm" class="primary">Lưu hàng trả & sang Thu tiền</button><button id="mSkipReturns" type="button" class="secondary">Xóa hàng trả</button></div>'):void(bar.innerHTML='<div class="m-workflow-actions step-only phase24 returns empty"><button type="button" class="primary" data-workflow-tab="products">Quay lại Hàng giao</button></div>')
+;if("payment"!==state.tab)if("customerReconciliation"!==state.tab){if("debt"===state.tab)return bar.hidden=!0,void(bar.innerHTML="");bar.hidden=!0,bar.innerHTML=""
+}else bar.innerHTML='<div class="m-workflow-actions step-only phase24 reconciliation"><button type="button" class="primary" data-workflow-complete>Hoàn tất - về danh sách</button></div>';else bar.innerHTML='<div class="m-workflow-payment-remaining">Còn thiếu: <b id="mWorkflowRemaining">0</b></div><div class="m-workflow-actions step-only phase24 payment"><button type="submit" form="mPaymentForm" class="primary">Xác nhận thu tiền</button></div>'
+}else bar.innerHTML='<div class="m-workflow-actions step-only phase24 products"><button id="mFullReturnOrder" type="button" class="danger">Trả hết đơn</button><button type="submit" form="mProductReturnForm" class="primary">Xác nhận hàng & thu tiền</button></div>'
 }}();var body=el("mBody");if(body)return"orders"!==state.tab&&deliveryOrderRenderer&&deliveryOrderRenderer.cancel(),
 "debt"!==state.tab&&deliveryDebtRenderer&&deliveryDebtRenderer.cancel(),isCustomerMode()&&"products"===state.tab?function(body){var order=currentOrder();if(order){
 var baseRows=buildReturnInputRows(order,returnsForOrder(order)),productKeyword=String(state.productSearchKeyword||"").toLowerCase().trim(),totalQty=baseRows.reduce(function(sum,it){
@@ -84,17 +89,14 @@ var qtyText="SL giao "+money(it.deliveredQty),amount=num(it.returnQty)*num(it.pr
 ;var formEl=el("mProductReturnForm");formEl.addEventListener("submit",function(event){saveReturn(event,{nextTab:"payment",
 successMessage:"Đã xác nhận hàng trả, chuyển sang Thu tiền"})}),bindReturnTotal(formEl,"mReturnTotal"),filterProductRows(productKeyword),
 el("mFullReturnOrder")&&el("mFullReturnOrder").addEventListener("click",fullReturnOrder)}else body.innerHTML='<div class="m-empty">Chọn khách/đơn ở danh sách cần giao trước.</div>'
-}(body):isCustomerMode()&&"returns"===state.tab?function(body){var order=currentOrder();if(order){var rows=returnsForOrder(order)
-;!rows.length&&Array.isArray(order.returnItems)&&order.returnItems.length&&(rows=order.returnItems.map(function(item){return Object.assign({},item,{salesOrderId:order.salesOrderId,
-salesOrderCode:order.salesOrderCode,orderId:order.orderId,orderCode:order.orderCode,customerCode:order.customerCode,customerName:order.customerName})}))
-;var totalReturnAmount=(rows=buildReturnInputRows(order,rows)).reduce(function(sum,it){return sum+num(it.returnQty)*num(it.price)},0),hasReturn=rows.some(function(it){
-return num(it.returnQty)>0})
-;body.innerHTML='<section class="m-workflow-step phase23"><b>Hàng trả · xem/sửa lại</b><span>Tab này lấy lại số lượng đã nhập ở Hàng giao. Có thể sửa rồi lưu lại trước khi Thu tiền.</span></section>'+(hasReturn?"":'<div class="m-empty soft">Chưa ghi nhận hàng trả cho đơn này. Có thể nhập trực tiếp tại đây hoặc quay lại tab Hàng giao.</div>')+'<form id="mReturnSaveForm"><div class="m-return-scroll">'+(rows.map(function(it,idx){
+}(body):isCustomerMode()&&"returns"===state.tab?function(body){var order=currentOrder();if(order){
+var rows=returnedRowsForOrder(order),totalReturnAmount=rows.reduce(function(sum,it){return sum+num(it.returnQty)*num(it.price)},0),hasReturn=rows.length>0
+;body.innerHTML='<section class="m-workflow-step phase23 returns-only"><b>Hàng trả · xem/sửa lại</b><span>Chỉ hiển thị sản phẩm đã có SL trả. Muốn thêm hàng trả mới, quay lại tab Hàng giao.</span></section>'+(hasReturn?"":'<div class="m-empty soft returns-only-empty"><b>Chưa có hàng trả cho đơn này.</b><span>Nhập số lượng trả ở tab Hàng giao nếu khách trả hàng.</span><button type="button" data-workflow-tab="products">Quay lại Hàng giao</button></div>')+(hasReturn?'<form id="mReturnSaveForm"><div class="m-return-scroll returns-only-list">'+rows.map(function(it,idx){
 var qtyText=" · SL giao "+money(it.deliveredQty),amount=num(it.returnQty)*num(it.price)
-;return'<div class="m-product-row phase23"><div><b>'+esc(it.productCode)+"</b><small>"+esc(it.productName)+"</small><em>Giá "+money(it.price)+qtyText+" · Tiền trả "+money(amount)+"</em>"+hidden(idx,"productCode",it.productCode)+hidden(idx,"productName",it.productName)+hidden(idx,"price",it.price)+hidden(idx,"deliveredQty",it.deliveredQty)+'</div><label class="m-return-inline-input"><span>SL trả</span><input data-m-return-field="returnQty" data-idx="'+idx+'" type="number" min="0" step="1" value="'+esc(it.returnQty)+'" aria-label="Số lượng trả"></label></div>'
-}).join("")||'<div class="m-empty">Đơn chưa có dòng hàng để nhập trả hàng.</div>')+'</div><div class="m-return-total"><span>Tổng hàng trả</span><b id="mReturnTotal">'+money(totalReturnAmount)+"</b></div></form>"
-;var formEl=el("mReturnSaveForm");formEl.addEventListener("submit",function(event){saveReturn(event,{nextTab:"payment",successMessage:"Đã cập nhật hàng trả, chuyển sang Thu tiền"})
-}),bindReturnTotal(formEl,"mReturnTotal"),el("mSkipReturns")&&el("mSkipReturns").addEventListener("click",function(){
+;return'<div class="m-product-row phase23 returned-only"><div><b>'+esc(it.productCode)+"</b><small>"+esc(it.productName)+"</small><em>Giá "+money(it.price)+qtyText+" · Tiền trả "+money(amount)+"</em>"+hidden(idx,"productCode",it.productCode)+hidden(idx,"productName",it.productName)+hidden(idx,"price",it.price)+hidden(idx,"deliveredQty",it.deliveredQty)+'</div><label class="m-return-inline-input"><span>SL trả</span><input data-m-return-field="returnQty" data-idx="'+idx+'" type="number" min="0" step="1" value="'+esc(it.returnQty)+'" aria-label="Số lượng trả"></label></div>'
+}).join("")+'</div><div class="m-return-total"><span>Tổng hàng trả</span><b id="mReturnTotal">'+money(totalReturnAmount)+"</b></div></form>":'<div class="m-return-total empty"><span>Tổng hàng trả</span><b>0</b></div>')
+;var formEl=el("mReturnSaveForm");formEl&&(formEl.addEventListener("submit",function(event){saveReturn(event,{nextTab:"payment",
+successMessage:"Đã cập nhật hàng trả, chuyển sang Thu tiền"})}),bindReturnTotal(formEl,"mReturnTotal")),el("mSkipReturns")&&el("mSkipReturns").addEventListener("click",function(){
 window.confirm("Xóa hàng trả sẽ ghi số lượng trả về 0 cho đơn này. Bạn chắc chắn muốn tiếp tục?")&&saveReturn({preventDefault:function(){},forceZero:!0},{nextTab:"payment",
 successMessage:"Đã xóa hàng trả, chuyển sang Thu tiền"})})}else body.innerHTML='<div class="m-empty">Chọn khách/đơn ở danh sách cần giao trước.</div>'
 }(body):isCustomerMode()&&"payment"===state.tab?function(body){var order=currentOrder();if(order){
@@ -261,7 +263,10 @@ productName:item.productName||item.name||saved.productName||saved.name||"",barco
 price:linePrice(saved)||linePrice(item),returnQty:num(saved.returnQty||saved.qtyReturn||saved.returnQuantity||saved.returnedQty||item.returnQty||item.qtyReturn||0),
 deliveredQty:lineQty(item)}}):(Array.isArray(rows)?rows:[]).map(function(item){return{productCode:item.productCode||item.code||item.productId||"",
 productName:item.productName||item.name||"",barcode:item.barcode||item.productBarcode||"",price:linePrice(item),
-returnQty:num(item.returnQty||item.qtyReturn||item.returnQuantity||item.returnedQty||0),deliveredQty:lineQty(item)}})}function collectReturnItems(options){
+returnQty:num(item.returnQty||item.qtyReturn||item.returnQuantity||item.returnedQty||0),deliveredQty:lineQty(item)}})}function returnedRowsForOrder(order){return function(order){
+var rows=returnsForOrder(order);return!rows.length&&Array.isArray(order&&order.returnItems)&&order.returnItems.length&&(rows=order.returnItems.map(function(item){
+return Object.assign({},item,{salesOrderId:order.salesOrderId,salesOrderCode:order.salesOrderCode,orderId:order.orderId,orderCode:order.orderCode,customerCode:order.customerCode,
+customerName:order.customerName})})),buildReturnInputRows(order,rows)}(order).filter(function(it){return num(it.returnQty)>0})}function collectReturnItems(options){
 "boolean"==typeof options&&(options={forceZero:options}),options=options||{};var byIdx={};return document.querySelectorAll("[data-m-return-field]").forEach(function(input){
 var idx=input.getAttribute("data-idx"),field=input.getAttribute("data-m-return-field");byIdx[idx]=byIdx[idx]||{},byIdx[idx][field]=input.value}),
 Object.keys(byIdx).map(function(idx){var row=byIdx[idx];return options.forceZero&&(row.returnQty=0),options.forceFull&&(row.returnQty=num(row.deliveredQty)),row})}
