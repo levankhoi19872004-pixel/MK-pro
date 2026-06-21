@@ -1,0 +1,7 @@
+metric,before_requests,after_requests,notes
+open_app_before,2,1,"Trước: orders + returns; sau: chỉ orders ở tab Đơn giao"
+open_app_after,1,1,"Initial load không gọi /api/delivery/returns hoặc /api/mobile/debts"
+switch_returns_after,0,1,"Hàng trả lazy-load theo đơn đang chọn, dùng cache 60s nếu đã tải"
+switch_debt_after,0,1,"Công nợ lazy-load khi vào tab Công nợ, dùng cache 60s nếu đã tải"
+quick_refresh_after,variable,1,"Nút Tải bị throttle 1200ms để tránh spam request"
+select_order_after,1,0,"Chọn đơn chỉ render tab Sản phẩm giao, không tự gọi returnOrders"

@@ -403,10 +403,37 @@ function deliveryActorCodeOf(body = {}) {
   return text(body.actorDeliveryStaffCode || body.actorStaffCode || body.authenticatedStaffCode || '');
 }
 
-function assertDeliveryOwnership(order = {}, body = {}) {
-  if (!body.enforceDeliveryOwnership) return;
+function isDeliveryOwnershipEnforced(body = {}) {
+  return Boolean(body && body.enforceDeliveryOwnership);
+}
+
+function deliveryAssignedCodeOf(row = {}) {
+  return text(
+    row.deliveryStaffCode
+    || row.deliveryCode
+    || row.nvghCode
+    || row.shipperCode
+    || row.driverCode
+    || row.staffDeliveryCode
+  );
+}
+
+function deliveryOwnershipMatches(row = {}, body = {}) {
+  if (!isDeliveryOwnershipEnforced(body)) return true;
   const actorCode = deliveryActorCodeOf(body);
-  const assignedCode = text(order.deliveryStaffCode || order.shipperCode || order.driverCode || order.staffDeliveryCode);
+  const assignedCode = deliveryAssignedCodeOf(row);
+  return Boolean(actorCode && assignedCode && compact(assignedCode) === compact(actorCode));
+}
+
+function filterDeliveryOwnedRows(rows = [], body = {}) {
+  if (!isDeliveryOwnershipEnforced(body)) return rows;
+  return (Array.isArray(rows) ? rows : []).filter((row) => deliveryOwnershipMatches(row, body));
+}
+
+function assertDeliveryOwnership(order = {}, body = {}) {
+  if (!isDeliveryOwnershipEnforced(body)) return;
+  const actorCode = deliveryActorCodeOf(body);
+  const assignedCode = deliveryAssignedCodeOf(order);
 
   if (!actorCode) {
     const err = new Error('Không xác định được mã nhân viên giao hàng đang đăng nhập');

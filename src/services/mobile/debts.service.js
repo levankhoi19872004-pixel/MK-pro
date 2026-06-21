@@ -24,26 +24,43 @@ function deliveryStaffName(user = {}) {
 }
 
 function scopeDebtQuery(query = {}, mobileUser = {}) {
-  const collectorType = text(query.collectorType || mobileUser.role || '').toLowerCase() === 'delivery' ? 'delivery' : 'sales';
+  const role = text(mobileUser.role || '').toLowerCase();
+  const requestedCollectorType = text(query.collectorType || '').toLowerCase();
+  const collectorType = role === 'delivery'
+    ? 'delivery'
+    : role === 'sales'
+      ? 'sales'
+      : requestedCollectorType === 'delivery'
+        ? 'delivery'
+        : requestedCollectorType === 'sales'
+          ? 'sales'
+          : '';
   const scopedQuery = {
     ...query,
-    collectorType,
     includePendingCollections: query.includePendingCollections ?? '1',
     page: query.page || 1,
     limit: query.limit || 30,
     includePaid: query.includePaid || '0'
   };
+  if (collectorType) scopedQuery.collectorType = collectorType;
 
   if (query.customerKeyword && !scopedQuery.q) scopedQuery.q = query.customerKeyword;
 
-  if (collectorType === 'delivery') {
+  if (role === 'delivery') {
     const code = deliveryStaffCode(mobileUser);
     if (code) scopedQuery.deliveryStaffCode = code;
     else if (deliveryStaffName(mobileUser)) scopedQuery.deliveryStaffName = deliveryStaffName(mobileUser);
-  } else {
+    delete scopedQuery.salesStaffCode;
+    delete scopedQuery.salesmanCode;
+    delete scopedQuery.salesStaffName;
+    delete scopedQuery.salesmanName;
+  } else if (role === 'sales') {
     const code = salesStaffCode(mobileUser);
     if (code) scopedQuery.salesStaffCode = code;
     else if (salesStaffName(mobileUser)) scopedQuery.salesStaffName = salesStaffName(mobileUser);
+    delete scopedQuery.deliveryStaffCode;
+    delete scopedQuery.deliveryCode;
+    delete scopedQuery.deliveryStaffName;
   }
 
   return scopedQuery;

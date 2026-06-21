@@ -9,6 +9,12 @@ const MIN_RETRY_DELAY_MS = 5000;
 const MAX_RETRY_DELAY_MS = 5 * 60 * 1000;
 let syncInFlight = null;
 let autoSyncStarted = false;
+const FINANCIAL_OR_STOCK_OPERATION_TYPES = new Set([
+  'debt_collection_submit',
+  'delivery_return_save',
+  'delivery_payment_save',
+  'delivery_confirm'
+]);
 
 function deviceId() {
   let value = localStorage.getItem(DEVICE_KEY);
@@ -77,11 +83,21 @@ export function isNetworkError(error) {
     || message.includes('load failed');
 }
 
-export function canQueueOfflineOperation() {
+export function isFinancialOrStockOperation(type) {
+  return FINANCIAL_OR_STOCK_OPERATION_TYPES.has(String(type || '').trim());
+}
+
+export function canQueueOfflineOperation(type = '') {
+  if (isFinancialOrStockOperation(type)) return false;
   return isOfflineQueueEnabled();
 }
 
 export async function queueOperation(type, payload = {}, options = {}) {
+  if (isFinancialOrStockOperation(type)) {
+    const error = new Error('Mất kết nối. Vui lòng thử lại khi có mạng. Giao dịch chưa được ghi nhận.');
+    error.code = 'OFFLINE_FINANCIAL_STOCK_QUEUE_DISABLED';
+    throw error;
+  }
   if (!canQueueOfflineOperation(type)) {
     const error = new Error('Ứng dụng đang chạy online-first; thao tác chưa được gửi và không được xếp hàng offline.');
     error.code = 'OFFLINE_QUEUE_DISABLED';
@@ -229,6 +245,7 @@ export function startAutoSync() {
 window.MobileOfflineSync = {
   queueOperation,
   canQueueOfflineOperation,
+  isFinancialOrStockOperation,
   syncPending,
   pendingOperations,
   listOperations,

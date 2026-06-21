@@ -10,6 +10,7 @@ const returnOrderService = require('../returnOrderService');
 const returnOrderRepository = require('../../repositories/returnOrderRepository');
 const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempotentResult } = require('../../utils/mobilePerformance.util');
 const { DeliveryEngine } = require('../../engines/delivery.engine');
+const deliveryReconciliationService = require('../deliveryReconciliation.service');
 const { beginRequest, completeRequest } = require('../requestIdempotency.service');
 const SalesOrder = require('../../models/SalesOrder');
 const MasterOrder = require('../../models/MasterOrder');
@@ -246,7 +247,21 @@ function createMobileDeliveryService(ctx) {
     ).trim();
 
     if (!actorCode) {
-      return { ok: true, date: targetDate, user: {}, items: [], perf: { totalMs: Date.now() - totalStartedAt, rows: 0 } };
+      return {
+        ok: true,
+        success: true,
+        message: 'Chưa xác định được mã NVGH mobile',
+        data: { items: [], orders: [], rows: [], total: 0, date: targetDate },
+        compatibilityRoute: '/api/mobile/delivery/orders',
+        canonicalRoute: '/api/delivery/orders',
+        date: targetDate,
+        user: {},
+        items: [],
+        orders: [],
+        rows: [],
+        total: 0,
+        perf: { totalMs: Date.now() - totalStartedAt, rows: 0 }
+      };
     }
 
     const masterStartedAt = Date.now();
@@ -343,10 +358,18 @@ function createMobileDeliveryService(ctx) {
 
     return {
       ok: true,
+      success: true,
+      message: 'Đã tải đơn giao hàng mobile',
+      data: { items, orders: items, rows: items, total: items.length, date: targetDate },
+      compatibilityRoute: '/api/mobile/delivery/orders',
+      canonicalRoute: '/api/delivery/orders',
       date: targetDate,
       user: { id: mobileUser.id, code: actorCode, name: mobileUser.name || mobileUser.fullName || '' },
       formula: 'deliveryDate = ngày được chọn + deliveryStaffCode = nhân viên đang đăng nhập',
       items,
+      orders: items,
+      rows: items,
+      total: items.length,
       perf: {
         masterQueryMs,
         orderQueryMs,
@@ -421,13 +444,13 @@ function createMobileDeliveryService(ctx) {
     if (cachedResult) return cachedResult;
 
     if (!orderId) {
-      return { statusCode: 400, body: { ok: false, message: 'Thiếu mã đơn giao hàng' } };
+      return { statusCode: 400, body: { ok: false, success: false, message: 'Thiếu mã đơn giao hàng', error: 'MOBILE_DELIVERY_MISSING_ORDER' } };
     }
     if (!['success', 'failed'].includes(status)) {
-      return { statusCode: 400, body: { ok: false, message: 'Trạng thái giao hàng không hợp lệ' } };
+      return { statusCode: 400, body: { ok: false, success: false, message: 'Trạng thái giao hàng không hợp lệ', error: 'MOBILE_DELIVERY_INVALID_STATUS' } };
     }
     if ([collection.cashAmount, collection.bankAmount, collection.rewardAmount].some((value) => value < 0)) {
-      return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được âm' } };
+      return { statusCode: 400, body: { ok: false, success: false, message: 'Tiền thu không được âm', error: 'MOBILE_DELIVERY_NEGATIVE_AMOUNT' } };
     }
 
     const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger, User });
@@ -515,7 +538,14 @@ function createMobileDeliveryService(ctx) {
             ok: true,
             success: true,
             source: 'delivery-engine',
+            compatibilityRoute: '/api/mobile/delivery/confirm',
+            canonicalRoute: '/api/delivery/confirm',
             message: 'Đã cập nhật trạng thái giao hàng',
+            data: {
+              order: confirmed.order,
+              allocation: paymentResult && paymentResult.allocation,
+              returnOrder: returnResult && returnResult.returnOrder
+            },
             order: confirmed.order,
             allocation: paymentResult && paymentResult.allocation,
             returnOrder: returnResult && returnResult.returnOrder
@@ -535,7 +565,8 @@ function createMobileDeliveryService(ctx) {
           ok: false,
           success: false,
           code: err && err.code,
-          message: (err && err.message) || 'Không cập nhật được giao hàng mobile'
+          message: (err && err.message) || 'Không cập nhật được giao hàng mobile',
+          error: (err && err.code) || `MOBILE_DELIVERY_${Number(err && err.status) || 500}`
         }
       };
       return rememberIdempotentResult(idemKey, response);
@@ -567,8 +598,18 @@ function createMobileDeliveryService(ctx) {
         statusCode: 200,
         body: {
           ok: true,
+          success: true,
           source: 'returnOrders',
+          compatibilityRoute: '/api/mobile/delivery/return',
+          canonicalRoute: '/api/delivery/return',
           message: result.message || 'Đã lưu hàng trả vào returnOrders',
+          data: {
+            returnOrder: result.returnOrder || null,
+            returns: result.returns || result.returnOrders || result.rows || [],
+            returnOrders: result.returnOrders || result.returns || result.rows || [],
+            rows: result.rows || result.returns || result.returnOrders || [],
+            order: result.order || null
+          },
           returnOrder: result.returnOrder || null,
           returns: result.returns || result.returnOrders || result.rows || [],
           returnOrders: result.returnOrders || result.returns || result.rows || [],
@@ -578,7 +619,15 @@ function createMobileDeliveryService(ctx) {
       };
       return rememberIdempotentResult(idemKey, response);
     } catch (err) {
-      const response = { statusCode: err.status || 500, body: { ok: false, message: err.message || 'Không tạo được phiếu trả hàng từ app giao hàng' } };
+      const response = {
+        statusCode: err.status || 500,
+        body: {
+          ok: false,
+          success: false,
+          message: err.message || 'Không tạo được phiếu trả hàng từ app giao hàng',
+          error: err.code || `MOBILE_DELIVERY_${err.status || 500}`
+        }
+      };
       return rememberIdempotentResult(idemKey, response);
     }
   }
@@ -593,7 +642,18 @@ function createMobileDeliveryService(ctx) {
       statusCode: 200,
       body: {
         ok: true,
+        success: true,
+        message: 'Đã tải hàng trả mobile',
         source: 'returnOrders',
+        compatibilityRoute: '/api/mobile/delivery/returns',
+        canonicalRoute: '/api/delivery/returns',
+        data: {
+          returns: result.rows || [],
+          returnOrders: result.rows || [],
+          rows: result.rows || [],
+          total: (result.rows || []).length,
+          summary: result.summary || {}
+        },
         returns: result.rows || [],
         returnOrders: result.rows || [],
         rows: result.rows || [],
@@ -607,6 +667,39 @@ function createMobileDeliveryService(ctx) {
     const body = { ...(args.body || {}), status: (args.body && args.body.status) || 'success' };
     return confirmDelivery({ ...args, body });
   }
+
+  async function deliveryReconciliation({ query = {}, mobileUser = {} } = {}) {
+    const actorCode = String(mobileUser.staffCode || mobileUser.code || '').trim();
+    const actorName = String(mobileUser.fullName || mobileUser.name || '').trim();
+    const scopedQuery = {
+      ...(query || {}),
+      deliveryStaffCode: actorCode,
+      deliveryStaffName: actorName,
+      staffCode: actorCode,
+      staffName: actorName,
+      enforceDeliveryOwnership: true
+    };
+    const report = await deliveryReconciliationService.buildDeliveryReconciliationReport(scopedQuery);
+    return {
+      statusCode: 200,
+      body: {
+        ok: true,
+        success: true,
+        message: 'Đã tải đối soát giao hàng mobile',
+        compatibilityRoute: '/api/mobile/delivery/reconciliation',
+        canonicalRoute: '/api/delivery/reconciliation',
+        source: 'delivery-reconciliation-report',
+        data: report,
+        reconciliation: report.summary,
+        summary: report.summary,
+        orders: report.orders,
+        returns: report.returns,
+        collections: report.collections,
+        fundLedgers: report.fundLedgers
+      }
+    };
+  }
+
 
   async function submitCash({ body = {}, mobileUser } = {}) {
     const deliveryStaffCode = mobileUser?.staffCode || mobileUser?.code || body.deliveryStaffCode || body.staffCode;
@@ -631,6 +724,9 @@ function createMobileDeliveryService(ctx) {
         ok: !result.error,
         success: !result.error,
         message: result.error || result.message || 'Đã nộp quỹ',
+        error: result.error ? (result.code || 'MOBILE_DELIVERY_CASH_SUBMIT_FAILED') : undefined,
+        data: result.error ? undefined : result,
+        compatibilityRoute: '/api/mobile/delivery/cash/submit',
         ...result
       }
     };
@@ -642,7 +738,8 @@ function createMobileDeliveryService(ctx) {
     confirmDelivery,
     createReturnFromDelivery,
     submitDeliveryPayment,
-    submitCash
+    submitCash,
+    deliveryReconciliation
   };
 }
 

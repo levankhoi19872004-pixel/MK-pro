@@ -144,7 +144,19 @@ Các biến cookie hiện hữu như `ACCESS_TOKEN_COOKIE_*` và `REFRESH_TOKEN_
 
 Các biến lease, retention, retry backoff và artifact TTL hiện hữu vẫn nằm trong `.env.example`. Prompt 10 không gom toàn bộ chúng vì chưa có đủ test runtime cho mọi nhánh worker; không xóa và không đổi mặc định.
 
-## 10. Thông tin doanh nghiệp dùng cho mẫu in
+
+## 10. Mobile online-first/offline queue
+
+| Biến | Mặc định | Production | Ghi chú |
+|---|---:|---|---|
+| `ENABLE_MOBILE_OFFLINE_SYNC` | `false` | Phải `false` | Cờ legacy; không dùng để tự queue giao dịch giao hàng. |
+| `ENABLE_MOBILE_OFFLINE_QUEUE` | `false` | Phải `false` | Không bật trên Render Web Service khi chưa có đối soát/idempotency offline production-grade. |
+| `ENABLE_MOBILE_LEGACY_SYNC_DRAIN` | `true` | Chỉ bật tạm thời | Chỉ dùng để xử lý operation cũ. Giao dịch tiền/trả hàng/xác nhận giao hàng vẫn bị backend từ chối khi đi qua queue. |
+| `MOBILE_LEGACY_SYNC_DRAIN_UNTIL` | rỗng | Nên đặt hạn đóng | Dùng ISO datetime, ví dụ `2026-07-31T23:59:59+07:00`. |
+
+Chính sách production: app giao hàng là online-first. Khi mất mạng ở luồng trả hàng/thu tiền/xác nhận, hệ thống phải báo lỗi rõ: “Mất kết nối. Vui lòng thử lại khi có mạng. Giao dịch chưa được ghi nhận.” Không được tự động post từ offline queue vì có thể lệch tiền, tồn kho và công nợ nếu chưa có quy trình reconciliation đầy đủ.
+
+## 11. Thông tin doanh nghiệp dùng cho mẫu in
 
 | Biến | Mặc định | Ghi chú |
 |---|---|---|
@@ -156,7 +168,7 @@ Các biến lease, retention, retry backoff và artifact TTL hiện hữu vẫn 
 
 Thứ tự ưu tiên dữ liệu in vẫn giữ nguyên: dữ liệu chứng từ/context được ưu tiên trước, sau đó mới đến company profile mặc định. Không thay đổi giá bán, khuyến mại, VAT, SSE hoặc công thức chứng từ.
 
-## 11. Cách khởi động theo môi trường
+## 12. Cách khởi động theo môi trường
 
 ### Development
 
@@ -190,7 +202,7 @@ npm run worker:background
 
 Worker profile yêu cầu `MONGO_URI` nhưng không yêu cầu JWT vì không phục vụ HTTP.
 
-## 12. Kiểm tra cấu hình trước triển khai
+## 13. Kiểm tra cấu hình trước triển khai
 
 ```bash
 npm run check:syntax
