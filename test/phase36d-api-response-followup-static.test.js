@@ -26,7 +26,9 @@ test('Phase36D delete sales order performs safe early exit for already-deleted o
   assert.match(service, /const earlyDecision = decideSalesOrderDeletion\(order, \{\}/);
   assert.match(service, /earlyDecision\.mode === 'ALREADY_DELETED'/);
   assert.match(service, /ORDER_ALREADY_MERGED/);
-  assert.match(service, /loadSalesOrderDeletionContext\(order\)/);
+  assert.doesNotMatch(service, /const related = await deletionRepository\.loadSalesOrderDeletionContext\(order\)/);
+  assert.match(service, /loadSalesOrderDeletionContext\(order, \{ session \}\)/);
+  assert.match(service, /Phase36D revised: chỉ hydrate dependency context một lần trong transaction/);
 });
 
 test('Phase36D debt customer detail queries use AR ledger projection and lean', () => {
@@ -34,6 +36,13 @@ test('Phase36D debt customer detail queries use AR ledger projection and lean', 
   assert.match(source, /const DEBT_AR_LEDGER_DETAIL_PROJECTION =/);
   assert.match(source, /ArLedger\.find\(match\)\n\s+\.select\(DEBT_AR_LEDGER_DETAIL_PROJECTION\)\n\s+\.sort\(\{ date: -1, createdAt: -1 \}\)\n\s+\.limit\(200\)\n\s+\.lean\(\)/);
   assert.match(source, /ArLedger\.find\(match\)\n\s+\.select\(DEBT_AR_LEDGER_DETAIL_PROJECTION\)\n\s+\.sort\(\{ date: -1, createdAt: -1 \}\)\n\s+\.skip\(skip\)\n\s+\.limit\(limit \+ 1\)\n\s+\.lean\(\)/);
+});
+
+test('Phase36D debt read service projects AR ledger order debt rows', () => {
+  const service = read('src/services/DebtReadService.js');
+  assert.match(service, /const DEBT_ORDER_LEDGER_PROJECTION =/);
+  assert.match(service, new RegExp(String.raw`ArLedger\.find\(\{ \$and: \[activeArFilter\(\), orderRefCondition\(keys\)\] \}\)\s+\.select\(DEBT_ORDER_LEDGER_PROJECTION\)\s+\.limit\(Math\.max\(200, keys\.length \* 50\)\)`));
+  assert.match(service, /const keys = \[\.\.\.new Set\(orderKeys\.map\(text\)\.filter\(Boolean\)\)\]/);
 });
 
 test('Phase36D delivery staff search narrows role-specific alias filters and still uses projection lean', () => {

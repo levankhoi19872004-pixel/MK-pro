@@ -74,39 +74,25 @@ async function deleteSalesOrder(idOrCode, command = {}) {
     };
   }
 
-  const related = await deletionRepository.loadSalesOrderDeletionContext(order);
-  const decision = decideSalesOrderDeletion(order, related, { ...command, ...actor });
-
-  if (!decision.allowed) {
-    return {
-      error: decision.message,
-      status: decision.status || 400,
-      code: decision.code
-    };
-  }
-
-  if (decision.mode === 'ALREADY_DELETED') {
-    return {
-      hardDeleted: false,
-      alreadyDeleted: true,
-      mode: decision.mode,
-      message: decision.message,
-      salesOrder: order
-    };
-  }
-
   const commandId = command.idempotencyKey || makeId('SOD');
   const deletedOrderCode = order.code || order.id || String(idOrCode);
+  let finalDecision = null;
 
   await tx.withMongoTransaction(async (session) => {
+    // Phase36D revised: chỉ hydrate dependency context một lần trong transaction.
+    // Các guard nhẹ ALREADY_DELETED/ORDER_ALREADY_MERGED đã chạy trước đó để tránh mở transaction không cần thiết.
     const relatedInTx = await deletionRepository.loadSalesOrderDeletionContext(order, { session });
     const decisionInTx = decideSalesOrderDeletion(order, relatedInTx, { ...command, ...actor });
+    finalDecision = decisionInTx;
 
     if (!decisionInTx.allowed) {
       const err = new Error(decisionInTx.message || 'Không thể xóa đơn bán');
       err.status = decisionInTx.status || 400;
+      err.code = decisionInTx.code;
       throw err;
     }
+
+    if (decisionInTx.mode === 'ALREADY_DELETED') return;
 
     if (decisionInTx.reverseStock && isStockPosted(order)) {
       await InventoryPostingService.reverseMovement(order, {
@@ -138,8 +124,8 @@ async function deleteSalesOrder(idOrCode, command = {}) {
 
   return {
     hardDeleted: true,
-    mode: decision.mode,
-    message: decision.message || `Đã xóa đơn ${deletedOrderCode}`,
+    mode: finalDecision?.mode,
+    message: finalDecision?.message || `Đã xóa đơn ${deletedOrderCode}`,
     salesOrder: {
       id: order.id,
       code: deletedOrderCode,
