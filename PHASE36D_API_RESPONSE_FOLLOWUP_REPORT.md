@@ -1,13 +1,13 @@
-# PHASE36D — Sửa lại ZIP follow-up tối ưu P0/P1 API chậm sau Phase36C
+# PHASE36D — Bổ sung xử lý log 22:44 dashboard/promotions
 
-## 0. Baseline và phạm vi sửa lại
+## 0. Baseline và phạm vi
 
-- Baseline thực tế: `MK-pro-phase36d-api-response-followup-patched.zip` được tạo từ `MK-pro-phase36c-api-response-p0p1-optimization-patched.zip`.
-- File prompt người dùng gửi lại có nội dung Phase36B/Phase35, nhưng yêu cầu hiện tại là **sửa lại ZIP Phase36D**. Vì vậy lần sửa này **không quay lại Phase35/Phase36B** và không đổi tên artifact về Phase36B.
-- Phạm vi sửa lại: chỉ các điểm còn khớp trực tiếp log chậm P0/P1 sau Phase36C/36D:
-  - `DELETE /api/sales-orders/:id`
-  - `GET /api/debts/customers`
-  - kiểm tra regression các tối ưu Phase36C/36D hiện có
+- Baseline thực tế: `MK-pro-phase36d-api-response-followup-patched.zip` do người dùng tải lên.
+- Người dùng ghi bổ sung log mới dưới tên Phase36B, nhưng file đang dùng tiếp là Phase36D. Vì vậy artifact đầu ra vẫn giữ đúng Phase36D, không quay lại Phase35/Phase36B.
+- Phạm vi bổ sung lần này chỉ xử lý 2 log mới 22:44 ngày 22/06/2026:
+  - `GET /api/dashboard/home` — response 4.014s, `MasterOrder.aggregate` khoảng 2.403s.
+  - `GET /api/promotions/programs` — response 1.662s, `PromotionGroupItem.find({})` khoảng 1.656s.
+- Không đổi business rule, API contract, schema MongoDB; không cache công nợ/tồn kho/giao hàng/xác nhận kế toán.
 
 ---
 
@@ -16,110 +16,152 @@
 | Hạng mục | Kết quả |
 |---|---|
 | Tech stack | Node.js + Express + MongoDB/Mongoose |
-| Kiến trúc | Monolith ERP/DMS, route/controller/service/repository/domain |
-| Module ảnh hưởng trực tiếp | Bán hàng/xóa đơn, công nợ |
-| Module chỉ kiểm tra regression | Giao hàng, xác nhận kế toán, tồn kho, dashboard, khuyến mại, trả hàng |
-| Nguyên tắc giữ nguyên | Không đổi business rule, API contract, schema MongoDB, nguồn chuẩn AR/tồn/quỹ/trả hàng |
+| Kiến trúc | Monolith ERP/DMS, tách route/controller/service/repository/domain |
+| Module sửa trực tiếp | Dashboard home, promotion programs |
+| Module kiểm tra regression | Xóa đơn, công nợ, delivery, stock, confirm-accounting, returns |
+| Nguồn chuẩn không đổi | `inventories`, `arLedgers`, `fundLedgers`, `returnOrders`, `salesOrders`, `masterOrders`, `products` |
 
 ---
 
-## 2. Root cause và xử lý theo API
+## 2. Root cause bổ sung theo log 22:44
 
-### P0 — `DELETE /api/sales-orders/:id`
-
-| Mục | Chi tiết |
-|---|---|
-| File | `src/domain/lifecycle/SalesOrderDeletionService.js`, `src/repositories/salesOrderDeletion.repository.js` |
-| Hàm | `deleteSalesOrder()`, `loadSalesOrderDeletionContext()` |
-| Query log liên quan | `StockTransaction.find`/dependency lookup theo order keys, trước đó có log `$in` lặp và nhiều query |
-| Nguyên nhân chậm | Flow cần kiểm tra nhiều dependency trước khi xóa. Phase36D trước đã giảm `find().limit(20)` sang `findOne().select().lean()`, nhưng service vẫn còn hydrate dependency context ngoài transaction rồi hydrate lại trong transaction. |
-| Ảnh hưởng nghiệp vụ | Xóa đơn stock-posted có thể mất nhiều giây; người dùng dễ bấm lại hoặc tưởng treo. |
-| Sửa lại trong ZIP Phase36D | Giữ early guard cho `ALREADY_DELETED`/`ORDER_ALREADY_MERGED`, sau đó chỉ hydrate dependency context **một lần trong transaction**. Khi dependency không cho xóa, transaction throw lỗi và rollback an toàn. |
-| Không đổi | Vẫn giữ hard delete policy, reverse stock qua `InventoryPostingService.reverseMovement()`, không xóa đơn đã gộp/đã phát sinh tài chính/trả hàng có giá trị. |
-
-### P1 — `GET /api/debts/customers`
+### P1 — `GET /api/dashboard/home`
 
 | Mục | Chi tiết |
 |---|---|
-| File | `src/services/DebtReadService.js`, `src/services/reportLegacy.service.source/part-02.jsfrag`, `src/services/reportLegacy.service.source/part-03.jsfrag`, `src/services/reportLegacy.service.js` |
-| Hàm | `loadOrderDebtRows()`, `debtReport()`, `debtArLedger()` |
-| Query log liên quan | `ArLedger.find orderId $in` |
-| Nguyên nhân chậm | Query AR theo order keys dễ trả full document/payload lớn. Phase36D trước đã thêm projection cho report legacy, nhưng `DebtReadService.loadOrderDebtRows()` vẫn chưa có projection. |
-| Sửa lại trong ZIP Phase36D | Thêm `DEBT_ORDER_LEDGER_PROJECTION` và `.select(DEBT_ORDER_LEDGER_PROJECTION)` cho `ArLedger.find({ $and: [activeArFilter(), orderRefCondition(keys)] })`. |
-| Không đổi | Vẫn deduplicate `orderKeys`, vẫn đọc nguồn chuẩn `arLedgers`, không cache công nợ realtime. |
+| File | `src/services/dashboard/HomeDashboardService.js`, `src/services/dashboard/DeliveryDashboardQuery.js`, `src/services/dashboard/DashboardMongoExpressions.js`, `src/controllers/dashboardController.js` |
+| Hàm | `HomeDashboardService.getHomeDashboard()`, `DeliveryDashboardQuery.aggregateDeliveryMonth()` |
+| Query log nổi bật | `MasterOrder.aggregate([{ $match: { status/lifecycleStatus/deliveryStatus: { $nin: [...] } } }, ...])` |
+| Nguyên nhân chậm | `aggregateDeliveryMonth()` đã có `businessDateStages(dateFrom, dateTo, ['deliveryDate','date'])`, nhưng stage đầu tiên vẫn là `$match` trạng thái. Việc chuẩn hóa ngày bằng `$set` trên `_dashboardBusinessDate` khiến MongoDB khó tận dụng index ngày ở stage sớm, nên `MasterOrder.aggregate` vẫn có nguy cơ scan nhiều `masterOrders` trước khi lọc tháng. |
+| Ảnh hưởng nghiệp vụ | Dashboard cache miss có thể kéo response lên 4s+, làm trang home chậm dù route `/` đã lazy-load shell UI. |
+| Xử lý bổ sung | Thêm `dateRangePrefilter(dateFrom, dateTo, ['deliveryDate','date'])` ngay sau `activeDocumentFilter()`, trước `businessDateStages()`. Prefilter hỗ trợ `YYYY-MM-DD`, BSON Date, legacy `DD/MM/YYYY`, `DD-MM-YYYY`, `DD.MM.YYYY`, và fallback `createdAt`. Sau đó vẫn giữ `businessDateStages()` để lọc chính xác, tránh loại sai dữ liệu legacy. |
+| Cache | Giữ TTL cache ngắn 45s cho dashboard summary qua `DashboardCacheService`. Không cache công nợ/tồn kho realtime riêng lẻ. |
 
-### P0/P1 đã xử lý ở Phase36C/Phase36D và chỉ kiểm tra regression
+#### Field dashboard cần projection/giữ lại trước group/hydrate
 
-| API | Trạng thái |
+`DeliveryDashboardQuery.aggregateDeliveryMonth()` chỉ giữ các field cần cho dashboard giao hàng tháng:
+
+```text
+id, code, deliveryDate, date,
+deliveryStaffCode, deliveryStaffName, deliveryCode, deliveryName, nvghCode, nvghName,
+salesStaffCode, salesStaffName, salesmanCode, nvbhCode,
+status, deliveryStatus,
+totalAmount, amount, grandTotal, total, value,
+orderCount, childOrderCount,
+childOrderIds, orderIds, salesOrderIds, children, childOrders, salesOrders, orderCodes, salesOrderCodes
+```
+
+### P1 — `GET /api/promotions/programs`
+
+| Mục | Chi tiết |
 |---|---|
-| `POST /api/master-orders/delivery-today/confirm-accounting` | Phase36C đã selected-first + duplicate-submit guard. Không sửa sâu thêm để tránh rủi ro AR/fund. |
-| `GET /api/delivery/orders` | Phase36C đã filter sớm/projection/lean/canonical master link. Không tách payload list/detail ở lần sửa này vì có rủi ro tab hàng giao/trả hàng. |
-| `GET /api/dashboard/home` và `GET /` | Phase36C đã lazy-load/cached summary an toàn. Không cache công nợ/tồn kho realtime. |
-| `GET /api/stock` | Phase36C đã tránh `Product.find({})` ở current stock summary và lookup theo alias inventory. |
-| `GET /api/promotions/programs` | Phase36C đã batch `type=all`; không đổi rule tính khuyến mại. |
-| `GET /api/search/delivery-staff` | Phase36D đã giảm alias rộng và giữ projection/lean. |
-| `GET /api/delivery/returns` | Phase36C đã ưu tiên lookup mã `SO...` theo `id`, fallback `$or` khi cần. |
+| File | `src/controllers/promotionController.js`, `src/services/promotionService.js`, `public/js/app/admin/08e-promotion-programs.js` |
+| Hàm | `promotionController.listPrograms()`, `promotionService.listPromotionPrograms()`, `promotionService.listPromotionProgramsByType()` |
+| Query log nổi bật | `PromotionGroupItem.find({})` khoảng 1.656s |
+| Nguyên nhân chậm | Endpoint danh sách chương trình chỉ cần metadata/summary, nhưng code cũ dùng `cfg.Model.find(...).select(...).lean()` lấy toàn bộ dòng group item rồi group trong memory. Với `PromotionGroupItem` nhiều dòng, payload và hydration qua Node vẫn lớn dù đã projection/lean. |
+| Ảnh hưởng nghiệp vụ | Màn khuyến mại tải danh sách chậm, đặc biệt khi tab group item có nhiều sản phẩm. |
+| Xử lý bổ sung | Thay list-summary bằng `aggregatePromotionProgramSummaries()` dùng `$project + $group` trong MongoDB. Endpoint danh sách chỉ trả metadata nhẹ theo chương trình; chi tiết rule/group item vẫn load qua `/api/promotions/programs/:programCode` khi người dùng mở chương trình. |
+| Cache | Giữ cache ngắn `PROMOTION_PROGRAM_CACHE_TTL_MS` mặc định 30s; cache được clear khi create/update/delete/cancel promotion rule/group item/group rule. |
+
+#### Field promotions cần projection/summary
+
+Danh sách chương trình chỉ cần:
+
+```text
+programCode, programName, startDate, endDate, isActive, productCodes, lineCount, sources
+```
+
+Chi tiết rule/group item vẫn dùng các projection sẵn có:
+
+```text
+PROMOTION_PRODUCT_RULE_PROJECTION
+PROMOTION_GROUP_ITEM_PROJECTION
+PROMOTION_GROUP_RULE_PROJECTION
+```
 
 ---
 
-## 3. File đã sửa trong lần sửa lại ZIP Phase36D
+## 3. File đã sửa lần bổ sung 22:44
 
 | File | Thay đổi |
 |---|---|
-| `src/domain/lifecycle/SalesOrderDeletionService.js` | Bỏ hydrate dependency context ngoài transaction; chỉ hydrate một lần trong transaction sau early guard. |
-| `src/services/DebtReadService.js` | Thêm projection cho query `ArLedger.find` theo order keys. |
-| `test/phase36d-api-response-followup-static.test.js` | Tăng test tĩnh từ 5 lên 6, kiểm tra context delete chỉ hydrate một lần trong transaction và `DebtReadService` có projection. |
-| `PHASE36D_API_RESPONSE_FOLLOWUP_REPORT.md` | Cập nhật báo cáo đúng trạng thái sửa lại ZIP Phase36D. |
-
-Các file Phase36D trước đó vẫn giữ nguyên trong ZIP:
-
-- `src/repositories/salesOrderDeletion.repository.js`
-- `src/repositories/searchRepository.js`
-- `src/services/reportLegacy.service.source/part-02.jsfrag`
-- `src/services/reportLegacy.service.source/part-03.jsfrag`
-- `src/services/reportLegacy.service.js`
-- `config/source-bundles.json`
-- `PHASE36D_MONGODB_INDEX_RECOMMENDATIONS.md`
+| `src/services/dashboard/DeliveryDashboardQuery.js` | Thêm `dateRangePrefilter()` và áp dụng vào `MasterOrder.aggregate` trước `businessDateStages()`. |
+| `src/services/promotionService.js` | Thêm `aggregatePromotionProgramSummaries()`; thay list programs summary từ `Model.find(...).lean()` sang aggregate `$project + $group`. |
+| `test/phase36d-api-response-followup-static.test.js` | Tăng test Phase36D từ 6 lên 8, bổ sung static check cho dashboard MasterOrder prefilter và promotion program aggregate summary. |
+| `PHASE36D_API_RESPONSE_FOLLOWUP_REPORT.md` | Cập nhật root cause riêng cho `MasterOrder.aggregate` và `PromotionGroupItem.find({})`. |
+| `PHASE36D_MONGODB_INDEX_RECOMMENDATIONS.md` | Bổ sung khuyến nghị index cho `masterorders` và promotion collections. |
 
 ---
 
 ## 4. Diff Old/New quan trọng
 
-### 4.1. `DELETE /api/sales-orders/:id` — không hydrate context 2 lần
+### 4.1. Dashboard — thêm prefilter ngày trước normalized date stage
 
 ```diff
--  const related = await deletionRepository.loadSalesOrderDeletionContext(order);
-   const actor = actorFromCommand(command);
--  const decision = decideSalesOrderDeletion(order, related, { ...command, ...actor });
-+  const earlyDecision = decideSalesOrderDeletion(order, {}, { ...command, ...actor });
-+  if (earlyDecision.mode === 'ALREADY_DELETED') { ... }
-+  if (!earlyDecision.allowed && ['ORDER_ALREADY_MERGED'].includes(earlyDecision.code)) { ... }
- 
-   const commandId = command.idempotencyKey || makeId('SOD');
-+  let finalDecision = null;
- 
-   await tx.withMongoTransaction(async (session) => {
-+    // Phase36D revised: chỉ hydrate dependency context một lần trong transaction.
-     const relatedInTx = await deletionRepository.loadSalesOrderDeletionContext(order, { session });
-     const decisionInTx = decideSalesOrderDeletion(order, relatedInTx, { ...command, ...actor });
-+    finalDecision = decisionInTx;
+ async function aggregateDeliveryMonth(dateFrom, dateTo) {
++  const masterDatePrefilter = dateRangePrefilter(dateFrom, dateTo, ['deliveryDate', 'date']);
+   const masters = await MasterOrder.aggregate([
+     { $match: activeDocumentFilter() },
++    ...(masterDatePrefilter ? [masterDatePrefilter] : []),
+     ...businessDateStages(dateFrom, dateTo, ['deliveryDate', 'date']),
+     {
+       $project: {
 ```
 
-### 4.2. `GET /api/debts/customers` — projection cho `DebtReadService`
+### 4.2. Dashboard — prefilter vẫn giữ legacy/fallback để không mất dữ liệu
 
 ```diff
-+const DEBT_ORDER_LEDGER_PROJECTION = 'id code type source sourceId sourceType refType refId refCode orderId orderCode salesOrderId salesOrderCode customerCode customerName debit credit amount status date createdAt salesStaffCode salesStaffName salesmanCode salesmanName nvbhCode nvbhName deliveryStaffCode deliveryStaffName deliveryCode deliveryName nvghCode nvghName';
-+
- async function loadOrderDebtRows(orderKeys = [], options = {}) {
-   const keys = [...new Set(orderKeys.map(text).filter(Boolean))];
-   if (!keys.length) return [];
--  let query = ArLedger.find({ $and: [activeArFilter(), orderRefCondition(keys)] }).limit(Math.max(200, keys.length * 50));
-+  let query = ArLedger.find({ $and: [activeArFilter(), orderRefCondition(keys)] })
-+    .select(DEBT_ORDER_LEDGER_PROJECTION)
-+    .limit(Math.max(200, keys.length * 50));
-   query = withSession(query, options.session);
-   return query.lean();
- }
++function dateRangePrefilter(dateFrom, dateTo, fields = []) {
++  const uniqueFields = unique([...fields, 'createdAt']);
++  ...
++  for (const field of uniqueFields) {
++    clauses.push({ [field]: { $gte: fromText, $lte: toText } });
++    clauses.push({ [field]: { $gte: startDate, $lt: endDate } });
++    if (legacyMonthRegex) clauses.push({ [field]: { $regex: legacyMonthRegex } });
++  }
++  return clauses.length ? { $match: { $or: clauses } } : null;
++}
+```
+
+### 4.3. Promotions — bỏ find-all summary, group trong MongoDB
+
+```diff
+-  const rows = await cfg.Model.find(buildProgramSearchFilter(query, cfg))
+-    .select(PROMOTION_PROGRAM_LIST_PROJECTION)
+-    .sort(cfg.sort)
+-    .lean();
+-  const groups = new Map();
+-  ... group trong memory ...
+-  const result = Array.from(groups.values()).map(toProgramSummary)
++  const rows = await aggregatePromotionProgramSummaries(query, cfg);
++  const result = rows.map((row) => {
++    const group = {
++      programCode: row.programCode,
++      programName: row.programName || (cfg.type === 'groupItems' ? row.programCode : ''),
++      startDate: row.startDate || '',
++      endDate: row.endDate || '',
++      isActive: row.isActive !== false,
++      productCodes: row.productCodes || [],
++      sources: row.sources || [cfg.source],
++      lineCount: row.lineCount || 0
++    };
++    return toProgramSummary(group);
++  })
+```
+
+### 4.4. Promotions — aggregate summary field tối thiểu
+
+```diff
++async function aggregatePromotionProgramSummaries(query = {}, cfg = promotionTypeConfig(query.type)) {
++  const rows = await cfg.Model.aggregate([
++    { $match: buildProgramSearchFilter(query, cfg) },
++    { $project: { programCode, programName, startDate, endDate, productCode, isActiveRow } },
++    { $match: { programCode: { $gt: '' } } },
++    { $group: { _id: '$programCode', productCodes: { $addToSet: '$productCode' }, lineCount: { $sum: 1 } } },
++    { $project: { programCode: '$_id', programName: 1, startDate: 1, endDate: 1, productCodes: 1, isActive: 1, lineCount: 1 } }
++  ]).allowDiskUse(true).exec();
++  return rows.map((row) => ({ ...row, sources: [cfg.source] }));
++}
 ```
 
 ---
@@ -129,9 +171,11 @@ Các file Phase36D trước đó vẫn giữ nguyên trong ZIP:
 | Lệnh | Kết quả |
 |---|---|
 | `npm run check:syntax` | PASS — `SYNTAX_OK 972 JavaScript files` |
-| `node --test test/phase36d-api-response-followup-static.test.js` | PASS — 6/6 |
-| `node --test test/phase36c-api-response-p0p1-static.test.js test/phase36d-api-response-followup-static.test.js test/sales-order-delete-static-boundary.test.js test/sales-order-delete-policy.test.js` | PASS — 19/19 |
-| `node scripts/build-source-bundles.js --check --target=src/services/reportLegacy.service.js` | NOT RUN/PASS không xác nhận — môi trường hiện thiếu `node_modules/terser`; lần sửa lại này không thay đổi source bundle/reportLegacy generated. |
+| `node --test test/phase36d-api-response-followup-static.test.js` | PASS — 8/8 |
+| `node --test test/phase36b-delivery-performance-static.test.js test/phase36c-api-response-p0p1-static.test.js test/phase36d-api-response-followup-static.test.js` | PASS — 20/20 |
+| `node --test test/sales-order-delete-policy.test.js test/sales-order-delete-static-boundary.test.js test/sales-order-delete-list-visibility-static.test.js test/mobile-sales-delete-list-visibility-static.test.js` | PASS — 12/12 |
+
+Không có MongoDB live trong sandbox nên không chạy được explain/benchmark thật trên Atlas.
 
 ---
 
@@ -141,55 +185,86 @@ Không có MongoDB live/Render API Monitor trong sandbox nên **không ghi số 
 
 | API | Before từ log thực tế | After | Ghi chú |
 |---|---:|---:|---|
-| `confirm-accounting` | 15.013s | Cần đo lại trên Render API Monitor sau deploy | Phase36C đã selected-first; Phase36D kiểm tra regression. |
-| `DELETE /api/sales-orders/:id` | 3.805s | Cần đo lại trên Render API Monitor sau deploy | Sửa lại Phase36D giảm hydrate dependency context 2 lần, giữ guard nghiệp vụ. |
-| `delivery/orders` | 3.841s | Cần đo lại trên Render API Monitor sau deploy | Phase36C đã xử lý; chưa tách list/detail ở Phase36D. |
-| `dashboard/home` | 3.683s | Cần đo lại trên Render API Monitor sau deploy | Phase36C đã lazy/cache summary an toàn. |
-| `GET /` | 1.711s | Cần đo lại trên Render API Monitor sau deploy | Phase36C đã delay dashboard load. |
-| `stock` | 1.763s | Cần đo lại trên Render API Monitor sau deploy | Phase36C đã xử lý current stock summary. |
-| `promotions/programs` | 1.213s | Cần đo lại trên Render API Monitor sau deploy | Phase36C đã batch `type=all`. |
-| `debts/customers` | 1.283s | Cần đo lại trên Render API Monitor sau deploy | Phase36D sửa lại thêm projection trong `DebtReadService`. |
-| `delivery-staff search` | 1.158s | Cần đo lại trên Render API Monitor sau deploy | Phase36D đã giảm alias code filter. |
-| `delivery/returns` | 1.074s | Cần đo lại trên Render API Monitor sau deploy | Phase36C đã xử lý lookup SO. |
+| `GET /api/dashboard/home` | 4.014s | Cần đo lại trên Render API Monitor sau deploy | Đã thêm prefilter ngày trước `MasterOrder.aggregate` normalized stage; giữ cache summary 45s. |
+| `MasterOrder.aggregate` trong dashboard | 2.403s | Cần đo lại trên Atlas explain/API Monitor | Cần kiểm tra index `deliveryDate/date/createdAt/status`. |
+| `GET /api/promotions/programs` | 1.662s | Cần đo lại trên Render API Monitor sau deploy | Đã thay summary list từ `find({})` sang aggregate `$project + $group`. |
+| `PromotionGroupItem.find({})` trong programs | 1.656s | Cần đo lại trên Atlas explain/API Monitor | Path danh sách không còn dùng find-all summary; detail vẫn find theo `programCode`. |
+| `confirm-accounting` | 15.013s | Cần đo lại trên Render API Monitor sau deploy | Giữ tối ưu Phase36C selected-first. |
+| `DELETE /api/sales-orders/:id` | 3.805s | Cần đo lại trên Render API Monitor sau deploy | Giữ sửa Phase36D trước đó. |
+| `delivery/orders` | 3.841s | Cần đo lại trên Render API Monitor sau deploy | Giữ sửa Phase36C. |
+| `stock` | 1.763s | Cần đo lại trên Render API Monitor sau deploy | Giữ sửa Phase36C. |
+| `debts/customers` | 1.283s | Cần đo lại trên Render API Monitor sau deploy | Giữ sửa Phase36D trước đó. |
+| `delivery-staff search` | 1.158s | Cần đo lại trên Render API Monitor sau deploy | Giữ sửa Phase36D trước đó. |
+| `delivery/returns` | 1.074s | Cần đo lại trên Render API Monitor sau deploy | Giữ sửa Phase36C. |
 
 ---
 
-## 7. Regression checklist
+## 7. Kết luận cache ngắn
+
+| Khu vực | Có dùng cache ngắn? | Lý do |
+|---|---|---|
+| Dashboard summary | Có, TTL mặc định 45s | Chỉ là số tổng quan; giảm các lần load lặp API Monitor/trang home; có `refresh=1` để bypass. |
+| Promotion programs list | Có, TTL mặc định 30s | Danh sách CTKM ít thay đổi; đã có `clearPromotionProgramCache()` trong create/update/delete/cancel. |
+| Công nợ realtime | Không | Cần chính xác theo `arLedgers`. |
+| Tồn kho realtime | Không | Cần chính xác theo `inventories`. |
+| Giao hàng/xác nhận kế toán | Không | Dữ liệu thao tác trực tiếp, tránh stale state. |
+
+---
+
+## 8. Hướng dẫn đo lại trên Render API Monitor sau deploy
+
+Sau deploy ZIP này, cần đo lại tối thiểu 2 API mới báo chậm:
+
+```text
+GET /api/dashboard/home
+GET /api/promotions/programs?type=all
+GET /api/promotions/programs?type=groupItems
+```
+
+Cần kiểm tra trong API Monitor:
+
+```text
+MasterOrder.aggregate duration
+PromotionGroupItem.find duration có còn xuất hiện ở endpoint list hay không
+PromotionGroupItem.aggregate duration nếu monitor ghi aggregate
+Response time tổng
+Số query/request
+Cache hit lần gọi thứ 2 trong vòng 30–45 giây
+```
+
+Trên MongoDB Atlas nên chạy explain cho:
+
+```javascript
+db.masterorders.explain('executionStats').aggregate([...dashboard pipeline...])
+db.promotiongroupitems.explain('executionStats').aggregate([...program summary pipeline...])
+```
+
+---
+
+## 9. Regression checklist
 
 | Nghiệp vụ | Trạng thái | Ghi chú |
 |---|---|---|
-| Bán hàng | OK | Không đổi tạo/sửa đơn. |
-| Xóa đơn | OK | Vẫn qua `SalesOrderDeletionService`; hard delete rule giữ nguyên. |
+| Bán hàng | OK | Không sửa flow tạo/sửa đơn. |
+| Xóa đơn | OK | Không đổi hard delete/reverse stock. |
 | Giao hàng | OK | Không đổi quyền NVGH/list giao. |
 | Trả hàng | OK | Không đổi `returnOrders` SSoT. |
 | Đối soát | OK | Không sửa logic đối soát. |
-| Kế toán xác nhận | OK | Không sửa sâu flow AR/fund sau Phase36C. |
-| Công nợ | OK | Vẫn đọc `arLedgers`; chỉ giảm field trả về ở query đọc. |
-| Tồn kho | OK | Không đổi nguồn chuẩn `inventories`; delete vẫn gọi reverse qua posting service. |
+| Kế toán xác nhận | OK | Không sửa AR/fund trong lần bổ sung này. |
+| Công nợ | OK | Không cache công nợ realtime. |
+| Tồn kho | OK | Không dùng `inventorySnapshots`, không cache tồn realtime. |
 | Quỹ | OK | Không sửa fund ledger. |
-| Khuyến mại | OK | Không sửa rule tính khuyến mại. |
-| Dashboard | OK | Không cache thêm dữ liệu realtime. |
+| Khuyến mại | OK | Danh sách dùng aggregate summary; detail/tính khuyến mại vẫn giữ rule hiện tại. |
+| Dashboard | OK | Thêm prefilter ngày và giữ cache summary ngắn. |
 | App mobile | OK | Không đổi mobile API contract. |
 | Import/export | OK | Không sửa import/export. |
 
 ---
 
-## 8. Rủi ro còn lại
+## 10. Rủi ro còn lại
 
-1. `DELETE /api/sales-orders/:id`: dependency check vẫn phải đọc nhiều collection để đảm bảo không xóa sai đơn đã có trả hàng/công nợ/quỹ. Lần sửa này giảm một vòng hydrate context, không gom bằng aggregate vì rủi ro nghiệp vụ.
-2. `confirm-accounting`: chưa bulk toàn bộ AR/fund vì dễ sai idempotency nếu thiếu kiểm chứng live data.
-3. `delivery/orders`: chưa tách API list/detail; nếu tiếp tục chậm trên Render thì phase sau nên tách payload danh sách khỏi chi tiết hàng.
-4. `/api/debts/customers`: không cache công nợ realtime; cần index/explain trên Atlas.
-5. Cần đo lại tất cả endpoint trong bảng trên bằng Render API Monitor sau deploy.
-6. Cần kiểm tra các index trong `PHASE36D_MONGODB_INDEX_RECOMMENDATIONS.md` trước khi tạo trên Atlas.
-
----
-
-## 9. Kết luận
-
-ZIP Phase36D đã được sửa lại đúng hướng:
-
-- Không quay lại Phase35/Phase36B dù prompt đính kèm đang ghi nhầm tên phase.
-- Giảm thêm query/payload ở hai điểm còn đáng sửa an toàn: xóa đơn bán và công nợ.
-- Giữ nguyên các tối ưu Phase36C/36D trước đó.
-- Syntax và test tĩnh liên quan đều PASS.
+1. `MasterOrder.aggregate`: prefilter đã giảm scan trước stage normalized date, nhưng hiệu quả thật phụ thuộc index và format ngày thực tế trong `masterorders`.
+2. `PromotionGroupItem` list summary: chuyển sang aggregate `$group`; cần đo lại trên Atlas để xác nhận giảm network/payload và query time.
+3. `PromotionGroupItem.find` vẫn còn ở API chi tiết và tính khuyến mại, nhưng có filter theo `programCode` hoặc `productCode`; không còn là path list summary find-all.
+4. Chưa tách sâu dashboard thành nhiều API nhỏ vì có rủi ro đổi API contract dashboard cũ.
+5. Không ghi số after vì sandbox không có MongoDB live/Render API Monitor.

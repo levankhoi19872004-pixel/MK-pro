@@ -127,3 +127,71 @@ db.users.dropIndex({ deliveryStaffCode: 1, isActive: 1 })
 db.users.dropIndex({ staffCode: 1, isActive: 1 })
 db.users.dropIndex({ code: 1, isActive: 1 })
 ```
+
+## 5. `masterorders` — dashboard `MasterOrder.aggregate`
+
+### Query liên quan
+- `GET /api/dashboard/home`
+- `DeliveryDashboardQuery.aggregateDeliveryMonth()`
+- `$match` trạng thái active + prefilter `deliveryDate/date/createdAt` + normalized business date stage.
+
+### Index đề xuất cần kiểm tra bằng explain
+
+```javascript
+db.masterorders.createIndex({ deliveryDate: 1, status: 1, lifecycleStatus: 1, deliveryStatus: 1 })
+db.masterorders.createIndex({ date: 1, status: 1, lifecycleStatus: 1, deliveryStatus: 1 })
+db.masterorders.createIndex({ createdAt: 1, status: 1, lifecycleStatus: 1, deliveryStatus: 1 })
+db.masterorders.createIndex({ deliveryStaffCode: 1, deliveryDate: 1, status: 1 })
+```
+
+### Lý do
+- Log 22:44 ghi nhận `MasterOrder.aggregate` khoảng 2.403s.
+- Phase36D bổ sung prefilter ngày trước normalized date stage; index trên các field ngày/status giúp MongoDB giảm số document phải đưa vào `$set/$project/$group`.
+
+### Rủi ro
+- Nếu dữ liệu `deliveryDate/date` có nhiều format legacy, index string/date có thể không tối ưu đồng đều.
+- Index nhiều trên `masterorders` làm tăng chi phí ghi khi tạo/gộp/xác nhận đơn tổng.
+
+### Rollback
+
+```javascript
+db.masterorders.dropIndex({ deliveryDate: 1, status: 1, lifecycleStatus: 1, deliveryStatus: 1 })
+db.masterorders.dropIndex({ date: 1, status: 1, lifecycleStatus: 1, deliveryStatus: 1 })
+db.masterorders.dropIndex({ createdAt: 1, status: 1, lifecycleStatus: 1, deliveryStatus: 1 })
+db.masterorders.dropIndex({ deliveryStaffCode: 1, deliveryDate: 1, status: 1 })
+```
+
+## 6. Promotion collections — `/api/promotions/programs`
+
+### Query liên quan
+- `GET /api/promotions/programs?type=all`
+- `GET /api/promotions/programs?type=groupItems`
+- `promotionService.aggregatePromotionProgramSummaries()` dùng `$match`, `$project`, `$group` theo `programCode`.
+
+### Index đề xuất cần kiểm tra bằng explain
+
+```javascript
+db.promotiongroupitems.createIndex({ programCode: 1, productCode: 1 })
+db.promotiongroupitems.createIndex({ groupCode: 1, productCode: 1 })
+db.promotiongroupitems.createIndex({ isActive: 1, programCode: 1 })
+db.promotionproductrules.createIndex({ programCode: 1, productCode: 1 })
+db.promotiongrouprules.createIndex({ programCode: 1, groupCode: 1, minAmount: 1 })
+```
+
+### Lý do
+- Log 22:44 ghi nhận `PromotionGroupItem.find({})` khoảng 1.656s.
+- Phase36D đã thay list-summary từ `find({})` sang aggregate summary; các index trên `programCode/productCode/isActive` hỗ trợ cả list summary, detail theo chương trình và tính khuyến mại theo sản phẩm.
+
+### Rủi ro
+- Collection khuyến mại thường nhỏ hơn đơn bán, nên cần explain trước khi tạo quá nhiều index.
+- Không tạo unique index vì dữ liệu import có thể có nhiều dòng cùng chương trình/sản phẩm theo thời gian.
+
+### Rollback
+
+```javascript
+db.promotiongroupitems.dropIndex({ programCode: 1, productCode: 1 })
+db.promotiongroupitems.dropIndex({ groupCode: 1, productCode: 1 })
+db.promotiongroupitems.dropIndex({ isActive: 1, programCode: 1 })
+db.promotionproductrules.dropIndex({ programCode: 1, productCode: 1 })
+db.promotiongrouprules.dropIndex({ programCode: 1, groupCode: 1, minAmount: 1 })
+```

@@ -63,3 +63,24 @@ test('Phase36D keeps Phase36C baseline markers and does not revert optimized API
   assert.match(read('src/controllers/promotionController.js'), /req\.query\?\.type === 'all'/);
   assert.match(read('public/js/bootstrap/03-tab-loader.js'), /initialTabName === 'dashboardTab' \? 650 : 0/);
 });
+
+test('Phase36D 22:44 dashboard master aggregate has index-friendly date prefilter before normalized date stage', () => {
+  const deliveryQuery = read('src/services/dashboard/DeliveryDashboardQuery.js');
+  assert.match(deliveryQuery, /function dateRangePrefilter\(dateFrom, dateTo, fields = \[\]\)/);
+  assert.match(deliveryQuery, /const masterDatePrefilter = dateRangePrefilter\(dateFrom, dateTo, \['deliveryDate', 'date'\]\)/);
+  assert.match(deliveryQuery, /\.aggregate\(\[\n\s+\{ \$match: activeDocumentFilter\(\) \},\n\s+\.\.\.\(masterDatePrefilter \? \[masterDatePrefilter\] : \[\]\),\n\s+\.\.\.businessDateStages/);
+  assert.match(deliveryQuery, /deliveryDate: 1/);
+  assert.match(deliveryQuery, /childOrderIds: 1/);
+  assert.doesNotMatch(deliveryQuery, /inventorySnapshots/);
+});
+
+test('Phase36D 22:44 promotion program list replaces wide find-all summaries with grouped aggregate projection', () => {
+  const service = read('src/services/promotionService.js');
+  assert.match(service, /async function aggregatePromotionProgramSummaries/);
+  assert.match(service, /\$project: \{\n\s+programCode: \{ \$toUpper: firstNonBlankAggregateExpression/);
+  assert.match(service, /\$group: \{\n\s+_id: '\$programCode'/);
+  assert.match(service, /productCodes: \{ \$addToSet: '\$productCode' \}/);
+  assert.match(service, /const rows = await aggregatePromotionProgramSummaries\(query, cfg\)/);
+  assert.doesNotMatch(service, /const rows = await cfg\.Model\.find\(buildProgramSearchFilter\(query, cfg\)\)/);
+  assert.match(service, /clearPromotionProgramCache\(\)/);
+});

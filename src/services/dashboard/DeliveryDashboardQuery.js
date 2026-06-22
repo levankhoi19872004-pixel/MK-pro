@@ -30,6 +30,38 @@ function unique(values = []) {
   return [...new Set(values.map(text).filter(Boolean))];
 }
 
+
+function parseYmd(value) {
+  const match = String(value || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return { year: match[1], month: match[2], day: match[3] };
+}
+
+function dateRangePrefilter(dateFrom, dateTo, fields = []) {
+  const fromText = text(dateFrom).slice(0, 10);
+  const toText = text(dateTo).slice(0, 10);
+  if (!fromText || !toText) return null;
+  const uniqueFields = unique([...fields, 'createdAt']);
+  const fromParts = parseYmd(fromText);
+  const toParts = parseYmd(toText);
+  const clauses = [];
+  const startDate = new Date(`${fromText}T00:00:00.000Z`);
+  const endDate = new Date(`${toText}T00:00:00.000Z`);
+  if (Number.isFinite(startDate.getTime()) && Number.isFinite(endDate.getTime())) {
+    endDate.setUTCDate(endDate.getUTCDate() + 1);
+  }
+  const sameMonth = fromParts && toParts && fromParts.year === toParts.year && fromParts.month === toParts.month;
+  const legacyMonthRegex = sameMonth ? new RegExp(`^(\\d{1,2}[\\/\\-.]${fromParts.month}[\\/\\-.]${fromParts.year}|${fromParts.year}[\\/\\-.]${fromParts.month})`) : null;
+  for (const field of uniqueFields) {
+    clauses.push({ [field]: { $gte: fromText, $lte: toText } });
+    if (Number.isFinite(startDate.getTime()) && Number.isFinite(endDate.getTime())) {
+      clauses.push({ [field]: { $gte: startDate, $lt: endDate } });
+    }
+    if (legacyMonthRegex) clauses.push({ [field]: { $regex: legacyMonthRegex } });
+  }
+  return clauses.length ? { $match: { $or: clauses } } : null;
+}
+
 function referenceValues(value) {
   if (!value) return [];
   if (Array.isArray(value)) return value.flatMap(referenceValues);
@@ -154,8 +186,10 @@ function addDeliveryDocument(acc, source = {}, fallback = {}, uniqueKey = '') {
 async function aggregateDeliveryMonth(dateFrom, dateTo) {
   // MasterOrder xác định phạm vi chuyến giao; SalesOrder cung cấp trạng thái từng đơn con.
   // Chỉ 2 query Mongo theo batch, không N+1 và không đọc snapshot.
+  const masterDatePrefilter = dateRangePrefilter(dateFrom, dateTo, ['deliveryDate', 'date']);
   const masters = await MasterOrder.aggregate([
     { $match: activeDocumentFilter() },
+    ...(masterDatePrefilter ? [masterDatePrefilter] : []),
     ...businessDateStages(dateFrom, dateTo, ['deliveryDate', 'date']),
     {
       $project: {

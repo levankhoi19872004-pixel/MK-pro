@@ -323,33 +323,106 @@ function programNameFromRow(row = {}, fallback = '') {
   return clean(row.programName || row.name || row.content || row.programContent || row.description || fallback);
 }
 
+
+function aggregateStringExpression(field) {
+  return {
+    $trim: {
+      input: {
+        $convert: {
+          input: `$${field}`,
+          to: 'string',
+          onError: '',
+          onNull: ''
+        }
+      }
+    }
+  };
+}
+
+function firstNonBlankAggregateExpression(fields = [], fallback = '') {
+  return fields.reduceRight((next, field) => ({
+    $let: {
+      vars: { current: aggregateStringExpression(field) },
+      in: {
+        $cond: [
+          { $gt: [{ $strLenCP: '$$current' }, 0] },
+          '$$current',
+          next
+        ]
+      }
+    }
+  }), fallback);
+}
+
+async function aggregatePromotionProgramSummaries(query = {}, cfg = promotionTypeConfig(query.type)) {
+  const rows = await cfg.Model.aggregate([
+    { $match: buildProgramSearchFilter(query, cfg) },
+    {
+      $project: {
+        programCode: { $toUpper: firstNonBlankAggregateExpression(['programCode', 'groupCode', 'code']) },
+        programName: firstNonBlankAggregateExpression(['programName', 'name', 'content', 'programContent', 'description']),
+        startDate: firstNonBlankAggregateExpression(['startDate']),
+        endDate: firstNonBlankAggregateExpression(['endDate']),
+        productCode: firstNonBlankAggregateExpression(['productCode', 'codeProduct']),
+        isActiveRow: { $cond: [{ $eq: ['$isActive', false] }, 0, 1] }
+      }
+    },
+    { $match: { programCode: { $gt: '' } } },
+    { $sort: { programCode: 1, productCode: 1, startDate: 1 } },
+    {
+      $group: {
+        _id: '$programCode',
+        programName: { $first: '$programName' },
+        startDate: { $min: '$startDate' },
+        endDate: { $max: '$endDate' },
+        productCodes: { $addToSet: '$productCode' },
+        isActiveValue: { $min: '$isActiveRow' },
+        lineCount: { $sum: 1 }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        programCode: '$_id',
+        programName: 1,
+        startDate: 1,
+        endDate: 1,
+        productCodes: {
+          $filter: {
+            input: '$productCodes',
+            as: 'code',
+            cond: { $gt: ['$$code', ''] }
+          }
+        },
+        isActive: { $eq: ['$isActiveValue', 1] },
+        lineCount: 1
+      }
+    },
+    { $sort: { programCode: 1 } }
+  ]).allowDiskUse(true).exec();
+  return rows.map((row) => ({ ...row, sources: [cfg.source] }));
+}
+
 async function listPromotionPrograms(query = {}) {
   const cfg = promotionTypeConfig(query.type);
   const cacheKey = JSON.stringify({ type: cfg.type, q: clean(query.q) });
   const cached = promotionProgramCache.get(cacheKey);
   if (PROMOTION_PROGRAM_CACHE_TTL_MS > 0 && cached && cached.expiresAt > Date.now()) return cached.value;
 
-  const rows = await cfg.Model.find(buildProgramSearchFilter(query, cfg))
-    .select(PROMOTION_PROGRAM_LIST_PROJECTION)
-    .sort(cfg.sort)
-    .lean();
-  const groups = new Map();
-  function ensure(code) {
-    const programCode = normalizeProgramCode(code);
-    if (!programCode) return null;
-    if (!groups.has(programCode)) {
-      groups.set(programCode, { programCode, programName: '', startDate: '', endDate: '', isActive: true, productCodes: new Set(), sources: new Set(), lineCount: 0 });
-    }
-    return groups.get(programCode);
-  }
-  for (const row of rows) {
-    const group = ensure(row.programCode || row.groupCode || row.code);
-    if (!group) continue;
-    mergeProgramMeta(group, row, cfg.source);
-    if (!group.programName && cfg.type === 'groupItems') group.programName = group.programCode;
-    if (row.productCode) group.productCodes.add(clean(row.productCode));
-  }
-  const result = Array.from(groups.values()).map(toProgramSummary).sort((a, b) => String(a.programCode).localeCompare(String(b.programCode), 'vi'));
+  const rows = await aggregatePromotionProgramSummaries(query, cfg);
+  const result = rows.map((row) => {
+    const group = {
+      programCode: row.programCode,
+      programName: row.programName || (cfg.type === 'groupItems' ? row.programCode : ''),
+      startDate: row.startDate || '',
+      endDate: row.endDate || '',
+      isActive: row.isActive !== false,
+      productCodes: row.productCodes || [],
+      sources: row.sources || [cfg.source],
+      lineCount: row.lineCount || 0
+    };
+    return toProgramSummary(group);
+  }).sort((a, b) => String(a.programCode).localeCompare(String(b.programCode), 'vi'));
   if (PROMOTION_PROGRAM_CACHE_TTL_MS > 0) promotionProgramCache.set(cacheKey, { expiresAt: Date.now() + PROMOTION_PROGRAM_CACHE_TTL_MS, value: result });
   return result;
 }
