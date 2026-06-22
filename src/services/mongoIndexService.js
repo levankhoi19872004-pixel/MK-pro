@@ -412,6 +412,11 @@ Object.assign(INDEX_DEFINITIONS, {
     [{ tenantId: 1, code: 1 }, { name: 'uniq_stock_counts_tenant_code', unique: true }],
     [{ tenantId: 1, warehouseCode: 1, countDate: -1 }, { name: 'idx_stock_counts_warehouse_date' }]
   ],
+  dashboardDailyStats: [
+    [{ date: 1 }, { name: 'uniq_dashboard_daily_stats_date', unique: true }],
+    [{ month: 1, date: 1 }, { name: 'idx_dashboard_daily_stats_month_date' }],
+    [{ updatedAt: -1 }, { name: 'idx_dashboard_daily_stats_updated_at' }]
+  ],
   reportingSnapshots: [
     [{ tenantId: 1, projectionType: 1, date: 1, dimensionKey: 1 }, { name: 'uniq_reporting_snapshot_dimension', unique: true }],
     [{ tenantId: 1, projectionType: 1, date: -1 }, { name: 'idx_reporting_snapshot_type_date' }]

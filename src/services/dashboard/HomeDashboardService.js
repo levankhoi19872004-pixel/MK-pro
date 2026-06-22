@@ -8,6 +8,7 @@ const SalesDashboardQuery = require('./SalesDashboardQuery');
 const DebtDashboardQuery = require('./DebtDashboardQuery');
 const DeliveryDashboardQuery = require('./DeliveryDashboardQuery');
 const DashboardCacheService = require('./DashboardCacheService');
+const DashboardDailyStatsService = require('./DashboardDailyStatsService');
 const { firstValidDateExpression } = require('./DashboardMongoExpressions');
 
 const DELIVERED_STATUSES = DeliveryDashboardQuery.DELIVERED_STATUSES;
@@ -453,7 +454,7 @@ async function getHomeDashboard({ month, force = false } = {}) {
   const cacheVersion = await DashboardCacheService.freshnessVersion();
   if (!force) {
     const cached = DashboardCacheService.read(cacheKey, cacheVersion);
-    if (cached) return { ...cached, cacheHit: true };
+    if (cached && cached.meta?.source !== 'fallback-live-query') return { ...cached, cacheHit: true };
   }
 
   const queryDurationMs = {};
@@ -600,7 +601,14 @@ async function getSalesStaffDashboard({ month, force = false } = {}) {
   const cacheVersion = await DashboardCacheService.freshnessVersion();
   if (!force) {
     const cached = DashboardCacheService.read(cacheKey, cacheVersion);
-    if (cached) return { ...cached, cacheHit: true };
+    if (cached && cached.meta?.source !== 'fallback-live-query') return { ...cached, cacheHit: true };
+  }
+
+  const targets = await SalesTargetService.listByPeriod(range.period);
+  const readModel = await DashboardDailyStatsService.buildSalesStaffDashboard({ range: { ...range, today }, targets });
+  if (readModel) {
+    DashboardCacheService.write(cacheKey, cacheVersion, readModel);
+    return readModel;
   }
 
   const queryDurationMs = {};
@@ -615,7 +623,6 @@ async function getSalesStaffDashboard({ month, force = false } = {}) {
 
   const [
     activeStaff,
-    targets,
     monthlySalesResult,
     monthlyPendingSalesResult,
     todaySalesResult,
@@ -623,7 +630,6 @@ async function getSalesStaffDashboard({ month, force = false } = {}) {
     currentDebtResult
   ] = await Promise.all([
     timed('activeStaff', () => listActiveStaff()),
-    timed('targets', () => SalesTargetService.listByPeriod(range.period)),
     timed('monthlySales', () => SalesDashboardQuery.aggregateSales(range.dateFrom, range.dateTo, { accountingScope: 'confirmed' })),
     timed('monthlyPendingSales', () => SalesDashboardQuery.aggregateSales(range.dateFrom, range.dateTo, { accountingScope: 'pending' })),
     timed('todaySales', () => SalesDashboardQuery.aggregateSales(today, today, { accountingScope: 'active' })),
@@ -674,9 +680,14 @@ async function getSalesStaffDashboard({ month, force = false } = {}) {
       pendingSales: monthlyPendingSalesResult.source,
       returns: monthlyReturnsResult.source,
       debt: currentDebtResult.source,
+      dashboardStats: 'fallback-live-query',
       snapshot: false
     },
-    metrics: { queryDurationMs },
+    metrics: { queryDurationMs, strategy: 'phase38-fallback-live-query' },
+    meta: {
+      source: 'fallback-live-query',
+      reason: 'dashboardDailyStats_missing_or_incomplete'
+    },
     generatedAt: new Date().toISOString(),
     cacheHit: false,
     cacheEnabled: DashboardCacheService.enabled()
@@ -693,7 +704,13 @@ async function getDeliveryDashboard({ month, force = false } = {}) {
   const cacheVersion = await DashboardCacheService.freshnessVersion();
   if (!force) {
     const cached = DashboardCacheService.read(cacheKey, cacheVersion);
-    if (cached) return { ...cached, cacheHit: true };
+    if (cached && cached.meta?.source !== 'fallback-live-query') return { ...cached, cacheHit: true };
+  }
+
+  const readModel = await DashboardDailyStatsService.buildDeliveryDashboard({ range: { ...range, today } });
+  if (readModel) {
+    DashboardCacheService.write(cacheKey, cacheVersion, readModel);
+    return readModel;
   }
 
   const queryDurationMs = {};
@@ -737,10 +754,16 @@ async function getDeliveryDashboard({ month, force = false } = {}) {
     sources: {
       deliveryMonth: deliveryMonthResult.source,
       deliveryToday: deliveryTodayResult.source,
+      dashboardStats: 'fallback-live-query',
       snapshot: false
+    },
+    meta: {
+      source: 'fallback-live-query',
+      reason: 'dashboardDailyStats_missing_or_incomplete'
     },
     metrics: {
       queryDurationMs,
+      strategy: 'phase38-fallback-live-query',
       deliveryMonth: deliveryMonthResult.perf || null,
       deliveryToday: deliveryTodayResult.perf || null
     },

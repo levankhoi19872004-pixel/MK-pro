@@ -5,6 +5,7 @@ const ReturnOrder = require('../../models/ReturnOrder');
 const FundLedger = require('../../models/FundLedger');
 const SalesTargetService = require('./SalesTargetService');
 const DashboardCacheService = require('./DashboardCacheService');
+const DashboardDailyStatsService = require('./DashboardDailyStatsService');
 const dateUtil = require('../../utils/date.util');
 const {
   activeDocumentFilter,
@@ -248,12 +249,18 @@ async function getOverview({ month, force = false } = {}) {
   const cacheVersion = await DashboardCacheService.freshnessVersion();
   if (!force) {
     const cached = DashboardCacheService.read(cacheKey, cacheVersion);
-    if (cached) return { ...cached, cacheHit: true };
+    if (cached && cached.meta?.source !== 'fallback-live-query') return { ...cached, cacheHit: true };
+  }
+
+  const targets = await SalesTargetService.listByPeriod(range.period);
+  const readModel = await DashboardDailyStatsService.buildOverviewDashboard({ range, targets });
+  if (readModel) {
+    DashboardCacheService.write(cacheKey, cacheVersion, readModel);
+    return readModel;
   }
 
   const startedAt = Date.now();
-  const [targets, confirmedSales, pendingSales, todaySales, returns, deliveryToday, cash] = await Promise.all([
-    SalesTargetService.listByPeriod(range.period),
+  const [confirmedSales, pendingSales, todaySales, returns, deliveryToday, cash] = await Promise.all([
     aggregateSalesRoot(range.dateFrom, range.dateTo, 'confirmed'),
     aggregateSalesRoot(range.dateFrom, range.dateTo, 'pending'),
     aggregateSalesRoot(range.today, range.today, 'active'),
@@ -326,11 +333,16 @@ async function getOverview({ month, force = false } = {}) {
       sales: 'mongo:orders:root-summary',
       returns: 'mongo:returnOrders:root-summary',
       cash: 'mongo:fundLedgers:today-summary',
+      dashboardStats: 'fallback-live-query',
       snapshot: false
     },
     metrics: {
       durationMs: Date.now() - startedAt,
-      strategy: 'phase37-overview-split-api'
+      strategy: 'phase38-fallback-live-query'
+    },
+    meta: {
+      source: 'fallback-live-query',
+      reason: 'dashboardDailyStats_missing_or_incomplete'
     },
     generatedAt: new Date().toISOString(),
     cacheHit: false,

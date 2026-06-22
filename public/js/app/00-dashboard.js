@@ -201,11 +201,15 @@
     }
     const generated=data.generatedAt?new Date(data.generatedAt).toLocaleString('vi-VN'):'—';
     const cached=data.cacheHit===true?' · cache ngắn':'';
-    const source=data.sources?.snapshot===false?' · nguồn trực tiếp MongoDB':'';
+    const sourceName=String(data.meta?.source||data.sources?.dashboardStats||'');
+    const source=sourceName==='dashboardDailyStats'
+      ? ' · read model dashboardDailyStats'
+      : (sourceName==='fallback-live-query' ? ' · fallback live-query' : (data.sources?.snapshot===false?' · nguồn trực tiếp MongoDB':''));
+    const updatedAt=data.meta?.updatedAt?` · dữ liệu tổng hợp cập nhật ${new Date(data.meta.updatedAt).toLocaleString('vi-VN')}`:'';
     const mode=data.mode==='overview'?' · overview nhẹ':'';
     const warnings=Array.isArray(data.dataQuality?.warnings)?data.dataQuality.warnings:[];
     const warningText=warnings.length?` · Ghi chú: ${warnings.join('; ')}`:'';
-    setState(`KPI cập nhật lúc ${generated}${mode}${source}${cached}${warningText}`,warnings.length>0);
+    setState(`KPI cập nhật lúc ${generated}${mode}${source}${updatedAt}${cached}${warningText}`,warnings.length>0 || sourceName==='fallback-live-query');
   }
 
   async function fetchDashboardJson(url,signal){

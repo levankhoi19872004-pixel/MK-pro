@@ -61,6 +61,7 @@ module.exports = {
   inventoryReservations: require('./InventoryReservation'),
   stockCounts: require('./StockCount'),
   reportingSnapshots: require('./ReportingSnapshot'),
+  dashboardDailyStats: require('./DashboardDailyStat'),
   mobileSyncOperations: require('./MobileSyncOperation'),
   visitPlans: require('./VisitPlan'),
   visitExecutions: require('./VisitExecution'),

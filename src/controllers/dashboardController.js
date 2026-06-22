@@ -75,7 +75,7 @@ const overview = asyncHandler(async (req, res) => {
       durationMs: Date.now() - startedAt,
       cacheHit: result.cacheHit === true,
       generatedAt: result.generatedAt,
-      strategy: 'phase37-overview'
+      strategy: 'phase38-read-model-first', source: result.meta?.source || result.sources?.dashboardStats || 'unknown'
     }
   });
 });
@@ -93,7 +93,7 @@ const salesStaff = asyncHandler(async (req, res) => {
       durationMs: Date.now() - startedAt,
       cacheHit: result.cacheHit === true,
       generatedAt: result.generatedAt,
-      strategy: 'phase37-lazy-sales-staff'
+      strategy: 'phase38-read-model-first-sales-staff', source: result.meta?.source || result.sources?.dashboardStats || 'unknown'
     }
   });
 });
@@ -111,7 +111,7 @@ const deliverySummary = asyncHandler(async (req, res) => {
       durationMs: Date.now() - startedAt,
       cacheHit: result.cacheHit === true,
       generatedAt: result.generatedAt,
-      strategy: 'phase37-lazy-delivery-summary'
+      strategy: 'phase38-read-model-first-delivery-summary', source: result.meta?.source || result.sources?.dashboardStats || 'unknown'
     }
   });
 });
