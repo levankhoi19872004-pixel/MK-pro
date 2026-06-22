@@ -30,6 +30,128 @@ function normalizeCount(value) {
   return Number.isFinite(number) ? Math.max(0, Math.round(number)) : 0;
 }
 
+function text(value) {
+  return String(value || '').trim();
+}
+
+function unique(values = []) {
+  return [...new Set(values.map(text).filter(Boolean))];
+}
+
+function parseYmd(value) {
+  const match = String(value || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return { year: match[1], month: match[2], day: match[3] };
+}
+
+function dateRangePrefilter(dateFrom, dateTo, fields = []) {
+  const fromText = text(dateFrom).slice(0, 10);
+  const toText = text(dateTo).slice(0, 10);
+  if (!fromText || !toText) return null;
+
+  const fromParts = parseYmd(fromText);
+  const toParts = parseYmd(toText);
+  const startDate = new Date(`${fromText}T00:00:00.000Z`);
+  const endExclusive = new Date(`${toText}T00:00:00.000Z`);
+  if (Number.isFinite(endExclusive.getTime())) endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+
+  const sameMonth = fromParts && toParts && fromParts.year === toParts.year && fromParts.month === toParts.month;
+  const legacyMonthRegex = sameMonth
+    ? new RegExp(`^(\\d{1,2}[\\/\\-.]${fromParts.month}[\\/\\-.]${fromParts.year}|${fromParts.year}[\\/\\-.]${fromParts.month})`)
+    : null;
+
+  const clauses = [];
+  for (const field of unique([...fields, 'createdAt'])) {
+    clauses.push({ [field]: { $gte: fromText, $lte: toText } });
+    if (Number.isFinite(startDate.getTime()) && Number.isFinite(endExclusive.getTime())) {
+      clauses.push({ [field]: { $gte: startDate, $lt: endExclusive } });
+    }
+    if (legacyMonthRegex && field !== 'createdAt') {
+      clauses.push({ [field]: { $regex: legacyMonthRegex } });
+    }
+  }
+
+  return clauses.length ? { $match: { $or: clauses } } : null;
+}
+
+function salesDashboardProjection() {
+  return {
+    _id: 1,
+    id: 1,
+    code: 1,
+    orderCode: 1,
+    salesOrderCode: 1,
+    documentCode: 1,
+    invoiceCode: 1,
+    orderDate: 1,
+    date: 1,
+    documentDate: 1,
+    createdAt: 1,
+    updatedAt: 1,
+    modifiedAt: 1,
+    stateChangedAt: 1,
+    salesStaffCode: 1,
+    salesStaffName: 1,
+    salesmanCode: 1,
+    salesmanName: 1,
+    nvbhCode: 1,
+    nvbhName: 1,
+    afterPromoAmount: 1,
+    totalAfterPromotion: 1,
+    goodsAmountAfterPromotion: 1,
+    netAmount: 1,
+    totalAmount: 1,
+    grandTotal: 1,
+    amount: 1,
+    total: 1,
+    'items.productCode': 1,
+    'items.code': 1,
+    'items.sku': 1,
+    'items.productId': 1,
+    'items.barcode': 1,
+    'items.quantity': 1,
+    'items.qty': 1,
+    'items.totalQty': 1,
+    'items.stockQuantity': 1,
+    'items.baseQuantity': 1,
+    'items.lineType': 1,
+    'items.type': 1,
+    'items.kind': 1,
+    'items.itemType': 1,
+    'items.isPromo': 1,
+    'items.promoQuantity': 1,
+    'items.promotionQuantity': 1,
+    'items.freeQty': 1,
+    'items.freeQuantity': 1,
+    'items.soldQuantity': 1,
+    'items.saleQuantity': 1,
+    'items.lineAmountAtOrder': 1,
+    'items.finalAmount': 1,
+    'items.netAmount': 1,
+    'items.lineAmount': 1,
+    'items.amount': 1,
+    'items.totalAmount': 1,
+    'items.finalPriceAtOrder': 1,
+    'items.finalPrice': 1,
+    'items.priceAfterTaxAfterPromotion': 1,
+    'items.priceAfterPromotion': 1,
+    'items.priceAfterDiscount': 1,
+    'items.netPrice': 1,
+    'items.unitPrice': 1,
+    'items.salePrice': 1,
+    'items.price': 1,
+    'items.catalogSalePriceAtOrder': 1,
+    'items.priceAfterTaxBeforePromotionAtOrder': 1,
+    'items.listPriceAfterVat': 1,
+    'items.productSnapshot.salePrice': 1,
+    'items.catalogSalePrice': 1,
+    'items.grossPrice': 1,
+    'items.originalPrice': 1,
+    'items.basePrice': 1,
+    'items.listPrice': 1
+  };
+}
+
 function mapStaffRows(rows = [], amountField) {
   return rows.map((row) => ({
     salesStaffCode: String(row?._id?.code || '').trim(),
@@ -300,8 +422,11 @@ function lineValuationStages(quantityExpression, options = {}) {
     {
       $lookup: {
         from: Product.collection.name,
-        localField: '_dashboardProductCode',
-        foreignField: 'code',
+        let: { productCode: '$_dashboardProductCode' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$code', '$$productCode'] } } },
+          { $project: { code: 1, salePrice: 1, price: 1, sellPrice: 1, giaBan: 1 } }
+        ],
         as: '_dashboardProductMatches'
       }
     },
@@ -567,8 +692,13 @@ function buildActualSalesPipeline(dateFrom, dateTo, options = {}) {
     'items.price'
   ];
 
+  const salesDatePrefilter = dateRangePrefilter(dateFrom, dateTo, ['orderDate', 'date', 'documentDate']);
+  const earlyMatchFilters = [...matchFilters];
+  if (salesDatePrefilter?.$match) earlyMatchFilters.push(salesDatePrefilter.$match);
+
   return [
-    { $match: { $and: matchFilters } },
+    { $match: { $and: earlyMatchFilters } },
+    { $project: salesDashboardProjection() },
     ...businessDateStages(dateFrom, dateTo, ['orderDate', 'date', 'documentDate']),
     {
       $set: {
