@@ -15,7 +15,10 @@ const reportCenterState={
   loading:false,
   catalogPromise:null,
   activeRequestController:null,
-  lastTriggerCode:''
+  lastTriggerCode:'',
+  sortKey:'',
+  sortDirection:'asc',
+  visibleRows:[]
 };
 window.__reportCenterState=reportCenterState;
 
@@ -206,7 +209,7 @@ function exportReportExcel(type){
 async function exportActiveReportExcel(){
   const definition=reportCenterState.activeDefinition||reportDefinition(reportCenterState.activeCode);
   if(!definition?.code)return;
-  const filters={};
+  const filters=collectReportDynamicFilters();
   const search=String(reportSearchInput?.value||'').trim();
   if(search)filters.q=search;
   if(definition.dateMode==='month')filters.month=String(reportFromDate?.value||reportToday()).slice(0,7);
@@ -323,6 +326,140 @@ function clearReportCatalogFilters(){
   reportCatalogSearch?.focus();
 }
 
+
+function reportIsDateLess(definition){
+  return definition?.dateMode==='none';
+}
+
+function reportDateControlElements(){
+  return [
+    reportPeriodPreset?.closest?.('label') || null,
+    reportFromDate?.closest?.('label') || null,
+    reportToDate?.closest?.('label') || null
+  ].filter(Boolean);
+}
+
+function syncReportDateControls(definition){
+  const hide=reportIsDateLess(definition);
+  reportDateControlElements().forEach(element=>{
+    element.hidden=hide;
+    element.setAttribute('aria-hidden',hide?'true':'false');
+  });
+}
+
+function reportFilterDefinitions(definition){
+  return Array.isArray(definition?.filters)?definition.filters:[];
+}
+
+function renderReportDynamicFilters(definition){
+  if(!reportDynamicFilters)return;
+  const filters=reportFilterDefinitions(definition);
+  if(!filters.length){
+    reportDynamicFilters.hidden=true;
+    reportDynamicFilters.innerHTML='';
+    return;
+  }
+  reportDynamicFilters.hidden=false;
+  reportDynamicFilters.innerHTML=filters.map(filter=>{
+    const key=reportEscape(filter.key||'');
+    const label=reportEscape(filter.label||filter.key||'Bộ lọc');
+    if(filter.type==='select'){
+      const options=Array.isArray(filter.options)?filter.options:[];
+      return `<label class="ui-toolbar-field report-dynamic-filter-field">${label}<select data-report-filter-key="${key}">${options.map(option=>{
+        const value=Array.isArray(option)?option[0]:option;
+        const textValue=Array.isArray(option)?option[1]:option;
+        return `<option value="${reportEscape(value)}">${reportEscape(textValue)}</option>`;
+      }).join('')}</select></label>`;
+    }
+    return `<label class="ui-toolbar-field report-dynamic-filter-field">${label}<input data-report-filter-key="${key}" placeholder="${reportEscape(filter.placeholder||label)}" autocomplete="off" /></label>`;
+  }).join('');
+  reportDynamicFilters.querySelectorAll('[data-report-filter-key]').forEach(input=>{
+    input.addEventListener('keydown',event=>{
+      if(event.key!=='Enter')return;
+      event.preventDefault();
+      applyReportFilters();
+    });
+    input.addEventListener('change',()=>{
+      reportCenterState.page=1;
+    });
+  });
+}
+
+function collectReportDynamicFilters(){
+  const filters={};
+  reportDynamicFilters?.querySelectorAll('[data-report-filter-key]').forEach(input=>{
+    const key=String(input.dataset.reportFilterKey||'').trim();
+    const value=String(input.value||'').trim();
+    if(key&&value)filters[key]=value;
+  });
+  return filters;
+}
+
+function appendReportFilterParams(params, filters={}){
+  Object.entries(filters).forEach(([key,value])=>{
+    if(value!==undefined&&value!==null&&String(value).trim())params.set(key,String(value).trim());
+  });
+  return params;
+}
+
+function clearReportDynamicFilters(){
+  reportDynamicFilters?.querySelectorAll('[data-report-filter-key]').forEach(input=>{input.value='';});
+}
+
+function syncReportFilterUi(definition){
+  syncReportDateControls(definition);
+  renderReportDynamicFilters(definition);
+}
+
+function isInformationReport(definition){
+  return definition?.category==='information'||String(definition?.code||'').startsWith('info-');
+}
+
+function reportComparableValue(value,column={}){
+  if(value===null||value===undefined)return '';
+  if(['money','number','percent'].includes(column.type)){
+    const number=Number(value);
+    return Number.isFinite(number)?number:0;
+  }
+  if(column.type==='date'){
+    const time=Date.parse(String(value).slice(0,10));
+    return Number.isFinite(time)?time:0;
+  }
+  return String(value).toLocaleLowerCase('vi-VN');
+}
+
+function sortedReportRows(rows=[],columns=[]){
+  const key=reportCenterState.sortKey;
+  if(!key)return [...rows];
+  const column=columns.find(item=>item.key===key)||{};
+  const direction=reportCenterState.sortDirection==='desc'?-1:1;
+  return [...rows].sort((a,b)=>{
+    const left=reportComparableValue(a?.[key],column);
+    const right=reportComparableValue(b?.[key],column);
+    if(typeof left==='number'&&typeof right==='number')return (left-right)*direction;
+    return String(left).localeCompare(String(right),'vi-VN',{numeric:true,sensitivity:'base'})*direction;
+  });
+}
+
+function openReportRowDetail(rowIndex){
+  const definition=reportCenterState.activeDefinition;
+  if(!isInformationReport(definition))return;
+  const row=reportCenterState.visibleRows?.[Number(rowIndex)];
+  if(!row||!reportRowDetailDrawer||!reportRowDetailBody)return;
+  const columns=definition?.columns||[];
+  if(reportRowDetailTitle)reportRowDetailTitle.textContent=`Chi tiết ${definition?.title||'báo cáo'}`;
+  reportRowDetailBody.innerHTML=columns.map(column=>`<div class="report-row-detail-item"><span>${reportEscape(column.label)}</span><strong>${renderReportCell(row[column.key],column)}</strong></div>`).join('');
+  reportRowDetailDrawer.hidden=false;
+  reportRowDetailDrawer.classList.add('show');
+  closeReportRowDetailButton?.focus?.();
+}
+
+function closeReportRowDetail(){
+  if(!reportRowDetailDrawer)return;
+  reportRowDetailDrawer.classList.remove('show');
+  reportRowDetailDrawer.hidden=true;
+}
+
 function setReportLoading(loading,message=''){
   reportCenterState.loading=loading;
   if(reportLoadState){
@@ -332,6 +469,9 @@ function setReportLoading(loading,message=''){
   }
 
   [reportSearchInput,reportPeriodPreset,reportFromDate,reportToDate,reportPageSize].filter(Boolean).forEach(control=>{
+    control.disabled=loading;
+  });
+  reportDynamicFilters?.querySelectorAll('[data-report-filter-key]').forEach(control=>{
     control.disabled=loading;
   });
   [applyReportFiltersButton,clearReportFiltersButton,reloadReportsButton].filter(Boolean).forEach(button=>{
@@ -436,11 +576,19 @@ function renderReportCell(value,column){
 function renderReportTable(payload){
   const definition=payload.definition||reportCenterState.activeDefinition;
   const columns=definition?.columns||[];
-  const rows=payload.rows||[];
-  if(reportTableHead)reportTableHead.innerHTML=`<tr>${columns.map(column=>`<th class="report-col--${reportColumnAlignment(column)}">${reportEscape(column.label)}</th>`).join('')}</tr>`;
+  const rows=sortedReportRows(payload.rows||[],columns);
+  reportCenterState.visibleRows=rows;
+  const informationMode=isInformationReport(definition);
+  if(reportTableHead){
+    reportTableHead.innerHTML=`<tr>${columns.map(column=>{
+      const active=reportCenterState.sortKey===column.key;
+      const indicator=active?(reportCenterState.sortDirection==='desc'?' ▼':' ▲'):'';
+      return `<th class="report-col--${reportColumnAlignment(column)}"><button type="button" class="report-sort-button" data-report-sort-key="${reportEscape(column.key)}" title="Sắp xếp theo ${reportEscape(column.label)}">${reportEscape(column.label)}<span class="report-sort-indicator">${indicator}</span></button></th>`;
+    }).join('')}</tr>`;
+  }
   if(reportTableBody){
     reportTableBody.innerHTML=rows.length
-      ? rows.map((row,rowIndex)=>`<tr data-report-row-index="${rowIndex}">${columns.map(column=>`<td class="report-col--${reportColumnAlignment(column)}">${renderReportCell(row[column.key],column)}</td>`).join('')}</tr>`).join('')
+      ? rows.map((row,rowIndex)=>`<tr data-report-row-index="${rowIndex}" ${informationMode?'class="is-detail-row" tabindex="0" title="Nhấn để xem chi tiết"':''}>${columns.map(column=>`<td class="report-col--${reportColumnAlignment(column)}">${renderReportCell(row[column.key],column)}</td>`).join('')}</tr>`).join('')
       : `<tr><td colspan="${Math.max(columns.length,1)}" class="empty-cell">Không có dữ liệu phù hợp trong kỳ đã chọn.</td></tr>`;
   }
   const meta=payload.meta||{};
@@ -508,6 +656,7 @@ async function loadActiveReport(options={}){
   params.set('limit',String(Number(reportPageSize?.value||50)));
   const search=String(reportSearchInput?.value||'').trim();
   if(search)params.set('q',search);
+  appendReportFilterParams(params,collectReportDynamicFilters());
 
   if(reportCenterState.activeRequestController)reportCenterState.activeRequestController.abort();
   const controller=new AbortController();
@@ -542,6 +691,9 @@ async function loadReports(options={}){
     return null;
   }
 
+  const definition=reportDefinition(reportCenterState.activeCode);
+  if(definition)syncReportFilterUi(definition);
+
   // Khi người dùng chỉ mở tab Báo cáo, chỉ tải danh mục ngoài màn hình chính.
   if(!reportModalIsOpen()&&options.openModal!==true)return reportCenterState.catalog;
   if(options.openModal===true)openReportCenterModal({load:false});
@@ -566,6 +718,10 @@ async function openReport(code,trigger=null){
   reportCenterState.activeDefinition=definition;
   reportCenterState.activePayload=null;
   reportCenterState.page=1;
+  reportCenterState.sortKey='';
+  reportCenterState.sortDirection='asc';
+  closeReportRowDetail();
+  syncReportFilterUi(definition);
   markActiveReportCard();
   if(reportActiveTitle)reportActiveTitle.textContent=definition.title||'Báo cáo';
   if(reportActiveCategory)reportActiveCategory.textContent=reportCategoryMap().get(definition.category)?.title||definition.category||'Báo cáo';
@@ -585,11 +741,18 @@ function applyReportFilters(){
 }
 
 function clearReportFilters(){
+  const definition=reportCenterState.activeDefinition||reportDefinition(reportCenterState.activeCode);
   if(reportSearchInput)reportSearchInput.value='';
-  if(reportPeriodPreset)reportPeriodPreset.value='month';
-  setReportPeriod('month');
+  clearReportDynamicFilters();
+  if(!reportIsDateLess(definition)){
+    if(reportPeriodPreset)reportPeriodPreset.value='month';
+    setReportPeriod('month');
+  }
   if(reportPageSize)reportPageSize.value='50';
   reportCenterState.page=1;
+  reportCenterState.sortKey='';
+  reportCenterState.sortDirection='asc';
+  closeReportRowDetail();
   return loadActiveReport({loadingMessage:'Đang tải dữ liệu mặc định...'});
 }
 
@@ -705,6 +868,39 @@ function bindReportCenterEvents(){
     reportExportCurrentButton.dataset.boundReportCenter='1';
     reportExportCurrentButton.addEventListener('click',exportActiveReportExcel);
   }
+  if(reportTableHead&&!reportTableHead.dataset.boundReportCenterSort){
+    reportTableHead.dataset.boundReportCenterSort='1';
+    reportTableHead.addEventListener('click',event=>{
+      const button=event.target.closest?.('[data-report-sort-key]');
+      if(!button)return;
+      const key=button.dataset.reportSortKey;
+      if(reportCenterState.sortKey===key){
+        reportCenterState.sortDirection=reportCenterState.sortDirection==='asc'?'desc':'asc';
+      }else{
+        reportCenterState.sortKey=key;
+        reportCenterState.sortDirection='asc';
+      }
+      if(reportCenterState.activePayload)renderReportTable(reportCenterState.activePayload);
+    });
+  }
+  if(reportTableBody&&!reportTableBody.dataset.boundReportCenterDetail){
+    reportTableBody.dataset.boundReportCenterDetail='1';
+    reportTableBody.addEventListener('click',event=>{
+      const row=event.target.closest?.('[data-report-row-index]');
+      if(row)openReportRowDetail(row.dataset.reportRowIndex);
+    });
+    reportTableBody.addEventListener('keydown',event=>{
+      if(!['Enter',' '].includes(event.key))return;
+      const row=event.target.closest?.('[data-report-row-index]');
+      if(!row)return;
+      event.preventDefault();
+      openReportRowDetail(row.dataset.reportRowIndex);
+    });
+  }
+  if(closeReportRowDetailButton&&!closeReportRowDetailButton.dataset.boundReportCenterDetail){
+    closeReportRowDetailButton.dataset.boundReportCenterDetail='1';
+    closeReportRowDetailButton.addEventListener('click',closeReportRowDetail);
+  }
   document.querySelectorAll('[data-report-open]').forEach(button=>{
     if(button.dataset.boundReportCenter)return;
     button.dataset.boundReportCenter='1';
@@ -714,6 +910,7 @@ function bindReportCenterEvents(){
 
 function initReportCenter(){
   setReportDefaults();
+  syncReportDateControls(reportCenterState.activeDefinition||{dateMode:'range'});
   initReportExportButtons();
   bindReportCenterEvents();
   setReportCatalogLoading(false);

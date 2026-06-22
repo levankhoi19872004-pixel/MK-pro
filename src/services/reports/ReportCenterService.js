@@ -9,6 +9,7 @@ const ReturnReportService = require('./ReturnReportService');
 const RewardReportService = require('./RewardReportService');
 const DashboardReportService = require('./DashboardReportService');
 const HomeDashboardService = require('../dashboard/HomeDashboardService');
+const InformationReportService = require('./InformationReportService');
 const { paginate, text, toNumber } = require('./ReportDomainUtils');
 
 const REPORT_CATEGORIES = Object.freeze([
@@ -19,7 +20,8 @@ const REPORT_CATEGORIES = Object.freeze([
   { code: 'delivery', title: 'Giao hàng', description: 'Chuyến giao, nhân viên giao hàng và tiền đã thu.' },
   { code: 'finance', title: 'Quỹ', description: 'Sổ quỹ tiền mặt, ngân hàng và số dư theo tài khoản.' },
   { code: 'returns', title: 'Trả hàng', description: 'Phiếu trả, nhập lại kho và giảm công nợ.' },
-  { code: 'control', title: 'Kiểm soát', description: 'Ngoại lệ số liệu và cảnh báo chất lượng dữ liệu.' }
+  { code: 'control', title: 'Kiểm soát', description: 'Ngoại lệ số liệu và cảnh báo chất lượng dữ liệu.' },
+  { code: 'information', title: 'Báo cáo thông tin', description: 'Tra cứu master-data sản phẩm, khách hàng và nhân viên.' }
 ]);
 
 const BUSINESS_ROLES = Object.freeze(['admin', 'manager', 'accountant']);
@@ -228,6 +230,60 @@ const REPORT_DEFINITIONS = Object.freeze([
       ['warehouseReceiveStatus', 'Nhập kho', 'status'], ['returnState', 'Trạng thái trả', 'status'], ['accountingStatus', 'Kế toán', 'status']
     ]
   },
+
+  {
+    code: 'info-products', category: 'information', title: 'Thông tin sản phẩm',
+    description: 'Danh mục sản phẩm, quy cách, đơn vị tính, giá bán, giá vốn và trạng thái hoạt động.',
+    roles: BUSINESS_ROLES, dateMode: 'none', exportType: '',
+    filters: [
+      { key: 'code', label: 'Mã sản phẩm', placeholder: 'VD: 62674330' },
+      { key: 'name', label: 'Tên sản phẩm', placeholder: 'Nhập tên sản phẩm' },
+      { key: 'category', label: 'Nhóm hàng', placeholder: 'Nhóm hàng' },
+      { key: 'status', label: 'Trạng thái', type: 'select', options: [['', 'Tất cả'], ['active', 'Hoạt động'], ['inactive', 'Ngừng hoạt động']] }
+    ],
+    columns: [
+      ['productCode', 'Mã SP'], ['productName', 'Sản phẩm'], ['category', 'Nhóm hàng'], ['brand', 'Nhãn hàng'],
+      ['packing', 'Quy cách', 'number'], ['unit', 'ĐVT'], ['salePrice', 'Giá bán', 'money'], ['costPrice', 'Giá vốn', 'money'],
+      ['status', 'Trạng thái', 'status'], ['createdAt', 'Ngày tạo', 'date'], ['updatedAt', 'Cập nhật cuối', 'date']
+    ]
+  },
+  {
+    code: 'info-customers', category: 'information', title: 'Thông tin khách hàng',
+    description: 'Danh mục khách hàng, tuyến/khu vực, NVBH phụ trách và thông tin đối chiếu nhanh.',
+    roles: BUSINESS_ROLES, dateMode: 'none', exportType: '',
+    filters: [
+      { key: 'code', label: 'Mã khách', placeholder: 'Mã khách hàng' },
+      { key: 'name', label: 'Tên khách', placeholder: 'Tên khách hàng' },
+      { key: 'phone', label: 'SĐT', placeholder: 'Số điện thoại' },
+      { key: 'route', label: 'Tuyến', placeholder: 'Tuyến bán hàng' },
+      { key: 'area', label: 'Khu vực', placeholder: 'Khu vực' },
+      { key: 'salesStaff', label: 'NVBH', placeholder: 'Mã hoặc tên NVBH' }
+    ],
+    columns: [
+      ['customerCode', 'Mã KH'], ['customerName', 'Khách hàng'], ['address', 'Địa chỉ'], ['phone', 'SĐT'],
+      ['route', 'Tuyến'], ['area', 'Khu vực'], ['salesStaffCode', 'Mã NVBH'], ['salesStaffName', 'NVBH'],
+      ['customerType', 'Loại KH'], ['status', 'Trạng thái', 'status'], ['currentDebt', 'Công nợ hiện tại', 'money'],
+      ['monthlySalesAmount', 'Doanh số tháng', 'money'], ['lastOrderDate', 'Mua gần nhất', 'date'], ['createdAt', 'Ngày tạo', 'date']
+    ]
+  },
+  {
+    code: 'info-staffs', category: 'information', title: 'Thông tin nhân viên',
+    description: 'Danh mục nhân viên, bộ phận, chức vụ, tài khoản, vai trò và trạng thái hoạt động.',
+    roles: BUSINESS_ROLES, dateMode: 'none', exportType: '',
+    filters: [
+      { key: 'code', label: 'Mã nhân viên', placeholder: 'Mã NV' },
+      { key: 'name', label: 'Họ tên', placeholder: 'Tên nhân viên' },
+      { key: 'phone', label: 'SĐT', placeholder: 'Số điện thoại' },
+      { key: 'department', label: 'Bộ phận', placeholder: 'Bộ phận' },
+      { key: 'position', label: 'Chức vụ', placeholder: 'Chức vụ' },
+      { key: 'role', label: 'Vai trò', placeholder: 'Vai trò' }
+    ],
+    columns: [
+      ['staffCode', 'Mã NV'], ['staffName', 'Họ tên'], ['department', 'Bộ phận'], ['position', 'Chức vụ'],
+      ['phone', 'SĐT'], ['username', 'Username'], ['role', 'Vai trò'], ['branch', 'Chi nhánh'],
+      ['status', 'Trạng thái', 'status'], ['createdAt', 'Ngày tạo', 'date'], ['lastLoginAt', 'Đăng nhập cuối', 'date']
+    ]
+  },
   {
     code: 'data-quality', category: 'control', title: 'Ngoại lệ và chất lượng dữ liệu',
     description: 'Tập trung các lỗi tồn âm, lệch ledger, đơn thiếu giá, chuyến giao thiếu đơn con và trả hàng chưa có AR.',
@@ -259,6 +315,7 @@ function publicDefinition(definition) {
     description: definition.description,
     dateMode: definition.dateMode,
     exportType: definition.exportType,
+    filters: definition.filters || [],
     columns: definition.columns,
     chart: definition.chart || null
   };
@@ -600,6 +657,21 @@ async function run(code, query = {}, user = {}) {
     case 'returns-detail': {
       const returns = await ReturnReportService.returnReport({ ...baseQuery, full: '1', export: '1' });
       return reportResult(definition, returns.returns || [], returns.summary || {}, query, { dateFrom: returns.dateFrom, dateTo: returns.dateTo, source: returns.source });
+    }
+    case 'info-products': {
+      const info = await InformationReportService.productInformationReport(baseQuery);
+      const rows = (info.products || []).filter((row) => matchesSearch(row, baseQuery));
+      return reportResult(definition, rows, info.summary || summaryForRows(rows, []), query, { source: info.source });
+    }
+    case 'info-customers': {
+      const info = await InformationReportService.customerInformationReport(baseQuery);
+      const rows = (info.customers || []).filter((row) => matchesSearch(row, baseQuery));
+      return reportResult(definition, rows, summaryForRows(rows, ['currentDebt', 'monthlySalesAmount']), query, { source: info.source });
+    }
+    case 'info-staffs': {
+      const info = await InformationReportService.staffInformationReport(baseQuery);
+      const rows = (info.staffs || []).filter((row) => matchesSearch(row, baseQuery));
+      return reportResult(definition, rows, info.summary || summaryForRows(rows, []), query, { source: info.source });
     }
     case 'data-quality': {
       const [sales, inventory, delivery, returns] = await Promise.all([

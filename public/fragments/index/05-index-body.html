@@ -333,6 +333,7 @@
                 <label class="ui-toolbar-field ui-field-search">Tìm trong báo cáo
                   <input id="reportSearchInput" placeholder="Mã, tên, chứng từ..." autocomplete="off" />
                 </label>
+                <div id="reportDynamicFilters" class="report-dynamic-filters" hidden></div>
                 <label class="ui-toolbar-field report-period-field">Kỳ báo cáo
                   <select id="reportPeriodPreset">
                     <option value="currentDay">Hôm nay</option>
@@ -390,6 +391,13 @@
               <span id="reportPageInfo">Trang 0/0</span>
               <button id="reportNextPageButton" class="secondary" type="button">Trang sau</button>
             </div>
+            <aside id="reportRowDetailDrawer" class="report-row-detail-drawer" hidden aria-live="polite">
+              <div class="report-row-detail-head">
+                <strong id="reportRowDetailTitle">Chi tiết dòng báo cáo</strong>
+                <button id="closeReportRowDetailButton" class="ui-button-ghost" type="button">Đóng</button>
+              </div>
+              <div id="reportRowDetailBody" class="report-row-detail-body"></div>
+            </aside>
           </section>
 
           <div class="report-compat-hidden" hidden aria-hidden="true">

@@ -221,3 +221,64 @@
   #reportsTab .invoice-export-staff-field{grid-column:auto;}
   #reportsTab .invoice-export-actions{display:grid;grid-template-columns:1fr;}
 }
+
+/* PHASE32_INFORMATION_REPORTS_COMPLETION_START */
+#reportCenterModal .report-dynamic-filters{
+  display:contents;
+}
+#reportCenterModal .report-dynamic-filter-field{
+  grid-column:span 2;
+}
+#reportCenterModal .report-sort-button{
+  width:100%;
+  border:0;
+  background:transparent;
+  color:inherit;
+  font:inherit;
+  text-align:inherit;
+  cursor:pointer;
+  padding:0;
+}
+#reportCenterModal .report-sort-indicator{display:inline-block;min-width:16px;margin-left:4px;}
+#reportCenterModal .report-data-table tbody tr.is-detail-row{cursor:pointer;}
+#reportCenterModal .report-data-table tbody tr.is-detail-row:focus{outline:2px solid #2563eb;outline-offset:-2px;}
+#reportCenterModal .report-row-detail-drawer{
+  margin-top:12px;
+  border:1px solid #dbeafe;
+  border-radius:14px;
+  background:#f8fbff;
+  box-shadow:0 10px 28px rgba(15,23,42,.12);
+  overflow:hidden;
+}
+#reportCenterModal .report-row-detail-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 14px;
+  border-bottom:1px solid #dbeafe;
+}
+#reportCenterModal .report-row-detail-body{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  gap:10px;
+  padding:14px;
+}
+#reportCenterModal .report-row-detail-item{
+  display:grid;
+  gap:4px;
+  padding:10px;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+  background:#fff;
+}
+#reportCenterModal .report-row-detail-item span{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.025em;}
+#reportCenterModal .report-row-detail-item strong{font-size:13px;color:#0f172a;word-break:break-word;}
+@media (max-width: 900px){
+  #reportCenterModal .report-dynamic-filter-field{grid-column:span 6;}
+}
+@media (max-width: 640px){
+  #reportCenterModal .report-dynamic-filter-field{grid-column:1/-1;}
+}
+/* PHASE32_INFORMATION_REPORTS_COMPLETION_END */
+#reportCenterModal .report-dynamic-filters[hidden]{display:none!important;}
