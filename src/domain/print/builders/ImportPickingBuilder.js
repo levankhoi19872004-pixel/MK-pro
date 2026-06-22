@@ -5,6 +5,7 @@ const { PRINT_PROFILES, PRINT_DOCUMENT_TYPES, createPrintDocument, cleanText, un
 const { normalizeLine } = require('../PrintLineNormalizer');
 const { mergeLines } = require('../PrintMergeService');
 const ProductCatalogExportPolicy = require('../../catalog/ProductCatalogExportPolicy');
+const { sortProductsByPickingZoneThenNameAsc } = require('../../../utils/productSort');
 
 function buildImportPicking(importOrders = [], context = {}) {
   const productMap = context.productMap || new Map();
@@ -22,7 +23,8 @@ function buildImportPicking(importOrders = [], context = {}) {
     }
   }
 
-  const mergedLines = mergeLines(rawLines, { priceField: 'costPrice' });
+  // Áp dụng cùng chuẩn sort cho đơn tổng nhập kho: gộp trước, sort ABC sau.
+  const mergedLines = sortProductsByPickingZoneThenNameAsc(mergeLines(rawLines, { priceField: 'costPrice' }));
   const sourceCodes = uniqueText(importOrders.map((row) => row.code || row.id));
   const first = importOrders[0] || {};
   const totalQty = mergedLines.reduce((sum, line) => sum + toNumber(line.quantity), 0);
@@ -53,6 +55,7 @@ function buildImportPicking(importOrders = [], context = {}) {
     totals: { totalQty, totalAmount, orderCount: importOrders.length },
     metadata: {
       mergeKey: 'warehouseCode+lineType+productCode+costPrice',
+      itemSort: 'PRODUCT_NAME_ASC',
       pricingPolicy: 'IMPORT_LINE_COST_FIRST_PRODUCT_FALLBACK'
     }
   });
@@ -95,6 +98,7 @@ function buildImportPicking(importOrders = [], context = {}) {
       lineType: 'IMPORT',
       sourceOrderCodes: line.sourceOrderCodes
     })),
+    itemSort: 'PRODUCT_NAME_ASC',
     printMode: contract.document.printMode,
     printProfile: contract.profile,
     printContract: contract

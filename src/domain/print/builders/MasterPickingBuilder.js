@@ -6,22 +6,11 @@ const { normalizeLine } = require('../PrintLineNormalizer');
 const { mergeLines } = require('../PrintMergeService');
 const { pickingZoneLabel, PICKING_ZONES } = require('../../../utils/pickingZone.util');
 const ProductCatalogExportPolicy = require('../../catalog/ProductCatalogExportPolicy');
-
+const { comparePickingZoneThenProductNameAsc } = require('../../../utils/productSort');
 
 function compareMasterPickingLines(a = {}, b = {}) {
-  const zoneOrder = { [PICKING_ZONES.HC]: 0, [PICKING_ZONES.PC]: 1, [PICKING_ZONES.UNASSIGNED]: 2 };
-  const zoneCompare = (zoneOrder[a.pickingZone] ?? 99) - (zoneOrder[b.pickingZone] ?? 99);
-  if (zoneCompare) return zoneCompare;
-
-  const nameCompare = cleanText(a.productName).localeCompare(cleanText(b.productName), 'vi', {
-    sensitivity: 'base',
-    numeric: true
-  });
-  if (nameCompare) return nameCompare;
-
-  const codeCompare = cleanText(a.productCode).localeCompare(cleanText(b.productCode), 'vi', { numeric: true });
-  if (codeCompare) return codeCompare;
-
+  const productCompare = comparePickingZoneThenProductNameAsc(a, b);
+  if (productCompare) return productCompare;
   return toNumber(a.catalogPrice) - toNumber(b.catalogPrice);
 }
 

@@ -5,6 +5,7 @@ const { PRINT_PROFILES, PRINT_DOCUMENT_TYPES, createPrintDocument, cleanText, un
 const { normalizeLine } = require('../PrintLineNormalizer');
 const { mergeLines } = require('../PrintMergeService');
 const ProductCatalogExportPolicy = require('../../catalog/ProductCatalogExportPolicy');
+const { sortProductsByPickingZoneThenNameAsc } = require('../../../utils/productSort');
 
 function buildReturnKpis(children = [], productMap = new Map()) {
   const rows = children.map((child) => {
@@ -48,7 +49,8 @@ function buildReturnPicking(masterReturnOrder = {}, children = [], context = {})
     }
   }
 
-  const mergedLines = mergeLines(rawLines, { priceField: 'finalPrice' });
+  // Gộp dòng trả hàng trước, sau đó sort ABC theo tên SP trong từng nhóm HC/PC.
+  const mergedLines = sortProductsByPickingZoneThenNameAsc(mergeLines(rawLines, { priceField: 'finalPrice' }));
   const totalQty = mergedLines.reduce((sum, line) => sum + toNumber(line.quantity), 0);
   const totalAmount = mergedLines.reduce((sum, line) => sum + toNumber(line.quantity) * toNumber(line.finalPrice), 0);
   const kpis = buildReturnKpis(children, productMap);
@@ -78,6 +80,7 @@ function buildReturnPicking(masterReturnOrder = {}, children = [], context = {})
     totals: { totalQty, totalAmount, orderCount: children.length },
     metadata: {
       mergeKey: 'warehouseCode+lineType+productCode+finalPrice',
+      itemSort: 'PRODUCT_NAME_ASC',
       pricingPolicy: 'ORIGINAL_SALES_LINE_SNAPSHOT_FIRST_PRODUCT_FALLBACK'
     }
   });
@@ -124,6 +127,7 @@ function buildReturnPicking(masterReturnOrder = {}, children = [], context = {})
       lineType: 'RETURN',
       sourceOrderCodes: line.sourceOrderCodes
     })),
+    itemSort: 'PRODUCT_NAME_ASC',
     printMode: contract.document.printMode,
     printProfile: contract.profile,
     printContract: contract

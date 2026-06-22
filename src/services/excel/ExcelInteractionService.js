@@ -13,6 +13,7 @@ const importSessionService = require('../importSessionService');
 const auditService = require('../auditService');
 const inventoryStockService = require('../inventoryStock.service');
 const ProductExcelEnrichmentService = require('./ProductExcelEnrichmentService');
+const { compareProductNameAsc } = require('../../utils/productSort');
 
 const DEFAULT_MAX_EXPORT_ROWS = 50000;
 const MAX_SELECTED_IDS = 2000;
@@ -339,23 +340,27 @@ const MASTER_CHILD_COLUMNS = [
 ];
 
 function masterItemRows(masters = [], productMap = null) {
-  return masters.flatMap((master) => (Array.isArray(master.children) ? master.children : []).flatMap((order) =>
-    orderItems(order).map((item) => {
-      const catalog = catalogLineMeta(item, productMap);
-      return {
-        masterOrderCode: firstValue(master, ['code', 'id']),
-        orderCode: firstValue(order, ['code', 'id', 'orderCode']),
-        productCode: itemProductCode(item),
-        productName: itemProductName(item),
-        catalogPackingQty: catalog.packingQty,
-        cartonQty: itemCaseQty(item),
-        unitQty: itemLooseQty(item),
-        baseQty: itemBaseQty(item),
-        catalogSalePrice: catalog.salePrice,
-        amount: itemAmount(item, 'sale')
-      };
-    })
-  ));
+  return masters.flatMap((master) => {
+    const masterOrderCode = firstValue(master, ['code', 'id']);
+    return (Array.isArray(master.children) ? master.children : []).flatMap((order) =>
+      orderItems(order).map((item) => {
+        const catalog = catalogLineMeta(item, productMap);
+        return {
+          masterOrderCode,
+          orderCode: firstValue(order, ['code', 'id', 'orderCode']),
+          productCode: itemProductCode(item),
+          productName: itemProductName(item),
+          catalogPackingQty: catalog.packingQty,
+          cartonQty: itemCaseQty(item),
+          unitQty: itemLooseQty(item),
+          baseQty: itemBaseQty(item),
+          catalogSalePrice: catalog.salePrice,
+          amount: itemAmount(item, 'sale')
+        };
+      })
+    ).sort((a, b) => compareProductNameAsc(a, b)
+      || String(a.orderCode || '').localeCompare(String(b.orderCode || ''), 'vi', { numeric: true }));
+  });
 }
 
 const MASTER_ITEM_COLUMNS = [
