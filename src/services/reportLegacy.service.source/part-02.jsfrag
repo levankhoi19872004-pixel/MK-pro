@@ -149,6 +149,8 @@ function normalizeLedgerOrderKey(value) {
   return String(value || '').trim();
 }
 
+const DEBT_AR_LEDGER_DETAIL_PROJECTION = 'id code date createdAt type source refType refId refCode orderId orderCode salesOrderId salesOrderCode customerId customerCode customerName debit credit amount status note voidReason salesStaffCode salesStaffName salesmanCode salesmanName nvbhCode nvbhName deliveryStaffCode deliveryStaffName deliveryCode deliveryName nvghCode nvghName';
+
 async function buildDebtLedgerMatchWithStaffScope(query = {}) {
   const match = buildDebtLedgerMatch(query);
   const staffCondition = buildLedgerStaffSeedCondition(query);
@@ -468,6 +470,7 @@ async function debtReport(query = {}) {
 
   const arLedgerRows = await runReportSource('chi tiết công nợ', query, () =>
     ArLedger.find(match)
+      .select(DEBT_AR_LEDGER_DETAIL_PROJECTION)
       .sort({ date: -1, createdAt: -1 })
       .limit(200)
       .lean()

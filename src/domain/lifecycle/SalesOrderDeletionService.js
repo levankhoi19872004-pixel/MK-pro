@@ -55,8 +55,26 @@ async function deleteSalesOrder(idOrCode, command = {}) {
     }
   }
 
-  const related = await deletionRepository.loadSalesOrderDeletionContext(order);
   const actor = actorFromCommand(command);
+  const earlyDecision = decideSalesOrderDeletion(order, {}, { ...command, ...actor });
+  if (earlyDecision.mode === 'ALREADY_DELETED') {
+    return {
+      hardDeleted: false,
+      alreadyDeleted: true,
+      mode: earlyDecision.mode,
+      message: earlyDecision.message,
+      salesOrder: order
+    };
+  }
+  if (!earlyDecision.allowed && ['ORDER_ALREADY_MERGED'].includes(earlyDecision.code)) {
+    return {
+      error: earlyDecision.message,
+      status: earlyDecision.status || 400,
+      code: earlyDecision.code
+    };
+  }
+
+  const related = await deletionRepository.loadSalesOrderDeletionContext(order);
   const decision = decideSalesOrderDeletion(order, related, { ...command, ...actor });
 
   if (!decision.allowed) {

@@ -413,6 +413,22 @@ const USER_ACCOUNT_STAFF_SEARCH_CODE_FIELDS = Object.freeze([
   'maNhanVien'
 ]);
 
+const ROLE_SPECIFIC_STAFF_CODE_FIELDS = Object.freeze({
+  sales: ['code', 'staffCode', 'salesStaffCode', 'salesmanCode', 'employeeCode', 'maNhanVien'],
+  delivery: ['code', 'staffCode', 'deliveryStaffCode', 'shipperCode', 'employeeCode', 'maNhanVien']
+});
+
+function normalizedRoleFamily(query = {}) {
+  const roleText = String(query.role || query.roles || '').toLowerCase();
+  if (['sales', 'sale', 'nvbh', 'salesstaff', 'sales_staff'].some((key) => roleText.includes(key))) return 'sales';
+  if (['delivery', 'shipper', 'nvgh', 'deliverystaff', 'delivery_staff'].some((key) => roleText.includes(key))) return 'delivery';
+  return '';
+}
+
+function roleSpecificStaffCodeFields(query = {}) {
+  return ROLE_SPECIFIC_STAFF_CODE_FIELDS[normalizedRoleFamily(query)] || USER_ACCOUNT_STAFF_SEARCH_CODE_FIELDS;
+}
+
 function nonEmptyFieldFilter(field) {
   return {
     [field]: {
@@ -422,13 +438,17 @@ function nonEmptyFieldFilter(field) {
   };
 }
 
-function staffCodeExistsFilter() {
+function staffCodeExistsFilter(query = {}) {
   return {
-    $or: USER_ACCOUNT_STAFF_SEARCH_CODE_FIELDS.map(nonEmptyFieldFilter)
+    $or: roleSpecificStaffCodeFields(query).map(nonEmptyFieldFilter)
   };
 }
 
-function pickUserAccountStaffCode(row = {}) {
+function pickUserAccountStaffCode(row = {}, query = {}) {
+  for (const field of roleSpecificStaffCodeFields(query)) {
+    const value = String(row[field] || '').trim();
+    if (value) return value;
+  }
   for (const field of USER_ACCOUNT_STAFF_SEARCH_CODE_FIELDS) {
     const value = String(row[field] || '').trim();
     if (value) return value;
@@ -447,17 +467,26 @@ async function findStaffs(query = {}) {
   const userFilter = { ...activeFilter(query) };
   const andFilters = [];
 
+  const scopedQuery = { ...query, roles };
   if (normalizedRoles && normalizedRoles.length) {
     const roleRegexes = normalizedRoles.map((r) => new RegExp(`^${escapeRegex(r)}$`, 'i'));
-    userFilter.role = { $in: roleRegexes };
+    andFilters.push({
+      $or: [
+        { role: { $in: roleRegexes } },
+        { roles: { $in: roleRegexes } },
+        { staffType: { $in: roleRegexes } },
+        { type: { $in: roleRegexes } }
+      ]
+    });
   }
 
-  if (staffCodeFilterRequired({ ...query, roles })) {
-    andFilters.push(staffCodeExistsFilter());
+  if (staffCodeFilterRequired(scopedQuery)) {
+    andFilters.push(staffCodeExistsFilter(scopedQuery));
   }
 
-  const searchFields = staffCodeFilterRequired({ ...query, roles })
-    ? [...USER_ACCOUNT_STAFF_SEARCH_CODE_FIELDS, 'fullName', 'name', 'phone']
+  const scopedCodeFields = roleSpecificStaffCodeFields(scopedQuery);
+  const searchFields = staffCodeFilterRequired(scopedQuery)
+    ? [...scopedCodeFields, 'fullName', 'name', 'phone']
     : [...USER_ACCOUNT_STAFF_SEARCH_CODE_FIELDS, 'username', 'fullName', 'name', 'phone', 'role'];
   const userSearchOrs = regexOr(q, searchFields);
   if (userSearchOrs.length) andFilters.push({ $or: userSearchOrs });
@@ -473,7 +502,7 @@ async function findStaffs(query = {}) {
     .lean();
 
   return uniqueBy(userRows.map((u) => {
-    const realStaffCode = pickUserAccountStaffCode(u);
+    const realStaffCode = pickUserAccountStaffCode(u, scopedQuery);
     return {
       ...u,
       code: realStaffCode,
@@ -483,7 +512,7 @@ async function findStaffs(query = {}) {
       source: 'users'
     };
   }).filter((u) => {
-    if (!staffCodeFilterRequired({ ...query, roles })) return true;
+    if (!staffCodeFilterRequired(scopedQuery)) return true;
     return Boolean(String(u.staffCode || '').trim());
   }), ['staffCode']).slice(0, limit);
 }
