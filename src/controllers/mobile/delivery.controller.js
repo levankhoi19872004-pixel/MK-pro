@@ -12,7 +12,11 @@ function createMobileDeliveryController(ctx) {
     createReturn: wrapMobile(service, 'createReturnFromDelivery', 400, 'Không tạo được phiếu trả hàng từ app giao hàng'),
     submitPayment: wrapMobile(service, 'submitDeliveryPayment', 500, 'Không lưu được tiền thu app giao hàng'),
     submitCash: wrapMobile(service, 'submitCash', 500, 'Không ghi nhận được nộp quỹ mobile'),
-    reconciliation: wrapMobile(service, 'deliveryReconciliation', 500, 'Không tải được đối soát giao hàng mobile')
+    reconciliation: wrapMobile(service, 'deliveryReconciliation', 500, 'Không tải được đối soát giao hàng mobile'),
+    startRouteSession: wrapMobile(service, 'startRouteSession', 500, 'Không bắt đầu được tuyến giao hàng'),
+    pingRouteLocation: wrapMobile(service, 'pingRouteLocation', 500, 'Không ghi nhận được vị trí giao hàng'),
+    stopRouteSession: wrapMobile(service, 'stopRouteSession', 500, 'Không kết thúc được tuyến giao hàng'),
+    currentRouteSession: wrapMobile(service, 'currentRouteSession', 500, 'Không tải được phiên tuyến giao hàng')
   };
 }
 

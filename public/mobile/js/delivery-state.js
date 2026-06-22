@@ -43,7 +43,18 @@
       returnsPromise: null,
       returnsCache: {},
       lastLoadAt: 0,
-      loadPromise: null
+      loadPromise: null,
+      routeTracking: {
+        active: false,
+        loading: false,
+        error: '',
+        session: null,
+        pointCount: 0,
+        lastSeenAt: '',
+        lastPosition: null,
+        watchId: null,
+        timerId: null
+      }
     };
   }
 

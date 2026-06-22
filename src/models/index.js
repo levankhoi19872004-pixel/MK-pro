@@ -65,6 +65,8 @@ module.exports = {
   visitPlans: require('./VisitPlan'),
   visitExecutions: require('./VisitExecution'),
   deliveryRoutePlans: require('./DeliveryRoutePlan'),
+  deliveryRouteSessions: require('./DeliveryRouteSession'),
+  deliveryLocationPoints: require('./DeliveryLocationPoint'),
   integrationJobs: require('./IntegrationJob'),
   backgroundJobs: require('./BackgroundJob'),
   operationalHeartbeats: require('./OperationalHeartbeat'),

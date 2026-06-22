@@ -212,3 +212,15 @@ npm audit --omit=dev --audit-level=high
 ```
 
 Cấu hình lỗi sẽ ném `ConfigurationError` với tên biến và lý do; thông báo không chứa giá trị secret.
+
+## Phase29 - Delivery Route Tracking
+
+```env
+DELIVERY_ROUTE_TRACKING_ENABLED=true
+DELIVERY_ROUTE_TRACKING_INTERVAL_MS=60000
+DELIVERY_ROUTE_TRACKING_MIN_DISTANCE_M=50
+DELIVERY_ROUTE_TRACKING_MAX_ACCURACY_M=200
+DELIVERY_ROUTE_TRACKING_RETENTION_DAYS=180
+```
+
+Mặc định Phase29 chỉ tracking khi app giao hàng đang mở và NVGH chủ động bấm **Bắt đầu giao**. Tracking nền Android cần native wrapper/foreground service riêng.

@@ -11,6 +11,7 @@ const returnOrderRepository = require('../../repositories/returnOrderRepository'
 const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempotentResult } = require('../../utils/mobilePerformance.util');
 const { DeliveryEngine } = require('../../engines/delivery.engine');
 const deliveryReconciliationService = require('../deliveryReconciliation.service');
+const deliveryRouteTrackingService = require('../deliveryRouteTracking.service');
 const { beginRequest, completeRequest } = require('../requestIdempotency.service');
 const SalesOrder = require('../../models/SalesOrder');
 const MasterOrder = require('../../models/MasterOrder');
@@ -732,6 +733,23 @@ function createMobileDeliveryService(ctx) {
     };
   }
 
+
+  async function startRouteSession({ body = {}, mobileUser } = {}) {
+    return { body: await deliveryRouteTrackingService.startMobileSession({ body, mobileUser }) };
+  }
+
+  async function pingRouteLocation({ body = {}, mobileUser } = {}) {
+    return { body: await deliveryRouteTrackingService.pingMobileLocation({ body, mobileUser }) };
+  }
+
+  async function stopRouteSession({ body = {}, mobileUser } = {}) {
+    return { body: await deliveryRouteTrackingService.stopMobileSession({ body, mobileUser }) };
+  }
+
+  async function currentRouteSession({ query = {}, mobileUser } = {}) {
+    return { body: await deliveryRouteTrackingService.currentMobileSession({ query, mobileUser }) };
+  }
+
   return {
     listDeliveryOrders,
     listDeliveryReturns,
@@ -739,7 +757,11 @@ function createMobileDeliveryService(ctx) {
     createReturnFromDelivery,
     submitDeliveryPayment,
     submitCash,
-    deliveryReconciliation
+    deliveryReconciliation,
+    startRouteSession,
+    pingRouteLocation,
+    stopRouteSession,
+    currentRouteSession
   };
 }
 

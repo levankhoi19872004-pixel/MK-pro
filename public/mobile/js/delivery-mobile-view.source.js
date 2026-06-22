@@ -93,6 +93,7 @@
   }
 
   function logout() {
+    if (window.DeliveryRouteTracking && typeof window.DeliveryRouteTracking.stopTimer === 'function') window.DeliveryRouteTracking.stopTimer();
     ['mk_web_token','mk_web_refresh_token','mk_web_user','v43_mobile_token','v43_mobile_refresh_token','v43_mobile_user'].forEach(function (key) { localStorage.removeItem(key); });
     fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'}}).catch(function(){}).finally(function(){window.location.href='/login.html';});
   }
@@ -119,6 +120,7 @@
         '<div class="m-delivery-header-main"><h1>Giao hàng hôm nay</h1><div class="m-account-info"><b>' + esc(accountText) + '</b><span>Quy trình: Khách → Hàng giao → Thu tiền → Đối soát</span></div></div>' +
         '<div class="m-delivery-header-actions dedupe"><button id="mReload" type="button">Tải</button><div class="m-delivery-menu-wrap"><button id="mDeliveryMenuToggle" type="button" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="mDeliveryMenu">⋮</button><div id="mDeliveryMenu" class="m-delivery-menu" hidden><button id="mDeliveryAccountInfo" type="button">Thông tin tài khoản</button><button id="mLogout" type="button">Đăng xuất</button></div></div></div>' +
       '</header>' +
+      '<section id="mRouteTracking" class="m-route-tracking" aria-live="polite"></section>' +
       '<section id="mDeliveryFilter" class="m-delivery-filter"><input id="mDate" type="date"><select id="mStatusFilter"><option value="all">Tất cả</option><option value="pending">Chưa giao</option><option value="delivered">Đã giao</option><option value="return">Có trả hàng</option><option value="debt">Còn công nợ</option></select><input id="mSearch" placeholder="Tìm khách / mã đơn / SĐT"></section>' +
       '<section id="mDeliveryKpis" class="m-delivery-kpis workflow" aria-label="Chỉ số tuyến giao hàng">' +
         '<div><span title="Tổng số đơn trong tuyến">Tổng đơn</span><b id="mKpiTotal">0</b></div><div><span title="Đơn chưa giao">Chưa giao</span><b id="mKpiPending">0</b></div><div><span title="Đơn đã giao">Đã giao</span><b id="mKpiDelivered">0</b></div>' +
@@ -138,6 +140,7 @@
       return function () { target.removeEventListener(type, handler); };
     };
     bind(el('mReload'), 'click', function () { load({ force: true, refreshActiveTab: true }); });
+    
     bind(el('mDeliveryMenuToggle'), 'click', function (event) {
       event.preventDefault();
       event.stopPropagation();
@@ -272,6 +275,24 @@
     };
   }
 
+
+  function initRouteTrackingPanel() {
+    if (window.DeliveryRouteTracking && typeof window.DeliveryRouteTracking.init === 'function') {
+      window.DeliveryRouteTracking.init({
+        rootId: 'mRouteTracking',
+        getDate: function () { return (el('mDate') && el('mDate').value) || today(); },
+        getOrder: currentOrder,
+        msg: msg
+      });
+    }
+  }
+
+  function pingRouteTrackingEvent(eventType) {
+    if (window.DeliveryRouteTracking && typeof window.DeliveryRouteTracking.pingEvent === 'function') {
+      window.DeliveryRouteTracking.pingEvent(eventType);
+    }
+  }
+
   function renderTabNavigation() {
     ensureTabForMode();
     var nav = el('mDeliveryTabs');
@@ -380,6 +401,7 @@
     renderListChromeVisibility();
     renderKpis();
     renderCustomerContext();
+    initRouteTrackingPanel();
     renderTabNavigation();
     renderWorkflowBar();
     var body = el('mBody');
@@ -1421,6 +1443,7 @@
       msg('Đang lưu thu tiền...');
       await window.DeliveryCore.savePayment(currentOrder(), { cash: form.get('cash'), bank: form.get('bank'), reward: form.get('reward') });
       await window.DeliveryCore.confirmDelivery(currentOrder(), { deliveryStatus: 'delivered' });
+      pingRouteTrackingEvent('delivery_confirmed');
       msg('Đã lưu thu tiền và xác nhận giao, mở đối soát nhanh');
       state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
       state.viewMode = 'customer';
@@ -1433,6 +1456,7 @@
     try {
       msg('Đang xác nhận giao...');
       await window.DeliveryCore.confirmDelivery(currentOrder(), { deliveryStatus: 'delivered' });
+      pingRouteTrackingEvent('delivery_confirmed');
       msg('Đã xác nhận giao');
       state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
       switchToListMode({ clearSelected: true, forceOrders: true });
@@ -1473,6 +1497,7 @@
     state.productSearchKeyword = '';
     window.DeliveryCore.selectOrder(key);
     switchToCustomerMode(options.tab || 'products');
+    pingRouteTrackingEvent('customer_selected');
     render();
     if (state.tab === 'returns') loadSelectedReturnsDirect({ force: false });
   }

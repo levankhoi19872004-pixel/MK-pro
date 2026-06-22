@@ -96,6 +96,35 @@
     }
   }
 
+
+  async function loadRouteTracking() {
+    if (!window.DeliveryCore || !byId('deliveryRouteTrackingList')) return;
+    var target = byId('deliveryRouteTrackingList');
+    target.innerHTML = '<div class="empty-state">Đang tải tuyến giao hàng...</div>';
+    try {
+      var params = new URLSearchParams();
+      var date = byId('deliveryCoreDate') && byId('deliveryCoreDate').value;
+      var delivery = byId('deliveryCoreDeliveryStaff') && byId('deliveryCoreDeliveryStaff').value;
+      if (date) params.set('date', date);
+      if (delivery) params.set('deliveryStaffCode', delivery);
+      var json = await window.DeliveryCore.api('/api/delivery/routes' + (params.toString() ? '?' + params.toString() : ''));
+      var rows = (json.data && json.data.sessions) || json.sessions || [];
+      if (!rows.length) {
+        target.innerHTML = '<div class="empty-state">Chưa có tuyến giao hàng được ghi nhận.</div>';
+        return;
+      }
+      target.innerHTML = rows.map(function (row) {
+        var maps = row.lastLat != null && row.lastLng != null ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(row.lastLat + ',' + row.lastLng) : '';
+        return '<div class="route-session-card"><b>' + esc(row.deliveryStaffName || row.deliveryStaffCode || 'NVGH') + ' · ' + esc(row.status || '') + '</b>' +
+          '<small>Bắt đầu: ' + esc(row.startedAt || '') + ' · Kết thúc: ' + esc(row.endedAt || '') + '</small>' +
+          '<small>Số điểm: ' + esc(row.pointCount || 0) + ' · Km ước tính: ' + esc(Number(row.distanceKm || 0).toFixed(2)) + ' · Cập nhật: ' + esc(row.lastSeenAt || '') + '</small>' +
+          (maps ? '<a href="' + esc(maps) + '" target="_blank" rel="noopener noreferrer">Mở vị trí mới nhất</a>' : '<small>Chưa có tọa độ GPS.</small>') + '</div>';
+      }).join('');
+    } catch (err) {
+      target.innerHTML = '<div class="empty-state danger-text">' + esc(err.message || 'Không tải được tuyến giao hàng') + '</div>';
+    }
+  }
+
   async function load() {
     if (!window.DeliveryCore) return;
     if (!byId('deliveryCoreList')) renderShell();
@@ -123,6 +152,7 @@
       keepSelectionVisible();
       renderList();
       renderDetail(window.DeliveryCore.state.selectedOrder);
+      loadRouteTracking();
       message('');
       // Chỉ tải returnOrders cho đơn đang chọn, không tải cả ngày.
       if (window.DeliveryCore.state.selectedOrder && typeof window.DeliveryCore.loadReturnsForOrder === 'function') {

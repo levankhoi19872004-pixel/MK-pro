@@ -65,6 +65,44 @@ function createMobileDeliveryRouter(ctx) {
     query('deliveryStaffCode').optional().isString().trim()
   ], validateRequest, controller.reconciliation);
 
+
+  router.post('/location/session/start', ...onlyDelivery, [
+    body('date').optional().isISO8601().withMessage('Ngày tuyến không hợp lệ'),
+    body('lat').optional().isFloat({ min: -90, max: 90 }).withMessage('Vĩ độ không hợp lệ'),
+    body('lng').optional().isFloat({ min: -180, max: 180 }).withMessage('Kinh độ không hợp lệ'),
+    body('accuracy').optional().isFloat({ min: 0 }).withMessage('Sai số GPS không hợp lệ'),
+    body('clientTs').optional().isString().trim()
+  ], validateRequest, controller.startRouteSession);
+
+  router.post('/location/ping', ...onlyDelivery, [
+    body('sessionId').optional().isString().trim(),
+    body('date').optional().isISO8601().withMessage('Ngày tuyến không hợp lệ'),
+    body('lat').isFloat({ min: -90, max: 90 }).withMessage('Thiếu/vĩ độ GPS không hợp lệ'),
+    body('lng').isFloat({ min: -180, max: 180 }).withMessage('Thiếu/kinh độ GPS không hợp lệ'),
+    body('accuracy').optional().isFloat({ min: 0 }).withMessage('Sai số GPS không hợp lệ'),
+    body('speed').optional().isFloat().withMessage('Tốc độ GPS không hợp lệ'),
+    body('heading').optional().isFloat().withMessage('Hướng GPS không hợp lệ'),
+    body('altitude').optional().isFloat().withMessage('Cao độ GPS không hợp lệ'),
+    body('clientTs').optional().isString().trim(),
+    body('eventType').optional().isIn(['periodic', 'start', 'stop', 'customer_selected', 'delivery_confirmed']).withMessage('Loại điểm GPS không hợp lệ'),
+    body('orderCode').optional().isString().trim(),
+    body('customerCode').optional().isString().trim(),
+    body('customerName').optional().isString().trim()
+  ], validateRequest, controller.pingRouteLocation);
+
+  router.post('/location/session/stop', ...onlyDelivery, [
+    body('sessionId').optional().isString().trim(),
+    body('date').optional().isISO8601().withMessage('Ngày tuyến không hợp lệ'),
+    body('lat').optional().isFloat({ min: -90, max: 90 }).withMessage('Vĩ độ không hợp lệ'),
+    body('lng').optional().isFloat({ min: -180, max: 180 }).withMessage('Kinh độ không hợp lệ'),
+    body('accuracy').optional().isFloat({ min: 0 }).withMessage('Sai số GPS không hợp lệ'),
+    body('clientTs').optional().isString().trim()
+  ], validateRequest, controller.stopRouteSession);
+
+  router.get('/location/session/current', ...onlyDelivery, [
+    query('date').optional().isISO8601().withMessage('Ngày tuyến không hợp lệ')
+  ], validateRequest, controller.currentRouteSession);
+
   router.post('/cash/submit', ...onlyDelivery, [
     body('amount').isFloat({ gt: 0 }).withMessage('Số tiền nộp quỹ phải lớn hơn 0'),
     body('note').optional().isString().trim(),

@@ -94,6 +94,7 @@
           '<button id="deliveryCoreReload" type="button">Tải đơn</button>' +
         '</div>' +
       '</section>' +
+      '<section id="deliveryRouteTrackingPanel" class="route-tracking-admin-panel"><div class="route-tracking-toolbar"><div><b>Theo dõi tuyến giao hàng</b><p class="muted">Xem phiên GPS theo ngày/NVGH. P0 hiển thị tọa độ/link Google Maps, không thêm thư viện bản đồ.</p></div><button id="deliveryRouteTrackingReload" type="button">Tải tuyến</button></div><div id="deliveryRouteTrackingList" class="route-tracking-list"><div class="empty-state">Chưa tải tuyến giao hàng.</div></div></section>' +
       '<section id="deliverySalesBranchBox" class="delivery-v46-sales-branch empty"></section>' +
       '<section class="delivery-v46-kpis">' +
         '<div class="delivery-v46-kpi kpi-pt"><span>Phải thu</span><b id="deliveryKpiReceivable">0</b></div>' +
@@ -126,6 +127,7 @@
 
     byId('deliveryCoreDate').value = today();
     byId('deliveryCoreReload').addEventListener('click', load);
+    if (byId('deliveryRouteTrackingReload')) byId('deliveryRouteTrackingReload').addEventListener('click', loadRouteTracking);
     if (byId('deliverySelectAllAccounting')) byId('deliverySelectAllAccounting').addEventListener('click', toggleSelectAllAccounting);
     if (byId('deliveryBulkAccountingButton')) byId('deliveryBulkAccountingButton').addEventListener('click', confirmSelectedAccounting);
     ['deliveryCoreDate', 'deliveryCoreStatus'].forEach(function (id) {

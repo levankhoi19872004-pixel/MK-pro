@@ -9,6 +9,7 @@ const ArLedger = require('../models/ArLedger');
 const User = require('../models/User');
 const { DeliveryEngine } = require('../engines/delivery.engine');
 const deliveryReconciliationService = require('../services/deliveryReconciliation.service');
+const deliveryRouteTrackingService = require('../services/deliveryRouteTracking.service');
 const { requireAuth, requireRole } = require('../middlewares/auth.middleware');
 const { withMongoTransaction } = require('../utils/transaction.util');
 
@@ -194,6 +195,58 @@ router.get('/reconciliation', requireAuth, deliveryReadRoles, async (req, res) =
     });
   } catch (err) {
     return sendError(res, err, 'Không đối soát được giao hàng');
+  }
+});
+
+
+router.get('/routes/live', requireAuth, deliveryReadRoles, async (req, res) => {
+  try {
+    const result = await deliveryRouteTrackingService.liveRoutesAdmin({ query: req.query || {}, user: req.user || {} });
+    return res.json({
+      ok: true,
+      success: true,
+      message: result.message || 'Đã tải tuyến giao hàng đang chạy',
+      data: result.data,
+      sessions: result.data?.sessions || [],
+      total: result.data?.total || 0,
+      canonicalRoute: '/api/delivery/routes/live'
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không tải được tuyến giao hàng đang chạy');
+  }
+});
+
+router.get('/routes/:sessionId', requireAuth, deliveryReadRoles, async (req, res) => {
+  try {
+    const result = await deliveryRouteTrackingService.getRouteAdmin({ params: req.params || {}, user: req.user || {} });
+    return res.json({
+      ok: true,
+      success: true,
+      message: result.message || 'Đã tải chi tiết tuyến giao hàng',
+      data: result.data,
+      session: result.data?.session,
+      points: result.data?.points || [],
+      canonicalRoute: '/api/delivery/routes/:sessionId'
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không tải được chi tiết tuyến giao hàng');
+  }
+});
+
+router.get('/routes', requireAuth, deliveryReadRoles, async (req, res) => {
+  try {
+    const result = await deliveryRouteTrackingService.listRoutesAdmin({ query: req.query || {}, user: req.user || {} });
+    return res.json({
+      ok: true,
+      success: true,
+      message: result.message || 'Đã tải danh sách tuyến giao hàng',
+      data: result.data,
+      sessions: result.data?.sessions || [],
+      total: result.data?.total || 0,
+      canonicalRoute: '/api/delivery/routes'
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không tải được danh sách tuyến giao hàng');
   }
 });
 
