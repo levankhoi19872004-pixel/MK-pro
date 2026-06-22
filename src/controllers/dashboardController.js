@@ -2,6 +2,7 @@
 
 const asyncHandler = require('../middlewares/asyncHandler');
 const HomeDashboardService = require('../services/dashboard/HomeDashboardService');
+const DashboardOverviewService = require('../services/dashboard/DashboardOverviewService');
 const SalesTargetService = require('../services/dashboard/SalesTargetService');
 
 function truthy(value) {
@@ -53,6 +54,64 @@ const home = asyncHandler(async (req, res) => {
       durationMs,
       cacheHit: result.cacheHit === true,
       generatedAt: result.generatedAt
+    }
+  });
+});
+
+
+const overview = asyncHandler(async (req, res) => {
+  const startedAt = Date.now();
+  if (!HomeDashboardService.dashboardEnabled()) {
+    return res.json({ ok: true, data: { enabled: false, message: 'Dashboard tổng quan đang tắt bằng FEATURE_HOME_DASHBOARD=false' }, meta: { durationMs: Date.now() - startedAt, cacheHit: false } });
+  }
+  const result = await DashboardOverviewService.getOverview({
+    month: req.query.month,
+    force: truthy(req.query.refresh)
+  });
+  return res.json({
+    ok: true,
+    data: result,
+    meta: {
+      durationMs: Date.now() - startedAt,
+      cacheHit: result.cacheHit === true,
+      generatedAt: result.generatedAt,
+      strategy: 'phase37-overview'
+    }
+  });
+});
+
+const salesStaff = asyncHandler(async (req, res) => {
+  const startedAt = Date.now();
+  const result = await HomeDashboardService.getSalesStaffDashboard({
+    month: req.query.month,
+    force: truthy(req.query.refresh)
+  });
+  return res.json({
+    ok: true,
+    data: result,
+    meta: {
+      durationMs: Date.now() - startedAt,
+      cacheHit: result.cacheHit === true,
+      generatedAt: result.generatedAt,
+      strategy: 'phase37-lazy-sales-staff'
+    }
+  });
+});
+
+const deliverySummary = asyncHandler(async (req, res) => {
+  const startedAt = Date.now();
+  const result = await HomeDashboardService.getDeliveryDashboard({
+    month: req.query.month,
+    force: truthy(req.query.refresh)
+  });
+  return res.json({
+    ok: true,
+    data: result,
+    meta: {
+      durationMs: Date.now() - startedAt,
+      cacheHit: result.cacheHit === true,
+      generatedAt: result.generatedAt,
+      strategy: 'phase37-lazy-delivery-summary'
     }
   });
 });
@@ -125,6 +184,9 @@ const importTargets = asyncHandler(async (req, res) => {
 
 module.exports = {
   home,
+  overview,
+  salesStaff,
+  deliverySummary,
   listTargets,
   saveTargets,
   downloadTargetTemplate,

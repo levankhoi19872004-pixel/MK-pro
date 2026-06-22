@@ -36,6 +36,8 @@
 
   let currentDashboard = null;
   let dashboardRequestController = null;
+  let dashboardLazyRequestController = null;
+  let dashboardLazyLoadToken = 0;
 
   function escapeHtml(value){
     return String(value ?? '')
@@ -179,40 +181,102 @@
     if(button) button.click();
   }
 
-  function renderDashboard(data={}){
-    currentDashboard=data;
-    renderSummary(data.summary||{});
+  function renderDashboard(data={},options={}){
+    currentDashboard={...(currentDashboard||{}),...data};
+    renderSummary(data.summary||currentDashboard.summary||{});
+    if(Array.isArray(data.salesByStaff)){
+      renderSalesRows(data.salesByStaff);
+    }else if(options.showSkeleton!==false){
+      elements.salesTable.innerHTML='<tr><td colspan="8" class="empty-cell">Đang tải bảng NVBH sau khi KPI đã hiển thị...</td></tr>';
+    }
+    if(Array.isArray(data.deliveryMonth)){
+      renderDeliveryRows(data.deliveryMonth,elements.deliveryMonthTable,false);
+    }else if(options.showSkeleton!==false){
+      elements.deliveryMonthTable.innerHTML='<tr><td colspan="10" class="empty-cell">Đang tải bảng giao hàng tháng...</td></tr>';
+    }
+    if(Array.isArray(data.deliveryToday)){
+      renderDeliveryRows(data.deliveryToday,elements.deliveryTodayTable,true);
+    }else if(options.showSkeleton!==false){
+      elements.deliveryTodayTable.innerHTML='<tr><td colspan="10" class="empty-cell">Đang tải bảng giao hàng hôm nay...</td></tr>';
+    }
+    const generated=data.generatedAt?new Date(data.generatedAt).toLocaleString('vi-VN'):'—';
+    const cached=data.cacheHit===true?' · cache ngắn':'';
+    const source=data.sources?.snapshot===false?' · nguồn trực tiếp MongoDB':'';
+    const mode=data.mode==='overview'?' · overview nhẹ':'';
+    const warnings=Array.isArray(data.dataQuality?.warnings)?data.dataQuality.warnings:[];
+    const warningText=warnings.length?` · Ghi chú: ${warnings.join('; ')}`:'';
+    setState(`KPI cập nhật lúc ${generated}${mode}${source}${cached}${warningText}`,warnings.length>0);
+  }
+
+  async function fetchDashboardJson(url,signal){
+    const response=await fetch(url,{signal});
+    const payload=await response.json().catch(()=>({}));
+    if(!response.ok || !payload.ok) throw new Error(payload.message||'Không tải được dữ liệu Dashboard');
+    return payload.data||{};
+  }
+
+  async function loadSalesBreakdown(options={}){
+    const month=String(elements.month.value||currentMonthVN());
+    const params=new URLSearchParams({month});
+    if(options.force===true) params.set('refresh','1');
+    const data=await fetchDashboardJson(`/api/dashboard/sales-staff?${params.toString()}`,options.signal);
+    currentDashboard={...(currentDashboard||{}),...data,salesByStaff:data.salesByStaff||[]};
+    renderSummary(data.summary||currentDashboard.summary||{});
     renderSalesRows(data.salesByStaff||[]);
+    return data;
+  }
+
+  async function loadDeliveryBreakdown(options={}){
+    const month=String(elements.month.value||currentMonthVN());
+    const params=new URLSearchParams({month});
+    if(options.force===true) params.set('refresh','1');
+    const data=await fetchDashboardJson(`/api/dashboard/delivery-summary?${params.toString()}`,options.signal);
+    currentDashboard={...(currentDashboard||{}),...data,deliveryMonth:data.deliveryMonth||[],deliveryToday:data.deliveryToday||[]};
     renderDeliveryRows(data.deliveryMonth||[],elements.deliveryMonthTable,false);
     renderDeliveryRows(data.deliveryToday||[],elements.deliveryTodayTable,true);
-    const generated=data.generatedAt?new Date(data.generatedAt).toLocaleString('vi-VN'):'—';
-    const cached=data.cacheHit===true?' · cache có kiểm tra phiên bản Mongo':'';
-    const source=data.sources?.snapshot===false?' · nguồn trực tiếp MongoDB':'';
-    const warnings=Array.isArray(data.dataQuality?.warnings)?data.dataQuality.warnings:[];
-    const warningText=warnings.length?` · Cảnh báo dữ liệu: ${warnings.join('; ')}`:'';
-    setState(`Cập nhật lúc ${generated}${source}${cached}${warningText}`,warnings.length>0);
+    return data;
+  }
+
+  function loadDashboardBlocks(options={}){
+    const token=++dashboardLazyLoadToken;
+    dashboardLazyRequestController?.abort();
+    dashboardLazyRequestController=new AbortController();
+    const signal=dashboardLazyRequestController.signal;
+    Promise.allSettled([
+      loadSalesBreakdown({...options,signal}),
+      loadDeliveryBreakdown({...options,signal})
+    ]).then((results)=>{
+      if(token!==dashboardLazyLoadToken || signal.aborted) return;
+      const failed=results.filter(result=>result.status==='rejected');
+      if(failed.length){
+        setState('KPI đã tải; một số bảng chi tiết chưa tải được. Bấm Tải lại để thử lại.',true);
+      }else{
+        const generated=new Date().toLocaleString('vi-VN');
+        setState(`KPI và bảng chi tiết đã cập nhật lúc ${generated}.`);
+      }
+    });
   }
 
   async function loadHomeDashboard(options={}){
     const month=String(elements.month.value||currentMonthVN());
     elements.month.value=month;
     dashboardRequestController?.abort();
+    dashboardLazyRequestController?.abort();
     dashboardRequestController=new AbortController();
     elements.refresh.disabled=true;
-    setState('Đang tổng hợp doanh số, hàng trả, công nợ và giao hàng...');
+    setState('Đang tải KPI tổng quan nhẹ...');
     try{
       const params=new URLSearchParams({month});
       if(options.force===true) params.set('refresh','1');
-      const response=await fetch(`/api/dashboard/home?${params.toString()}`,{signal:dashboardRequestController.signal});
-      const payload=await response.json().catch(()=>({}));
-      if(!response.ok || !payload.ok) throw new Error(payload.message||'Không tải được Dashboard tổng quan');
-      if(payload.data?.enabled===false){
+      const data=await fetchDashboardJson(`/api/dashboard/overview?${params.toString()}`,dashboardRequestController.signal);
+      if(data?.enabled===false){
         const dashboardButton=document.querySelector('.tab-button[data-tab="dashboardTab"]');
         if(dashboardButton) dashboardButton.hidden=true;
         switchToProducts();
         return;
       }
-      renderDashboard(payload.data||{});
+      renderDashboard(data||{});
+      setTimeout(()=>loadDashboardBlocks({force:options.force===true}),250);
     }catch(error){
       if(error?.name==='AbortError') return;
       setState(error?.message||'Không tải được Dashboard tổng quan',true);
@@ -241,6 +305,9 @@
       const payload=await response.json().catch(()=>({}));
       if(!response.ok || !payload.ok) throw new Error(payload.message||'Không tải được chỉ tiêu');
       const targetMap=new Map((payload.data?.targets||[]).map(row=>[String(row.salesStaffCode||''),row]));
+      if(!Array.isArray(currentDashboard?.salesByStaff) || !currentDashboard.salesByStaff.length){
+        await loadSalesBreakdown({force:false});
+      }
       const staffRows=Array.isArray(currentDashboard?.salesByStaff)?currentDashboard.salesByStaff:[];
       if(!staffRows.length){
         elements.targetTable.innerHTML='<tr><td colspan="3">Chưa có tài khoản nhân viên bán hàng đang hoạt động.</td></tr>';

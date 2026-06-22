@@ -15,6 +15,9 @@ const viewDashboard = requireRole(['admin', 'manager', 'accountant']);
 const manageTargets = requireRole(['admin', 'manager']);
 
 router.get('/home', viewDashboard, dashboardController.home);
+router.get('/overview', viewDashboard, dashboardController.overview);
+router.get('/sales-staff', viewDashboard, dashboardController.salesStaff);
+router.get('/delivery-summary', viewDashboard, dashboardController.deliverySummary);
 router.get('/targets', viewDashboard, dashboardController.listTargets);
 router.get('/targets/template', manageTargets, dashboardController.downloadTargetTemplate);
 router.put('/targets/:period', manageTargets, dashboardController.saveTargets);

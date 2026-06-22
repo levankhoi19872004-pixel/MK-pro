@@ -55,7 +55,7 @@ test('Phase36E route slash still renders shell only and dashboard fetch is clien
   const dashboardSource = read('public/js/app/00-dashboard.js');
   assert.match(routeSource, /renderIndexPage\(\)/);
   assert.doesNotMatch(routeSource, /getHomeDashboard|dashboard\/home|SalesOrder\.aggregate/);
-  assert.match(dashboardSource, /fetch\(`\/api\/dashboard\/home\?\$\{params\.toString\(\)\}`/);
+  assert.match(dashboardSource, /\/api\/dashboard\/(home|overview)/);
 });
 
 test('Phase36E dashboard cache remains summary-only and does not reference inventory snapshots', () => {
