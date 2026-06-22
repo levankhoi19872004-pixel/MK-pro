@@ -110,26 +110,26 @@
 
     var header=document.querySelector('.header');
     if(!header||header.querySelector('[data-auth-account]'))return;
+    var actions=header.querySelector('.app-header__actions')||header;
     var box=document.createElement('div');
     box.dataset.authAccount='1';
-    box.style.display='flex';
-    box.style.alignItems='center';
-    box.style.gap='8px';
+    box.className='app-header__account';
 
     var info=document.createElement('span');
-    info.className='status';
-    info.textContent=(user.name||user.username||'Tài khoản')+' · '+(user.roleLabel||role||'');
+    info.className='user-pill';
+    var accountName=user.name||user.username||'Tài khoản';
+    var accountRole=user.roleLabel||role||'';
+    info.textContent=accountRole?accountName+' · '+accountRole:accountName;
 
     var button=document.createElement('button');
     button.type='button';
     button.textContent='Đăng xuất';
-    button.className='secondary-btn';
-    button.style.padding='8px 12px';
+    button.className='logout-button secondary-btn';
     button.addEventListener('click',logout);
 
     box.appendChild(info);
     box.appendChild(button);
-    header.appendChild(box);
+    actions.appendChild(box);
   }
 
   async function bootstrap(){

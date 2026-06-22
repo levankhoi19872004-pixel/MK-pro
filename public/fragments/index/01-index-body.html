@@ -1,11 +1,15 @@
 
   <div class="app">
-    <header class="header">
-      <div>
-        <h1>KHO Minh Khai Pro V44</h1>
-        <p>Step 6: Sản phẩm + khách hàng + nhập kho + bán hàng + công nợ + quỹ tiền</p>
+    <header class="header app-header" aria-label="Tiêu đề hệ thống">
+      <div class="app-header__brand">
+        <h1 class="app-header__title">Unilever - Minh Khai Thái Bình</h1>
+        <p class="app-header__subtitle">Phần mềm quản lý tổng thể NPP <span aria-hidden="true">|</span> Lập trình: Lê Văn Khởi</p>
       </div>
-      <span id="serverStatus" class="status">Đang kiểm tra server...</span>
+      <div class="app-header__status" aria-label="Trạng thái hệ thống">
+        <span id="serverStatus" class="status status-pill status-pill--online">Đang kiểm tra server...</span>
+      </div>
+      <div class="app-header__debug" aria-label="Thông tin kỹ thuật" hidden></div>
+      <div class="app-header__actions" aria-label="Tài khoản và phiên đăng nhập"></div>
     </header>
 
     <nav class="tabs">

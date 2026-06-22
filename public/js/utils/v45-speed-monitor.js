@@ -12,6 +12,21 @@
   var activeArea = 'Khởi động';
   var originalFetch = window.fetch ? window.fetch.bind(window) : null;
 
+  function isDebugMode() {
+    try {
+      var params = new URLSearchParams(window.location.search || '');
+      var queryDebug = params.get('debug') || params.get('v45debug') || params.get('perf');
+      var storedDebug = window.localStorage && (
+        localStorage.getItem('MKPRO_DEBUG_UI') ||
+        localStorage.getItem('V45_DEBUG_UI') ||
+        localStorage.getItem('V45_SPEED_MONITOR')
+      );
+      return queryDebug === '1' || queryDebug === 'true' || storedDebug === '1' || storedDebug === 'true';
+    } catch (err) {
+      return false;
+    }
+  }
+
   function now() {
     return (window.performance && performance.now) ? performance.now() : Date.now();
   }
@@ -73,6 +88,12 @@
 
   function ensurePanel() {
     var panel = document.getElementById('v45SpeedMonitor');
+    if (!isDebugMode()) {
+      if (panel && panel.parentNode) panel.parentNode.removeChild(panel);
+      var debugArea = document.querySelector('.app-header__debug');
+      if (debugArea) debugArea.hidden = true;
+      return null;
+    }
     if (panel) return panel;
 
     panel = document.createElement('div');
@@ -87,7 +108,9 @@
       '<div id="v45SpeedDetail" class="v45-speed-detail">API: 0 · Chậm: 0</div>' +
       '<div id="v45SpeedList" class="v45-speed-list" aria-live="polite"></div>';
 
-    var header = document.querySelector('.header') || document.querySelector('.mobile-header') || document.body;
+    var debugArea = document.querySelector('.app-header__debug');
+    var header = debugArea || document.querySelector('.header') || document.querySelector('.mobile-header') || document.body;
+    if (debugArea) debugArea.hidden = false;
     header.appendChild(panel);
     return panel;
   }
@@ -95,6 +118,7 @@
   function render() {
     if (!document.body) return;
     var panel = ensurePanel();
+    if (!panel) return;
     var last = items[0];
     var slowCount = items.filter(function (x) { return x.ms >= SLOW_MS || !x.ok; }).length;
     var avg = items.length ? Math.round(items.reduce(function (s, x) { return s + x.ms; }, 0) / items.length) : 0;
