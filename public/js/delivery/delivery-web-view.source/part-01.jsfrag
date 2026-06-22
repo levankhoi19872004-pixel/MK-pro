@@ -65,7 +65,7 @@
     return `${values.year}-${values.month}-${values.day}`;
   }
 
-  var state = { selectedKey: '', activeTab: 'products', accountingSelectedKeys: {}, selectedSalesStaffKeys: {}, salesBranchScope: '', salesBranchRowCount: 0 };
+  var state = { selectedKey: '', activeTab: 'products', accountingSelectedKeys: {}, selectedSalesStaffKeys: {}, salesBranchScope: '', salesBranchRowCount: 0, accountingSubmitting: false };
 
   function ensureRoot() {
     var root = byId('deliveryTodayRoot');
@@ -429,12 +429,38 @@
     var ids = selectedAccountingIds();
     var bulk = byId('deliveryBulkAccountingButton');
     var all = byId('deliverySelectAllAccounting');
-    if (bulk) bulk.textContent = ids.length ? ('Xác nhận kế toán đã chọn (' + ids.length + ')') : 'Xác nhận kế toán đã chọn';
+    if (bulk) {
+      bulk.textContent = ids.length ? ('Xác nhận kế toán đã chọn (' + ids.length + ')') : 'Xác nhận kế toán đã chọn';
+      bulk.disabled = state.accountingSubmitting || !ids.length;
+    }
     if (all) {
       var rows = getVisibleOrders();
       var eligible = rows.filter(isAccountingSelectable);
       var selectedCount = eligible.filter(function (order) { return state.accountingSelectedKeys[accountingKey(order)]; }).length;
       all.textContent = eligible.length && selectedCount === eligible.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả';
+      all.disabled = state.accountingSubmitting;
+    }
+    ['deliveryAccountingButton', 'deliveryAccountingUnlockButton'].forEach(function (id) {
+      var btn = byId(id);
+      if (btn) btn.disabled = state.accountingSubmitting;
+    });
+  }
+
+  function setAccountingSubmitting(value) {
+    state.accountingSubmitting = Boolean(value);
+    updateBulkAccountingButton();
+  }
+
+  async function withAccountingSubmitLock(work) {
+    if (state.accountingSubmitting) {
+      message('Đang xác nhận kế toán, vui lòng không bấm lặp.');
+      return null;
+    }
+    setAccountingSubmitting(true);
+    try {
+      return await work();
+    } finally {
+      setAccountingSubmitting(false);
     }
   }
 

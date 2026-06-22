@@ -97,16 +97,22 @@ function statusBucket(source = {}, fallback = {}) {
 function childOrderFilter(refs = []) {
   const values = unique(refs);
   if (!values.length) return null;
-  return {
-    $or: [
-      { id: { $in: values } },
-      { code: { $in: values } },
-      { orderCode: { $in: values } },
-      { salesOrderCode: { $in: values } },
-      { documentCode: { $in: values } },
-      { invoiceCode: { $in: values } }
-    ]
-  };
+  const salesOrderIds = values.filter((value) => /^SO\d+$/i.test(value));
+  const otherValues = values.filter((value) => !/^SO\d+$/i.test(value));
+  if (salesOrderIds.length && !otherValues.length) return { id: { $in: salesOrderIds } };
+
+  const clauses = [];
+  if (salesOrderIds.length) clauses.push({ id: { $in: salesOrderIds } });
+  if (otherValues.length) {
+    clauses.push(
+      { code: { $in: otherValues } },
+      { orderCode: { $in: otherValues } },
+      { salesOrderCode: { $in: otherValues } },
+      { documentCode: { $in: otherValues } },
+      { invoiceCode: { $in: otherValues } }
+    );
+  }
+  return clauses.length === 1 ? clauses[0] : { $or: clauses };
 }
 
 function ensureDeliveryAccumulator(map, identity = {}) {

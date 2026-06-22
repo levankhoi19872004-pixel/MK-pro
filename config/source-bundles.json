@@ -61,7 +61,7 @@
         "src/engines/delivery.legacy.engine.source/part-02.jsfrag",
         "src/engines/delivery.legacy.engine.source/part-03.jsfrag"
       ],
-      "sourceSha256": "e2b5741a8434a1356bb7e4b1835c5a8b2298643b1a9ba88bbdc95ac12e9818e2"
+      "sourceSha256": "1e1c68f343da5907a54797a2ff73f7c951ee841728810e0cdad77e2480815531"
     },
     {
       "target": "services/printDataBuilder.legacy.js",
@@ -157,7 +157,7 @@
         "public/js/delivery/delivery-web-view.source/part-02.jsfrag",
         "public/js/delivery/delivery-web-view.source/part-03.jsfrag"
       ],
-      "sourceSha256": "f0f7c10ce31e0ebe77de97f4ceb2678a661b48bc15309a922d089934d99684e7"
+      "sourceSha256": "a26cf46214f2e061ce5eaaa7394dd9e118c88ff58b73bc5f2bacd14942edffb1"
     },
     {
       "target": "public/js/app/debt/07f-fund-ledger.js",

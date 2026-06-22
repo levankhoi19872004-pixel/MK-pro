@@ -127,5 +127,8 @@ setTimeout(()=>{ if(typeof checkServer === 'function') checkServer().catch?.(con
 setTimeout(()=>{ if(typeof loadImportFieldOptions === 'function') loadImportFieldOptions().catch?.(console.warn); }, 200);
 setTimeout(()=>{ if(typeof loadCustomImportTemplates === 'function') loadCustomImportTemplates().catch?.(console.warn); }, 400);
 
-// Chỉ load tab đang mở ban đầu.
-setTimeout(()=>loadTabDataOnce(getActiveTabName()), 0);
+// Phase36c: để GET / trả shell UI trước, không kích hoạt dashboard 10+ query ngay cùng tick render đầu.
+// Dashboard vẫn tự tải nếu đang là tab active, nhưng trì hoãn nhẹ sau khi giao diện đã sẵn sàng.
+const initialTabName = getActiveTabName();
+const initialTabDelayMs = initialTabName === 'dashboardTab' ? 650 : 0;
+setTimeout(()=>loadTabDataOnce(initialTabName), initialTabDelayMs);

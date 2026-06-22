@@ -268,7 +268,17 @@ const DELIVERY_ORDER_SELECT = [
   'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'shipperCode', 'shipperName', 'nvghCode', 'nvghName',
   'status', 'deliveryStatus', 'accountingStatus', 'accountingConfirmed',
   'totalAmount', 'paidAmount', 'debtAmount', 'cashCollected', 'cashAmount', 'bankCollected', 'bankAmount', 'rewardAmount', 'returnAmount', 'returnedAmount',
-  'items', 'note', 'masterOrderId', 'masterOrderCode', 'mergeStatus'
+  'items', 'note', 'masterOrderId', 'masterOrderCode', 'masterOrderNo', 'deliveryMasterId', 'deliveryMasterCode', 'mergeStatus'
+].join(' ');
+
+const DELIVERY_RETURN_SELECT = [
+  'id', 'code', 'date', 'documentDate', 'returnDate', 'deliveryDate', 'createdAt', 'updatedAt',
+  'salesOrderId', 'salesOrderCode', 'orderId', 'orderCode', 'sourceOrderId', 'sourceOrderCode', 'deliveryOrderId', 'deliveryOrderCode',
+  'masterOrderId', 'masterOrderCode', 'masterReturnOrderId', 'masterReturnOrderCode',
+  'customerCode', 'customerName', 'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'nvghCode', 'nvghName',
+  'salesStaffCode', 'salesStaffName', 'salesmanCode', 'salesmanName', 'nvbhCode', 'nvbhName',
+  'status', 'returnStatus', 'warehouseStatus', 'accountingStatus', 'returnMergeStatus',
+  'items', 'returnItems', 'totalQuantity', 'quantity', 'qty', 'totalAmount', 'totalReturnAmount', 'amount', 'debtReduction', 'note'
 ].join(' ');
 
 function directDeliveryCodeFromQuery(query = {}) {
@@ -280,18 +290,29 @@ function shouldTryFastDeliveryCodeQuery(query = {}) {
 }
 
 // DELIVERY_MASTER_LINK_GUARD_START
-// Đơn giao hàng phải còn liên kết với một đơn tổng. Không được chỉ dựa vào
-// deliveryDate/deliveryStaffCode vì các snapshot cũ có thể còn sót sau detach.
-function masterAssignmentMongoClause() {
+// Đơn giao hàng phải còn liên kết với một đơn tổng. Phase36B ưu tiên field
+// chuẩn masterOrderId/masterOrderCode để tránh query rộng `$or + $exists + $nin`
+// trên nhiều alias legacy; legacy chỉ dùng fallback có date/NVGH/status đi kèm.
+function nonEmptyStringClause(field) {
+  return { [field]: { $type: 'string', $gt: '' } };
+}
+
+function canonicalMasterAssignmentMongoClause() {
+  return { $or: [nonEmptyStringClause('masterOrderId'), nonEmptyStringClause('masterOrderCode')] };
+}
+
+function legacyMasterAssignmentMongoClause() {
   return {
     $or: [
-      { masterOrderId: { $exists: true, $nin: [null, ''] } },
-      { masterOrderCode: { $exists: true, $nin: [null, ''] } },
-      { masterOrderNo: { $exists: true, $nin: [null, ''] } },
-      { deliveryMasterId: { $exists: true, $nin: [null, ''] } },
-      { deliveryMasterCode: { $exists: true, $nin: [null, ''] } }
+      nonEmptyStringClause('masterOrderNo'),
+      nonEmptyStringClause('deliveryMasterId'),
+      nonEmptyStringClause('deliveryMasterCode')
     ]
   };
+}
+
+function masterAssignmentMongoClause(options = {}) {
+  return options.legacy ? legacyMasterAssignmentMongoClause() : canonicalMasterAssignmentMongoClause();
 }
 // DELIVERY_MASTER_LINK_GUARD_END
 
@@ -456,6 +477,38 @@ function buildOrderLookup(value) {
   const or = [{ id: key }, { code: key }, { orderCode: key }, { salesOrderId: key }, { salesOrderCode: key }];
   if (/^[a-f\d]{24}$/i.test(key)) or.push({ _id: key });
   return { $or: or };
+}
+
+function directOrderLookupCandidates(value) {
+  const key = text(value);
+  if (!key) return [];
+  const candidates = [];
+  const seen = new Set();
+  const push = (filter) => {
+    const signature = JSON.stringify(filter);
+    if (!seen.has(signature)) {
+      seen.add(signature);
+      candidates.push(filter);
+    }
+  };
+
+  // Mã SO là case phổ biến từ app giao hàng/API Monitor: đi thẳng vào field id đã index.
+  if (/^SO[0-9A-Z_-]+$/i.test(key)) {
+    push({ id: key });
+    push({ code: key });
+    push({ orderCode: key });
+    push({ salesOrderId: key });
+    push({ salesOrderCode: key });
+    return candidates;
+  }
+
+  if (/^[a-f\d]{24}$/i.test(key)) push({ _id: key });
+  push({ id: key });
+  push({ code: key });
+  push({ orderCode: key });
+  push({ salesOrderId: key });
+  push({ salesOrderCode: key });
+  return candidates;
 }
 
 

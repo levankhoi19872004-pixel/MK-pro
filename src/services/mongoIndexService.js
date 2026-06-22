@@ -5,6 +5,9 @@ const MongoStore = require('../models');
 const INDEX_DEFINITIONS = {
   products: [
     [{ code: 1 }, { name: 'uniq_products_code', unique: true, partialFilterExpression: { code: { $type: 'string', $gt: '' } } }],
+    [{ productCode: 1 }, { name: 'idx_products_product_code', sparse: true }],
+    [{ sku: 1 }, { name: 'idx_products_sku', sparse: true }],
+    [{ id: 1 }, { name: 'idx_products_id', sparse: true }],
     [{ barcode: 1 }, { name: 'idx_products_barcode', sparse: true }],
     [{ isActive: 1, code: 1 }, { name: 'idx_products_active_code' }]
   ],
@@ -37,8 +40,16 @@ const INDEX_DEFINITIONS = {
     [{ salesStaffCode: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_sales_staff_order_date_status' }],
     [{ orderDate: -1, createdAt: -1 }, { name: 'idx_orders_order_date_created_desc' }],
     [{ deliveryDate: -1, deliveryStaffCode: 1, deliveryStatus: 1 }, { name: 'idx_orders_delivery_date_staff_status_desc' }],
+    [{ deliveryDate: -1, deliveryStaffCode: 1, masterOrderId: 1, deliveryStatus: 1 }, { name: 'idx_orders_delivery_staff_master_id_status', sparse: true }],
+    [{ deliveryDate: -1, deliveryStaffCode: 1, masterOrderCode: 1, deliveryStatus: 1 }, { name: 'idx_orders_delivery_staff_master_code_status', sparse: true }],
+    [{ deliveryDate: -1, deliveryStaffCode: 1, deliveryMasterId: 1, deliveryStatus: 1 }, { name: 'idx_orders_delivery_staff_delivery_master_id_status', sparse: true }],
+    [{ deliveryDate: -1, deliveryStaffCode: 1, deliveryMasterCode: 1, deliveryStatus: 1 }, { name: 'idx_orders_delivery_staff_delivery_master_code_status', sparse: true }],
     [{ masterOrderId: 1 }, { name: 'idx_orders_master_order_id', sparse: true }],
     [{ masterOrderCode: 1 }, { name: 'idx_orders_master_order_code', sparse: true }],
+    [{ deliveryMasterId: 1 }, { name: 'idx_orders_delivery_master_id', sparse: true }],
+    [{ deliveryMasterCode: 1 }, { name: 'idx_orders_delivery_master_code', sparse: true }],
+    [{ orderCode: 1 }, { name: 'idx_orders_order_code', sparse: true }],
+    [{ salesOrderCode: 1 }, { name: 'idx_orders_sales_order_code', sparse: true }],
     [{ source: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_source_order_date_status', sparse: true }],
     [{ vatInvoiceRequired: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_vat_required_order_date_status' }],
     [{ accountingStatus: 1, orderDate: -1, salesStaffCode: 1 }, { name: 'idx_orders_dashboard_accounting_date_staff' }]
@@ -74,6 +85,7 @@ const INDEX_DEFINITIONS = {
     [{ sourceOrderId: 1, status: 1 }, { name: 'idx_return_orders_source_status' }],
     [{ masterReturnOrderId: 1 }, { name: 'idx_return_orders_master_return_id', sparse: true }],
     [{ masterReturnOrderCode: 1 }, { name: 'idx_return_orders_master_return_code', sparse: true }],
+    [{ masterReturnOrderId: 1, masterReturnOrderCode: 1, returnMergeStatus: 1 }, { name: 'idx_return_orders_master_return_merge_guard', sparse: true }],
     [{ masterOrderId: 1 }, { name: 'idx_return_orders_master_order_id', sparse: true }],
     [{ masterOrderCode: 1 }, { name: 'idx_return_orders_master_order_code', sparse: true }],
     [{ returnMergeStatus: 1, date: 1 }, { name: 'idx_return_orders_merge_date' }],
@@ -242,7 +254,10 @@ const INDEX_DEFINITIONS = {
         unique: true,
         sparse: true
       }
-    ]
+    ],
+    [{ code: 1 }, { name: 'idx_inventories_code', sparse: true }],
+    [{ sku: 1 }, { name: 'idx_inventories_sku', sparse: true }],
+    [{ productId: 1 }, { name: 'idx_inventories_product_id', sparse: true }]
   ],
   journals: [
     // journals chỉ còn là nguồn tương thích/migration; ba compound index này
@@ -274,15 +289,18 @@ const INDEX_DEFINITIONS = {
   promotionProductRules: [
     [{ programCode: 1, productCode: 1 }, { name: 'uniq_promotion_product_rules_program_product', unique: true, sparse: true }],
     [{ productCode: 1, isActive: 1 }, { name: 'idx_promotion_product_rules_product_active' }],
+    [{ programCode: 1, isActive: 1 }, { name: 'idx_promotion_product_rules_program_active' }],
     [{ missingProduct: 1, programCode: 1 }, { name: 'idx_promotion_product_rules_missing_program' }]
   ],
   promotionGroupItems: [
     [{ programCode: 1, productCode: 1 }, { name: 'uniq_promotion_group_items_program_product', unique: true, sparse: true }],
     [{ productCode: 1, isActive: 1 }, { name: 'idx_promotion_group_items_product_active' }],
+    [{ programCode: 1, isActive: 1 }, { name: 'idx_promotion_group_items_program_active' }],
     [{ missingProduct: 1, programCode: 1 }, { name: 'idx_promotion_group_items_missing_program' }]
   ],
   promotionGroupRules: [
     [{ programCode: 1, minAmount: 1 }, { name: 'idx_promotion_group_rules_program_min_amount' }],
+    [{ groupCode: 1, minAmount: 1 }, { name: 'idx_promotion_group_rules_group_min_amount' }],
     [{ programCode: 1, isActive: 1 }, { name: 'idx_promotion_group_rules_program_active' }]
   ],
   importTemplates: [[{ type: 1, name: 1 }, { name: 'idx_import_templates_type_name' }]],

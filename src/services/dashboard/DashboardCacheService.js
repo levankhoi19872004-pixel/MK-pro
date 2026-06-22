@@ -8,8 +8,13 @@ const User = require('../../models/User');
 const SalesTarget = require('../../models/SalesTarget');
 const Product = require('../../models/Product');
 
-// Mặc định tắt cache để Dashboard luôn đọc Mongo mới nhất. Chỉ bật khi đặt ENV > 0.
-const CACHE_TTL_MS = Math.max(0, Number(process.env.HOME_DASHBOARD_CACHE_TTL_MS || 0));
+// Dashboard home chỉ là thống kê tổng quan. Phase36B bật TTL ngắn mặc định
+// để các lần load lặp trong API Monitor không chạy lại 10+ aggregate nặng.
+// Nếu cần kiểm tra freshness bằng Mongo version có thể bật HOME_DASHBOARD_CACHE_STRICT_FRESHNESS=true.
+const CACHE_TTL_MS = Math.max(0, Number(process.env.HOME_DASHBOARD_CACHE_TTL_MS === undefined
+  ? 45000
+  : process.env.HOME_DASHBOARD_CACHE_TTL_MS));
+const STRICT_FRESHNESS = String(process.env.HOME_DASHBOARD_CACHE_STRICT_FRESHNESS || 'false').toLowerCase() === 'true';
 const cache = new Map();
 
 function enabled() {
@@ -26,6 +31,7 @@ async function latestVersionForModel(model) {
 
 async function freshnessVersion() {
   if (!enabled()) return 'cache-disabled';
+  if (!STRICT_FRESHNESS) return 'ttl-only';
   const versions = await Promise.all([
     latestVersionForModel(SalesOrder),
     latestVersionForModel(ReturnOrder),
@@ -70,6 +76,7 @@ function invalidate(period = '') {
 
 module.exports = {
   CACHE_TTL_MS,
+  STRICT_FRESHNESS,
   enabled,
   freshnessVersion,
   read,

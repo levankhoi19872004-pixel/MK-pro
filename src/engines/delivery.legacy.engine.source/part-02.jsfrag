@@ -255,6 +255,24 @@ class DeliveryEngine {
     return query;
   }
 
+  async resolveSalesOrderByKnownCode(key, options = {}) {
+    const candidates = directOrderLookupCandidates(key);
+    for (const filter of candidates) {
+      let query = this.SalesOrder.findOne(filter);
+      query = applyQuerySession(query, options.session);
+      if (query && typeof query.select === 'function') query = query.select(DELIVERY_ORDER_SELECT);
+      const order = query && typeof query.lean === 'function' ? await query.lean() : await query;
+      if (order) return order;
+    }
+
+    const fallbackLookup = buildOrderLookup(key);
+    if (!fallbackLookup) return null;
+    let query = this.SalesOrder.findOne(fallbackLookup);
+    query = applyQuerySession(query, options.session);
+    if (query && typeof query.select === 'function') query = query.select(DELIVERY_ORDER_SELECT);
+    return query && typeof query.lean === 'function' ? query.lean() : query;
+  }
+
   async findOrders(query = {}) {
     const date = text(query.date || query.deliveryDate || today());
     const status = norm(query.status || query.deliveryStatus);
@@ -265,6 +283,9 @@ class DeliveryEngine {
       if (date) filter.deliveryDate = date;
       if (status && !['all', 'tat ca', 'tất cả', '*'].includes(status)) {
         filter.deliveryStatus = text(query.status || query.deliveryStatus);
+      }
+      if (!truthy(query.includeInactive) && !truthy(query.showInactive)) {
+        filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'] };
       }
       return filter;
     };
@@ -282,34 +303,41 @@ class DeliveryEngine {
     };
 
     let orders = [];
+    const requestedLimit = Math.min(1000, Math.max(1, Number(query.limit || 1000)));
+
+    const scopedSalesOrderLookup = async (linkClause, { fast = false } = {}) => {
+      const filter = makeBaseFilter();
+      const and = [linkClause];
+      if (fast) {
+        const deliveryCode = directDeliveryCodeFromQuery(query);
+        and.push({ deliveryStaffCode: { $in: staffCodeVariantsForMongo(deliveryCode) } });
+      } else {
+        pushStaffMongoFilters(and, query);
+      }
+      applyKeywordToAnd(and);
+      filter.$and = and;
+      return this.execSalesOrderFind(filter, {
+        sort: fast
+          ? { deliveryDate: -1, deliveryStaffCode: 1, customerName: 1, code: 1 }
+          : { deliveryStaffCode: 1, customerName: 1, code: 1 },
+        limit: fast ? Math.min(300, requestedLimit) : requestedLimit
+      });
+    };
 
     // Fast path cho app giao hàng: token đã bind deliveryStaffCode chính xác.
-    // Tránh $or regex trên nhiều alias không index, nguyên nhân làm /api/delivery/orders và /returns chậm.
+    // Phase36B: dùng field masterOrderId/masterOrderCode chuẩn trước, legacy chỉ fallback đã được scope ngày/NVGH.
     if (shouldTryFastDeliveryCodeQuery(query)) {
-      const deliveryCode = directDeliveryCodeFromQuery(query);
-      const and = [
-        masterAssignmentMongoClause(),
-        { deliveryStaffCode: { $in: staffCodeVariantsForMongo(deliveryCode) } }
-      ];
-      applyKeywordToAnd(and);
-      const fastFilter = { ...makeBaseFilter(), $and: and };
-      orders = await this.execSalesOrderFind(fastFilter, {
-        sort: { deliveryDate: -1, deliveryStaffCode: 1, customerName: 1, code: 1 },
-        limit: 300
-      });
+      orders = await scopedSalesOrderLookup(masterAssignmentMongoClause(), { fast: true });
+      if (!orders.length) {
+        orders = await scopedSalesOrderLookup(masterAssignmentMongoClause({ legacy: true }), { fast: true });
+      }
     }
 
     if (!orders.length) {
-      const filter = makeBaseFilter();
-      const and = [masterAssignmentMongoClause()];
-      pushStaffMongoFilters(and, query);
-      applyKeywordToAnd(and);
-      if (and.length) filter.$and = and;
-
-      orders = await this.execSalesOrderFind(filter, {
-        sort: { deliveryStaffCode: 1, customerName: 1, code: 1 },
-        limit: 1000
-      });
+      orders = await scopedSalesOrderLookup(masterAssignmentMongoClause());
+      if (!orders.length) {
+        orders = await scopedSalesOrderLookup(masterAssignmentMongoClause({ legacy: true }));
+      }
     }
 
     if (!orders.length && date && this.MasterOrder) {
@@ -375,16 +403,13 @@ class DeliveryEngine {
     if (!or.length) return [];
     let query = this.ReturnOrder.find({ ...activeReturnFilter(), $or: or });
     query = applyQuerySession(query, options.session);
+    if (query && typeof query.select === 'function') query = query.select(DELIVERY_RETURN_SELECT);
     const docs = await query.lean();
     return docs.map(canonicalizeReturnDocument).filter(hasPositiveReturnDocument);
   }
 
   async getCanonicalOrderByKey(key, options = {}) {
-    const lookup = buildOrderLookup(key);
-    if (!lookup) return null;
-    let query = this.SalesOrder.findOne(lookup);
-    query = applyQuerySession(query, options.session);
-    const order = await query.lean();
+    const order = await this.resolveSalesOrderByKnownCode(key, options);
     if (!order) return null;
     const returns = await this.findReturnOrdersFor([order], options);
     return buildCanonicalOrder(order, returns.filter((ret) => returnMatchesOrder(ret, order)));
@@ -415,9 +440,7 @@ class DeliveryEngine {
   async saveReturn(body = {}) {
     const options = arguments[1] || {};
     const key = text(body.salesOrderId || body.orderId || body.salesOrderCode || body.orderCode);
-    let query = this.SalesOrder.findOne(buildOrderLookup(key));
-    query = applyQuerySession(query, options.session);
-    const order = await query.lean();
+    const order = await this.resolveSalesOrderByKnownCode(key, options);
     if (!order) {
       const err = new Error('Không tìm thấy đơn giao hàng');
       err.status = 404;

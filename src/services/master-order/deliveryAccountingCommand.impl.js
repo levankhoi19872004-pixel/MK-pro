@@ -15,14 +15,12 @@ const { debugLog } = require('../../utils/debug.util');
 const {
   compactDeliveryOrderKeys,
   normalizeSalesOrderIds,
-  buildSalesOrderIdInQuery,
-  normalizeMasterSalesOrderRefs,
-  masterChildOrderRefs,
   buildIdentityInFilter
 } = require('./masterOrderIdentity.util');
 
 const isInactiveStatus = lazyFunction('./masterOrderQuery.impl', 'isInactiveStatus');
 const listMasterOrders = lazyFunction('./masterOrderQuery.impl', 'listMasterOrders');
+const buildMasterChildrenMapFast = lazyFunction('./masterOrderQuery.impl', 'buildMasterChildrenMapFast');
 const findReturnOrdersForDeliveryChildren = lazyFunction('./masterOrderReturn.impl', 'findReturnOrdersForDeliveryChildren');
 const hydrateReturnOrdersForAccounting = lazyFunction('./masterOrderReturn.impl', 'hydrateReturnOrdersForAccounting');
 const isAccountingConfirmed = lazyFunction('./deliveryAccountingCore.impl', 'isAccountingConfirmed');
@@ -35,6 +33,204 @@ const postDeliveryArLedgerRowsAfterReAccounting = lazyFunction('./deliveryAccoun
 const postDeliveryCollectionsAfterAccountingConfirmed = lazyFunction('./deliveryAccountingCore.impl', 'postDeliveryCollectionsAfterAccountingConfirmed');
 const repairMissingArReturnIfNeeded = lazyFunction('./deliveryAccountingCore.impl', 'repairMissingArReturnIfNeeded');
 const reverseActiveArLedgersForOrder = lazyFunction('./deliveryAccountingCore.impl', 'reverseActiveArLedgersForOrder');
+
+const CONFIRM_ACCOUNTING_GUARD_TTL_MS = Math.max(1000, Number(process.env.CONFIRM_ACCOUNTING_GUARD_TTL_MS || 8000));
+const confirmAccountingInFlight = new Map();
+const ACCOUNTING_SALES_ORDER_PROJECTION = [
+  'id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderId', 'salesOrderCode',
+  'salesStaffCode', 'salesStaffName', 'salesmanCode', 'salesmanName',
+  'deliveryStaffCode', 'deliveryStaffName', 'masterOrderId', 'masterOrderCode',
+  'deliveryMasterId', 'deliveryMasterCode', 'updatedAt'
+].join(' ');
+
+// Phase36c: projection đủ rộng cho nghiệp vụ kế toán, nhưng vẫn tránh hydrate cả document Mongo.
+// Các field tài chính/items/payment cần giữ để không đổi cách tính AR-SALE/AR-RETURN/AR-RECEIPT.
+const ACCOUNTING_CHILD_ORDER_PROJECTION = [
+  'id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderId', 'salesOrderCode',
+  'date', 'orderDate', 'deliveryDate', 'createdAt', 'updatedAt',
+  'customerId', 'customerCode', 'customerName', 'customerPhone', 'customerAddress', 'phone', 'address',
+  'salesStaffCode', 'salesStaffName', 'salesmanCode', 'salesmanName', 'nvbhCode', 'nvbhName',
+  'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'nvghCode', 'nvghName',
+  'status', 'deliveryStatus', 'accountingStatus', 'accountingConfirmed', 'accountingLocked',
+  'accountingNeedsReconfirm', 'needReAccounting', 'reAccountingRequired', 'adminAdjustmentOpen',
+  'cashClosed', 'cashSubmitted', 'dayLocked', 'periodLocked', 'settlementClosed', 'editLocked', 'deliveryLocked',
+  'totalAmount', 'subtotal', 'discountAmount', 'finalAmount', 'payableAmount', 'debtAmount', 'debt', 'arBalance',
+  'paidAmount', 'cashCollected', 'cashAmount', 'bankCollected', 'bankAmount', 'transferAmount',
+  'rewardAmount', 'bonusAmount', 'returnAmount', 'returnedAmount', 'returnAmountFromReturnOrders',
+  'paymentAllocations', 'deliveryPayment', 'items', 'lines', 'products',
+  'masterOrderId', 'masterOrderCode', 'deliveryMasterId', 'deliveryMasterCode', 'masterId', 'masterCode',
+  'version', 'note', 'deliveryNote', 'reopenedAt', 'reopenedBy', 'unlockReason', 'reopenReason',
+  'accountingConfirmedAt', 'accountingConfirmedBy', 'arPostedAt', 'reAccountingAt', 'reAccountingBy', 'reAccountingNote'
+].join(' ');
+
+const ACCOUNTING_MASTER_PROJECTION = [
+  'id', 'code', 'date', 'deliveryDate', 'deliveryStaffId', 'deliveryStaffCode', 'deliveryStaffName',
+  'routeName', 'status', 'deliveryStatus', 'accountingStatus', 'accountingConfirmed',
+  'accountingConfirmedAt', 'accountingConfirmedBy', 'deliveryLocked',
+  'childOrderIds', 'children', 'note', 'createdAt', 'updatedAt'
+].join(' ');
+
+function cleanupConfirmAccountingGuards(now = Date.now()) {
+  for (const [key, entry] of confirmAccountingInFlight.entries()) {
+    if (!entry || entry.expiresAt <= now) confirmAccountingInFlight.delete(key);
+  }
+}
+
+function buildConfirmAccountingGuardKey({ date, selectedOrderIds = [], confirmedBy = '' } = {}) {
+  return JSON.stringify({
+    date,
+    confirmedBy: String(confirmedBy || '').trim().toLowerCase(),
+    orderIds: [...new Set(selectedOrderIds)].sort()
+  });
+}
+
+
+function uniqueStrings(values = []) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean))];
+}
+
+function childKeys(child = {}) {
+  return uniqueStrings([
+    child.id,
+    child._id,
+    child.code,
+    child.orderCode,
+    child.documentCode,
+    child.invoiceCode,
+    child.salesOrderId,
+    child.salesOrderCode
+  ]);
+}
+
+function masterRefsFromChild(child = {}) {
+  return uniqueStrings([
+    child.masterOrderId,
+    child.masterOrderCode,
+    child.deliveryMasterId,
+    child.deliveryMasterCode,
+    child.masterId,
+    child.masterCode
+  ]);
+}
+
+function masterKeys(master = {}) {
+  return uniqueStrings([master.id, master.code, master._id]);
+}
+
+function childDeliveryDateMatches(child = {}, master = {}, date = '') {
+  const deliveryDate = dateUtil.toDateOnly(child.deliveryDate || master.deliveryDate || child.date || master.date);
+  return !date || deliveryDate === date;
+}
+
+function selectedChildMatches(child = {}, selectedIdSet = new Set()) {
+  return childKeys(child).some((key) => selectedIdSet.has(key));
+}
+
+async function findSalesOrdersByIdentityBatched(keys = [], projection = ACCOUNTING_CHILD_ORDER_PROJECTION) {
+  const values = uniqueStrings(keys);
+  const rows = [];
+  for (let offset = 0; offset < values.length; offset += 100) {
+    const batch = values.slice(offset, offset + 100);
+    rows.push(...await orderRepository.findManyByIdentity(batch, {
+      projection,
+      limit: Math.max(batch.length, 1)
+    }));
+  }
+  return rows;
+}
+
+async function findSalesOrdersByIdsBatched(ids = [], projection = ACCOUNTING_SALES_ORDER_PROJECTION) {
+  const values = normalizeSalesOrderIds(ids);
+  const rows = [];
+  for (let offset = 0; offset < values.length; offset += 100) {
+    const batch = values.slice(offset, offset + 100);
+    rows.push(...await orderRepository.findManyByIds(batch, {
+      projection,
+      limit: Math.max(batch.length, 1)
+    }));
+  }
+  return rows;
+}
+
+async function buildTargetMasterContextByFullDayFallback(date, selectedIdSet = new Set()) {
+  const masterOrders = await listMasterOrders({ excludeInactive: 1, dateFrom: date, dateTo: date });
+  const targetMasters = new Map();
+  const targetChildren = [];
+
+  for (const master of masterOrders) {
+    const children = Array.isArray(master.children) ? master.children : [];
+    const matched = children.filter((child) => {
+      if (isInactiveStatus(child)) return false;
+      if (!childDeliveryDateMatches(child, master, date)) return false;
+      return selectedChildMatches(child, selectedIdSet);
+    });
+    if (matched.length) {
+      const masterKey = String(master.id || master.code || '').trim() || `master-${targetMasters.size}`;
+      targetMasters.set(masterKey, { master, matched });
+      targetChildren.push(...matched.map((child) => ({ master, child })));
+    }
+  }
+
+  return { targetMasters, targetChildren, selectedSourceOrders: [], usedFullDayFallback: true };
+}
+
+async function buildTargetMasterContextFromSelectedOrders(date, selectedOrderIds = []) {
+  const selectedIdSet = new Set(uniqueStrings(selectedOrderIds));
+  const selectedSourceOrders = selectedIdSet.size
+    ? await findSalesOrdersByIdentityBatched([...selectedIdSet], ACCOUNTING_CHILD_ORDER_PROJECTION)
+    : [];
+
+  const masterRefs = uniqueStrings((selectedSourceOrders || []).flatMap(masterRefsFromChild));
+  if (!masterRefs.length) {
+    return { targetMasters: new Map(), targetChildren: [], selectedSourceOrders, usedFastPath: false };
+  }
+
+  const masterMatches = await masterOrderRepository.findManyByIdentityMatches(masterRefs, {
+    projection: ACCOUNTING_MASTER_PROJECTION
+  });
+  const uniqueMasters = new Map();
+  for (const match of masterMatches || []) {
+    const master = match?.masterOrder;
+    if (!master) continue;
+    const key = String(master.id || master.code || match.identityKeys?.[0] || '').trim();
+    if (key && !uniqueMasters.has(key)) uniqueMasters.set(key, master);
+  }
+
+  const masters = [...uniqueMasters.values()];
+  if (!masters.length) {
+    return { targetMasters: new Map(), targetChildren: [], selectedSourceOrders, usedFastPath: false };
+  }
+
+  const childrenMap = await buildMasterChildrenMapFast(masters, { identityBatchSize: 250 });
+  const targetMasters = new Map();
+  const targetChildren = [];
+
+  for (const master of masters) {
+    const masterKey = String(master.id || master.code || '').trim() || `master-${targetMasters.size}`;
+    const hydratedChildren = childrenMap.get(String(master.id || master.code || '').trim()) || [];
+    const masterKeySet = new Set(masterKeys(master));
+    const selectedForMaster = (selectedSourceOrders || []).filter((order) => masterRefsFromChild(order).some((key) => masterKeySet.has(key)));
+    const children = hydratedChildren.length ? hydratedChildren : selectedForMaster;
+    let matched = children.filter((child) => {
+      if (isInactiveStatus(child)) return false;
+      if (!childDeliveryDateMatches(child, master, date)) return false;
+      return selectedChildMatches(child, selectedIdSet);
+    });
+
+    if (!matched.length && selectedForMaster.length) {
+      matched = selectedForMaster.filter((child) => !isInactiveStatus(child) && childDeliveryDateMatches(child, master, date));
+    }
+
+    if (!matched.length) continue;
+    const hydratedMaster = { ...master, children };
+    targetMasters.set(masterKey, { master: hydratedMaster, matched });
+    targetChildren.push(...matched.map((child) => ({ master: hydratedMaster, child })));
+  }
+
+  return { targetMasters, targetChildren, selectedSourceOrders, usedFastPath: true };
+}
 
 async function adminUnlockDeliveryAccounting(id, body = {}) {
   const current = await orderRepository.findByIdOrCode(id);
@@ -77,11 +273,13 @@ async function adminUnlockDeliveryAccounting(id, body = {}) {
   return { salesOrder: unlocked, message: `Đã mở khóa kế toán đơn ${orderDisplayCode(unlocked)}. Sau khi lưu phải xác nhận lại kế toán để đảo AR-SALE cũ và sinh AR-SALE mới.` };
 }
 
-async function confirmDeliveryAccounting(body = {}) {
-  const date = dateUtil.toDateOnly(body.date || dateUtil.todayVN());
-  const selectedOrderIds = Array.isArray(body.orderIds)
-    ? body.orderIds.map((id) => String(id || '').trim()).filter(Boolean)
-    : [];
+async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
+  const date = normalized.date || dateUtil.toDateOnly(body.date || dateUtil.todayVN());
+  const selectedOrderIds = Array.isArray(normalized.selectedOrderIds)
+    ? normalized.selectedOrderIds
+    : (Array.isArray(body.orderIds)
+      ? [...new Set(body.orderIds.map((id) => String(id || '').trim()).filter(Boolean))]
+      : []);
   debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-1 confirmDeliveryAccounting start', {
     date,
     selectedOrderIds
@@ -95,34 +293,18 @@ async function confirmDeliveryAccounting(body = {}) {
   }
 
   const selectedIdSet = new Set(selectedOrderIds);
-  const confirmedBy = String(body.confirmedBy || body.userName || body.accountantName || 'accountant').trim();
+  const confirmedBy = normalized.confirmedBy || String(body.confirmedBy || body.userName || body.accountantName || 'accountant').trim();
   const now = dateUtil.nowIso();
-  const masterOrders = await listMasterOrders({ excludeInactive: 1, dateFrom: date, dateTo: date });
-  const targetMasters = new Map();
-  const targetChildren = [];
 
-  const childKeys = (child = {}) => [
-    child.id,
-    child._id,
-    child.code,
-    child.orderCode,
-    child.documentCode
-  ].map((v) => String(v || '').trim()).filter(Boolean);
-
-  for (const master of masterOrders) {
-    const children = Array.isArray(master.children) ? master.children : [];
-    const matched = children.filter((child) => {
-      if (isInactiveStatus(child)) return false;
-      const deliveryDate = dateUtil.toDateOnly(child.deliveryDate || master.deliveryDate || child.date || master.date);
-      if (deliveryDate !== date) return false;
-      return childKeys(child).some((key) => selectedIdSet.has(key));
-    });
-    if (matched.length) {
-      const masterKey = String(master.id || master.code || '').trim() || `master-${targetMasters.size}`;
-      targetMasters.set(masterKey, { master, matched });
-      targetChildren.push(...matched.map((child) => ({ master, child })));
-    }
+  // Phase36c P0: không quét toàn bộ đơn tổng trong ngày trước.
+  // Lấy salesOrders đã tick chọn theo id/code trước, suy ra master liên quan rồi mới hydrate con của các master đó.
+  // Chỉ fallback full-day scan cho dữ liệu legacy thiếu masterOrderId/masterOrderCode.
+  let selectionContext = await buildTargetMasterContextFromSelectedOrders(date, selectedOrderIds);
+  if (!selectionContext.targetChildren.length) {
+    selectionContext = await buildTargetMasterContextByFullDayFallback(date, selectedIdSet);
   }
+  const targetMasters = selectionContext.targetMasters;
+  const targetChildren = selectionContext.targetChildren;
 
   if (!targetChildren.length) {
     return { error: `Không tìm thấy đơn đã chọn trong ngày ${date} để kế toán xác nhận`, status: 404 };
@@ -178,14 +360,31 @@ async function confirmDeliveryAccounting(body = {}) {
         .filter(Boolean)
     )
   ];
-  const sourceSalesOrders = selectedOrderKeys.length
-    ? await orderRepository.findManyByIdentity(selectedOrderKeys)
-    : [];
+  const selectedSalesOrderIds = normalizeSalesOrderIds([
+    ...selectedOrderIds,
+    ...targetChildren.flatMap(({ child }) => [child.id, child.salesOrderId, child.orderId, child.code])
+  ]);
   const sourceSalesOrderByKey = new Map();
-  for (const order of sourceSalesOrders || []) {
+  const rememberSourceSalesOrder = (order = {}) => {
     for (const key of compactDeliveryOrderKeys(order)) {
       if (!sourceSalesOrderByKey.has(key)) sourceSalesOrderByKey.set(key, order);
     }
+  };
+  for (const order of selectionContext.selectedSourceOrders || []) rememberSourceSalesOrder(order);
+
+  const missingSelectedSalesOrderIds = selectedSalesOrderIds.filter((key) => !sourceSalesOrderByKey.has(key));
+  const sourceSalesOrdersById = missingSelectedSalesOrderIds.length
+    ? await findSalesOrdersByIdsBatched(missingSelectedSalesOrderIds, ACCOUNTING_SALES_ORDER_PROJECTION)
+    : [];
+  for (const order of sourceSalesOrdersById || []) rememberSourceSalesOrder(order);
+
+  const missingIdentityKeys = selectedOrderKeys.filter((key) => !sourceSalesOrderByKey.has(key));
+  if (missingIdentityKeys.length) {
+    const fallbackSourceSalesOrders = await orderRepository.findManyByIdentity(missingIdentityKeys, {
+      projection: ACCOUNTING_SALES_ORDER_PROJECTION,
+      limit: Math.max(missingIdentityKeys.length, 1)
+    });
+    for (const order of fallbackSourceSalesOrders || []) rememberSourceSalesOrder(order);
   }
   const findSourceSalesOrderForChild = (child = {}) => {
     for (const key of compactDeliveryOrderKeys(child)) {
@@ -390,6 +589,45 @@ async function confirmDeliveryAccounting(body = {}) {
     totalOrders: targetChildren.length,
     message: `Kế toán đã xác nhận ${confirmedOrders} đơn giao ngày ${date}. Hệ thống đã sinh AR-SALE và khóa kế toán.`
   };
+}
+
+async function confirmDeliveryAccounting(body = {}) {
+  const date = dateUtil.toDateOnly(body.date || dateUtil.todayVN());
+  const selectedOrderIds = Array.isArray(body.orderIds)
+    ? [...new Set(body.orderIds.map((id) => String(id || '').trim()).filter(Boolean))]
+    : [];
+  if (!selectedOrderIds.length) {
+    return { error: 'Vui lòng chọn ít nhất một đơn để xác nhận kế toán', status: 400 };
+  }
+
+  const confirmedBy = String(body.confirmedBy || body.userName || body.accountantName || 'accountant').trim();
+  const nowMs = Date.now();
+  cleanupConfirmAccountingGuards(nowMs);
+  const guardKey = buildConfirmAccountingGuardKey({ date, selectedOrderIds, confirmedBy });
+  const existing = confirmAccountingInFlight.get(guardKey);
+  if (existing && existing.expiresAt > nowMs) {
+    return existing.promise.then((result) => ({
+      ...result,
+      duplicateSubmitSuppressed: true,
+      message: result && result.message
+        ? `${result.message} Yêu cầu lặp gần nhau đã được bỏ qua an toàn.`
+        : 'Yêu cầu xác nhận kế toán lặp gần nhau đã được bỏ qua an toàn.'
+    }));
+  }
+
+  const promise = confirmDeliveryAccountingInternal(body, { date, selectedOrderIds, confirmedBy });
+  confirmAccountingInFlight.set(guardKey, { expiresAt: nowMs + CONFIRM_ACCOUNTING_GUARD_TTL_MS, promise });
+  try {
+    const result = await promise;
+    confirmAccountingInFlight.set(guardKey, {
+      expiresAt: Date.now() + CONFIRM_ACCOUNTING_GUARD_TTL_MS,
+      promise: Promise.resolve(result)
+    });
+    return result;
+  } catch (error) {
+    confirmAccountingInFlight.delete(guardKey);
+    throw error;
+  }
 }
 
 module.exports = {

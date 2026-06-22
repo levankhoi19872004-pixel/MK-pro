@@ -14,8 +14,8 @@ var receivable=baseAmount(order,"receivable"),paid=baseAmount(order,"cash")+base
 ;return normalizeDebtAmount(Math.max(0,receivable-paid))}
 return"processed"===key?baseAmount(order,"cash")+baseAmount(order,"bank")+baseAmount(order,"reward")+returnAmountFromReturnOrders(order):baseAmount(order,key)}
 function orderKey(order){return window.DeliveryCore.orderKey(order)}var state={selectedKey:"",activeTab:"products",accountingSelectedKeys:{},selectedSalesStaffKeys:{},
-salesBranchScope:"",salesBranchRowCount:0};function renderShell(){var root=function(){var root=byId("deliveryTodayRoot");if(root)return root;var tab=byId("deliveryTodayTab")
-;return tab?(tab.innerHTML='<section id="deliveryTodayRoot" class="delivery-v46-shell"></section>',byId("deliveryTodayRoot")):null}();if(root){
+salesBranchScope:"",salesBranchRowCount:0,accountingSubmitting:!1};function renderShell(){var root=function(){var root=byId("deliveryTodayRoot");if(root)return root
+;var tab=byId("deliveryTodayTab");return tab?(tab.innerHTML='<section id="deliveryTodayRoot" class="delivery-v46-shell"></section>',byId("deliveryTodayRoot")):null}();if(root){
 root.innerHTML='<section class="delivery-v46-header card"><div><h2>Đơn giao hôm nay</h2><p class="muted">Luồng chuẩn: <b>Giao hàng → Thu tiền → Hoàn tất</b>. Web và app dùng chung <b>DeliveryCore</b>, hàng trả một nguồn <b>returnOrders</b>.</p></div><div class="delivery-v46-filters"><label>Ngày giao<input id="deliveryCoreDate" type="date"></label><label class="delivery-v46-filter-suggest">NVGH<input id="deliveryCoreDeliveryStaff" autocomplete="off" placeholder="Mã/tên NVGH"><div id="deliveryCoreDeliveryStaffSuggestions" class="delivery-v46-suggest-box"></div></label><label class="delivery-v46-filter-suggest">NVBH<input id="deliveryCoreSalesStaff" autocomplete="off" placeholder="Mã/tên NVBH"><div id="deliveryCoreSalesStaffSuggestions" class="delivery-v46-suggest-box"></div></label><label>Trạng thái<select id="deliveryCoreStatus"><option value="all">Tất cả</option><option value="delivered">Đã giao</option><option value="pending">Chưa giao</option><option value="return">Trả hàng</option><option value="debt">Công nợ</option></select></label><label>Tìm kiếm<input id="deliveryCoreSearch" placeholder="Mã đơn / khách hàng"></label><button id="deliveryCoreReload" type="button">Tải đơn</button></div></section><section id="deliveryRouteTrackingPanel" class="route-tracking-admin-panel"><div class="route-tracking-toolbar"><div><b>Theo dõi tuyến giao hàng</b><p class="muted">Xem phiên GPS theo ngày/NVGH. P0 hiển thị tọa độ/link Google Maps, không thêm thư viện bản đồ.</p></div><button id="deliveryRouteTrackingReload" type="button">Tải tuyến</button></div><div id="deliveryRouteTrackingList" class="route-tracking-list"><div class="empty-state">Chưa tải tuyến giao hàng.</div></div></section><section id="deliverySalesBranchBox" class="delivery-v46-sales-branch empty"></section><section class="delivery-v46-kpis"><div class="delivery-v46-kpi kpi-pt"><span>Phải thu</span><b id="deliveryKpiReceivable">0</b></div><div class="delivery-v46-kpi kpi-tm"><span>Tiền mặt</span><b id="deliveryKpiCash">0</b></div><div class="delivery-v46-kpi kpi-ck"><span>Chuyển khoản</span><b id="deliveryKpiBank">0</b></div><div class="delivery-v46-kpi kpi-th"><span>Trả thưởng</span><b id="deliveryKpiReward">0</b></div><div class="delivery-v46-kpi kpi-ht"><span>Hàng trả</span><b id="deliveryKpiReturn">0</b></div><div class="delivery-v46-kpi kpi-cn"><span>Còn nợ</span><b id="deliveryKpiDebt">0</b></div></section><main class="delivery-v46-layout"><section class="card delivery-v46-list-panel"><div class="delivery-v46-panel-title delivery-v46-panel-title-with-actions"><h3>Danh sách đơn</h3><div class="delivery-v46-list-actions"><button id="deliverySelectAllAccounting" type="button" class="secondary">Chọn tất cả</button><button id="deliveryBulkAccountingButton" type="button" class="primary">Xác nhận kế toán đã chọn</button><span id="deliveryCoreCount">0 đơn</span></div></div><div class="mk-delivery-list-head mk-delivery-list-grid"><span class="mk-delivery-check-head"></span><span>Đơn / Khách hàng</span><span>PT</span><span>TM</span><span>CK</span><span>TH</span><span>HT</span><span>CN</span></div><div id="deliveryCoreList" class="delivery-v46-list"><div class="empty-state">Chưa tải đơn.</div></div></section><aside class="card delivery-v46-detail-panel"><div id="deliveryCoreDetail" class="delivery-v46-detail-empty">Chọn đơn bên trái để xem chi tiết.</div></aside></main><p id="deliveryCoreMessage" class="message"></p>',
 byId("deliveryCoreDate").value=function(){const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Ho_Chi_Minh",year:"numeric",month:"2-digit",day:"2-digit"
 }).formatToParts(new Date),values=Object.fromEntries(parts.map(part=>[part.type,part.value]));return`${values.year}-${values.month}-${values.day}`}(),
@@ -71,7 +71,16 @@ var st=(order=order||{}).status&&"object"==typeof order.status?order.status:{},v
 ;var st=order.status&&"object"==typeof order.status?order.status:{},value=String(order.accountingStatus||st.accountingStatus||"").toLowerCase()
 ;return Boolean(order.accountingConfirmed)||["confirmed","locked","posted","done"].indexOf(value)>=0}function isAccountingSelectable(order){
 return!(!order||!accountingKey(order)||!isDelivered(order)||!isAccountingReopenPending(order)&&isAccountingConfirmed(order))}function accountingKey(order){return order=order||{},
-String(order.orderId||order.id||order.code||order.orderCode||order.salesOrderId||order.salesOrderCode||"").trim()}function getVisibleOrders(){
+String(order.orderId||order.id||order.code||order.orderCode||order.salesOrderId||order.salesOrderCode||"").trim()}function updateBulkAccountingButton(){
+var ids=Object.keys(state.accountingSelectedKeys||{}).filter(function(key){return state.accountingSelectedKeys[key]
+}),bulk=byId("deliveryBulkAccountingButton"),all=byId("deliverySelectAllAccounting")
+;if(bulk&&(bulk.textContent=ids.length?"Xác nhận kế toán đã chọn ("+ids.length+")":"Xác nhận kế toán đã chọn",bulk.disabled=state.accountingSubmitting||!ids.length),all){
+var eligible=getVisibleOrders().filter(isAccountingSelectable),selectedCount=eligible.filter(function(order){return state.accountingSelectedKeys[accountingKey(order)]}).length
+;all.textContent=eligible.length&&selectedCount===eligible.length?"Bỏ chọn tất cả":"Chọn tất cả",all.disabled=state.accountingSubmitting}
+["deliveryAccountingButton","deliveryAccountingUnlockButton"].forEach(function(id){var btn=byId(id);btn&&(btn.disabled=state.accountingSubmitting)})}
+function setAccountingSubmitting(value){state.accountingSubmitting=Boolean(value),updateBulkAccountingButton()}async function withAccountingSubmitLock(work){
+if(state.accountingSubmitting)return message("Đang xác nhận kế toán, vui lòng không bấm lặp."),null;setAccountingSubmitting(!0);try{return await work()}finally{
+setAccountingSubmitting(!1)}}function getVisibleOrders(){
 var rows=window.DeliveryCore&&window.DeliveryCore.state&&window.DeliveryCore.state.orders||[],f=filters(),q=String(f.q||"").trim().toLowerCase(),statusFilter=String(f.statusFilter||"all").trim().toLowerCase()
 ;return rows.filter(function(order){return!!function(order){if(Number(state.salesBranchRowCount||0)<=1)return!0;var key=normKey(salesStaffKey(order))
 ;return Boolean((state.selectedSalesStaffKeys||{})[key])}(order)&&!(q&&function(order){
@@ -90,11 +99,7 @@ byId("deliveryKpiReward")&&(byId("deliveryKpiReward").textContent=money(sum.rewa
 byId("deliveryKpiDebt")&&(byId("deliveryKpiDebt").textContent=money(sum.debt)),byId("deliveryCoreCount")&&(byId("deliveryCoreCount").textContent=rows.length+" đơn")}()
 ;var list=byId("deliveryCoreList");if(list){var rows=getVisibleOrders();!function(rows){var keep={};(rows||[]).forEach(function(order){var key=accountingKey(order)
 ;key&&state.accountingSelectedKeys[key]&&isAccountingSelectable(order)&&(keep[key]=!0)}),state.accountingSelectedKeys=keep}(rows),keepSelectionVisible(),rows=getVisibleOrders(),
-function(){var ids=Object.keys(state.accountingSelectedKeys||{}).filter(function(key){return state.accountingSelectedKeys[key]
-}),bulk=byId("deliveryBulkAccountingButton"),all=byId("deliverySelectAllAccounting")
-;if(bulk&&(bulk.textContent=ids.length?"Xác nhận kế toán đã chọn ("+ids.length+")":"Xác nhận kế toán đã chọn"),all){
-var eligible=getVisibleOrders().filter(isAccountingSelectable),selectedCount=eligible.filter(function(order){return state.accountingSelectedKeys[accountingKey(order)]}).length
-;all.textContent=eligible.length&&selectedCount===eligible.length?"Bỏ chọn tất cả":"Chọn tất cả"}}(),rows.length?(list.innerHTML=rows.map(function(order){
+updateBulkAccountingButton(),rows.length?(list.innerHTML=rows.map(function(order){
 var key=orderKey(order),selected=key===state.selectedKey?" selected":"",accKey=accountingKey(order),accountingSelected=accKey&&state.accountingSelectedKeys[accKey],accountingLocked=isAccountingConfirmed(order),accountingNeedsReconfirm=isAccountingReopenPending(order),orderCode=(isAccountingSelectable(order),
 normalizeDebtAmount(amount(order,"debt")),
 order.orderCode||order.salesOrderCode||order.code||order.id||""),customerLabel=(order.customerName||"")+(order.customerCode?" · "+order.customerCode:"")
@@ -142,11 +147,12 @@ byId("deliveryPaymentForm")&&byId("deliveryPaymentForm").addEventListener("submi
 byId("deliveryClearReturnButton")&&byId("deliveryClearReturnButton").addEventListener("click",function(){saveReturn({preventDefault:function(){},forceZero:!0})}),
 byId("deliveryConfirmButton")&&byId("deliveryConfirmButton").addEventListener("click",confirmDelivery),
 byId("deliveryAccountingButton")&&byId("deliveryAccountingButton").addEventListener("click",function(){!async function(order){if(order&&window.DeliveryCore){
-var key=accountingKey(order);if(key)if(isAccountingSelectable(order)){if(confirm(isAccountingReopenPending(order)?"Xác nhận kế toán lại đơn này?":"Xác nhận kế toán đơn này?"))try{
-message("Đang xác nhận kế toán...");var json=await window.DeliveryCore.confirmAccounting([key],filters());delete state.accountingSelectedKeys[key],
-message(json.message||"Đã xác nhận kế toán"),await load()}catch(err){message(err.message||"Không xác nhận kế toán được",!0)}
-}else message(isDelivered(order)?"Đơn này đã xác nhận kế toán":"Đơn chưa giao, chưa thể xác nhận kế toán");else message("Không xác định được mã đơn để xác nhận kế toán",!0)}
-}(order)}),byId("deliveryAccountingUnlockButton")&&byId("deliveryAccountingUnlockButton").addEventListener("click",function(){!async function(order){if(order&&window.DeliveryCore){
+var key=accountingKey(order)
+;key?isAccountingSelectable(order)?confirm(isAccountingReopenPending(order)?"Xác nhận kế toán lại đơn này?":"Xác nhận kế toán đơn này?")&&withAccountingSubmitLock(async function(){
+try{message("Đang xác nhận kế toán...");var json=await window.DeliveryCore.confirmAccounting([key],filters());delete state.accountingSelectedKeys[key],
+message(json.message||"Đã xác nhận kế toán"),await load()}catch(err){message(err.message||"Không xác nhận kế toán được",!0)}return null
+}):message(isDelivered(order)?"Đơn này đã xác nhận kế toán":"Đơn chưa giao, chưa thể xác nhận kế toán"):message("Không xác định được mã đơn để xác nhận kế toán",!0)}}(order)}),
+byId("deliveryAccountingUnlockButton")&&byId("deliveryAccountingUnlockButton").addEventListener("click",function(){!async function(order){if(order&&window.DeliveryCore){
 var key=accountingKey(order);if(key)if(isDelivered(order)&&isAccountingConfirmed(order)&&!isAccountingReopenPending(order)){var reason=prompt("Nhập lý do mở khóa kế toán:")
 ;if(reason&&reason.trim()){if(confirm("Mở khóa kế toán đơn này? Sau khi sửa tiền cần xác nhận kế toán lại."))try{message("Đang mở khóa kế toán..."),
 message((await window.DeliveryCore.adminUnlockAccounting(key,reason.trim())).message||"Đã mở khóa kế toán"),await load()}catch(err){
@@ -177,13 +183,14 @@ function toggleSelectAllAccounting(){var rows=getVisibleOrders().filter(isAccoun
 return state.accountingSelectedKeys[accountingKey(order)]});rows.forEach(function(order){var key=accountingKey(order)
 ;allSelected?delete state.accountingSelectedKeys[key]:state.accountingSelectedKeys[key]=!0}),renderList()}async function confirmSelectedAccounting(){
 var ids=getVisibleOrders().filter(function(order){var key=accountingKey(order);return key&&state.accountingSelectedKeys[key]&&isAccountingSelectable(order)}).map(accountingKey)
-;if(ids.length){if(confirm("Xác nhận kế toán "+ids.length+" đơn đã chọn?"))try{message("Đang xác nhận kế toán "+ids.length+" đơn...")
-;var json=await window.DeliveryCore.confirmAccounting(ids,filters());state.accountingSelectedKeys={},message(json.message||"Đã xác nhận kế toán các đơn đã chọn"),await load()
-}catch(err){message(err.message||"Không xác nhận kế toán được các đơn đã chọn",!0)}}else message("Vui lòng chọn ít nhất 1 đơn hợp lệ để xác nhận kế toán",!0)}
-async function select(key){state.selectedKey=key;var order=window.DeliveryCore.selectOrder(key);if(renderList(),renderDetail(order),
-order&&window.DeliveryCore&&"function"==typeof window.DeliveryCore.loadReturnsForOrder)try{await window.DeliveryCore.loadReturnsForOrder(order),refreshAfterReturnRowsLoaded(order)
-}catch(e){console.error("loadReturnsForOrder failed",e)}}async function loadRouteTracking(){if(window.DeliveryCore&&byId("deliveryRouteTrackingList")){
-var target=byId("deliveryRouteTrackingList");target.innerHTML='<div class="empty-state">Đang tải tuyến giao hàng...</div>';try{
+;if(ids.length){if(confirm("Xác nhận kế toán "+ids.length+" đơn đã chọn?"))return withAccountingSubmitLock(async function(){try{
+message("Đang xác nhận kế toán "+ids.length+" đơn...");var json=await window.DeliveryCore.confirmAccounting(ids,filters());state.accountingSelectedKeys={},
+message(json.message||"Đã xác nhận kế toán các đơn đã chọn"),await load()}catch(err){message(err.message||"Không xác nhận kế toán được các đơn đã chọn",!0)}return null})
+}else message("Vui lòng chọn ít nhất 1 đơn hợp lệ để xác nhận kế toán",!0)}async function select(key){state.selectedKey=key;var order=window.DeliveryCore.selectOrder(key)
+;if(renderList(),renderDetail(order),order&&window.DeliveryCore&&"function"==typeof window.DeliveryCore.loadReturnsForOrder)try{
+await window.DeliveryCore.loadReturnsForOrder(order),refreshAfterReturnRowsLoaded(order)}catch(e){console.error("loadReturnsForOrder failed",e)}}async function loadRouteTracking(){
+if(window.DeliveryCore&&byId("deliveryRouteTrackingList")){var target=byId("deliveryRouteTrackingList")
+;target.innerHTML='<div class="empty-state">Đang tải tuyến giao hàng...</div>';try{
 var params=new URLSearchParams,date=byId("deliveryCoreDate")&&byId("deliveryCoreDate").value,delivery=byId("deliveryCoreDeliveryStaff")&&byId("deliveryCoreDeliveryStaff").value
 ;date&&params.set("date",date),delivery&&params.set("deliveryStaffCode",delivery)
 ;var json=await window.DeliveryCore.api("/api/delivery/routes"+(params.toString()?"?"+params.toString():"")),rows=json.data&&json.data.sessions||json.sessions||[]

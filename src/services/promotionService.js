@@ -10,6 +10,10 @@ const { makeId, toNumber } = require('../utils/common.util');
 
 const PROMOTION_PROGRAM_CACHE_TTL_MS = Math.max(0, Number(process.env.PROMOTION_PROGRAM_CACHE_TTL_MS || 30000));
 const promotionProgramCache = new Map();
+const PROMOTION_PRODUCT_RULE_PROJECTION = 'id code programCode programName productCode productName discountPercent startDate endDate isActive source updatedAt';
+const PROMOTION_GROUP_ITEM_PROJECTION = 'id code programCode groupCode programName productCode productName startDate endDate isActive source updatedAt';
+const PROMOTION_GROUP_RULE_PROJECTION = 'id code programCode groupCode programName minAmount discountPercent startDate endDate isActive source updatedAt';
+const PROMOTION_PROGRAM_LIST_PROJECTION = 'id code programCode groupCode programName name content programContent description productCode startDate endDate isActive source';
 
 function clearPromotionProgramCache() { promotionProgramCache.clear(); }
 
@@ -154,7 +158,7 @@ async function hydrateProduct(productCode) {
 async function listProductRules(query = {}) {
   const q = clean(query.q);
   const filter = q ? { $or: [{ programCode: rx(q) }, { programName: rx(q) }, { productCode: rx(q) }, { productName: rx(q) }] } : {};
-  return PromotionProductRule.find(filter).sort({ programCode: 1, productCode: 1 }).lean();
+  return PromotionProductRule.find(filter).select(PROMOTION_PRODUCT_RULE_PROJECTION).sort({ programCode: 1, productCode: 1 }).lean();
 }
 
 async function saveProductRule(body = {}) {
@@ -200,7 +204,7 @@ async function deleteProductRule(id) {
 async function listGroupItems(query = {}) {
   const q = clean(query.q);
   const filter = q ? { $or: [{ programCode: rx(q) }, { productCode: rx(q) }, { productName: rx(q) }] } : {};
-  return PromotionGroupItem.find(filter).sort({ programCode: 1, productCode: 1 }).lean();
+  return PromotionGroupItem.find(filter).select(PROMOTION_GROUP_ITEM_PROJECTION).sort({ programCode: 1, productCode: 1 }).lean();
 }
 
 async function saveGroupItem(body = {}) {
@@ -242,7 +246,7 @@ async function deleteGroupItem(id) {
 async function listGroupRules(query = {}) {
   const q = clean(query.q);
   const filter = q ? { $or: [{ programCode: rx(q) }, { programName: rx(q) }] } : {};
-  return PromotionGroupRule.find(filter).sort({ programCode: 1, minAmount: 1 }).lean();
+  return PromotionGroupRule.find(filter).select(PROMOTION_GROUP_RULE_PROJECTION).sort({ programCode: 1, minAmount: 1 }).lean();
 }
 
 async function saveGroupRule(body = {}) {
@@ -326,7 +330,7 @@ async function listPromotionPrograms(query = {}) {
   if (PROMOTION_PROGRAM_CACHE_TTL_MS > 0 && cached && cached.expiresAt > Date.now()) return cached.value;
 
   const rows = await cfg.Model.find(buildProgramSearchFilter(query, cfg))
-    .select('id code programCode groupCode programName name content programContent description productCode startDate endDate isActive source')
+    .select(PROMOTION_PROGRAM_LIST_PROJECTION)
     .sort(cfg.sort)
     .lean();
   const groups = new Map();
@@ -346,6 +350,18 @@ async function listPromotionPrograms(query = {}) {
     if (row.productCode) group.productCodes.add(clean(row.productCode));
   }
   const result = Array.from(groups.values()).map(toProgramSummary).sort((a, b) => String(a.programCode).localeCompare(String(b.programCode), 'vi'));
+  if (PROMOTION_PROGRAM_CACHE_TTL_MS > 0) promotionProgramCache.set(cacheKey, { expiresAt: Date.now() + PROMOTION_PROGRAM_CACHE_TTL_MS, value: result });
+  return result;
+}
+
+async function listPromotionProgramsByType(query = {}) {
+  const q = clean(query.q);
+  const cacheKey = JSON.stringify({ type: 'all', q });
+  const cached = promotionProgramCache.get(cacheKey);
+  if (PROMOTION_PROGRAM_CACHE_TTL_MS > 0 && cached && cached.expiresAt > Date.now()) return cached.value;
+  const types = ['productRules', 'groupItems', 'groupRules'];
+  const entries = await Promise.all(types.map(async (type) => [type, await listPromotionPrograms({ ...query, type })]));
+  const result = Object.fromEntries(entries);
   if (PROMOTION_PROGRAM_CACHE_TTL_MS > 0) promotionProgramCache.set(cacheKey, { expiresAt: Date.now() + PROMOTION_PROGRAM_CACHE_TTL_MS, value: result });
   return result;
 }
@@ -645,7 +661,7 @@ async function calculatePromotions(items = [], options = {}) {
 module.exports = {
   normalizeDiscountPercent,
   listPromotions, savePromotion, deletePromotion,
-  listPromotionPrograms, getPromotionProgramDetail, updatePromotionProgram, cancelPromotionProgram,
+  listPromotionPrograms, listPromotionProgramsByType, getPromotionProgramDetail, updatePromotionProgram, cancelPromotionProgram,
   addProductToPromotion, updatePromotionProduct, removePromotionProduct,
   addProductToGroup, updateGroupProduct, removeGroupProduct,
   addPromotionTier, updatePromotionTier, removePromotionTier,

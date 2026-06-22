@@ -52,6 +52,8 @@
     }
   };
   const detailPlaceholders = {};
+  const programListRequests = new Map();
+  let promotionProgramSearchTimer = null;
   function detailSectionByType(type){
     return $(TYPE_CONFIG[type]?.form)?.closest('.promotion-program-detail') || null;
   }
@@ -222,17 +224,47 @@
   }
   async function loadPromotionProgramsByType(type){
     const cfg=TYPE_CONFIG[type]; const table=$(cfg.table); const state=states[type]; if(!table)return;
-    try{
-      const json=await api(`/api/promotions/programs?${queryParams(type)}`);
-      state.programs=json.programs||[];
-      renderProgramListByType(type);
-      if(state.selectedCode && !state.programs.some(p=>String(p.programCode)===String(state.selectedCode))){
-        state.selectedCode=''; state.detail=null; fillForm(type,{}); renderDetailEmpty(type);
-      }
-    }catch(err){ table.innerHTML=`<tr><td colspan="${cfg.listColspan||8}">${esc(err.message)}</td></tr>`; }
+    const params=queryParams(type);
+    const requestKey=`${type}:${params}`;
+    if(programListRequests.has(requestKey)) return programListRequests.get(requestKey);
+    const request=(async()=>{
+      try{
+        const json=await api(`/api/promotions/programs?${params}`);
+        state.programs=json.programs||[];
+        renderProgramListByType(type);
+        if(state.selectedCode && !state.programs.some(p=>String(p.programCode)===String(state.selectedCode))){
+          state.selectedCode=''; state.detail=null; fillForm(type,{}); renderDetailEmpty(type);
+        }
+      }catch(err){ table.innerHTML=`<tr><td colspan="${cfg.listColspan||8}">${esc(err.message)}</td></tr>`; }
+      finally{ programListRequests.delete(requestKey); }
+    })();
+    programListRequests.set(requestKey,request);
+    return request;
   }
   async function loadAllPromotionProgramTabs(){
-    await Promise.all(Object.keys(TYPE_CONFIG).map(type=>loadPromotionProgramsByType(type)));
+    const requestKey=`all:${searchInput?.value||''}`;
+    if(programListRequests.has(requestKey)) return programListRequests.get(requestKey);
+    const request=(async()=>{
+      try{
+        const params=new URLSearchParams();
+        params.set('type','all');
+        const q=searchInput?.value||'';
+        if(q)params.set('q',q);
+        const json=await api(`/api/promotions/programs?${params.toString()}`);
+        const byType=json.programsByType||{};
+        Object.keys(TYPE_CONFIG).forEach(type=>{
+          states[type].programs=byType[type]||[];
+          renderProgramListByType(type);
+          if(states[type].selectedCode && !states[type].programs.some(p=>String(p.programCode)===String(states[type].selectedCode))){
+            states[type].selectedCode=''; states[type].detail=null; fillForm(type,{}); renderDetailEmpty(type);
+          }
+        });
+      }catch(err){
+        await Promise.all(Object.keys(TYPE_CONFIG).map(type=>loadPromotionProgramsByType(type)));
+      }finally{ programListRequests.delete(requestKey); }
+    })();
+    programListRequests.set(requestKey,request);
+    return request;
   }
   window.loadPromotionProgramsByType=loadPromotionProgramsByType;
   window.loadPromotionPrograms=loadAllPromotionProgramTabs;
@@ -379,7 +411,10 @@
     if(action==='delete-tier')window.deleteTierLine(code,rowId);
   });
   document.querySelectorAll('[data-promotion-program-tab]').forEach(btn=>btn.addEventListener('click',()=>activateProgramTab(btn.dataset.promotionProgramTab)));
-  searchInput?.addEventListener('input',()=>loadPromotionProgramsByType(activeType));
+  searchInput?.addEventListener('input',()=>{
+    clearTimeout(promotionProgramSearchTimer);
+    promotionProgramSearchTimer=setTimeout(()=>loadPromotionProgramsByType(activeType),250);
+  });
   activateProgramTab(activeType);
   loadAllPromotionProgramTabs();
 })();

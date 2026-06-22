@@ -9,13 +9,16 @@
       return;
     }
     if (!confirm(isAccountingReopenPending(order) ? 'Xác nhận kế toán lại đơn này?' : 'Xác nhận kế toán đơn này?')) return;
-    try {
-      message('Đang xác nhận kế toán...');
-      var json = await window.DeliveryCore.confirmAccounting([key], filters());
-      delete state.accountingSelectedKeys[key];
-      message(json.message || 'Đã xác nhận kế toán');
-      await load();
-    } catch (err) { message(err.message || 'Không xác nhận kế toán được', true); }
+    return withAccountingSubmitLock(async function () {
+      try {
+        message('Đang xác nhận kế toán...');
+        var json = await window.DeliveryCore.confirmAccounting([key], filters());
+        delete state.accountingSelectedKeys[key];
+        message(json.message || 'Đã xác nhận kế toán');
+        await load();
+      } catch (err) { message(err.message || 'Không xác nhận kế toán được', true); }
+      return null;
+    });
   }
 
 
@@ -72,13 +75,16 @@
       return;
     }
     if (!confirm('Xác nhận kế toán ' + ids.length + ' đơn đã chọn?')) return;
-    try {
-      message('Đang xác nhận kế toán ' + ids.length + ' đơn...');
-      var json = await window.DeliveryCore.confirmAccounting(ids, filters());
-      state.accountingSelectedKeys = {};
-      message(json.message || 'Đã xác nhận kế toán các đơn đã chọn');
-      await load();
-    } catch (err) { message(err.message || 'Không xác nhận kế toán được các đơn đã chọn', true); }
+    return withAccountingSubmitLock(async function () {
+      try {
+        message('Đang xác nhận kế toán ' + ids.length + ' đơn...');
+        var json = await window.DeliveryCore.confirmAccounting(ids, filters());
+        state.accountingSelectedKeys = {};
+        message(json.message || 'Đã xác nhận kế toán các đơn đã chọn');
+        await load();
+      } catch (err) { message(err.message || 'Không xác nhận kế toán được các đơn đã chọn', true); }
+      return null;
+    });
   }
 
   async function select(key) {

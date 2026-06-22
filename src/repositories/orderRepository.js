@@ -28,11 +28,26 @@ async function findByIdOrCode(idOrCode) {
 }
 
 
-async function findManyByIdentity(keys = [], options = {}) {
-  const values = [...new Set((Array.isArray(keys) ? keys : [])
+function normalizeIdentityValues(keys = []) {
+  return [...new Set((Array.isArray(keys) ? keys : [])
     .map((value) => String(value || '').trim())
     .filter(Boolean))];
+}
+
+function normalizeSalesOrderIds(keys = []) {
+  return normalizeIdentityValues(keys).filter((value) => /^SO\d+$/i.test(value));
+}
+
+async function findManyByIds(ids = [], options = {}) {
+  const values = normalizeSalesOrderIds(ids);
   if (!values.length) return [];
+  return collectionRepository.findAll(ORDER_KEY, { id: { $in: values } }, options);
+}
+
+async function findManyByIdentity(keys = [], options = {}) {
+  const values = normalizeIdentityValues(keys);
+  if (!values.length) return [];
+  if (values.every((value) => /^SO\d+$/i.test(value))) return findManyByIds(values, options);
   return collectionRepository.findAll(ORDER_KEY, {
     $or: [
       { id: { $in: values } },
@@ -61,4 +76,4 @@ async function remove(idOrCode, options = {}) {
   return collectionRepository.deleteOneByIdentity(ORDER_KEY, idOrCode, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
 }
 
-module.exports = { findAll, count, findByIdOrCode, findManyByIdentity, upsert, patchByIdentity, replaceAll, remove };
+module.exports = { findAll, count, findByIdOrCode, findManyByIds, findManyByIdentity, upsert, patchByIdentity, replaceAll, remove };

@@ -526,24 +526,24 @@ async function createMasterReturnOrder(body = {}) {
       await withMongoTransaction(async (session) => {
         const now = dateUtil.nowIso();
         const baseClaimFilter = groupableReturnOrderMongoFilter();
-        const claimFilter = appendAndClauses(baseClaimFilter, [
-          { $or: claimIdentityClauses }
-        ]);
-        const claimResult = await MongoStore.returnOrders.updateMany(
-          claimFilter,
-          {
-            $set: {
-              ...ReturnStateMachine.patchForState({}, RETURN_STATES.WAITING_RECEIVE),
-              masterReturnOrderId: masterReturnOrder.id,
-              masterReturnOrderCode: masterReturnOrder.code,
-              returnMergeStatus: 'merged',
-              warehouseStatus: 'pending',
-              stateChangedAt: now,
-              updatedAt: now
-            }
-          },
-          { session }
-        );
+        const claimPatch = {
+          ...ReturnStateMachine.patchForState({}, RETURN_STATES.WAITING_RECEIVE),
+          masterReturnOrderId: masterReturnOrder.id,
+          masterReturnOrderCode: masterReturnOrder.code,
+          returnMergeStatus: 'merged',
+          warehouseStatus: 'pending',
+          stateChangedAt: now,
+          updatedAt: now
+        };
+        const claimOps = children.map((child) => ({
+          updateOne: {
+            filter: appendAndClauses(baseClaimFilter, [returnOrderIdentityClause(child)]),
+            update: { $set: claimPatch }
+          }
+        }));
+        const claimResult = claimOps.length
+          ? await MongoStore.returnOrders.bulkWrite(claimOps, { ordered: true, session })
+          : { matchedCount: 0 };
 
         const claimedCount = Number(
           claimResult.matchedCount ??

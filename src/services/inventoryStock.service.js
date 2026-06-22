@@ -91,6 +91,26 @@ function buildAliases(product = {}) {
     .filter(Boolean);
 }
 
+function inventoryProductAliases(rows = []) {
+  return Array.from(new Set((Array.isArray(rows) ? rows : [])
+    .flatMap((row) => [row.productCode, row.code, row.sku, row.productId, row.id, row._id])
+    .map(normalizeProductCode)
+    .filter(Boolean)));
+}
+
+function buildProductLookupFilterByAliases(aliases = []) {
+  const values = Array.from(new Set((Array.isArray(aliases) ? aliases : []).map(normalizeProductCode).filter(Boolean)));
+  if (!values.length) return { id: '__NO_PRODUCT_ALIAS__' };
+  return {
+    $or: [
+      { code: { $in: values } },
+      { productCode: { $in: values } },
+      { sku: { $in: values } },
+      { id: { $in: values } }
+    ]
+  };
+}
+
 async function getAvailableStocks(productCodes = []) {
   const canonicalCodes = Array.from(new Set((productCodes || []).map(normalizeProductCode).filter(Boolean)));
   const result = {};
@@ -155,24 +175,22 @@ async function getInventorySummary(query = {}, options = {}) {
   let inventoryQuery = InventoryCurrent.find({})
     .select('id productId productCode code sku productName name warehouseCode unit baseUnit conversionRate packing packingQty unitsPerCase onHand quantity qty stockQuantity availableQty reservedQty reserved updatedAt createdAt lastTransactionAt')
     .sort({ productCode: 1 });
-  let productsPromise = null;
-
-  if (Array.isArray(options.preloadedProducts)) {
-    productsPromise = Promise.resolve(options.preloadedProducts);
-  } else if (options.preloadedProductsPromise) {
-    productsPromise = Promise.resolve(options.preloadedProductsPromise);
-  } else {
-    let productQuery = Product.find({})
-      .select('id code productCode sku name productName unit baseUnit conversionRate packing packingQty unitsPerCase minStock maxStock');
-    if (session) productQuery = productQuery.session(session);
-    productsPromise = productQuery.lean();
-  }
 
   if (session) inventoryQuery = inventoryQuery.session(session);
-  const [inventoryRows, products] = await Promise.all([
-    inventoryQuery.lean(),
-    productsPromise
-  ]);
+  const inventoryRows = await inventoryQuery.lean();
+
+  let products = [];
+  if (Array.isArray(options.preloadedProducts)) {
+    products = options.preloadedProducts;
+  } else if (options.preloadedProductsPromise) {
+    products = await Promise.resolve(options.preloadedProductsPromise);
+  } else {
+    const aliases = inventoryProductAliases(inventoryRows);
+    let productQuery = Product.find(buildProductLookupFilterByAliases(aliases))
+      .select('id code productCode sku name productName unit baseUnit conversionRate packing packingQty unitsPerCase minStock maxStock');
+    if (session) productQuery = productQuery.session(session);
+    products = await productQuery.lean();
+  }
 
   const productMap = new Map();
   for (const product of products || []) {
