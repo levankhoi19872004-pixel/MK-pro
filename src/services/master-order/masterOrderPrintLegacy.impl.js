@@ -7,7 +7,8 @@ const masterOrderRepository = require('../../repositories/masterOrderRepository'
 const orderService = require('../orderService');
 const { makeId, normalizeText, toNumber } = require('../../utils/common.util');
 const Product = require('../../models/Product');
-const { normalizePickingZone, pickingZoneFrom, legacyPrintGroupCode, pickingZoneLabel, PICKING_ZONES } = require('../../utils/pickingZone.util');
+const { legacyPrintGroupCode, pickingZoneLabel, PICKING_ZONES } = require('../../utils/pickingZone.util');
+const { getCurrentPickingZone } = require('../../utils/productHydration');
 
 const isInactiveStatus = lazyFunction('./masterOrderQuery.impl', 'isInactiveStatus');
 
@@ -56,7 +57,7 @@ function getPayableAmountForMasterChild(child = {}) {
 }
 
 function normalizeWarehouseForMasterPrint(item = {}, product = {}) {
-  const zone = normalizePickingZone(pickingZoneFrom(item, product), PICKING_ZONES.HC);
+  const zone = getCurrentPickingZone(item, product, PICKING_ZONES.HC);
   return legacyPrintGroupCode(zone);
 }
 
@@ -93,8 +94,20 @@ async function buildAggregateMasterPrintDocument(body = {}) {
   const productCodes = Array.from(new Set(allChildren.flatMap((child) => (Array.isArray(child.items) ? child.items : [])
     .map(getItemProductCodeForMasterPrint)
     .filter(Boolean))));
-  const products = productCodes.length ? await Product.find({ code: { $in: productCodes } }).lean() : [];
-  const productMap = new Map(products.map((product) => [cleanMasterPrintText(product.code || product.productCode || product.sku), product]));
+  const products = productCodes.length ? await Product.find({
+    $or: [
+      { code: { $in: productCodes } },
+      { productCode: { $in: productCodes } },
+      { sku: { $in: productCodes } },
+      { barcode: { $in: productCodes } }
+    ]
+  }).lean() : [];
+  const productMap = new Map(products.flatMap((product) => [
+    product.code,
+    product.productCode,
+    product.sku,
+    product.barcode
+  ].map(cleanMasterPrintText).filter(Boolean).map((key) => [key, product])));
   const childrenByMasterCode = new Map();
   for (const child of allChildren) {
     const key = cleanMasterPrintText(child.sourceMasterCode || '');
@@ -138,7 +151,7 @@ async function buildAggregateMasterPrintDocument(body = {}) {
       const price = getItemPriceForMasterPrint(item, product);
       const quantity = getItemQuantityForMasterPrint(item);
       const pack = getItemPackForMasterPrint(item, product);
-      const pickingZone = normalizePickingZone(pickingZoneFrom(item, product), PICKING_ZONES.HC);
+      const pickingZone = getCurrentPickingZone(item, product, PICKING_ZONES.HC);
       const key = [pickingZone, productCode, productName, unit, price].map(cleanMasterPrintText).join('|');
       const row = grouped.get(key) || {
         code: productCode,

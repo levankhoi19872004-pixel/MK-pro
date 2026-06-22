@@ -3,6 +3,7 @@
 const { calculateCartonUnit, toNumber } = require('../../utils/common.util');
 const { cleanText, uniqueText } = require('./PrintContract');
 const { normalizePickingZone, pickingZoneFrom, pickingZoneLabel, legacyPrintGroupCode, PICKING_ZONES } = require('../../utils/pickingZone.util');
+const { getCurrentPickingZone } = require('../../utils/productHydration');
 
 function firstDefined(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== '');
@@ -72,15 +73,18 @@ function conversionRateOf(item = {}, product = {}) {
   )) || 1;
 }
 
-function pickingZoneOf(item = {}, parent = {}, product = {}) {
+function pickingZoneOf(item = {}, parent = {}, product = {}, options = {}) {
+  if (options.currentProductPickingZone || options.pickingZonePolicy === 'CURRENT_PRODUCT') {
+    return getCurrentPickingZone(item, product, PICKING_ZONES.HC);
+  }
   return normalizePickingZone(
     pickingZoneFrom(item, item.productSnapshot, item.product, parent, product),
     PICKING_ZONES.HC
   );
 }
 
-function warehouseCodeOf(item = {}, parent = {}, product = {}) {
-  return legacyPrintGroupCode(pickingZoneOf(item, parent, product));
+function warehouseCodeOf(item = {}, parent = {}, product = {}, options = {}) {
+  return legacyPrintGroupCode(pickingZoneOf(item, parent, product, options));
 }
 
 function catalogPriceOf(item = {}, product = {}) {
@@ -159,7 +163,7 @@ function normalizeLine(item = {}, context = {}) {
   const quantity = quantityOf(item, mode);
   const conversionRate = conversionRateOf(item, product);
   const carton = calculateCartonUnit(quantity, conversionRate);
-  const pickingZone = pickingZoneOf(item, parent, product);
+  const pickingZone = pickingZoneOf(item, parent, product, context);
   const warehouseCode = legacyPrintGroupCode(pickingZone);
   const lineType = lineTypeOf(item, mode);
   const catalogPrice = catalogPriceOf(item, product);

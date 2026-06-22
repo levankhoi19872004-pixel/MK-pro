@@ -11,7 +11,7 @@ function buildReturnKpis(children = [], productMap = new Map()) {
   const rows = children.map((child) => {
     const saleAmount = (Array.isArray(child.items) ? child.items : []).reduce((sum, item) => {
       const productCode = cleanText(item.productCode || item.code || item.sku || item.productId);
-      const line = normalizeLine(item, { parent: child, product: productMap.get(productCode) || {}, mode: 'return' });
+      const line = normalizeLine(item, { parent: child, product: productMap.get(productCode) || {}, mode: 'return', currentProductPickingZone: true });
       return sum + line.quantity * line.finalPrice;
     }, 0);
     const payableAmount = toNumber(child.debtReduction ?? child.totalAmount ?? child.amount ?? saleAmount);
@@ -42,7 +42,7 @@ function buildReturnPicking(masterReturnOrder = {}, children = [], context = {})
       const productCode = cleanText(item.productCode || item.code || item.sku || item.productId);
       const product = productMap.get(productCode) || {};
       rawLines.push({
-        ...normalizeLine(item, { parent: child, product, mode: 'return' }),
+        ...normalizeLine(item, { parent: child, product, mode: 'return', currentProductPickingZone: true }),
         catalogPackingQty: ProductCatalogExportPolicy.packingQty(product),
         catalogSalePrice: ProductCatalogExportPolicy.salePrice(product)
       });
@@ -81,7 +81,8 @@ function buildReturnPicking(masterReturnOrder = {}, children = [], context = {})
     metadata: {
       mergeKey: 'warehouseCode+lineType+productCode+finalPrice',
       itemSort: 'PRODUCT_NAME_ASC',
-      pricingPolicy: 'ORIGINAL_SALES_LINE_SNAPSHOT_FIRST_PRODUCT_FALLBACK'
+      pricingPolicy: 'ORIGINAL_SALES_LINE_SNAPSHOT_FIRST_PRODUCT_FALLBACK',
+      pickingZonePolicy: 'CURRENT_PRODUCT_CATALOG_FIRST'
     }
   });
 

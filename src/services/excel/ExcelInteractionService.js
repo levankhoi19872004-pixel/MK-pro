@@ -14,6 +14,8 @@ const auditService = require('../auditService');
 const inventoryStockService = require('../inventoryStock.service');
 const ProductExcelEnrichmentService = require('./ProductExcelEnrichmentService');
 const { compareProductNameAsc } = require('../../utils/productSort');
+const { getCurrentPickingZone } = require('../../utils/productHydration');
+const { pickingZoneLabel } = require('../../utils/pickingZone.util');
 
 const DEFAULT_MAX_EXPORT_ROWS = 50000;
 const MAX_SELECTED_IDS = 2000;
@@ -207,9 +209,14 @@ function catalogLineMeta(item = {}, productMap = null) {
   if (productMap instanceof Map) return ProductExcelEnrichmentService.catalogMeta(productMap, item);
   return {
     found: false,
+    product: null,
     packingQty: itemConversionRate(item),
     salePrice: itemPrice(item, 'sale')
   };
+}
+
+function currentPickingZoneLabel(item = {}, product = {}) {
+  return pickingZoneLabel(getCurrentPickingZone(item, product || {}, 'HC'));
 }
 
 function salesItemRows(orders = [], productMap = null) {
@@ -350,6 +357,7 @@ function masterItemRows(masters = [], productMap = null) {
           orderCode: firstValue(order, ['code', 'id', 'orderCode']),
           productCode: itemProductCode(item),
           productName: itemProductName(item),
+          pickingZone: currentPickingZoneLabel(item, catalog.product),
           catalogPackingQty: catalog.packingQty,
           cartonQty: itemCaseQty(item),
           unitQty: itemLooseQty(item),
@@ -368,6 +376,7 @@ const MASTER_ITEM_COLUMNS = [
   { label: 'Mã đơn con', key: 'orderCode', width: 20 },
   { label: 'Mã SP', key: 'productCode', width: 16 },
   { label: 'Tên sản phẩm', key: 'productName', width: 45 },
+  { label: 'Khu bốc', key: 'pickingZone', width: 10 },
   { label: 'Quy cách', key: 'catalogPackingQty', type: 'number', preserveBlank: true, width: 12 },
   { label: 'Thùng', key: 'cartonQty', type: 'number', width: 10 },
   { label: 'Lẻ', key: 'unitQty', type: 'number', width: 10 },
@@ -431,6 +440,7 @@ const IMPORT_ORDER_ITEM_COLUMNS = [
   { label: 'Ngày nhập', key: 'date', type: 'date', width: 14 },
   { label: 'Mã SP', key: 'productCode', width: 16 },
   { label: 'Tên sản phẩm', key: 'productName', width: 45 },
+  { label: 'Khu bốc', key: 'pickingZone', width: 10 },
   { label: 'Quy cách', key: 'catalogPackingQty', type: 'number', preserveBlank: true, width: 12 },
   { label: 'Thùng', key: 'cartonQty', type: 'number', width: 10 },
   { label: 'Lẻ', key: 'unitQty', type: 'number', width: 10 },
@@ -448,6 +458,7 @@ function importOrderItemRows(orders = [], productMap = null) {
       date: firstValue(order, ['date', 'documentDate', 'importDate']),
       productCode: itemProductCode(item),
       productName: itemProductName(item),
+      pickingZone: currentPickingZoneLabel(item, catalog.product),
       catalogPackingQty: catalog.packingQty,
       cartonQty: itemCaseQty(item),
       unitQty: itemLooseQty(item),

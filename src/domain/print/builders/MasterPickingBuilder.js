@@ -31,7 +31,7 @@ function buildMasterKpis(masterOrders = [], childrenByMaster = new Map(), produc
     const productSaleAmount = children.reduce((sum, child) => {
       return sum + (Array.isArray(child.items) ? child.items : []).reduce((lineSum, item) => {
         const productCode = cleanText(item.productCode || item.code || item.sku || item.productId);
-        const line = normalizeLine(item, { parent: child, product: productMap.get(productCode) || {}, mode: 'sale' });
+        const line = normalizeLine(item, { parent: child, product: productMap.get(productCode) || {}, mode: 'sale', currentProductPickingZone: true });
         return lineSum + (line.lineType === 'PROMO' ? 0 : line.quantity * line.catalogPrice);
       }, 0);
     }, 0);
@@ -70,7 +70,7 @@ function buildMasterPicking(masterOrders = [], children = [], context = {}) {
       const productCode = cleanText(item.productCode || item.code || item.sku || item.productId);
       const product = productMap.get(productCode) || {};
       rawLines.push({
-        ...normalizeLine(item, { parent: child, product, mode: 'sale' }),
+        ...normalizeLine(item, { parent: child, product, mode: 'sale', currentProductPickingZone: true }),
         catalogPackingQty: ProductCatalogExportPolicy.packingQty(product),
         catalogSalePrice: ProductCatalogExportPolicy.salePrice(product)
       });
@@ -145,7 +145,7 @@ function buildMasterPicking(masterOrders = [], children = [], context = {}) {
     metadata: {
       mergeKey: 'pickingZone+lineType+productCode+catalogPrice',
       itemSort: 'PRODUCT_NAME_ASC',
-      pickingZonePolicy: 'HC_PC_PRINT_ONLY_INVENTORY_MAIN',
+      pickingZonePolicy: 'CURRENT_PRODUCT_CATALOG_FIRST_HC_PC_PRINT_ONLY_INVENTORY_MAIN',
       pricingPolicy: 'ORDER_SNAPSHOT_FIRST_PRODUCT_FALLBACK'
     }
   });

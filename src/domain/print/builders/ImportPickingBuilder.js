@@ -16,7 +16,7 @@ function buildImportPicking(importOrders = [], context = {}) {
       const productCode = cleanText(item.productCode || item.code || item.sku || item.productId);
       const product = productMap.get(productCode) || {};
       rawLines.push({
-        ...normalizeLine(item, { parent: order, product, mode: 'import' }),
+        ...normalizeLine(item, { parent: order, product, mode: 'import', currentProductPickingZone: true }),
         catalogPackingQty: ProductCatalogExportPolicy.packingQty(product),
         catalogSalePrice: ProductCatalogExportPolicy.salePrice(product)
       });
@@ -56,7 +56,8 @@ function buildImportPicking(importOrders = [], context = {}) {
     metadata: {
       mergeKey: 'warehouseCode+lineType+productCode+costPrice',
       itemSort: 'PRODUCT_NAME_ASC',
-      pricingPolicy: 'IMPORT_LINE_COST_FIRST_PRODUCT_FALLBACK'
+      pricingPolicy: 'IMPORT_LINE_COST_FIRST_PRODUCT_FALLBACK',
+      pickingZonePolicy: 'CURRENT_PRODUCT_CATALOG_FIRST'
     }
   });
 
