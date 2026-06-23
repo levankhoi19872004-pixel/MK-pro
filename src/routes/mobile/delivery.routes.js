@@ -13,7 +13,11 @@ function createMobileDeliveryRouter(ctx) {
   router.get('/orders', ...onlyDelivery, [
     query('date').optional().isISO8601().withMessage('Ngày giao không hợp lệ'),
     query('status').optional().isString().trim(),
+    query('statusFilter').optional().isString().trim(),
+    query('deliveryStatusFilter').optional().isString().trim(),
+    query('orderStatusFilter').optional().isString().trim(),
     query('q').optional().isString().trim(),
+    query('includeDelivered').optional().isIn(['0', '1', 'true', 'false']).withMessage('includeDelivered không hợp lệ'),
     query('includeCompleted').optional().isIn(['0', '1', 'true', 'false']).withMessage('includeCompleted không hợp lệ')
   ], validateRequest, controller.listOrders);
 

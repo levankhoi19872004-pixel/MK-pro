@@ -61,7 +61,7 @@
         "src/engines/delivery.legacy.engine.source/part-02.jsfrag",
         "src/engines/delivery.legacy.engine.source/part-03.jsfrag"
       ],
-      "sourceSha256": "ed26fd3c5eac98d7c67cbfc293fd0ea3f4026e7c2439f31e712a4072d671dba6"
+      "sourceSha256": "fa1886db36bfcb4c3b17824bb06d33c834bb26769b12fa9469256e2b84748895"
     },
     {
       "target": "services/printDataBuilder.legacy.js",

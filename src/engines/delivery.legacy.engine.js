@@ -1,6 +1,6 @@
 /* GENERATED FILE — edit src/engines/delivery.legacy.engine.source/part-01.jsfrag, src/engines/delivery.legacy.engine.source/part-02.jsfrag, src/engines/delivery.legacy.engine.source/part-03.jsfrag and run npm run build:source-bundles. */
 "use strict"
-;const{toNumber:e,makeId:t}=require("../utils/common.util"),r=require("../utils/deliveryFinance.util"),n=require("../utils/date.util"),{normalizeDebtAmount:a}=require("../constants/finance.constants"),{SALES_STAFF_CODE_FIELDS:o,SALES_STAFF_NAME_FIELDS:d,DELIVERY_STAFF_CODE_FIELDS:s,DELIVERY_STAFF_NAME_FIELDS:i,USER_ACCOUNT_SALES_STAFF_CODE_FIELDS:l,USER_ACCOUNT_DELIVERY_STAFF_CODE_FIELDS:u,pickSalesStaffCode:c,pickSalesStaffName:f,pickDeliveryStaffCode:m,pickDeliveryStaffName:y,pickUserAccountSalesStaffCode:C,pickUserAccountDeliveryStaffCode:v}=require("../domain/staff/staffIdentity")
+;const{toNumber:e,makeId:t}=require("../utils/common.util"),r=require("../utils/deliveryFinance.util"),n=require("../utils/date.util"),{normalizeDebtAmount:a}=require("../constants/finance.constants"),{SALES_STAFF_CODE_FIELDS:o,SALES_STAFF_NAME_FIELDS:d,DELIVERY_STAFF_CODE_FIELDS:s,DELIVERY_STAFF_NAME_FIELDS:i,USER_ACCOUNT_SALES_STAFF_CODE_FIELDS:u,USER_ACCOUNT_DELIVERY_STAFF_CODE_FIELDS:l,pickSalesStaffCode:c,pickSalesStaffName:f,pickDeliveryStaffCode:m,pickDeliveryStaffName:y,pickUserAccountSalesStaffCode:C,pickUserAccountDeliveryStaffCode:v}=require("../domain/staff/staffIdentity")
 ;function h(e){return String(null==e?"":e).trim()}function S(e){return h(e).toLowerCase()}function O(e=[]){return[...new Set(e.map(h).filter(Boolean))]}function p(){
 return n.todayVN?n.todayVN():(new Date).toISOString().slice(0,10)}function g(e){const t=Number(e||0);return Number.isFinite(t)?t:0}function N(e){
 return S(e).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d").replace(/\s+/g," ").trim()}function A(e){return N(e).replace(/[^a-z0-9]/g,"")}function I(e){
@@ -10,9 +10,9 @@ function b(e={}){if(!e||w(e))return!1;const t=e&&"object"==typeof e.status?e.sta
 ;return Boolean(e.accountingConfirmed||e.accountingLocked||e.editLocked)||["confirmed","locked","posted","done"].includes(r)}function D(e){
 return h(e).replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}function R(e){return h(e).replace(/^RO[-_]?/i,"")}function $(e){const t=R(e);return t?`RO-${t}`:""}function M(e){const t=h(e)
 ;return O([t,R(t),$(t)])}function _(e){return O(M(e).flatMap(e=>[e,A(e),R(e),A(R(e))]))}function k(t=[]){return Math.round((Array.isArray(t)?t:[]).reduce((t,r)=>{
-const n=ue(r)||le(r),a=ce(r);return t+(n>0&&a>0?n*a:e(r.returnAmount??r.amount??0))},0))}function E(e=[]){return(Array.isArray(e)?e:[]).reduce((e,t)=>e+(ue(t)||le(t)),0)}
+const n=le(r)||ue(r),a=ce(r);return t+(n>0&&a>0?n*a:e(r.returnAmount??r.amount??0))},0))}function E(e=[]){return(Array.isArray(e)?e:[]).reduce((e,t)=>e+(le(t)||ue(t)),0)}
 function F(t={}){return k(Array.isArray(t.items)?t.items:[])>0||e(t.totalAmount??t.totalReturnAmount??t.amount??t.debtReduction)>0}function Q(t={}){
-const r=(Array.isArray(t.items)?t.items:[]).map(t=>{const r=ue(t)||le(t),n=ce(t),a=Math.round(r>0&&n>0?r*n:e(t.returnAmount??t.amount??0));return{...t,productCode:se(t),code:se(t),
+const r=(Array.isArray(t.items)?t.items:[]).map(t=>{const r=le(t)||ue(t),n=ce(t),a=Math.round(r>0&&n>0?r*n:e(t.returnAmount??t.amount??0));return{...t,productCode:se(t),code:se(t),
 productName:ie(t),name:ie(t),returnQty:r,qtyReturn:r,returnQuantity:r,returnedQty:r,quantity:r,qty:r,price:n,salePrice:n,unitPrice:n,returnAmount:a,amount:a}
 }).filter(t=>t.productCode||t.productName||e(t.returnQty)>0),n=k(r)||Math.round(e(t.totalAmount??t.totalReturnAmount??t.amount??t.debtReduction)),a=E(r)||e(t.totalQuantity??t.quantity??t.qty),o=h(t.id||t.code||t._id),d=h(t.code||t.id||o)
 ;return{...t,id:o,code:d,salesOrderId:h(t.salesOrderId||t.orderId||t.sourceOrderId||t.deliveryOrderId),
@@ -45,10 +45,10 @@ function ne(e={}){const t=R(e.salesOrderCode||e.orderCode||e.code||e.displayOrde
 ;return ae(t.deletedAt?"deleted":"")+ae(t.deliveryStatus||r.deliveryStatus||t.status)+(t.accountingConfirmed?20:0)+(t.stockPosted?10:0)+Math.min(a,50)+Math.min(Math.max(e(t.totalAmount||t.amount||t.debtAmount),0),1e9)/1e9+n/1e14
 }function de(e=[]){const t=new Map,r=[];for(const n of Array.isArray(e)?e:[]){if(!n)continue;const e=ne(n);if(!e){r.push(n);continue}const a=t.get(e);(!a||oe(n)>=oe(a))&&t.set(e,n)
 }return r.concat(Array.from(t.values()))}function se(e={}){return h(e.productCode||e.code||e.productId||e.sku||e.id||e._id)}function ie(e={}){
-return h(e.productName||e.name||e.product||"")}function le(t={}){return e(t.deliveredQty??t.soldQty??t.quantitySold??t.orderQty??t.totalQty??t.qtySold??t.quantity??t.qty??0)}
-function ue(t={}){return e(t.returnQty??t.qtyReturn??t.returnQuantity??t.returnedQty??t.quantityReturn??0)}function ce(t={}){
+return h(e.productName||e.name||e.product||"")}function ue(t={}){return e(t.deliveredQty??t.soldQty??t.quantitySold??t.orderQty??t.totalQty??t.qtySold??t.quantity??t.qty??0)}
+function le(t={}){return e(t.returnQty??t.qtyReturn??t.returnQuantity??t.returnedQty??t.quantityReturn??0)}function ce(t={}){
 return e(t.price??t.salePrice??t.unitPrice??t.finalPrice??t.giaBan??0)}function fe(e={}){const t=new Map;for(const r of Array.isArray(e.items)?e.items:[]){const e=se(r)
-;e&&!t.has(e)&&t.set(e,r)}return t}function me(e={},t={}){const r=se(e)||se(t),n=ue(e),a=ce(e)||ce(t),o=ie(e)||ie(t),d=Math.max(0,Math.round(n*a));return{...t,...e,
+;e&&!t.has(e)&&t.set(e,r)}return t}function me(e={},t={}){const r=se(e)||se(t),n=le(e),a=ce(e)||ce(t),o=ie(e)||ie(t),d=Math.max(0,Math.round(n*a));return{...t,...e,
 productId:h(e.productId||t.productId||r),productCode:r,code:r,productName:o,name:o,returnQty:n,qtyReturn:n,returnQuantity:n,returnedQty:n,price:a,salePrice:a,unitPrice:a,
 returnAmount:d,amount:d}}function ye(){return{status:{$nin:["cancelled","canceled","void","deleted","removed","duplicate_cancelled"]}}}function Ce(){
 return require("../domain/lifecycle/ReturnLifecycleService")}function ve(e,t){return t&&e&&"function"==typeof e.session?e.session(t):e}function he(e={}){
@@ -67,13 +67,13 @@ const r=O([te(t),t.salesOrderId,t.orderId,t.sourceOrderId,t.deliveryOrderId,re(t
 ;return r.some(e=>a.has(e))}function Re(e=[]){const t=new Map;for(const r of e||[]){const e=S(r.status)
 ;if(!["cancelled","canceled","void","deleted"].includes(e))for(const e of Array.isArray(r.items)?r.items:[]){const r=se(e);if(!r)continue;const n=t.get(r)||{productCode:r,code:r,
 productName:ie(e),name:ie(e),returnQty:0,qtyReturn:0,returnQuantity:0,returnedQty:0,price:ce(e),salePrice:ce(e),unitPrice:ce(e),returnAmount:0,amount:0
-},a=ue(e)||le(e),o=ce(e)||n.price||0;n.productName=n.productName||ie(e),n.name=n.productName,n.returnQty+=a,n.qtyReturn=n.returnQty,n.returnQuantity=n.returnQty,
+},a=le(e)||ue(e),o=ce(e)||n.price||0;n.productName=n.productName||ie(e),n.name=n.productName,n.returnQty+=a,n.qtyReturn=n.returnQty,n.returnQuantity=n.returnQty,
 n.returnedQty=n.returnQty,n.price=o,n.salePrice=o,n.unitPrice=o,n.returnAmount=Math.round(n.returnQty*o),n.amount=n.returnAmount,t.set(r,n)}}return Array.from(t.values())}
 function $e(t={},r={}){const n=h(t.status||t.returnStatus||"active"),a={returnOrderId:h(t.id||t._id),returnOrderCode:h(t.code||t.id),
 salesOrderId:h(t.salesOrderId||t.orderId||r.salesOrderId||r.orderId),salesOrderCode:h(t.salesOrderCode||t.orderCode||r.salesOrderCode||r.orderCode),
 orderId:h(t.orderId||t.salesOrderId||r.orderId||r.salesOrderId),orderCode:h(t.orderCode||t.salesOrderCode||r.orderCode||r.salesOrderCode),
 customerCode:h(t.customerCode||r.customerCode),customerName:h(t.customerName||r.customerName),deliveryDate:h(t.deliveryDate||t.date||r.deliveryDate),status:n
-},o=Array.isArray(t.items)?t.items:[];return o.length?o.map(t=>{const r=ue(t)||le(t),n=ce(t);return{...a,productCode:se(t),productName:ie(t),returnQty:r,price:n,
+},o=Array.isArray(t.items)?t.items:[];return o.length?o.map(t=>{const r=le(t)||ue(t),n=ce(t);return{...a,productCode:se(t),productName:ie(t),returnQty:r,price:n,
 amount:Math.round(r>0&&n>0?r*n:e(t.returnAmount??t.amount??0))}}):[{...a,productCode:"",productName:"",returnQty:0,price:0,
 amount:e(t.totalAmount||t.amount||t.totalReturnAmount||t.debtReduction)}]}function Me(t={},n=[]){
 const o=Re(n),d=o.reduce((t,r)=>t+e(r.returnAmount||r.amount),0),s=r.buildCanonicalDeliveryOrder(t,{returnItems:o,returnAmountOverride:d}),i=s.amounts||{};return{...s,
@@ -84,18 +84,19 @@ amounts:{receivable:e(i.receivable??i.totalReceivable),cash:e(i.cash??i.cashAmou
 processed:e(i.processed),debt:a(i.debt??i.debtAmount)},reconciliation:_e(i),status:{deliveryStatus:h(t.deliveryStatus||t.status||"pending"),
 paymentStatus:a(i.debt??i.debtAmount)<=0?"paid":(i.processed||0)>0?"partial":"unpaid",returnStatus:(i.returnAmount||0)>0?"has_return":"none",
 accountingStatus:h(t.accountingStatus||"")}}}function _e(t={}){
-const r=e(t.receivable??t.totalReceivable),n=e(t.cash??t.cashAmount),o=e(t.bank??t.bankAmount),d=e(t.reward??t.rewardAmount),s=e(t.returnAmount),i=a(t.debt??t.debtAmount),l=n+o+d+s+i,u=Math.round(r-l)
-;return{receivable:r,cash:n,bank:o,reward:d,returnAmount:s,debt:i,processed:l,difference:u,balanced:Math.abs(u)<=1e3,
-message:Math.abs(u)<=1e3?"Đối soát OK":`Chênh lệch ${u.toLocaleString("vi-VN")}`}}function ke(t=[]){return t.reduce((t,r)=>{const n=r.amounts||{}
+const r=e(t.receivable??t.totalReceivable),n=e(t.cash??t.cashAmount),o=e(t.bank??t.bankAmount),d=e(t.reward??t.rewardAmount),s=e(t.returnAmount),i=a(t.debt??t.debtAmount),u=n+o+d+s+i,l=Math.round(r-u)
+;return{receivable:r,cash:n,bank:o,reward:d,returnAmount:s,debt:i,processed:u,difference:l,balanced:Math.abs(l)<=1e3,
+message:Math.abs(l)<=1e3?"Đối soát OK":`Chênh lệch ${l.toLocaleString("vi-VN")}`}}function ke(t=[]){return t.reduce((t,r)=>{const n=r.amounts||{}
 ;return t.receivable+=e(n.receivable),t.cash+=e(n.cash),t.bank+=e(n.bank),t.reward+=e(n.reward),t.returnAmount+=e(n.returnAmount),t.debt+=a(n.debt),t},{receivable:0,cash:0,bank:0,
-reward:0,returnAmount:0,debt:0})}const Ee=["delivered","success","done","completed","accounting_confirmed"];function Fe(e={}){
-return S((e.status&&"object"==typeof e.status?e.status:{}).deliveryStatus||e.deliveryStatus||e.status||"pending")}function Qe(e={}){return Ee.includes(Fe(e))}function Be(e={}){
-const t=S(e.status||e.deliveryStatus),r=S(e.statusFilter||e.deliveryStatusFilter||e.orderStatusFilter||"all")
-;return I(e.includeCompleted)||I(e.showCompleted)||I(e.includeDelivered)||Ee.includes(t)||["delivered","da giao","đã giao","completed","done"].includes(r)}function Le(e={}){
-return!Be(e)}function xe(e){return{$or:[{[e]:{$exists:!1}},{[e]:null},{[e]:""},{[e]:{$nin:Ee}}]}}function qe(t=[],r={}){
-const n=S(r.statusFilter||r.deliveryStatusFilter||r.orderStatusFilter||"all");let o=t;return Le(r)&&(o=o.filter(e=>!Qe(e))),
-!n||["all","tat ca","tất cả","*"].includes(n)?o:["delivered","da giao","đã giao","completed","done"].includes(n)?t.filter(Qe):["pending","not_delivered","not-delivered","chua giao","chưa giao"].includes(n)?t.filter(e=>!Qe(e)):["return","returns","has_return","tra hang","trả hàng"].includes(n)?t.filter(t=>e(t.amounts&&t.amounts.returnAmount)>0||e(t.returnAmount||t.returnTotal||t.totalReturnAmount)>0):["debt","cong no","công nợ"].includes(n)?t.filter(e=>a((e.amounts&&e.amounts.debt)??e.debtAmount??e.debt)>0):t
-}class Ke{constructor(e={}){this.SalesOrder=e.SalesOrder,this.MasterOrder=e.MasterOrder,this.ReturnOrder=e.ReturnOrder,this.StockTransaction=e.StockTransaction,
+reward:0,returnAmount:0,debt:0})}
+const Ee=["delivered","success","done","completed","accounting_confirmed"],Fe=["all","tat ca","tất cả","*"],Qe=Ee.concat(["da giao","đã giao"]),Be=["open","processing","pending","assigned","not_delivered","not-delivered","chua giao","chưa giao"]
+;function Le(e={}){return S((e.status&&"object"==typeof e.status?e.status:{}).deliveryStatus||e.deliveryStatus||e.status||"pending")}function xe(e={}){return Ee.includes(Le(e))}
+function qe(e={},t=!1){const r=t?["statusFilter","deliveryStatusFilter","orderStatusFilter","status","deliveryStatus"]:["statusFilter","deliveryStatusFilter","orderStatusFilter"]
+;for(const t of r){const r=h(e[t]);if(r)return S(r)}return""}function Ke(e={}){const t=qe(e,!0)
+;return I(e.includeCompleted)||I(e.showCompleted)||I(e.includeDelivered)||Fe.includes(t)||Qe.includes(t)}function Te(e={}){return!Ke(e)}function Pe(e){return{$or:[{[e]:{$exists:!1}
+},{[e]:null},{[e]:""},{[e]:{$nin:Ee}}]}}function Ve(t=[],r={}){const n=qe(r)||qe(r,!0);let o=t;return Te(r)&&(o=o.filter(e=>!xe(e))),
+!n||Fe.includes(n)?o:Qe.includes(n)?t.filter(xe):Be.includes(n)?t.filter(e=>!xe(e)):["return","returns","has_return","tra hang","trả hàng"].includes(n)?t.filter(t=>e(t.amounts&&t.amounts.returnAmount)>0||e(t.returnAmount||t.returnTotal||t.totalReturnAmount)>0):["debt","cong no","công nợ"].includes(n)?t.filter(e=>a((e.amounts&&e.amounts.debt)??e.debtAmount??e.debt)>0):t
+}class Ue{constructor(e={}){this.SalesOrder=e.SalesOrder,this.MasterOrder=e.MasterOrder,this.ReturnOrder=e.ReturnOrder,this.StockTransaction=e.StockTransaction,
 this.ArLedger=e.ArLedger,this.User=e.User}staffCodeOf(e={},t="sales"){return h("delivery"===t?m(e)||v(e):c(e)||C(e))}staffNameOf(e={},t="sales"){return h("delivery"===t?y(e):f(e))}
 staffRoleOk(e={},t=""){const r=N([e.role,e.type,e.position,e.department,e.roleLabel].filter(Boolean).join(" "))
 ;return!!("delivery"===t?Boolean(e.isDelivery||e.isDeliveryStaff||e.deliveryStaff):Boolean(e.isSalesman||e.isSalesStaff||e.salesStaff))||("delivery"===t?["delivery","shipper","nvgh","giao hang","giaohang"].some(e=>r.includes(N(e))):["sales","sale","nvbh","ban hang","banhang","salesman"].some(e=>r.includes(N(e))))
@@ -105,17 +106,17 @@ orderStaffName(e={},t=""){
 return h("delivery"===t?e.deliveryStaffName||e.shipperName||e.driverName||e.staffDeliveryName:e.salesStaffName||e.salesmanName||e.nvbhName||e.saleName||e.sellerName)}
 async buildStaffSystemIndex(e=[]){const t={byCode:new Map,byName:new Map};if(!this.User||!e.length)return t
 ;const r=O(e.flatMap(e=>[this.orderStaffCode(e,"sales"),this.orderStaffName(e,"sales"),this.orderStaffCode(e,"delivery"),this.orderStaffName(e,"delivery")])).filter(Boolean)
-;if(!r.length)return t;const n=r.map(e=>new RegExp(`^${e.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}$`,"i")),a=await this.User.find({isActive:{$ne:!1},$or:[...l.map(e=>({[e]:{$in:n}
-})),...u.map(e=>({[e]:{$in:n}})),...d.map(e=>({[e]:{$in:n}})),...i.map(e=>({[e]:{$in:n}}))]
+;if(!r.length)return t;const n=r.map(e=>new RegExp(`^${e.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}$`,"i")),a=await this.User.find({isActive:{$ne:!1},$or:[...u.map(e=>({[e]:{$in:n}
+})),...l.map(e=>({[e]:{$in:n}})),...d.map(e=>({[e]:{$in:n}})),...i.map(e=>({[e]:{$in:n}}))]
 }).select("id code staffCode employeeCode salesStaffCode salesStaffName salesmanCode salesmanName deliveryStaffCode deliveryStaffName shipperCode shipperName maNhanVien name fullName role type position department roleLabel isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff isActive").lean().catch(()=>[]),o=new Map,s=new Map
 ;for(const e of a||[]){
 const t=this.staffCodeOf(e,"sales"),r=this.staffCodeOf(e,"delivery"),n=this.staffNameOf(e,"sales"),a=this.staffNameOf(e,"delivery"),d=O([t,r]).map(A).filter(Boolean),i=O([n,a]).map(N).filter(Boolean)
 ;for(const t of d)o.set(t,e);for(const t of i)s.set(t,e)}return{byCode:o,byName:s}}verifyAssignedStaff(e={},t={byCode:new Map,byName:new Map},r=""){
 const n=this.orderStaffCode(e,r),a=this.orderStaffName(e,r),o="delivery"===r?"NVGH":"NVBH";let d=n?t.byCode.get(A(n)):null;!d&&a&&(d=t.byName.get(N(a)))
-;const s=d?this.staffCodeOf(d,r):"",i=d?this.staffNameOf(d,r):"",l=Boolean(d&&n&&A(s)===A(n)),u=Boolean(d&&a&&N(i)===N(a)),c=Boolean(d&&this.staffRoleOk(d,r))
+;const s=d?this.staffCodeOf(d,r):"",i=d?this.staffNameOf(d,r):"",u=Boolean(d&&n&&A(s)===A(n)),l=Boolean(d&&a&&N(i)===N(a)),c=Boolean(d&&this.staffRoleOk(d,r))
 ;let f=`${o} đúng mã hệ thống`
-;return n||a?d?c?!l&&n&&(f=`${o} không khớp mã hệ thống`):f=`${o} có mã hệ thống nhưng sai vai trò`:f=`${o} không tồn tại trong mục Tài khoản/Hệ thống`:f=`Thiếu ${o}`,{type:r,
-label:o,ok:Boolean(d&&c&&(l||!n&&u)),exists:Boolean(d),roleOk:c,codeMatches:l,nameMatches:u,assignedCode:n,assignedName:a,systemCode:s,systemName:i,message:f}}
+;return n||a?d?c?!u&&n&&(f=`${o} không khớp mã hệ thống`):f=`${o} có mã hệ thống nhưng sai vai trò`:f=`${o} không tồn tại trong mục Tài khoản/Hệ thống`:f=`Thiếu ${o}`,{type:r,
+label:o,ok:Boolean(d&&c&&(u||!n&&l)),exists:Boolean(d),roleOk:c,codeMatches:u,nameMatches:l,assignedCode:n,assignedName:a,systemCode:s,systemName:i,message:f}}
 async enrichStaffAssignment(e=[]){const t=await this.buildStaffSystemIndex(e);return e.map(e=>{
 const r=this.verifyAssignedStaff(e,t,"sales"),n=this.verifyAssignedStaff(e,t,"delivery"),a=r.ok&&n.ok;return{...e,staffAssignment:{ok:a,sales:r,delivery:n},
 staffAssignmentStatus:a?"valid":"warning",staffAssignmentMessage:a?"Đơn đã gán đúng NVBH/NVGH theo mã hệ thống":[r,n].filter(e=>!e.ok).map(e=>e.message).join("; ")}})}
@@ -128,7 +129,7 @@ const t=h(e.date||e.deliveryDate||p()),r=N(e.status||e.deliveryStatus),n=N(e.q||
 ;const o=Math.min(1e3,Math.max(1,Number(e.limit||1e3))),d=async(a,{fast:d=!1}={})=>{const s=(()=>{const n={};return t&&(n.deliveryDate=t),
 r&&!["all","tat ca","tất cả","*"].includes(r)&&(n.deliveryStatus=h(e.status||e.deliveryStatus)),I(e.includeInactive)||I(e.showInactive)||(n.status={
 $nin:["cancelled","canceled","void","deleted","removed","duplicate_cancelled"]}),n})(),i=[a];if(d){const t=Z(e);i.push({deliveryStaffCode:{$in:V(t)}})}else z(i,e)
-;return Le(e)&&(i.push(xe("deliveryStatus")),i.push(xe("status"))),((t=[])=>{if(!n)return;const r=new RegExp(D(e.q||e.keyword),"i");t.push({$or:[{code:r},{orderCode:r},{
+;return Te(e)&&(i.push(Pe("deliveryStatus")),i.push(Pe("status"))),((t=[])=>{if(!n)return;const r=new RegExp(D(e.q||e.keyword),"i");t.push({$or:[{code:r},{orderCode:r},{
 salesOrderCode:r},{customerCode:r},{customerName:r}]})})(i),s.$and=i,this.execSalesOrderFind(s,{sort:d?{deliveryDate:-1,deliveryStaffCode:1,customerName:1,code:1}:{
 deliveryStaffCode:1,customerName:1,code:1},limit:d?Math.min(300,o):o})};if(G(e)&&(a=await d(ee(),{fast:!0}),a.length||(a=await d(ee({legacy:!0}),{fast:!0}))),
 a.length||(a=await d(ee()),a.length||(a=await d(ee({legacy:!0})))),!a.length&&t&&this.MasterOrder){const r=O(P(await this.MasterOrder.find({deliveryDate:t
@@ -141,7 +142,7 @@ const r=O(e.flatMap(e=>[te(e),e.id,e._id,e.salesOrderId,e.orderId,e.sourceOrderI
 $in:o}},{sourceOrderCode:{$in:o}},{deliveryOrderCode:{$in:o}},{code:{$in:o}},{id:{$in:o}}),!d.length)return[];let s=this.ReturnOrder.find({...ye(),$or:d});return s=ve(s,t.session),
 s&&"function"==typeof s.select&&(s=s.select(Y)),(await s.lean()).map(Q).filter(F)}async getCanonicalOrderByKey(e,t={}){const r=await this.resolveSalesOrderByKnownCode(e,t)
 ;if(!r)return null;const n=await this.findReturnOrdersFor([r],t);return Me(r,n.filter(e=>De(e,r)))}async listOrders(e={}){
-const t=de(await this.findOrders(e)),r=await this.findReturnOrdersFor(t);let n=t.map(e=>Me(e,r.filter(t=>De(t,e))));return n=de(qe(n,e)),
+const t=de(await this.findOrders(e)),r=await this.findReturnOrdersFor(t);let n=t.map(e=>Me(e,r.filter(t=>De(t,e))));return n=de(Ve(n,e)),
 (I(e.checkStaffAssignment)||I(e.checkStaff)||I(e.staffCheck))&&(n=await this.enrichStaffAssignment(n)),{rows:n,summary:ke(n),reconciliation:this.reconcileRows(n)}}
 normalizeReturnItems(e=[],t={}){const r=fe(t);return(Array.isArray(e)?e:[]).map(e=>{const t=se(e);return me(e,r.get(t)||{})}).filter(e=>e.productCode&&e.returnQty>0)}
 async saveReturn(t={}){const r=arguments[1]||{},n=h(t.salesOrderId||t.orderId||t.salesOrderCode||t.orderCode),a=await this.resolveSalesOrderByKnownCode(n,r);if(!a){
@@ -156,17 +157,17 @@ staffCode:h(a.deliveryStaffCode||t.deliveryStaffCode),staffName:h(a.deliveryStaf
 refType:o.length?"canonicalDeliveryReturn":"canonicalDeliveryReturnClear",returnType:h(t.returnType||"partial")||"partial",returnStatus:o.length?"waiting_receive":"cancelled",
 status:o.length?"waiting_receive":"cancelled",accountingConfirmed:!1,accountingStatus:o.length?"pending":"cancelled",items:o,totalQuantity:o.reduce((t,r)=>t+e(r.returnQty),0),
 totalAmount:d,totalReturnAmount:d,amount:d,debtReduction:d,note:h(t.note)||(o.length?"Cập nhật hàng trả từ DeliveryEngine":"Xóa hàng trả về 0 từ DeliveryEngine"),
-updatedAt:(new Date).toISOString(),clearedAt:o.length?"":(new Date).toISOString()},l=r.session?await Ce().createPendingReturn(i,r):await Ce().createPendingReturn(i);if(l&&l.error){
-const e=new Error(l.error);throw e.status=l.status||400,e}const u=l&&l.returnOrder||l,c=await this.getCanonicalOrderByKey(te(a),r),f=$e(u,c||a);return{order:c,returnOrder:u,
+updatedAt:(new Date).toISOString(),clearedAt:o.length?"":(new Date).toISOString()},u=r.session?await Ce().createPendingReturn(i,r):await Ce().createPendingReturn(i);if(u&&u.error){
+const e=new Error(u.error);throw e.status=u.status||400,e}const l=u&&u.returnOrder||u,c=await this.getCanonicalOrderByKey(te(a),r),f=$e(l,c||a);return{order:c,returnOrder:l,
 returns:f,returnOrders:f,rows:f,message:o.length?"Đã lưu hàng trả":"Đã xóa hàng trả về 0"}}async savePayment(t={},r={}){
 const n=h(t.salesOrderId||t.orderId||t.salesOrderCode||t.orderCode),a=await this.getCanonicalOrderByKey(n,r);if(!a){const e=new Error("Không tìm thấy đơn giao hàng")
 ;throw e.status=404,e}Ne(a,t);const o=b(a),d=w(a);if(o&&!d){const e=new Error("Đơn đã xác nhận kế toán, cần mở khóa admin trước khi sửa tiền");throw e.status=423,e}
-const s=Math.max(0,g(t.cashAmount??t.cashCollected)),i=Math.max(0,g(t.bankAmount??t.bankCollected??t.transferAmount)),l=Math.max(0,g(t.rewardAmount??t.bonusAmount)),u=e(a.amounts&&a.amounts.returnAmount),c=e(a.amounts&&a.amounts.receivable),f=s+i+l+u
+const s=Math.max(0,g(t.cashAmount??t.cashCollected)),i=Math.max(0,g(t.bankAmount??t.bankCollected??t.transferAmount)),u=Math.max(0,g(t.rewardAmount??t.bonusAmount)),l=e(a.amounts&&a.amounts.returnAmount),c=e(a.amounts&&a.amounts.receivable),f=s+i+u+l
 ;if(f-c>1e3){const e=new Error(`Tổng thu/trả (${f.toLocaleString("vi-VN")}) vượt phải thu (${c.toLocaleString("vi-VN")})`);throw e.status=400,e}const m={type:"delivery_collection",
-source:"DeliveryEngine",date:h(t.date||p()),cashAmount:s,bankAmount:i,rewardAmount:l,returnAmount:u,amount:s+i+l,salesOrderId:a.salesOrderId,salesOrderCode:a.salesOrderCode,
+source:"DeliveryEngine",date:h(t.date||p()),cashAmount:s,bankAmount:i,rewardAmount:u,returnAmount:l,amount:s+i+u,salesOrderId:a.salesOrderId,salesOrderCode:a.salesOrderCode,
 orderId:a.orderId,orderCode:a.orderCode,deliveryStaffCode:h(t.deliveryStaffCode||a.deliveryStaffCode),deliveryStaffName:h(t.deliveryStaffName||a.deliveryStaffName),
 createdAt:(new Date).toISOString()},y={deliveryPayment:m,paymentAllocations:[m],deliveryPaymentSource:"DeliveryEngine",cashCollected:s,cashAmount:s,bankCollected:i,bankAmount:i,
-transferAmount:i,rewardAmount:l,displayRewardAmount:l,paidAmount:s+i,collectedAmount:s+i,...d?{accountingConfirmed:!1,accountingLocked:!1,editLocked:!1,accountingNeedsReconfirm:!0,
+transferAmount:i,rewardAmount:u,displayRewardAmount:u,paidAmount:s+i,collectedAmount:s+i,...d?{accountingConfirmed:!1,accountingLocked:!1,editLocked:!1,accountingNeedsReconfirm:!0,
 needReAccounting:!0,reAccountingRequired:!0,adminAdjustmentOpen:!0,accountingStatus:"needs_reconfirm",arStatus:"needs_reconfirm",lifecycleStatus:"needs_reconfirm",
 financialSyncStatus:"needs_reconfirm",arPostedAt:""}:{accountingStatus:a.accountingStatus||"pending_accounting"},updatedAt:(new Date).toISOString()
 },C=be(await this.SalesOrder.findOneAndUpdate(we(n,a),{$set:y,$inc:{version:1}},{new:!0,lean:!0,session:r.session}));return{order:await this.getCanonicalOrderByKey(te(C),r),
@@ -189,8 +190,8 @@ deliveryStaffCode:t},{deliveryStaffName:t},{deliveryCode:t},{deliveryName:t},{nv
 const t=new RegExp(D(e.salesStaffCode||e.salesmanCode||e.nvbhCode||e.salesman),"i");r.push({$or:[{salesStaffCode:t},{salesStaffName:t},{salesmanCode:t},{salesmanName:t},{nvbhCode:t
 },{nvbhName:t}]})}const d=h(e.q||e.keyword||e.search);if(d){const e=new RegExp(D(d),"i");r.push({$or:[{id:e},{code:e},{salesOrderCode:e},{orderCode:e},{customerCode:e},{
 customerName:e},{deliveryStaffCode:e},{deliveryStaffName:e},{salesStaffCode:e},{salesStaffName:e},{salesmanCode:e},{salesmanName:e},{note:e}]})}r.length&&(t.$and=r)
-;const s=Math.max(1,Number(e.page||1)),i=Math.min(500,Math.max(1,Number(e.limit||100))),l=(s-1)*i,u=(await this.ReturnOrder.find(t).select(Y).sort({createdAt:-1,code:-1
-}).skip(l).limit(i).lean()).map(Q).filter(t=>"1"===String(e.includeZeroValue??e.showZero??"0")||F(t)),c=u.flatMap(e=>$e(e,{}));return{returnOrders:u,returns:u,rows:c,summary:B(c)}}
+;const s=Math.max(1,Number(e.page||1)),i=Math.min(500,Math.max(1,Number(e.limit||100))),u=(s-1)*i,l=(await this.ReturnOrder.find(t).select(Y).sort({createdAt:-1,code:-1
+}).skip(u).limit(i).lean()).map(Q).filter(t=>"1"===String(e.includeZeroValue??e.showZero??"0")||F(t)),c=l.flatMap(e=>$e(e,{}));return{returnOrders:l,returns:l,rows:c,summary:B(c)}}
 async listReturns(e={}){
 const t=e=>Array.isArray(e)?e:h(e).split(",").map(e=>e.trim()).filter(Boolean),r=O([e.salesOrderId,e.orderId,e.salesOrderCode,e.orderCode,e.orderKey,...t(e.salesOrderIds||e.orderIds),...t(e.salesOrderCodes||e.orderCodes)])
 ;let n=null,a=[];if(r.length){const t=[],n=O(r.flatMap(M));for(const e of n)t.push({salesOrderId:e},{orderId:e},{salesOrderCode:e},{orderCode:e},{sourceOrderId:e},{
@@ -202,6 +203,6 @@ rows:t.rows||[],returnOrdersRaw:t.returnOrders||[],summary:t.summary||B(t.rows||
 for(const t of O([e.orderId,e.salesOrderId,e.id]))o.set(t,e);for(const t of O([e.orderCode,e.salesOrderCode,e.code]))d.set(t,e)}const s=await this.findReturnOrdersFor(a),i=[]
 ;for(const e of s||[]){
 const t=o.get(h(e.salesOrderId||e.orderId||e.sourceOrderId||e.deliveryOrderId))||d.get(h(e.salesOrderCode||e.orderCode||e.sourceOrderCode||e.deliveryOrderCode))||{}
-;i.push(...$e(e,t))}return{rows:i,returnOrdersRaw:s.map(Q),summary:B(i)}}async reconciliation(e={}){return(await this.listOrders(e)).reconciliation}}function Te(e={}){return e}
-module.exports={DeliveryEngine:Ke,buildDeliveryAssignment:Te,buildCanonicalOrder:Me,buildOrderReconciliation:_e,summarizeOrders:ke,helpers:{text:h,unique:O,orderIdOf:te,
+;i.push(...$e(e,t))}return{rows:i,returnOrdersRaw:s.map(Q),summary:B(i)}}async reconciliation(e={}){return(await this.listOrders(e)).reconciliation}}function je(e={}){return e}
+module.exports={DeliveryEngine:Ue,buildDeliveryAssignment:je,buildCanonicalOrder:Me,buildOrderReconciliation:_e,summarizeOrders:ke,helpers:{text:h,unique:O,orderIdOf:te,
 orderCodeOf:re,productCodeOf:se,returnMatchesOrder:De,buildOrderLookup:Ae,canonicalizeReturnDocument:Q,summarizeReturnRows:B}};

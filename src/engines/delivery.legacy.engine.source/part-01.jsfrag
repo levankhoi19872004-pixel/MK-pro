@@ -42,7 +42,6 @@ function isAccountingConfirmedForPayment(order = {}) {
     || ['confirmed', 'locked', 'posted', 'done'].includes(accountingStatus);
 }
 
-
 function escapeRegex(value) { return text(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function cleanOrderCode(value) { return text(value).replace(/^RO[-_]?/i, ''); }
 function prefixedReturnCode(value) { const clean = cleanOrderCode(value); return clean ? `RO-${clean}` : ''; }
@@ -290,9 +289,6 @@ function shouldTryFastDeliveryCodeQuery(query = {}) {
 }
 
 // DELIVERY_MASTER_LINK_GUARD_START
-// Đơn giao hàng phải còn liên kết với một đơn tổng. Phase36B ưu tiên field
-// chuẩn masterOrderId/masterOrderCode để tránh query rộng `$or + $exists + $nin`
-// trên nhiều alias legacy; legacy chỉ dùng fallback có date/NVGH/status đi kèm.
 function nonEmptyStringClause(field) {
   return { [field]: { $type: 'string', $gt: '' } };
 }
@@ -315,7 +311,6 @@ function masterAssignmentMongoClause(options = {}) {
   return options.legacy ? legacyMasterAssignmentMongoClause() : canonicalMasterAssignmentMongoClause();
 }
 // DELIVERY_MASTER_LINK_GUARD_END
-
 
 function orderIdOf(order = {}) { return text(order.id || order.orderId || order.salesOrderId || order._id); }
 function orderCodeOf(order = {}) { return text(order.code || order.orderCode || order.salesOrderCode || order.displayOrderCode || order.id || order._id); }
@@ -410,10 +405,8 @@ function resolveReturnItemWithOrderLine(item = {}, orderLine = {}) {
 
 function activeReturnFilter() { return { status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'] } }; }
 function getReturnLifecycleService() {
-  // Lazy require để tránh vòng phụ thuộc với returnOrderService.
   return require('../domain/lifecycle/ReturnLifecycleService');
 }
-
 
 function applyQuerySession(query, session) {
   if (session && query && typeof query.session === 'function') return query.session(session);
@@ -492,7 +485,6 @@ function directOrderLookupCandidates(value) {
     }
   };
 
-  // Mã SO là case phổ biến từ app giao hàng/API Monitor: đi thẳng vào field id đã index.
   if (/^SO[0-9A-Z_-]+$/i.test(key)) {
     push({ id: key });
     push({ code: key });
@@ -510,7 +502,6 @@ function directOrderLookupCandidates(value) {
   push({ salesOrderCode: key });
   return candidates;
 }
-
 
 function versionedOrderFilter(key, current = {}) {
   const lookup = buildOrderLookup(key);

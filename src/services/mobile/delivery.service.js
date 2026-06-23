@@ -20,6 +20,23 @@ const StockTransaction = require('../../models/StockTransaction');
 const ArLedger = require('../../models/ArLedger');
 const User = require('../../models/User');
 
+const MOBILE_COMPLETED_DELIVERY_STATUSES = ['delivered', 'success', 'done', 'completed', 'accounting_confirmed'];
+const MOBILE_ALL_DELIVERY_STATUS_FILTERS = ['all', 'tat ca', 'tất cả', '*'];
+const MOBILE_DELIVERED_STATUS_FILTERS = ['delivered', 'da giao', 'đã giao', 'completed', 'done', 'success', 'accounting_confirmed'];
+const MOBILE_OPEN_STATUS_FILTERS = ['open', 'processing', 'pending', 'assigned', 'not_delivered', 'not-delivered', 'chua giao', 'chưa giao'];
+function mobileDeliveryStatusFilterOf(query = {}, normalizeText = (value) => String(value || '').trim().toLowerCase()) {
+  return normalizeText(query.statusFilter || query.deliveryStatusFilter || query.orderStatusFilter || query.status || query.deliveryStatus || '');
+}
+function mobileDeliveryStatusOf(order = {}, normalizeText = (value) => String(value || '').trim().toLowerCase()) {
+  return normalizeText(order.deliveryStatus || order.visualStatus || order.status || 'pending');
+}
+function mobileIsDeliveredOrder(order = {}, normalizeText) {
+  return MOBILE_COMPLETED_DELIVERY_STATUSES.includes(mobileDeliveryStatusOf(order, normalizeText));
+}
+function mobileTruthy(value) {
+  return ['1', 'true', 'yes', 'y'].includes(String(value || '').trim().toLowerCase());
+}
+
 function createMobileDeliveryService(ctx) {
   const repo = createMobileDeliveryRepository(ctx);
   async function persistDeliverySnapshotSafely(data = {}) {
@@ -241,8 +258,10 @@ function createMobileDeliveryService(ctx) {
     const totalStartedAt = Date.now();
     const targetDate = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
     const q = normalizeText(query.q);
-    const status = normalizeText(query.status);
-    const includeCompleted = ['1', 'true'].includes(String(query.includeCompleted || '').toLowerCase());
+    const status = mobileDeliveryStatusFilterOf(query, normalizeText);
+    const includeCompleted = mobileTruthy(query.includeCompleted) || mobileTruthy(query.includeDelivered)
+      || MOBILE_ALL_DELIVERY_STATUS_FILTERS.includes(status)
+      || MOBILE_DELIVERED_STATUS_FILTERS.includes(status);
     const actorCode = String(
       mobileUser.deliveryStaffCode || mobileUser.staffCode || mobileUser.code || ''
     ).trim();
@@ -345,9 +364,11 @@ function createMobileDeliveryService(ctx) {
         order.customerName, order.phone, order.address, order.routeName
       ].some((value) => normalizeText(value).includes(q)));
     }
-    if (status) {
+    if (status && !MOBILE_ALL_DELIVERY_STATUS_FILTERS.includes(status)) {
       items = items.filter((order) => {
-        if (status === 'unpaid') return toNumber(order.debtAmount) > 0;
+        if (MOBILE_DELIVERED_STATUS_FILTERS.includes(status)) return mobileIsDeliveredOrder(order, normalizeText);
+        if (MOBILE_OPEN_STATUS_FILTERS.includes(status)) return !mobileIsDeliveredOrder(order, normalizeText);
+        if (status === 'unpaid' || status === 'debt') return toNumber(order.debtAmount) > 0;
         if (status === 'late') return order.isLate;
         return normalizeText(order.deliveryStatus) === status || normalizeText(order.visualStatus) === status;
       });

@@ -10,6 +10,15 @@
     return String(value == null ? '' : value).trim();
   }
 
+  function normalizeDeliveryOrderFilters(filters) {
+    filters = Object.assign({}, filters || {});
+    var rawStatusFilter = String(filters.statusFilter || filters.deliveryStatusFilter || filters.orderStatusFilter || filters.status || filters.deliveryStatus || '').trim().toLowerCase();
+    var includeDelivered = ['all', 'tat ca', 'tất cả', '*', 'delivered', 'da giao', 'đã giao', 'completed', 'done', 'success', 'accounting_confirmed'].indexOf(rawStatusFilter) >= 0;
+    filters.includeCompleted = includeDelivered ? '1' : '0';
+    filters.includeDelivered = includeDelivered ? '1' : '0';
+    return filters;
+  }
+
   function money(value) {
     try { return Math.round(toNumber(value)).toLocaleString('vi-VN'); }
     catch (err) { return String(Math.round(toNumber(value))); }
@@ -296,7 +305,7 @@
     },
 
     async loadOrders(filters) {
-      filters = Object.assign({}, filters || {});
+      filters = normalizeDeliveryOrderFilters(filters);
       var requestSeq = Number(this.state.requestSeq && this.state.requestSeq.orders || 0) + 1;
       this.state.requestSeq = Object.assign({}, this.state.requestSeq, { orders: requestSeq });
       // Web admin cần được lọc theo NVGH/NVBH.
