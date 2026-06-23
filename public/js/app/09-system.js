@@ -138,15 +138,24 @@ function apiMonitorSafeText(value) {
 }
 
 
-function apiMonitorSlowestQueryText(row = {}) {
-  const traces = Array.isArray(row.maxQueryTraces) && row.maxQueryTraces.length
-    ? row.maxQueryTraces
-    : (Array.isArray(row.lastQueryTraces) ? row.lastQueryTraces : []);
+function apiMonitorQueryText(row = {}, mode = 'history') {
+  const preferLast = mode === 'last';
+  const traces = preferLast
+    ? (Array.isArray(row.lastQueryTraces) ? row.lastQueryTraces : [])
+    : (Array.isArray(row.maxQueryTraces) && row.maxQueryTraces.length
+      ? row.maxQueryTraces
+      : (Array.isArray(row.lastQueryTraces) ? row.lastQueryTraces : []));
   const trace = traces.slice().sort((a, b) => Number(b.ms || 0) - Number(a.ms || 0))[0] || null;
-  const label = row.slowestQueryLabel || trace?.label || '';
-  const ms = Number(row.slowestQueryMs || trace?.ms || 0);
+  const label = preferLast
+    ? (row.lastSlowestQueryLabel || trace?.label || '')
+    : (row.slowestQueryLabel || trace?.label || '');
+  const ms = Number(preferLast ? (row.lastSlowestQueryMs || trace?.ms || 0) : (row.slowestQueryMs || trace?.ms || 0));
   if (!label && !ms) return '';
   return `${apiMonitorSafeText(label)}${ms ? ` (${apiMonitorFormatMs(ms)})` : ''}`;
+}
+
+function apiMonitorSlowestQueryText(row = {}) {
+  return apiMonitorQueryText(row, 'history');
 }
 
 function apiMonitorTraceRowsText(row = {}) {
@@ -310,7 +319,7 @@ function renderApiMonitor(json = {}) {
         <td>${systemFormatNumber(row.avgDbQueries || 0)}</td>
         <td><strong>${apiMonitorFormatMs(row.maxMs || 0)}</strong></td>
         <td>${apiMonitorFormatMs(row.maxMongoMs || 0)}</td>
-        <td><code class="api-monitor-query-cell" title="${apiMonitorSafeText(row.slowestQueryLabel || '')}">${apiMonitorSlowestQueryText(row)}</code></td>
+        <td><code class="api-monitor-query-cell" title="${apiMonitorSafeText(row.slowestQueryLabel || '')}">${apiMonitorQueryText(row, 'last')}</code></td>
         <td>${systemFormatNumber(row.lastRows || 0)}</td>
         <td>${systemFormatNumber(row.slowCount || 0)}</td>
         <td>${systemApiMonitorBadge(row.maxMs, row.lastStatus)}</td>

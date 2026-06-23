@@ -6,9 +6,16 @@ const { buildIdentityFilter, normalizeIdOrCode } = require('../utils/identity.ut
 
 const ORDER_KEY = 'salesOrders';
 
+function isGeneratedSalesOrderId(value) {
+  return /^SO\d+$/i.test(String(value || '').trim());
+}
+
 function identityFilter(idOrCode) {
   const value = normalizeIdOrCode(idOrCode);
   if (!value) return null;
+  // API /api/sales-orders/:id luôn truyền mã SO nội bộ trong case phổ biến.
+  // Đi thẳng vào field id để Mongo dùng uniq_salesOrders_id, tránh $or 6 nhánh trên đường nóng.
+  if (isGeneratedSalesOrderId(value)) return { id: value };
   return buildIdentityFilter(value, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode']);
 }
 
@@ -69,7 +76,11 @@ async function replaceAll(orders) {
 }
 
 async function patchByIdentity(idOrCode, patch = {}, options = {}) {
-  return collectionRepository.patchByIdentity(ORDER_KEY, idOrCode, canonicalizeOperationalStaff(patch), ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
+  const value = normalizeIdOrCode(idOrCode);
+  if (isGeneratedSalesOrderId(value)) {
+    return collectionRepository.patchByIdentity(ORDER_KEY, value, canonicalizeOperationalStaff(patch), ['id'], options);
+  }
+  return collectionRepository.patchByIdentity(ORDER_KEY, value, canonicalizeOperationalStaff(patch), ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
 }
 
 async function remove(idOrCode, options = {}) {

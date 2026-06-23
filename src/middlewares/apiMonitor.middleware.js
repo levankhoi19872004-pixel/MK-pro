@@ -354,6 +354,8 @@ function recordMetric(metric) {
   current.lastOriginalUrl = metric.originalUrl;
   current.lastQueryTraces = Array.isArray(metric.queryTraces) ? metric.queryTraces : [];
   const slowestQuery = current.lastQueryTraces.slice().sort((a, b) => (b.ms || 0) - (a.ms || 0))[0] || null;
+  current.lastSlowestQueryMs = slowestQuery ? (slowestQuery.ms || 0) : 0;
+  current.lastSlowestQueryLabel = slowestQuery ? (slowestQuery.label || '') : '';
   if (slowestQuery && (slowestQuery.ms || 0) >= (current.slowestQueryMs || 0)) {
     current.slowestQueryMs = slowestQuery.ms || 0;
     current.slowestQueryLabel = slowestQuery.label || '';
@@ -496,6 +498,8 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
     maxOriginalUrl: s.maxOriginalUrl,
     slowestQueryLabel: s.slowestQueryLabel || '',
     slowestQueryMs: s.slowestQueryMs || 0,
+    lastSlowestQueryLabel: s.lastSlowestQueryLabel || '',
+    lastSlowestQueryMs: s.lastSlowestQueryMs || 0,
     lastQueryTraces: Array.isArray(s.lastQueryTraces) ? s.lastQueryTraces : [],
     maxQueryTraces: Array.isArray(s.maxQueryTraces) ? s.maxQueryTraces : [],
     slowCount: s.slowCount,

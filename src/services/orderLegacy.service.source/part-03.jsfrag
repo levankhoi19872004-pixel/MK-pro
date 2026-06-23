@@ -81,6 +81,61 @@
   return { salesOrder: toClient(stockPostedOrder) };
 }
 
+
+function stockLineKey(item = {}) {
+  return String(item.productCode || item.code || item.sku || item.productId || item.id || '')
+    .trim()
+    .toUpperCase();
+}
+
+function stockLineQty(item = {}) {
+  return toNumber(item.stockQuantity ?? item.deliveredQuantity ?? item.quantity ?? item.qty ?? item.totalQty ?? 0);
+}
+
+function stockLineMeta(item = {}, productCode = '') {
+  return {
+    ...item,
+    productCode: productCode || item.productCode || item.code || item.sku || item.productId || item.id || '',
+    productId: item.productId || item.id || productCode || item.productCode || item.code || '',
+    productName: item.productName || item.name || ''
+  };
+}
+
+function buildStockLineMap(items = []) {
+  const map = new Map();
+  for (const item of Array.isArray(items) ? items : []) {
+    const key = stockLineKey(item);
+    if (!key) continue;
+    const current = map.get(key) || { qty: 0, item: stockLineMeta(item, key) };
+    current.qty += stockLineQty(item);
+    current.item = { ...current.item, ...stockLineMeta(item, key) };
+    map.set(key, current);
+  }
+  return map;
+}
+
+function buildSalesOrderStockDeltaItems(currentItems = [], nextItems = []) {
+  const currentMap = buildStockLineMap(currentItems);
+  const nextMap = buildStockLineMap(nextItems);
+  const keys = new Set([...currentMap.keys(), ...nextMap.keys()]);
+  const outItems = [];
+  const inItems = [];
+
+  for (const key of keys) {
+    const before = currentMap.get(key) || { qty: 0, item: { productCode: key } };
+    const after = nextMap.get(key) || { qty: 0, item: before.item || { productCode: key } };
+    const delta = toNumber(after.qty) - toNumber(before.qty);
+    if (delta > 0) {
+      outItems.push({ ...stockLineMeta(after.item, key), quantity: delta, qty: delta, stockQuantity: delta });
+    } else if (delta < 0) {
+      const qty = Math.abs(delta);
+      inItems.push({ ...stockLineMeta(before.item, key), quantity: qty, qty, stockQuantity: qty });
+    }
+  }
+
+  return { outItems, inItems, hasDelta: outItems.length > 0 || inItems.length > 0 };
+}
+
 async function updateOrder(id, body = {}) {
   const current = await orderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy đơn bán', status: 404 };
@@ -140,19 +195,35 @@ async function updateOrder(id, body = {}) {
   await tx.withMongoTransaction(async (session) => {
     const currentWasPosted = isSalesOrderStockPosted(current);
     const shouldPostAfterUpdate = body.postImmediately === true || currentWasPosted;
-
-    if (currentWasPosted) {
-      await reverseSalesOrderPosting(current, { session });
-    }
-
     const orderToSave = shouldPostAfterUpdate
       ? stockPostedPatch(updated, body.updatedBy || body.userName || 'update_order')
       : updated;
     orderResultForClient = orderToSave;
+
     await orderRepository.upsert(orderToSave, { session });
     await returnOrderService.syncReturnDraftWithSalesOrder(orderToSave, { session });
 
-    if (shouldPostAfterUpdate) {
+    if (currentWasPosted && shouldPostAfterUpdate) {
+      // Performance + correctness: sửa đơn đã post chỉ ghi delta tồn kho.
+      // Tránh đảo toàn bộ đơn rồi trừ lại toàn bộ đơn, vốn gây N+1 query rất lớn
+      // và dễ đụng idempotency key SALE cũ khi đơn đã từng được post trước đó.
+      const stockDelta = buildSalesOrderStockDeltaItems(current.items, orderToSave.items);
+      if (stockDelta.hasDelta) {
+        const commandId = makeId('SOEDIT');
+        if (stockDelta.inItems.length) {
+          await InventoryPostingService.postSaleEditDelta(orderToSave, stockDelta.inItems, 'IN', {
+            session,
+            commandId: `${commandId}:IN`
+          });
+        }
+        if (stockDelta.outItems.length) {
+          await InventoryPostingService.postSaleEditDelta(orderToSave, stockDelta.outItems, 'OUT', {
+            session,
+            commandId: `${commandId}:OUT`
+          });
+        }
+      }
+    } else if (!currentWasPosted && shouldPostAfterUpdate) {
       await applySalesOrderPosting(orderToSave, { session });
     }
   });

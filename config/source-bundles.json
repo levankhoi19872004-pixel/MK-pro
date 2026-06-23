@@ -40,7 +40,7 @@
         "src/services/orderLegacy.service.source/part-02.jsfrag",
         "src/services/orderLegacy.service.source/part-03.jsfrag"
       ],
-      "sourceSha256": "1fe2a1dc814c4f11230b6ffc6463a8ec1e6cd3d43ce2bf6768a4fb944327047c"
+      "sourceSha256": "823efbe12dbbd155739cfbcfcd6bed759b4564cc3a24cdf5bb1b49a2c41e67fd"
     },
     {
       "target": "src/services/mobile/sales.service.js",
