@@ -242,6 +242,10 @@
       deliveryLifecycle.delegate(el('mWorkflowBar'), 'click', '[data-workflow-complete]', function () {
         switchToListMode({ clearSelected: true, forceOrders: true });
       });
+      deliveryLifecycle.delegate(el('mWorkflowBar'), 'click', '[data-payment-submit]', function (event) {
+        event.preventDefault();
+        savePayment(event);
+      });
       deliveryLifecycle.listen(window, 'pagehide', function () {
         if (deliveryOrderRenderer) deliveryOrderRenderer.cancel();
         if (deliveryDebtRenderer) deliveryDebtRenderer.cancel();
@@ -368,7 +372,7 @@
     }
     if (state.tab === 'payment') {
       bar.innerHTML = '<div class="m-workflow-payment-remaining">Còn thiếu: <b id="mWorkflowRemaining">0</b></div>' +
-        '<div class="m-workflow-actions step-only phase24 payment"><button type="submit" form="mPaymentForm" class="primary">Xác nhận thu tiền</button></div>';
+        '<div class="m-workflow-actions step-only phase24 payment"><button id="mPaymentSubmitButton" type="button" data-payment-submit class="primary"' + (state.paymentSubmitting ? ' disabled' : '') + '>' + (state.paymentSubmitting ? 'Đang xác nhận...' : 'Xác nhận thu tiền') + '</button></div>';
       return;
     }
     if (state.tab === 'customerReconciliation') {
@@ -1354,6 +1358,43 @@
     '</section>';
   }
 
+  function setPaymentSubmittingUI(isSubmitting) {
+    state.paymentSubmitting=!!isSubmitting;
+    document.querySelectorAll('[data-payment-submit]').forEach(function (button) {
+      button.disabled = !!isSubmitting;
+      button.textContent = isSubmitting ? 'Đang xác nhận...' : 'Xác nhận thu tiền';
+    });
+  }
+
+  function showPaymentError(message) {
+    var box = el('mPaymentError');
+    if(!box)return;
+    message = String(message || '').trim();
+    box.hidden = !message;
+    box.textContent = message;
+  }
+
+  function readPaymentFormValues(formEl) {
+    var form = new FormData(formEl);
+    return {
+      cash: Math.max(0, num(form.get('cash'))),
+      bank: Math.max(0, num(form.get('bank'))),
+      reward: Math.max(0, num(form.get('reward')))
+    };
+  }
+
+  function validatePaymentAmounts(order, values) {
+    var receivable = amount(order, 'receivable');
+    var returnAmount = amount(order, 'returnAmount');
+    var payable = Math.max(0, receivable - returnAmount);
+    var collected = values.cash + values.bank + values.reward;
+    var over = Math.round(collected - payable);
+    if (over > 1000) {
+      return 'Thu vượt ' + money(over) + 'đ. Tối đa được thu ' + money(payable) + 'đ.';
+    }
+    return '';
+  }
+
   function renderPayment(body) {
 
     var order = currentOrder();
@@ -1362,14 +1403,15 @@
     var returnAmount = amount(order, 'returnAmount');
     body.innerHTML = '<section class="m-workflow-step"><b>Bước 3/4 · Thu tiền & xác nhận</b><span>App sẽ lưu tiền rồi xác nhận giao. Nếu thu thiếu, phần còn lại chuyển sang công nợ theo logic backend hiện có.</span></section>' +
       '<section class="m-product-summary payment-context"><div><span>Phải thu</span><b>' + money(receivable) + '</b></div><div><span>Hàng trả</span><b>' + money(returnAmount) + '</b></div><div><span>Còn phải xử lý</span><b id="mPaymentRemainingTop">0</b></div></section>' +
-      '<form id="mPaymentForm" class="m-payment-form"><h3>Thu tiền đơn giao</h3><label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label><label>Còn thiếu / ghi công nợ<input id="mPaymentRemaining" type="text" readonly value="0"></label></form>';
+      '<form id="mPaymentForm" class="m-payment-form"><h3>Thu tiền đơn giao</h3><label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label><label>Còn thiếu / ghi công nợ<input id="mPaymentRemaining" type="text" readonly value="0"></label><p id="mPaymentError" class="m-payment-error" hidden></p></form>';
     var formEl = el('mPaymentForm');
     function updateRemaining() {
-      var form = new FormData(formEl);
-      var remaining = Math.max(0, receivable - returnAmount - num(form.get('cash')) - num(form.get('bank')) - num(form.get('reward')));
+      var values = readPaymentFormValues(formEl);
+      var remaining = Math.max(0, receivable - returnAmount - values.cash - values.bank - values.reward);
       if (el('mPaymentRemaining')) el('mPaymentRemaining').value = money(remaining);
       if (el('mPaymentRemainingTop')) el('mPaymentRemainingTop').textContent = money(remaining);
       if (el('mWorkflowRemaining')) el('mWorkflowRemaining').textContent = money(remaining);
+      showPaymentError(validatePaymentAmounts(order, values));
     }
     formEl.addEventListener('input', updateRemaining);
     formEl.addEventListener('submit', savePayment);
@@ -1428,18 +1470,41 @@
 
   async function savePayment(event) {
     if (event && event.preventDefault) event.preventDefault();
-    var form = new FormData(event.target);
+    if (state.paymentSubmitting) return;
+    var order = currentOrder();
+    var formEl = el('mPaymentForm');
+    if (!order || !formEl) {
+      msg('Không xác định được đơn/form thu tiền. Chọn lại khách.', true);
+      return;
+    }
+    var values = readPaymentFormValues(formEl);
+    var validationMessage = validatePaymentAmounts(order, values);
+    if (validationMessage) {
+      showPaymentError(validationMessage);
+      msg(validationMessage, true);
+      return;
+    }
+    var completedKey = keyOf(order);
     try {
+      setPaymentSubmittingUI(true);
+      showPaymentError('');
       msg('Đang lưu thu tiền...');
-      await window.DeliveryCore.savePayment(currentOrder(), { cash: form.get('cash'), bank: form.get('bank'), reward: form.get('reward') });
-      await window.DeliveryCore.confirmDelivery(currentOrder(), { deliveryStatus: 'delivered' });
+      await window.DeliveryCore.savePayment(order, values);
+      await window.DeliveryCore.confirmDelivery(currentOrder() || order, { deliveryStatus: 'delivered' });
       pingRouteTrackingEvent('delivery_confirmed');
-      msg('Đã lưu thu tiền và xác nhận giao, mở đối soát nhanh');
-      state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
-      state.viewMode = 'customer';
-      state.tab = 'customerReconciliation';
-      render();
-    } catch (err) { msg(err.message, true); }
+      window.DeliveryCore.state.orders = (window.DeliveryCore.state.orders || []).filter(function (row) { return keyOf(row) !== completedKey; });
+      window.DeliveryCore.state.selectedOrder = null;
+      state.selectedKey = '';
+      state.paymentSubmitting = false;
+      msg('Đã thu tiền, quay về danh sách giao');
+      switchToListMode({ clearSelected: true, forceOrders: true });
+      await load({ force: true, refreshActiveTab: true });
+    } catch (err) {
+      setPaymentSubmittingUI(false);
+      var message = err && err.message ? err.message : 'Không xác nhận thu tiền';
+      showPaymentError(message);
+      msg(message, true);
+    }
   }
 
   async function confirmDelivery() {

@@ -116,6 +116,9 @@
 .m-workflow-actions.step-only.phase24 .secondary{background:#f8fafc;color:#334155;border-color:#cbd5e1;}
 .m-workflow-payment-remaining{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:900;color:#92400e;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:8px 10px;}
 .m-workflow-payment-remaining b{font-size:14px;color:#c2410c;}
+.m-payment-error{margin:0;border:1px solid #fecaca;border-radius:12px;background:#fff7f7;color:#b42318;padding:8px 10px;font-size:12px;font-weight:900;line-height:1.35;}
+.m-payment-error[hidden]{display:none!important;}
+.mobile-delivery-v46 button:disabled,.mobile-delivery-v46 [data-payment-submit]:disabled{opacity:.62;cursor:not-allowed;}
 @media (max-width:380px){
   .m-selected-order.compact.phase24 b{font-size:13px;}
   .m-selected-order.compact.phase24 span,.m-product-compact-brief.phase24 b,.m-product-compact-brief.phase24 span{white-space:normal;}

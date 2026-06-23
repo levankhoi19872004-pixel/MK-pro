@@ -57,11 +57,10 @@ deliveryLifecycle.delegate(el("mBody"),"click","[data-workflow-tab]",function(ev
 render(),"returns"===state.tab&&loadSelectedReturnsDirect({force:!1})}),deliveryLifecycle.delegate(el("mWorkflowBar"),"click","[data-workflow-tab]",function(_event,button){
 state.tab=button.getAttribute("data-workflow-tab")||"products",render(),"returns"===state.tab&&loadSelectedReturnsDirect({force:!1}),"debt"===state.tab&&loadDeliveryDebts(!1),
 "reconciliation"===state.tab&&loadDeliveryReconciliation(!1)}),deliveryLifecycle.delegate(el("mWorkflowBar"),"click","[data-workflow-complete]",function(){switchToListMode({
-clearSelected:!0,forceOrders:!0})}),deliveryLifecycle.listen(window,"pagehide",function(){deliveryOrderRenderer&&deliveryOrderRenderer.cancel(),
-deliveryDebtRenderer&&deliveryDebtRenderer.cancel(),deliveryLoadGate.cancel(),deliveryLifecycle.destroy()},{once:!0}))}function selectedReturnCacheKey(order){
-return keyOf(order||currentOrder()||{})}function filters(){return{date:el("mDate")&&el("mDate").value,q:el("mSearch")&&el("mSearch").value,
-statusFilter:el("mStatusFilter")&&el("mStatusFilter").value}}function pingRouteTrackingEvent(eventType){
-void eventType}function render(){
+clearSelected:!0,forceOrders:!0})}),deliveryLifecycle.delegate(el("mWorkflowBar"),"click","[data-payment-submit]",function(event){event.preventDefault(),savePayment(event)}),
+deliveryLifecycle.listen(window,"pagehide",function(){deliveryOrderRenderer&&deliveryOrderRenderer.cancel(),deliveryDebtRenderer&&deliveryDebtRenderer.cancel(),
+deliveryLoadGate.cancel(),deliveryLifecycle.destroy()},{once:!0}))}function selectedReturnCacheKey(order){return keyOf(order||currentOrder()||{})}function filters(){return{
+date:el("mDate")&&el("mDate").value,q:el("mSearch")&&el("mSearch").value,statusFilter:el("mStatusFilter")&&el("mStatusFilter").value}}function render(){
 var listMode,filter,kpis,rootEl,rows,s;ensureTabForMode(),listMode=!isCustomerMode(),filter=el("mDeliveryFilter"),kpis=el("mDeliveryKpis"),rootEl=el("mobileDeliveryRoot"),
 filter&&(filter.hidden=!listMode),kpis&&(kpis.hidden=!listMode),rootEl&&(rootEl.classList.toggle("list-workflow-mode",listMode),
 rootEl.classList.toggle("customer-workflow-mode",!listMode)),rows=window.DeliveryCore.state.orders||[],s=buildRouteKpi(rows),
@@ -72,14 +71,13 @@ var order=currentOrder();if(!isCustomerMode()||!order)return context.hidden=!0,v
 ;var address=deliveryMobileUi.orderAddress?deliveryMobileUi.orderAddress(order):"",name=order.customerName||order.customerCode||order.orderCode||"Khách đang giao",customerCode=order.customerCode||order.customerId||""
 ;context.hidden=!1,
 context.innerHTML='<button type="button" class="m-back-to-list" data-back-to-list>← Danh sách</button><div class="m-customer-context-main"><b>'+esc(name)+(customerCode?" · "+esc(customerCode):"")+"</b><span>"+(address?esc(address)+" · ":"")+"Phải thu "+money(amount(order,"receivable"))+"</span></div>"
-}}(),function(){ensureTabForMode();var nav=el("mDeliveryTabs")
-;nav&&(nav.classList.toggle("list-mode",!isCustomerMode()),nav.classList.toggle("customer-mode",isCustomerMode()),nav.innerHTML=tabListForCurrentMode().map(function(tab){
-return'<button data-m-tab="'+esc(tab.key)+'" class="'+(state.tab===tab.key?"active":"")+'">'+esc(tab.label)+"</button>"}).join(""))}(),function(){var bar=el("mWorkflowBar")
-;if(bar){var order=currentOrder();if(!isCustomerMode()||!order||"orders"===state.tab)return bar.hidden=!0,void(bar.innerHTML="");if(bar.hidden=!1,"products"!==state.tab){
-if("returns"===state.tab)return function(order){return returnedRowsForOrder(order||currentOrder()).length>0
+}}(),function(){ensureTabForMode();var nav=el("mDeliveryTabs");nav&&(nav.classList.toggle("list-mode",!isCustomerMode()),nav.classList.toggle("customer-mode",isCustomerMode()),
+nav.innerHTML=tabListForCurrentMode().map(function(tab){return'<button data-m-tab="'+esc(tab.key)+'" class="'+(state.tab===tab.key?"active":"")+'">'+esc(tab.label)+"</button>"
+}).join(""))}(),function(){var bar=el("mWorkflowBar");if(bar){var order=currentOrder();if(!isCustomerMode()||!order||"orders"===state.tab)return bar.hidden=!0,
+void(bar.innerHTML="");if(bar.hidden=!1,"products"!==state.tab){if("returns"===state.tab)return function(order){return returnedRowsForOrder(order||currentOrder()).length>0
 }(order)?void(bar.innerHTML='<div class="m-workflow-actions step-only phase24 returns"><button type="submit" form="mReturnSaveForm" class="primary">Lưu hàng trả & sang Thu tiền</button><button id="mSkipReturns" type="button" class="secondary">Xóa hàng trả</button></div>'):void(bar.innerHTML='<div class="m-workflow-actions step-only phase24 returns empty"><button type="button" class="primary" data-workflow-tab="products">Quay lại Hàng giao</button></div>')
 ;if("payment"!==state.tab)if("customerReconciliation"!==state.tab){if("debt"===state.tab)return bar.hidden=!0,void(bar.innerHTML="");bar.hidden=!0,bar.innerHTML=""
-}else bar.innerHTML='<div class="m-workflow-actions step-only phase24 reconciliation"><button type="button" class="primary" data-workflow-complete>Hoàn tất - về danh sách</button></div>';else bar.innerHTML='<div class="m-workflow-payment-remaining">Còn thiếu: <b id="mWorkflowRemaining">0</b></div><div class="m-workflow-actions step-only phase24 payment"><button type="submit" form="mPaymentForm" class="primary">Xác nhận thu tiền</button></div>'
+}else bar.innerHTML='<div class="m-workflow-actions step-only phase24 reconciliation"><button type="button" class="primary" data-workflow-complete>Hoàn tất - về danh sách</button></div>';else bar.innerHTML='<div class="m-workflow-payment-remaining">Còn thiếu: <b id="mWorkflowRemaining">0</b></div><div class="m-workflow-actions step-only phase24 payment"><button id="mPaymentSubmitButton" type="button" data-payment-submit class="primary"'+(state.paymentSubmitting?" disabled":"")+">"+(state.paymentSubmitting?"Đang xác nhận...":"Xác nhận thu tiền")+"</button></div>"
 }else bar.innerHTML='<div class="m-workflow-actions step-only phase24 products"><button id="mFullReturnOrder" type="button" class="danger">Trả hết đơn</button><button type="submit" form="mProductReturnForm" class="primary">Xác nhận hàng & thu tiền</button></div>'
 }}();var body=el("mBody");if(body)return"orders"!==state.tab&&deliveryOrderRenderer&&deliveryOrderRenderer.cancel(),
 "debt"!==state.tab&&deliveryDebtRenderer&&deliveryDebtRenderer.cancel(),isCustomerMode()&&"products"===state.tab?function(body){var order=currentOrder();if(order){
@@ -105,13 +103,13 @@ window.confirm("Xóa hàng trả sẽ ghi số lượng trả về 0 cho đơn n
 successMessage:"Đã xóa hàng trả, chuyển sang Thu tiền"})})}else body.innerHTML='<div class="m-empty">Chọn khách/đơn ở danh sách cần giao trước.</div>'
 }(body):isCustomerMode()&&"payment"===state.tab?function(body){var order=currentOrder();if(order){
 var receivable=amount(order,"receivable"),returnAmount=amount(order,"returnAmount")
-;body.innerHTML='<section class="m-workflow-step"><b>Bước 3/4 · Thu tiền & xác nhận</b><span>App sẽ lưu tiền rồi xác nhận giao. Nếu thu thiếu, phần còn lại chuyển sang công nợ theo logic backend hiện có.</span></section><section class="m-product-summary payment-context"><div><span>Phải thu</span><b>'+money(receivable)+"</b></div><div><span>Hàng trả</span><b>"+money(returnAmount)+'</b></div><div><span>Còn phải xử lý</span><b id="mPaymentRemainingTop">0</b></div></section><form id="mPaymentForm" class="m-payment-form"><h3>Thu tiền đơn giao</h3><label>Tiền mặt<input name="cash" type="number" min="0" value="'+esc(amount(order,"cash"))+'"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="'+esc(amount(order,"bank"))+'"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="'+esc(amount(order,"reward"))+'"></label><label>Còn thiếu / ghi công nợ<input id="mPaymentRemaining" type="text" readonly value="0"></label></form>'
+;body.innerHTML='<section class="m-workflow-step"><b>Bước 3/4 · Thu tiền & xác nhận</b><span>App sẽ lưu tiền rồi xác nhận giao. Nếu thu thiếu, phần còn lại chuyển sang công nợ theo logic backend hiện có.</span></section><section class="m-product-summary payment-context"><div><span>Phải thu</span><b>'+money(receivable)+"</b></div><div><span>Hàng trả</span><b>"+money(returnAmount)+'</b></div><div><span>Còn phải xử lý</span><b id="mPaymentRemainingTop">0</b></div></section><form id="mPaymentForm" class="m-payment-form"><h3>Thu tiền đơn giao</h3><label>Tiền mặt<input name="cash" type="number" min="0" value="'+esc(amount(order,"cash"))+'"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="'+esc(amount(order,"bank"))+'"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="'+esc(amount(order,"reward"))+'"></label><label>Còn thiếu / ghi công nợ<input id="mPaymentRemaining" type="text" readonly value="0"></label><p id="mPaymentError" class="m-payment-error" hidden></p></form>'
 ;var formEl=el("mPaymentForm");formEl.addEventListener("input",updateRemaining),formEl.addEventListener("submit",savePayment),updateRemaining()
 }else body.innerHTML='<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>';function updateRemaining(){
-var form=new FormData(formEl),remaining=Math.max(0,receivable-returnAmount-num(form.get("cash"))-num(form.get("bank"))-num(form.get("reward")))
+var values=readPaymentFormValues(formEl),remaining=Math.max(0,receivable-returnAmount-values.cash-values.bank-values.reward)
 ;el("mPaymentRemaining")&&(el("mPaymentRemaining").value=money(remaining)),el("mPaymentRemainingTop")&&(el("mPaymentRemainingTop").textContent=money(remaining)),
-el("mWorkflowRemaining")&&(el("mWorkflowRemaining").textContent=money(remaining))}}(body):isCustomerMode()&&"customerReconciliation"===state.tab?function(body){
-var order=currentOrder();if(order){
+el("mWorkflowRemaining")&&(el("mWorkflowRemaining").textContent=money(remaining)),showPaymentError(validatePaymentAmounts(order,values))}
+}(body):isCustomerMode()&&"customerReconciliation"===state.tab?function(body){var order=currentOrder();if(order){
 var receivable=amount(order,"receivable"),returnAmount=amount(order,"returnAmount"),collected=amount(order,"cash")+amount(order,"bank")+amount(order,"reward"),remaining=Math.max(0,receivable-returnAmount-collected)
 ;body.innerHTML='<section class="m-customer-reconciliation-panel"><h3>Đối soát nhanh đơn vừa giao</h3><div class="m-recon-grid customer-quick">'+renderReconciliationMetric("Tổng tiền",receivable||0)+renderReconciliationMetric("Hàng trả",returnAmount||0)+renderReconciliationMetric("Phải thu",Math.max(0,receivable-returnAmount))+renderReconciliationMetric("Đã thu",collected||0)+renderReconciliationMetric("Còn thiếu",remaining||0,remaining>0)+'</div><div class="m-empty soft">Kiểm tra nhanh tiền và hàng trả của khách này trước khi về danh sách.</div></section>'
 }else body.innerHTML='<div class="m-empty">Chọn khách/đơn ở danh sách cần giao trước.</div>'
@@ -270,8 +268,14 @@ productName:item.productName||item.name||"",barcode:item.barcode||item.productBa
 returnQty:num(item.returnQty||item.qtyReturn||item.returnQuantity||item.returnedQty||0),deliveredQty:lineQty(item)}})}function returnedRowsForOrder(order){return function(order){
 var rows=returnsForOrder(order);return!rows.length&&Array.isArray(order&&order.returnItems)&&order.returnItems.length&&(rows=order.returnItems.map(function(item){
 return Object.assign({},item,{salesOrderId:order.salesOrderId,salesOrderCode:order.salesOrderCode,orderId:order.orderId,orderCode:order.orderCode,customerCode:order.customerCode,
-customerName:order.customerName})})),buildReturnInputRows(order,rows)}(order).filter(function(it){return num(it.returnQty)>0})}function collectReturnItems(options){
-"boolean"==typeof options&&(options={forceZero:options}),options=options||{};var byIdx={};return document.querySelectorAll("[data-m-return-field]").forEach(function(input){
+customerName:order.customerName})})),buildReturnInputRows(order,rows)}(order).filter(function(it){return num(it.returnQty)>0})}function setPaymentSubmittingUI(isSubmitting){
+state.paymentSubmitting=!!isSubmitting,document.querySelectorAll("[data-payment-submit]").forEach(function(button){button.disabled=!!isSubmitting,
+button.textContent=isSubmitting?"Đang xác nhận...":"Xác nhận thu tiền"})}function showPaymentError(message){var box=el("mPaymentError");box&&(message=String(message||"").trim(),
+box.hidden=!message,box.textContent=message)}function readPaymentFormValues(formEl){var form=new FormData(formEl);return{cash:Math.max(0,num(form.get("cash"))),
+bank:Math.max(0,num(form.get("bank"))),reward:Math.max(0,num(form.get("reward")))}}function validatePaymentAmounts(order,values){
+var receivable=amount(order,"receivable"),returnAmount=amount(order,"returnAmount"),payable=Math.max(0,receivable-returnAmount),collected=values.cash+values.bank+values.reward,over=Math.round(collected-payable)
+;return over>1e3?"Thu vượt "+money(over)+"đ. Tối đa được thu "+money(payable)+"đ.":""}function collectReturnItems(options){"boolean"==typeof options&&(options={forceZero:options}),
+options=options||{};var byIdx={};return document.querySelectorAll("[data-m-return-field]").forEach(function(input){
 var idx=input.getAttribute("data-idx"),field=input.getAttribute("data-m-return-field");byIdx[idx]=byIdx[idx]||{},byIdx[idx][field]=input.value}),
 Object.keys(byIdx).map(function(idx){var row=byIdx[idx];return options.forceZero&&(row.returnQty=0),options.forceFull&&(row.returnQty=num(row.deliveredQty)),row})}
 async function saveReturn(event,options){event&&event.preventDefault&&event.preventDefault(),options=options||{};try{msg("Đang lưu hàng trả..."),
@@ -284,19 +288,22 @@ note:"Khách trả lại toàn bộ đơn từ App giao hàng"}),await window.De
 note:"Khách trả lại toàn bộ đơn"});var removedKey=keyOf(window.DeliveryCore.state.selectedOrder||order)
 ;window.DeliveryCore.state.orders=(window.DeliveryCore.state.orders||[]).filter(function(row){return keyOf(row)!==removedKey}),window.DeliveryCore.state.selectedOrder=null,
 state.selectedKey="",msg("Đã ghi nhận trả hết đơn và quay về danh sách khách"),switchToListMode({clearSelected:!0,forceOrders:!0})}catch(err){msg(err.message,!0)}}
-async function savePayment(event){event&&event.preventDefault&&event.preventDefault();var form=new FormData(event.target);try{msg("Đang lưu thu tiền..."),
-await window.DeliveryCore.savePayment(currentOrder(),{cash:form.get("cash"),bank:form.get("bank"),reward:form.get("reward")}),
-await window.DeliveryCore.confirmDelivery(currentOrder(),{deliveryStatus:"delivered"}),pingRouteTrackingEvent("delivery_confirmed"),
-msg("Đã lưu thu tiền và xác nhận giao, mở đối soát nhanh"),state.selectedKey=keyOf(window.DeliveryCore.state.selectedOrder),state.viewMode="customer",
-state.tab="customerReconciliation",render()}catch(err){msg(err.message,!0)}}async function loadSelectedReturnsDirect(options){
+async function savePayment(event){if(event&&event.preventDefault&&event.preventDefault(),!state.paymentSubmitting){var order=currentOrder(),formEl=el("mPaymentForm")
+;if(order&&formEl){var values=readPaymentFormValues(formEl),validationMessage=validatePaymentAmounts(order,values);if(validationMessage)return showPaymentError(validationMessage),
+void msg(validationMessage,!0);var completedKey=keyOf(order);try{setPaymentSubmittingUI(!0),showPaymentError(""),msg("Đang lưu thu tiền..."),
+await window.DeliveryCore.savePayment(order,values),await window.DeliveryCore.confirmDelivery(currentOrder()||order,{deliveryStatus:"delivered"}),
+window.DeliveryCore.state.orders=(window.DeliveryCore.state.orders||[]).filter(function(row){return keyOf(row)!==completedKey}),window.DeliveryCore.state.selectedOrder=null,
+state.selectedKey="",state.paymentSubmitting=!1,msg("Đã thu tiền, quay về danh sách giao"),switchToListMode({clearSelected:!0,forceOrders:!0}),await load({force:!0,
+refreshActiveTab:!0})}catch(err){setPaymentSubmittingUI(!1);var message=err&&err.message?err.message:"Không xác nhận thu tiền";showPaymentError(message),msg(message,!0)}
+}else msg("Không xác định được đơn/form thu tiền. Chọn lại khách.",!0)}}async function loadSelectedReturnsDirect(options){
 var force=!!(options=options||{}).force,order=currentOrder();if(!order||!window.DeliveryCore||!window.DeliveryCore.loadReturnsForOrder)return[];if(!force&&function(order){
 var key=selectedReturnCacheKey(order);return!!key&&deliveryMobileState.isFresh(state.returnsCache[key],DELIVERY_TAB_CACHE_TTL_MS)}(order))return render(),returnsForOrder(order)
 ;if(state.returnsLoading&&state.returnsPromise)return state.returnsPromise;state.returnsLoading=!0;try{msg("Đang tải hàng trả từ returnOrders..."),
 state.returnsPromise=window.DeliveryCore.loadReturnsForOrder(order);var rows=await state.returnsPromise;return function(order){var key=selectedReturnCacheKey(order)
 ;key&&(state.returnsCache[key]=Date.now())}(order),msg(""),render(),rows}catch(err){throw msg("Không tải được hàng trả: "+err.message,!0),err}finally{state.returnsLoading=!1,
 state.returnsPromise=null}}function select(key,options){var tab;options=options||{},state.selectedKey=key,state.productSearchKeyword="",window.DeliveryCore.selectOrder(key),
-tab=options.tab||"products",state.viewMode="customer",state.tab=["products","returns","payment"].indexOf(tab)>=0?tab:"products",pingRouteTrackingEvent("customer_selected"),
-render(),"returns"===state.tab&&loadSelectedReturnsDirect({force:!1})}async function load(options){var force=!!(options=options||{}).force;if(user=readUser(),
+tab=options.tab||"products",state.viewMode="customer",state.tab=["products","returns","payment"].indexOf(tab)>=0?tab:"products",render(),
+"returns"===state.tab&&loadSelectedReturnsDirect({force:!1})}async function load(options){var force=!!(options=options||{}).force;if(user=readUser(),
 role=String(user.role||"").toLowerCase(),user&&user.role?"admin"===role||"delivery"===role||(alert("Tài khoản không có quyền vào App giao hàng."),
 window.location.href="/login.html?target=delivery",0):(window.location.href="/login.html?target=delivery",0)){var user,role;if(state.loadPromise&&!force)return state.loadPromise
 ;if(options.refreshActiveTab&&deliveryMobileState.isFresh(state.lastLoadAt,DELIVERY_REFRESH_THROTTLE_MS))return state.loadPromise||Promise.resolve(window.DeliveryCore.state.orders)

@@ -38,7 +38,7 @@ test("phase24 sticky workflow bar only shows tab-specific actions", () => {
   assert.match(entrySource, /form="mProductReturnForm"/);
   assert.match(entrySource, /Xác nhận hàng & thu tiền/);
   assert.match(entrySource, /Còn thiếu: <b id="mWorkflowRemaining">0<\/b>/);
-  assert.match(entrySource, /form="mPaymentForm"/);
+  assert.match(entrySource, /data-payment-submit/);
   assert.match(entrySource, /Hoàn tất - về danh sách/);
   assert.doesNotMatch(entrySource, /<button type="button" data-workflow-tab="products">Hàng<\/button>/);
   assert.doesNotMatch(entrySource, /<button type="button" data-workflow-tab="returns">Trả<\/button>/);
