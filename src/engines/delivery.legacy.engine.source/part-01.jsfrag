@@ -262,7 +262,7 @@ function pushStaffMongoFilters(and = [], query = {}) {
 
 const DELIVERY_ORDER_SELECT = [
   'id', 'code', 'orderCode', 'salesOrderId', 'salesOrderCode',
-  'date', 'orderDate', 'deliveryDate', 'createdAt', 'updatedAt',
+  'date', 'orderDate', 'deliveryDate', 'createdAt', 'updatedAt', 'version',
   'customerId', 'customerCode', 'customerName', 'customerPhone', 'customerAddress', 'phone', 'address', 'routeName',
   'salesStaffCode', 'salesStaffName', 'salesmanCode', 'salesmanName', 'nvbhCode', 'nvbhName',
   'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'shipperCode', 'shipperName', 'nvghCode', 'nvghName',
