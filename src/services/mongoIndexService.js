@@ -85,7 +85,12 @@ const INDEX_DEFINITIONS = {
     // Compound index thay thế các index đơn cùng prefix.
     [{ salesOrderId: 1, status: 1 }, { name: 'idx_return_orders_sales_order_id_status', sparse: true }],
     [{ salesOrderCode: 1, status: 1 }, { name: 'idx_return_orders_sales_order_code_status', sparse: true }],
+    [{ orderId: 1, status: 1 }, { name: 'idx_return_orders_order_id_status', sparse: true }],
+    [{ orderCode: 1, status: 1 }, { name: 'idx_return_orders_order_code_status', sparse: true }],
     [{ sourceOrderId: 1, status: 1 }, { name: 'idx_return_orders_source_status' }],
+    [{ sourceOrderCode: 1, status: 1 }, { name: 'idx_return_orders_source_code_status', sparse: true }],
+    [{ deliveryOrderId: 1, status: 1 }, { name: 'idx_return_orders_delivery_order_id_status', sparse: true }],
+    [{ deliveryOrderCode: 1, status: 1 }, { name: 'idx_return_orders_delivery_order_code_status', sparse: true }],
     [{ masterReturnOrderId: 1 }, { name: 'idx_return_orders_master_return_id', sparse: true }],
     [{ masterReturnOrderCode: 1 }, { name: 'idx_return_orders_master_return_code', sparse: true }],
     [{ masterReturnOrderId: 1, masterReturnOrderCode: 1, returnMergeStatus: 1 }, { name: 'idx_return_orders_master_return_merge_guard', sparse: true }],

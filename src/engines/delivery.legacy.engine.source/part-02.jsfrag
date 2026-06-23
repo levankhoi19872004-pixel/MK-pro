@@ -74,20 +74,30 @@ function summarizeOrders(rows = []) {
   }, { receivable: 0, cash: 0, bank: 0, reward: 0, returnAmount: 0, debt: 0 });
 }
 
-function deliveryStatusOf(row = {}) {
-  const status = row.status && typeof row.status === 'object' ? row.status : {};
-  return lower(status.deliveryStatus || row.deliveryStatus || row.status || 'pending');
+const COMPLETED_DELIVERY_STATUSES = ['delivered', 'success', 'done', 'completed', 'accounting_confirmed'];
+function deliveryStatusOf(row = {}) { const status = row.status && typeof row.status === 'object' ? row.status : {}; return lower(status.deliveryStatus || row.deliveryStatus || row.status || 'pending'); }
+function isDeliveredOrder(row = {}) { return COMPLETED_DELIVERY_STATUSES.includes(deliveryStatusOf(row)); }
+function wantsCompletedDeliveryOrders(query = {}) {
+  const explicitStatus = lower(query.status || query.deliveryStatus);
+  const statusFilter = lower(query.statusFilter || query.deliveryStatusFilter || query.orderStatusFilter || 'all');
+  return truthy(query.includeCompleted) || truthy(query.showCompleted) || truthy(query.includeDelivered)
+    || COMPLETED_DELIVERY_STATUSES.includes(explicitStatus)
+    || ['delivered', 'da giao', 'đã giao', 'completed', 'done'].includes(statusFilter);
 }
-
-function isDeliveredOrder(row = {}) {
-  return ['delivered', 'success', 'done', 'completed'].includes(deliveryStatusOf(row));
+function shouldExcludeCompletedDeliveryOrders(query = {}) { return !wantsCompletedDeliveryOrders(query); }
+function openStatusMongoClause(field) {
+  return { $or: [{ [field]: { $exists: false } }, { [field]: null }, { [field]: '' }, { [field]: { $nin: COMPLETED_DELIVERY_STATUSES } }] };
 }
 
 function applyDeliveryStatusFilter(rows = [], query = {}) {
   const statusFilter = lower(query.statusFilter || query.deliveryStatusFilter || query.orderStatusFilter || 'all');
-  if (!statusFilter || ['all', 'tat ca', 'tất cả', '*'].includes(statusFilter)) return rows;
+  let filteredRows = rows;
+  if (shouldExcludeCompletedDeliveryOrders(query)) {
+    filteredRows = filteredRows.filter((row) => !isDeliveredOrder(row));
+  }
+  if (!statusFilter || ['all', 'tat ca', 'tất cả', '*'].includes(statusFilter)) return filteredRows;
 
-  if (['delivered', 'da giao', 'đã giao'].includes(statusFilter)) {
+  if (['delivered', 'da giao', 'đã giao', 'completed', 'done'].includes(statusFilter)) {
     return rows.filter(isDeliveredOrder);
   }
 
@@ -314,6 +324,10 @@ class DeliveryEngine {
       } else {
         pushStaffMongoFilters(and, query);
       }
+      if (shouldExcludeCompletedDeliveryOrders(query)) {
+        and.push(openStatusMongoClause('deliveryStatus'));
+        and.push(openStatusMongoClause('status'));
+      }
       applyKeywordToAnd(and);
       filter.$and = and;
       return this.execSalesOrderFind(filter, {
@@ -372,11 +386,7 @@ class DeliveryEngine {
       ].some((v) => norm(v).includes(q)));
     }
 
-    // DELIVERY_DEDUP_SALES_ORDER_START
-    // Mongo có thể đang tồn tại nhiều salesOrders cùng mã đơn do import/retry cũ.
-    // Màn giao hàng là màn nghiệp vụ theo mã đơn bán, nên luôn trả 1 dòng cho 1 mã đơn.
     return dedupeDeliveryOrders(orders);
-    // DELIVERY_DEDUP_SALES_ORDER_END
   }
 
 

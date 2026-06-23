@@ -197,7 +197,14 @@
   }
 
   async listReturns(query = {}) {
-    const directKeys = unique([query.salesOrderId, query.orderId, query.salesOrderCode, query.orderCode, query.orderKey]);
+    const splitKeys = (value) => Array.isArray(value)
+      ? value
+      : text(value).split(',').map((item) => item.trim()).filter(Boolean);
+    const directKeys = unique([
+      query.salesOrderId, query.orderId, query.salesOrderCode, query.orderCode, query.orderKey,
+      ...splitKeys(query.salesOrderIds || query.orderIds),
+      ...splitKeys(query.salesOrderCodes || query.orderCodes)
+    ]);
     let result = null;
     let orders = [];
 
@@ -214,29 +221,28 @@
           { id: value }, { code: value }
         );
       }
-      const directReturnsRaw = or.length ? (await this.ReturnOrder.find({ ...activeReturnFilter(), $or: or }).select(DELIVERY_RETURN_SELECT).lean()).map(canonicalizeReturnDocument).filter(hasPositiveReturnDocument) : [];
+      let directReturnsRaw = [];
+      if (or.length) {
+        let directQuery = this.ReturnOrder.find({ ...activeReturnFilter(), $or: or });
+        if (directQuery && typeof directQuery.select === 'function') directQuery = directQuery.select(DELIVERY_RETURN_SELECT);
+        const directDocs = directQuery && typeof directQuery.lean === 'function' ? await directQuery.lean() : await directQuery;
+        directReturnsRaw = (directDocs || []).map(canonicalizeReturnDocument).filter(hasPositiveReturnDocument);
+      }
       const directReturns = filterDeliveryOwnedRows(directReturnsRaw, query);
       if (directReturnsRaw.length && !directReturns.length && isDeliveryOwnershipEnforced(query)) {
         return { rows: [], returnOrdersRaw: [], summary: summarizeReturnRows([]) };
       }
       if (directReturns.length) {
-        let fallbackOrder = {};
-        for (const key of directKeys) {
-          fallbackOrder = await this.getCanonicalOrderByKey(key) || {};
-          if (fallbackOrder && (fallbackOrder.orderId || fallbackOrder.orderCode)) break;
-        }
-        const directRows = directReturns.flatMap((ro) => flattenReturnOrderRows(ro, fallbackOrder));
+        // ReturnOrders là SSoT của hàng trả. Với truy vấn trực tiếp theo đơn,
+        // không cần gọi SalesOrder.findOne chỉ để bổ sung fallback hiển thị.
+        // Điều này loại bỏ N+1 SalesOrder.findOne 400-600ms khi App mở tab Hàng trả.
+        const directRows = directReturns.flatMap((ro) => flattenReturnOrderRows(ro, {}));
         return { rows: directRows, returnOrdersRaw: directReturns, summary: summarizeReturnRows(directRows) };
       }
 
-      for (const key of directKeys) {
-        const order = await this.getCanonicalOrderByKey(key);
-        if (order && deliveryOwnershipMatches(order, query)) { orders = [order]; break; }
-      }
-      if (!orders.length && isDeliveryOwnershipEnforced(query)) {
-        return { rows: [], returnOrdersRaw: [], summary: summarizeReturnRows([]) };
-      }
-      result = { rows: orders };
+      // Không có returnOrders chính thức => trả rỗng ngay. Không fallback sang SalesOrder vì
+      // màn Hàng trả chỉ cần dữ liệu hàng trả đã lưu, và fallback cũ tạo findOne chậm cho từng đơn.
+      return { rows: [], returnOrdersRaw: [], summary: summarizeReturnRows([]) };
     } else {
       // Fast path: danh sách hàng trả nên đọc trực tiếp returnOrders theo ngày/NVGH.
       // Bản cũ gọi listOrders() trước nên phát sinh SalesOrder.find lớn dù API chỉ cần phiếu trả.
