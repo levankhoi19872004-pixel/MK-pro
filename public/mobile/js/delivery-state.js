@@ -42,6 +42,9 @@
       returnsLoading: false,
       returnsPromise: null,
       returnsCache: {},
+      returnSubmitting: false,
+      fullReturnSubmitting: false,
+      deliverySubmitting: false,
       lastLoadAt: 0,
       loadPromise: null,
       routeTracking: {

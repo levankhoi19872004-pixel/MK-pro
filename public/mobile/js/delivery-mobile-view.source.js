@@ -278,6 +278,21 @@
     };
   }
 
+  function currentStatusFilter() {
+    return String((el('mStatusFilter') && el('mStatusFilter').value) || 'all').toLowerCase();
+  }
+
+  function removeOrderFromLocalList(order) {
+    var removedKey = keyOf(order || window.DeliveryCore.state.selectedOrder || {});
+    if (!removedKey) return;
+    window.DeliveryCore.state.orders = (window.DeliveryCore.state.orders || []).filter(function (row) { return keyOf(row) !== removedKey; });
+  }
+
+  function reconcileDeliveredOrderVisibility(order) {
+    var filter = currentStatusFilter();
+    if (filter === 'pending' || filter === 'undelivered' || filter === 'not_delivered') removeOrderFromLocalList(order);
+  }
+
 
   // GPS/route tracking is intentionally disabled for the current delivery app.
   // Keep these no-op hooks so existing workflow calls do not break.
@@ -352,8 +367,8 @@
     bar.hidden = false;
     if (state.tab === 'products') {
       bar.innerHTML = '<div class="m-workflow-actions step-only phase24 products">' +
-        '<button id="mFullReturnOrder" type="button" class="danger">Trả hết đơn</button>' +
-        '<button type="submit" form="mProductReturnForm" class="primary">Xác nhận hàng & thu tiền</button>' +
+        '<button id="mFullReturnOrder" type="button" class="danger"' + (state.fullReturnSubmitting ? ' disabled' : '') + '>' + (state.fullReturnSubmitting ? 'Đang xử lý...' : 'Trả hết đơn') + '</button>' +
+        '<button type="submit" form="mProductReturnForm" class="primary"' + (state.returnSubmitting ? ' disabled' : '') + '>' + (state.returnSubmitting ? 'Đang lưu...' : 'Xác nhận hàng & thu tiền') + '</button>' +
       '</div>';
       return;
     }
@@ -365,7 +380,7 @@
         return;
       }
       bar.innerHTML = '<div class="m-workflow-actions step-only phase24 returns">' +
-        '<button type="submit" form="mReturnSaveForm" class="primary">Lưu hàng trả & sang Thu tiền</button>' +
+        '<button type="submit" form="mReturnSaveForm" class="primary"' + (state.returnSubmitting ? ' disabled' : '') + '>' + (state.returnSubmitting ? 'Đang lưu...' : 'Lưu hàng trả & sang Thu tiền') + '</button>' +
         '<button id="mSkipReturns" type="button" class="secondary">Xóa hàng trả</button>' +
       '</div>';
       return;
@@ -1438,33 +1453,48 @@
 
   async function saveReturn(event, options) {
     if (event && event.preventDefault) event.preventDefault();
+    if (state.returnSubmitting) return;
     options = options || {};
     try {
+      state.returnSubmitting = true;
+      renderWorkflowBar();
       msg('Đang lưu hàng trả...');
       await window.DeliveryCore.saveReturn(currentOrder(), collectReturnItems({ forceZero: event && event.forceZero }), { returnType: options.returnType || 'partial' });
       msg(options.successMessage || 'Đã lưu hàng trả vào returnOrders');
       state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
       state.tab = options.nextTab || 'payment';
       render();
-    } catch (err) { msg(err.message, true); }
+    } catch (err) {
+      msg(err.message, true);
+    } finally {
+      state.returnSubmitting = false;
+      renderWorkflowBar();
+    }
   }
 
   async function fullReturnOrder(event) {
     if (event && event.preventDefault) event.preventDefault();
+    if (state.fullReturnSubmitting) return;
     var order = currentOrder();
     if (!order) return;
     if (!window.confirm('Khách trả lại toàn bộ đơn này?\n\nToàn bộ hàng trong đơn sẽ được ghi nhận là hàng trả. Đơn sẽ thoát khỏi giao diện giao hàng hiện tại.')) return;
     try {
+      state.fullReturnSubmitting = true;
+      renderWorkflowBar();
       msg('Đang ghi nhận trả hết đơn...');
       await window.DeliveryCore.saveReturn(order, collectReturnItems({ forceFull: true }), { returnType: 'full', note: 'Khách trả lại toàn bộ đơn từ App giao hàng' });
       await window.DeliveryCore.confirmDelivery(currentOrder(), { deliveryStatus: 'failed', status: 'failed', note: 'Khách trả lại toàn bộ đơn' });
-      var removedKey = keyOf(window.DeliveryCore.state.selectedOrder || order);
-      window.DeliveryCore.state.orders = (window.DeliveryCore.state.orders || []).filter(function (row) { return keyOf(row) !== removedKey; });
+      removeOrderFromLocalList(window.DeliveryCore.state.selectedOrder || order);
       window.DeliveryCore.state.selectedOrder = null;
       state.selectedKey = '';
       msg('Đã ghi nhận trả hết đơn và quay về danh sách khách');
       switchToListMode({ clearSelected: true, forceOrders: true });
-    } catch (err) { msg(err.message, true); }
+    } catch (err) {
+      msg(err.message, true);
+    } finally {
+      state.fullReturnSubmitting = false;
+      renderWorkflowBar();
+    }
   }
 
 
@@ -1492,13 +1522,12 @@
       await window.DeliveryCore.savePayment(order, values);
       await window.DeliveryCore.confirmDelivery(currentOrder() || order, { deliveryStatus: 'delivered' });
       pingRouteTrackingEvent('delivery_confirmed');
-      window.DeliveryCore.state.orders = (window.DeliveryCore.state.orders || []).filter(function (row) { return keyOf(row) !== completedKey; });
+      reconcileDeliveredOrderVisibility(window.DeliveryCore.state.selectedOrder || order);
       window.DeliveryCore.state.selectedOrder = null;
       state.selectedKey = '';
       state.paymentSubmitting = false;
       msg('Đã thu tiền, quay về danh sách giao');
       switchToListMode({ clearSelected: true, forceOrders: true });
-      await load({ force: true, refreshActiveTab: true });
     } catch (err) {
       setPaymentSubmittingUI(false);
       var message = err && err.message ? err.message : 'Không xác nhận thu tiền';
@@ -1508,14 +1537,22 @@
   }
 
   async function confirmDelivery() {
+    if (state.deliverySubmitting) return;
     try {
+      state.deliverySubmitting = true;
       msg('Đang xác nhận giao...');
-      await window.DeliveryCore.confirmDelivery(currentOrder(), { deliveryStatus: 'delivered' });
+      var order = currentOrder();
+      await window.DeliveryCore.confirmDelivery(order, { deliveryStatus: 'delivered' });
       pingRouteTrackingEvent('delivery_confirmed');
+      reconcileDeliveredOrderVisibility(window.DeliveryCore.state.selectedOrder || order);
       msg('Đã xác nhận giao');
       state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
       switchToListMode({ clearSelected: true, forceOrders: true });
-    } catch (err) { msg(err.message, true); }
+    } catch (err) {
+      msg(err.message, true);
+    } finally {
+      state.deliverySubmitting = false;
+    }
   }
 
   async function loadSelectedReturnsDirect(options) {

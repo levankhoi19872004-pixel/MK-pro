@@ -81,7 +81,7 @@
         "src/services/fundService.source/part-02.jsfrag",
         "src/services/fundService.source/part-03.jsfrag"
       ],
-      "sourceSha256": "f3e2694e3a0f9abec2f74ddac19113ddbf6cd3865f7ba4af4478a89cfab46b61"
+      "sourceSha256": "8224800c8888a951641cef7d5185de794d5b995189eb0fd0af1dd9d822fabd3f"
     },
     {
       "target": "src/services/inventoryService.js",
@@ -177,11 +177,11 @@
     {
       "target": "public/mobile/js/delivery-mobile-view.js",
       "mode": "classic-single",
-      "sourceSha256": "3bf49bc3063afa58616fd23e6ee1b06a7efecf9b78e98888142bd050528d9c69",
+      "sourceSha256": "8c8f463a41eed63d537682765b42da3f3b3c31a0199eaba15b781afb9cfca8db",
       "canonicalSource": "public/mobile/js/delivery-mobile-view.source.js",
       "sourceMap": true,
       "sourceMapTarget": "public/mobile/js/delivery-mobile-view.js.map",
-      "executableSha256": "59b396dd80ea33a7d658439243744124c1d9335aa838895a5783cef0899120dc"
+      "executableSha256": "b75707ce27dfa2ac2acc58deddb78594ffa0981a4e9e19f9ec916c7a95291ede"
     },
     {
       "target": "public/mobile/mobile.css",

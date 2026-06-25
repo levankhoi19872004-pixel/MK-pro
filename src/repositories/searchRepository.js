@@ -122,6 +122,18 @@ function bestFieldScore(values = [], q = '', scores = {}) {
   return best;
 }
 
+
+function indexedProductLookupFilter(q = '', baseFilter = {}) {
+  const raw = String(q || '').trim();
+  if (!raw) return null;
+  const values = [...new Set([raw, raw.toUpperCase(), raw.toLowerCase()].filter(Boolean))];
+  const exactFields = ['code', 'sku', 'productCode', 'barcode'];
+  const exactClauses = exactFields.flatMap((field) => values.map((value) => ({ [field]: value })));
+  const prefixRegex = { $regex: `^${escapeRegex(raw)}` };
+  const prefixClauses = exactFields.map((field) => ({ [field]: prefixRegex }));
+  return { ...baseFilter, $or: [...exactClauses, ...prefixClauses] };
+}
+
 function productSearchScore(row = {}, nq = '') {
   if (!nq) return 0;
 
@@ -232,6 +244,20 @@ async function findProducts(query = {}) {
       .lean();
   }
 
+  const indexedFilter = indexedProductLookupFilter(q, baseFilter);
+  if (indexedFilter) {
+    const indexedRows = await Product.find(withGroupFilter(indexedFilter))
+      .select(select)
+      .sort({ code: 1 })
+      .limit(Math.min(limit * 4, 120))
+      .lean();
+    const indexedMatches = uniqueBy(
+      sortScoredRows(indexedRows, productSearchScore, nq, limit, ['code', 'productCode', 'sku']),
+      ['code', 'productCode', 'sku']
+    );
+    if (indexedMatches.length >= limit || isNumericKeyword(q)) return indexedMatches.slice(0, limit);
+  }
+
   const rawRegex = { $regex: escapeRegex(q), $options: 'i' };
   const normalizedRegex = { $regex: escapeRegex(nq), $options: 'i' };
   const filter = {
@@ -259,7 +285,7 @@ async function findProducts(query = {}) {
   const scanned = await Product.find(withGroupFilter(filter))
     .select(select)
     .sort({ code: 1 })
-    .limit(Math.min(limit * 5, 250))
+    .limit(Math.min(limit * 3, 150))
     .lean();
 
   return uniqueBy(

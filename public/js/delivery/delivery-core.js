@@ -271,7 +271,9 @@
       returnsLoadedByOrder: {},
       selectedOrder: null,
       filters: {},
-      requestSeq: { orders: 0, returns: 0 }
+      requestSeq: { orders: 0, returns: 0 },
+      ordersLoadKey: '',
+      ordersLoadPromise: null
     },
 
     money: money,
@@ -306,28 +308,40 @@
 
     async loadOrders(filters) {
       filters = normalizeDeliveryOrderFilters(filters);
-      var requestSeq = Number(this.state.requestSeq && this.state.requestSeq.orders || 0) + 1;
-      this.state.requestSeq = Object.assign({}, this.state.requestSeq, { orders: requestSeq });
-      // Web admin cần được lọc theo NVGH/NVBH.
-      // App giao hàng nếu user role=delivery thì backend /api/delivery/* sẽ tự ép NVGH theo token,
-      // nên không cần xóa deliveryStaffCode ở core chung.
       this.state.filters = Object.assign({}, this.state.filters, filters || {});
       var params = new URLSearchParams();
       Object.keys(this.state.filters).forEach(function (key) {
         var value = DeliveryCore.state.filters[key];
         if (value !== undefined && value !== null && String(value).trim() !== '') params.set(key, value);
       });
-      var json = await this.api('/api/delivery/orders' + (params.toString() ? '?' + params.toString() : ''));
-      if (!this.state.requestSeq || requestSeq !== this.state.requestSeq.orders) return this.state.orders;
-      var rows = dedupeOrders(json.orders || json.rows || json.items || []);
-      this.state.summary = json.summary || {};
-      this.state.reconciliation = json.reconciliation || {};
-      this.state.orders = dedupeOrders(rows.map(normalizeOrder));
-      if (this.state.selectedOrder) {
-        var key = orderKey(this.state.selectedOrder);
-        this.state.selectedOrder = this.state.orders.find(function (row) { return orderKey(row) === key; }) || null;
+      var requestKey = params.toString();
+      if (this.state.ordersLoadPromise && this.state.ordersLoadKey === requestKey) return this.state.ordersLoadPromise;
+
+      var requestSeq = Number(this.state.requestSeq && this.state.requestSeq.orders || 0) + 1;
+      this.state.requestSeq = Object.assign({}, this.state.requestSeq, { orders: requestSeq });
+      this.state.ordersLoadKey = requestKey;
+      this.state.ordersLoadPromise = (async () => {
+        var json = await this.api('/api/delivery/orders' + (requestKey ? '?' + requestKey : ''));
+        if (!this.state.requestSeq || requestSeq !== this.state.requestSeq.orders) return this.state.orders;
+        var rows = dedupeOrders(json.orders || json.rows || json.items || []);
+        this.state.summary = json.summary || {};
+        this.state.reconciliation = json.reconciliation || {};
+        this.state.orders = dedupeOrders(rows.map(normalizeOrder));
+        if (this.state.selectedOrder) {
+          var key = orderKey(this.state.selectedOrder);
+          this.state.selectedOrder = this.state.orders.find(function (row) { return orderKey(row) === key; }) || null;
+        }
+        return this.state.orders;
+      })();
+
+      try {
+        return await this.state.ordersLoadPromise;
+      } finally {
+        if (this.state.ordersLoadKey === requestKey) {
+          this.state.ordersLoadKey = '';
+          this.state.ordersLoadPromise = null;
+        }
       }
-      return this.state.orders;
     },
 
     buildReturnQueryForOrder(order) {

@@ -17,6 +17,18 @@ const {
   buildIdentityInFilter
 } = require('./masterOrderIdentity.util');
 
+
+const MASTER_CHILD_ORDER_PROJECTION = [
+  'id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderId', 'salesOrderCode',
+  'date', 'orderDate', 'deliveryDate', 'createdAt', 'updatedAt',
+  'customerCode', 'customerName', 'customerPhone', 'customerAddress', 'phone', 'address',
+  'salesStaffCode', 'salesStaffName', 'salesmanCode', 'salesmanName',
+  'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'nvghCode', 'nvghName',
+  'status', 'deliveryStatus', 'accountingStatus', 'totalAmount', 'subtotal', 'discountAmount',
+  'finalAmount', 'payableAmount', 'debtAmount', 'debt', 'cashAmount', 'bankAmount', 'rewardAmount',
+  'returnAmount', 'items', 'lines', 'products', 'masterOrderId', 'masterOrderCode', 'deliveryMasterId', 'deliveryMasterCode'
+].join(' ');
+
 function boundedBatchSize(value, fallback, { allowZero = false } = {}) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
@@ -33,13 +45,13 @@ async function buildMasterChildrenMapFast(masterOrders = [], options = {}) {
   const orders = [];
   if (identityBatchSize) {
     for (let offset = 0; offset < allRefs.length; offset += identityBatchSize) {
-      const batch = await orderRepository.findManyByIdentity(allRefs.slice(offset, offset + identityBatchSize));
+      const batch = await orderRepository.findManyByIdentity(allRefs.slice(offset, offset + identityBatchSize), { projection: MASTER_CHILD_ORDER_PROJECTION });
       orders.push(...batch);
     }
   } else {
     const salesOrderIds = normalizeSalesOrderIds(allRefs);
     if (!salesOrderIds.length) return map;
-    orders.push(...await orderRepository.findAll(buildSalesOrderIdInQuery(salesOrderIds)));
+    orders.push(...await orderRepository.findAll(buildSalesOrderIdInQuery(salesOrderIds), { projection: MASTER_CHILD_ORDER_PROJECTION }));
   }
   const byKey = new Map();
   for (const order of orders || []) {

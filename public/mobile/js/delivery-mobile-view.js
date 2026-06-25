@@ -60,9 +60,17 @@ state.tab=button.getAttribute("data-workflow-tab")||"products",render(),"returns
 clearSelected:!0,forceOrders:!0})}),deliveryLifecycle.delegate(el("mWorkflowBar"),"click","[data-payment-submit]",function(event){event.preventDefault(),savePayment(event)}),
 deliveryLifecycle.listen(window,"pagehide",function(){deliveryOrderRenderer&&deliveryOrderRenderer.cancel(),deliveryDebtRenderer&&deliveryDebtRenderer.cancel(),
 deliveryLoadGate.cancel(),deliveryLifecycle.destroy()},{once:!0}))}function selectedReturnCacheKey(order){return keyOf(order||currentOrder()||{})}function filters(){return{
-date:el("mDate")&&el("mDate").value,q:el("mSearch")&&el("mSearch").value,statusFilter:el("mStatusFilter")&&el("mStatusFilter").value}}function render(){
-var listMode,filter,kpis,rootEl,rows,s;ensureTabForMode(),listMode=!isCustomerMode(),filter=el("mDeliveryFilter"),kpis=el("mDeliveryKpis"),rootEl=el("mobileDeliveryRoot"),
-filter&&(filter.hidden=!listMode),kpis&&(kpis.hidden=!listMode),rootEl&&(rootEl.classList.toggle("list-workflow-mode",listMode),
+date:el("mDate")&&el("mDate").value,q:el("mSearch")&&el("mSearch").value,statusFilter:el("mStatusFilter")&&el("mStatusFilter").value}}function removeOrderFromLocalList(order){
+var removedKey=keyOf(order||window.DeliveryCore.state.selectedOrder||{});removedKey&&(window.DeliveryCore.state.orders=(window.DeliveryCore.state.orders||[]).filter(function(row){
+return keyOf(row)!==removedKey}))}function renderWorkflowBar(){var bar=el("mWorkflowBar");if(bar){var order=currentOrder()
+;if(!isCustomerMode()||!order||"orders"===state.tab)return bar.hidden=!0,void(bar.innerHTML="");if(bar.hidden=!1,"products"!==state.tab){
+if("returns"===state.tab)return function(order){return returnedRowsForOrder(order||currentOrder()).length>0
+}(order)?void(bar.innerHTML='<div class="m-workflow-actions step-only phase24 returns"><button type="submit" form="mReturnSaveForm" class="primary"'+(state.returnSubmitting?" disabled":"")+">"+(state.returnSubmitting?"Đang lưu...":"Lưu hàng trả & sang Thu tiền")+'</button><button id="mSkipReturns" type="button" class="secondary">Xóa hàng trả</button></div>'):void(bar.innerHTML='<div class="m-workflow-actions step-only phase24 returns empty"><button type="button" class="primary" data-workflow-tab="products">Quay lại Hàng giao</button></div>')
+;if("payment"!==state.tab)if("customerReconciliation"!==state.tab){if("debt"===state.tab)return bar.hidden=!0,void(bar.innerHTML="");bar.hidden=!0,bar.innerHTML=""
+}else bar.innerHTML='<div class="m-workflow-actions step-only phase24 reconciliation"><button type="button" class="primary" data-workflow-complete>Hoàn tất - về danh sách</button></div>';else bar.innerHTML='<div class="m-workflow-payment-remaining">Còn thiếu: <b id="mWorkflowRemaining">0</b></div><div class="m-workflow-actions step-only phase24 payment"><button id="mPaymentSubmitButton" type="button" data-payment-submit class="primary"'+(state.paymentSubmitting?" disabled":"")+">"+(state.paymentSubmitting?"Đang xác nhận...":"Xác nhận thu tiền")+"</button></div>"
+}else bar.innerHTML='<div class="m-workflow-actions step-only phase24 products"><button id="mFullReturnOrder" type="button" class="danger"'+(state.fullReturnSubmitting?" disabled":"")+">"+(state.fullReturnSubmitting?"Đang xử lý...":"Trả hết đơn")+'</button><button type="submit" form="mProductReturnForm" class="primary"'+(state.returnSubmitting?" disabled":"")+">"+(state.returnSubmitting?"Đang lưu...":"Xác nhận hàng & thu tiền")+"</button></div>"
+}}function render(){var listMode,filter,kpis,rootEl,rows,s;ensureTabForMode(),listMode=!isCustomerMode(),filter=el("mDeliveryFilter"),kpis=el("mDeliveryKpis"),
+rootEl=el("mobileDeliveryRoot"),filter&&(filter.hidden=!listMode),kpis&&(kpis.hidden=!listMode),rootEl&&(rootEl.classList.toggle("list-workflow-mode",listMode),
 rootEl.classList.toggle("customer-workflow-mode",!listMode)),rows=window.DeliveryCore.state.orders||[],s=buildRouteKpi(rows),
 el("mKpiTotal")&&(el("mKpiTotal").textContent=String(s.total||0)),el("mKpiPending")&&(el("mKpiPending").textContent=String(s.pending||0)),
 el("mKpiDelivered")&&(el("mKpiDelivered").textContent=String(s.delivered||0)),el("mKpiPt")&&(el("mKpiPt").textContent=money(s.pt)),
@@ -73,13 +81,7 @@ var order=currentOrder();if(!isCustomerMode()||!order)return context.hidden=!0,v
 context.innerHTML='<button type="button" class="m-back-to-list" data-back-to-list>← Danh sách</button><div class="m-customer-context-main"><b>'+esc(name)+(customerCode?" · "+esc(customerCode):"")+"</b><span>"+(address?esc(address)+" · ":"")+"Phải thu "+money(amount(order,"receivable"))+"</span></div>"
 }}(),function(){ensureTabForMode();var nav=el("mDeliveryTabs");nav&&(nav.classList.toggle("list-mode",!isCustomerMode()),nav.classList.toggle("customer-mode",isCustomerMode()),
 nav.innerHTML=tabListForCurrentMode().map(function(tab){return'<button data-m-tab="'+esc(tab.key)+'" class="'+(state.tab===tab.key?"active":"")+'">'+esc(tab.label)+"</button>"
-}).join(""))}(),function(){var bar=el("mWorkflowBar");if(bar){var order=currentOrder();if(!isCustomerMode()||!order||"orders"===state.tab)return bar.hidden=!0,
-void(bar.innerHTML="");if(bar.hidden=!1,"products"!==state.tab){if("returns"===state.tab)return function(order){return returnedRowsForOrder(order||currentOrder()).length>0
-}(order)?void(bar.innerHTML='<div class="m-workflow-actions step-only phase24 returns"><button type="submit" form="mReturnSaveForm" class="primary">Lưu hàng trả & sang Thu tiền</button><button id="mSkipReturns" type="button" class="secondary">Xóa hàng trả</button></div>'):void(bar.innerHTML='<div class="m-workflow-actions step-only phase24 returns empty"><button type="button" class="primary" data-workflow-tab="products">Quay lại Hàng giao</button></div>')
-;if("payment"!==state.tab)if("customerReconciliation"!==state.tab){if("debt"===state.tab)return bar.hidden=!0,void(bar.innerHTML="");bar.hidden=!0,bar.innerHTML=""
-}else bar.innerHTML='<div class="m-workflow-actions step-only phase24 reconciliation"><button type="button" class="primary" data-workflow-complete>Hoàn tất - về danh sách</button></div>';else bar.innerHTML='<div class="m-workflow-payment-remaining">Còn thiếu: <b id="mWorkflowRemaining">0</b></div><div class="m-workflow-actions step-only phase24 payment"><button id="mPaymentSubmitButton" type="button" data-payment-submit class="primary"'+(state.paymentSubmitting?" disabled":"")+">"+(state.paymentSubmitting?"Đang xác nhận...":"Xác nhận thu tiền")+"</button></div>"
-}else bar.innerHTML='<div class="m-workflow-actions step-only phase24 products"><button id="mFullReturnOrder" type="button" class="danger">Trả hết đơn</button><button type="submit" form="mProductReturnForm" class="primary">Xác nhận hàng & thu tiền</button></div>'
-}}();var body=el("mBody");if(body)return"orders"!==state.tab&&deliveryOrderRenderer&&deliveryOrderRenderer.cancel(),
+}).join(""))}(),renderWorkflowBar();var body=el("mBody");if(body)return"orders"!==state.tab&&deliveryOrderRenderer&&deliveryOrderRenderer.cancel(),
 "debt"!==state.tab&&deliveryDebtRenderer&&deliveryDebtRenderer.cancel(),isCustomerMode()&&"products"===state.tab?function(body){var order=currentOrder();if(order){
 var baseRows=buildReturnInputRows(order,returnsForOrder(order)),productKeyword=String(state.productSearchKeyword||"").toLowerCase().trim(),totalQty=baseRows.reduce(function(sum,it){
 return sum+num(it.deliveredQty)},0),totalAmount=baseRows.reduce(function(sum,it){return sum+num(it.price)*num(it.deliveredQty)
@@ -278,23 +280,24 @@ var receivable=amount(order,"receivable"),returnAmount=amount(order,"returnAmoun
 options=options||{};var byIdx={};return document.querySelectorAll("[data-m-return-field]").forEach(function(input){
 var idx=input.getAttribute("data-idx"),field=input.getAttribute("data-m-return-field");byIdx[idx]=byIdx[idx]||{},byIdx[idx][field]=input.value}),
 Object.keys(byIdx).map(function(idx){var row=byIdx[idx];return options.forceZero&&(row.returnQty=0),options.forceFull&&(row.returnQty=num(row.deliveredQty)),row})}
-async function saveReturn(event,options){event&&event.preventDefault&&event.preventDefault(),options=options||{};try{msg("Đang lưu hàng trả..."),
-await window.DeliveryCore.saveReturn(currentOrder(),collectReturnItems({forceZero:event&&event.forceZero}),{returnType:options.returnType||"partial"}),
-msg(options.successMessage||"Đã lưu hàng trả vào returnOrders"),state.selectedKey=keyOf(window.DeliveryCore.state.selectedOrder),state.tab=options.nextTab||"payment",render()
-}catch(err){msg(err.message,!0)}}async function fullReturnOrder(event){event&&event.preventDefault&&event.preventDefault();var order=currentOrder()
+async function saveReturn(event,options){if(event&&event.preventDefault&&event.preventDefault(),!state.returnSubmitting){options=options||{};try{state.returnSubmitting=!0,
+renderWorkflowBar(),msg("Đang lưu hàng trả..."),await window.DeliveryCore.saveReturn(currentOrder(),collectReturnItems({forceZero:event&&event.forceZero}),{
+returnType:options.returnType||"partial"}),msg(options.successMessage||"Đã lưu hàng trả vào returnOrders"),state.selectedKey=keyOf(window.DeliveryCore.state.selectedOrder),
+state.tab=options.nextTab||"payment",render()}catch(err){msg(err.message,!0)}finally{state.returnSubmitting=!1,renderWorkflowBar()}}}async function fullReturnOrder(event){
+if(event&&event.preventDefault&&event.preventDefault(),!state.fullReturnSubmitting){var order=currentOrder()
 ;if(order&&window.confirm("Khách trả lại toàn bộ đơn này?\n\nToàn bộ hàng trong đơn sẽ được ghi nhận là hàng trả. Đơn sẽ thoát khỏi giao diện giao hàng hiện tại."))try{
-msg("Đang ghi nhận trả hết đơn..."),await window.DeliveryCore.saveReturn(order,collectReturnItems({forceFull:!0}),{returnType:"full",
-note:"Khách trả lại toàn bộ đơn từ App giao hàng"}),await window.DeliveryCore.confirmDelivery(currentOrder(),{deliveryStatus:"failed",status:"failed",
-note:"Khách trả lại toàn bộ đơn"});var removedKey=keyOf(window.DeliveryCore.state.selectedOrder||order)
-;window.DeliveryCore.state.orders=(window.DeliveryCore.state.orders||[]).filter(function(row){return keyOf(row)!==removedKey}),window.DeliveryCore.state.selectedOrder=null,
-state.selectedKey="",msg("Đã ghi nhận trả hết đơn và quay về danh sách khách"),switchToListMode({clearSelected:!0,forceOrders:!0})}catch(err){msg(err.message,!0)}}
-async function savePayment(event){if(event&&event.preventDefault&&event.preventDefault(),!state.paymentSubmitting){var order=currentOrder(),formEl=el("mPaymentForm")
-;if(order&&formEl){var values=readPaymentFormValues(formEl),validationMessage=validatePaymentAmounts(order,values);if(validationMessage)return showPaymentError(validationMessage),
-void msg(validationMessage,!0);var completedKey=keyOf(order);try{setPaymentSubmittingUI(!0),showPaymentError(""),msg("Đang lưu thu tiền..."),
-await window.DeliveryCore.savePayment(order,values),await window.DeliveryCore.confirmDelivery(currentOrder()||order,{deliveryStatus:"delivered"}),
-window.DeliveryCore.state.orders=(window.DeliveryCore.state.orders||[]).filter(function(row){return keyOf(row)!==completedKey}),window.DeliveryCore.state.selectedOrder=null,
-state.selectedKey="",state.paymentSubmitting=!1,msg("Đã thu tiền, quay về danh sách giao"),switchToListMode({clearSelected:!0,forceOrders:!0}),await load({force:!0,
-refreshActiveTab:!0})}catch(err){setPaymentSubmittingUI(!1);var message=err&&err.message?err.message:"Không xác nhận thu tiền";showPaymentError(message),msg(message,!0)}
+state.fullReturnSubmitting=!0,renderWorkflowBar(),msg("Đang ghi nhận trả hết đơn..."),await window.DeliveryCore.saveReturn(order,collectReturnItems({forceFull:!0}),{
+returnType:"full",note:"Khách trả lại toàn bộ đơn từ App giao hàng"}),await window.DeliveryCore.confirmDelivery(currentOrder(),{deliveryStatus:"failed",status:"failed",
+note:"Khách trả lại toàn bộ đơn"}),removeOrderFromLocalList(window.DeliveryCore.state.selectedOrder||order),window.DeliveryCore.state.selectedOrder=null,state.selectedKey="",
+msg("Đã ghi nhận trả hết đơn và quay về danh sách khách"),switchToListMode({clearSelected:!0,forceOrders:!0})}catch(err){msg(err.message,!0)}finally{state.fullReturnSubmitting=!1,
+renderWorkflowBar()}}}async function savePayment(event){if(event&&event.preventDefault&&event.preventDefault(),!state.paymentSubmitting){
+var order=currentOrder(),formEl=el("mPaymentForm");if(order&&formEl){var values=readPaymentFormValues(formEl),validationMessage=validatePaymentAmounts(order,values)
+;if(validationMessage)return showPaymentError(validationMessage),void msg(validationMessage,!0);keyOf(order);try{setPaymentSubmittingUI(!0),showPaymentError(""),
+msg("Đang lưu thu tiền..."),await window.DeliveryCore.savePayment(order,values),await window.DeliveryCore.confirmDelivery(currentOrder()||order,{deliveryStatus:"delivered"}),
+function(order){var filter=String(el("mStatusFilter")&&el("mStatusFilter").value||"all").toLowerCase()
+;"pending"!==filter&&"undelivered"!==filter&&"not_delivered"!==filter||removeOrderFromLocalList(order)}(window.DeliveryCore.state.selectedOrder||order),
+window.DeliveryCore.state.selectedOrder=null,state.selectedKey="",state.paymentSubmitting=!1,msg("Đã thu tiền, quay về danh sách giao"),switchToListMode({clearSelected:!0,
+forceOrders:!0})}catch(err){setPaymentSubmittingUI(!1);var message=err&&err.message?err.message:"Không xác nhận thu tiền";showPaymentError(message),msg(message,!0)}
 }else msg("Không xác định được đơn/form thu tiền. Chọn lại khách.",!0)}}async function loadSelectedReturnsDirect(options){
 var force=!!(options=options||{}).force,order=currentOrder();if(!order||!window.DeliveryCore||!window.DeliveryCore.loadReturnsForOrder)return[];if(!force&&function(order){
 var key=selectedReturnCacheKey(order);return!!key&&deliveryMobileState.isFresh(state.returnsCache[key],DELIVERY_TAB_CACHE_TTL_MS)}(order))return render(),returnsForOrder(order)

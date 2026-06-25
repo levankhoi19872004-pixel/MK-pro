@@ -64,7 +64,13 @@ function buildCode(prefix, rows = []) {
   }, 0);
   return `${prefix}${String(max + 1).padStart(5, '0')}`;
 }
-async function nextFundLedgerCode() { return buildCode('FL', await fundLedgerRepository.findAll()); }
+async function nextFundLedgerCode() {
+  const rows = await fundLedgerRepository.findAll(
+    { code: { $regex: '^FL\\d+$' } },
+    { projection: 'code', sort: { code: -1 }, limit: 1 }
+  );
+  return buildCode('FL', rows);
+}
 async function nextExpenseCode() { return buildCode('PC', await expenseVoucherRepository.findAll()); }
 async function nextTransferCode() { return buildCode('CQ', await fundTransferRepository.findAll()); }
 
