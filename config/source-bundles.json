@@ -30,7 +30,7 @@
         "src/services/reportLegacy.service.source/part-02.jsfrag",
         "src/services/reportLegacy.service.source/part-03.jsfrag"
       ],
-      "sourceSha256": "1cafb82b8dac9a993b69dc144de442000abec2054c0848afc57a88bade3cfec0"
+      "sourceSha256": "295d6ae8eaaa706761696b472ddd767440d4017a695e7eb5b261a8a64fe5678d"
     },
     {
       "target": "src/services/orderLegacy.service.js",

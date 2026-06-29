@@ -2,6 +2,7 @@
 
 const collectionRepository = require('./mongoCollection.repository');
 const { canonicalizeOperationalStaff } = require('../utils/canonicalStaffWrite.util');
+const { assertValidArLedgerEntry } = require('../utils/arLedgerValidation.util');
 
 // V45 canonical AR Ledger collection.
 // Công nợ không còn ghi vào journals/payments; mọi bút toán AR ghi vào arLedgers.
@@ -12,7 +13,8 @@ async function findAll(filter = {}, options = {}) {
 }
 
 async function upsert(payment, options = {}) {
-  return collectionRepository.upsertByIdentity(PAYMENT_KEY, canonicalizeOperationalStaff(payment), ['id', 'code'], options);
+  const row = assertValidArLedgerEntry(canonicalizeOperationalStaff(payment), options);
+  return collectionRepository.upsertByIdentity(PAYMENT_KEY, row, ['id', 'code'], options);
 }
 
 async function deleteOne(idOrCode, options = {}) {

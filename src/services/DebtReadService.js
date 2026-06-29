@@ -23,6 +23,63 @@ function lower(value) {
   return text(value).toLowerCase();
 }
 
+function canonicalKey(value) {
+  return text(value).toUpperCase();
+}
+
+function extractSalesOrderCodeFromReturnToken(value = '') {
+  const raw = canonicalKey(value);
+  if (!raw) return '';
+  const direct = raw.match(/^RO-([A-Z0-9]+)$/i);
+  if (direct) return direct[1];
+  const idempotency = raw.match(/^AR-RETURN:RO-([A-Z0-9]+)$/i);
+  if (idempotency) return idempotency[1];
+  const code = raw.match(/(?:^|[-_:])RO-([A-Z0-9]+)(?=$|[-_:])/i);
+  return code ? code[1] : '';
+}
+
+function expandOrderKeys(values = []) {
+  const out = new Set();
+  for (const value of values || []) {
+    const key = text(value);
+    if (!key) continue;
+    out.add(key);
+    const upper = canonicalKey(key);
+    out.add(upper);
+    const fromReturn = extractSalesOrderCodeFromReturnToken(key);
+    if (fromReturn) out.add(fromReturn);
+    if (/^[A-Z0-9]+$/i.test(key) && !/^RO-/i.test(key)) {
+      out.add(`RO-${key}`);
+      out.add(`AR-RETURN:RO-${key}`);
+      out.add(`AR-RETURN-RO-${key}`);
+      out.add(`RO-${upper}`);
+      out.add(`AR-RETURN:RO-${upper}`);
+      out.add(`AR-RETURN-RO-${upper}`);
+    }
+  }
+  return [...out].filter(Boolean);
+}
+
+function rowOrderKeys(row = {}) {
+  return expandOrderKeys([
+    row.orderCode,
+    row.salesOrderCode,
+    row.sourceOrderCode,
+    row.refCode,
+    row.orderId,
+    row.salesOrderId,
+    row.sourceOrderId,
+    row.refId,
+    row.sourceCode,
+    row.sourceId,
+    row.returnOrderCode,
+    row.returnOrderId,
+    row.idempotencyKey,
+    row.code,
+    row.id
+  ]);
+}
+
 function money(value) {
   return Math.max(0, Math.round(toNumber(value)));
 }
@@ -32,7 +89,7 @@ function withSession(query, session) {
 }
 
 function cleanOrderCode(row = {}) {
-  return text(row.salesOrderCode || row.orderCode || row.refCode || row.code);
+  return text(row.salesOrderCode || row.orderCode || row.sourceOrderCode || row.refCode || extractSalesOrderCodeFromReturnToken(row.idempotencyKey || row.returnOrderCode || row.sourceCode || row.code) || row.code);
 }
 
 function collectionDateFilter(query = {}) {
@@ -56,14 +113,18 @@ function buildPendingFilter(query = {}) {
   if (query.customerCode) filter.customerCode = text(query.customerCode);
   if (query.customerId) filter.customerId = text(query.customerId);
   if (Array.isArray(query.orderCodes) && query.orderCodes.length) {
-    const orderCodes = [...new Set(query.orderCodes.map(text).filter(Boolean))];
+    const orderCodes = expandOrderKeys(query.orderCodes);
     filter.allocations = {
       $elemMatch: {
         $or: [
           { salesOrderCode: { $in: orderCodes } },
           { orderCode: { $in: orderCodes } },
+          { sourceOrderCode: { $in: orderCodes } },
+          { refCode: { $in: orderCodes } },
           { salesOrderId: { $in: orderCodes } },
-          { orderId: { $in: orderCodes } }
+          { orderId: { $in: orderCodes } },
+          { sourceOrderId: { $in: orderCodes } },
+          { refId: { $in: orderCodes } }
         ]
       }
     };
@@ -225,31 +286,46 @@ async function getCustomerDebts(query = {}) {
 
 function activeArFilter() {
   return {
-    status: { $nin: INACTIVE_AR_STATUSES },
+    account: /^AR$/i,
+    accountingConfirmed: true,
+    accountingStatus: { $in: ['confirmed', 'locked', 'posted', 'accounting_confirmed'] },
+    status: { $nin: [...INACTIVE_AR_STATUSES, 'voided'] },
     reversed: { $ne: true },
     refType: { $ne: 'AR_LEDGER_REVERSAL' },
-    type: { $nin: ['ar_reversal', 'reversal', 'ar_void'] }
+    entryType: { $ne: 'reversal' },
+    type: { $nin: ['ar_reversal', 'reversal', 'ar_void', 'ar_sale_reversal', 'ar_return_reversal'] },
+    ledgerType: { $nin: ['AR-RETURN-REVERSAL', 'AR-SALE-REVERSAL', 'AR-RECEIPT-REVERSAL'] },
+    category: { $nin: ['AR-RETURN-REVERSAL', 'AR-SALE-REVERSAL', 'AR-RECEIPT-REVERSAL'] }
   };
 }
 
 function orderRefCondition(keys = []) {
-  const values = [...new Set(keys.map(text).filter(Boolean))];
+  const values = expandOrderKeys(keys);
   return {
     $or: [
       { orderCode: { $in: values } },
       { salesOrderCode: { $in: values } },
+      { sourceOrderCode: { $in: values } },
       { refCode: { $in: values } },
       { orderId: { $in: values } },
       { salesOrderId: { $in: values } },
+      { sourceOrderId: { $in: values } },
+      { sourceId: { $in: values } },
+      { sourceCode: { $in: values } },
+      { returnOrderId: { $in: values } },
+      { returnOrderCode: { $in: values } },
+      { idempotencyKey: { $in: values } },
+      { code: { $in: values } },
+      { id: { $in: values } },
       { refId: { $in: values } }
     ]
   };
 }
 
 function rowMatchesOrder(row = {}, key = '') {
-  const expected = text(key);
-  return [row.orderCode, row.salesOrderCode, row.refCode, row.orderId, row.salesOrderId, row.refId]
-    .some((value) => text(value) === expected);
+  const expected = new Set(expandOrderKeys([key]).map(canonicalKey));
+  if (!expected.size) return false;
+  return rowOrderKeys(row).some((value) => expected.has(canonicalKey(value)));
 }
 
 function pickDebtSourceRow(rows = []) {
@@ -261,7 +337,7 @@ ArLedger.find({ $and: [activeArFilter(), orderRefCondition(keys)] })
   .select(DEBT_ORDER_LEDGER_PROJECTION)
   .limit(Math.max(200, keys.length * 50))
 */
-const DEBT_ORDER_LEDGER_PROJECTION = 'id code type source sourceId sourceType refType refId refCode orderId orderCode salesOrderId salesOrderCode customerCode customerName debit credit amount status date createdAt salesStaffCode salesStaffName salesmanCode salesmanName nvbhCode nvbhName deliveryStaffCode deliveryStaffName deliveryCode deliveryName nvghCode nvghName';
+const DEBT_ORDER_LEDGER_PROJECTION = 'id code type category ledgerType source sourceId sourceCode sourceType sourceOrderId sourceOrderCode returnOrderId returnOrderCode idempotencyKey refType refId refCode orderId orderCode salesOrderId salesOrderCode customerCode customerName debit credit amount status accountingConfirmed accountingStatus entryType date createdAt salesStaffCode salesStaffName salesmanCode salesmanName nvbhCode nvbhName deliveryStaffCode deliveryStaffName deliveryCode deliveryName nvghCode nvghName';
 
 function assignmentFromRow(row = {}) {
   return {
@@ -292,7 +368,7 @@ async function loadOrderDebtRows(orderKeys = [], options = {}) {
 }
 
 async function loadPendingRows(orderKeys = [], options = {}) {
-  const keys = [...new Set(orderKeys.map(text).filter(Boolean))];
+  const keys = expandOrderKeys(orderKeys);
   if (!keys.length) return [];
   const filter = {
     status: { $in: PENDING_STATUSES },
@@ -301,8 +377,12 @@ async function loadPendingRows(orderKeys = [], options = {}) {
         $or: [
           { salesOrderCode: { $in: keys } },
           { orderCode: { $in: keys } },
+          { sourceOrderCode: { $in: keys } },
+          { refCode: { $in: keys } },
           { salesOrderId: { $in: keys } },
-          { orderId: { $in: keys } }
+          { orderId: { $in: keys } },
+          { sourceOrderId: { $in: keys } },
+          { refId: { $in: keys } }
         ]
       }
     }
@@ -357,7 +437,7 @@ async function checkAvailableDebt(input = {}) {
   if (!allocations.length) return { ok: false, status: 400, message: 'Cần chọn ít nhất một đơn nợ' };
 
   const normalized = allocations.map((row) => ({
-    key: text(row.salesOrderCode || row.orderCode || row.refCode || row.code || row.salesOrderId || row.orderId || row.id),
+    key: text(row.salesOrderCode || row.orderCode || row.sourceOrderCode || row.refCode || extractSalesOrderCodeFromReturnToken(row.idempotencyKey || row.returnOrderCode || row.sourceCode || row.code) || row.code || row.salesOrderId || row.orderId || row.sourceOrderId || row.id),
     requestedOrderId: text(row.salesOrderId || row.orderId || row.id),
     allocatedAmount: money(row.allocatedAmount ?? row.amount ?? row.paymentAmount)
   }));
@@ -473,6 +553,9 @@ module.exports = {
     assignmentFromRow,
     scopeMatches,
     pendingForOrder,
+    extractSalesOrderCodeFromReturnToken,
+    expandOrderKeys,
+    rowMatchesOrder,
     arEntryBalanceEffect
   }
 };

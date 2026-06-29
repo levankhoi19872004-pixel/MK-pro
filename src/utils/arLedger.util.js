@@ -2,6 +2,7 @@
 
 const { toNumber } = require('./common.util');
 const { normalizeDebtAmount, DEBT_ZERO_TOLERANCE } = require('../constants/finance.constants');
+const { isActiveLedgerDoc } = require('./arLedgerStatus.util');
 
 function normalizeArKey(value) {
   return String(value || '').trim();
@@ -62,13 +63,7 @@ function arEntryBalanceEffect(entry = {}) {
 }
 
 function isActiveArEntry(entry = {}) {
-  const status = String(entry.status || '').trim().toLowerCase();
-  const type = String(entry.type || '').trim().toLowerCase();
-  const refType = String(entry.refType || '').trim().toLowerCase();
-  if (entry.reversed === true) return false;
-  if (refType === 'ar_ledger_reversal') return false;
-  if (['ar_reversal', 'reversal', 'ar_void'].includes(type)) return false;
-  return !['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed', 'removed', 'draft'].includes(status);
+  return isActiveLedgerDoc(entry, { extraInactiveStatuses: ['duplicate_cancelled', 'draft'] });
 }
 
 function arBalance(entries = [], keys = []) {

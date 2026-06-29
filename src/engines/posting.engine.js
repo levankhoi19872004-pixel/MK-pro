@@ -8,6 +8,8 @@ function paymentRepositoryRuntime() {
 const initialPaymentRepositoryUpsert = paymentRepository.upsert;
 const { makeId, toNumber } = require('../utils/common.util');
 const { debugLog } = require('../utils/debug.util');
+const { assertValidArLedgerEntry } = require('../utils/arLedgerValidation.util');
+const { isActiveLedgerDoc } = require('../utils/arLedgerStatus.util');
 const returnArPostingService = require('../services/accounting/returnArPostingService');
 const {
   pickSalesStaffCode,
@@ -29,6 +31,12 @@ function directionFromDebitCredit(debit = 0, credit = 0) {
 
 function cleanText(value = '') {
   return String(value || '').trim();
+}
+
+async function upsertArLedger(entry, options = {}) {
+  assertValidArLedgerEntry(entry, options);
+  await paymentRepository.upsert(entry, options);
+  return entry;
 }
 
 function baseJournal(doc = {}, extra = {}) {
@@ -168,7 +176,7 @@ async function postSalesOrderAR(order = {}, options = {}) {
     note: `Ghi nhận công nợ đơn bán ${order.code || order.id}`
   });
 
-  await paymentRepository.upsert(entry, options);
+  await upsertArLedger(entry, options);
   return entry;
 }
 
@@ -216,7 +224,7 @@ async function reverseSalesOrderAR(order = {}, options = {}) {
     note: `Đảo công nợ đơn bán ${order.code || order.id}`
   });
 
-  await paymentRepository.upsert(entry, options);
+  await upsertArLedger(entry, options);
   return entry;
 }
 
@@ -266,10 +274,7 @@ async function postReturnOrderAR(returnOrder = {}, options = {}) {
       { sourceCode: returnKey }
     ]
   }, options);
-  const activeExistingRows = (existingRows || []).filter((row) => {
-    const status = String(row?.status || '').toLowerCase();
-    return !row?.reversed && !row?.isDeleted && !['void', 'reversed', 'cancelled', 'canceled', 'deleted'].includes(status);
-  });
+  const activeExistingRows = (existingRows || []).filter((row) => isActiveLedgerDoc(row, { extraInactiveStatuses: ['duplicate_cancelled', 'draft'] }));
   if (activeExistingRows.length > 1) {
     const err = new Error('P0: duplicate active AR-RETURN rows for returnOrder.');
     err.code = 'P0_AR_RETURN_DUPLICATE';
@@ -288,7 +293,7 @@ async function postReturnOrderAR(returnOrder = {}, options = {}) {
   if (result) {
     const runtimePaymentRepository = paymentRepositoryRuntime();
     if (process.env.NODE_ENV === 'test' && runtimePaymentRepository !== paymentRepository && paymentRepository.upsert !== initialPaymentRepositoryUpsert) {
-      await paymentRepository.upsert(result, options);
+      await upsertArLedger(result, options);
     }
     return result;
   }
@@ -299,7 +304,7 @@ async function postReturnOrderAR(returnOrder = {}, options = {}) {
     allowMissingCustomerIdentity: true,
     ...options
   });
-  await paymentRepository.upsert(entry, options);
+  await upsertArLedger(entry, options);
   return entry;
 }
 
@@ -350,7 +355,7 @@ async function reverseReturnOrderAR(returnOrder = {}, options = {}) {
     }],
     note: `Đảo giảm công nợ trả hàng ${returnOrder.code || returnOrder.id}`
   });
-  await paymentRepository.upsert(entry, options);
+  await upsertArLedger(entry, options);
   return entry;
 }
 
@@ -397,7 +402,7 @@ async function postBonusAllowanceAR(doc = {}, options = {}) {
     amount,
     note: doc.bonusNote || doc.rewardNote || `Cấn trừ công nợ trả thưởng ${doc.code || doc.orderCode || doc.id}`
   });
-  await paymentRepository.upsert(entry, options);
+  await upsertArLedger(entry, options);
   return entry;
 }
 
@@ -462,7 +467,7 @@ async function postReceiptAR(receipt = {}, options = {}) {
         amount: allocation.amount,
         note: receipt.note || `Thu công nợ ${receipt.code || receipt.id}`
       });
-      await paymentRepository.upsert(entry, options);
+      await upsertArLedger(entry, options);
       entries.push(entry);
     }
     return entries;
@@ -503,7 +508,7 @@ async function postReceiptAR(receipt = {}, options = {}) {
     amount,
     note: receipt.note || `Thu công nợ ${receipt.code || receipt.id}`
   });
-  await paymentRepository.upsert(entry, options);
+  await upsertArLedger(entry, options);
   return entry;
 }
 
@@ -542,7 +547,7 @@ async function reverseReceiptAR(receipt = {}, options = {}) {
         auditTrail: [{ action: 'reverse_ar_receipt', at: dateUtil.nowIso(), by: receipt.accountingConfirmedBy || options.confirmedBy || 'system', debit: allocation.amount, credit: 0, direction: 'debit' }],
         note: receipt.voidReason || `Hủy phiếu thu ${receipt.code || receipt.id} - hoàn công nợ`
       });
-      await paymentRepository.upsert(entry, options);
+      await upsertArLedger(entry, options);
       entries.push(entry);
     }
     return entries;
@@ -574,7 +579,7 @@ async function reverseReceiptAR(receipt = {}, options = {}) {
     auditTrail: [{ action: 'reverse_ar_receipt', at: dateUtil.nowIso(), by: receipt.accountingConfirmedBy || options.confirmedBy || 'system', debit: amount, credit: 0, direction: 'debit' }],
     note: receipt.voidReason || `Hủy phiếu thu ${receipt.code || receipt.id} - hoàn công nợ`
   });
-  await paymentRepository.upsert(entry, options);
+  await upsertArLedger(entry, options);
   return entry;
 }
 

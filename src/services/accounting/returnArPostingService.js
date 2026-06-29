@@ -2,6 +2,8 @@
 
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
+const { buildActiveLedgerMongoFilter } = require('../../utils/arLedgerStatus.util');
+const { assertValidArLedgerEntry } = require('../../utils/arLedgerValidation.util');
 function paymentRepository() {
   return require('../../repositories/paymentRepository');
 }
@@ -179,22 +181,8 @@ function buildIdempotencyKey(returnOrder = {}, options = {}) {
   return `${AR_RETURN_LEDGER_TYPE}:${key}`;
 }
 
-function activeArReturnBaseQuery() {
+function activeArReturnTypeCondition() {
   return {
-    status: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
-    lifecycleStatus: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
-    accountingStatus: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
-    reversed: { $ne: true },
-    isDeleted: { $ne: true },
-    deleted: { $ne: true },
-    deletedAt: { $in: [null, ''] },
-    rollbackStatus: { $ne: 'reversed' },
-    entryType: { $ne: 'reversal' },
-    sourceAction: { $ne: 'reverse' },
-    refType: { $ne: 'AR_LEDGER_REVERSAL' },
-    type: { $nin: ['ar_return_reversal', 'ar_sale_reversal', 'ar_receipt_reversal', 'ar_reversal', 'reversal', 'ar_void'] },
-    ledgerType: { $nin: ['AR-RETURN-REVERSAL', 'AR-SALE-REVERSAL', 'AR-RECEIPT-REVERSAL'] },
-    category: { $nin: ['AR-RETURN-REVERSAL', 'AR-SALE-REVERSAL', 'AR-RECEIPT-REVERSAL'] },
     $or: [
       { type: AR_RETURN_TYPE },
       { type: AR_RETURN_LEDGER_TYPE },
@@ -202,6 +190,18 @@ function activeArReturnBaseQuery() {
       { category: AR_RETURN_LEDGER_TYPE },
       { code: /^AR-RETURN-/ }
     ]
+  };
+}
+
+function activeArReturnBaseQuery() {
+  return {
+    ...buildActiveLedgerMongoFilter({}, { extraInactiveStatuses: ['duplicate_cancelled', 'cleared', 'reverse', 'inactive', 'draft'] }),
+    rollbackStatus: { $ne: 'reversed' },
+    entryType: { $ne: 'reversal' },
+    type: { $nin: ['ar_return_reversal', 'ar_sale_reversal', 'ar_receipt_reversal', 'ar_reversal', 'reversal', 'ar_void'] },
+    ledgerType: { $nin: ['AR-RETURN-REVERSAL', 'AR-SALE-REVERSAL', 'AR-RECEIPT-REVERSAL'] },
+    category: { $nin: ['AR-RETURN-REVERSAL', 'AR-SALE-REVERSAL', 'AR-RECEIPT-REVERSAL'] },
+    ...activeArReturnTypeCondition()
   };
 }
 
@@ -249,7 +249,7 @@ function buildActiveArReturnLookup(returnOrder = {}, options = {}) {
   return {
     ...activeArReturnBaseQuery(),
     $and: [
-      { $or: activeArReturnBaseQuery().$or },
+      activeArReturnTypeCondition(),
       { $or: or }
     ]
   };
@@ -439,7 +439,7 @@ function buildReturnARLedgerEntry(returnOrder = {}, options = {}) {
     throw err;
   }
 
-  return {
+  const entry = {
     id: `${AR_RETURN_LEDGER_TYPE}-${returnOrderId || returnOrderCode || returnOrderKey}${batchSuffix}`,
     code: `${AR_RETURN_LEDGER_TYPE}-${returnOrderCode || returnOrderId || returnOrderKey}${batchSuffix}`,
     tenantId: returnOrder.tenantId || '',
@@ -498,6 +498,7 @@ function buildReturnARLedgerEntry(returnOrder = {}, options = {}) {
     createdAt: returnOrder.arPostedAt || returnOrder.createdAt || dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
+  return assertValidArLedgerEntry(entry);
 }
 
 async function auditReturnAr(action, payload = {}, options = {}) {
@@ -664,6 +665,7 @@ module.exports = {
     CONFIRMED_ACCOUNTING_STATUSES,
     returnOrderAmountAnalysis,
     activeArReturnBaseQuery,
+    activeArReturnTypeCondition,
     buildActiveArReturnLookup,
     buildActiveArReturnIdempotencyLookup,
     buildIdempotencyKey,
