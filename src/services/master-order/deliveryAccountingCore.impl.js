@@ -255,6 +255,108 @@ async function markAccountingReturnOrdersConfirmed(returnRows = [], options = {}
   return confirmedRows;
 }
 
+async function postReturnOrdersArAfterAccountingConfirmed(order = {}, options = {}) {
+  const key = orderKey(order);
+  const code = orderDisplayCode(order);
+  if (!key && !code) return [];
+
+  const currentOrderId = key;
+  const currentOrderCode = code;
+  const posted = [];
+
+  // ===== SCOPED FIX: POST_AR_RETURN_VIA_RETURN_AR_SERVICE_START =====
+  // AR-RETURN chỉ được ghi từ chứng từ gốc returnOrders và chỉ qua returnArPostingService.
+  // deliveryAccountingCore chỉ enrich ngữ cảnh định danh; amount/idempotency/duplicate guard do service quyết định.
+  const hydratedReturnRows = (Array.isArray(order.accountingReturnOrders) ? order.accountingReturnOrders : [])
+    .filter(isActiveReturnOrder);
+
+  debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-9B hydratedReturnRows before post', {
+    orderCode: currentOrderCode,
+    count: hydratedReturnRows.length,
+    rows: hydratedReturnRows.map((ro) => ({
+      id: ro.id,
+      code: ro.code,
+      orderId: ro.orderId || ro.salesOrderId,
+      orderCode: ro.orderCode || ro.salesOrderCode,
+      sourceModel: ro.sourceModel || 'returnOrders',
+      accountingStatus: ro.accountingStatus
+    }))
+  });
+
+  if (hydratedReturnRows.length) {
+    for (const returnRow of hydratedReturnRows) {
+      const enrichedReturnOrder = {
+        ...returnRow,
+        sourceModel: returnRow.sourceModel || 'returnOrders',
+        sourceType: returnRow.sourceType || 'returnOrder',
+        date: returnRow.deliveryDate || returnRow.documentDate || returnRow.date || order.deliveryDate || order.date || dateUtil.todayVN(),
+        customerId: returnRow.customerId || order.customerId || '',
+        customerCode: returnRow.customerCode || order.customerCode || '',
+        customerName: returnRow.customerName || order.customerName || '',
+        salesOrderId: returnRow.salesOrderId || returnRow.orderId || currentOrderId,
+        salesOrderCode: returnRow.salesOrderCode || returnRow.orderCode || currentOrderCode,
+        orderId: returnRow.orderId || returnRow.salesOrderId || currentOrderId,
+        orderCode: returnRow.orderCode || returnRow.salesOrderCode || currentOrderCode,
+        accountingConfirmed: true,
+        accountingStatus: 'confirmed',
+        accountingBatchId: options.accountingBatchId || returnRow.accountingBatchId || order.accountingBatchId || '',
+        masterOrderId: returnRow.masterOrderId || order.masterOrderId || order.deliveryMasterId || '',
+        masterOrderCode: returnRow.masterOrderCode || order.masterOrderCode || order.deliveryMasterCode || '',
+        deliveryStaffCode: returnRow.deliveryStaffCode || order.deliveryStaffCode || order.deliveryCode || order.nvghCode || '',
+        deliveryStaffName: returnRow.deliveryStaffName || order.deliveryStaffName || order.deliveryName || order.nvghName || '',
+        salesmanCode: returnRow.salesmanCode || returnRow.salesStaffCode || returnRow.nvbhCode || order.salesmanCode || order.salesStaffCode || order.nvbhCode || '',
+        salesmanName: returnRow.salesmanName || returnRow.salesStaffName || returnRow.nvbhName || order.salesmanName || order.salesStaffName || order.nvbhName || '',
+        note: returnRow.note || `Kế toán xác nhận hàng trả từ returnOrders ${returnRow.code || code || key}`
+      };
+      const result = await returnArPostingService.postReturnOrderToAR(enrichedReturnOrder, {
+        ...options,
+        assumeConfirmed: true,
+        returnResult: true,
+        skipIfExists: true,
+        forceRepostReturn: options.forceRepostReturn === true
+      });
+      if (result && result.entry) {
+        posted.push(result.entry);
+      } else if (result && result.reason && result.reason !== 'zero_return_amount') {
+        debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] returnArPostingService skipped AR-RETURN', {
+          orderCode: currentOrderCode,
+          returnOrder: returnRow.code || returnRow.id || '',
+          reason: result.reason,
+          warnings: result.warnings || []
+        });
+      }
+    }
+  } else {
+    const returnAmount = toNumber(
+      order.returnAmountFromReturnOrders
+      ?? order.syncedReturnAmountFromReturnOrders
+      ?? order.returnAmount
+      ?? order.returnedAmount
+      ?? 0
+    );
+    if (returnAmount > 0) {
+      // Không sinh AR-RETURN nếu không có returnOrder thật. Reconcile sẽ báo salesOrder_returnAmount_without_returnOrder.
+      debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] skip AR-RETURN because returnOrders SSoT is missing', {
+        orderCode: currentOrderCode,
+        returnAmount
+      });
+    }
+  }
+
+  const arReturnPosted = posted.some((row) => String(row?.type || '').toLowerCase() === 'ar_return');
+  if (arReturnPosted) {
+    const confirmedReturnCodes = await markAccountingReturnOrdersConfirmed(hydratedReturnRows, options);
+    debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-12 mark returnOrders confirmed', {
+      orderCode: currentOrderCode,
+      arReturnPosted,
+      returnCodes: confirmedReturnCodes
+    });
+  }
+  // ===== SCOPED FIX: POST_AR_RETURN_VIA_RETURN_AR_SERVICE_END =====
+
+  return posted;
+}
+
 async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, options = {}) {
   const key = orderKey(order);
   const code = orderDisplayCode(order);
@@ -367,7 +469,6 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
     }))
   });
 
-  const handledReturnRows = [];
   if (hydratedReturnRows.length) {
     for (const returnRow of hydratedReturnRows) {
       const enrichedReturnOrder = {
@@ -402,7 +503,6 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
       });
       if (result && result.entry) {
         posted.push(result.entry);
-        handledReturnRows.push(returnRow);
       } else if (result && result.reason && result.reason !== 'zero_return_amount') {
         debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] returnArPostingService skipped AR-RETURN', {
           orderCode: currentOrderCode,
@@ -424,7 +524,8 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
       // Không sinh AR-RETURN nếu không có returnOrder thật. Reconcile sẽ báo salesOrder_returnAmount_without_returnOrder.
       debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] skip AR-RETURN because returnOrders SSoT is missing', {
         orderCode: currentOrderCode,
-        returnAmount
+        returnAmount,
+        issue: 'salesOrder_returnAmount_without_returnOrder'
       });
     }
   }
@@ -663,6 +764,7 @@ module.exports = {
   postDeliveryArLedgerRowsAfterReAccounting,
   compactAllocations,
   markAccountingReturnOrdersConfirmed,
+  postReturnOrdersArAfterAccountingConfirmed,
   postDeliveryCollectionsAfterAccountingConfirmed,
   makeBatchArRow,
   returnAmountForOrderFromMap,

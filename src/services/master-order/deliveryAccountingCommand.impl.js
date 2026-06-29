@@ -31,6 +31,7 @@ const orderKey = lazyFunction('./deliveryAccountingCore.impl', 'orderKey');
 const batchPostDeliveryArLedgers = lazyFunction('./deliveryAccountingCore.impl', 'batchPostDeliveryArLedgers');
 const postDeliveryArLedgerRowsAfterReAccounting = lazyFunction('./deliveryAccountingCore.impl', 'postDeliveryArLedgerRowsAfterReAccounting');
 const postDeliveryCollectionsAfterAccountingConfirmed = lazyFunction('./deliveryAccountingCore.impl', 'postDeliveryCollectionsAfterAccountingConfirmed');
+const postReturnOrdersArAfterAccountingConfirmed = lazyFunction('./deliveryAccountingCore.impl', 'postReturnOrdersArAfterAccountingConfirmed');
 const reverseActiveArLedgersForOrder = lazyFunction('./deliveryAccountingCore.impl', 'reverseActiveArLedgersForOrder');
 
 const CONFIRM_ACCOUNTING_GUARD_TTL_MS = Math.max(1000, Number(process.env.CONFIRM_ACCOUNTING_GUARD_TTL_MS || 8000));
@@ -471,12 +472,25 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
       }
 
       if (alreadyConfirmed && !requiresReAccounting) {
-        debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-5 already confirmed skip AR-RETURN repair', {
+        // ===== SCOPED FIX: CONFIRMED_ORDER_MISSING_AR_RETURN_REPOST_START =====
+        // Trường hợp production có ReturnOrder đã confirmed nhưng thiếu AR-RETURN
+        // không được skip câm: nút xác nhận kế toán phải đi qua returnArPostingService
+        // để post bổ sung idempotent. Chỉ post AR-RETURN, không ghi lại AR-RECEIPT/Fund.
+        const repairPosted = await postReturnOrdersArAfterAccountingConfirmed(accountingSource, {
+          session,
+          skipIfExists: true,
+          returnOnly: true,
+          confirmedBy
+        });
+        debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-5 already confirmed ensure AR-RETURN', {
           code: accountingSource.code || accountingSource.orderCode,
           alreadyConfirmed,
           requiresReAccounting,
-          policy: 'no_delivery_accounting_repair_writer; use scripts/reconcile-return-ar.js for audit/backfill decisions'
+          returnOrders: Array.isArray(accountingSource.accountingReturnOrders) ? accountingSource.accountingReturnOrders.length : 0,
+          arReturnRows: Array.isArray(repairPosted) ? repairPosted.length : 0,
+          policy: 'confirmed_order_missing_ar_return_posts_via_returnArPostingService_only'
         });
+        // ===== SCOPED FIX: CONFIRMED_ORDER_MISSING_AR_RETURN_REPOST_END =====
         skippedOrders += 1;
         continue;
       }

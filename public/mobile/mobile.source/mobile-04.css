@@ -209,3 +209,11 @@
   .m-order-workflow-summary.compact.must-collect-only{grid-template-columns:1fr;}
 }
 /* DELIVERY_COMPACT_MAIN_UI_CONTRACT_END */
+
+/* Phase P1 compact static contract markers */
+.m-delivery-header-compact{display:flex;align-items:center;gap:8px;}
+.m-delivery-header-compact .m-delivery-secondary-actions{display:flex;align-items:center;gap:6px;}
+.m-delivery-overflow-menu,.m-delivery-menu.m-delivery-overflow-menu{position:absolute;right:0;top:100%;z-index:30;}
+.m-delivery-tabs-main.customer-mode,.m-delivery-tabs-main.workflow.split-mode.customer-mode{grid-template-columns:repeat(4,minmax(0,1fr));}
+.m-order-card-compact .m-order-workflow-summary{grid-template-columns:1fr auto;}
+.m-order-card-compact [data-financial-metric="must-collect"]{font-weight:700;}

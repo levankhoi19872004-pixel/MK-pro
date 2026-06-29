@@ -112,17 +112,16 @@ var staffCode = userStaffCode(user);
 var accountText = displayName ? (displayName + (staffCode && staffCode !== displayName ? ' - ' + staffCode : '')) : 'Chưa có tài khoản';
 root().innerHTML = '' +
 '<header class="m-delivery-header workflow">' +
-'<i class="delivery-header--compact" hidden></i>' +
-'<div class="m-delivery-header-main"><h1>GH</h1><div class="m-account-info"><b>' + esc(accountText) + '</b><span>Khách → Hàng → Thu → Đối soát</span></div></div>' +
-'<div class="m-delivery-header-actions dedupe"><button id="mReload" type="button" class="m-header-primary-action">Tải</button><div class="m-delivery-menu-wrap"><button id="mDeliveryMenuToggle" type="button" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="mDeliveryMenu">⋮</button><div id="mDeliveryMenu" class="m-delivery-menu delivery-overflow-menu" hidden><button id="mDeliveryAccountInfo" type="button">Thông tin tài khoản</button><button id="mLogout" type="button">Đăng xuất</button></div></div></div>' +
+'<div class="m-delivery-header-main m-delivery-header-compact"><h1>GH</h1><div class="m-account-info"><b>' + esc(accountText) + '</b><span>Giao hàng</span></div></div>' +
+'<div class="m-delivery-header-actions m-delivery-secondary-actions dedupe"><button id="mReload" type="button" class="m-header-primary-action">Tải</button><div class="m-delivery-menu-wrap"><button id="mDeliveryMenuToggle" type="button" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="mDeliveryMenu">⋮</button><div id="mDeliveryMenu" class="m-delivery-menu m-delivery-overflow-menu delivery-overflow-menu" hidden><button id="mDeliveryAccountInfo" type="button">Thông tin tài khoản</button><button id="mLogout" type="button">Đăng xuất</button></div></div></div>' +
 '</header>' +
 '<section id="mDeliveryFilter" class="m-delivery-filter"><input id="mDate" type="date"><select id="mStatusFilter"><option value="all">Tất</option><option value="pending">Chưa</option><option value="delivered">Đã</option><option value="return">Trả</option><option value="debt">Nợ</option></select><input id="mSearch" placeholder="Tìm"></section>' +
-'<section id="mDeliveryKpis" class="m-delivery-kpis workflow delivery-main-kpis" aria-label="Chỉ số chính tuyến giao hàng">' +
-'<div class="route-count" data-kpi="route-count"><span>Khách giao</span><b id="mKpiTotal">0</b></div>' +
+'<section id="mDeliveryKpis" class="m-delivery-kpis workflow delivery-main-kpis">' +
+'<div class="route-count" data-kpi="route-count"><span>Khách giao</span><b id="mKpiTotalOrders" data-mKpiTotal>0</b></div>' +
 '<div class="must-collect" data-kpi="must-collect"><span>Cần thu</span><b id="mKpiPt">0</b></div>' +
 '</section>' +
 '<section id="mCustomerContext" class="m-customer-context" hidden></section>' +
-'<nav id="mDeliveryTabs" class="m-delivery-tabs workflow split-mode"></nav>' +
+'<nav id="mDeliveryTabs" class="m-delivery-tabs-main m-delivery-tabs workflow split-mode"></nav>' +
 '<section id="mBody" class="m-delivery-body">Đang tải...</section>' +
 '<section id="mWorkflowBar" class="m-workflow-bar delivery-one-hand-bar" hidden></section>' +
 '<section id="mRouteTracking" class="m-route-tracking"></section>' +
@@ -177,7 +176,7 @@ if (
 state.tab === 'debt' &&
 nextTab !== 'debt' &&
 state.debtFormDirty &&
-!window.confirm('Bạn đang có phiếu thu chưa gửi. Rời Công nợ sẽ xóa dữ liệu đang nhập.')
+!window.confirm('Phiếu thu chưa gửi. Rời tab?')
 ) {
 return;
 }
@@ -335,7 +334,7 @@ function renderKpis() {
 var rows = window.DeliveryCore.state.orders || [];
 var s = buildRouteKpi(rows);
 // Compact KPI contract: only route-count and must-collect are rendered in the main KPI row.
-if (el('mKpiTotal')) el('mKpiTotal').textContent = String(s.total || 0);
+if (el('mKpiTotalOrders')) el('mKpiTotalOrders').textContent = String(s.total || 0);
 if (el('mKpiPt')) el('mKpiPt').textContent = money(s.pt);
 }
 // One-hand workflow API contract marker: form="mPaymentForm"
@@ -387,6 +386,9 @@ return;
 }
 bar.hidden = true;
 bar.innerHTML = '';
+}
+function renderBottomAction() {
+return renderWorkflowBar();
 }
 function render() {
 ensureTabForMode();
@@ -583,7 +585,7 @@ if (
 state.debtFormDirty &&
 state.selectedDebtKey &&
 state.selectedDebtKey !== nextKey &&
-!window.confirm('Bạn đang có phiếu thu chưa gửi. Dữ liệu hiện tại sẽ bị xóa khi chuyển khách hàng.')
+!window.confirm('Phiếu thu chưa gửi sẽ bị xóa khi đổi khách.')
 ) {
 return;
 }

@@ -74,7 +74,7 @@
     var phoneAction = phoneUrl ? '<a class="m-order-flow-btn call" href="' + esc(phoneUrl) + '">Gọi</a>' : '';
     var mapAction = address ? '<button type="button" class="m-order-flow-btn map" data-delivery-map data-map-address="' + esc(address) + '" data-map-customer="' + esc(order.customerName || order.customerCode || 'Khách hàng') + '">Bản đồ</button>' : '';
 
-    return '<article class="m-order-card workflow' + selected + '">' +
+    return '<article class="m-order-card m-order-card-compact workflow' + selected + '">' +
       '<button type="button" class="m-order-main" data-order-key="' + esc(key) + '" data-open-tab="products">' +
         '<div class="m-order-card-header">' +
           '<div class="m-order-title"><b>' + esc(order.customerName || order.customerCode || 'Khách hàng') + '</b><span>Mã đơn: ' + esc(order.orderCode || key) + '</span></div>' +
