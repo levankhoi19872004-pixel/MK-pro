@@ -283,6 +283,249 @@ function fallbackReturnAmountFromAccountingOrder(order = {}) {
   )));
 }
 
+
+// ===== PHASE52_SCOPED_FIX: CONFIRMED_RETURN_ORDER_AR_RETURN_ENSURE_START =====
+const AR_RETURN_INACTIVE_STATUSES = ['void', 'reversed', 'cancelled', 'canceled', 'deleted', 'removed', 'duplicate_cancelled'];
+
+function cleanString(value = '') {
+  return String(value || '').trim();
+}
+
+function uniqueNonEmpty(values = []) {
+  return [...new Set((values || []).map(cleanString).filter(Boolean))];
+}
+
+function isConfirmedReturnOrderForAr(row = {}, options = {}) {
+  if (options.assumeConfirmed === true) return true;
+  const accountingStatus = cleanString(row.accountingStatus).toLowerCase();
+  return row.accountingConfirmed === true || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
+}
+
+function isCancelledReturnOrderForAr(row = {}) {
+  const statuses = [row.status, row.returnStatus, row.returnState, row.accountingStatus, row.warehouseReceiveStatus, row.receiveStatus]
+    .map((value) => cleanString(value).toLowerCase())
+    .filter(Boolean);
+  return Boolean(row.deletedAt || row.cancelledAt || row.isDeleted)
+    || statuses.some((status) => AR_RETURN_INACTIVE_STATUSES.includes(status));
+}
+
+function confirmedReturnOrderAmount(row = {}) {
+  const explicit = [row.debtReduction, row.amount, row.totalReturnAmount, row.totalAmount, row.returnAmount, row.returnedAmount, row.totalValue]
+    .map(toNumber)
+    .find((amount) => amount > 0);
+  if (explicit > 0) return Math.max(0, Math.round(explicit));
+  return Math.max(0, Math.round((Array.isArray(row.items) ? row.items : []).reduce((sum, item) => {
+    const itemAmount = [item.returnAmount, item.amount, item.totalAmount]
+      .map(toNumber)
+      .find((amount) => amount > 0);
+    if (itemAmount > 0) return sum + itemAmount;
+    const qty = toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0);
+    const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0);
+    return sum + Math.round(qty * price);
+  }, 0)));
+}
+
+function returnOrderIdentityKeys(row = {}) {
+  return uniqueNonEmpty([row.id, row._id, row.code, row.returnOrderId, row.returnOrderCode]);
+}
+
+function salesOrderIdentityKeysForReturn(row = {}) {
+  return uniqueNonEmpty([row.salesOrderId, row.salesOrderCode, row.orderId, row.orderCode, row.sourceOrderId, row.sourceOrderCode, row.deliveryOrderId, row.deliveryOrderCode, row.refId, row.refCode]);
+}
+
+function buildActiveArReturnLookup(returnOrder = {}) {
+  const returnKeys = returnOrderIdentityKeys(returnOrder);
+  const orderKeys = salesOrderIdentityKeysForReturn(returnOrder);
+  const or = [];
+  if (returnKeys.length) {
+    or.push(
+      { id: { $in: returnKeys.map((key) => `AR-RETURN-${key}`) } },
+      { code: { $in: returnKeys.map((key) => `AR-RETURN-${key}`) } },
+      { refId: { $in: returnKeys } },
+      { refCode: { $in: returnKeys } },
+      { returnOrderId: { $in: returnKeys } },
+      { returnOrderCode: { $in: returnKeys } },
+      { sourceId: { $in: returnKeys } },
+      { sourceCode: { $in: returnKeys } }
+    );
+  }
+  if (orderKeys.length) {
+    or.push(
+      { orderId: { $in: orderKeys } },
+      { orderCode: { $in: orderKeys } },
+      { salesOrderId: { $in: orderKeys } },
+      { salesOrderCode: { $in: orderKeys } }
+    );
+  }
+  if (!or.length) return null;
+  return {
+    status: { $nin: AR_RETURN_INACTIVE_STATUSES },
+    reversed: { $ne: true },
+    isDeleted: { $ne: true },
+    $and: [
+      {
+        $or: [
+          { type: 'ar_return' },
+          { type: 'AR-RETURN' },
+          { ledgerType: 'AR-RETURN' },
+          { category: 'AR-RETURN' },
+          { code: /^AR-RETURN-/ }
+        ]
+      },
+      { $or: or }
+    ]
+  };
+}
+
+async function ensureArReturnForConfirmedReturnOrder(returnOrder = {}, options = {}) {
+  const amount = confirmedReturnOrderAmount(returnOrder);
+  const returnOrderCode = cleanString(returnOrder.code || returnOrder.returnOrderCode || returnOrder.id || returnOrder._id);
+  const orderCode = cleanString(returnOrder.orderCode || returnOrder.salesOrderCode || returnOrder.sourceOrderCode || returnOrder.deliveryOrderCode);
+  debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] PHASE52 ensureArReturnForConfirmedReturnOrder input', {
+    returnOrderCode,
+    orderCode,
+    customerCode: returnOrder.customerCode || '',
+    amount,
+    accountingConfirmed: returnOrder.accountingConfirmed,
+    accountingStatus: returnOrder.accountingStatus,
+    postedAt: returnOrder.postedAt,
+    receivedAt: returnOrder.receivedAt
+  });
+
+  if (isCancelledReturnOrderForAr(returnOrder)) return { posted: false, reason: 'inactive_return_order', amount };
+  if (!isConfirmedReturnOrderForAr(returnOrder, options)) return { posted: false, reason: 'return_order_not_confirmed', amount };
+  if (amount <= 0) return { posted: false, reason: 'zero_return_amount', amount };
+
+  const lookup = buildActiveArReturnLookup(returnOrder);
+  if (!lookup) return { posted: false, reason: 'missing_return_order_identity', amount };
+  const existingRows = await paymentRepository.findAll(lookup, options);
+  const existingActiveAmount = (existingRows || []).reduce((sum, row) => sum + toNumber(row.credit ?? row.amount), 0);
+  if (existingActiveAmount === amount) return { posted: false, reason: 'active_ar_return_exists', amount, existingActiveAmount };
+  if (existingActiveAmount > 0 && existingActiveAmount !== amount) {
+    debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] PHASE52 active AR-RETURN amount mismatch', {
+      returnOrderCode,
+      orderCode,
+      expectedAmount: amount,
+      existingActiveAmount,
+      existingRows: existingRows.map((row) => ({ id: row.id, code: row.code, amount: row.amount, credit: row.credit }))
+    });
+    return { posted: false, reason: 'active_ar_return_amount_mismatch', amount, existingActiveAmount };
+  }
+
+  const entry = await postingEngine.postReturnOrderAR({
+    ...returnOrder,
+    amount,
+    debtReduction: amount,
+    totalReturnAmount: amount,
+    accountingConfirmed: true,
+    accountingStatus: 'confirmed',
+    sourceType: returnOrder.sourceType || returnOrder.refType || 'returnOrder',
+    sourceId: returnOrder.sourceId || returnOrder.id || returnOrder._id || returnOrder.code || '',
+    sourceCode: returnOrder.sourceCode || returnOrder.code || returnOrder.id || '',
+    note: returnOrder.note || `Ghi nhận AR-RETURN từ returnOrders ${returnOrder.code || returnOrder.id || ''}`
+  }, { ...options, skipIfExists: true });
+
+  return entry
+    ? { posted: true, reason: 'created_ar_return', amount, code: entry.code || '', id: entry.id || '' }
+    : { posted: false, reason: 'post_return_noop', amount };
+}
+
+function buildConfirmedReturnOrderLookupForAccountingOrder(order = {}) {
+  const keys = uniqueNonEmpty([
+    order.id, order._id, order.code, order.orderCode, order.documentCode, order.invoiceCode,
+    order.salesOrderId, order.salesOrderCode, order.sourceOrderId, order.sourceOrderCode,
+    order.deliveryOrderId, order.deliveryOrderCode, order.refId, order.refCode
+  ]);
+  if (!keys.length) return null;
+  const identityOr = [
+    { orderId: { $in: keys } },
+    { orderCode: { $in: keys } },
+    { salesOrderId: { $in: keys } },
+    { salesOrderCode: { $in: keys } },
+    { sourceOrderId: { $in: keys } },
+    { sourceOrderCode: { $in: keys } },
+    { deliveryOrderId: { $in: keys } },
+    { deliveryOrderCode: { $in: keys } }
+  ];
+  const and = [{ $or: identityOr }];
+  const customerKeys = uniqueNonEmpty([order.customerCode, order.customerId]);
+  if (customerKeys.length) and.push({ $or: [{ customerCode: { $in: customerKeys } }, { customerId: { $in: customerKeys } }] });
+  and.push({
+    $or: [
+      { accountingConfirmed: true },
+      { accountingStatus: { $in: ['confirmed', 'locked', 'posted'] } }
+    ]
+  });
+  and.push({
+    $or: [
+      { returnStatus: { $exists: false } },
+      { returnStatus: null },
+      { returnStatus: '' },
+      { returnStatus: { $nin: AR_RETURN_INACTIVE_STATUSES } }
+    ]
+  });
+  return { $and: and };
+}
+
+async function findConfirmedReturnOrdersForAccountingOrder(order = {}, options = {}) {
+  const query = buildConfirmedReturnOrderLookupForAccountingOrder(order);
+  if (!query) return [];
+  return returnOrderRepository.findAll(query, { session: options.session, limit: 100 });
+}
+
+function mergeReturnRowsByIdentity(rows = []) {
+  const result = [];
+  const seen = new Set();
+  for (const row of (rows || []).filter(Boolean)) {
+    const key = cleanString(row.id || row._id || row.code || `${row.orderCode || row.salesOrderCode}:${confirmedReturnOrderAmount(row)}`);
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    result.push(row);
+  }
+  return result;
+}
+
+async function ensureArReturnsForAccountingOrder(order = {}, accountingReturnOrders = [], options = {}) {
+  const hydrated = hydrateReturnOrdersForAccounting(order, accountingReturnOrders);
+  const directRows = Array.isArray(hydrated.accountingReturnOrders) ? hydrated.accountingReturnOrders : [];
+  const confirmedRows = await findConfirmedReturnOrdersForAccountingOrder(order, options);
+  const rows = mergeReturnRowsByIdentity([
+    ...directRows.map((row) => ({ ...row, accountingConfirmed: true, accountingStatus: 'confirmed' })),
+    ...confirmedRows
+  ]).filter((row) => !isCancelledReturnOrderForAr(row));
+
+  const results = [];
+  for (const row of rows) {
+    const amount = confirmedReturnOrderAmount(row);
+    if (amount <= 0) continue;
+    const enriched = {
+      ...row,
+      amount,
+      debtReduction: amount,
+      totalReturnAmount: amount,
+      customerId: row.customerId || order.customerId || '',
+      customerCode: row.customerCode || order.customerCode || '',
+      customerName: row.customerName || order.customerName || '',
+      salesOrderId: row.salesOrderId || row.orderId || row.sourceOrderId || order.id || order.orderId || order.salesOrderId || '',
+      salesOrderCode: row.salesOrderCode || row.orderCode || row.sourceOrderCode || order.code || order.orderCode || order.salesOrderCode || '',
+      orderId: row.orderId || row.salesOrderId || row.sourceOrderId || order.id || order.orderId || order.salesOrderId || '',
+      orderCode: row.orderCode || row.salesOrderCode || row.sourceOrderCode || order.code || order.orderCode || order.salesOrderCode || '',
+      deliveryStaffCode: row.deliveryStaffCode || row.deliveryCode || row.nvghCode || order.deliveryStaffCode || order.deliveryCode || order.nvghCode || '',
+      deliveryStaffName: row.deliveryStaffName || row.deliveryName || row.nvghName || order.deliveryStaffName || order.deliveryName || order.nvghName || '',
+      salesmanCode: row.salesmanCode || row.salesStaffCode || row.nvbhCode || order.salesmanCode || order.salesStaffCode || order.nvbhCode || '',
+      salesmanName: row.salesmanName || row.salesStaffName || row.nvbhName || order.salesmanName || order.salesStaffName || order.nvbhName || '',
+      masterOrderId: row.masterOrderId || order.masterOrderId || order.deliveryMasterId || '',
+      masterOrderCode: row.masterOrderCode || order.masterOrderCode || order.deliveryMasterCode || '',
+      date: row.deliveryDate || row.documentDate || row.date || order.deliveryDate || order.date || dateUtil.todayVN(),
+      accountingConfirmed: true,
+      accountingStatus: 'confirmed'
+    };
+    results.push(await ensureArReturnForConfirmedReturnOrder(enriched, { ...options, assumeConfirmed: true }));
+  }
+  return results;
+}
+// ===== PHASE52_SCOPED_FIX: CONFIRMED_RETURN_ORDER_AR_RETURN_ENSURE_END =====
+
 async function repairMissingArReturnIfNeeded(order = {}, accountingReturnOrders = [], options = {}) {
   const hasReturnOrders = hasReturnOrdersForAccounting(order, accountingReturnOrders);
   debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-7 repairMissingArReturnIfNeeded input', {
@@ -534,6 +777,25 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
     }
   }
 
+  // ===== PHASE52_SCOPED_FIX: ENSURE_CONFIRMED_RETURN_ORDER_AR_RETURN_START =====
+  // Safety-net: dữ liệu thực tế có returnOrders.accountingConfirmed=true + debtReduction>0
+  // nhưng nhánh hydrate/post phía trên vẫn có thể không tạo AR-RETURN do thiếu snapshot/postedAt/receivedAt.
+  // Luôn ensure từ returnOrders confirmed, khoanh vùng theo đúng order/customer hiện tại.
+  const ensuredReturnResults = await ensureArReturnsForAccountingOrder(order, hydratedReturnRows, {
+    ...options,
+    assumeConfirmed: true
+  });
+  for (const result of ensuredReturnResults) {
+    if (result && result.posted) {
+      posted.push({ type: 'ar_return', code: result.code || '', amount: result.amount, credit: result.amount });
+    }
+  }
+  debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] PHASE52 ensured return results', {
+    orderCode: currentOrderCode,
+    ensuredReturnResults
+  });
+  // ===== PHASE52_SCOPED_FIX: ENSURE_CONFIRMED_RETURN_ORDER_AR_RETURN_END =====
+
   const arReturnPosted = posted.some((row) => String(row?.type || '').toLowerCase() === 'ar_return');
   if (arReturnPosted && hydratedReturnRows.length) {
     const confirmedReturnCodes = await markAccountingReturnOrdersConfirmed(hydratedReturnRows, options);
@@ -770,6 +1032,8 @@ module.exports = {
   hasReturnOrdersForAccounting,
   hasPostedArReturn,
   fallbackReturnAmountFromAccountingOrder,
+  ensureArReturnForConfirmedReturnOrder,
+  ensureArReturnsForAccountingOrder,
   repairMissingArReturnIfNeeded,
   markAccountingReturnOrdersConfirmed,
   postDeliveryCollectionsAfterAccountingConfirmed,

@@ -102,17 +102,31 @@ async function hasExistingReturnOrderAR(returnOrder = {}, options = {}) {
   // không được chặn lần post AR-RETURN mới trong re-accounting. Chỉ coi các dòng
   // còn active là đã tồn tại để giữ idempotency.
   const rows = await paymentRepository.findAll({
-    type: 'ar_return',
     status: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
     reversed: { $ne: true },
     isDeleted: { $ne: true },
-    $or: [
-      { id: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
-      { code: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
-      { refId: { $in: exactKeys } },
-      { refCode: { $in: exactKeys } },
-      { returnOrderId: { $in: exactKeys } },
-      { returnOrderCode: { $in: exactKeys } }
+    $and: [
+      {
+        $or: [
+          { type: 'ar_return' },
+          { type: 'AR-RETURN' },
+          { ledgerType: 'AR-RETURN' },
+          { category: 'AR-RETURN' },
+          { code: /^AR-RETURN-/ }
+        ]
+      },
+      {
+        $or: [
+          { id: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
+          { code: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
+          { refId: { $in: exactKeys } },
+          { refCode: { $in: exactKeys } },
+          { returnOrderId: { $in: exactKeys } },
+          { returnOrderCode: { $in: exactKeys } },
+          { sourceId: { $in: exactKeys } },
+          { sourceCode: { $in: exactKeys } }
+        ]
+      }
     ]
   }, options);
   // ===== SCOPED FIX: AR_RETURN_REACCOUNTING_ACTIVE_ONLY_END =====
@@ -233,9 +247,14 @@ async function postReturnOrderAR(returnOrder = {}, options = {}) {
       id: `AR-RETURN-${returnOrderId || returnOrderCode}${batchSuffix}`,
       code: `AR-RETURN-${returnOrderCode || returnOrderId}${batchSuffix}`,
       type: 'ar_return',
+      ledgerType: 'AR-RETURN',
+      category: 'AR-RETURN',
       refType: 'RETURN_ORDER',
       refId: returnOrderId || returnOrderCode,
       refCode: returnOrderCode || returnOrderId,
+      sourceType: returnOrder.sourceType || returnOrder.refType || 'returnOrder',
+      sourceId: returnOrder.sourceId || returnOrderId || returnOrderCode,
+      sourceCode: returnOrder.sourceCode || returnOrderCode || returnOrderId,
       orderId: salesOrderId,
       orderCode: salesOrderCode,
       accountingConfirmed: true,

@@ -96,11 +96,19 @@ async function hasActiveArReturn(row = {}) {
   }
   if (!or.length) return false;
   const existing = await ArLedger.findOne({
-    type: 'ar_return',
     status: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
     reversed: { $ne: true },
     isDeleted: { $ne: true },
-    $or: or
+    $and: [
+      { $or: [
+        { type: 'ar_return' },
+        { type: 'AR-RETURN' },
+        { ledgerType: 'AR-RETURN' },
+        { category: 'AR-RETURN' },
+        { code: /^AR-RETURN-/ }
+      ] },
+      { $or: or }
+    ]
   }).select('id code credit amount status reversed').lean();
   return Boolean(existing && toNumber(existing.credit ?? existing.amount) > 0);
 }

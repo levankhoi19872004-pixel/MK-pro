@@ -163,10 +163,18 @@ async function hasActiveArReturnFor(row = {}) {
   const keys = orderKeys(row);
   if (!keys.length) return false;
   const found = await ArLedger.findOne(activeLedgerFilter({
-    type: 'ar_return',
-    $or: [
-      { orderId: { $in: keys } }, { orderCode: { $in: keys } }, { salesOrderId: { $in: keys } }, { salesOrderCode: { $in: keys } },
-      { refId: { $in: keys } }, { refCode: { $in: keys } }
+    $and: [
+      { $or: [
+        { type: 'ar_return' },
+        { type: 'AR-RETURN' },
+        { ledgerType: 'AR-RETURN' },
+        { category: 'AR-RETURN' },
+        { code: /^AR-RETURN-/ }
+      ] },
+      { $or: [
+        { orderId: { $in: keys } }, { orderCode: { $in: keys } }, { salesOrderId: { $in: keys } }, { salesOrderCode: { $in: keys } },
+        { refId: { $in: keys } }, { refCode: { $in: keys } }
+      ] }
     ]
   })).select('id code credit amount status reversed').lean();
   return Boolean(found && toNumber(found.credit ?? found.amount) > 0);
