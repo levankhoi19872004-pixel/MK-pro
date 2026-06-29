@@ -93,6 +93,70 @@ async function hasExistingSalesOrderAR(order = {}, options = {}) {
 
 
 
+
+async function postSalesOrderAR(order = {}, options = {}) {
+  // ERP/DMS chuẩn: AR-SALE là phát sinh tăng nợ gốc khi đơn đã giao.
+  // Không tự trừ paidAmount tại đây; receipt/return/bonus là các bút toán credit riêng.
+  // Giữ nguyên compatibility export vì orderLegacy.service và các flow kế toán đang require hàm này.
+  if (options.skipIfExists && await hasExistingSalesOrderAR(order, options)) {
+    return null;
+  }
+
+  const amount = Math.max(0, toNumber(
+    order.debtBeforeCollection
+    ?? order.totalAmount
+    ?? order.amount
+    ?? order.grandTotal
+    ?? order.payableAmount
+    ?? order.debtAmount
+    ?? 0
+  ));
+
+  if (amount <= 0 && !options.postZero) return null;
+
+  const entry = baseJournal(order, {
+    id: `AR-SALE-${order.id || order.code}`,
+    code: `AR-SALE-${order.code || order.id}`,
+    type: 'ar_sale',
+    refType: 'SALES_ORDER',
+    refId: order.id || order._id || order.code,
+    refCode: order.code || order.id,
+    orderId: order.id || order._id || order.code,
+    orderCode: order.code || order.id,
+    debit: amount,
+    credit: 0,
+    amount,
+    note: `Ghi nhận công nợ đơn bán ${order.code || order.id}`
+  });
+
+  await paymentRepository.upsert(entry, options);
+  return entry;
+}
+
+async function reverseSalesOrderAR(order = {}, options = {}) {
+  const amount = toNumber(order.debtAmount ?? Math.max(0, toNumber(order.totalAmount) - toNumber(order.paidAmount)));
+  if (amount <= 0) return null;
+
+  const entry = baseJournal(order, {
+    id: `AR-SALE-REV-${order.id || order.code}`,
+    code: `AR-SALE-REV-${order.code || order.id}`,
+    type: 'ar_sale_reversal',
+    refType: 'SALES_ORDER_REVERSAL',
+    refId: order.id || order._id || order.code,
+    refCode: order.code || order.id,
+    orderId: order.id || order._id || order.code,
+    orderCode: order.code || order.id,
+    debit: 0,
+    credit: amount,
+    amount,
+    note: `Đảo công nợ đơn bán ${order.code || order.id}`
+  });
+
+  await paymentRepository.upsert(entry, options);
+  return entry;
+}
+
+
 async function hasExistingReturnOrderAR(returnOrder = {}, options = {}) {
   // Idempotency source-of-truth đã chuyển sang returnArPostingService.
   // Compatibility markers for legacy static checks:
