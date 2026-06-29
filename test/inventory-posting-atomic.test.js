@@ -102,13 +102,33 @@ function createAtomicStore(initial = []) {
     },
     async rewriteInventory(filter = {}, update = {}) {
       const set = update.$set || {};
-      const target = Array.from(snapshots.values()).find((row) => {
+      let target = Array.from(snapshots.values()).find((row) => {
         if (filter._id && row._id) return String(row._id) === String(filter._id);
         return String(row.productCode || '').toUpperCase() === String(filter.productCode || '').toUpperCase()
           && String(row.warehouseCode || 'MAIN') === String(filter.warehouseCode || 'MAIN');
       });
+      if (!target && arguments[2]?.upsert) {
+        const code = String(filter.productCode || set.productCode || '').toUpperCase();
+        target = { productCode: code, warehouseCode: filter.warehouseCode || set.warehouseCode || 'MAIN' };
+        snapshots.set(code, target);
+      }
       if (target) Object.assign(target, set);
       return { acknowledged: true, matchedCount: target ? 1 : 0, modifiedCount: target ? 1 : 0 };
+    },
+    async markInventoryMerged(filter = {}, update = {}) {
+      const set = update.$set || {};
+      const clauses = Array.isArray(filter.$or) ? filter.$or : [filter];
+      let modifiedCount = 0;
+      for (const row of snapshots.values()) {
+        const matched = clauses.some((clause = {}) => Object.entries(clause).some(([field, value]) => {
+          if (value === undefined || value === null || value === '') return false;
+          return String(row[field] || '').toUpperCase() === String(value || '').toUpperCase();
+        }));
+        if (!matched) continue;
+        Object.assign(row, set);
+        modifiedCount += 1;
+      }
+      return { acknowledged: true, matchedCount: modifiedCount, modifiedCount };
     },
     async atomicUpdate(filter = {}, update = {}, options = {}) {
       const code = String(filter.productCode || '').toUpperCase();
@@ -150,7 +170,8 @@ async function withAtomicStore(initial, fn) {
   const restoreInventoryDelete = patch(InventoryLegacy, { deleteMany: async (filter) => store.deleteInventory(filter) });
   const restoreInventoryCreate = patch(InventoryLegacy, { create: async (docs) => store.createInventory(Array.isArray(docs) ? docs : [docs]) });
   const restoreInventoryUpdate = patch(InventoryLegacy, { findOneAndUpdate: async (filter, update, options) => store.atomicUpdate(filter, update, options) });
-  const restoreInventoryRewrite = patch(InventoryLegacy, { updateOne: async (filter, update) => store.rewriteInventory(filter, update) });
+  const restoreInventoryRewrite = patch(InventoryLegacy, { updateOne: async (filter, update, options) => store.rewriteInventory(filter, update, options) });
+  const restoreInventoryUpdateMany = patch(InventoryLegacy, { updateMany: async (filter, update) => store.markInventoryMerged(filter, update) });
 
   try {
     await fn(store);
@@ -163,6 +184,7 @@ async function withAtomicStore(initial, fn) {
     restoreInventoryCreate();
     restoreInventoryUpdate();
     restoreInventoryRewrite();
+    restoreInventoryUpdateMany();
   }
 }
 

@@ -97,7 +97,9 @@ return true;
 function logout() {
 if (window.DeliveryRouteTracking && typeof window.DeliveryRouteTracking.stopTimer === 'function') window.DeliveryRouteTracking.stopTimer();
 ['mk_web_token','mk_web_refresh_token','mk_web_user','v43_mobile_token','v43_mobile_refresh_token','v43_mobile_user'].forEach(function (key) { localStorage.removeItem(key); });
-fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'}}).catch(function(){}).finally(function(){window.location.href='/login.html';});
+fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'}}).catch(function(err){
+if (window.console && typeof window.console.warn === 'function') window.console.warn('[delivery-mobile] logout API failed:', err && err.message ? err.message : err);
+}).finally(function(){window.location.href='/login.html';});
 }
 function root() {
 var r = el('mobileDeliveryRoot');
@@ -680,7 +682,8 @@ return;
 }
 if (state.debtError && !rows.length) {
 body.innerHTML = '<div class="m-empty danger"><b>Không tải được công nợ</b><span>' + esc(state.debtError) + '</span><button id="mRetryDebt" type="button">Thử lại</button></div>';
-el('mRetryDebt').addEventListener('click', function () {
+var retryDebtButton = el('mRetryDebt');
+if (retryDebtButton) retryDebtButton.addEventListener('click', function () {
 state.debtError = '';
 loadDeliveryDebts(true);
 });
@@ -1042,7 +1045,8 @@ return;
 }
 if (state.reconciliationError && !state.reconciliationLoaded) {
 body.innerHTML = '<div class="m-empty danger"><b>Lỗi tải đối soát</b><span>' + esc(state.reconciliationError) + '</span><button id="mRetryReconciliation" type="button">Thử lại</button></div>';
-el('mRetryReconciliation').addEventListener('click', function () { loadDeliveryReconciliation(true); });
+var retryReconciliationButton = el('mRetryReconciliation');
+if (retryReconciliationButton) retryReconciliationButton.addEventListener('click', function () { loadDeliveryReconciliation(true); });
 return;
 }
 if (!state.reconciliationLoaded) {
@@ -1139,8 +1143,10 @@ return '<div class="m-product-row phase23" data-product-search-text="' + esc(sea
 '</div><div class="m-return-total phase23"><span>Tổng hàng trả</span><b id="mReturnTotal">' + money(totalReturnAmount) + '</b></div>' +
 '<div class="m-return-total phase23 due"><span>Phải thu</span><b id="mProductDueAfterReturn">' + money(Math.max(0, amount(order, 'receivable') - totalReturnAmount)) + '</b></div></form>';
 var formEl = el('mProductReturnForm');
+if (formEl) {
 formEl.addEventListener('submit', function (event) { saveReturn(event, { nextTab: 'payment', successMessage: 'Đã xác nhận hàng trả, chuyển sang Thu tiền' }); });
 bindReturnTotal(formEl, 'mReturnTotal');
+}
 filterProductRows(productKeyword);
 if (el('mFullReturnOrder')) el('mFullReturnOrder').addEventListener('click', fullReturnOrder);
 }
@@ -1304,6 +1310,10 @@ body.innerHTML = '<section class="m-workflow-step"><b>Bước 3/4 · Thu tiền 
 '<section class="m-product-summary payment-context"><div><span>Phải thu</span><b>' + money(receivable) + '</b></div><div><span>Hàng trả</span><b>' + money(returnAmount) + '</b></div><div><span>Còn phải xử lý</span><b id="mPaymentRemainingTop">0</b></div></section>' +
 '<form id="mPaymentForm" class="m-payment-form"><h3>Thu tiền đơn giao</h3><label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label><label>Nợ / nợ<input id="mPaymentRemaining" type="text" readonly value="0"></label><p id="mPaymentError" class="m-payment-error" hidden></p></form>';
 var formEl = el('mPaymentForm');
+if (!formEl) {
+msg('Không tải được form thu tiền. Tải lại màn hình giao hàng.', true);
+return;
+}
 function updateRemaining() {
 var values = readPaymentFormValues(formEl);
 var remaining = Math.max(0, receivable - returnAmount - values.cash - values.bank - values.reward);

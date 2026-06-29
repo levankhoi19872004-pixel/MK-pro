@@ -1,6 +1,7 @@
 'use strict';
 
 const { toNumber } = require('./common.util');
+const { normalizeArCategory } = require('./arLedgerCategoryEffect.util');
 
 function clean(value = '') {
   return String(value ?? '').trim();
@@ -11,14 +12,7 @@ function upper(value = '') {
 }
 
 function categoryOf(entry = {}) {
-  const explicit = upper(entry.category || entry.ledgerType || '');
-  if (explicit) return explicit;
-  const type = clean(entry.type).toLowerCase();
-  if (type === 'ar_return') return 'AR-RETURN';
-  if (type === 'ar_return_reversal') return 'AR-RETURN-REVERSAL';
-  if (type === 'ar_sale') return 'AR-SALE';
-  if (type === 'ar_receipt') return 'AR-RECEIPT';
-  return upper(entry.type || '');
+  return normalizeArCategory(entry);
 }
 
 function directionOf(entry = {}) {
@@ -34,10 +28,7 @@ function isArReturn(entry = {}) {
 }
 
 function isArReturnReversal(entry = {}) {
-  return categoryOf(entry) === 'AR-RETURN-REVERSAL'
-    || upper(entry.ledgerType) === 'AR-RETURN-REVERSAL'
-    || upper(entry.type) === 'AR_RETURN_REVERSAL'
-    || clean(entry.type).toLowerCase() === 'ar_return_reversal';
+  return categoryOf(entry) === 'AR-RETURN-REVERSAL';
 }
 
 function ledgerIdentity(entry = {}) {

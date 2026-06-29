@@ -12,6 +12,7 @@ const ReturnOrder = require('../src/models/ReturnOrder');
 const postingEngine = require('../src/engines/posting.engine');
 const dateUtil = require('../src/utils/date.util');
 const { toNumber, makeId } = require('../src/utils/common.util');
+const { requireApplyConfirmation } = require('./lib/scriptSafety');
 
 const INACTIVE = ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'removed', 'reversed'];
 
@@ -225,6 +226,14 @@ async function repairMissingReturns(apply, report) {
 
 async function main() {
   const apply = truthy(arg('apply', ''));
+  if (apply) {
+    requireApplyConfirmation({
+      args: process.argv.slice(2),
+      scriptName: 'repair-delivery-accounting-ar-ledgers.js',
+      requiredFlags: ['--confirm-repair-delivery-accounting-ar-ledgers'],
+      danger: 'This repair updates AR ledgers and can create missing AR-RETURN rows.'
+    });
+  }
   await connectDB();
   const activeSales = await loadActiveSaleRows();
   const report = {

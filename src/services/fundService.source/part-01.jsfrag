@@ -17,7 +17,7 @@ const { pickDeliveryStaffCode } = require('../domain/staff/staffIdentity');
 
 function dateOnly(value) { return dateUtil.toDateOnly(value || dateUtil.todayVN()); }
 function money(value) { return Math.max(0, Math.round(toNumber(value))); }
-function activeStatus(row = {}) { return !['void', 'cancelled', 'canceled', 'deleted'].includes(String(row.status || '').toLowerCase()); }
+function activeStatus(row = {}) { return !['void', 'voided', 'cancelled', 'canceled', 'deleted', 'removed', 'reversed', 'superseded'].includes(String(row.status || '').toLowerCase()); }
 
 function canonicalFundType(value) {
   return String(value || 'cash').toLowerCase() === 'bank' ? 'bank' : 'cash';
@@ -54,6 +54,18 @@ function buildFundLedgerIdempotencyKey(input = {}) {
   ).trim();
   if (!sourceIdentity) return '';
   return [sourceType, sourceIdentity, fundType, direction, account].map(normalizeKeyPart).join('|');
+}
+
+function fundLedgerCategory(sourceType = '', direction = '') {
+  const type = normalizeKeyPart(sourceType);
+  if (type === 'FUND_TRANSFER') return 'TRANSFER';
+  return canonicalDirection(direction) === 'out' ? 'EXPENSE' : 'RECEIPT';
+}
+
+function fundLedgerType(sourceType = '', direction = '') {
+  const category = fundLedgerCategory(sourceType, direction);
+  if (category === 'TRANSFER') return 'fund_transfer';
+  return category === 'EXPENSE' ? 'fund_expense' : 'fund_receipt';
 }
 
 
@@ -376,6 +388,8 @@ async function postFundLedger(input = {}, options = {}) {
     fundType,
     direction,
     account,
+    category: String(input.category || fundLedgerCategory(sourceType, direction)).trim(),
+    type: String(input.type || fundLedgerType(sourceType, direction)).trim(),
     idempotencyKey,
     amount,
     sourceType,
@@ -419,6 +433,8 @@ async function postFundLedger(input = {}, options = {}) {
     originalSourceId: String(input.originalSourceId || '').trim(),
     note: String(input.note || '').trim(),
     status: String(input.status || 'posted').trim(),
+    accountingConfirmed: input.accountingConfirmed === false ? false : true,
+    accountingStatus: String(input.accountingStatus || 'confirmed').trim(),
     createdBy: String(input.createdBy || '').trim(),
     createdAt: input.createdAt || dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()

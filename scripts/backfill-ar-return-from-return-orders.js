@@ -11,6 +11,7 @@ const ArLedger = require('../src/models/ArLedger');
 const postingEngine = require('../src/engines/posting.engine');
 const dateUtil = require('../src/utils/date.util');
 const { toNumber } = require('../src/utils/common.util');
+const { requireApplyConfirmation } = require('./lib/scriptSafety');
 
 const INACTIVE = new Set(['void', 'cancelled', 'canceled', 'deleted', 'removed', 'duplicate_cancelled', 'cleared']);
 
@@ -141,6 +142,14 @@ function buildFilter() {
 
 async function main() {
   const apply = truthy(arg('apply', ''));
+  if (apply) {
+    requireApplyConfirmation({
+      args: process.argv.slice(2),
+      scriptName: 'backfill-ar-return-from-return-orders.js',
+      requiredFlags: ['--confirm-backfill-ar-return'],
+      danger: 'This backfill creates AR-RETURN ledger rows from returnOrders.'
+    });
+  }
   const dryRun = !apply;
   await connectDB();
   const limit = Math.max(1, Number(arg('limit', 5000)) || 5000);

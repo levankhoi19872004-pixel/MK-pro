@@ -10,9 +10,18 @@ const {
   summarizeArReturnIdempotency,
   hasBlockingIssues
 } = require('./lib/arReturnIdempotencyAudit');
+const { requireApplyConfirmation } = require('./lib/scriptSafety');
 
 const args = new Set(process.argv.slice(2));
 const apply = args.has('--apply') || args.has('--write');
+if (apply) {
+  requireApplyConfirmation({
+    args: process.argv.slice(2),
+    scriptName: 'create-ar-return-unique-index.js',
+    requiredFlags: ['--confirm-create-index'],
+    danger: 'This script creates a unique AR-RETURN idempotency index. It must only run after audit blockers are clean.'
+  });
+}
 const json = args.has('--json');
 
 const UNIQUE_INDEX_FIELDS = { idempotencyKey: 1 };
@@ -102,7 +111,7 @@ async function main() {
     response.ok = true;
     response.skipped = true;
     response.reason = 'DRY_RUN_CLEAN';
-    response.message = 'Audit sạch. Chạy lại với --apply để tạo unique index.';
+    response.message = 'Audit sạch. Chạy lại với --apply --confirm-create-index để tạo unique index.';
     if (json) console.log(JSON.stringify(response, null, 2));
     else console.log(response.message);
     await require('mongoose').connection.close();

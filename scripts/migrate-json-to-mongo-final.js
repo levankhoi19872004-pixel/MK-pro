@@ -7,7 +7,7 @@
  *   npm run migrate:json
  *
  * Safe default: UPSERT by business identity, does not delete existing Mongo data.
- * Full replace mode: node scripts/migrate-json-to-mongo-final.js --replace
+ * Full replace mode: node scripts/migrate-json-to-mongo-final.js --replace --confirm-replace-json-migration
  */
 
 require('dotenv').config();
@@ -17,11 +17,19 @@ const path = require('path');
 const mongoose = require('mongoose');
 const MongoStore = require('../src/models');
 const { isBcryptHash, hashPasswordSync } = require('../src/security/passwordPolicy');
+const { requireDangerousConfirmation } = require('./lib/scriptSafety');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DATA_FILE = process.env.JSON_DATA_FILE || path.join(ROOT_DIR, 'data', 'kho-data.json');
 const REPLACE_MODE = process.argv.includes('--replace');
 const DRY_RUN = process.argv.includes('--dry-run');
+if (REPLACE_MODE) {
+  requireDangerousConfirmation({
+    scriptName: 'migrate-json-to-mongo-final.js',
+    danger: 'Replace mode deletes each target collection before insertMany. Use safe upsert mode unless restoring into a prepared database.',
+    requiredFlags: ['--confirm-replace-json-migration']
+  });
+}
 
 const ROLE_LABELS = {
   admin: 'Quản trị',

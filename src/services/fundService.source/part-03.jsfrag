@@ -93,5 +93,7 @@ module.exports = {
   updateFundTransfer,
   confirmFundTransfer,
   postFundLedger,
-  buildFundLedgerIdempotencyKey
+  buildFundLedgerIdempotencyKey,
+  fundLedgerCategory,
+  fundLedgerType
 };

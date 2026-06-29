@@ -15,7 +15,18 @@ test('canonical active AR ledger filter keeps extra fields readable at top-level
   assert.ok(filter.status.$nin.includes('void'));
   assert.ok(filter.status.$nin.includes('draft'));
   assert.ok(filter.type.$nin.includes('ar_reversal'));
-  assert.ok(filter.type.$nin.includes('ar_return_reversal'));
+  assert.equal(filter.type.$nin.includes('ar_return_reversal'), false);
+  assert.equal(status.isActiveLedgerDoc({
+    category: 'AR-RETURN-REVERSAL',
+    ledgerType: 'AR-RETURN-REVERSAL',
+    type: 'ar_return_reversal',
+    status: 'posted',
+    accountingStatus: 'confirmed',
+    accountingConfirmed: true,
+    debit: 1000,
+    credit: 0,
+    direction: 'debit'
+  }), true);
 });
 
 test('confirmed AR filter exposes canonical accounting statuses', () => {
@@ -29,6 +40,8 @@ test('confirmed AR filter exposes canonical accounting statuses', () => {
 });
 
 test('AR category helpers recognize sale return receipt and bonus ledgers', () => {
+  assert.equal(status.normalizeArCategory({ category: 'AR-RETURN-REVERSAL' }), 'AR-RETURN-REVERSAL');
+  assert.equal(status.isArReturnLedger({ category: 'AR-RETURN-REVERSAL' }), false);
   assert.equal(status.isArReturnLedger({ category: 'AR-RETURN' }), true);
   assert.equal(status.isArReturnLedger({ idempotencyKey: 'AR-RETURN:RO-B0038424' }), true);
   assert.equal(status.isArReturnLedger({ code: 'AR-RETURN-RO-B0038424-ACC-123' }), true);

@@ -152,6 +152,9 @@ async function postSalesOrderAR(order = {}, options = {}) {
     return null;
   }
 
+  const orderKey = cleanText(order.id || order._id || order.code || order.orderId || order.orderCode || makeId('SO'));
+  const orderCode = cleanText(order.code || order.orderCode || orderKey);
+
   const amount = Math.max(0, toNumber(
     order.debtBeforeCollection
     ?? order.totalAmount
@@ -165,18 +168,22 @@ async function postSalesOrderAR(order = {}, options = {}) {
   if (amount <= 0 && !options.postZero) return null;
 
   const entry = baseJournal(order, {
-    id: `AR-SALE-${order.id || order.code}`,
-    code: `AR-SALE-${order.code || order.id}`,
+    id: `AR-SALE-${orderKey}`,
+    code: `AR-SALE-${orderCode}`,
     type: 'ar_sale',
     refType: 'SALES_ORDER',
-    refId: order.id || order._id || order.code,
-    refCode: order.code || order.id,
-    orderId: order.id || order._id || order.code,
-    orderCode: order.code || order.id,
+    refId: orderKey,
+    refCode: orderCode,
+    orderId: orderKey,
+    orderCode,
+    sourceType: order.sourceType || 'salesOrder',
+    sourceId: order.sourceId || orderKey,
+    sourceCode: order.sourceCode || orderCode,
+    idempotencyKey: `AR-SALE:${orderKey}`,
     debit: amount,
     credit: 0,
     amount,
-    note: `Ghi nhận công nợ đơn bán ${order.code || order.id}`
+    note: `Ghi nhận công nợ đơn bán ${orderCode || orderKey}`
   });
 
   await upsertArLedger(entry, options);
@@ -465,6 +472,9 @@ async function postReceiptAR(receipt = {}, options = {}) {
         sourceId: receipt.sourceId || receipt.refId || '',
         sourceCode: receipt.sourceCode || receipt.refCode || '',
         accountingConfirmedBy: receipt.accountingConfirmedBy || '',
+        idempotencyKey: receipt.idempotencyKey
+          ? `${receipt.idempotencyKey}:${allocation.orderId || allocation.orderCode || index + 1}`
+          : `AR-RECEIPT:${receipt.id || receipt.code}:${allocation.orderId || allocation.orderCode || index + 1}`,
         debit: 0,
         credit: allocation.amount,
         amount: allocation.amount,
@@ -506,6 +516,7 @@ async function postReceiptAR(receipt = {}, options = {}) {
     sourceId: receipt.sourceId || receipt.refId || '',
     sourceCode: receipt.sourceCode || receipt.refCode || '',
     accountingConfirmedBy: receipt.accountingConfirmedBy || '',
+    idempotencyKey: receipt.idempotencyKey || `AR-RECEIPT:${receipt.id || receipt.code}`,
     debit: 0,
     credit: amount,
     amount,

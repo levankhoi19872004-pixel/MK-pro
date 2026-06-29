@@ -9,10 +9,20 @@ const SalesOrder = require('../src/models/SalesOrder');
 const ArLedger = require('../src/models/ArLedger');
 const returnArPostingService = require('../src/services/accounting/returnArPostingService');
 const { arReturnLedgerQuery, summarizeArReturnIdempotency } = require('./lib/arReturnIdempotencyAudit');
+const { requireApplyConfirmation } = require('./lib/scriptSafety');
 
 const args = new Set(process.argv.slice(2));
 const dryRun = !args.has('--fix') && !args.has('--apply');
 const fix = args.has('--fix') || args.has('--apply');
+if (fix) {
+  requireApplyConfirmation({
+    args: process.argv.slice(2),
+    applyFlags: ['--fix', '--apply'],
+    scriptName: 'reconcile-return-ar.js',
+    requiredFlags: ['--confirm-reconcile-return-ar-fix'],
+    danger: 'This reconcile can post missing AR-RETURN rows during --fix/--apply.'
+  });
+}
 const limitArg = process.argv.find((arg) => arg.startsWith('--limit='));
 const limit = limitArg ? Math.max(1, Number(limitArg.split('=')[1]) || 10000) : 10000;
 

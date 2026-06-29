@@ -8,6 +8,10 @@ const {
   hasOpenDebt,
   isOverpaid
 } = require('../../constants/finance.constants');
+const {
+  normalizeArCategory: classifyArLedgerCategory,
+  normalizeArLedgerAmounts: classifyArLedgerAmounts
+} = require('../../utils/arLedgerCategoryEffect.util');
 
 const INACTIVE_AR_STATUSES = Object.freeze([
   'void',
@@ -363,41 +367,12 @@ function isActiveConfirmedArDebtLedger(row = {}) {
 }
 
 function normalizeArCategory(row = {}) {
-  const exact = upper(row.category || row.ledgerType || row.type);
-  const textValue = [
-    row.category,
-    row.ledgerType,
-    row.type,
-    row.sourceType,
-    row.source,
-    row.refType,
-    row.code,
-    row.id,
-    row.idempotencyKey,
-    row.note
-  ].map(upper).join(' ');
-
-  if (exact === 'AR-RETURN-REVERSAL' || /AR[-_ ]?RETURN[-_ ]?REVERSAL/.test(textValue)) return 'AR-RETURN-REVERSAL';
-  if (exact === 'AR-SALE' || /AR[-_ ]?SALE|SALES[_ -]?ORDER|EXTERNAL[_ -]?DEBT|AR[-_ ]?EXTERNAL/.test(textValue)) return 'AR-SALE';
-  if (exact === 'AR-RETURN' || /^AR-RETURN/.test(upper(row.code || row.id || row.idempotencyKey)) || /AR[-_ ]?RETURN|RETURN[_ -]?ORDER/.test(textValue)) return 'AR-RETURN';
-  if (exact === 'AR-RECEIPT' || /AR[-_ ]?RECEIPT|RECEIPT|PAYMENT|COLLECTION|DEBT[_ -]?COLLECTION/.test(textValue)) return 'AR-RECEIPT';
-  if (/BONUS|REWARD|DISCOUNT|ALLOWANCE|TRẢ THƯỞNG|TRA THUONG/.test(textValue)) return 'AR-BONUS';
-  if (/ADJUST|ADJUSTMENT|WRITE[_ -]?OFF|OFFSET|CẤN TRỪ|CAN TRU/.test(textValue)) return 'AR-ADJUSTMENT';
-  return exact || 'UNKNOWN';
+  const normalized = classifyArLedgerCategory(row);
+  return normalized === 'AR-BONUS-ALLOWANCE' ? 'AR-BONUS' : normalized;
 }
-
 function normalizeLedgerAmounts(row = {}, category = normalizeArCategory(row)) {
-  let debit = Math.max(0, money(row.debit ?? row.arDebit));
-  let credit = Math.max(0, money(row.credit ?? row.arCredit));
-  const amount = Math.max(0, money(row.amount ?? row.totalAmount ?? row.value));
-
-  if (debit <= 0 && credit <= 0 && amount > 0) {
-    if (['AR-SALE', 'AR-RETURN-REVERSAL'].includes(category)) debit = amount;
-    else credit = amount;
-  }
-  return { amount, debit, credit };
+  return classifyArLedgerAmounts({ ...row, category: category === 'AR-BONUS' ? 'AR-BONUS-ALLOWANCE' : category });
 }
-
 function normalizeLedger(row = {}) {
   const category = normalizeArCategory(row);
   const amounts = normalizeLedgerAmounts(row, category);

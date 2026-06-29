@@ -1,7 +1,7 @@
 'use strict';
 
 const ACTIVE_LEDGER_STATUSES = ['', 'posted', 'confirmed', 'accounting_confirmed', 'matched'];
-const BLOCKED_LEDGER_STATUSES = ['draft', 'pending', 'submitted', 'cancelled', 'canceled', 'void', 'deleted'];
+const BLOCKED_LEDGER_STATUSES = ['draft', 'pending', 'submitted', 'cancelled', 'canceled', 'void', 'voided', 'deleted', 'removed', 'reversed', 'superseded'];
 
 function text(value) {
   return String(value ?? '').trim();
@@ -235,11 +235,7 @@ function normalizeLedgerForSummary(entry = {}) {
   const status = lower(entry.status);
   if (BLOCKED_LEDGER_STATUSES.includes(status) || entry.isDeleted === true || entry.deletedAt) return null;
   const sourceType = upper(entry.sourceType || entry.refType || entry.referenceType || 'UNKNOWN');
-  const isReversal = entry.isReversal === true || safeMoney(entry.amount) < 0 || /REVERS(AL|E)|HOAN_TAC|DAO_BUT_TOAN/.test(sourceType);
-  // Dữ liệu cũ đôi khi dùng status=reversed cho chính dòng đảo. Chỉ giữ lại khi
-  // dòng đó có dấu hiệu đảo rõ ràng; bản ghi gốc bị đánh dấu reversed vẫn bị loại.
-  if (status === 'reversed' && !isReversal) return null;
-  if (status && status !== 'reversed' && !ACTIVE_LEDGER_STATUSES.includes(status)) return null;
+  if (status && !ACTIVE_LEDGER_STATUSES.includes(status)) return null;
   const amount = Math.abs(safeMoney(entry.amount ?? entry.debit ?? entry.credit));
   if (!amount) return null;
   const transactionClass = classifyTransaction(entry);

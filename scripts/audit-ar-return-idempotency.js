@@ -66,7 +66,7 @@ async function main() {
     audit: 'node scripts/audit-ar-return-idempotency.js --dry-run',
     auditJson: 'node scripts/audit-ar-return-idempotency.js --json',
     createUniqueDryRun: 'node scripts/create-ar-return-unique-index.js --dry-run',
-    createUniqueApply: 'node scripts/create-ar-return-unique-index.js --apply'
+    createUniqueApply: 'node scripts/create-ar-return-unique-index.js --apply --confirm-create-index'
   };
 
   if (json) console.log(JSON.stringify(summary, null, 2));

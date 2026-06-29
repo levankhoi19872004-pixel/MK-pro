@@ -238,14 +238,51 @@ async function listDebtCollections(query = {}) {
   return { items, summary };
 }
 
+
+function ensureConfirmPostingContracts() {
+  if (!ArPostingService || typeof ArPostingService.postReceipt !== 'function') {
+    throw new TypeError('ArPostingService.postReceipt contract is required to confirm debt collections.');
+  }
+  if (!FundPostingService || typeof FundPostingService.postCashIn !== 'function') {
+    throw new TypeError('FundPostingService.postCashIn contract is required to confirm debt collections.');
+  }
+}
+
+function receiptIdempotencyKey(collection = {}) {
+  return `AR-RECEIPT:${text(collection.id || collection.code)}`;
+}
+
+function fundReceiptIdempotencyKey(collection = {}) {
+  return `FUND-RECEIPT:${text(collection.id || collection.code)}`;
+}
+
+function isAccountingConfirmedCollection(collection = {}) {
+  return collection.status === 'accounting_confirmed'
+    || collection.accountingConfirmed === true
+    || collection.accountingStatus === 'confirmed';
+}
+
 async function confirmDebtCollection(idOrCode, command = {}) {
   return withMongoTransaction(async (session) => {
+    ensureConfirmPostingContracts();
+
     const collection = await DebtCollection.findOne({
       ...collectionIdentityFilter(idOrCode),
-      status: 'submitted'
+      status: { $in: ['submitted', 'accounting_confirmed'] }
     }).session(session);
 
     if (!collection) return fail(404, 'Không tìm thấy phiếu thu nợ chờ xác nhận');
+
+    if (isAccountingConfirmedCollection(collection)) {
+      return {
+        body: {
+          ok: true,
+          skipped: true,
+          message: 'Phiếu thu nợ đã được kế toán xác nhận trước đó',
+          collection
+        }
+      };
+    }
 
     const actualReceivedAmount = money(command.actualReceivedAmount ?? collection.amount);
     if (actualReceivedAmount !== money(collection.amount)) {
@@ -297,6 +334,7 @@ async function confirmDebtCollection(idOrCode, command = {}) {
       sourceType: 'debtCollection',
       sourceId: collection.id,
       sourceCode: collection.code,
+      idempotencyKey: receiptIdempotencyKey(collection),
       accountingConfirmedBy: text(command.accountingUserName || command.accountingConfirmedBy || command.user?.name || command.user?.username),
       note: `Xác nhận thu nợ ${collection.code}`
     };
@@ -346,14 +384,19 @@ async function confirmDebtCollection(idOrCode, command = {}) {
       deliveryStaffCode: collection.deliveryStaffCode,
       deliveryStaffName: collection.deliveryStaffName,
       paymentMethod: collection.paymentMethod,
+      idempotencyKey: fundReceiptIdempotencyKey(collection),
       note: `Thu nợ chờ xác nhận ${collection.code}`,
       createdBy: text(command.accountingUserName || command.accountingConfirmedBy || '')
     }, { session });
 
     collection.status = 'accounting_confirmed';
+    collection.accountingStatus = 'confirmed';
+    collection.accountingConfirmed = true;
     collection.accountingConfirmedAt = dateUtil.nowIso();
     collection.accountingConfirmedBy = text(command.accountingUserName || command.accountingConfirmedBy || command.user?.name || command.user?.username);
     collection.accountingNote = text(command.accountingNote);
+    collection.arPosted = true;
+    collection.fundPosted = true;
     collection.arLedgerIds = arLedgers.map((row) => row.id).filter(Boolean);
     collection.fundLedgerIds = fundLedger && fundLedger.id ? [fundLedger.id] : [];
     collection.updatedAt = dateUtil.nowIso();
@@ -406,6 +449,10 @@ module.exports = {
     ensureDebtCollectionLocks,
     buildCollectorFields,
     buildListFilter,
-    normalizePaymentMethod
+    normalizePaymentMethod,
+    ensureConfirmPostingContracts,
+    receiptIdempotencyKey,
+    fundReceiptIdempotencyKey,
+    isAccountingConfirmedCollection
   }
 };

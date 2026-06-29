@@ -4,6 +4,7 @@ const path = require('path');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const { MongoStore } = require('../src/services/mongoSyncService');
+const { requireDeprecatedOverride, requireDangerousConfirmation } = require('./lib/scriptSafety');
 
 dotenv.config();
 
@@ -11,6 +12,15 @@ const DATA_FILE = path.join(__dirname, '../data/kho-data.json');
 const BACKUP_FILE = path.join(__dirname, '../data/kho-data-backup-' + Date.now() + '.json');
 
 async function migrateToMongo() {
+  requireDeprecatedOverride({
+    scriptName: 'migrate-full-to-mongo.js',
+    replacement: 'Legacy full replace migration is blocked. Use scripts/migrate-json-to-mongo-final.js --dry-run first, then safe upsert mode.'
+  });
+  requireDangerousConfirmation({
+    scriptName: 'migrate-full-to-mongo.js',
+    danger: 'This legacy migration hard-deletes Mongo collections before insertMany.',
+    requiredFlags: ['--confirm-full-json-migration-replace']
+  });
   console.log('🚀 BẮT ĐẦU MIGRATION JSON → MONGODB');
 
   try {

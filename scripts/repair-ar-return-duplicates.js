@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 'use strict';
 
+const { requireDeprecatedOverride } = require('./lib/scriptSafety');
+const argv = process.argv.slice(2);
+const has = (flag) => argv.includes(flag);
+requireDeprecatedOverride({
+  args: argv,
+  scriptName: 'repair-ar-return-duplicates.js',
+  replacement: 'Không dùng script repair cũ làm giải pháp chính. Dùng scripts/plan-ar-ledger-repair.js và scripts/apply-ar-ledger-repair-plan.js --apply --confirm-repair-batch=<BATCH_ID>.'
+});
+
 require('dotenv').config();
 
 const mongoose = require('mongoose');
@@ -15,8 +24,6 @@ const {
   isInactiveArReturnLedger
 } = require('./lib/arReturnIdempotencyAudit');
 
-const argv = process.argv.slice(2);
-const has = (flag) => argv.includes(flag);
 const valueOf = (name) => {
   const prefix = `${name}=`;
   const inline = argv.find((arg) => arg.startsWith(prefix));
@@ -240,7 +247,7 @@ function printHuman(plans, results = []) {
     }
     if (apply) console.log(`- apply result: updatedRows=${result.updatedRows || 0} reversalRows=${result.reversalRows || 0} skipped=${result.skipped === true}`);
   }
-  if (!apply) console.log('\nDry-run only. Apply with: node scripts/repair-ar-return-duplicates.js --apply --orderCode <ORDER_CODE>');
+  if (!apply) console.log('\nDeprecated dry-run only. Use Phase65 plan/apply repair scripts instead: node scripts/plan-ar-ledger-repair.js && node scripts/apply-ar-ledger-repair-plan.js --apply --confirm-repair-batch=<BATCH_ID>');
 }
 
 async function main() {

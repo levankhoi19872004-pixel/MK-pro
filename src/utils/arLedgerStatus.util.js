@@ -1,5 +1,10 @@
 'use strict';
 
+const {
+  normalizeArCategory,
+  isBusinessArReturnReversal
+} = require('./arLedgerCategoryEffect.util');
+
 const INACTIVE_LEDGER_STATUSES = Object.freeze([
   'void',
   'voided',
@@ -24,8 +29,7 @@ const REVERSAL_TYPES = Object.freeze([
   'ar_reversal',
   'reversal',
   'ar_void',
-  'ar_sale_reversal',
-  'ar_return_reversal'
+  'ar_sale_reversal'
 ]);
 
 function normalizeLedgerStatus(value = '') {
@@ -52,18 +56,17 @@ function isInactiveLedgerStatus(status, options = {}) {
 }
 
 function isReversalLedgerDoc(doc = {}) {
+  if (isBusinessArReturnReversal(doc)) return false;
+
   const refType = normalizeUpper(doc.refType);
   const sourceAction = normalizeLedgerStatus(doc.sourceAction);
   const entryType = normalizeLedgerStatus(doc.entryType);
   const type = normalizeLedgerStatus(doc.type);
-  const ledgerType = normalizeUpper(doc.ledgerType);
-  const category = normalizeUpper(doc.category);
 
   if (refType === 'AR_LEDGER_REVERSAL') return true;
   if (sourceAction === 'reverse') return true;
   if (entryType === 'reversal') return true;
   if (REVERSAL_TYPES.includes(type)) return true;
-  if (/REVERSAL$/.test(ledgerType) || /REVERSAL$/.test(category)) return true;
   return false;
 }
 
@@ -144,16 +147,6 @@ function combinedIdentityText(doc = {}) {
     doc.idempotencyKey,
     doc.refType
   ].map((value) => String(value || '')).join(' ').toUpperCase();
-}
-
-function normalizeArCategory(doc = {}) {
-  const text = combinedIdentityText(doc);
-  if (/AR[-_ ]?RETURN/.test(text) || /RETURN[_ -]?ORDER/.test(text) || /\bRETURN\b/.test(text)) return 'AR-RETURN';
-  if (/AR[-_ ]?RECEIPT/.test(text) || /\bRECEIPT\b/.test(text) || /\bPAYMENT\b/.test(text) || /DEBT[_ -]?COLLECTION/.test(text)) return 'AR-RECEIPT';
-  if (/AR[-_ ]?SALE/.test(text) || /\bSALE\b/.test(text) || /SALES[_ -]?ORDER/.test(text)) return 'AR-SALE';
-  if (/AR[-_ ]?(BONUS|ALLOWANCE|REWARD|DISCOUNT)/.test(text) || /\b(BONUS|ALLOWANCE|REWARD|DISCOUNT)\b/.test(text)) return 'AR-BONUS-ALLOWANCE';
-  if (/AR[-_ ]?EXTERNAL/.test(text) || /EXTERNAL[_ -]?DEBT/.test(text)) return 'AR-EXTERNAL-DEBT';
-  return normalizeUpper(doc.category || doc.ledgerType || doc.type || '');
 }
 
 function isArSaleLedger(doc = {}) {

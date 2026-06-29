@@ -8,6 +8,10 @@ const FundLedger = flexModel('FundLedger', 'fundLedgers', {
   fundType: String, // cash | bank
   direction: String, // in | out
   account: String, // CASH | BANK or accounting sub-account
+  category: String, // RECEIPT | EXPENSE | TRANSFER
+  type: String, // fund_receipt | fund_expense | fund_transfer
+  accountingConfirmed: Boolean,
+  accountingStatus: String,
   idempotencyKey: String,
   amount: Number,
   sourceType: String,

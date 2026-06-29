@@ -76,6 +76,30 @@ function snapshotQuantityOf(row = {}) {
   return toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty);
 }
 
+function buildMergedInventoryPatch({ canonicalProductCode = '', canonicalWarehouseCode = stockWarehouseCode(), now = dateUtil.nowIso(), reason = 'MERGED_TO_MAIN_CURRENT_STOCK' } = {}) {
+  return {
+    $set: {
+      qty: 0,
+      quantity: 0,
+      onHand: 0,
+      availableQty: 0,
+      reservedQty: 0,
+      status: 'merged',
+      inventoryStatus: 'merged_to_main',
+      mergedToProductCode: String(canonicalProductCode || '').trim(),
+      mergedToWarehouseCode: String(canonicalWarehouseCode || stockWarehouseCode()).trim(),
+      mergedAt: now,
+      mergeReason: reason,
+      updatedAt: now
+    }
+  };
+}
+
+async function markMergedInventoryRowsToMain(filter = {}, meta = {}, session = null) {
+  if (!filter || !Object.keys(filter).length) return { acknowledged: true, matchedCount: 0, modifiedCount: 0 };
+  return withOptionalSession(InventoryLegacy.updateMany(filter, buildMergedInventoryPatch(meta)), session);
+}
+
 function groupStockItems(items = []) {
   const grouped = new Map();
 
@@ -200,14 +224,25 @@ async function normalizeProductInventoryToMain({ productCode, productId, session
     return { ...baseRow, ...patch };
   }
 
-  await withOptionalSession(InventoryLegacy.deleteMany({ $or: filters }), session);
+  // Runtime posting không hard-delete current stock rows. Những dòng legacy/alias
+  // được zero + đánh dấu merged để không còn ảnh hưởng số tồn, sau đó upsert dòng MAIN canonical.
+  await markMergedInventoryRowsToMain({ $or: filters }, {
+    canonicalProductCode: patch.productCode,
+    canonicalWarehouseCode: whCode,
+    now
+  }, session);
+
   const doc = {
     ...baseRow,
     _id: undefined,
     ...patch
   };
-  const created = await InventoryLegacy.create([doc], { session });
-  return Array.isArray(created) ? created[0] : doc;
+  await withOptionalSession(InventoryLegacy.updateOne(
+    { productCode: patch.productCode, warehouseCode: whCode },
+    { $set: doc, $setOnInsert: { id: doc.id || makeId('IV') } },
+    { upsert: true }
+  ), session);
+  return doc;
 }
 
 async function assertStockAvailableBeforeOut({ productCode, productId, productName, requiredQty = 0, session = null } = {}) {
@@ -604,9 +639,24 @@ async function normalizeBulkSalesInventoryToMain(movements = [], session = null)
       continue;
     }
 
+    const rowIds = rows.map((row) => row._id).filter(Boolean);
+    const mergeFilter = rowIds.length
+      ? { _id: { $in: rowIds } }
+      : {
+        $or: rows.map((row) => ({
+          productCode: row.productCode,
+          warehouseCode: row.warehouseCode
+        }))
+      };
+
     operations.push({
-      deleteMany: {
-        filter: { _id: { $in: rows.map((row) => row._id) } }
+      updateMany: {
+        filter: mergeFilter,
+        update: buildMergedInventoryPatch({
+          canonicalProductCode: canonicalCode,
+          canonicalWarehouseCode: mainCode,
+          now
+        })
       }
     });
     operations.push({

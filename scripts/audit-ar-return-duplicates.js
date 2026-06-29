@@ -64,8 +64,9 @@ function printHuman(groups) {
     }
   }
   if (groups.length) {
-    console.log('\nRepair dry-run: node scripts/repair-ar-return-duplicates.js --dry-run --orderCode <ORDER_CODE>');
-    console.log('Repair apply  : node scripts/repair-ar-return-duplicates.js --apply --orderCode <ORDER_CODE>');
+    console.log('\nRepair plan : node scripts/plan-ar-ledger-repair.js --orderCode <ORDER_CODE>');
+    console.log('Repair apply: node scripts/apply-ar-ledger-repair-plan.js --apply --confirm-repair-batch=<BATCH_ID> --plan <PLAN_FILE>');
+    console.log('Deprecated script repair-ar-return-duplicates.js is blocked by default.');
   }
 }
 

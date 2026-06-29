@@ -442,7 +442,7 @@ function buildEarlyMatch(filters) {
         $or: [
           { status: { $exists: false } },
           { status: null },
-          { status: { $in: [...ACTIVE_LEDGER_STATUSES, 'reversed'] } }
+          { status: { $in: ACTIVE_LEDGER_STATUSES } }
         ]
       },
       { isDeleted: { $ne: true } },
@@ -494,16 +494,6 @@ function baseNormalizationStages(filters) {
                 timezone: dateUtil.VIETNAM_TIME_ZONE
               }
             }
-          ]
-        }
-      }
-    },
-    {
-      $match: {
-        $expr: {
-          $or: [
-            { $ne: ['$_statusLower', 'reversed'] },
-            { $eq: ['$_isReversal', true] }
           ]
         }
       }

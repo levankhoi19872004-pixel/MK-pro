@@ -3,6 +3,11 @@
 const { toNumber } = require('./common.util');
 const { normalizeDebtAmount, DEBT_ZERO_TOLERANCE } = require('../constants/finance.constants');
 const { isActiveLedgerDoc } = require('./arLedgerStatus.util');
+const {
+  isDefaultDebitArLedger,
+  normalizeArLedgerAmounts,
+  firstPositiveMoney: firstPositiveArMoney
+} = require('./arLedgerCategoryEffect.util');
 
 function normalizeArKey(value) {
   return String(value || '').trim();
@@ -28,34 +33,25 @@ function entryMatchesAnyOrderKey(entry = {}, keys = []) {
 }
 
 function isSaleLikeArEntry(entry = {}) {
-  const type = String(entry.type || '').trim().toLowerCase();
-  return /sale|external_debt/.test(type);
+  return isDefaultDebitArLedger(entry);
 }
 
 function firstPositiveMoney(...values) {
-  for (const value of values) {
-    const number = toNumber(value);
-    if (number > 0) return number;
-  }
-  return 0;
+  return firstPositiveArMoney(...values);
 }
 
 /**
  * Chuẩn hóa các dòng AR legacy. Một số dữ liệu cũ chỉ có `amount` mà chưa có
  * `debit`/`credit`. Quy tắc này phải giống báo cáo công nợ:
- * - SALE/EXTERNAL_DEBT: amount là debit fallback.
+ * - SALE/EXTERNAL_DEBT/AR-RETURN-REVERSAL: amount là debit fallback.
  * - RECEIPT/RETURN/BONUS/...: amount là credit fallback.
  */
 function effectiveArDebit(entry = {}) {
-  const explicitDebit = firstPositiveMoney(entry.debit, entry.arDebit);
-  if (explicitDebit > 0) return explicitDebit;
-  return isSaleLikeArEntry(entry) ? Math.max(0, toNumber(entry.amount)) : 0;
+  return normalizeArLedgerAmounts(entry).debit;
 }
 
 function effectiveArCredit(entry = {}) {
-  const explicitCredit = firstPositiveMoney(entry.credit, entry.arCredit);
-  if (explicitCredit > 0) return explicitCredit;
-  return isSaleLikeArEntry(entry) ? 0 : Math.max(0, toNumber(entry.amount));
+  return normalizeArLedgerAmounts(entry).credit;
 }
 
 function arEntryBalanceEffect(entry = {}) {

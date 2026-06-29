@@ -20,7 +20,8 @@ window.DeliveryCore&&window.DeliveryCore.state&&(window.DeliveryCore.state.selec
 "reconciliation"===state.tab&&loadDeliveryReconciliation(!1)}function logout(){
 window.DeliveryRouteTracking&&"function"==typeof window.DeliveryRouteTracking.stopTimer&&window.DeliveryRouteTracking.stopTimer(),
 ["mk_web_token","mk_web_refresh_token","mk_web_user","v43_mobile_token","v43_mobile_refresh_token","v43_mobile_user"].forEach(function(key){localStorage.removeItem(key)}),
-fetch("/api/auth/logout",{method:"POST",credentials:"same-origin",headers:{"X-Requested-With":"XMLHttpRequest"}}).catch(function(){}).finally(function(){
+fetch("/api/auth/logout",{method:"POST",credentials:"same-origin",headers:{"X-Requested-With":"XMLHttpRequest"}}).catch(function(err){
+window.console&&"function"==typeof window.console.warn&&window.console.warn("[delivery-mobile] logout API failed:",err&&err.message?err.message:err)}).finally(function(){
 window.location.href="/login.html"})}function renderShell(){
 var r,user=readUser(),displayName=userDisplayName(user),staffCode=userStaffCode(user),accountText=displayName?displayName+(staffCode&&staffCode!==displayName?" - "+staffCode:""):"Chưa có tài khoản"
 ;(r=el("mobileDeliveryRoot"),r||((r=document.createElement("main")).id="mobileDeliveryRoot",document.body.innerHTML="",document.body.appendChild(r)),
@@ -77,8 +78,7 @@ if("returns"===state.tab)return function(order){return returnedRowsForOrder(orde
 rootEl=el("mobileDeliveryRoot"),filter&&(filter.hidden=!listMode),kpis&&(kpis.hidden=!listMode),rootEl&&(rootEl.classList.toggle("list-workflow-mode",listMode),
 rootEl.classList.toggle("customer-workflow-mode",!listMode)),rows=window.DeliveryCore.state.orders||[],s=buildRouteKpi(rows),
 el("mKpiTotalOrders")&&(el("mKpiTotalOrders").textContent=String(s.total||0)),el("mKpiPt")&&(el("mKpiPt").textContent=money(s.pt)),function(){var context=el("mCustomerContext")
-;if(context){var order=currentOrder();if(!isCustomerMode()||!order)return context.hidden=!0,
-void(context.innerHTML="")
+;if(context){var order=currentOrder();if(!isCustomerMode()||!order)return context.hidden=!0,void(context.innerHTML="")
 ;var address=deliveryMobileUi.orderAddress?deliveryMobileUi.orderAddress(order):"",name=order.customerName||order.customerCode||order.orderCode||"Khách đang giao",customerCode=order.customerCode||order.customerId||""
 ;context.hidden=!1,
 context.innerHTML='<button type="button" class="m-back-to-list" data-back-to-list>← Danh sách</button><div class="m-customer-context-main"><b>'+esc(name)+(customerCode?" · "+esc(customerCode):"")+"</b><span>"+(address?esc(address)+" · ":"")+"Phải thu "+money(amount(order,"receivable"))+"</span></div>"
@@ -94,8 +94,8 @@ return sum+num(it.deliveredQty)},0),totalAmount=baseRows.reduce(function(sum,it)
 var qtyText="SL giao "+money(it.deliveredQty),amount=num(it.returnQty)*num(it.price),searchText=[it.productCode,it.productName,it.barcode].join(" ")
 ;return'<div class="m-product-row phase23" data-product-search-text="'+esc(searchText)+'"><div><b>'+esc(it.productCode)+"</b><small>"+esc(it.productName)+"</small><em>"+qtyText+" · Giá "+money(it.price)+" · Tiền trả "+money(amount)+"</em>"+hidden(idx,"productCode",it.productCode)+hidden(idx,"productName",it.productName)+hidden(idx,"price",it.price)+hidden(idx,"deliveredQty",it.deliveredQty)+'</div><label class="m-return-inline-input"><span>SL trả</span><input data-m-return-field="returnQty" data-idx="'+idx+'" type="number" min="0" step="1" value="'+esc(it.returnQty)+'" aria-label="Số lượng hàng trả"></label></div>'
 }).join("")||'<div class="m-empty">Đơn chưa có dòng hàng để đối chiếu.</div>')+'<div id="mProductSearchEmpty" class="m-empty" hidden>Không tìm thấy sản phẩm trong đơn này</div></div><div class="m-return-total phase23"><span>Tổng hàng trả</span><b id="mReturnTotal">'+money(totalReturnAmount)+'</b></div><div class="m-return-total phase23 due"><span>Phải thu</span><b id="mProductDueAfterReturn">'+money(Math.max(0,amount(order,"receivable")-totalReturnAmount))+"</b></div></form>"
-;var formEl=el("mProductReturnForm");formEl.addEventListener("submit",function(event){saveReturn(event,{nextTab:"payment",
-successMessage:"Đã xác nhận hàng trả, chuyển sang Thu tiền"})}),bindReturnTotal(formEl,"mReturnTotal"),filterProductRows(productKeyword),
+;var formEl=el("mProductReturnForm");formEl&&(formEl.addEventListener("submit",function(event){saveReturn(event,{nextTab:"payment",
+successMessage:"Đã xác nhận hàng trả, chuyển sang Thu tiền"})}),bindReturnTotal(formEl,"mReturnTotal")),filterProductRows(productKeyword),
 el("mFullReturnOrder")&&el("mFullReturnOrder").addEventListener("click",fullReturnOrder)}else body.innerHTML='<div class="m-empty">Chọn khách/đơn ở danh sách cần giao trước.</div>'
 }(body):isCustomerMode()&&"returns"===state.tab?function(body){var order=currentOrder();if(order){
 var rows=returnedRowsForOrder(order),totalReturnAmount=rows.reduce(function(sum,it){return sum+num(it.returnQty)*num(it.price)},0),hasReturn=rows.length>0
@@ -110,9 +110,9 @@ successMessage:"Đã xóa hàng trả, chuyển sang Thu tiền"})})}else body.i
 }(body):isCustomerMode()&&"payment"===state.tab?function(body){var order=currentOrder();if(order){
 var receivable=amount(order,"receivable"),returnAmount=amount(order,"returnAmount")
 ;body.innerHTML='<section class="m-workflow-step"><b>Bước 3/4 · Thu tiền & xác nhận</b><span>App sẽ lưu tiền rồi xác nhận giao. Nếu thu thiếu, phần còn lại chuyển sang công nợ theo logic backend hiện có.</span></section><section class="m-product-summary payment-context"><div><span>Phải thu</span><b>'+money(receivable)+"</b></div><div><span>Hàng trả</span><b>"+money(returnAmount)+'</b></div><div><span>Còn phải xử lý</span><b id="mPaymentRemainingTop">0</b></div></section><form id="mPaymentForm" class="m-payment-form"><h3>Thu tiền đơn giao</h3><label>Tiền mặt<input name="cash" type="number" min="0" value="'+esc(amount(order,"cash"))+'"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="'+esc(amount(order,"bank"))+'"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="'+esc(amount(order,"reward"))+'"></label><label>Nợ / nợ<input id="mPaymentRemaining" type="text" readonly value="0"></label><p id="mPaymentError" class="m-payment-error" hidden></p></form>'
-;var formEl=el("mPaymentForm");formEl.addEventListener("input",updateRemaining),formEl.addEventListener("submit",savePayment),updateRemaining()
-}else body.innerHTML='<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>';function updateRemaining(){
-var values=readPaymentFormValues(formEl),remaining=Math.max(0,receivable-returnAmount-values.cash-values.bank-values.reward)
+;var formEl=el("mPaymentForm");formEl?(formEl.addEventListener("input",updateRemaining),formEl.addEventListener("submit",savePayment),
+updateRemaining()):msg("Không tải được form thu tiền. Tải lại màn hình giao hàng.",!0)}else body.innerHTML='<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>'
+;function updateRemaining(){var values=readPaymentFormValues(formEl),remaining=Math.max(0,receivable-returnAmount-values.cash-values.bank-values.reward)
 ;el("mPaymentRemaining")&&(el("mPaymentRemaining").value=money(remaining)),el("mPaymentRemainingTop")&&(el("mPaymentRemainingTop").textContent=money(remaining)),
 el("mWorkflowRemaining")&&(el("mWorkflowRemaining").textContent=money(remaining)),showPaymentError(validatePaymentAmounts(order,values))}
 }(body):"customerReconciliation"===state.tab?function(body){var order=currentOrder();if(order){
@@ -123,9 +123,7 @@ var receivable=amount(order,"receivable"),returnAmount=amount(order,"returnAmoun
 var rows=window.DeliveryCore.state.orders||[];rows.length?deliveryOrderRenderer?deliveryOrderRenderer.render(rows,renderOrderCard,{className:"m-delivery-body"
 }):body.innerHTML=rows.map(renderOrderCard).join(""):mobileUiRuntime?mobileUiRuntime.renderState(body,{state:"empty",className:"m-delivery-body",title:"Không có đơn giao."
 }):body.innerHTML='<div class="m-empty">Không có đơn giao.</div>'}(body):function(body){var report=state.reconciliationReport||{},summary=report.summary||{}
-;if(!state.reconciliationLoading||state.reconciliationLoaded){
-if(state.reconciliationError&&!state.reconciliationLoaded)return body.innerHTML='<div class="m-empty danger"><b>Lỗi tải đối soát</b><span>'+esc(state.reconciliationError)+'</span><button id="mRetryReconciliation" type="button">Thử lại</button></div>',
-void el("mRetryReconciliation").addEventListener("click",function(){loadDeliveryReconciliation(!0)});if(state.reconciliationLoaded){
+;if(!state.reconciliationLoading||state.reconciliationLoaded)if(!state.reconciliationError||state.reconciliationLoaded)if(state.reconciliationLoaded){
 var mismatch=!!summary.hasMismatch||Math.abs(function(summary){return num(summary&&summary.difference)
 }(summary))>1e3,orderRows=Array.isArray(report.orders)?report.orders:[],collectionRows=Array.isArray(report.collections)?report.collections:[]
 ;body.innerHTML='<section class="m-recon-header-card'+(mismatch?" danger":"")+'"><div><b>Đối soát ngày '+esc(report.date||el("mDate")&&el("mDate").value||today())+"</b><span>"+(mismatch?"Có chênh lệch cần xử lý":"Đối soát tạm ổn trong ngưỡng cho phép")+'</span></div></section><section class="m-recon-grid">'+renderReconciliationMetric("Đơn đã giao",summary.deliveredOrders||0)+renderReconciliationMetric("Đơn chưa giao",summary.pendingOrders||0)+renderReconciliationMetric("Phải thu",summary.mustCollect||0)+renderReconciliationMetric("Tiền mặt",summary.collectedCash||0)+renderReconciliationMetric("Chuyển khoản",summary.collectedTransfer||0)+renderReconciliationMetric("Nợ",summary.remainingDebt||0,summary.remainingDebt>0)+renderReconciliationMetric("Hàng trả",summary.returnAmount||0)+renderReconciliationMetric("Phiếu chờ KT",summary.pendingDebtCollectionAmount||0,summary.pendingDebtCollections>0)+renderReconciliationMetric("Chênh lệch",summary.difference||0,mismatch)+'</section><section class="m-recon-section"><h3>Đơn cần chú ý</h3>'+(orderRows.filter(function(row){
@@ -134,7 +132,9 @@ return'<article class="m-recon-row"><b>'+esc(row.customerName||row.customerCode|
 }).join("")||'<div class="m-empty">Không có đơn cần chú ý.</div>')+'</section><section class="m-recon-section"><h3>Phiếu thu nợ đã gửi</h3>'+(collectionRows.slice(0,20).map(function(row){
 return'<article class="m-recon-row"><b>'+esc(row.customerName||row.customerCode||row.code)+"</b><span>"+esc(row.code||"")+" · "+esc(row.status||"")+"</span><em>"+money(row.amount||0)+(row.pendingAccounting?" · Chờ kế toán":" · Đã xử lý")+"</em></article>"
 }).join("")||'<div class="m-empty">Chưa có phiếu thu nợ gửi trong ngày.</div>')+"</section>"
-}else body.innerHTML='<div class="m-empty"><b>Chưa tải báo cáo đối soát</b><span>Bấm Tải ở header để đối chiếu tiền, hàng trả và phiếu thu nợ cuối ngày.</span></div>'
+}else body.innerHTML='<div class="m-empty"><b>Chưa tải báo cáo đối soát</b><span>Bấm Tải ở header để đối chiếu tiền, hàng trả và phiếu thu nợ cuối ngày.</span></div>';else{
+body.innerHTML='<div class="m-empty danger"><b>Lỗi tải đối soát</b><span>'+esc(state.reconciliationError)+'</span><button id="mRetryReconciliation" type="button">Thử lại</button></div>'
+;var retryReconciliationButton=el("mRetryReconciliation");retryReconciliationButton&&retryReconciliationButton.addEventListener("click",function(){loadDeliveryReconciliation(!0)})
 }else mobileUiRuntime?mobileUiRuntime.renderState(body,{state:"loading",className:"m-delivery-body",title:"Đang tải đối soát cuối ngày..."
 }):body.innerHTML='<div class="m-empty">Đang tải đối soát cuối ngày...</div>'}(body):renderDebtApp(body)}function renderOrderCard(order){
 return deliveryOrdersView.renderOrderCard(order,{selectedKey:state.selectedKey})}function currentOrder(){return window.DeliveryCore.state.selectedOrder}
@@ -178,10 +178,9 @@ state.debtCacheAt=Date.now(),state.selectedDebtIndex=previousKey?state.debts.fin
 state.selectedDebtIndex<0&&(state.selectedDebtIndex=-1,state.selectedDebtKey="",state.debtFormDirty=!1),msg(""),state.debts}).catch(function(err){
 if(requestSeq!==state.debtRequestSeq)return state.debts;throw append||(state.debtLoaded=!1,state.debtCacheAt=0),state.debtError=err.message||"Không tải được công nợ giao hàng",
 msg(state.debtError,!0),err}).finally(function(){requestSeq===state.debtRequestSeq&&(state.debtLoading=!1,state.debtLoadingMore=!1,state.debtPromise=null,render())}),
-state.debtPromise}function renderDebtApp(body){var rows=state.debts||[],summary=state.debtSummary||{};if(!state.debtLoading||rows.length){
-if(state.debtError&&!rows.length)return body.innerHTML='<div class="m-empty danger"><b>Không tải được công nợ</b><span>'+esc(state.debtError)+'</span><button id="mRetryDebt" type="button">Thử lại</button></div>',
-void el("mRetryDebt").addEventListener("click",function(){state.debtError="",loadDeliveryDebts(!0)});var selected=state.selectedDebtKey&&(state.debts||[]).find(function(customer){
-return deliveryDebtCustomerKey(customer)===state.selectedDebtKey})||null,customerTabActive="collect"!==state.debtSubtab
+state.debtPromise}function renderDebtApp(body){var rows=state.debts||[],summary=state.debtSummary||{};if(!state.debtLoading||rows.length)if(!state.debtError||rows.length){
+var selected=state.selectedDebtKey&&(state.debts||[]).find(function(customer){return deliveryDebtCustomerKey(customer)===state.selectedDebtKey
+})||null,customerTabActive="collect"!==state.debtSubtab
 ;body.innerHTML='<section class="m-debt-summary"><div><span>Tổng nợ</span><b>'+money(summary.totalDebt||0)+"</b></div><div><span>Chờ KT</span><b>"+money(summary.pendingCollected||summary.pendingCollectedAmount||0)+"</b></div><div><span>Có thể thu</span><b>"+money(summary.availableDebt||summary.availableDebtAmount||0)+"</b></div><div><span>Khách nợ</span><b>"+esc(summary.customerCount||rows.length)+'</b></div></section><div class="m-action-row m-debt-reload-row"><button id="mReloadDebt" type="button">Tải lại công nợ</button></div><div class="debt-subtabs m-debt-subtabs" role="tablist" aria-label="Nghiệp vụ công nợ"><button id="mDebtCustomersSubtab" type="button" class="debt-subtab'+(customerTabActive?" active":"")+'" role="tab" aria-selected="'+customerTabActive+'">Khách nợ</button><button id="mDebtCollectSubtab" type="button" class="debt-subtab'+(customerTabActive?"":" active")+'" role="tab" aria-selected="'+!customerTabActive+'">Thu nợ</button></div><section id="mDebtCustomersPanel" class="debt-subpanel'+(customerTabActive?" active":"")+'"><div class="debt-list-toolbar"><input id="mDebtCustomerSearch" type="search" value="'+esc(state.debtSearch)+'" placeholder="Tìm mã / tên / SĐT khách hàng" aria-label="Tìm khách hàng đang nợ"><select id="mDebtCustomerSort" aria-label="Sắp xếp danh sách công nợ"><option value="debt_desc"'+("debt_desc"===state.debtSort?" selected":"")+'>Nợ cao nhất</option><option value="available_desc"'+("available_desc"===state.debtSort?" selected":"")+'>Có thể thu cao nhất</option><option value="oldest_asc"'+("oldest_asc"===state.debtSort?" selected":"")+'>Nợ cũ nhất</option></select></div><div id="mDebtCustomerList" class="m-debt-list"></div><div id="mDebtPaging" class="m-debt-paging"></div></section><section id="mDebtCollectPanel" class="debt-subpanel'+(customerTabActive?"":" active")+'"><div id="mDebtDetailContainer" class="m-debt-detail">'+function(customer){
 if(!customer)return'<div class="m-empty debt-empty-state"><b>Chưa chọn khách hàng để thu nợ</b><span>Chọn một khách hàng trong tab Khách nợ để mở biểu mẫu.</span><button id="mChooseDebtCustomer" type="button" class="m-debt-empty-action">Chọn khách hàng</button></div>'
 ;var orders=debtOrderRows(customer)
@@ -216,7 +215,9 @@ msg(err.message||"Không gửi được phiếu thu nợ",!0),submitButton&&(sub
 }else msg("Cần chọn ít nhất một đơn nợ",!0)}}(event,selected)})),body.querySelectorAll(".m-debt-order-check").forEach(function(input){input.addEventListener("change",function(){
 !function(customer){var orders=debtOrderRows(customer),total=0;document.querySelectorAll(".m-debt-order-check:checked").forEach(function(input){
 var index=Number(input.getAttribute("data-index")),order=orders[index];if(order){var available=order.availableDebt;null==available&&(available=order.debt),total+=num(available||0)}
-});var amountInput=el("mDeliveryDebtAmount");amountInput&&(amountInput.value=Math.max(0,Math.round(total)))}(selected),state.debtFormDirty=!0})})
+});var amountInput=el("mDeliveryDebtAmount");amountInput&&(amountInput.value=Math.max(0,Math.round(total)))}(selected),state.debtFormDirty=!0})})}else{
+body.innerHTML='<div class="m-empty danger"><b>Không tải được công nợ</b><span>'+esc(state.debtError)+'</span><button id="mRetryDebt" type="button">Thử lại</button></div>'
+;var retryDebtButton=el("mRetryDebt");retryDebtButton&&retryDebtButton.addEventListener("click",function(){state.debtError="",loadDeliveryDebts(!0)})
 }else mobileUiRuntime?mobileUiRuntime.renderState(body,{state:"loading",className:"m-delivery-body",title:"Đang tải công nợ..."
 }):body.innerHTML='<div class="m-empty">Đang tải công nợ...</div>'}function renderDeliveryDebtCustomerList(){var list=el("mDebtCustomerList");if(list){
 var keyword,rows,entries=(keyword=String(state.debtSearch||"").trim().toLowerCase(),(rows=(state.debts||[]).map(function(customer,originalIndex){return{customer:customer,

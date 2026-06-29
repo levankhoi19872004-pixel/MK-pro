@@ -81,7 +81,7 @@
         "src/services/fundService.source/part-02.jsfrag",
         "src/services/fundService.source/part-03.jsfrag"
       ],
-      "sourceSha256": "8224800c8888a951641cef7d5185de794d5b995189eb0fd0af1dd9d822fabd3f"
+      "sourceSha256": "aa7bfaede45afc6989b8bb2e624d65de422990e671299cbb9d4429a671570dde"
     },
     {
       "target": "src/services/inventoryService.js",
@@ -91,7 +91,7 @@
         "src/services/inventoryService.source/part-02.jsfrag",
         "src/services/inventoryService.source/part-03.jsfrag"
       ],
-      "sourceSha256": "0e5e4a892598409697304d307fed355e334df4234443c45d296591ff9ee6bf87"
+      "sourceSha256": "82c1b1e63e4bbe863e700a0c07bc0b176ee692a2f1b513dcb84668384e7ce214"
     },
     {
       "target": "templates/printTemplates.js",
@@ -177,11 +177,11 @@
     {
       "target": "public/mobile/js/delivery-mobile-view.js",
       "mode": "classic-single",
-      "sourceSha256": "1a48a4cf5cead5d84784167aa4294bee3ef59d91cd69b1168a4f93796af4ad75",
+      "sourceSha256": "7d37e4a1cb2cbb0cf7ea9179a4c5b850a74c960a48fe292d78be97c349912729",
       "canonicalSource": "public/mobile/js/delivery-mobile-view.source.js",
       "sourceMap": true,
       "sourceMapTarget": "public/mobile/js/delivery-mobile-view.js.map",
-      "executableSha256": "fbea11ed19c456f765d05df224053d32f80d3c3a0f54096fd95acf5724810488"
+      "executableSha256": "700413ffecb8aba0e0d7b145ae9f02ec7fa29ab33b79c3fdc971d913c1a9f5a4"
     },
     {
       "target": "public/mobile/mobile.css",

@@ -16,6 +16,12 @@ module.exports = flexModel('InventoryLegacy', 'inventories', {
   availableQty: Number,
   qty: Number,
   quantity: Number,
+  status: String,
+  inventoryStatus: String,
+  mergedToProductCode: String,
+  mergedToWarehouseCode: String,
+  mergedAt: String,
+  mergeReason: String,
   lastTransactionAt: String,
   updatedAt: String
 });
