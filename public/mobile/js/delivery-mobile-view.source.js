@@ -310,7 +310,6 @@ function renderCustomerContext() {
 var context = el('mCustomerContext');
 if (!context) return;
 var order = currentOrder();
-bar.className = 'm-workflow-bar delivery-one-hand-bar m-delivery-bottom-action';
 if (!isCustomerMode() || !order) {
 context.hidden = true;
 context.innerHTML = '';

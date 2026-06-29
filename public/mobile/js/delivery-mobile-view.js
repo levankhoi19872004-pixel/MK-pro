@@ -77,7 +77,7 @@ if("returns"===state.tab)return function(order){return returnedRowsForOrder(orde
 rootEl=el("mobileDeliveryRoot"),filter&&(filter.hidden=!listMode),kpis&&(kpis.hidden=!listMode),rootEl&&(rootEl.classList.toggle("list-workflow-mode",listMode),
 rootEl.classList.toggle("customer-workflow-mode",!listMode)),rows=window.DeliveryCore.state.orders||[],s=buildRouteKpi(rows),
 el("mKpiTotalOrders")&&(el("mKpiTotalOrders").textContent=String(s.total||0)),el("mKpiPt")&&(el("mKpiPt").textContent=money(s.pt)),function(){var context=el("mCustomerContext")
-;if(context){var order=currentOrder();if(bar.className="m-workflow-bar delivery-one-hand-bar m-delivery-bottom-action",!isCustomerMode()||!order)return context.hidden=!0,
+;if(context){var order=currentOrder();if(!isCustomerMode()||!order)return context.hidden=!0,
 void(context.innerHTML="")
 ;var address=deliveryMobileUi.orderAddress?deliveryMobileUi.orderAddress(order):"",name=order.customerName||order.customerCode||order.orderCode||"Khách đang giao",customerCode=order.customerCode||order.customerId||""
 ;context.hidden=!1,
