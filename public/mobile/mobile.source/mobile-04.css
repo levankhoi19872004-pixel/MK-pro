@@ -179,3 +179,33 @@
 /* PHASE29_DELIVERY_ROUTE_TRACKING_START */
 .m-route-tracking{margin:8px 0}.m-route-tracking-card{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #cfe0f5;border-radius:14px;background:#fff;padding:8px 10px;font-size:13px;font-weight:700;color:#1f3556}.m-route-tracking-card.active{border-color:#86efac;background:#ecfdf5;color:#166534}.m-route-tracking-card.loading{background:#eff6ff}.m-route-tracking-card button{border:0;border-radius:10px;padding:8px 12px;font-weight:800;background:#2563eb;color:#fff}.m-route-tracking-card button.secondary{background:#e2e8f0;color:#1f2937}.m-route-tracking-card.active button{background:#dc2626}.m-route-tracking-error{display:block;color:#b91c1c;margin:4px 8px;font-weight:700}.route-tracking-admin-panel{margin-top:12px;border:1px solid #d8e4f2;border-radius:14px;padding:12px;background:#f8fbff}.route-tracking-admin-panel .route-tracking-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:end}.route-tracking-admin-panel input{min-height:36px;border:1px solid #cbd5e1;border-radius:10px;padding:6px 10px}.route-tracking-admin-panel button{min-height:36px;border:0;border-radius:10px;padding:6px 12px;font-weight:800;background:#2563eb;color:#fff}.route-tracking-list{display:grid;gap:8px;margin-top:10px}.route-session-card{border:1px solid #dbeafe;border-radius:12px;padding:10px;background:#fff}.route-session-card b{display:block}.route-session-card small{display:block;color:#475569;margin-top:3px}.route-session-card a{display:inline-block;margin-top:6px;color:#1d4ed8;font-weight:800}
 /* PHASE29_DELIVERY_ROUTE_TRACKING_END */
+
+/* DELIVERY_COMPACT_MAIN_UI_CONTRACT_START */
+/* Compact header contract: primary action stays visible; secondary actions live in overflow menu. */
+.delivery-header--compact{display:none!important;}
+.m-delivery-header-main.compact{min-width:0;}
+.m-delivery-header-actions.dedupe.compact{grid-template-columns:auto auto;align-items:center;gap:6px;}
+.delivery-overflow-menu.delivery-secondary-actions{min-width:180px;}
+.m-header-primary-action{min-height:40px;white-space:nowrap;}
+/* Main KPI contract: only route count and must-collect are visible in the main row. */
+.m-delivery-kpis.workflow.delivery-main-kpis.compact{grid-template-columns:repeat(2,minmax(0,1fr));}
+.m-delivery-kpis.workflow.delivery-main-kpis.compact .m-main-kpi-card{min-width:0;}
+.m-delivery-kpis.workflow.delivery-main-kpis.compact .route-count b,
+.m-delivery-kpis.workflow.delivery-main-kpis.compact .must-collect b{font-size:18px;}
+/* Primary navigation contract: customer workflow exposes four primary tabs only. */
+.m-delivery-tabs.workflow.split-mode.customer-mode{grid-template-columns:repeat(4,minmax(0,1fr));}
+.m-delivery-tabs.workflow.split-mode.customer-mode button{min-height:44px;white-space:nowrap;}
+/* Compact order card contract: only one financial metric is exposed on the card. */
+.m-order-workflow-summary.compact.must-collect-only{grid-template-columns:minmax(0,1fr) minmax(104px,.48fr);}
+.m-order-workflow-summary.compact.must-collect-only .m-order-must-collect{border-color:#bbf7d0;background:#f0fdf4;}
+.m-order-workflow-summary.compact.must-collect-only .m-order-must-collect b{color:#047857;}
+/* One-hand bottom action contract. */
+.m-workflow-bar.delivery-one-hand-bar.delivery-bottom-action{bottom:calc(8px + env(safe-area-inset-bottom));z-index:45;}
+.m-workflow-bar.delivery-one-hand-bar .m-workflow-actions.step-only.phase24 button{min-height:44px;}
+.m-workflow-bar.delivery-one-hand-bar [data-action="primary"]{min-height:46px;}
+@media (max-width:380px){
+  .m-delivery-tabs.workflow.split-mode.customer-mode{grid-template-columns:repeat(4,84px);overflow-x:auto;scrollbar-width:none;}
+  .m-delivery-tabs.workflow.split-mode.customer-mode::-webkit-scrollbar{display:none;}
+  .m-order-workflow-summary.compact.must-collect-only{grid-template-columns:1fr;}
+}
+/* DELIVERY_COMPACT_MAIN_UI_CONTRACT_END */

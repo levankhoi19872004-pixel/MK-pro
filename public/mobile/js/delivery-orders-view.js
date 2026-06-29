@@ -68,8 +68,8 @@
     var phone = ui.orderPhone(order);
     var note = ui.orderNote(order);
     var salesStaff = ui.orderSalesStaff(order);
-    var returnAmount = amount(order, 'returnAmount');
-    var debtAmount = amount(order, 'debt');
+    var productBrief = orderProductSummary(order);
+    var mustCollect = amount(order, 'receivable');
     var phoneUrl = ui.phoneHref(phone);
     var phoneAction = phoneUrl ? '<a class="m-order-flow-btn call" href="' + esc(phoneUrl) + '">Gọi</a>' : '';
     var mapAction = address ? '<button type="button" class="m-order-flow-btn map" data-delivery-map data-map-address="' + esc(address) + '" data-map-customer="' + esc(order.customerName || order.customerCode || 'Khách hàng') + '">Bản đồ</button>' : '';
@@ -82,11 +82,9 @@
         '</div>' +
         (address ? '<p class="m-order-line m-order-address">Địa chỉ: ' + esc(address) + '</p>' : '') +
         (salesStaff ? '<p class="m-order-line">NVBH: ' + esc(salesStaff) + '</p>' : '') +
-        '<div class="m-order-workflow-summary">' +
-          '<span><em>Hàng giao</em><b>' + esc(orderProductSummary(order)) + '</b></span>' +
-          '<span><em>Phải thu</em><b>' + money(amount(order, 'receivable')) + '</b></span>' +
-          '<span><em>Trả hàng</em><b>' + (returnAmount > 0 ? money(returnAmount) : 'Chưa có') + '</b></span>' +
-          '<span><em>Còn thiếu</em><b>' + (debtAmount > 0 ? money(debtAmount) : 'Đủ') + '</b></span>' +
+        '<div class="m-order-workflow-summary compact must-collect-only" data-card-metrics="must-collect">' +
+          '<span class="m-order-product-brief"><em>Hàng giao</em><b>' + esc(productBrief) + '</b></span>' +
+          '<span class="m-order-must-collect" data-financial-metric="must-collect"><em>Cần thu</em><b>' + money(mustCollect) + '</b></span>' +
         '</div>' +
         (note ? '<p class="m-order-note">Ghi chú: ' + esc(note) + '</p>' : '') +
       '</button>' +

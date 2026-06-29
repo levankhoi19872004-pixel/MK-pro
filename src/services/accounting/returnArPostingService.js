@@ -29,7 +29,10 @@ const INACTIVE_STATUSES = Object.freeze([
   'deleted',
   'removed',
   'duplicate_cancelled',
-  'cleared'
+  'cleared',
+  'reversed',
+  'reverse',
+  'inactive'
 ]);
 const CONFIRMED_ACCOUNTING_STATUSES = Object.freeze(['confirmed', 'locked', 'posted', 'accounting_confirmed']);
 
@@ -179,8 +182,13 @@ function buildIdempotencyKey(returnOrder = {}, options = {}) {
 function activeArReturnBaseQuery() {
   return {
     status: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
+    lifecycleStatus: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
+    accountingStatus: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
     reversed: { $ne: true },
     isDeleted: { $ne: true },
+    deleted: { $ne: true },
+    deletedAt: { $in: [null, ''] },
+    rollbackStatus: { $ne: 'reversed' },
     $or: [
       { type: AR_RETURN_TYPE },
       { type: AR_RETURN_LEDGER_TYPE },
@@ -219,7 +227,10 @@ function buildActiveArReturnLookup(returnOrder = {}, options = {}) {
       { sourceCode: { $in: returnKeys } }
     );
   }
-  if (orderKeys.length) {
+  // Chỉ dùng định danh SalesOrder làm fallback khi thiếu định danh returnOrder legacy.
+  // Nếu đã có returnOrderId/code/sourceId thì OR theo order sẽ bắt nhầm các phiếu trả khác
+  // trong cùng đơn bán và gây P0 giả. Duplicate active phải được khóa theo returnOrder source.
+  if (!returnKeys.length && !idempotencyKey && orderKeys.length) {
     or.push(
       { orderId: { $in: orderKeys } },
       { orderCode: { $in: orderKeys } },
@@ -273,7 +284,13 @@ function publicLedger(row = {}) {
     idempotencyKey: row.idempotencyKey,
     amount: row.amount,
     credit: row.credit,
-    status: row.status
+    status: row.status,
+    accountingStatus: row.accountingStatus,
+    lifecycleStatus: row.lifecycleStatus,
+    orderId: row.orderId || row.salesOrderId || row.sourceOrderId,
+    orderCode: row.orderCode || row.salesOrderCode || row.sourceOrderCode,
+    customerCode: row.customerCode || row.customerId,
+    createdAt: row.createdAt
   };
 }
 
@@ -301,12 +318,18 @@ async function resolveExistingArReturnGuard(returnOrder = {}, validation = {}, o
 
   const existingRows = await findActiveArReturnsForReturnOrder(returnOrder, options);
   if (existingRows.length > 1) {
+    const returnOrderLabel = returnOrder.code || returnOrder.returnOrderCode || returnOrder.id || returnOrder._id || '';
+    const orderLabel = returnOrder.orderCode || returnOrder.salesOrderCode || returnOrder.orderId || returnOrder.salesOrderId || '';
     throw makeArReturnDuplicateError('P0: Có nhiều AR-RETURN active cùng nguồn returnOrder; dừng để kiểm tra dữ liệu bẩn.', {
       reason: 'duplicate_active_return_order_source',
       idempotencyKey,
-      returnOrder: returnOrder.code || returnOrder.id || returnOrder._id || '',
+      returnOrder: returnOrderLabel,
+      orderCode: orderLabel,
+      customerCode: returnOrder.customerCode || returnOrder.customerId || '',
       count: existingRows.length,
-      ledgers: existingRows.map(publicLedger)
+      ledgers: existingRows.map(publicLedger),
+      auditCommand: `node scripts/audit-ar-return-duplicates.js ${orderLabel ? `--orderCode ${orderLabel}` : ''}`.trim(),
+      repairDryRunCommand: `node scripts/repair-ar-return-duplicates.js --dry-run ${orderLabel ? `--orderCode ${orderLabel}` : ''}`.trim()
     });
   }
   if (existingRows.length === 1) {

@@ -89,7 +89,11 @@
     "audit:ar-salesorder-debt-cache": "node scripts/audit-ar-salesorder-debt-cache.js --dry-run",
     "audit:ar-salesorder-debt-cache:json": "node scripts/audit-ar-salesorder-debt-cache.js --json",
     "reconcile:external-debt-ar": "node scripts/reconcile-external-debt-ar.js --dry-run",
-    "reconcile:external-debt-ar:json": "node scripts/reconcile-external-debt-ar.js --json"
+    "reconcile:external-debt-ar:json": "node scripts/reconcile-external-debt-ar.js --json",
+    "audit:ar-return-duplicates": "node scripts/audit-ar-return-duplicates.js",
+    "audit:ar-return-duplicates:json": "node scripts/audit-ar-return-duplicates.js --json",
+    "repair:ar-return-duplicates:dry": "node scripts/repair-ar-return-duplicates.js --dry-run",
+    "repair:ar-return-duplicates": "node scripts/repair-ar-return-duplicates.js --apply"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

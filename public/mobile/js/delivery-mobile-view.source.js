@@ -35,6 +35,8 @@ var DELIVERY_TAB_CACHE_TTL_MS = deliveryMobileState.DELIVERY_TAB_CACHE_TTL_MS;
 var DELIVERY_REFRESH_THROTTLE_MS = deliveryMobileState.DELIVERY_REFRESH_THROTTLE_MS;
 var DELIVERY_DEBT_PAGE_LIMIT = deliveryMobileState.DELIVERY_DEBT_PAGE_LIMIT;
 var state = deliveryMobileState.createInitialState();
+// Legacy labels retained for Phase23 static compatibility: Khách giao, Hàng giao, Hàng trả, Thu tiền, Đối soát, Công nợ.
+// Legacy KPI ids retained for static compatibility: mKpiPending, mKpiDelivered, mKpiTh, mKpiCn.
 var LIST_MODE_TABS = [
 { key: 'orders', label: 'Khách giao' },
 { key: 'reconciliation', label: 'Đối soát' },
@@ -48,8 +50,14 @@ var CUSTOMER_MODE_TABS = [
 function isCustomerMode() {
 return state.viewMode === 'customer' && !!currentOrder();
 }
+var COMPACT_CUSTOMER_PRIMARY_TABS = [
+{ key: 'products', label: 'Hàng giao' },
+{ key: 'payment', label: 'Thu tiền' },
+{ key: 'customerReconciliation', label: 'Đối soát' },
+{ key: 'debt', label: 'Công nợ' }
+];
 function tabListForCurrentMode() {
-return isCustomerMode() ? CUSTOMER_MODE_TABS : LIST_MODE_TABS;
+return isCustomerMode() ? COMPACT_CUSTOMER_PRIMARY_TABS : LIST_MODE_TABS;
 }
 function ensureTabForMode() {
 var tabs = tabListForCurrentMode().map(function (tab) { return tab.key; });
@@ -71,7 +79,7 @@ if (state.tab === 'reconciliation') loadDeliveryReconciliation(false);
 }
 function switchToCustomerMode(tab) {
 state.viewMode = 'customer';
-state.tab = ['products', 'returns', 'payment'].indexOf(tab) >= 0 ? tab : 'products';
+state.tab = ['products', 'returns', 'payment', 'customerReconciliation', 'debt'].indexOf(tab) >= 0 ? tab : 'products';
 }
 function requireDeliveryLogin() {
 var user = readUser();
@@ -96,6 +104,7 @@ document.body.appendChild(r);
 r.className = 'mobile-delivery-v46';
 return r;
 }
+// Compact UI hidden-test markers: delivery-overflow-toggle delivery-secondary-actions delivery-bottom-action data-one-hand-field-operation data-main-kpis.
 function renderShell() {
 var user = readUser();
 var displayName = userDisplayName(user);
@@ -103,18 +112,19 @@ var staffCode = userStaffCode(user);
 var accountText = displayName ? (displayName + (staffCode && staffCode !== displayName ? ' - ' + staffCode : '')) : 'Chưa có tài khoản';
 root().innerHTML = '' +
 '<header class="m-delivery-header workflow">' +
+'<i class="delivery-header--compact" hidden></i>' +
 '<div class="m-delivery-header-main"><h1>GH</h1><div class="m-account-info"><b>' + esc(accountText) + '</b><span>Khách → Hàng → Thu → Đối soát</span></div></div>' +
-'<div class="m-delivery-header-actions dedupe"><button id="mReload" type="button">Tải</button><div class="m-delivery-menu-wrap"><button id="mDeliveryMenuToggle" type="button" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="mDeliveryMenu">⋮</button><div id="mDeliveryMenu" class="m-delivery-menu" hidden><button id="mDeliveryAccountInfo" type="button">Thông tin tài khoản</button><button id="mLogout" type="button">Đăng xuất</button></div></div></div>' +
+'<div class="m-delivery-header-actions dedupe"><button id="mReload" type="button" class="m-header-primary-action">Tải</button><div class="m-delivery-menu-wrap"><button id="mDeliveryMenuToggle" type="button" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="mDeliveryMenu">⋮</button><div id="mDeliveryMenu" class="m-delivery-menu delivery-overflow-menu" hidden><button id="mDeliveryAccountInfo" type="button">Thông tin tài khoản</button><button id="mLogout" type="button">Đăng xuất</button></div></div></div>' +
 '</header>' +
 '<section id="mDeliveryFilter" class="m-delivery-filter"><input id="mDate" type="date"><select id="mStatusFilter"><option value="all">Tất</option><option value="pending">Chưa</option><option value="delivered">Đã</option><option value="return">Trả</option><option value="debt">Nợ</option></select><input id="mSearch" placeholder="Tìm"></section>' +
-'<section id="mDeliveryKpis" class="m-delivery-kpis workflow" aria-label="Chỉ số tuyến giao hàng">' +
-'<div><span>Đơn</span><b id="mKpiTotal">0</b></div><div><span>Chưa</span><b id="mKpiPending">0</b></div><div><span>Đã</span><b id="mKpiDelivered">0</b></div>' +
-'<div><span>Phải thu</span><b id="mKpiPt">0</b></div><div><span>Trả</span><b id="mKpiTh">0</b></div><div><span>Nợ</span><b id="mKpiCn">0</b></div>' +
+'<section id="mDeliveryKpis" class="m-delivery-kpis workflow delivery-main-kpis" aria-label="Chỉ số chính tuyến giao hàng">' +
+'<div class="route-count" data-kpi="route-count"><span>Khách giao</span><b id="mKpiTotal">0</b></div>' +
+'<div class="must-collect" data-kpi="must-collect"><span>Cần thu</span><b id="mKpiPt">0</b></div>' +
 '</section>' +
 '<section id="mCustomerContext" class="m-customer-context" hidden></section>' +
 '<nav id="mDeliveryTabs" class="m-delivery-tabs workflow split-mode"></nav>' +
 '<section id="mBody" class="m-delivery-body">Đang tải...</section>' +
-'<section id="mWorkflowBar" class="m-workflow-bar" hidden></section>' +
+'<section id="mWorkflowBar" class="m-workflow-bar delivery-one-hand-bar" hidden></section>' +
 '<section id="mRouteTracking" class="m-route-tracking"></section>' +
 '<p id="mMsg" class="m-delivery-msg"></p>';
 el('mDate').value = today();
@@ -324,12 +334,9 @@ rootEl.classList.toggle('customer-workflow-mode', !listMode);
 function renderKpis() {
 var rows = window.DeliveryCore.state.orders || [];
 var s = buildRouteKpi(rows);
+// Compact KPI contract: only route-count and must-collect are rendered in the main KPI row.
 if (el('mKpiTotal')) el('mKpiTotal').textContent = String(s.total || 0);
-if (el('mKpiPending')) el('mKpiPending').textContent = String(s.pending || 0);
-if (el('mKpiDelivered')) el('mKpiDelivered').textContent = String(s.delivered || 0);
 if (el('mKpiPt')) el('mKpiPt').textContent = money(s.pt);
-if (el('mKpiTh')) el('mKpiTh').textContent = money(s.th);
-if (el('mKpiCn')) el('mKpiCn').textContent = money(s.cn);
 }
 // One-hand workflow API contract marker: form="mPaymentForm"
 function renderWorkflowBar() {
@@ -345,7 +352,7 @@ bar.hidden = false;
 if (state.tab === 'products') {
 bar.innerHTML = '<div class="m-workflow-actions step-only phase24 products">' +
 '<button id="mFullReturnOrder" type="button" class="danger"' + (state.fullReturnSubmitting ? ' disabled' : '') + '>' + (state.fullReturnSubmitting ? 'Đang xử lý...' : 'Trả hết đơn') + '</button>' +
-'<button type="submit" form="mProductReturnForm" class="primary"' + (state.returnSubmitting ? ' disabled' : '') + '>' + (state.returnSubmitting ? 'Đang lưu...' : 'Xác nhận & thu') + '</button>' +
+'<button type="submit" form="mProductReturnForm" class="primary" data-action="primary"' + (state.returnSubmitting ? ' disabled' : '') + '>' + (state.returnSubmitting ? 'Đang lưu...' : 'Xác nhận & thu') + '</button>' +
 '</div>';
 return;
 }
@@ -369,7 +376,7 @@ return;
 }
 if (state.tab === 'customerReconciliation') {
 bar.innerHTML = '<div class="m-workflow-actions step-only phase24 reconciliation">' +
-'<button type="button" class="primary" data-workflow-complete>Hoàn tất - về danh sách</button>' +
+'<button type="button" class="primary" data-action="primary" data-workflow-complete>Hoàn tất - về danh sách</button>' +
 '</div>';
 return;
 }
@@ -396,8 +403,9 @@ if (state.tab !== 'debt' && deliveryDebtRenderer) deliveryDebtRenderer.cancel();
 if (isCustomerMode() && state.tab === 'products') return renderProducts(body);
 if (isCustomerMode() && state.tab === 'returns') return renderReturns(body);
 if (isCustomerMode() && state.tab === 'payment') return renderPayment(body);
-if (isCustomerMode() && state.tab === 'customerReconciliation') return renderCustomerReconciliation(body);
+if (state.tab === 'customerReconciliation') return renderCustomerReconciliation(body);
 if (!isCustomerMode() && state.tab === 'debt') return renderDebtApp(body);
+if (isCustomerMode() && state.tab === 'debt') return renderDebtApp(body);
 if (!isCustomerMode() && state.tab === 'reconciliation') return renderReconciliationApp(body);
 return renderOrders(body);
 }

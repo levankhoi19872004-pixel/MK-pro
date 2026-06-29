@@ -66,7 +66,18 @@ function pickLedgerRef(row = {}) {
     returnOrderId: clean(row.returnOrderId),
     returnOrderCode: clean(row.returnOrderCode),
     idempotencyKey: clean(row.idempotencyKey),
+    amount: Number(row.amount || row.credit || row.debit || 0),
+    credit: Number(row.credit || 0),
+    debit: Number(row.debit || 0),
+    orderId: clean(row.orderId || row.salesOrderId || row.sourceOrderId || row.refId),
+    orderCode: clean(row.orderCode || row.salesOrderCode || row.sourceOrderCode || row.refCode),
+    customerCode: clean(row.customerCode || row.customerId),
+    accountingBatchId: clean(row.accountingBatchId || row.reAccountingBatchId),
+    createdAt: clean(row.createdAt),
+    updatedAt: clean(row.updatedAt),
     status: clean(row.status),
+    lifecycleStatus: clean(row.lifecycleStatus),
+    accountingStatus: clean(row.accountingStatus),
     reversed: row.reversed === true,
     isDeleted: row.isDeleted === true
   };
@@ -103,6 +114,30 @@ function countDuplicateRows(map) {
   return count;
 }
 
+function canonicalBusinessKey(row = {}) {
+  const sourceType = normalizeSourceType(row.sourceType || row.refType || 'returnOrder');
+  const returnKey = clean(row.returnOrderId || row.returnOrderCode || row.sourceId || row.sourceCode || row.refId || row.refCode);
+  const orderKey = clean(row.salesOrderId || row.salesOrderCode || row.orderId || row.orderCode || row.sourceOrderId || row.sourceOrderCode || row.refCode);
+  const customerKey = clean(row.customerCode || row.customerId);
+  if (!returnKey) return '';
+  return [sourceType || CANONICAL_SOURCE_TYPE, returnKey, orderKey || '-', customerKey || '-'].join('|');
+}
+
+function activeArReturnDuplicateGroups(rows = []) {
+  const activeRows = (rows || []).filter((row) => isArReturnLedger(row) && !isInactiveArReturnLedger(row));
+  const map = groupBy(activeRows, canonicalBusinessKey);
+  return [...map.entries()]
+    .filter(([, groupRows]) => groupRows.length > 1)
+    .map(([key, groupRows]) => ({
+      key,
+      count: groupRows.length,
+      returnOrderKey: clean(groupRows[0].returnOrderId || groupRows[0].returnOrderCode || groupRows[0].sourceId || groupRows[0].sourceCode || groupRows[0].refId || groupRows[0].refCode),
+      orderCode: clean(groupRows[0].orderCode || groupRows[0].salesOrderCode || groupRows[0].sourceOrderCode || groupRows[0].refCode),
+      customerCode: clean(groupRows[0].customerCode || groupRows[0].customerId),
+      rows: groupRows.map(pickLedgerRef)
+    }));
+}
+
 function normalizeSourceType(value = '') {
   const raw = clean(value);
   if (!raw) return '';
@@ -133,11 +168,19 @@ function summarizeArReturnIdempotency(arReturnRows = [], allLedgerRowsWithIdempo
   const duplicateReturnOrderCodeMap = groupBy(rows, (row) => row.returnOrderCode || row.sourceCode || row.refCode);
   const duplicateActiveReturnOrderCodeMap = groupBy(activeRows, (row) => row.returnOrderCode || row.sourceCode || row.refCode);
   const duplicateGlobalIdempotencyMap = groupBy(allLedgerRowsWithIdempotency || [], (row) => row.idempotencyKey);
+  const duplicateActiveBusinessCases = activeArReturnDuplicateGroups(rows).map((group) => ({
+    severity: 'P0',
+    issue: 'duplicate_active_returnOrder_business_dimension',
+    key: group.key,
+    count: group.count,
+    examples: group.rows
+  }));
 
   const p0Cases = [
     ...duplicateCases(duplicateIdempotencyMap, 'duplicate_idempotencyKey'),
     ...duplicateCases(duplicateSourceMap, 'duplicate_sourceType_sourceId'),
     ...duplicateCases(duplicateReturnOrderCodeMap, 'duplicate_returnOrderCode'),
+    ...duplicateActiveBusinessCases,
     ...rowsMissingIdempotencyKey.map((row) => ({ severity: 'P0', issue: 'missing_idempotencyKey', key: clean(row.code || row.id || row._id), count: 1, examples: [pickLedgerRef(row)] })),
     ...rowsMissingSource.map((row) => ({ severity: 'P0', issue: 'missing_sourceId_or_sourceCode', key: clean(row.code || row.id || row._id), count: 1, examples: [pickLedgerRef(row)] })),
     ...rowsWithNonCanonicalSourceType.map((row) => ({ severity: 'P1', issue: 'non_canonical_sourceType', key: clean(row.code || row.id || row._id), count: 1, examples: [pickLedgerRef(row)] }))
@@ -165,6 +208,7 @@ function summarizeArReturnIdempotency(arReturnRows = [], allLedgerRowsWithIdempo
       duplicateReturnOrderCodeGroups: countDuplicateGroups(duplicateReturnOrderCodeMap),
       duplicateReturnOrderCodeRows: countDuplicateRows(duplicateReturnOrderCodeMap),
       duplicateActiveReturnOrderCodeGroups: countDuplicateGroups(duplicateActiveReturnOrderCodeMap),
+      duplicateActiveBusinessGroups: duplicateActiveBusinessCases.length,
       duplicateGlobalIdempotencyKeyGroups: countDuplicateGroups(duplicateGlobalIdempotencyMap),
       p0Cases: p0Cases.filter((item) => item.severity === 'P0').length,
       p1Cases: p0Cases.filter((item) => item.severity !== 'P0').length
@@ -194,6 +238,8 @@ module.exports = {
   isArReturnLedger,
   isInactiveArReturnLedger,
   normalizeSourceType,
+  canonicalBusinessKey,
+  activeArReturnDuplicateGroups,
   summarizeArReturnIdempotency,
   hasBlockingIssues
 };
