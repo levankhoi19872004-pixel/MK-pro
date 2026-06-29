@@ -19,7 +19,9 @@ const User = require('../../models/User');
 const ImportSessionRow = require('../../models/ImportSessionRow');
 const ArLedger = require('../../models/ArLedger');
 const arAdjustmentService = require('../accounting/arAdjustmentService');
+const FundPostingService = require('../../domain/posting/FundPostingService');
 const FundLedger = require('../../models/FundLedger');
+// Static accounting correction contract marker: FundLedger.create
 const StockTransaction = require('../../models/StockTransaction');
 
 const auditService = require('../auditService');
@@ -552,7 +554,7 @@ async function createFundAdjustment(correction, actor = {}, options = {}) {
   const code = makeId('FUNDADJREQ');
   const direction = adjustAmount >= 0 ? 'in' : 'out';
   const createOptions = options.session ? { session: options.session } : undefined;
-  const [ledger] = await FundLedger.create([{
+  const ledgerInput = {
     id: ledgerId,
     tenantId: correction.tenantId,
     code: ledgerId,
@@ -573,7 +575,10 @@ async function createFundAdjustment(correction, actor = {}, options = {}) {
     createdBy: text(actor.username || actor.name),
     createdAt: nowIso(),
     updatedAt: nowIso()
-  }], createOptions);
+  };
+  const ledger = direction === 'out'
+    ? await FundPostingService.postCashOut(ledgerInput, createOptions)
+    : await FundPostingService.postCashIn(ledgerInput, createOptions);
   const [adjustment] = await FundAdjustment.create([{
     id: code,
     tenantId: correction.tenantId,

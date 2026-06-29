@@ -145,7 +145,7 @@ function buildMasterPicking(masterOrders = [], children = [], context = {}) {
     metadata: {
       mergeKey: 'pickingZone+lineType+productCode+catalogPrice',
       itemSort: 'PRODUCT_NAME_ASC',
-      pickingZonePolicy: 'CURRENT_PRODUCT_CATALOG_FIRST_HC_PC_PRINT_ONLY_INVENTORY_MAIN',
+      pickingZonePolicy: 'HC_PC_PRINT_ONLY_INVENTORY_MAIN',
       pricingPolicy: 'ORDER_SNAPSHOT_FIRST_PRODUCT_FALLBACK'
     }
   });

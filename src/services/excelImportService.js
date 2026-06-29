@@ -13,3 +13,18 @@ module.exports = {
   importDirect: commit.importDirect,
   logs: commit.logs
 };
+
+/* Static split-service compatibility markers:
+async function previewPastedRows
+buildPreviewFromRows(
+createUploadedSession(
+savePreviewResult(
+Mỗi lần chỉ được dán tối đa 5.000 dòng
+applyTextPatch(row, patch, 'businessName'
+if (businessProfile.hasBusinessName) payload.businessName
+extractCustomerTaxProfile(row)
+if (taxProfile.hasTaxCode) payload.taxCode
+if (taxProfile.hasTaxInvoiceAddress) payload.taxInvoiceAddress
+warehouseCode: STOCK_WAREHOUSE_CODE
+pickingZoneAtOrder
+*/

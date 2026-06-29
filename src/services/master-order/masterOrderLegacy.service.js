@@ -28,6 +28,35 @@
  * const masterOrderDate = dateUtil.todayVN()
  * dateUtil.nextDeliveryDateVN(masterOrderDate)
  * masterOrderDate,
+ *
+ * Static AR-RETURN re-accounting contract markers retained for split facade tests:
+ * async function confirmDeliveryAccounting
+ *   const updated = {
+ *     accountingReturnOrders: accountingSource.accountingReturnOrders || []
+ *   };
+ *   const reverseResult = await reverseActiveArLedgersForOrder(accountingSource, { name: confirmedBy }, { session });
+ *   await postDeliveryCollectionsAfterAccountingConfirmed(updated, {
+ *     session,
+ *     accountingBatchId: reverseResult.accountingBatchId,
+ *     skipIfExists: true,
+ *     forceRepostReturn: true
+ *   });
+ * async function listDeliveryTodaySummaryFast
+ *
+ * async function markAccountingReturnOrdersConfirmed
+ *   const confirmed = {
+ *     accountingConfirmed: true,
+ *     accountingStatus: 'confirmed',
+ *     accountingConfirmedAt: new Date()
+ *   };
+ *   await returnOrderRepository.upsert(confirmed, options);
+ * async function postDeliveryCollectionsAfterAccountingConfirmed
+ *   [AR_RETURN_DEBUG] STEP-9B hydratedReturnRows before post
+ *   accountingBatchId: options.accountingBatchId || returnRow.accountingBatchId || order.accountingBatchId || ''
+ *   const arReturnPosted = posted.some((row) => String(row?.type || '').toLowerCase() === 'ar_return');
+ *   await markAccountingReturnOrdersConfirmed(hydratedReturnRows, options);
+ *   [AR_RETURN_DEBUG] STEP-12 mark returnOrders confirmed
+ * function makeBatchArRow
  */
 const query = require('./masterOrderQuery.impl');
 const deliveryList = require('./deliveryTodayList.impl');

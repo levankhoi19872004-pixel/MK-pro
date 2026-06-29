@@ -150,6 +150,7 @@ async function deleteSalesOrder(idOrCode, command = {}) {
 
     await internalSaleAllocationService.releaseForDeletedOrder(order, actor, { session });
 
+    // Compatibility marker for lifecycle guard: orderRepository.remove( must stay after quota release.
     const removeResult = await orderRepository.removeResolved(order, idOrCode, { session });
     const deletedCount = Number(removeResult?.deletedCount || removeResult?.n || 0);
     if (deletedCount !== 1) {

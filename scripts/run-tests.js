@@ -15,20 +15,47 @@ const testFiles = fs.readdirSync(testDir)
 
 const env = { ...process.env, NODE_ENV: process.env.NODE_ENV || 'test' };
 const preload = path.join(testDir, 'helpers', 'refactorReadCompat.js');
-const result = spawnSync(process.execPath, [
-  '--require', preload,
-  '--test',
-  '--test-force-exit',
-  '--test-concurrency=1',
-  '--experimental-test-isolation=none',
-  ...testFiles
-], {
-  stdio: 'inherit',
-  env
-});
 
-if (result.error) {
-  console.error(result.error);
-  process.exit(1);
+function usesGlobalModulePatch(file) {
+  const source = fs.readFileSync(file, 'utf8');
+  return /Module\._load\s*=/.test(source);
 }
-process.exit(result.status ?? 1);
+
+function runNodeTest(files, label) {
+  if (!files.length) return 0;
+  const result = spawnSync(process.execPath, [
+    '--require', preload,
+    '--test',
+    '--test-force-exit',
+    '--test-concurrency=1',
+    '--experimental-test-isolation=none',
+    ...files
+  ], {
+    stdio: 'inherit',
+    env
+  });
+
+  if (result.error) {
+    console.error(`[run-tests] ${label} failed to start`, result.error);
+    return 1;
+  }
+  return result.status ?? 1;
+}
+
+const isolatedFiles = [];
+const sharedFiles = [];
+for (const file of testFiles) {
+  if (usesGlobalModulePatch(file)) isolatedFiles.push(file);
+  else sharedFiles.push(file);
+}
+
+let status = 0;
+for (const file of isolatedFiles) {
+  const code = runNodeTest([file], `isolated ${path.relative(ROOT, file)}`);
+  if (code !== 0) status = code;
+}
+
+const sharedStatus = runNodeTest(sharedFiles, 'shared suite');
+if (sharedStatus !== 0) status = sharedStatus;
+
+process.exit(status);

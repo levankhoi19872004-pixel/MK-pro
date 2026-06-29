@@ -61,7 +61,7 @@
         "src/engines/delivery.legacy.engine.source/part-02.jsfrag",
         "src/engines/delivery.legacy.engine.source/part-03.jsfrag"
       ],
-      "sourceSha256": "186106b0265875d4fe1efed2c04dee7e7927d443b72f5ecd953e89c54d98103e"
+      "sourceSha256": "3b40bfbdbe482b7e6ad95f8302e5677204b0cf50d5d705ee3343aeca264cc2a6"
     },
     {
       "target": "services/printDataBuilder.legacy.js",
@@ -177,11 +177,11 @@
     {
       "target": "public/mobile/js/delivery-mobile-view.js",
       "mode": "classic-single",
-      "sourceSha256": "8c8f463a41eed63d537682765b42da3f3b3c31a0199eaba15b781afb9cfca8db",
+      "sourceSha256": "39207dc1d38ac3d86fe93dc0ecedc9eb6389949bc0fd1c5c2587851a88310f97",
       "canonicalSource": "public/mobile/js/delivery-mobile-view.source.js",
       "sourceMap": true,
       "sourceMapTarget": "public/mobile/js/delivery-mobile-view.js.map",
-      "executableSha256": "b75707ce27dfa2ac2acc58deddb78594ffa0981a4e9e19f9ec916c7a95291ede"
+      "executableSha256": "1d815fbe64d2b1461b94f910d5e3037f9140de60c96868fafde6a28bcc0cab27"
     },
     {
       "target": "public/mobile/mobile.css",

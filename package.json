@@ -87,7 +87,9 @@
     "mongo:ar-adjustment-unique-index:dry": "node scripts/create-ar-adjustment-unique-index.js --dry-run",
     "mongo:ar-adjustment-unique-index": "node scripts/create-ar-adjustment-unique-index.js --apply",
     "audit:ar-salesorder-debt-cache": "node scripts/audit-ar-salesorder-debt-cache.js --dry-run",
-    "audit:ar-salesorder-debt-cache:json": "node scripts/audit-ar-salesorder-debt-cache.js --json"
+    "audit:ar-salesorder-debt-cache:json": "node scripts/audit-ar-salesorder-debt-cache.js --json",
+    "reconcile:external-debt-ar": "node scripts/reconcile-external-debt-ar.js --dry-run",
+    "reconcile:external-debt-ar:json": "node scripts/reconcile-external-debt-ar.js --json"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

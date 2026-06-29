@@ -74,6 +74,78 @@ function buildListFilter(query = {}) {
   return filter;
 }
 
+function buildExternalDebtLedgerInput(orderDoc = {}, actor = {}, now = dateUtil.nowIso()) {
+  const id = text(orderDoc.id || orderDoc._id);
+  const code = text(orderDoc.code);
+  const amount = money(orderDoc.totalAmount ?? orderDoc.amount);
+  const reason = text(orderDoc.reason);
+  const referenceCode = text(orderDoc.referenceCode);
+  const documentDate = dateUtil.toDateOnly(orderDoc.documentDate || orderDoc.date || dateUtil.todayVN());
+  const createdBy = text(actor.name || actor.fullName || actor.username || actor.code || orderDoc.createdBy || 'system');
+
+  return {
+    id: `AR-EXTERNAL-${id}`,
+    code: `AR-EXTERNAL-${code}`,
+    type: 'ar_external_debt',
+    account: 'AR',
+    date: documentDate,
+    orderType: 'external_debt',
+    orderId: id,
+    orderCode: code,
+    salesOrderId: id,
+    salesOrderCode: code,
+    refType: 'EXTERNAL_DEBT_ORDER',
+    refId: id,
+    refCode: code,
+    sourceType: 'externalDebt',
+    sourceModel: 'ExternalDebtOrder',
+    sourceId: id,
+    sourceCode: code,
+
+    customerId: text(orderDoc.customerId),
+    customerCode: text(orderDoc.customerCode),
+    customerName: text(orderDoc.customerName),
+
+    salesStaffCode: text(orderDoc.salesStaffCode || orderDoc.salesmanCode),
+    salesStaffName: text(orderDoc.salesStaffName || orderDoc.salesmanName),
+    salesmanCode: text(orderDoc.salesmanCode || orderDoc.salesStaffCode),
+    salesmanName: text(orderDoc.salesmanName || orderDoc.salesStaffName),
+    deliveryStaffCode: text(orderDoc.deliveryStaffCode),
+    deliveryStaffName: text(orderDoc.deliveryStaffName),
+
+    debit: amount,
+    credit: 0,
+    amount,
+    reason,
+    reasonText: reason,
+    idempotencyKey: `AR-EXTERNAL-DEBT:${id}`,
+    createdBy,
+    status: 'posted',
+    accountingStatus: 'confirmed',
+    accountingConfirmed: true,
+    note: `${reason}${referenceCode ? ` · Chứng từ ${referenceCode}` : ''}`,
+    source: 'ExternalDebtOrderService',
+    createdAt: orderDoc.createdAt || now,
+    updatedAt: now
+  };
+}
+
+async function ensureArLedgerForExternalDebtOrder(orderDoc = {}, actor = {}, options = {}) {
+  if (!orderDoc || !text(orderDoc.id || orderDoc._id || orderDoc.code)) return null;
+  const now = dateUtil.nowIso();
+  const ledgerInput = buildExternalDebtLedgerInput(orderDoc, actor, now);
+  const ledger = await ArPostingService.postExternalDebt(ledgerInput, options);
+  if (ledger && (!orderDoc.arLedgerId || !orderDoc.arLedgerCode)) {
+    const updateQuery = ExternalDebtOrder.findOneAndUpdate(
+      { id: text(orderDoc.id || orderDoc._id) },
+      { $set: { arLedgerId: ledger.id, arLedgerCode: ledger.code, updatedAt: now } },
+      { new: true, lean: true, session: options.session }
+    );
+    return { ledger, order: await updateQuery };
+  }
+  return { ledger, order: orderDoc };
+}
+
 async function createExternalDebtOrder(body = {}, actor = {}) {
   const customerCode = text(body.customerCode);
   const salesStaffCode = text(body.salesStaffCode);
@@ -94,7 +166,10 @@ async function createExternalDebtOrder(body = {}, actor = {}) {
 
   if (idempotencyKey) {
     const existed = await ExternalDebtOrder.findOne({ idempotencyKey }).lean();
-    if (existed) return { order: existed, idempotent: true, message: `Công nợ ${existed.code} đã được tạo trước đó` };
+    if (existed) {
+      const ensured = await ensureArLedgerForExternalDebtOrder(existed, actor);
+      return { order: ensured.order || existed, arLedger: ensured.ledger || null, idempotent: true, message: `Công nợ ${existed.code} đã được tạo trước đó` };
+    }
   }
 
   let createdOrder = null;
@@ -106,7 +181,9 @@ async function createExternalDebtOrder(body = {}, actor = {}) {
         const existedQuery = ExternalDebtOrder.findOne({ idempotencyKey });
         const existed = await applySession(existedQuery, session).lean();
         if (existed) {
-          createdOrder = existed;
+          const ensured = await ensureArLedgerForExternalDebtOrder(existed, actor, { session });
+          createdOrder = ensured.order || existed;
+          createdLedger = ensured.ledger || null;
           return;
         }
       }
@@ -191,46 +268,7 @@ async function createExternalDebtOrder(body = {}, actor = {}) {
       const rows = await ExternalDebtOrder.create([orderDoc], { session });
       createdOrder = rows[0].toObject ? rows[0].toObject() : rows[0];
 
-      createdLedger = {
-        id: `AR-EXTERNAL-${id}`,
-        code: `AR-EXTERNAL-${code}`,
-        type: 'ar_external_debt',
-        account: 'AR',
-        date: documentDate,
-        orderType: 'external_debt',
-        orderId: id,
-        orderCode: code,
-        salesOrderId: id,
-        salesOrderCode: code,
-        refType: 'EXTERNAL_DEBT_ORDER',
-        refId: id,
-        refCode: code,
-        sourceType: 'externalDebtOrder',
-        sourceId: id,
-        sourceCode: code,
-
-        customerId: orderDoc.customerId,
-        customerCode: orderDoc.customerCode,
-        customerName: orderDoc.customerName,
-
-        salesStaffCode: salesStaff.code,
-        salesStaffName: salesStaff.name,
-        salesmanCode: salesStaff.code,
-        salesmanName: salesStaff.name,
-        deliveryStaffCode: deliveryStaff.code,
-        deliveryStaffName: deliveryStaff.name,
-
-        debit: amount,
-        credit: 0,
-        amount,
-        status: 'posted',
-        accountingStatus: 'confirmed',
-        accountingConfirmed: true,
-        note: `${reason}${referenceCode ? ` · Chứng từ ${referenceCode}` : ''}`,
-        source: 'ExternalDebtOrderService',
-        createdAt: now,
-        updatedAt: now
-      };
+      createdLedger = buildExternalDebtLedgerInput(orderDoc, actor, now);
 
       createdLedger = await ArPostingService.postExternalDebt(createdLedger, { session });
 
@@ -244,7 +282,10 @@ async function createExternalDebtOrder(body = {}, actor = {}) {
   } catch (err) {
     if (err && err.code === 11000 && idempotencyKey) {
       const existed = await ExternalDebtOrder.findOne({ idempotencyKey }).lean();
-      if (existed) return { order: existed, idempotent: true, message: `Công nợ ${existed.code} đã được tạo trước đó` };
+      if (existed) {
+        const ensured = await ensureArLedgerForExternalDebtOrder(existed, actor);
+        return { order: ensured.order || existed, arLedger: ensured.ledger || null, idempotent: true, message: `Công nợ ${existed.code} đã được tạo trước đó` };
+      }
     }
     throw err;
   }
@@ -279,6 +320,8 @@ module.exports = {
     staffCodeFilter,
     canonicalStaff,
     makeExternalDebtCode,
-    buildListFilter
+    buildListFilter,
+    buildExternalDebtLedgerInput,
+    ensureArLedgerForExternalDebtOrder
   }
 };

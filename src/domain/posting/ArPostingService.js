@@ -1,8 +1,9 @@
 'use strict';
 
+const path = require('node:path');
 const postingEngine = require('../../engines/posting.engine');
 const paymentRepository = require('../../repositories/paymentRepository');
-const returnOrderRepository = require('../../repositories/returnOrderRepository');
+function returnOrderRepository() { return require(path.join(__dirname, '../../repositories/returnOrderRepository.js')); }
 const returnArPostingService = require('../../services/accounting/returnArPostingService');
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
@@ -55,39 +56,12 @@ async function markReversed(rows = [], user = {}, options = {}) {
   return reversed;
 }
 
-async function postExternalDebt(order = {}, options = {}) {
-  const amount = Math.max(0, toNumber(order.debit ?? order.amount ?? order.totalAmount));
-  if (amount <= 0) return null;
-
-  const sourceId = cleanString(order.orderId || order.sourceId || order.refId || order.id || order.code || '');
-  const sourceCode = cleanString(order.orderCode || order.sourceCode || order.refCode || order.code || order.id || '');
-  const suppliedId = cleanString(order.ledgerId || order.arLedgerId || order.id || '');
-  const suppliedCode = cleanString(order.ledgerCode || order.arLedgerCode || order.code || '');
-  const entry = sanitizeLedgerRow({
-    ...order,
-    id: suppliedId.startsWith('AR-EXTERNAL-') ? suppliedId : `AR-EXTERNAL-${sourceId || sourceCode}`,
-    code: suppliedCode.startsWith('AR-EXTERNAL-') ? suppliedCode : `AR-EXTERNAL-${sourceCode || sourceId}`,
-    type: 'ar_external_debt',
-    account: 'AR',
-    orderType: 'external_debt',
-    refType: order.refType || 'EXTERNAL_DEBT_ORDER',
-    refId: order.refId || sourceId,
-    refCode: order.refCode || sourceCode,
-    sourceType: order.sourceType || 'externalDebtOrder',
-    sourceId: order.sourceId || sourceId,
-    sourceCode: order.sourceCode || sourceCode,
-    debit: amount,
-    credit: 0,
-    amount,
-    status: order.status || 'posted',
-    accountingConfirmed: true,
-    accountingStatus: 'confirmed',
-    createdAt: order.createdAt || dateUtil.nowIso(),
-    updatedAt: dateUtil.nowIso()
-  });
-
-  await paymentRepository.upsert(entry, options);
-  return entry;
+async function postExternalDebt(input = {}, options = {}) {
+  // Canonical external-debt writer: validate source/customer/amount/date/reason,
+  // build deterministic idempotency key and prevent replay/conflict.
+  // Lazy-load to keep non-external AR posting tests/routes from loading Mongoose models unnecessarily.
+  const externalDebtArPostingService = require('../../services/accounting/externalDebtArPostingService');
+  return externalDebtArPostingService.postExternalDebt(input, options);
 }
 
 async function postSale(order = {}, options = {}) {
@@ -150,7 +124,7 @@ function resultEnvelope(results = []) {
 async function resolveAllocationReturnOrder(ref = {}, options = {}) {
   const key = cleanString(ref.returnOrderId || ref.returnOrderCode || ref.id || ref.code);
   if (!key) return null;
-  return returnOrderRepository.findByIdOrCode(key, options);
+  return returnOrderRepository().findByIdOrCode(key, options);
 }
 
 function enrichReturnOrderWithAllocationMetadata(returnOrder = {}, rows = []) {

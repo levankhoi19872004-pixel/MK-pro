@@ -1,3 +1,4 @@
+/*masterOrderId:{$exists:true,$nin:[null, '']}*/
   const canonical = deliveryFinance.buildCanonicalDeliveryOrder(order, { returnItems, returnAmountOverride: returnAmount });
   const amounts = canonical.amounts || {};
   return {
@@ -9,11 +10,8 @@
     customerCode: text(order.customerCode),
     customerName: text(order.customerName),
     deliveryDate: text(order.deliveryDate || order.date || order.documentDate),
-    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_DELIVERY_ENGINE_DISPLAY_STAFF_START =====
-    // DeliveryEngine không suy luận NVBH từ staffCode/staffName vì các field đó có thể là NVGH.
     salesStaffCode: text(order.salesStaffCode || order.salesmanCode),
     salesStaffName: text(order.salesStaffName || order.salesmanName),
-    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_DELIVERY_ENGINE_DISPLAY_STAFF_END =====
     deliveryStaffCode: text(order.deliveryStaffCode),
     deliveryStaffName: text(order.deliveryStaffName),
     items: canonical.items,

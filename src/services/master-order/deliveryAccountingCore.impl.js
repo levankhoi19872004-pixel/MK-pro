@@ -124,6 +124,9 @@ async function findActiveArLedgersForOrder(order = {}, options = {}) {
   const keys = arLedgerKeysForOrder(order);
   if (!keys.length) return [];
   const rows = await paymentRepository.findAll({
+    status: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
+    reversed: { $ne: true },
+    isDeleted: { $ne: true },
     $or: [
       { orderId: { $in: keys } },
       { orderCode: { $in: keys } },
@@ -136,6 +139,7 @@ async function findActiveArLedgersForOrder(order = {}, options = {}) {
     const type = String(row.type || '').toLowerCase();
     return !row.reversed
       && status !== 'reversed'
+      && !['void', 'cancelled', 'canceled', 'deleted'].includes(status)
       && ['ar_sale','ar_return'].includes(type);
   });
 }
@@ -350,7 +354,7 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
   const hydratedReturnRows = (Array.isArray(order.accountingReturnOrders) ? order.accountingReturnOrders : [])
     .filter(isActiveReturnOrder);
 
-  debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-9B returnOrders before service post', {
+  debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-9B hydratedReturnRows before post', {
     orderCode: currentOrderCode,
     count: hydratedReturnRows.length,
     rows: hydratedReturnRows.map((ro) => ({
@@ -425,12 +429,12 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
     }
   }
 
-  const arReturnHandled = handledReturnRows.length > 0;
-  if (arReturnHandled) {
-    const confirmedReturnCodes = await markAccountingReturnOrdersConfirmed(handledReturnRows, options);
+  const arReturnPosted = posted.some((row) => String(row?.type || '').toLowerCase() === 'ar_return');
+  if (arReturnPosted) {
+    const confirmedReturnCodes = await markAccountingReturnOrdersConfirmed(hydratedReturnRows, options);
     debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-12 mark returnOrders confirmed', {
       orderCode: currentOrderCode,
-      arReturnHandled,
+      arReturnPosted,
       returnCodes: confirmedReturnCodes
     });
   }

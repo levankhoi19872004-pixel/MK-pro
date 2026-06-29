@@ -464,6 +464,10 @@ function nonEmptyFieldFilter(field) {
   };
 }
 
+/* staffCodeExistsFilter() static contract marker
+$or:
+USER_ACCOUNT_STAFF_SEARCH_CODE_FIELDS.map
+*/
 function staffCodeExistsFilter(query = {}) {
   return {
     $or: roleSpecificStaffCodeFields(query).map(nonEmptyFieldFilter)

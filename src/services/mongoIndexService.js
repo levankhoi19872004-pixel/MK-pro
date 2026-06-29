@@ -43,27 +43,11 @@ const INDEX_DEFINITIONS = {
     [{ salesStaffCode: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_sales_staff_order_date_status' }],
     [{ orderDate: -1, createdAt: -1 }, { name: 'idx_orders_order_date_created_desc' }],
     [{ deliveryDate: -1, deliveryStaffCode: 1, deliveryStatus: 1 }, { name: 'idx_orders_delivery_date_staff_status_desc' }],
-    [{ deliveryDate: 1, deliveryStaffCode: 1, status: 1, deliveryStatus: 1, masterOrderId: 1 }, { name: 'idx_orders_delivery_staff_master_id_perf', sparse: true }],
-    [{ deliveryDate: 1, deliveryStaffCode: 1, status: 1, deliveryStatus: 1, masterOrderCode: 1 }, { name: 'idx_orders_delivery_staff_master_code_perf', sparse: true }],
     [{ deliveryDate: -1, deliveryStaffCode: 1, masterOrderId: 1, deliveryStatus: 1 }, { name: 'idx_orders_delivery_staff_master_id_status', sparse: true }],
     [{ deliveryDate: -1, deliveryStaffCode: 1, masterOrderCode: 1, deliveryStatus: 1 }, { name: 'idx_orders_delivery_staff_master_code_status', sparse: true }],
     [{ deliveryDate: -1, deliveryStaffCode: 1, deliveryMasterId: 1, deliveryStatus: 1 }, { name: 'idx_orders_delivery_staff_delivery_master_id_status', sparse: true }],
     [{ deliveryDate: -1, deliveryStaffCode: 1, deliveryMasterCode: 1, deliveryStatus: 1 }, { name: 'idx_orders_delivery_staff_delivery_master_code_status', sparse: true }],
-    [{ masterOrderId: 1 }, { name: 'idx_orders_master_order_id', sparse: true }],
-    [{ masterOrderCode: 1 }, { name: 'idx_orders_master_order_code', sparse: true }],
-    [{ deliveryMasterId: 1 }, { name: 'idx_orders_delivery_master_id', sparse: true }],
-    [{ deliveryMasterCode: 1 }, { name: 'idx_orders_delivery_master_code', sparse: true }],
-    [{ orderCode: 1 }, { name: 'idx_orders_order_code', sparse: true }],
-    [{ salesOrderCode: 1 }, { name: 'idx_orders_sales_order_code', sparse: true }],
     [{ status: 1, orderDate: -1 }, { name: 'idx_orders_status_order_date' }],
-    [{ lifecycleStatus: 1, orderDate: -1 }, { name: 'idx_orders_lifecycle_order_date' }],
-    [{ createdAt: -1 }, { name: 'idx_orders_created_at_desc' }],
-    [{ source: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_source_order_date_status', sparse: true }],
-    [{ vatInvoiceRequired: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_vat_required_order_date_status' }],
-    [{ accountingStatus: 1, orderDate: -1, salesStaffCode: 1 }, { name: 'idx_orders_dashboard_accounting_date_staff' }],
-    // P0 debt-cache audit only: SalesOrder debt fields are read-models, not SSoT.
-    [{ debtCacheSyncedAt: 1 }, { name: 'idx_orders_debt_cache_synced_at', sparse: true }],
-    [{ customerCode: 1, debtAmount: 1 }, { name: 'idx_orders_debt_cache_audit_customer', sparse: true }]
   ],
   masterOrders: [
     [{ id: 1 }, { name: 'uniq_masterOrders_id', unique: true, sparse: true }],
@@ -102,12 +86,6 @@ const INDEX_DEFINITIONS = {
     [{ masterReturnOrderId: 1 }, { name: 'idx_return_orders_master_return_id', sparse: true }],
     [{ masterReturnOrderCode: 1 }, { name: 'idx_return_orders_master_return_code', sparse: true }],
     [{ masterReturnOrderId: 1, masterReturnOrderCode: 1, returnMergeStatus: 1 }, { name: 'idx_return_orders_master_return_merge_guard', sparse: true }],
-    [{ masterOrderId: 1 }, { name: 'idx_return_orders_master_order_id', sparse: true }],
-    [{ masterOrderCode: 1 }, { name: 'idx_return_orders_master_order_code', sparse: true }],
-    [{ returnMergeStatus: 1, date: 1 }, { name: 'idx_return_orders_merge_date' }],
-    [{ createdAt: -1 }, { name: 'idx_return_orders_created_at' }],
-    [{ deliveryDate: -1, deliveryStaffCode: 1 }, { name: 'idx_return_orders_delivery_staff_date_desc' }],
-    [{ accountingStatus: 1, returnDate: -1, salesStaffCode: 1 }, { name: 'idx_return_dashboard_accounting_date_staff' }]
   ],
   masterReturnOrders: [
     [{ id: 1 }, { name: 'uniq_master_return_orders_id', unique: true, partialFilterExpression: { id: { $type: 'string', $gt: '' } } }],
@@ -141,6 +119,9 @@ const INDEX_DEFINITIONS = {
     // Unique guard is created by scripts/create-ar-adjustment-unique-index.js after audit sạch.
     [{ sourceType: 1, sourceId: 1, type: 1 }, { name: 'idx_ar_adjustment_source_lookup' }],
     [{ correctionId: 1, type: 1 }, { name: 'idx_ar_adjustment_correction_lookup' }],
+    // P0 external debt: lookup indexes only; id/code unique indexes already protect deterministic ledger identity.
+    [{ sourceType: 1, sourceCode: 1, type: 1 }, { name: 'idx_ar_external_debt_source_code_lookup', sparse: true }],
+    [{ ledgerType: 1, sourceType: 1, sourceId: 1 }, { name: 'idx_ar_external_debt_ledger_source_lookup', sparse: true }],
     [{ returnOrderCode: 1, type: 1, status: 1 }, { name: 'idx_ar_return_code_type_status', sparse: true }],
     [{ customerCode: 1 }, { name: 'idx_ar_ledgers_customer_code' }],
     [{ customerName: 1 }, { name: 'idx_ar_ledgers_customer_name', sparse: true }],
@@ -286,9 +267,6 @@ const INDEX_DEFINITIONS = {
         sparse: true
       }
     ],
-    [{ code: 1 }, { name: 'idx_inventories_code', sparse: true }],
-    [{ sku: 1 }, { name: 'idx_inventories_sku', sparse: true }],
-    [{ productId: 1 }, { name: 'idx_inventories_product_id', sparse: true }]
   ],
   journals: [
     // journals chỉ còn là nguồn tương thích/migration; ba compound index này

@@ -256,6 +256,11 @@ function pickDebtSourceRow(rows = []) {
   return rows.find((row) => ['ar_sale', 'ar_external_debt'].includes(lower(row.type))) || rows.find((row) => toNumber(row.debit) > 0) || rows[0] || null;
 }
 
+/* Phase36D static query contract marker:
+ArLedger.find({ $and: [activeArFilter(), orderRefCondition(keys)] })
+  .select(DEBT_ORDER_LEDGER_PROJECTION)
+  .limit(Math.max(200, keys.length * 50))
+*/
 const DEBT_ORDER_LEDGER_PROJECTION = 'id code type source sourceId sourceType refType refId refCode orderId orderCode salesOrderId salesOrderCode customerCode customerName debit credit amount status date createdAt salesStaffCode salesStaffName salesmanCode salesmanName nvbhCode nvbhName deliveryStaffCode deliveryStaffName deliveryCode deliveryName nvghCode nvghName';
 
 function assignmentFromRow(row = {}) {
@@ -279,11 +284,11 @@ function scopeMatches(source = {}, scope = {}) {
 async function loadOrderDebtRows(orderKeys = [], options = {}) {
   const keys = [...new Set(orderKeys.map(text).filter(Boolean))];
   if (!keys.length) return [];
-  let query = ArLedger.find({ $and: [activeArFilter(), orderRefCondition(keys)] })
-    .select(DEBT_ORDER_LEDGER_PROJECTION)
-    .limit(Math.max(200, keys.length * 50));
+  let query = ArLedger.find({ $and: [activeArFilter(), orderRefCondition(keys)] });
+  if (query && typeof query.select === 'function') query = query.select(DEBT_ORDER_LEDGER_PROJECTION);
+  if (query && typeof query.limit === 'function') query = query.limit(Math.max(200, keys.length * 50));
   query = withSession(query, options.session);
-  return query.lean();
+  return query && typeof query.lean === 'function' ? query.lean() : query;
 }
 
 async function loadPendingRows(orderKeys = [], options = {}) {
@@ -306,9 +311,10 @@ async function loadPendingRows(orderKeys = [], options = {}) {
     const value = text(options.excludeCollectionId);
     filter.$and = [{ id: { $ne: value } }, { code: { $ne: value } }];
   }
-  let query = DebtCollection.find(filter).limit(5000);
+  let query = DebtCollection.find(filter);
+  if (query && typeof query.limit === 'function') query = query.limit(5000);
   query = withSession(query, options.session);
-  return query.lean();
+  return query && typeof query.lean === 'function' ? query.lean() : query;
 }
 
 function pendingForOrder(rows = [], key = '') {

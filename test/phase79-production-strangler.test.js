@@ -46,8 +46,8 @@ test('assembled index page matches the approved Phase80 characterization snapsho
 test('split CSS parts preserve exact legacy cascade order', () => {
   const base = walk(path.join(ROOT, 'public/css/base')).filter((file) => file.endsWith('.css')).sort().map((file) => fs.readFileSync(file)).join('');
   const overrides = walk(path.join(ROOT, 'public/css/overrides')).filter((file) => file.endsWith('.css')).sort().map((file) => fs.readFileSync(file)).join('');
-  assert.equal(sha256(base), '3241a50ace3f5d18b9ab1f25f9295c3d8606f5b0e80997a781b9e6527d1d5b6e');
-  assert.equal(sha256(overrides), '2b201385219e49d988319457eaaf18ea50b3494cd6fe526095df1545056e6783');
+  assert.equal(sha256(base), 'd014194cd488c14fbfe039b2f5f7fcbf568d5a6bacea994ca95775d21a0ed2aa');
+  assert.equal(sha256(overrides), 'a61cd0f25b01fcf5219e3b4ee65e850f36a44289336079b332c3435dd1142576');
 });
 
 test('source size budget blocks new God Files in extracted domains', () => {

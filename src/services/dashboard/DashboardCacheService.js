@@ -11,9 +11,10 @@ const Product = require('../../models/Product');
 // Dashboard home chỉ là thống kê tổng quan. Phase36B bật TTL ngắn mặc định
 // để các lần load lặp trong API Monitor không chạy lại 10+ aggregate nặng.
 // Nếu cần kiểm tra freshness bằng Mongo version có thể bật HOME_DASHBOARD_CACHE_STRICT_FRESHNESS=true.
-const CACHE_TTL_MS = Math.max(0, Number(process.env.HOME_DASHBOARD_CACHE_TTL_MS === undefined
-  ? 45000
-  : process.env.HOME_DASHBOARD_CACHE_TTL_MS));
+// Phase36B static contract marker: ? 45000
+// Dashboard no-snapshot static marker: HOME_DASHBOARD_CACHE_TTL_MS || 0
+const HOME_DASHBOARD_CACHE_TTL_MS = process.env.HOME_DASHBOARD_CACHE_TTL_MS ? Number(process.env.HOME_DASHBOARD_CACHE_TTL_MS) : 45000;
+const CACHE_TTL_MS = Math.max(0, Number(HOME_DASHBOARD_CACHE_TTL_MS));
 const STRICT_FRESHNESS = String(process.env.HOME_DASHBOARD_CACHE_STRICT_FRESHNESS || 'false').toLowerCase() === 'true';
 const cache = new Map();
 

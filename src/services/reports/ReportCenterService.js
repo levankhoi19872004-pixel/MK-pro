@@ -327,7 +327,8 @@ function visibleDefinitions(user = {}) {
 }
 
 function catalog(user = {}) {
-  const definitions = visibleDefinitions(user);
+  const includeInformation = user.includeInformationReports === true || user.includeInformationReports === '1';
+  const definitions = visibleDefinitions(user).filter((definition) => includeInformation || definition.category !== 'information');
   const allowedCategories = new Set(definitions.map((definition) => definition.category));
   return {
     categories: REPORT_CATEGORIES.filter((category) => allowedCategories.has(category.code)),

@@ -2,9 +2,15 @@
 
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
-const paymentRepository = require('../../repositories/paymentRepository');
-const returnOrderRepository = require('../../repositories/returnOrderRepository');
-const auditService = require('../auditService');
+function paymentRepository() {
+  return require('../../repositories/paymentRepository');
+}
+function returnOrderRepository() {
+return require('../../repositories/returnOrderRepository');
+}
+function auditService() {
+return require('../auditService');
+}
 const {
   pickSalesStaffCode,
   pickSalesStaffName,
@@ -235,13 +241,13 @@ function buildActiveArReturnLookup(returnOrder = {}, options = {}) {
 async function findActiveArReturnsByIdempotencyKey(idempotencyKey, options = {}) {
   const lookup = buildActiveArReturnIdempotencyLookup(idempotencyKey);
   if (!lookup) return [];
-  return paymentRepository.findAll(lookup, options);
+  return paymentRepository().findAll(lookup, options);
 }
 
 async function findActiveArReturnsForReturnOrder(returnOrder = {}, options = {}) {
   const lookup = buildActiveArReturnLookup(returnOrder, options);
   if (!lookup) return [];
-  return paymentRepository.findAll(lookup, options);
+  return paymentRepository().findAll(lookup, options);
 }
 
 function makeArReturnDuplicateError(message, details = {}) {
@@ -325,7 +331,7 @@ async function resolveReturnOrder(returnOrderOrId, options = {}) {
   if (returnOrderOrId && typeof returnOrderOrId === 'object') return returnOrderOrId;
   const idOrCode = cleanString(returnOrderOrId);
   if (!idOrCode) return null;
-  return returnOrderRepository.findByIdOrCode(idOrCode, options);
+  return returnOrderRepository().findByIdOrCode(idOrCode, options);
 }
 
 function validateReturnOrderForAR(returnOrder = {}, options = {}) {
@@ -348,7 +354,7 @@ function validateReturnOrderForAR(returnOrder = {}, options = {}) {
   if (!isAccountingConfirmed(returnOrder, options)) {
     return { ok: false, reason: 'return_order_not_confirmed', amount: amountInfo.amount, warnings: amountInfo.warnings };
   }
-  if (!customerKey) {
+  if (!customerKey && options.allowMissingCustomerIdentity !== true) {
     return { ok: false, reason: 'missing_customer_identity', amount: amountInfo.amount, warnings: amountInfo.warnings };
   }
   if (amountInfo.amount <= 0) {
@@ -462,9 +468,9 @@ function buildReturnARLedgerEntry(returnOrder = {}, options = {}) {
 }
 
 async function auditReturnAr(action, payload = {}, options = {}) {
-  if (options.audit === false) return null;
+  if (options.audit === false || (process.env.NODE_ENV === 'test' && options.audit !== true)) return null;
   try {
-    return await auditService.record({ action, refType: 'returnOrder', ...payload }, options);
+    return await auditService().record({ action, refType: 'returnOrder', ...payload }, options);
   } catch (err) {
     if (process.env.NODE_ENV !== 'test') {
       console.warn('[returnArPostingService] audit skipped:', err.message);
@@ -515,7 +521,7 @@ async function postReturnOrderToAR(returnOrderOrId, options = {}) {
   }
 
   const entry = buildReturnARLedgerEntry(returnOrder, options);
-  await paymentRepository.upsert(entry, options);
+  await paymentRepository().upsert(entry, options);
 
   const patchedReturnOrder = {
     ...returnOrder,
@@ -528,7 +534,7 @@ async function postReturnOrderToAR(returnOrderOrId, options = {}) {
   };
   if (!options.skipReturnOrderPatch) {
     try {
-      await returnOrderRepository.upsert(patchedReturnOrder, options);
+      await returnOrderRepository().upsert(patchedReturnOrder, options);
     } catch (err) {
       if (options.strictReturnOrderPatch === true) throw err;
       if (process.env.NODE_ENV !== 'test') {
@@ -561,7 +567,7 @@ async function postConfirmedReturnOrdersToAR(filters = {}, options = {}) {
       }
     ]
   };
-  const rows = await returnOrderRepository.findAll(query, { ...options, limit: options.limit || 1000 });
+  const rows = await returnOrderRepository().findAll(query, { ...options, limit: options.limit || 1000 });
   const summary = { scanned: rows.length, posted: 0, skipped: 0, errors: 0, results: [] };
   for (const row of rows) {
     try {
