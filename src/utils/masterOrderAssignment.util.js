@@ -89,12 +89,34 @@ function hasDeliveryOperationalData(order = {}) {
     || (Array.isArray(order.returnItems) && order.returnItems.some((item) => toNumber(item.returnQty ?? item.qtyReturn ?? item.quantity) > 0));
 }
 
+function normalizeChildOrderRefs(children = []) {
+  return Array.from(new Set((children || [])
+    .map((order) => {
+      if (!order || typeof order !== 'object') return String(order || '').trim();
+      return String(
+        order.id ||
+        order.code ||
+        order.documentCode ||
+        order.orderCode ||
+        order.salesOrderId ||
+        order.salesOrderCode ||
+        ''
+      ).trim();
+    })
+    .filter(Boolean)));
+}
+
 function canonicalMasterChildReferencePatch(children = []) {
+  const childRefs = normalizeChildOrderRefs(children);
   const patch = {
-    childOrderIds: normalizeSalesOrderIds((children || []).map((order) => order?.id || order)),
+    // childOrderIds là nguồn chính cho cả đơn SO nội bộ và mã BO/DMS.
+    // Không lọc chỉ SO*, nếu không các đơn BO sẽ tạo được master nhưng mất liên kết child.
+    childOrderIds: childRefs,
     children: []
   };
-  for (const field of LEGACY_MASTER_CHILD_REF_FIELDS) patch[field] = [];
+  for (const field of LEGACY_MASTER_CHILD_REF_FIELDS) {
+    if (field !== 'childOrderIds') patch[field] = [];
+  }
   return patch;
 }
 
@@ -103,5 +125,6 @@ module.exports = {
   DETACHED_SALES_ORDER_UNSET_FIELDS,
   buildDetachedSalesOrderMongoUpdate,
   hasDeliveryOperationalData,
+  normalizeChildOrderRefs,
   canonicalMasterChildReferencePatch
 };

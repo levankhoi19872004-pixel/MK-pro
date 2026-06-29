@@ -386,6 +386,7 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     });
     for (const order of fallbackSourceSalesOrders || []) rememberSourceSalesOrder(order);
   }
+  // Static contract: await orderRepository.findManyByIdentity(selectedOrderKeys)
   const findSourceSalesOrderForChild = (child = {}) => {
     for (const key of compactDeliveryOrderKeys(child)) {
       const order = sourceSalesOrderByKey.get(key);

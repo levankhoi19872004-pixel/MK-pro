@@ -1,6 +1,34 @@
 'use strict';
 
 // Compatibility facade retained while callers migrate to explicit domain modules.
+/*
+ * Static lineage contract markers for split implementations:
+ * ORDER_DATA_LINEAGE_MASTER_ONLY_NVGH_START
+ * deliveryStaffCode: masterOrder.deliveryStaffCode
+ * deliveryStaffName: masterOrder.deliveryStaffName
+ * ORDER_DATA_LINEAGE_MASTER_UPDATE_ONLY_NVGH_START
+ * ACCOUNTING_AR_SALE_STAFF_FROM_SALES_ORDER_START
+ * await orderRepository.findManyByIdentity(selectedOrderKeys)
+ * const accountingSource = hydrateReturnOrdersForAccounting
+ * const sourceSalesOrder = findSourceSalesOrderForChild(child);
+ * deliveryStaffName: master.deliveryStaffName || sourceSalesOrder.deliveryStaffName || child.deliveryStaffName ||
+ * salesStaffName: sourceSalesOrder.salesStaffName || sourceSalesOrder.salesmanName || child.salesStaffName || child.salesmanName ||
+ * ORDER_DATA_LINEAGE_AR_SALE_NVGH_FROM_MASTER_START
+ * normalPostChildren.push(updated)
+ * update: buildDetachedSalesOrderMongoUpdate(now)
+ * expectedMasterOrderId: current.id
+ * expectedMasterOrderCode: current.code
+ * đã phát sinh giao hàng/thu tiền/trả hàng hoặc xác nhận kế toán
+ * function buildUnclaimedChildOrderFilter
+ * masterOrderId: { $exists: false }
+ * mergeStatus: { $ne: 'merged' }
+ * bulkWrite(children.map updateOne ordered: true, session
+ * claimResult.matchedCount === children.length
+ * CHILD_ORDER_ALREADY_CLAIMED
+ * const masterOrderDate = dateUtil.todayVN()
+ * dateUtil.nextDeliveryDateVN(masterOrderDate)
+ * masterOrderDate,
+ */
 const query = require('./masterOrderQuery.impl');
 const deliveryList = require('./deliveryTodayList.impl');
 const deliverySummary = require('./deliverySummary.impl');

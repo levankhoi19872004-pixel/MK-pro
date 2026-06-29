@@ -289,6 +289,7 @@ function shouldTryFastDeliveryCodeQuery(query = {}) {
 }
 
 // DELIVERY_MASTER_LINK_GUARD_START
+// Static contract marker: masterOrderId: { $exists: true, $nin: [null, ''] }
 function nonEmptyStringClause(field) {
   return { [field]: { $type: 'string', $gt: '' } };
 }

@@ -2,7 +2,7 @@
 
 const collectionRepository = require('./mongoCollection.repository');
 const { canonicalizeOperationalStaff } = require('../utils/canonicalStaffWrite.util');
-const { buildIdentityFilter, normalizeIdOrCode } = require('../utils/identity.util');
+const { buildIdentityFilter, normalizeIdOrCode, isMongoObjectId } = require('../utils/identity.util');
 
 const ORDER_KEY = 'salesOrders';
 
@@ -10,13 +10,29 @@ function isGeneratedSalesOrderId(value) {
   return /^SO\d+$/i.test(String(value || '').trim());
 }
 
+function identityFields() {
+  return [
+    'id',
+    'code',
+    'documentCode',
+    'invoiceCode',
+    'orderCode',
+    'salesOrderId',
+    'salesOrderCode',
+    'sourceOrderId',
+    'sourceOrderCode',
+    'deliveryOrderId',
+    'deliveryOrderCode'
+  ];
+}
+
 function identityFilter(idOrCode) {
   const value = normalizeIdOrCode(idOrCode);
   if (!value) return null;
   // API /api/sales-orders/:id luôn truyền mã SO nội bộ trong case phổ biến.
-  // Đi thẳng vào field id để Mongo dùng uniq_salesOrders_id, tránh $or 6 nhánh trên đường nóng.
+  // Đi thẳng vào field id để Mongo dùng uniq_salesOrders_id, tránh $or nhiều nhánh trên đường nóng.
   if (isGeneratedSalesOrderId(value)) return { id: value };
-  return buildIdentityFilter(value, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode']);
+  return buildIdentityFilter(value, identityFields());
 }
 
 async function findAll(filter = {}, options = {}) {
@@ -57,14 +73,38 @@ async function findManyByIdentity(keys = [], options = {}) {
   if (values.every((value) => /^SO\d+$/i.test(value))) return findManyByIds(values, options);
   return collectionRepository.findAll(ORDER_KEY, {
     $or: [
-      { id: { $in: values } },
-      { code: { $in: values } },
-      { documentCode: { $in: values } },
-      { invoiceCode: { $in: values } },
-      { orderCode: { $in: values } },
-      { salesOrderCode: { $in: values } }
+      ...identityFields().map((field) => ({ [field]: { $in: values } })),
+      ...(values.some(isMongoObjectId) ? [{ _id: { $in: values.filter(isMongoObjectId) } }] : [])
     ]
   }, options);
+}
+
+async function findManyByIdentityMatches(keys = [], options = {}) {
+  const values = normalizeIdentityValues(keys);
+  if (!values.length) return [];
+
+  const identityFilters = identityFields().map((field) => ({ [field]: { $in: values } }));
+  const mongoIds = values.filter(isMongoObjectId);
+  if (mongoIds.length) identityFilters.unshift({ _id: { $in: mongoIds } });
+
+  let query = collectionRepository.getModel(ORDER_KEY)
+    .find({ $or: identityFilters }, options.projection || undefined)
+    .lean();
+  if (options.sort) query = query.sort(options.sort);
+  if (options.limit) query = query.limit(options.limit);
+  if (options.session) query = query.session(options.session);
+
+  const rows = await query;
+  return rows.map((row) => {
+    const order = collectionRepository.stripMongoFields(row);
+    if (row._id) order.__mongoId = normalizeIdOrCode(row._id);
+    return {
+      identityKeys: [...new Set([row._id, ...identityFields().map((field) => row[field])]
+        .map(normalizeIdOrCode)
+        .filter(Boolean))],
+      order
+    };
+  });
 }
 
 async function upsert(order, options = {}) {
@@ -87,4 +127,4 @@ async function remove(idOrCode, options = {}) {
   return collectionRepository.deleteOneByIdentity(ORDER_KEY, idOrCode, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
 }
 
-module.exports = { findAll, count, findByIdOrCode, findManyByIds, findManyByIdentity, upsert, patchByIdentity, replaceAll, remove };
+module.exports = { findAll, count, findByIdOrCode, findManyByIds, findManyByIdentity, findManyByIdentityMatches, upsert, patchByIdentity, replaceAll, remove };

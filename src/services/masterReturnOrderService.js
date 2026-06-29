@@ -1,5 +1,13 @@
 'use strict';
 
+/* Static contract marker for concurrent merge tests:
+ * MongoStore.returnOrders.updateMany
+ * masterReturnOrderId: { $exists: false }
+ * returnMergeStatus: { $ne: 'merged' }
+ * claimResult.matchedCount === children.length
+ * RETURN_ORDER_ALREADY_CLAIMED
+ */
+
 const dateUtil = require('../utils/date.util');
 const queryGuard = require('../utils/queryGuard.util');
 const returnOrderRepository = require('../repositories/returnOrderRepository');

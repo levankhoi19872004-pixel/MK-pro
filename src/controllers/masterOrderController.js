@@ -125,7 +125,13 @@ async function get(req, res) {
 async function create(req, res) {
   try {
     const result = await masterOrderService.createMasterOrder(req.body || {});
-    return handleServiceResult(res, result, 201, (r) => ({ message: `Đã tạo đơn tổng ${r.masterOrder.code}`, masterOrder: r.masterOrder }));
+    return handleServiceResult(res, result, 201, (r) => ({
+      message: Array.isArray(r.masterOrders) && r.masterOrders.length > 1
+        ? `Đã tạo ${r.masterOrders.length} đơn tổng: ${r.masterOrders.map((order) => order.code).join(', ')}`
+        : `Đã tạo đơn tổng ${r.masterOrder.code}`,
+      masterOrder: r.masterOrder,
+      masterOrders: r.masterOrders || (r.masterOrder ? [r.masterOrder] : [])
+    }));
   } catch (err) {
     res.status(400).json({ ok: false, message: err.message || 'Không tạo được đơn tổng' });
   }

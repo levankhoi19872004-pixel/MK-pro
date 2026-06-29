@@ -24,9 +24,10 @@ const MASTER_CHILD_ORDER_PROJECTION = [
   'customerCode', 'customerName', 'customerPhone', 'customerAddress', 'phone', 'address',
   'salesStaffCode', 'salesStaffName', 'salesmanCode', 'salesmanName',
   'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'nvghCode', 'nvghName',
-  'status', 'deliveryStatus', 'accountingStatus', 'totalAmount', 'subtotal', 'discountAmount',
-  'finalAmount', 'payableAmount', 'debtAmount', 'debt', 'cashAmount', 'bankAmount', 'rewardAmount',
-  'returnAmount', 'items', 'lines', 'products', 'masterOrderId', 'masterOrderCode', 'deliveryMasterId', 'deliveryMasterCode'
+  'status', 'lifecycleStatus', 'deliveryStatus', 'accountingStatus', 'deleted', 'isDeleted', 'deletedAt', 'cancelledAt',
+  'totalAmount', 'subtotal', 'discountAmount', 'finalAmount', 'payableAmount', 'amount', 'grandTotal',
+  'debtAmount', 'debt', 'cashAmount', 'bankAmount', 'rewardAmount', 'returnAmount',
+  'items', 'lines', 'products', 'masterOrderId', 'masterOrderCode', 'deliveryMasterId', 'deliveryMasterCode'
 ].join(' ');
 
 function boundedBatchSize(value, fallback, { allowZero = false } = {}) {
@@ -88,9 +89,17 @@ async function resolveStaff(body = {}, prefix = 'delivery') {
   return userRepository.findBusinessStaffByCode(value);
 }
 
+const INACTIVE_ORDER_STATUSES = ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'];
+
 function isInactiveStatus(row = {}) {
-  const status = String(row.status || '').toLowerCase();
-  return ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'].includes(status) || Boolean(row.deletedAt);
+  const status = String(row.status || '').trim().toLowerCase();
+  const lifecycleStatus = String(row.lifecycleStatus || '').trim().toLowerCase();
+  return INACTIVE_ORDER_STATUSES.includes(status)
+    || INACTIVE_ORDER_STATUSES.includes(lifecycleStatus)
+    || row.deleted === true
+    || row.isDeleted === true
+    || Boolean(row.deletedAt)
+    || Boolean(row.cancelledAt);
 }
 
 function toClient(masterOrder, children = []) {
@@ -105,7 +114,7 @@ function toClient(masterOrder, children = []) {
     // MASTER_ORDER_SEARCH_NOTE_PATCH_END
     // children chỉ là dữ liệu render tạm lấy từ orders thật. Không coi masterOrder.children là nguồn dữ liệu.
     children,
-    childOrderIds: normalizeSalesOrderIds(children.map((order) => order.id))
+    childOrderIds: [...new Set(children.map((order) => String(order.id || order.code || order.orderCode || order.documentCode || '').trim()).filter(Boolean))]
   };
 }
 

@@ -30,8 +30,10 @@ function salesOrderIdentity(row = {}) {
 }
 
 function masterOrderMoney(value) {
-  if (typeof money === 'function') return money(value);
-  return Number(value || 0).toLocaleString('vi-VN');
+  const number = Number(value || 0);
+  const rounded = Number.isFinite(number) ? Math.round(number) : 0;
+  if (typeof money === 'function') return money(rounded);
+  return rounded.toLocaleString('vi-VN');
 }
 
 function masterOrderDate(value) {
@@ -100,6 +102,13 @@ function masterOrderChildDebt(row = {}) {
 // MASTER_ORDER_POPUP_PATCH_START: summary lấy từ layer 3, không lấy trực tiếp checkbox layer 2
 function masterOrderGroupedRows() {
   return (unmergedOrdersCache || []).filter((row) => selectedGroupedChildOrderIds.has(salesOrderIdentity(row)));
+}
+
+function syncVisibleGroupedChildOrderIds() {
+  const visibleIds = new Set(masterOrderGroupedRows().map((row) => salesOrderIdentity(row)).filter(Boolean));
+  selectedGroupedChildOrderIds = visibleIds;
+  selectedGroupedChildOrderCheckIds = new Set([...selectedGroupedChildOrderCheckIds].filter((id) => visibleIds.has(id)));
+  return [...visibleIds];
 }
 
 function updateSelectedChildOrderSummary() {
@@ -481,7 +490,7 @@ window.loadMasterOrderModule = loadMasterOrderModule;
 async function submitMasterOrder(event) {
   if (event && event.preventDefault) event.preventDefault();
   try {
-    const childOrderIds = [...selectedGroupedChildOrderIds].filter(Boolean);
+    const childOrderIds = syncVisibleGroupedChildOrderIds();
     if (!childOrderIds.length) throw new Error('Chưa chọn đơn con để gộp');
     const formData = masterOrderForm ? new FormData(masterOrderForm) : new FormData();
     const payload = Object.fromEntries(formData.entries());
