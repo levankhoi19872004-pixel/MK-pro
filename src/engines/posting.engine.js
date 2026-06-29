@@ -103,8 +103,9 @@ async function hasExistingReturnOrderAR(returnOrder = {}, options = {}) {
   // còn active là đã tồn tại để giữ idempotency.
   const rows = await paymentRepository.findAll({
     type: 'ar_return',
-    status: { $nin: ['void', 'reversed', 'cancelled'] },
+    status: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
     reversed: { $ne: true },
+    isDeleted: { $ne: true },
     $or: [
       { id: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
       { code: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },

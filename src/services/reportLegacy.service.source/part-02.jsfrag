@@ -78,7 +78,12 @@ function buildDebtLedgerMatch(query = {}) {
     status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed'] },
     reversed: { $ne: true },
     refType: { $ne: 'AR_LEDGER_REVERSAL' },
-    type: { $nin: ['ar_reversal', 'reversal', 'ar_void'] }
+    // ===== SCOPED FIX: DEBT_REPORT_EXCLUDE_REACCOUNTING_REVERSALS_START =====
+    // Khi mở khóa/xác nhận kế toán lại, hệ thống tạo AR-SALE-REV/AR-RETURN-REV
+    // đồng thời mark dòng gốc reversed. Báo cáo công nợ hiện tại phải loại các
+    // dòng reversal kỹ thuật này, nếu không AR-SALE sẽ hiển thị x2 và che mất lỗi AR-RETURN.
+    type: { $nin: ['ar_reversal', 'reversal', 'ar_void', 'ar_sale_reversal', 'ar_return_reversal'] }
+    // ===== SCOPED FIX: DEBT_REPORT_EXCLUDE_REACCOUNTING_REVERSALS_END =====
   };
 
   if (query.dateFrom || query.dateTo || query.date) {

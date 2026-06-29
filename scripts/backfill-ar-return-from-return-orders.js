@@ -99,6 +99,7 @@ async function hasActiveArReturn(row = {}) {
     type: 'ar_return',
     status: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
     reversed: { $ne: true },
+    isDeleted: { $ne: true },
     $or: or
   }).select('id code credit amount status reversed').lean();
   return Boolean(existing && toNumber(existing.credit ?? existing.amount) > 0);
