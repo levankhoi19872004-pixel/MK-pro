@@ -260,10 +260,27 @@ async function hasPostedArReturn(order = {}, accountingReturnOrders = [], option
   if (!or.length) return false;
   const rows = await paymentRepository.findAll({
     type: 'ar_return',
-    status: { $ne: 'void' },
+    // ===== SCOPED FIX: AR_RETURN_REPAIR_ACTIVE_ONLY_START =====
+    // Repair thiếu AR-RETURN chỉ được bị chặn bởi bút toán AR-RETURN còn hiệu lực.
+    // Dòng đã đảo/reversed từ lần mở khóa kế toán cũ không được coi là đã ghi nhận,
+    // nếu không công nợ sẽ tiếp tục thiếu credit hàng trả.
+    status: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
+    reversed: { $ne: true },
+    // ===== SCOPED FIX: AR_RETURN_REPAIR_ACTIVE_ONLY_END =====
     $or: or
   }, options);
   return Array.isArray(rows) && rows.some((row) => toNumber(row.credit ?? row.amount) > 0);
+}
+
+function fallbackReturnAmountFromAccountingOrder(order = {}) {
+  return Math.max(0, Math.round(toNumber(
+    order.returnAmountFromReturnOrders
+    ?? order.syncedReturnAmountFromReturnOrders
+    ?? order.returnAmount
+    ?? order.returnedAmount
+    ?? order.totalReturnAmount
+    ?? 0
+  )));
 }
 
 async function repairMissingArReturnIfNeeded(order = {}, accountingReturnOrders = [], options = {}) {
@@ -273,14 +290,25 @@ async function repairMissingArReturnIfNeeded(order = {}, accountingReturnOrders 
     returnOrdersCount: Array.isArray(accountingReturnOrders) ? accountingReturnOrders.length : 0,
     hasReturnOrders
   });
-  if (!hasReturnOrders) return { repaired: false, reason: 'no_return_orders' };
+  const fallbackReturnAmount = fallbackReturnAmountFromAccountingOrder(order);
+  if (!hasReturnOrders && fallbackReturnAmount <= 0) return { repaired: false, reason: 'no_return_orders' };
   const alreadyHasArReturn = await hasPostedArReturn(order, accountingReturnOrders, options);
   debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-8 hasPostedArReturn', {
     code: order.code || order.orderCode,
     alreadyHasArReturn
   });
   if (alreadyHasArReturn) return { repaired: false, reason: 'ar_return_exists' };
-  const hydrated = hydrateReturnOrdersForAccounting(order, accountingReturnOrders);
+  const hydrated = hasReturnOrders
+    ? hydrateReturnOrdersForAccounting(order, accountingReturnOrders)
+    : {
+      ...order,
+      returnAmountFromReturnOrders: fallbackReturnAmount,
+      syncedReturnAmountFromReturnOrders: fallbackReturnAmount,
+      returnAmount: fallbackReturnAmount,
+      returnedAmount: fallbackReturnAmount,
+      accountingReturnOrders: [],
+      returnAmountSource: 'salesOrder_returnAmount_repair_fallback'
+    };
   const posted = await postDeliveryCollectionsAfterAccountingConfirmed(hydrated, { ...options, skipIfExists: true });
   const arReturnPosted = (Array.isArray(posted) ? posted : [])
     .some((row) => String(row?.type || '').toLowerCase() === 'ar_return');
@@ -741,6 +769,7 @@ module.exports = {
   compactAllocations,
   hasReturnOrdersForAccounting,
   hasPostedArReturn,
+  fallbackReturnAmountFromAccountingOrder,
   repairMissingArReturnIfNeeded,
   markAccountingReturnOrdersConfirmed,
   postDeliveryCollectionsAfterAccountingConfirmed,

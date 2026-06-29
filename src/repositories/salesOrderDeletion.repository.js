@@ -22,7 +22,13 @@ function orderKeys(order = {}) {
     order.orderCode,
     order.salesOrderCode,
     order.documentCode,
-    order.invoiceCode
+    order.invoiceCode,
+    order.externalOrderCode,
+    order.sourceOrderId,
+    order.sourceOrderCode,
+    order.deliveryOrderId,
+    order.deliveryOrderCode,
+    order.orderNo
   ].map((v) => String(v || '').trim()).filter(Boolean))];
 }
 

@@ -23,13 +23,38 @@ function actorFromCommand(command = {}) {
   };
 }
 
+function orderDeleteDebugPayload(order = {}, extra = {}) {
+  return {
+    ref: extra.ref || '',
+    orderId: order.id || '',
+    orderCode: order.code || order.orderCode || order.salesOrderCode || '',
+    status: order.status || '',
+    lifecycleStatus: order.lifecycleStatus || '',
+    deliveryStatus: order.deliveryStatus || '',
+    accountingStatus: order.accountingStatus || '',
+    stockPosted: Boolean(order.stockPosted),
+    masterOrderId: order.masterOrderId || '',
+    masterOrderCode: order.masterOrderCode || '',
+    decision: extra.decision || '',
+    actorCode: extra.actorCode || ''
+  };
+}
+
+function logDeleteDebug(stage, payload = {}) {
+  if (process.env.DEBUG_SALES_ORDER_DELETE !== '1') return;
+  // Không log thông tin khách hàng/số tiền; chỉ log khóa kỹ thuật để trace lỗi xóa.
+  console.info(`[SALES_ORDER_DELETE_${stage}]`, payload);
+}
+
 async function deleteSalesOrder(idOrCode, command = {}) {
   const order = await orderRepository.findByIdOrCode(idOrCode);
 
   if (!order) {
+    logDeleteDebug('NOT_FOUND', { ref: String(idOrCode || '').trim() });
     return {
-      error: 'Không tìm thấy đơn bán',
-      status: 404
+      error: 'Không tìm thấy đơn bán theo mã đã gửi. Hãy thử tải lại danh sách rồi xóa lại.',
+      status: 404,
+      code: 'ORDER_NOT_FOUND'
     };
   }
 
@@ -56,6 +81,7 @@ async function deleteSalesOrder(idOrCode, command = {}) {
   }
 
   const actor = actorFromCommand(command);
+  logDeleteDebug('RESOLVED', orderDeleteDebugPayload(order, { ref: String(idOrCode || '').trim(), actorCode: actor.actorCode }));
   const earlyDecision = decideSalesOrderDeletion(order, {}, { ...command, ...actor });
   if (earlyDecision.mode === 'ALREADY_DELETED') {
     return {
@@ -84,6 +110,11 @@ async function deleteSalesOrder(idOrCode, command = {}) {
     const relatedInTx = await deletionRepository.loadSalesOrderDeletionContext(order, { session });
     const decisionInTx = decideSalesOrderDeletion(order, relatedInTx, { ...command, ...actor });
     finalDecision = decisionInTx;
+    logDeleteDebug('DECISION', orderDeleteDebugPayload(order, {
+      ref: String(idOrCode || '').trim(),
+      actorCode: actor.actorCode,
+      decision: decisionInTx.code || decisionInTx.mode || ''
+    }));
 
     if (!decisionInTx.allowed) {
       const err = new Error(decisionInTx.message || 'Không thể xóa đơn bán');
@@ -119,7 +150,14 @@ async function deleteSalesOrder(idOrCode, command = {}) {
 
     await internalSaleAllocationService.releaseForDeletedOrder(order, actor, { session });
 
-    await orderRepository.remove(order.id || order.code || idOrCode, { session });
+    const removeResult = await orderRepository.removeResolved(order, idOrCode, { session });
+    const deletedCount = Number(removeResult?.deletedCount || removeResult?.n || 0);
+    if (deletedCount !== 1) {
+      const err = new Error('Không xóa được đơn bán do khóa định danh không khớp. Hãy tải lại danh sách rồi thử lại.');
+      err.status = 409;
+      err.code = 'ORDER_DELETE_IDENTITY_MISMATCH';
+      throw err;
+    }
   });
 
   return {

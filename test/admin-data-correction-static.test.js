@@ -33,11 +33,18 @@ test('high risk fields require ledger adjustment and are not direct-write', () =
 
 test('inventory, AR and fund corrections create adjustment records and ledger rows', () => {
   assert.match(service, /InventoryAdjustment\.create/);
-  assert.match(service, /StockTransaction\.create/);
+  assert.match(service, /inventoryService\.postStockMovement/);
+  assert.match(service, /sourceType:\s*'ADMIN_CORRECTION'/);
   assert.match(service, /ArAdjustment\.create/);
   assert.match(service, /ArLedger\.create/);
   assert.match(service, /FundAdjustment\.create/);
   assert.match(service, /FundLedger\.create/);
+});
+
+test('inventory correction does not create orphan stock transaction without updating current inventory', () => {
+  assert.doesNotMatch(service, /StockTransaction\.create\(\[tx\]/);
+  assert.match(service, /postStockMovement\(\{[\s\S]*items:/);
+  assert.match(service, /postStockMovement\(\{[\s\S]*quantity:\s*Math\.abs\(adjustQty\)/);
 });
 
 test('rollback is implemented as reversal, not deleting old ledger rows', () => {

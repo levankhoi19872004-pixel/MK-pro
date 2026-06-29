@@ -19,10 +19,12 @@ function identityFields() {
     'orderCode',
     'salesOrderId',
     'salesOrderCode',
+    'externalOrderCode',
     'sourceOrderId',
     'sourceOrderCode',
     'deliveryOrderId',
-    'deliveryOrderCode'
+    'deliveryOrderCode',
+    'orderNo'
   ];
 }
 
@@ -124,7 +126,34 @@ async function patchByIdentity(idOrCode, patch = {}, options = {}) {
 }
 
 async function remove(idOrCode, options = {}) {
-  return collectionRepository.deleteOneByIdentity(ORDER_KEY, idOrCode, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
+  const filter = identityFilter(idOrCode);
+  if (!filter) throw new Error(`Không có khóa định danh để xóa ${ORDER_KEY}`);
+  return collectionRepository.getModel(ORDER_KEY).deleteOne(filter, { session: options.session });
 }
 
-module.exports = { findAll, count, findByIdOrCode, findManyByIds, findManyByIdentity, findManyByIdentityMatches, upsert, patchByIdentity, replaceAll, remove };
+async function removeResolved(order = {}, fallbackRef = '', options = {}) {
+  const values = normalizeIdentityValues([
+    order.id,
+    order.code,
+    order.orderCode,
+    order.salesOrderCode,
+    order.documentCode,
+    order.invoiceCode,
+    order.externalOrderCode,
+    order.sourceOrderId,
+    order.sourceOrderCode,
+    order.deliveryOrderId,
+    order.deliveryOrderCode,
+    order.orderNo,
+    fallbackRef
+  ]);
+  if (!values.length) throw new Error(`Không có khóa định danh để xóa ${ORDER_KEY}`);
+  return collectionRepository.getModel(ORDER_KEY).deleteOne({
+    $or: [
+      ...identityFields().map((field) => ({ [field]: { $in: values } })),
+      ...(values.some(isMongoObjectId) ? [{ _id: { $in: values.filter(isMongoObjectId) } }] : [])
+    ]
+  }, { session: options.session });
+}
+
+module.exports = { findAll, count, findByIdOrCode, findManyByIds, findManyByIdentity, findManyByIdentityMatches, upsert, patchByIdentity, replaceAll, remove, removeResolved, identityFields };

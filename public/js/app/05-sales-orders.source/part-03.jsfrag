@@ -178,16 +178,21 @@ async function saveSalesVatSettingFromModal(){
 }
 window.saveSalesVatSettingFromModal=saveSalesVatSettingFromModal;
 
+function salesOrderDeleteRefs(order){
+  return [...new Set([
+    order?.id,
+    order?.code,
+    order?.orderCode,
+    order?.salesOrderCode,
+    order?.documentCode,
+    order?.invoiceCode,
+    order?.externalOrderCode,
+    order?.sourceOrderCode
+  ].map(value=>String(value||'').trim()).filter(Boolean))];
+}
+
 function getSalesOrderDeleteIdentity(order){
-  return String(
-    order?.code ||
-    order?.orderCode ||
-    order?.salesOrderCode ||
-    order?.documentCode ||
-    order?.invoiceCode ||
-    order?.id ||
-    ''
-  ).trim();
+  return salesOrderDeleteRefs(order)[0]||'';
 }
 
 async function readSalesOrderDeleteResponse(res){
@@ -197,25 +202,55 @@ async function readSalesOrderDeleteResponse(res){
   }
 }
 
+function isDeleteRefNotFound(res,json){
+  const code=String(json?.code||json?.errorCode||'').toUpperCase();
+  return res.status===404 || code==='ORDER_NOT_FOUND';
+}
+
+async function sendSalesOrderDeleteRequest(ref,reason){
+  const url=`/api/sales-orders/${encodeURIComponent(ref)}`;
+  const payload={reason,deleteReason:reason};
+  const common={
+    credentials:'same-origin',
+    headers:{
+      'Content-Type':'application/json',
+      'X-Requested-With':'XMLHttpRequest'
+    },
+    body:JSON.stringify(payload)
+  };
+  const res=await fetch(url,{...common,method:'DELETE'});
+  const json=await readSalesOrderDeleteResponse(res);
+  if((res.status===404||res.status===405) && !json?.ok){
+    const fallbackRes=await fetch(`${url}/delete`,{...common,method:'POST'});
+    const fallbackJson=await readSalesOrderDeleteResponse(fallbackRes);
+    return {res:fallbackRes,json:fallbackJson,ref,usedFallback:true};
+  }
+  return {res,json,ref,usedFallback:false};
+}
+
 async function deleteSalesOrder(idx){
   const order=window.__salesOrdersCache?.[idx];
   if(!order)return;
-  const key=getSalesOrderDeleteIdentity(order);
+  const refs=salesOrderDeleteRefs(order);
+  const key=refs[0]||'';
   if(!key){alert('Không xác định được mã đơn để xóa');return;}
-  const reason=prompt(`Lý do xóa đơn ${order.code||order.id}?`, 'Xóa đơn bán');
+  const reason=prompt(`Lý do xóa đơn ${order.code||order.orderCode||order.id}?`, 'Xóa đơn bán');
   if(reason===null)return;
   try{
-    const res=await fetch(`/api/sales-orders/${encodeURIComponent(key)}`,{
-      method:'DELETE',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({reason,deleteReason:reason})
-    });
-    const json=await readSalesOrderDeleteResponse(res);
-    if(!res.ok||!json.ok)throw new Error(json.message||'Không xóa được đơn');
-    alert(json.message||'Đã xóa đơn');
-    salesOrderDetailCache.delete(key);
-    await loadSalesOrders({page:salesOrderCurrentPage||1,append:false});
-    await loadStock();await loadDebts();await loadCashbook();
+    let lastResult=null;
+    for(const ref of refs){
+      const result=await sendSalesOrderDeleteRequest(ref,reason);
+      lastResult=result;
+      if(result.res.ok&&result.json?.ok){
+        alert(result.json.message||'Đã xóa đơn');
+        refs.forEach(candidate=>salesOrderDetailCache.delete(candidate));
+        await loadSalesOrders({page:salesOrderCurrentPage||1,append:false});
+        await loadStock();await loadDebts();await loadCashbook();
+        return;
+      }
+      if(!isDeleteRefNotFound(result.res,result.json))break;
+    }
+    throw new Error(lastResult?.json?.message||'Không xóa được đơn');
   }catch(err){alert(err.message||'Không xóa được đơn')}
 }
 window.deleteSalesOrder=deleteSalesOrder;
@@ -225,10 +260,12 @@ if(salesOrderList&&!salesOrderList.dataset.securityDelegationBound){
   salesOrderList.addEventListener('click',event=>{
     const button=event.target.closest('[data-sales-order-action]');
     if(!button||!salesOrderList.contains(button))return;
+    event.preventDefault();
+    event.stopPropagation();
     const index=Number(button.dataset.orderIndex);
-    if(button.dataset.salesOrderAction==='toggle-vat')toggleSalesOrderVat(index);
-    if(button.dataset.salesOrderAction==='edit')openSalesOrderEdit(index);
-    if(button.dataset.salesOrderAction==='delete')deleteSalesOrder(index);
+    if(button.dataset.salesOrderAction==='toggle-vat'){toggleSalesOrderVat(index);return;}
+    if(button.dataset.salesOrderAction==='edit'){openSalesOrderEdit(index);return;}
+    if(button.dataset.salesOrderAction==='delete'){deleteSalesOrder(index);return;}
   });
 }
 

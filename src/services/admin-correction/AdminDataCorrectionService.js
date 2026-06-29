@@ -7,6 +7,7 @@ const InventoryAdjustment = require('../../models/InventoryAdjustment');
 const ArAdjustment = require('../../models/ArAdjustment');
 const FundAdjustment = require('../../models/FundAdjustment');
 const AuditLog = require('../../models/AuditLog');
+const inventoryService = require('../inventoryService');
 const SalesOrder = require('../../models/SalesOrder');
 const ReturnOrder = require('../../models/ReturnOrder');
 const MasterOrder = require('../../models/MasterOrder');
@@ -383,6 +384,12 @@ async function rejectCorrection(id, actor = {}, input = {}) {
   });
 }
 
+async function findInventoryAdjustmentByCorrectionCode(correctionCode, options = {}) {
+  const query = InventoryAdjustment.findOne({ correctionCode: text(correctionCode) });
+  if (options.session) query.session(options.session);
+  return query.lean();
+}
+
 async function createInventoryAdjustment(correction, actor = {}, options = {}) {
   const patch = correction.proposedPatch || {};
   const warehouseCode = text(patch.warehouseCode || patch.warehouse || correction.entityCode || 'MAIN') || 'MAIN';
@@ -393,41 +400,55 @@ async function createInventoryAdjustment(correction, actor = {}, options = {}) {
     err.status = 400;
     throw err;
   }
-  const beforeQty = Number.isFinite(Number(patch.beforeQty)) ? toNumber(patch.beforeQty) : await calculateStockBalance({ productCode, warehouseCode }, options);
-  const afterQty = Number.isFinite(Number(patch.afterQty)) ? toNumber(patch.afterQty) : beforeQty + adjustQty;
-  const direction = adjustQty >= 0 ? 'in' : 'out';
-  const code = makeId('INVADJ');
-  const txId = makeId('STKADJ');
-  const idempotencyKey = text(correction.idempotencyKey) || `admin-correction:inventory:${correction.correctionCode}`;
 
-  const tx = {
-    id: txId,
-    tenantId: correction.tenantId,
-    idempotencyKey,
-    sourceType: 'admin_correction',
-    sourceId: correction.id,
-    sourceCode: correction.correctionCode,
-    date: nowIso().slice(0, 10),
-    productCode,
-    productName: text(patch.productName),
-    warehouseCode,
-    warehouseName: text(patch.warehouseName),
-    type: 'ADJUSTMENT',
+  const existingAdjustment = await findInventoryAdjustmentByCorrectionCode(correction.correctionCode, options);
+  if (existingAdjustment) {
+    return {
+      adjustment: existingAdjustment,
+      ledgers: existingAdjustment.stockTransactionId
+        ? [{ type: 'stockTransaction', id: existingAdjustment.stockTransactionId, code: existingAdjustment.stockTransactionCode || existingAdjustment.stockTransactionId }]
+        : []
+    };
+  }
+
+  const beforeQty = Number.isFinite(Number(patch.beforeQty))
+    ? toNumber(patch.beforeQty)
+    : await calculateStockBalance({ productCode, warehouseCode }, options);
+  const afterQty = Number.isFinite(Number(patch.afterQty)) ? toNumber(patch.afterQty) : beforeQty + adjustQty;
+  const direction = adjustQty >= 0 ? 'IN' : 'OUT';
+  const code = makeId('INVADJ');
+  const txDate = nowIso().slice(0, 10);
+
+  // P0 inventory invariant:
+  // Admin correction không được tự create stockTransactions rồi bỏ qua inventories.
+  // postStockMovement() là boundary duy nhất để vừa ghi ledger vừa cập nhật current inventory
+  // theo idempotencyKey sourceType/sourceId/product/warehouse/type.
+  const stockTransactions = await inventoryService.postStockMovement({
+    id: correction.id,
+    code: correction.correctionCode,
+    date: txDate,
+    documentDate: txDate,
+    note: correction.reason,
+    items: [{
+      productCode,
+      productId: text(patch.productId || productCode),
+      productName: text(patch.productName),
+      quantity: Math.abs(adjustQty),
+      qty: Math.abs(adjustQty)
+    }]
+  }, {
+    type: direction === 'IN' ? 'ADMIN_ADJUSTMENT_IN' : 'ADMIN_ADJUSTMENT_OUT',
     direction,
-    quantity: adjustQty,
-    qty: adjustQty,
-    inQty: direction === 'in' ? Math.abs(adjustQty) : 0,
-    outQty: direction === 'out' ? Math.abs(adjustQty) : 0,
-    balanceQty: afterQty,
-    refType: 'adminCorrectionRequest',
+    sourceType: 'ADMIN_CORRECTION',
+    refType: 'ADMIN_CORRECTION',
     refId: correction.id,
     refCode: correction.correctionCode,
-    note: correction.reason,
-    createdAt: nowIso(),
-    updatedAt: nowIso()
-  };
+    date: txDate,
+    note: correction.reason
+  }, { session: options.session });
+
+  const stockTx = (stockTransactions || []).find((row) => !row.skipped) || (stockTransactions || [])[0] || {};
   const createOptions = options.session ? { session: options.session } : undefined;
-  const [stockTx] = await StockTransaction.create([tx], createOptions);
   const [adjustment] = await InventoryAdjustment.create([{
     id: code,
     tenantId: correction.tenantId,
@@ -445,17 +466,19 @@ async function createInventoryAdjustment(correction, actor = {}, options = {}) {
     sourceType: 'admin_correction',
     sourceId: correction.id,
     sourceCode: correction.correctionCode,
-    stockTransactionId: stockTx.id,
-    stockTransactionCode: stockTx.id,
+    stockTransactionId: stockTx.id || '',
+    stockTransactionCode: stockTx.code || stockTx.id || '',
+    isRollback: Boolean(correction.isRollback || String(correction.correctionCode || '').endsWith('-RB')),
+    rollbackOf: text(correction.rollbackOf || correction.metadata?.rollbackOf),
     createdBy: correction.requestedBy,
     approvedBy: actorSnapshot(actor),
     status: 'applied',
     createdAt: correction.createdAt,
     approvedAt: correction.approvedAt || nowIso(),
     appliedAt: nowIso(),
-    metadata: { stockTransaction: tx }
+    metadata: { stockTransactions: stableClone(stockTransactions || []) }
   }], createOptions);
-  return { adjustment, ledgers: [{ type: 'stockTransaction', id: stockTx.id, code: stockTx.id }] };
+  return { adjustment, ledgers: stockTx.id ? [{ type: 'stockTransaction', id: stockTx.id, code: stockTx.code || stockTx.id }] : [] };
 }
 
 async function createArAdjustment(correction, actor = {}, options = {}) {
@@ -702,7 +725,7 @@ async function createRollbackLedger(correction, actor = {}, options = {}) {
   if (kind === 'inventory') {
     patch.adjustQty = -toNumber(patch.adjustQty ?? patch.quantity ?? patch.qty);
     patch.beforeQty = undefined;
-    const rollbackCorrection = { ...correction, id: makeId('CORRROLL'), correctionCode: `${correction.correctionCode}-RB`, proposedPatch: patch, reason: `Rollback: ${correction.reason}` };
+    const rollbackCorrection = { ...correction, id: makeId('CORRROLL'), correctionCode: `${correction.correctionCode}-RB`, proposedPatch: patch, reason: `Rollback: ${correction.reason}`, idempotencyKey: '', isRollback: true, rollbackOf: correction.correctionCode, metadata: { ...(correction.metadata || {}), rollbackOf: correction.correctionCode } };
     const result = await createInventoryAdjustment(rollbackCorrection, actor, options);
     await InventoryAdjustment.updateMany({ correctionCode: correction.correctionCode }, { $set: { status: 'rolled_back', rolledBackAt: nowIso() } }, options.session ? { session: options.session } : undefined);
     return result;
@@ -710,7 +733,7 @@ async function createRollbackLedger(correction, actor = {}, options = {}) {
   if (kind === 'ar') {
     patch.adjustAmount = -toNumber(patch.adjustAmount ?? patch.amount);
     patch.beforeDebt = undefined;
-    const rollbackCorrection = { ...correction, id: makeId('CORRROLL'), correctionCode: `${correction.correctionCode}-RB`, proposedPatch: patch, reason: `Rollback: ${correction.reason}` };
+    const rollbackCorrection = { ...correction, id: makeId('CORRROLL'), correctionCode: `${correction.correctionCode}-RB`, proposedPatch: patch, reason: `Rollback: ${correction.reason}`, idempotencyKey: '', isRollback: true, rollbackOf: correction.correctionCode, metadata: { ...(correction.metadata || {}), rollbackOf: correction.correctionCode } };
     const result = await createArAdjustment(rollbackCorrection, actor, options);
     await ArAdjustment.updateMany({ correctionCode: correction.correctionCode }, { $set: { status: 'rolled_back', rolledBackAt: nowIso() } }, options.session ? { session: options.session } : undefined);
     return result;
@@ -718,7 +741,7 @@ async function createRollbackLedger(correction, actor = {}, options = {}) {
   if (kind === 'fund') {
     patch.adjustAmount = -toNumber(patch.adjustAmount ?? patch.amount);
     patch.beforeBalance = undefined;
-    const rollbackCorrection = { ...correction, id: makeId('CORRROLL'), correctionCode: `${correction.correctionCode}-RB`, proposedPatch: patch, reason: `Rollback: ${correction.reason}` };
+    const rollbackCorrection = { ...correction, id: makeId('CORRROLL'), correctionCode: `${correction.correctionCode}-RB`, proposedPatch: patch, reason: `Rollback: ${correction.reason}`, idempotencyKey: '', isRollback: true, rollbackOf: correction.correctionCode, metadata: { ...(correction.metadata || {}), rollbackOf: correction.correctionCode } };
     const result = await createFundAdjustment(rollbackCorrection, actor, options);
     await FundAdjustment.updateMany({ correctionCode: correction.correctionCode }, { $set: { status: 'rolled_back', rolledBackAt: nowIso() } }, options.session ? { session: options.session } : undefined);
     return result;
