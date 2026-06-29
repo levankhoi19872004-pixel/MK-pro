@@ -330,6 +330,76 @@
       </section>
     </section>
 
+
+    <section id="adminCorrectionsTab" class="tab-content">
+      <section class="card admin-correction-card">
+        <div class="toolbar">
+          <div>
+            <h2>Trung tâm chỉnh sửa số liệu</h2>
+            <p class="muted">Admin được sửa dữ liệu, nhưng số liệu kho/công nợ/quỹ đã phát sinh phải đi qua phiếu điều chỉnh và audit log.</p>
+          </div>
+          <div class="button-row">
+            <button type="button" id="reloadAdminCorrectionsButton" class="secondary">Tải lại</button>
+            <button type="button" id="loadAdminCorrectionStandardButton" class="secondary">Quy chuẩn</button>
+          </div>
+        </div>
+        <div id="adminCorrectionStandardBox" class="note-box" hidden></div>
+        <div class="summary-box admin-correction-summary">
+          <span>Đang chờ: <strong id="adminCorrectionPendingCount">0</strong></span>
+          <span>Rủi ro cao: <strong id="adminCorrectionHighRiskCount">0</strong></span>
+          <span>Đã áp dụng: <strong id="adminCorrectionAppliedCount">0</strong></span>
+        </div>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead><tr><th>Mã phiếu</th><th>Loại dữ liệu</th><th>Mã chứng từ</th><th>Rủi ro</th><th>Trạng thái</th><th>Lý do</th><th>Người tạo</th><th>Thời gian</th><th>Thao tác</th></tr></thead>
+            <tbody id="adminCorrectionsTable"><tr><td colspan="9">Đang tải phiếu chỉnh sửa...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <main class="grid two-cols admin-correction-workspace">
+        <section class="card">
+          <div class="toolbar"><div><h3>Tạo phiếu chỉnh sửa</h3><p class="muted">Dùng cho chỉnh master data hoặc tạo phiếu điều chỉnh tồn kho/công nợ/quỹ.</p></div></div>
+          <form id="adminCorrectionForm" class="form compact-form">
+            <label>Loại dữ liệu
+              <select name="entityType" id="adminCorrectionEntityType">
+                <option value="customer">Khách hàng</option>
+                <option value="product">Sản phẩm</option>
+                <option value="sales_order">Đơn bán</option>
+                <option value="return_order">Đơn trả hàng</option>
+                <option value="inventory">Điều chỉnh tồn kho</option>
+                <option value="ar">Điều chỉnh công nợ</option>
+                <option value="fund">Điều chỉnh quỹ</option>
+              </select>
+            </label>
+            <label>Mã / ID dữ liệu<input name="entityId" placeholder="VD: BO038382, KH001, SP001..." /></label>
+            <label>Loại chỉnh sửa
+              <select name="correctionType" id="adminCorrectionType">
+                <option value="entity_patch">Sửa field dữ liệu</option>
+                <option value="inventory_adjustment">Phiếu chỉnh tồn kho</option>
+                <option value="ar_adjustment">Phiếu chỉnh công nợ</option>
+                <option value="fund_adjustment">Phiếu chỉnh quỹ</option>
+              </select>
+            </label>
+            <label>Patch JSON / dữ liệu điều chỉnh
+              <textarea name="proposedPatch" rows="7" placeholder='VD field thường: {"name":"Tên mới"}
+Tồn kho: {"productCode":"SP001","warehouseCode":"MAIN","adjustQty":10}
+Công nợ: {"customerCode":"KH001","adjustAmount":-50000}
+Quỹ: {"fundType":"cash","account":"CASH","adjustAmount":100000}'></textarea>
+            </label>
+            <label>Lý do bắt buộc<input name="reason" placeholder="Nêu rõ nguyên nhân sửa và căn cứ đối soát" required /></label>
+            <label class="check-row"><input type="checkbox" name="applyImmediately" />Áp dụng ngay nếu đã đủ quyền</label>
+            <div class="button-row"><button type="submit">Tạo phiếu</button><button type="button" id="validateAdminCorrectionButton" class="secondary">Kiểm tra trước</button></div>
+          </form>
+          <p id="adminCorrectionFormMessage" class="message"></p>
+        </section>
+        <section class="card">
+          <div class="toolbar"><div><h3>Chi tiết / diff</h3><p class="muted">Hiển thị dữ liệu trước/sau, cảnh báo ảnh hưởng và lịch sử audit.</p></div></div>
+          <pre id="adminCorrectionDetailBox" class="system-json-box">Chọn một phiếu hoặc kiểm tra patch để xem chi tiết.</pre>
+        </section>
+      </main>
+    </section>
+
     <section id="systemTab" class="tab-content">
       <section class="card system-card">
         <div class="toolbar">

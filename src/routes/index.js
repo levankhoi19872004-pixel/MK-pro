@@ -43,6 +43,7 @@ const integrationRoutes = require('./integrationRoutes');
 const platformRoutes = require('./platformRoutes');
 const enterpriseRoutes = require('./enterpriseRoutes');
 const backgroundJobRoutes = require('./backgroundJobRoutes');
+const adminCorrectionRoutes = require('./adminCorrectionRoutes');
 
 
 function registerApiRoutes(app) {
@@ -53,6 +54,7 @@ function registerApiRoutes(app) {
 
   // Core system routes must be mounted before legacy guard.
   app.use('/api', systemRoutes);
+  app.use('/api/admin', adminCorrectionRoutes);
 
   // Unified login for web software + sales app + delivery app.
   app.use('/api/auth', authRoutes);

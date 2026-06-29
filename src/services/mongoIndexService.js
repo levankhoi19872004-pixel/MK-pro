@@ -326,6 +326,28 @@ const INDEX_DEFINITIONS = {
     [{ action: 1 }, { name: 'idx_audit_logs_action' }],
     [{ createdAt: -1 }, { name: 'idx_audit_logs_created_at' }]
   ],
+  adminCorrectionRequests: [
+    [{ correctionCode: 1 }, { name: 'uniq_admin_correction_code', unique: true, partialFilterExpression: { correctionCode: { $type: 'string', $gt: '' } } }],
+    [{ status: 1, createdAt: -1 }, { name: 'idx_admin_corrections_status_created' }],
+    [{ entityType: 1, entityCode: 1, createdAt: -1 }, { name: 'idx_admin_corrections_entity_code' }],
+    [{ riskLevel: 1, status: 1, createdAt: -1 }, { name: 'idx_admin_corrections_risk_status' }],
+    [{ idempotencyKey: 1 }, { name: 'uniq_admin_corrections_idempotency', unique: true, sparse: true }]
+  ],
+  inventoryAdjustments: [
+    [{ adjustmentCode: 1 }, { name: 'uniq_inventory_adjustment_code', unique: true, partialFilterExpression: { adjustmentCode: { $type: 'string', $gt: '' } } }],
+    [{ productCode: 1, warehouseCode: 1, createdAt: -1 }, { name: 'idx_inventory_adjustments_product_warehouse' }],
+    [{ correctionCode: 1 }, { name: 'idx_inventory_adjustments_correction' }]
+  ],
+  arAdjustments: [
+    [{ adjustmentCode: 1 }, { name: 'uniq_ar_adjustment_code', unique: true, partialFilterExpression: { adjustmentCode: { $type: 'string', $gt: '' } } }],
+    [{ customerCode: 1, createdAt: -1 }, { name: 'idx_ar_adjustments_customer' }],
+    [{ correctionCode: 1 }, { name: 'idx_ar_adjustments_correction' }]
+  ],
+  fundAdjustments: [
+    [{ adjustmentCode: 1 }, { name: 'uniq_fund_adjustment_code', unique: true, partialFilterExpression: { adjustmentCode: { $type: 'string', $gt: '' } } }],
+    [{ fundType: 1, account: 1, createdAt: -1 }, { name: 'idx_fund_adjustments_fund_account' }],
+    [{ correctionCode: 1 }, { name: 'idx_fund_adjustments_correction' }]
+  ],
   idempotencyRequests: [
     [{ key: 1 }, { name: 'uniq_idempotency_requests_key', unique: true }],
     [{ expiresAt: 1 }, { name: 'ttl_idempotency_requests_expires_at', expireAfterSeconds: 0 }],

@@ -10,3 +10,14 @@
 .import-shortage-detail-wrap input,.import-shortage-detail-wrap select{min-width:110px}
 .import-shortage-detail-wrap .shortage-item-note{min-width:190px}
 @media(max-width:720px){.import-shortage-report-dialog{width:100%;max-height:94vh}.import-shortage-report-section .compact-toolbar{align-items:stretch}.import-shortage-report-section .button-row{display:grid;grid-template-columns:1fr}}
+
+/* Phase47 - Admin Data Correction */
+.admin-correction-summary{margin:12px 0;display:flex;gap:14px;flex-wrap:wrap}
+.admin-correction-workspace{grid-template-columns:minmax(360px,0.9fr) minmax(420px,1.1fr)}
+.admin-correction-card .compact-actions{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.badge{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:12px;font-weight:700;background:#e5e7eb;color:#111827}
+.badge.success{background:#dcfce7;color:#166534}
+.badge.warning{background:#fef3c7;color:#92400e}
+.badge.danger{background:#fee2e2;color:#991b1b}
+.system-json-box{white-space:pre-wrap;background:#0f172a;color:#e5e7eb;border-radius:10px;padding:12px;max-height:520px;overflow:auto;font-family:Consolas,Monaco,monospace;font-size:12px;line-height:1.5}
+@media(max-width:960px){.admin-correction-workspace{grid-template-columns:1fr}.admin-correction-summary{display:block}.admin-correction-summary span{display:block;margin:4px 0}}

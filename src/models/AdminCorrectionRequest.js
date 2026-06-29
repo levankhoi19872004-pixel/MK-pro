@@ -1,0 +1,41 @@
+'use strict';
+
+const flexModel = require('./_flexModel');
+
+module.exports = flexModel('AdminCorrectionRequest', 'adminCorrectionRequests', {
+  id: String,
+  tenantId: String,
+  correctionCode: String,
+  entityType: String,
+  entityId: String,
+  entityCode: String,
+  correctionType: String,
+  riskLevel: String,
+  status: String,
+  reason: String,
+  requestedBy: Object,
+  requestedAt: String,
+  approvedBy: Object,
+  approvedAt: String,
+  rejectedBy: Object,
+  rejectedAt: String,
+  rejectReason: String,
+  appliedBy: Object,
+  appliedAt: String,
+  rolledBackBy: Object,
+  rolledBackAt: String,
+  beforeSnapshot: Object,
+  afterSnapshot: Object,
+  proposedPatch: Object,
+  diff: Array,
+  affectedLedgers: Array,
+  affectedReports: Array,
+  rollbackRef: Object,
+  idempotencyKey: String,
+  version: Number,
+  deleted: Boolean,
+  deletedAt: String,
+  metadata: Object,
+  createdAt: String,
+  updatedAt: String
+});
