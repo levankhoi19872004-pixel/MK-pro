@@ -75,7 +75,9 @@
     "check:release-manifest": "node scripts/generate-release-manifest.js --check",
     "restore:drill:offline": "node scripts/restore-drill-offline.js",
     "test:operations": "node --test test/operations-*.test.js",
-    "simulate:operations": "node scripts/operations-failure-simulation.js"
+    "simulate:operations": "node scripts/operations-failure-simulation.js",
+    "reconcile:return-ar": "node scripts/reconcile-return-ar.js",
+    "reconcile:return-ar:fix": "node scripts/reconcile-return-ar.js --fix"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

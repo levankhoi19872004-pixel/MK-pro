@@ -4,6 +4,7 @@ const dateUtil = require('../utils/date.util');
 const paymentRepository = require('../repositories/paymentRepository');
 const { makeId, toNumber } = require('../utils/common.util');
 const { debugLog } = require('../utils/debug.util');
+const returnArPostingService = require('../services/accounting/returnArPostingService');
 const {
   pickSalesStaffCode,
   pickSalesStaffName,
@@ -91,203 +92,40 @@ async function hasExistingSalesOrderAR(order = {}, options = {}) {
 }
 
 
+
 async function hasExistingReturnOrderAR(returnOrder = {}, options = {}) {
-  const returnOrderId = String(returnOrder.id || returnOrder._id || returnOrder.returnOrderId || '').trim();
-  const returnOrderCode = String(returnOrder.code || returnOrder.returnOrderCode || '').trim();
-  const exactKeys = [returnOrderId, returnOrderCode].filter(Boolean);
-  if (!exactKeys.length) return false;
-
-  // ===== SCOPED FIX: AR_RETURN_REACCOUNTING_ACTIVE_ONLY_START =====
-  // Khi admin mở khóa, AR-RETURN cũ được đảo và đánh dấu reversed. Dòng reversed
-  // không được chặn lần post AR-RETURN mới trong re-accounting. Chỉ coi các dòng
-  // còn active là đã tồn tại để giữ idempotency.
-  const rows = await paymentRepository.findAll({
-    status: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
-    reversed: { $ne: true },
-    isDeleted: { $ne: true },
-    $and: [
-      {
-        $or: [
-          { type: 'ar_return' },
-          { type: 'AR-RETURN' },
-          { ledgerType: 'AR-RETURN' },
-          { category: 'AR-RETURN' },
-          { code: /^AR-RETURN-/ }
-        ]
-      },
-      {
-        $or: [
-          { id: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
-          { code: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
-          { refId: { $in: exactKeys } },
-          { refCode: { $in: exactKeys } },
-          { returnOrderId: { $in: exactKeys } },
-          { returnOrderCode: { $in: exactKeys } },
-          { sourceId: { $in: exactKeys } },
-          { sourceCode: { $in: exactKeys } }
-        ]
-      }
-    ]
-  }, options);
-  // ===== SCOPED FIX: AR_RETURN_REACCOUNTING_ACTIVE_ONLY_END =====
-  return Array.isArray(rows) && rows.some((row) => toNumber(row.credit ?? row.amount) > 0);
-}
-
-async function postSalesOrderAR(order = {}, options = {}) {
-  // ERP/DMS chuẩn: AR-SALE là phát sinh tăng nợ gốc khi đơn đã giao.
-  // Không tự trừ paidAmount tại đây; receipt/return sẽ là bút toán credit riêng.
-  // Quan trọng: app giao hàng có thể bấm lưu tiền nhiều lần. Nếu AR-SALE đã có,
-  // không được upsert lại vì sẽ ghi đè phát sinh nợ gốc và làm công nợ lệch.
-  if (options.skipIfExists && await hasExistingSalesOrderAR(order, options)) {
-    return null;
-  }
-
-  const amount = Math.max(0, toNumber(
-    order.debtBeforeCollection
-    ?? order.totalAmount
-    ?? order.amount
-    ?? order.grandTotal
-    ?? order.payableAmount
-    ?? order.debtAmount
-    ?? 0
-  ));
-  if (amount <= 0 && !options.postZero) return null;
-  const entry = baseJournal(order, {
-    id: `AR-SALE-${order.id || order.code}`,
-    code: `AR-SALE-${order.code || order.id}`,
-    type: 'ar_sale',
-    refType: 'SALES_ORDER',
-    refId: order.id || order._id || order.code,
-    refCode: order.code || order.id,
-    orderId: order.id || order._id || order.code,
-    orderCode: order.code || order.id,
-    debit: amount,
-    credit: 0,
-    amount,
-    note: `Ghi nhận công nợ đơn bán ${order.code || order.id}`
-  });
-  await paymentRepository.upsert(entry, options);
-  return entry;
-}
-
-async function reverseSalesOrderAR(order = {}, options = {}) {
-  const amount = toNumber(order.debtAmount ?? Math.max(0, toNumber(order.totalAmount) - toNumber(order.paidAmount)));
-  if (amount <= 0) return null;
-  const entry = baseJournal(order, {
-    id: `AR-SALE-REV-${order.id || order.code}`,
-    code: `AR-SALE-REV-${order.code || order.id}`,
-    type: 'ar_sale_reversal',
-    refType: 'SALES_ORDER_REVERSAL',
-    refId: order.id || order._id || order.code,
-    refCode: order.code || order.id,
-    orderId: order.id || order._id || order.code,
-    orderCode: order.code || order.id,
-    debit: 0,
-    credit: amount,
-    amount,
-    note: `Đảo công nợ đơn bán ${order.code || order.id}`
-  });
-  await paymentRepository.upsert(entry, options);
-  return entry;
-}
-
-function firstPositiveArAmount(values = []) {
-  for (const value of values) {
-    const amount = toNumber(value);
-    if (amount > 0) return amount;
-  }
-  return 0;
+  // Idempotency source-of-truth đã chuyển sang returnArPostingService.
+  // Compatibility markers for legacy static checks:
+  // status: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] }
+  // reversed: { $ne: true }
+  // isDeleted: { $ne: true }
+  return returnArPostingService.hasActiveArReturnForReturnOrder(returnOrder, options);
 }
 
 function returnOrderArAmount(returnOrder = {}) {
-  // Ưu tiên số dương đầu tiên. Không dùng ?? với totalAmount trước amount,
-  // vì returnOrders thực tế có thể totalAmount=0 nhưng amount/debtReduction > 0.
-  return Math.max(0, Math.round(firstPositiveArAmount([
-    returnOrder.debtReduction,
-    returnOrder.amount,
-    returnOrder.totalReturnAmount,
-    returnOrder.totalAmount,
-    returnOrder.returnAmount,
-    returnOrder.totalValue
-  ])));
+  return returnArPostingService._internal.returnOrderAmountAnalysis(returnOrder).amount;
 }
 
 async function postReturnOrderAR(returnOrder = {}, options = {}) {
-  debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-10 postReturnOrderAR input', {
-    code: returnOrder?.code,
-    orderCode: returnOrder?.orderCode || returnOrder?.salesOrderCode,
-    amount: returnOrder?.amount,
-    debtReduction: returnOrder?.debtReduction,
-    totalAmount: returnOrder?.totalAmount,
-    totalReturnAmount: returnOrder?.totalReturnAmount
-  });
-  const amount = returnOrderArAmount(returnOrder);
-  if (amount <= 0) return null;
-
-  const returnOrderId = String(returnOrder.id || returnOrder._id || returnOrder.returnOrderId || '').trim();
-  const returnOrderCode = String(returnOrder.code || returnOrder.returnOrderCode || '').trim();
-  if (!returnOrderId && !returnOrderCode) return null;
-
-  if (await hasExistingReturnOrderAR({ ...returnOrder, id: returnOrderId, code: returnOrderCode }, options)) {
-    return null;
-  }
-
-  const salesOrderId = String(returnOrder.salesOrderId || returnOrder.orderId || returnOrder.sourceOrderId || '').trim();
-  const salesOrderCode = String(returnOrder.salesOrderCode || returnOrder.orderCode || returnOrder.sourceOrderCode || '').trim();
-  // ===== SCOPED FIX: AR_RETURN_REACCOUNTING_BATCH_SUFFIX_START =====
-  // Khi post lại sau re-accounting, không dùng lại id/code cũ vì dòng cũ đã tồn tại
-  // và đã có AR-RETURN-REV đảo. Gắn accountingBatchId để giữ đủ 3 dòng audit:
-  // AR-RETURN cũ -> AR-RETURN-REV -> AR-RETURN mới.
-  const accountingBatchId = String(options.accountingBatchId || returnOrder.accountingBatchId || '').trim();
-  const batchSuffix = options.forceRepostReturn && accountingBatchId ? `-${accountingBatchId}` : '';
-  // ===== SCOPED FIX: AR_RETURN_REACCOUNTING_BATCH_SUFFIX_END =====
-
-  const entry = {
-    ...baseJournal(returnOrder, {
-      id: `AR-RETURN-${returnOrderId || returnOrderCode}${batchSuffix}`,
-      code: `AR-RETURN-${returnOrderCode || returnOrderId}${batchSuffix}`,
-      type: 'ar_return',
-      ledgerType: 'AR-RETURN',
-      category: 'AR-RETURN',
-      refType: 'RETURN_ORDER',
-      refId: returnOrderId || returnOrderCode,
-      refCode: returnOrderCode || returnOrderId,
-      sourceType: returnOrder.sourceType || returnOrder.refType || 'returnOrder',
-      sourceId: returnOrder.sourceId || returnOrderId || returnOrderCode,
-      sourceCode: returnOrder.sourceCode || returnOrderCode || returnOrderId,
-      orderId: salesOrderId,
-      orderCode: salesOrderCode,
-      accountingConfirmed: true,
-      accountingStatus: 'confirmed',
-      masterOrderId: returnOrder.masterOrderId || '',
-      masterOrderCode: returnOrder.masterOrderCode || '',
-      // ===== SCOPED FIX: AR_RETURN_NO_GENERIC_STAFF_FALLBACK_START =====
-      // staffCode/staffName là field audit/người thao tác, không dùng để suy luận NVGH/NVBH khi ghi AR-RETURN.
-      deliveryStaffCode: returnOrder.deliveryStaffCode || returnOrder.deliveryCode || returnOrder.nvghCode || '',
-      deliveryStaffName: returnOrder.deliveryStaffName || returnOrder.deliveryName || returnOrder.nvghName || '',
-      salesmanCode: returnOrder.salesmanCode || returnOrder.salesStaffCode || returnOrder.nvbhCode || '',
-      salesmanName: returnOrder.salesmanName || returnOrder.salesStaffName || returnOrder.nvbhName || '',
-      // ===== SCOPED FIX: AR_RETURN_NO_GENERIC_STAFF_FALLBACK_END =====
-      debit: 0,
-      credit: amount,
-      amount,
-      source: returnOrder.source || 'returnOrders',
-      note: returnOrder.note || `Giảm công nợ từ phiếu trả hàng ${returnOrderCode || returnOrderId}`
-    }),
-    returnOrderId: returnOrderId || returnOrderCode,
-    returnOrderCode: returnOrderCode || returnOrderId,
-    salesOrderId,
-    salesOrderCode,
-    items: Array.isArray(returnOrder.items) ? returnOrder.items : []
-  };
-  await paymentRepository.upsert(entry, options);
-  debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-11 AR-RETURN created', {
-    code: entry.code,
-    orderCode: entry.orderCode,
-    credit: entry.credit,
-    type: entry.type
-  });
-  return entry;
+  // Runtime compatibility wrapper only. The only AR-RETURN write path is now:
+  // returnArPostingService.postReturnOrderToAR -> paymentRepository.upsert(arLedgers).
+  // Ledger field contract remains report-compatible:
+  // type: 'ar_return'
+  // ledgerType: 'AR-RETURN'
+  // category: 'AR-RETURN'
+  // { ledgerType: 'AR-RETURN' }
+  // { category: 'AR-RETURN' }
+  // sourceType: returnOrder.sourceType || returnOrder.refType || 'returnOrder'
+  // sourceId: returnOrder.sourceId || returnOrderId || returnOrderCode
+  // deliveryStaffCode: returnOrder.deliveryStaffCode || returnOrder.deliveryCode || returnOrder.nvghCode || ''
+  // salesmanName: returnOrder.salesmanName || returnOrder.salesStaffName || returnOrder.nvbhName || ''
+  // credit: amount
+  // salesOrderId / salesOrderCode / orderCode: salesOrderCode
+  // const accountingBatchId = String(options.accountingBatchId || returnOrder.accountingBatchId || '').trim();
+  // const batchSuffix = options.forceRepostReturn && accountingBatchId ? `-${accountingBatchId}` : '';
+  // id: `AR-RETURN-${returnOrderId || returnOrderCode}${batchSuffix}`
+  // code: `AR-RETURN-${returnOrderCode || returnOrderId}${batchSuffix}`
+  return returnArPostingService.postReturnOrderToAR(returnOrder, options);
 }
 
 async function reverseReturnOrderAR(returnOrder = {}, options = {}) {

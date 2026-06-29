@@ -130,6 +130,9 @@ const INDEX_DEFINITIONS = {
   arLedgers: [
     [{ id: 1 }, { name: 'uniq_arLedgers_id', unique: true, sparse: true }],
     [{ code: 1 }, { name: 'uniq_arLedgers_code', unique: true, sparse: true }],
+    [{ idempotencyKey: 1 }, { name: 'idx_ar_return_idempotency_key', partialFilterExpression: { idempotencyKey: { $type: 'string', $gt: '' } } }],
+    [{ type: 1, sourceType: 1, sourceId: 1 }, { name: 'idx_ar_return_source_guard', partialFilterExpression: { type: 'ar_return', sourceType: 'returnOrder' } }],
+    [{ returnOrderCode: 1, type: 1, status: 1 }, { name: 'idx_ar_return_code_type_status', sparse: true }],
     [{ customerCode: 1 }, { name: 'idx_ar_ledgers_customer_code' }],
     [{ customerName: 1 }, { name: 'idx_ar_ledgers_customer_name', sparse: true }],
     [{ orderId: 1 }, { name: 'idx_ar_ledgers_order_id', sparse: true }],

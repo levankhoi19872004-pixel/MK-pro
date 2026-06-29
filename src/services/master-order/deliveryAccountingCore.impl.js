@@ -534,7 +534,11 @@ async function repairMissingArReturnIfNeeded(order = {}, accountingReturnOrders 
     hasReturnOrders
   });
   const fallbackReturnAmount = fallbackReturnAmountFromAccountingOrder(order);
-  if (!hasReturnOrders && fallbackReturnAmount <= 0) return { repaired: false, reason: 'no_return_orders' };
+  if (!hasReturnOrders) {
+    // New returnOrders -> AR contract: do not synthesize AR-RETURN from salesOrder.returnAmount.
+    // Legacy marker retained for audit history only: salesOrder_returnAmount_repair_fallback.
+    return { repaired: false, reason: fallbackReturnAmount > 0 ? 'no_return_orders_source_of_truth' : 'no_return_orders' };
+  }
   const alreadyHasArReturn = await hasPostedArReturn(order, accountingReturnOrders, options);
   debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-8 hasPostedArReturn', {
     code: order.code || order.orderCode,
@@ -744,36 +748,12 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
       ?? 0
     );
     if (returnAmount > 0) {
-      const entry = await postingEngine.postReturnOrderAR({
-        id: `MOBILE-DELIVERY-RETURN-${key || code}`,
-        code: `MOBILE-DELIVERY-RETURN-${code || key}`,
-        date: order.deliveryDate || order.date || dateUtil.todayVN(),
-        customerId: order.customerId || '',
-        customerCode: order.customerCode || '',
-        customerName: order.customerName || '',
-        salesOrderId: currentOrderId,
-        salesOrderCode: currentOrderCode,
-        orderId: currentOrderId,
+      // New returnOrders -> AR contract: AR-RETURN must not be posted from a virtual salesOrder row.
+      // The source of truth is returnOrders only; reconcile will report no_return_orders_source_of_truth.
+      debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] skip virtual AR-RETURN fallback because returnOrders SSoT is missing', {
         orderCode: currentOrderCode,
-        accountingConfirmed: true,
-        accountingStatus: 'confirmed',
-        accountingBatchId: options.accountingBatchId || order.accountingBatchId || '',
-        masterOrderId: order.masterOrderId || order.deliveryMasterId || '',
-        masterOrderCode: order.masterOrderCode || order.deliveryMasterCode || '',
-        deliveryStaffCode: order.deliveryStaffCode || order.deliveryCode || order.nvghCode || '',
-        deliveryStaffName: order.deliveryStaffName || order.deliveryName || order.nvghName || '',
-        salesmanCode: order.salesmanCode || order.salesStaffCode || order.nvbhCode || '',
-        salesmanName: order.salesmanName || order.salesStaffName || order.nvbhName || '',
-        debtReduction: returnAmount,
-        amount: returnAmount,
-        source: 'mobile_delivery_accounting_confirmed',
-        note: `Kế toán xác nhận hàng trả từ app giao hàng ${code || key}`
-      }, {
-        ...options,
-        skipIfExists: true,
-        forceRepostReturn: options.forceRepostReturn === true
+        returnAmount
       });
-      if (entry) posted.push(entry);
     }
   }
 
