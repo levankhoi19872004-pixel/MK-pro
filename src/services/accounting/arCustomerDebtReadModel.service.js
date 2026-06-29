@@ -543,11 +543,12 @@ function finalizeOrder(row, options = {}) {
 
 function includeOrderByStatus(row = {}, query = {}) {
   const status = lower(query.status || 'open');
-  if (!status || ['open', 'unpaid', 'debt', 'khach_con_no', 'khách còn nợ'].includes(status)) return hasOpenDebt(row.remainingDebtDisplay) || isOverpaid(row.remainingDebtDisplay);
+  const debt = normalizeDebtAmount(row.remainingDebtDisplay ?? row.remainingDebt, DEBT_ZERO_TOLERANCE);
+  if (!status || ['open', 'unpaid', 'debt', 'khach_con_no', 'khách còn nợ'].includes(status)) return hasOpenDebt(debt);
   if (status === 'all') return true;
-  if (['paid', 'settled', 'done', 'het_no', 'hết nợ'].includes(status)) return !hasOpenDebt(row.remainingDebtDisplay) && !isOverpaid(row.remainingDebtDisplay);
-  if (status === 'overdue') return row.isOverdue;
-  if (status === 'overpaid') return isOverpaid(row.remainingDebtDisplay);
+  if (['paid', 'settled', 'done', 'het_no', 'hết nợ'].includes(status)) return !hasOpenDebt(debt) && !isOverpaid(debt);
+  if (['overpaid', 'credit', 'du_co', 'dư có'].includes(status)) return isOverpaid(debt);
+  if (status === 'overdue') return hasOpenDebt(debt) && row.isOverdue;
   return row.status === status || row.debtStatus === status;
 }
 

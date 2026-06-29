@@ -15,6 +15,18 @@ function normalizeDebtAmount(value, tolerance = DEBT_ZERO_TOLERANCE){
 }
 function hasOpenDebt(value){ return normalizeDebtAmount(value) > 0; }
 function isOverpaidDebt(value){ return normalizeDebtAmount(value) < 0; }
+function debtAmountForStatus(row={}){
+  return normalizeDebtAmount(row.debt ?? row.totalDebtDisplay ?? row.totalDebt ?? row.remainingDebtDisplay ?? row.remainingDebt ?? 0);
+}
+function matchDebtStatus(row={}, status=''){
+  const normalizedStatus=String(status||'open').trim().toLowerCase();
+  const debt=debtAmountForStatus(row);
+  if(['paid','settled','done','het_no','hết nợ'].includes(normalizedStatus))return debt===0;
+  if(['overpaid','credit','du_co','dư có'].includes(normalizedStatus))return debt<0;
+  if(normalizedStatus==='overdue')return debt>0 && Number(row.overdueDays||row.overdueCount||0)>0;
+  if(normalizedStatus==='all')return true;
+  return debt>0;
+}
 function debtDisplayMeta(value){
   const debt=normalizeDebtAmount(value);
   if(debt>0)return {amount:debt,text:money(debt),className:'debt-positive',label:'Còn nợ'};
@@ -115,7 +127,7 @@ async function loadDebts(){
       window.debtLedgerRowsCache=ledger;
       const summary=json.summary||{};
       if(summary.tolerance||summary.debtZeroTolerance){window.DEBT_ZERO_TOLERANCE=Number(summary.tolerance||summary.debtZeroTolerance)||DEBT_ZERO_TOLERANCE;DEBT_ZERO_TOLERANCE=window.DEBT_ZERO_TOLERANCE;}
-      debtsCache=mergeDebtCustomerSummaryFromDebtRows(json.customers||json.customerSummary, ledger);
+      debtsCache=mergeDebtCustomerSummaryFromDebtRows(json.customerSummary, ledger);
       const totalDebt=Number(summary.totalDebt ?? ledger.reduce((sum,d)=>sum+normalizeDebtAmount(d.remainingDebtDisplay ?? d.debt),0));
       if(debtTotalKpi)debtTotalKpi.textContent=money(totalDebt);
       if(debtCount)debtCount.textContent=`${summary.customerDebtCount??summary.customerCount??debtsCache.length} khách · ${summary.orderDebtCount??summary.orderCount??ledger.length} đơn · Quá hạn ${summary.overdueCount??0}`;
@@ -124,12 +136,7 @@ async function loadDebts(){
       if(debtOverdueCountKpi)debtOverdueCountKpi.textContent=money(summary.overdueCount??0);
       if(debtTable)debtTable.innerHTML=ledger.map(d=>`<tr><td>${escapeHtml(d.orderCode||'')}</td><td>${escapeHtml(d.customerCode||'')} ${escapeHtml(d.customerName||'')}</td><td>${money(d.remainingDebtDisplay ?? d.debt)}</td></tr>`).join('');
 
-      const rows=debtsCache.filter(d=>{
-        if(criteria.status==='paid')return !hasOpenDebt(d.debt);
-        if(criteria.status==='overdue')return hasOpenDebt(d.debt) && Number(d.overdueDays||0)>0;
-        if(criteria.status==='all')return true;
-        return hasOpenDebt(d.debt) || isOverpaidDebt(d.debt);
-      });
+      const rows=debtsCache.filter(d=>matchDebtStatus(d, criteria.status));
       window.debtVisibleRows=rows;
       if(debtCardList){
         debtCardList.innerHTML=rows.length?rows.map((d,idx)=>{
@@ -301,7 +308,7 @@ function buildCustomerDebtOverview(rows){
     if(!item.deliveryStaffCode&&!item.deliveryStaffName){item.deliveryStaffCode=d.deliveryStaffCode||'';item.deliveryStaffName=d.deliveryStaffName||'';}
     map.set(key,item);
   });
-  return [...map.values()].map(d=>({...d,status:hasOpenDebt(d.debt)?(Number(d.overdueDays||0)>0?'overdue':'open'):'paid'})).sort((a,b)=>normalizeDebtAmount(b.debt)-normalizeDebtAmount(a.debt));
+  return [...map.values()].map(d=>({...d,status:isOverpaidDebt(d.debt)?'overpaid':(hasOpenDebt(d.debt)?(Number(d.overdueDays||0)>0?'overdue':'open'):'paid')})).sort((a,b)=>normalizeDebtAmount(b.debt)-normalizeDebtAmount(a.debt));
 }
 
 function groupDebtByPerson(rows, codeKey, nameKey){
@@ -363,6 +370,20 @@ function renderDebtWarnings(rows, diagnostics=[]){
 
 // Debt collection
 
+function getDebtCollectionSubmitButton(){
+  return debtCollectionForm ? debtCollectionForm.querySelector('button[type="submit"]') : null;
+}
+function setDebtPaymentControlsEnabled(enabled){
+  const allowed=Boolean(enabled);
+  if(debtPaymentAmount){
+    debtPaymentAmount.disabled=!allowed;
+    if(!allowed)debtPaymentAmount.value='0';
+  }
+  if(debtPaymentMethod)debtPaymentMethod.disabled=!allowed;
+  const submitButton=getDebtCollectionSubmitButton();
+  if(submitButton)submitButton.disabled=!allowed;
+}
+
 function updateDebtSelectionSummary(){
   const checked=[...document.querySelectorAll('.debt-order-allocation-check:checked')];
   const selectedTotal=checked.reduce((sum,chk)=>{
@@ -380,8 +401,21 @@ function renderCollectionOrderAllocations(customer = null){
     .filter(o=>hasOpenDebt(o.debt))
     .sort((a,b)=>String(a.documentDate||'').localeCompare(String(b.documentDate||'')) || String(a.orderCode||'').localeCompare(String(b.orderCode||'')));
   selectedCollectionCustomerOrders=orders;
-  if(!customer){collectionOrderAllocationBox.innerHTML='<div class="empty-state">Chọn khách để hiện danh sách đơn còn nợ.</div>';updateDebtSelectionSummary();return;}
-  if(!orders.length){collectionOrderAllocationBox.innerHTML='<div class="empty-state success-text">Khách này không còn đơn nợ.</div>';updateDebtSelectionSummary();return;}
+  if(!customer){
+    selectedCollectionCustomerOrders=[];
+    collectionOrderAllocationBox.innerHTML='<div class="empty-state">Chọn khách để hiện danh sách đơn còn nợ.</div>';
+    setDebtPaymentControlsEnabled(false);
+    updateDebtSelectionSummary();
+    return;
+  }
+  if(!orders.length){
+    selectedCollectionCustomerOrders=[];
+    collectionOrderAllocationBox.innerHTML='<div class="empty-state success-text">Khách này không còn đơn nợ.</div>';
+    setDebtPaymentControlsEnabled(false);
+    updateDebtSelectionSummary();
+    return;
+  }
+  setDebtPaymentControlsEnabled(true);
   collectionOrderAllocationBox.innerHTML=`<div class="allocation-head"><b>Công nợ theo từng đơn</b><small>Mặc định tick tất cả đơn còn nợ. Tiền sẽ phân bổ từ đơn lâu nhất trước.</small></div>
     <div class="debt-v2-order-table-wrap"><table class="debt-v2-order-table"><thead><tr><th></th><th>Mã đơn</th><th>Ngày</th><th>AR Sale</th><th>Đã thu</th><th>Trả hàng</th><th>Trả thưởng</th><th>Còn nợ</th></tr></thead><tbody>
       ${orders.map((o,index)=>`<tr class="debt-v2-order-row-table"><td><input type="checkbox" class="debt-order-allocation-check" data-index="${index}" checked></td><td><b>${escapeHtml(o.orderCode||o.orderId||'')}</b>${Number(o.overdueDays||0)>0?`<small>Quá hạn ${Number(o.overdueDays||0)} ngày</small>`:''}</td><td>${escapeHtml(o.documentDate||'')}</td><td class="price">${money(o.debit)}</td><td class="price cash-in">${money(o.receiptAmount||0)}</td><td class="price cash-in">${money(o.returnAmount||0)}</td><td class="price cash-in">${money(o.bonusAmount||0)}</td><td class="price debt-positive"><b>${money(o.debt)}</b></td></tr>`).join('')}
@@ -423,14 +457,14 @@ function getSelectedDebtOrderAllocations(totalAmount){
 function getCollectionCustomerMatches(){
   const q=collectionCustomerSearch?collectionCustomerSearch.value.trim():'';
   return debtsCache
-    .filter(d=>hasOpenDebt(d.debt) || isOverpaidDebt(d.debt))
+    .filter(d=>hasOpenDebt(d.debt))
     .filter(d=>matchSearch(q,[d.customerCode,d.customerName]));
 }
 
 function getDebtPrimaryOpenOrder(customer){
   const orders=Array.isArray(customer?.orders)?customer.orders:[];
   return orders
-    .filter(o=>hasOpenDebt(o.debt) || isOverpaidDebt(o.debt))
+    .filter(o=>hasOpenDebt(o.debt))
     .sort((a,b)=>String(a.documentDate||'').localeCompare(String(b.documentDate||'')))[0] || orders[0] || null;
 }
 function getDebtDisplayStaffSource(customer){
@@ -465,9 +499,9 @@ function selectCollectionCustomer(d, options={}){
 }
 function renderCollectionCustomerSelect(){
   if(!collectionCustomerSearch)return;
-  const has=debtsCache.some(d=>hasOpenDebt(d.debt) || isOverpaidDebt(d.debt));
+  const has=debtsCache.some(d=>hasOpenDebt(d.debt));
   collectionCustomerSearch.disabled=!has;
-  collectionCustomerSearch.placeholder=has?'Gõ mã/tên khách đang nợ hoặc dư có...':'Không có khách đang nợ/dư có';
+  collectionCustomerSearch.placeholder=has?'Gõ mã/tên khách đang nợ...':'Không có khách đang nợ';
   if(!has){collectionCustomerSelect.value='';selectedCustomerDebt.textContent='0';renderCollectionOrderAllocations(null);}
 }
 function updateSelectedCustomerDebt(){
@@ -479,6 +513,8 @@ async function submitDebtCollection(event){
   if(!collectionCustomerSelect.value){showMessage(collectionMessage,'Bạn chưa chọn khách hàng cần thanh toán.',true);return}
   const payload=Object.fromEntries(new FormData(debtCollectionForm).entries());
   const selectedCustomer=getSelectedDebtCustomer();
+  const hasPayableOrders=Array.isArray(selectedCollectionCustomerOrders) && selectedCollectionCustomerOrders.some(order=>hasOpenDebt(order?.debt));
+  if(!hasPayableOrders){showMessage(collectionMessage,'Khách này không còn đơn nợ để thanh toán.',true);return}
   payload.customerId=selectedCustomer?.customerId || payload.customerId || '';
   payload.customerCode=selectedCustomer?.customerCode || payload.customerCode || payload.customerId || '';
   payload.customerName=selectedCustomer?.customerName || payload.customerName || '';
@@ -511,7 +547,8 @@ async function submitDebtCollection(event){
 function clearDebtCustomerSelection(){
   if(collectionCustomerSelect)collectionCustomerSelect.value='';
   if(collectionCustomerSearch)collectionCustomerSearch.value='';
-  if(debtPaymentAmount)debtPaymentAmount.value='';
+  if(debtPaymentAmount)debtPaymentAmount.value='0';
+  setDebtPaymentControlsEnabled(false);
   if(selectedCustomerDebt)selectedCustomerDebt.textContent='0';
   if(debtDetailStatus)debtDetailStatus.textContent='Chưa chọn khách';
   if(debtCustomerInfoBox)debtCustomerInfoBox.innerHTML='<div class="empty-state">Chọn một khách hàng trong danh sách công nợ để xem chi tiết.</div>';

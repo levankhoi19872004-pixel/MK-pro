@@ -176,3 +176,86 @@ test('AR customer debt read model ignores inactive/unconfirmed ledgers and keeps
   assert.equal(order.ledgerIds.includes('voided-return'), false);
   assert.equal(order.ledgerIds.includes('unconfirmed-return'), false);
 });
+
+test('AR customer debt read model status filters separate open, settled tolerance and overpaid customers', () => {
+  const rows = [
+    baseLedger({
+      _id: 'cust-a-sale',
+      id: 'AR-SALE-A001',
+      code: 'AR-SALE-A001',
+      category: 'AR-SALE',
+      customerCode: 'A001',
+      customerName: 'Customer A',
+      orderId: 'SO-A001',
+      orderCode: 'A001-ORDER',
+      salesOrderId: 'SO-A001',
+      salesOrderCode: 'A001-ORDER',
+      debit: 1000000,
+      amount: 1000000,
+      direction: 'debit'
+    }),
+    baseLedger({
+      _id: 'cust-a-receipt',
+      id: 'AR-RECEIPT-A001',
+      code: 'AR-RECEIPT-A001',
+      category: 'AR-RECEIPT',
+      customerCode: 'A001',
+      customerName: 'Customer A',
+      orderId: 'SO-A001',
+      orderCode: 'A001-ORDER',
+      salesOrderId: 'SO-A001',
+      salesOrderCode: 'A001-ORDER',
+      credit: 300000,
+      amount: 300000,
+      direction: 'credit'
+    }),
+    ...b0038424Fixture(),
+    baseLedger({
+      _id: 'cust-c-sale',
+      id: 'AR-SALE-C001',
+      code: 'AR-SALE-C001',
+      category: 'AR-SALE',
+      customerCode: 'C001',
+      customerName: 'Customer C',
+      orderId: 'SO-C001',
+      orderCode: 'C001-ORDER',
+      salesOrderId: 'SO-C001',
+      salesOrderCode: 'C001-ORDER',
+      debit: 1000000,
+      amount: 1000000,
+      direction: 'debit'
+    }),
+    baseLedger({
+      _id: 'cust-c-receipt',
+      id: 'AR-RECEIPT-C001',
+      code: 'AR-RECEIPT-C001',
+      category: 'AR-RECEIPT',
+      customerCode: 'C001',
+      customerName: 'Customer C',
+      orderId: 'SO-C001',
+      orderCode: 'C001-ORDER',
+      salesOrderId: 'SO-C001',
+      salesOrderCode: 'C001-ORDER',
+      credit: 1200000,
+      amount: 1200000,
+      direction: 'credit'
+    })
+  ];
+
+  const openReport = buildCustomerDebtReadModelFromLedgers(rows, { status: '', delivery: 'ghth' }, { today: '2026-06-29' });
+  assert.deepEqual(openReport.customers.map((customer) => customer.customerCode), ['A001']);
+  assert.equal(openReport.customers[0].debt, 700000);
+  assert.equal(openReport.orders.length, 1);
+
+  const paidReport = buildCustomerDebtReadModelFromLedgers(rows, { status: 'paid', delivery: 'ghth' }, { today: '2026-06-29' });
+  assert.deepEqual(paidReport.customers.map((customer) => customer.customerCode), ['4501256']);
+  assert.equal(paidReport.customers[0].debt, 0);
+  assert.equal(paidReport.customers[0].rawDebt, 889);
+
+  const overpaidReport = buildCustomerDebtReadModelFromLedgers(rows, { status: 'overpaid', delivery: 'ghth' }, { today: '2026-06-29' });
+  assert.deepEqual(overpaidReport.customers.map((customer) => customer.customerCode), ['C001']);
+  assert.equal(overpaidReport.customers[0].debt, -200000);
+
+  const allReport = buildCustomerDebtReadModelFromLedgers(rows, { status: 'all', delivery: 'ghth' }, { today: '2026-06-29' });
+  assert.deepEqual(new Set(allReport.customers.map((customer) => customer.customerCode)), new Set(['A001', '4501256', 'C001']));
+});
