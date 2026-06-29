@@ -1,0 +1,199 @@
+'use strict';
+
+const AR_RETURN_TYPE = 'ar_return';
+const AR_RETURN_LEDGER_TYPE = 'AR-RETURN';
+const CANONICAL_SOURCE_TYPE = 'returnOrder';
+const INACTIVE_STATUSES = new Set(['void', 'reversed', 'cancelled', 'canceled', 'deleted', 'removed', 'duplicate_cancelled', 'cleared']);
+
+function clean(value = '') {
+  return String(value || '').trim();
+}
+
+function lower(value = '') {
+  return clean(value).toLowerCase();
+}
+
+function isArReturnLedger(row = {}) {
+  return lower(row.type) === AR_RETURN_TYPE
+    || clean(row.type) === AR_RETURN_LEDGER_TYPE
+    || clean(row.ledgerType) === AR_RETURN_LEDGER_TYPE
+    || clean(row.category) === AR_RETURN_LEDGER_TYPE
+    || /^AR-RETURN-/i.test(clean(row.code || row.id));
+}
+
+function isInactiveArReturnLedger(row = {}) {
+  const statuses = [row.status, row.accountingStatus, row.lifecycleStatus]
+    .map(lower)
+    .filter(Boolean);
+  return Boolean(row.reversed === true || row.isDeleted === true || row.deletedAt)
+    || statuses.some((status) => INACTIVE_STATUSES.has(status));
+}
+
+function arReturnLedgerQuery() {
+  return {
+    $or: [
+      { type: AR_RETURN_TYPE },
+      { type: AR_RETURN_LEDGER_TYPE },
+      { ledgerType: AR_RETURN_LEDGER_TYPE },
+      { category: AR_RETURN_LEDGER_TYPE },
+      { code: /^AR-RETURN-/ }
+    ]
+  };
+}
+
+function groupBy(rows = [], keyFn) {
+  const map = new Map();
+  for (const row of rows) {
+    const key = clean(keyFn(row));
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(row);
+  }
+  return map;
+}
+
+function pickLedgerRef(row = {}) {
+  return {
+    _id: clean(row._id),
+    id: clean(row.id),
+    code: clean(row.code),
+    type: clean(row.type),
+    ledgerType: clean(row.ledgerType),
+    category: clean(row.category),
+    sourceType: clean(row.sourceType),
+    sourceId: clean(row.sourceId),
+    sourceCode: clean(row.sourceCode),
+    returnOrderId: clean(row.returnOrderId),
+    returnOrderCode: clean(row.returnOrderCode),
+    idempotencyKey: clean(row.idempotencyKey),
+    status: clean(row.status),
+    reversed: row.reversed === true,
+    isDeleted: row.isDeleted === true
+  };
+}
+
+function duplicateCases(map, issue, severity = 'P0') {
+  const cases = [];
+  for (const [key, rows] of map.entries()) {
+    if (rows.length <= 1) continue;
+    cases.push({
+      severity,
+      issue,
+      key,
+      count: rows.length,
+      examples: rows.slice(0, 10).map(pickLedgerRef)
+    });
+  }
+  return cases;
+}
+
+function countDuplicateGroups(map) {
+  let count = 0;
+  for (const rows of map.values()) {
+    if (rows.length > 1) count += 1;
+  }
+  return count;
+}
+
+function countDuplicateRows(map) {
+  let count = 0;
+  for (const rows of map.values()) {
+    if (rows.length > 1) count += rows.length;
+  }
+  return count;
+}
+
+function normalizeSourceType(value = '') {
+  const raw = clean(value);
+  if (!raw) return '';
+  const normalized = raw.replace(/[\s_-]+/g, '').toLowerCase();
+  if (normalized === 'returnorder' || normalized === 'returnorders') return CANONICAL_SOURCE_TYPE;
+  return raw;
+}
+
+function summarizeArReturnIdempotency(arReturnRows = [], allLedgerRowsWithIdempotency = []) {
+  const rows = (arReturnRows || []).filter(isArReturnLedger);
+  const activeRows = rows.filter((row) => !isInactiveArReturnLedger(row));
+  const rowsMissingIdempotencyKey = rows.filter((row) => !clean(row.idempotencyKey));
+  const rowsMissingSource = rows.filter((row) => !clean(row.sourceId) || !clean(row.sourceCode));
+  const rowsWithNonCanonicalSourceType = rows.filter((row) => normalizeSourceType(row.sourceType) !== CANONICAL_SOURCE_TYPE);
+
+  const duplicateIdempotencyMap = groupBy(rows, (row) => row.idempotencyKey);
+  const duplicateActiveIdempotencyMap = groupBy(activeRows, (row) => row.idempotencyKey);
+  const duplicateSourceMap = groupBy(rows, (row) => {
+    const sourceType = normalizeSourceType(row.sourceType);
+    const sourceId = clean(row.sourceId);
+    return sourceType && sourceId ? `${sourceType}:${sourceId}` : '';
+  });
+  const duplicateActiveSourceMap = groupBy(activeRows, (row) => {
+    const sourceType = normalizeSourceType(row.sourceType);
+    const sourceId = clean(row.sourceId);
+    return sourceType && sourceId ? `${sourceType}:${sourceId}` : '';
+  });
+  const duplicateReturnOrderCodeMap = groupBy(rows, (row) => row.returnOrderCode || row.sourceCode || row.refCode);
+  const duplicateActiveReturnOrderCodeMap = groupBy(activeRows, (row) => row.returnOrderCode || row.sourceCode || row.refCode);
+  const duplicateGlobalIdempotencyMap = groupBy(allLedgerRowsWithIdempotency || [], (row) => row.idempotencyKey);
+
+  const p0Cases = [
+    ...duplicateCases(duplicateIdempotencyMap, 'duplicate_idempotencyKey'),
+    ...duplicateCases(duplicateSourceMap, 'duplicate_sourceType_sourceId'),
+    ...duplicateCases(duplicateReturnOrderCodeMap, 'duplicate_returnOrderCode'),
+    ...rowsMissingIdempotencyKey.map((row) => ({ severity: 'P0', issue: 'missing_idempotencyKey', key: clean(row.code || row.id || row._id), count: 1, examples: [pickLedgerRef(row)] })),
+    ...rowsMissingSource.map((row) => ({ severity: 'P0', issue: 'missing_sourceId_or_sourceCode', key: clean(row.code || row.id || row._id), count: 1, examples: [pickLedgerRef(row)] })),
+    ...rowsWithNonCanonicalSourceType.map((row) => ({ severity: 'P1', issue: 'non_canonical_sourceType', key: clean(row.code || row.id || row._id), count: 1, examples: [pickLedgerRef(row)] }))
+  ];
+
+  return {
+    generatedAt: new Date().toISOString(),
+    canonical: {
+      arReturnType: AR_RETURN_TYPE,
+      arReturnLedgerType: AR_RETURN_LEDGER_TYPE,
+      sourceType: CANONICAL_SOURCE_TYPE
+    },
+    totals: {
+      arReturn: rows.length,
+      activeArReturn: activeRows.length,
+      missingIdempotencyKey: rowsMissingIdempotencyKey.length,
+      missingSourceIdOrSourceCode: rowsMissingSource.length,
+      nonCanonicalSourceType: rowsWithNonCanonicalSourceType.length,
+      duplicateIdempotencyKeyGroups: countDuplicateGroups(duplicateIdempotencyMap),
+      duplicateIdempotencyKeyRows: countDuplicateRows(duplicateIdempotencyMap),
+      duplicateActiveIdempotencyKeyGroups: countDuplicateGroups(duplicateActiveIdempotencyMap),
+      duplicateSourceGroups: countDuplicateGroups(duplicateSourceMap),
+      duplicateSourceRows: countDuplicateRows(duplicateSourceMap),
+      duplicateActiveSourceGroups: countDuplicateGroups(duplicateActiveSourceMap),
+      duplicateReturnOrderCodeGroups: countDuplicateGroups(duplicateReturnOrderCodeMap),
+      duplicateReturnOrderCodeRows: countDuplicateRows(duplicateReturnOrderCodeMap),
+      duplicateActiveReturnOrderCodeGroups: countDuplicateGroups(duplicateActiveReturnOrderCodeMap),
+      duplicateGlobalIdempotencyKeyGroups: countDuplicateGroups(duplicateGlobalIdempotencyMap),
+      p0Cases: p0Cases.filter((item) => item.severity === 'P0').length,
+      p1Cases: p0Cases.filter((item) => item.severity !== 'P0').length
+    },
+    p0Cases
+  };
+}
+
+function hasBlockingIssues(summary = {}) {
+  const totals = summary.totals || {};
+  return Boolean(
+    totals.missingIdempotencyKey
+    || totals.missingSourceIdOrSourceCode
+    || totals.duplicateIdempotencyKeyGroups
+    || totals.duplicateSourceGroups
+    || totals.duplicateReturnOrderCodeGroups
+    || totals.duplicateGlobalIdempotencyKeyGroups
+  );
+}
+
+module.exports = {
+  AR_RETURN_TYPE,
+  AR_RETURN_LEDGER_TYPE,
+  CANONICAL_SOURCE_TYPE,
+  arReturnLedgerQuery,
+  clean,
+  isArReturnLedger,
+  isInactiveArReturnLedger,
+  normalizeSourceType,
+  summarizeArReturnIdempotency,
+  hasBlockingIssues
+};

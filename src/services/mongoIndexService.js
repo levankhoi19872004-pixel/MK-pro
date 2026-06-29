@@ -130,8 +130,10 @@ const INDEX_DEFINITIONS = {
   arLedgers: [
     [{ id: 1 }, { name: 'uniq_arLedgers_id', unique: true, sparse: true }],
     [{ code: 1 }, { name: 'uniq_arLedgers_code', unique: true, sparse: true }],
-    [{ idempotencyKey: 1 }, { name: 'idx_ar_return_idempotency_key', partialFilterExpression: { idempotencyKey: { $type: 'string', $gt: '' } } }],
-    [{ type: 1, sourceType: 1, sourceId: 1 }, { name: 'idx_ar_return_source_guard', partialFilterExpression: { type: 'ar_return', sourceType: 'returnOrder' } }],
+    // P0 AR-RETURN idempotency: tầng 1 chỉ tạo non-unique index an toàn khi deploy.
+    // Unique DB-level guard được bật riêng bằng scripts/create-ar-return-unique-index.js sau audit sạch.
+    [{ idempotencyKey: 1 }, { name: 'idx_arledger_idempotencyKey' }],
+    [{ type: 1, sourceType: 1, sourceId: 1 }, { name: 'idx_ar_return_source_lookup' }],
     [{ returnOrderCode: 1, type: 1, status: 1 }, { name: 'idx_ar_return_code_type_status', sparse: true }],
     [{ customerCode: 1 }, { name: 'idx_ar_ledgers_customer_code' }],
     [{ customerName: 1 }, { name: 'idx_ar_ledgers_customer_name', sparse: true }],

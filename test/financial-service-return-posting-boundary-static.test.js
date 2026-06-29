@@ -1,11 +1,8 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const test = require('node:test');
 
-const ROOT = path.resolve(__dirname, '..');
 const read = (file) => require('./helpers/sourceBundle.util').readSource(file);
 
 test('financialService manual return posts AR through ArPostingService boundary', () => {
@@ -18,11 +15,16 @@ test('financialService manual return posts AR through ArPostingService boundary'
   assert.doesNotMatch(source, /const\s+payments\s*=/);
 });
 
-test('ArPostingService exposes return allocation posting wrapper', () => {
+test('ArPostingService return allocation wrapper delegates to returnArPostingService only once per returnOrder', () => {
   const source = read('src/domain/posting/ArPostingService.js');
+  const fn = source.match(/async function postReturnAllocations\(returnOrder = \{\}, allocations = \[\], options = \{\}\) \{[\s\S]*?\n\}/)?.[0] || '';
 
+  assert.match(source, /const returnArPostingService = require\('\.\.\/\.\.\/services\/accounting\/returnArPostingService'\);/);
   assert.match(source, /async function postReturnAllocations\(returnOrder = \{\}, allocations = \[\], options = \{\}\)/);
-  assert.match(source, /const \{ toNumber \} = require\('\.\.\/\.\.\/utils\/common\.util'\);/);
-  assert.match(source, /await postReturn\(/);
+  assert.match(fn, /byReturnOrderKey = new Map\(\)/);
+  assert.match(fn, /returnArPostingService\.postReturnOrderToAR\(/);
+  assert.doesNotMatch(fn, /await postReturn\(/);
+  assert.doesNotMatch(fn, /allocationKey/);
+  assert.doesNotMatch(fn, /id:\s*`\$\{returnOrder\.id \|\| returnOrder\.code\}-/);
   assert.match(source, /postReturnAllocations,/);
 });

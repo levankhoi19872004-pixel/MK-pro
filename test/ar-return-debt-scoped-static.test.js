@@ -13,18 +13,13 @@ const postingEngine = read('src/engines/posting.engine.js');
 const debtReportSource = read('src/services/reportLegacy.service.source/part-02.jsfrag');
 const backfillScript = read('scripts/backfill-ar-return-from-return-orders.js');
 
-test('AR-RETURN repair only treats active non-reversed return ledgers as existing', () => {
-  assert.match(accountingCore, /AR_RETURN_REPAIR_ACTIVE_ONLY_START/);
-  assert.match(accountingCore, /status:\s*\{\s*\$nin:\s*\['void', 'reversed', 'cancelled', 'canceled', 'deleted'\]\s*\}/);
-  assert.match(accountingCore, /reversed:\s*\{\s*\$ne:\s*true\s*\}/);
-  assert.doesNotMatch(accountingCore, /type:\s*'ar_return',[\s\S]{0,120}status:\s*\{\s*\$ne:\s*'void'\s*\}/);
-});
-
-test('already-confirmed delivery accounting can repair missing AR-RETURN from return amount fallback', () => {
-  assert.match(accountingCore, /function fallbackReturnAmountFromAccountingOrder/);
-  assert.match(accountingCore, /returnAmountFromReturnOrders[\s\S]*syncedReturnAmountFromReturnOrders[\s\S]*returnAmount[\s\S]*returnedAmount/);
-  assert.match(accountingCore, /salesOrder_returnAmount_repair_fallback/);
-  assert.match(accountingCore, /repairMissingArReturnIfNeeded/);
+test('delivery accounting no longer owns AR-RETURN repair/fallback writer', () => {
+  assert.doesNotMatch(accountingCore, /AR_RETURN_REPAIR_ACTIVE_ONLY_START/);
+  assert.doesNotMatch(accountingCore, /function fallbackReturnAmountFromAccountingOrder/);
+  assert.doesNotMatch(accountingCore, /salesOrder_returnAmount_repair_fallback/);
+  assert.doesNotMatch(accountingCore, /repairMissingArReturnIfNeeded/);
+  assert.match(accountingCore, /returnArPostingService\.postReturnOrderToAR/);
+  assert.doesNotMatch(accountingCore, /postingEngine\.postReturnOrderAR/);
 });
 
 test('posting engine writes AR-RETURN as credit and keeps sales-order linkage', () => {
@@ -42,7 +37,7 @@ test('debt report groups return credit into returnAmount, not UI hardcode', () =
   assert.match(debtReportSource, /debt:\s*\{\s*\$subtract:\s*\['\$debit', '\$credit'\]/);
 });
 
-test('manual backfill script is dry-run by default and prevents duplicate AR-RETURN', () => {
+test('manual backfill script is dry-run by default and delegates duplicate prevention through posting wrapper', () => {
   assert.match(backfillScript, /backfill-ar-return-from-return-orders/);
   assert.match(backfillScript, /const dryRun = !apply/);
   assert.match(backfillScript, /async function hasActiveArReturn/);

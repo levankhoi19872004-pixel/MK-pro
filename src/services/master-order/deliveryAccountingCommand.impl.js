@@ -31,7 +31,6 @@ const orderKey = lazyFunction('./deliveryAccountingCore.impl', 'orderKey');
 const batchPostDeliveryArLedgers = lazyFunction('./deliveryAccountingCore.impl', 'batchPostDeliveryArLedgers');
 const postDeliveryArLedgerRowsAfterReAccounting = lazyFunction('./deliveryAccountingCore.impl', 'postDeliveryArLedgerRowsAfterReAccounting');
 const postDeliveryCollectionsAfterAccountingConfirmed = lazyFunction('./deliveryAccountingCore.impl', 'postDeliveryCollectionsAfterAccountingConfirmed');
-const repairMissingArReturnIfNeeded = lazyFunction('./deliveryAccountingCore.impl', 'repairMissingArReturnIfNeeded');
 const reverseActiveArLedgersForOrder = lazyFunction('./deliveryAccountingCore.impl', 'reverseActiveArLedgersForOrder');
 
 const CONFIRM_ACCOUNTING_GUARD_TTL_MS = Math.max(1000, Number(process.env.CONFIRM_ACCOUNTING_GUARD_TTL_MS || 8000));
@@ -472,29 +471,12 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
       }
 
       if (alreadyConfirmed && !requiresReAccounting) {
-        debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-5 already confirmed repair branch', {
+        debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-5 already confirmed skip AR-RETURN repair', {
           code: accountingSource.code || accountingSource.orderCode,
           alreadyConfirmed,
-          requiresReAccounting
+          requiresReAccounting,
+          policy: 'no_delivery_accounting_repair_writer; use scripts/reconcile-return-ar.js for audit/backfill decisions'
         });
-        // ===== SCOPED FIX: REPAIR_MISSING_AR_RETURN_FOR_CONFIRMED_ORDER_START =====
-        // Đơn đã xác nhận kế toán thì không post lại AR-SALE. Nhưng nếu returnOrders đã có
-        // mà AR-RETURN còn thiếu từ bản cũ, repair đúng bút toán AR-RETURN rồi mới skip.
-        const repairResult = await repairMissingArReturnIfNeeded(accountingSource, accountingReturnOrders, { session });
-        debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-6 repair result', {
-          code: accountingSource.code || accountingSource.orderCode,
-          repairResult
-        });
-        if (repairResult.repaired) {
-          await auditService.log('ACCOUNTING_REPAIR_AR_RETURN', {
-            refType: 'SALES_ORDER',
-            refId: orderKey(accountingSource),
-            refCode: orderDisplayCode(accountingSource),
-            user: confirmedBy,
-            note: `Repair AR-RETURN thiếu cho đơn đã xác nhận ${orderDisplayCode(accountingSource)} từ returnOrders`
-          });
-        }
-        // ===== SCOPED FIX: REPAIR_MISSING_AR_RETURN_FOR_CONFIRMED_ORDER_END =====
         skippedOrders += 1;
         continue;
       }

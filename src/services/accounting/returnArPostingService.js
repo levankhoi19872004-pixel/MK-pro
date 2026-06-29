@@ -161,10 +161,37 @@ function returnOrderAmountAnalysis(returnOrder = {}) {
 }
 
 function buildIdempotencyKey(returnOrder = {}, options = {}) {
+  // P0 ledger guard: idempotencyKey phải ổn định theo định danh phiếu trả,
+  // không phụ thuộc accountingBatchId/forceRepostReturn hay field biến động khác.
+  // Giữ format prefix cũ để tương thích các AR-RETURN đã được sinh từ code/id.
+  void options;
   const key = resolveReturnOrderKey(returnOrder);
-  const batchId = cleanString(options.forceRepostReturn ? (options.accountingBatchId || returnOrder.accountingBatchId) : '');
   if (!key) return '';
-  return batchId ? `${AR_RETURN_LEDGER_TYPE}:${key}:${batchId}` : `${AR_RETURN_LEDGER_TYPE}:${key}`;
+  return `${AR_RETURN_LEDGER_TYPE}:${key}`;
+}
+
+function activeArReturnBaseQuery() {
+  return {
+    status: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
+    reversed: { $ne: true },
+    isDeleted: { $ne: true },
+    $or: [
+      { type: AR_RETURN_TYPE },
+      { type: AR_RETURN_LEDGER_TYPE },
+      { ledgerType: AR_RETURN_LEDGER_TYPE },
+      { category: AR_RETURN_LEDGER_TYPE },
+      { code: /^AR-RETURN-/ }
+    ]
+  };
+}
+
+function buildActiveArReturnIdempotencyLookup(idempotencyKey) {
+  const key = cleanString(idempotencyKey);
+  if (!key) return null;
+  return {
+    ...activeArReturnBaseQuery(),
+    idempotencyKey: key
+  };
 }
 
 function buildActiveArReturnLookup(returnOrder = {}, options = {}) {
@@ -197,28 +224,96 @@ function buildActiveArReturnLookup(returnOrder = {}, options = {}) {
   if (!or.length) return null;
 
   return {
-    status: { $nin: ['void', 'reversed', 'cancelled', 'canceled', 'deleted'] },
-    reversed: { $ne: true },
-    isDeleted: { $ne: true },
+    ...activeArReturnBaseQuery(),
     $and: [
-      {
-        $or: [
-          { type: AR_RETURN_TYPE },
-          { type: AR_RETURN_LEDGER_TYPE },
-          { ledgerType: AR_RETURN_LEDGER_TYPE },
-          { category: AR_RETURN_LEDGER_TYPE },
-          { code: /^AR-RETURN-/ }
-        ]
-      },
+      { $or: activeArReturnBaseQuery().$or },
       { $or: or }
     ]
   };
+}
+
+async function findActiveArReturnsByIdempotencyKey(idempotencyKey, options = {}) {
+  const lookup = buildActiveArReturnIdempotencyLookup(idempotencyKey);
+  if (!lookup) return [];
+  return paymentRepository.findAll(lookup, options);
 }
 
 async function findActiveArReturnsForReturnOrder(returnOrder = {}, options = {}) {
   const lookup = buildActiveArReturnLookup(returnOrder, options);
   if (!lookup) return [];
   return paymentRepository.findAll(lookup, options);
+}
+
+function makeArReturnDuplicateError(message, details = {}) {
+  const err = new Error(message);
+  err.code = 'P0_AR_RETURN_DUPLICATE';
+  err.severity = 'P0';
+  err.details = details;
+  return err;
+}
+
+function publicLedger(row = {}) {
+  return {
+    id: row.id,
+    code: row.code,
+    type: row.type,
+    ledgerType: row.ledgerType,
+    category: row.category,
+    sourceType: row.sourceType,
+    sourceId: row.sourceId,
+    sourceCode: row.sourceCode,
+    returnOrderId: row.returnOrderId,
+    returnOrderCode: row.returnOrderCode,
+    idempotencyKey: row.idempotencyKey,
+    amount: row.amount,
+    credit: row.credit,
+    status: row.status
+  };
+}
+
+async function resolveExistingArReturnGuard(returnOrder = {}, validation = {}, options = {}) {
+  const idempotencyKey = buildIdempotencyKey(returnOrder, options);
+  if (!idempotencyKey) {
+    throw makeArReturnDuplicateError('Không thể ghi AR-RETURN vì thiếu idempotencyKey ổn định.', {
+      reason: 'missing_idempotency_key',
+      returnOrder: returnOrder.code || returnOrder.id || returnOrder._id || ''
+    });
+  }
+
+  const sameKeyRows = await findActiveArReturnsByIdempotencyKey(idempotencyKey, options);
+  if (sameKeyRows.length > 1) {
+    throw makeArReturnDuplicateError('P0: Có nhiều AR-RETURN active cùng idempotencyKey; dừng để tránh giảm công nợ nhiều lần.', {
+      reason: 'duplicate_active_idempotency_key',
+      idempotencyKey,
+      count: sameKeyRows.length,
+      ledgers: sameKeyRows.map(publicLedger)
+    });
+  }
+  if (sameKeyRows.length === 1) {
+    return { existing: sameKeyRows[0], existingRows: sameKeyRows, reason: 'active_ar_return_same_idempotency_key' };
+  }
+
+  const existingRows = await findActiveArReturnsForReturnOrder(returnOrder, options);
+  if (existingRows.length > 1) {
+    throw makeArReturnDuplicateError('P0: Có nhiều AR-RETURN active cùng nguồn returnOrder; dừng để kiểm tra dữ liệu bẩn.', {
+      reason: 'duplicate_active_return_order_source',
+      idempotencyKey,
+      returnOrder: returnOrder.code || returnOrder.id || returnOrder._id || '',
+      count: existingRows.length,
+      ledgers: existingRows.map(publicLedger)
+    });
+  }
+  if (existingRows.length === 1) {
+    const existingAmount = normalizeAmount(existingRows[0].credit ?? existingRows[0].amount);
+    return {
+      existing: existingRows[0],
+      existingRows,
+      existingActiveAmount: existingAmount,
+      reason: existingAmount === validation.amount ? 'active_ar_return_exists' : 'active_ar_return_amount_mismatch'
+    };
+  }
+
+  return { existing: null, existingRows: [], existingActiveAmount: 0, reason: 'not_found' };
 }
 
 async function hasActiveArReturnForReturnOrder(returnOrder = {}, options = {}) {
@@ -298,6 +393,12 @@ function buildReturnARLedgerEntry(returnOrder = {}, options = {}) {
   const deliveryStaffCode = pickDeliveryStaffCode(returnOrder);
   const deliveryStaffName = pickDeliveryStaffName(returnOrder);
   const idempotencyKey = buildIdempotencyKey(returnOrder, options);
+  if (!idempotencyKey) {
+    const err = new Error('Không thể build AR-RETURN: missing_idempotency_key');
+    err.code = 'missing_idempotency_key';
+    err.validation = validation;
+    throw err;
+  }
 
   return {
     id: `${AR_RETURN_LEDGER_TYPE}-${returnOrderId || returnOrderCode || returnOrderKey}${batchSuffix}`,
@@ -349,6 +450,12 @@ function buildReturnARLedgerEntry(returnOrder = {}, options = {}) {
     source: RETURN_ORDER_SOURCE_MODEL,
     note: cleanString(returnOrder.note || `Ghi giảm công nợ từ phiếu trả hàng ${returnOrderCode || returnOrderId || returnOrderKey}`),
     items: Array.isArray(returnOrder.items) ? returnOrder.items : [],
+    allocationDetails: Array.isArray(returnOrder.allocationDetails) ? returnOrder.allocationDetails : [],
+    returnAllocationRefs: Array.isArray(returnOrder.returnAllocationRefs) ? returnOrder.returnAllocationRefs : [],
+    metadata: {
+      ...(returnOrder.metadata || {}),
+      allocationPostingMode: returnOrder.metadata?.allocationPostingMode || undefined
+    },
     createdAt: returnOrder.arPostedAt || returnOrder.createdAt || dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
@@ -374,27 +481,28 @@ async function postReturnOrderToAR(returnOrderOrId, options = {}) {
     return options.returnResult ? result : null;
   }
 
-  const existingRows = await findActiveArReturnsForReturnOrder(returnOrder, options);
-  const existingActiveAmount = (existingRows || []).reduce((sum, row) => sum + normalizeAmount(row.credit ?? row.amount), 0);
-  if (existingActiveAmount === validation.amount && existingRows.length) {
+  const existingGuard = await resolveExistingArReturnGuard(returnOrder, validation, options);
+  if (existingGuard.existing && existingGuard.reason !== 'active_ar_return_amount_mismatch') {
+    const existingActiveAmount = normalizeAmount(existingGuard.existing.credit ?? existingGuard.existing.amount);
     const result = {
       posted: false,
-      entry: existingRows[0],
-      reason: 'active_ar_return_exists',
+      entry: existingGuard.existing,
+      reason: existingGuard.reason,
       amount: validation.amount,
       existingActiveAmount,
+      idempotencyKey: buildIdempotencyKey(returnOrder, options),
       warnings: validation.warnings
     };
     return options.returnResult ? result : null;
   }
-  if (existingActiveAmount > 0 && existingActiveAmount !== validation.amount) {
+  if (existingGuard.existing && existingGuard.reason === 'active_ar_return_amount_mismatch') {
     const result = {
       posted: false,
       entry: null,
       reason: 'active_ar_return_amount_mismatch',
       amount: validation.amount,
-      existingActiveAmount,
-      existingRows,
+      existingActiveAmount: existingGuard.existingActiveAmount,
+      existingRows: existingGuard.existingRows,
       warnings: validation.warnings
     };
     await auditReturnAr('return_ar_post_blocked_amount_mismatch', {
@@ -508,6 +616,7 @@ module.exports = {
   validateReturnOrderForAR,
   reconcileReturnOrderAR,
   findActiveArReturnsForReturnOrder,
+  findActiveArReturnsByIdempotencyKey,
   hasActiveArReturnForReturnOrder,
   _internal: {
     AR_RETURN_TYPE,
@@ -515,8 +624,11 @@ module.exports = {
     INACTIVE_STATUSES,
     CONFIRMED_ACCOUNTING_STATUSES,
     returnOrderAmountAnalysis,
+    activeArReturnBaseQuery,
     buildActiveArReturnLookup,
+    buildActiveArReturnIdempotencyLookup,
     buildIdempotencyKey,
+    resolveExistingArReturnGuard,
     isInactiveReturnOrder,
     isAccountingConfirmed,
     isLikelyRealReturnOrder

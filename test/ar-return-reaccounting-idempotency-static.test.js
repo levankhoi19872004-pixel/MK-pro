@@ -18,7 +18,8 @@ test('AR-RETURN idempotency ignores reversed/cancelled/deleted rows and uses bat
   assert.match(posting, /code:\s*`AR-RETURN-\$\{returnOrderCode \|\| returnOrderId\}\$\{batchSuffix\}`/, 'AR-RETURN code must include batchSuffix');
 });
 
-test('re-accounting passes forceRepostReturn from confirmDeliveryAccounting to postReturnOrderAR', () => {
-  assert.match(accountingCommand, /postDeliveryCollectionsAfterAccountingConfirmed\(updated,\s*\{[\s\S]*forceRepostReturn:\s*true[\s\S]*\}\)/, 'requiresReAccounting branch must force repost AR-RETURN');
-  assert.match(accountingCore, /postingEngine\.postReturnOrderAR\([\s\S]*forceRepostReturn:\s*options\.forceRepostReturn\s*===\s*true[\s\S]*\)/, 'postDeliveryCollectionsAfterAccountingConfirmed must pass forceRepostReturn to postReturnOrderAR');
+test('re-accounting passes forceRepostReturn to canonical returnArPostingService writer', () => {
+  assert.match(accountingCommand, /postDeliveryCollectionsAfterAccountingConfirmed\(updated,\s*\{[\s\S]*forceRepostReturn:\s*true[\s\S]*\}\)/, 'requiresReAccounting branch must request AR-RETURN repost through collections step');
+  assert.match(accountingCore, /returnArPostingService\.postReturnOrderToAR\([\s\S]*forceRepostReturn:\s*options\.forceRepostReturn\s*===\s*true[\s\S]*\)/, 'postDeliveryCollectionsAfterAccountingConfirmed must pass forceRepostReturn to returnArPostingService');
+  assert.doesNotMatch(accountingCore, /postingEngine\.postReturnOrderAR\(/, 'deliveryAccountingCore must not call postingEngine.postReturnOrderAR directly');
 });

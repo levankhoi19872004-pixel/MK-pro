@@ -12,35 +12,28 @@ const core = read('src/services/master-order/deliveryAccountingCore.impl.js');
 const posting = read('src/engines/posting.engine.js');
 const backfill = read('scripts/backfill-ar-return-from-return-orders.js');
 
-test('phase52 adds ensureArReturnForConfirmedReturnOrder and direct confirmed returnOrders lookup', () => {
-  assert.match(core, /PHASE52_SCOPED_FIX: CONFIRMED_RETURN_ORDER_AR_RETURN_ENSURE_START/);
-  assert.match(core, /async function ensureArReturnForConfirmedReturnOrder\(returnOrder = \{\}, options = \{\}\)/);
-  assert.match(core, /accountingConfirmed: true/);
-  assert.match(core, /accountingStatus: \{ \$in: \['confirmed', 'locked', 'posted'\] \}/);
-  assert.match(core, /postedAt: returnOrder\.postedAt/);
-  assert.match(core, /receivedAt: returnOrder\.receivedAt/);
-  assert.doesNotMatch(core, /if \([^\n]*(postedAt|receivedAt)[^\n]*\) return/);
+test('PHASE52 ensure/repair has been removed from deliveryAccountingCore', () => {
+  assert.doesNotMatch(core, /PHASE52_SCOPED_FIX/);
+  assert.doesNotMatch(core, /ensureArReturnForConfirmedReturnOrder/);
+  assert.doesNotMatch(core, /ensureArReturnsForAccountingOrder/);
+  assert.doesNotMatch(core, /repairMissingArReturnIfNeeded/);
+  assert.match(core, /returnArPostingService\.postReturnOrderToAR\(/);
+  assert.doesNotMatch(core, /postingEngine\.postReturnOrderAR\(/);
 });
 
-test('phase52 ensure is called from postDeliveryCollectionsAfterAccountingConfirmed safety-net', () => {
-  assert.match(core, /PHASE52_SCOPED_FIX: ENSURE_CONFIRMED_RETURN_ORDER_AR_RETURN_START/);
-  assert.match(core, /await ensureArReturnsForAccountingOrder\(order, hydratedReturnRows, \{/);
-  assert.match(core, /assumeConfirmed: true/);
-  assert.match(core, /posted\.push\(\{ type: 'ar_return'/);
-});
-
-test('AR-RETURN ledger writes report-compatible fields and robust active lookup', () => {
+test('AR-RETURN ledger writes remain centralized behind returnArPostingService compatibility wrapper', () => {
+  assert.match(posting, /async function postReturnOrderAR/);
+  assert.match(posting, /returnArPostingService\.postReturnOrderToAR\(returnOrder, options\)/);
   assert.match(posting, /ledgerType: 'AR-RETURN'/);
   assert.match(posting, /category: 'AR-RETURN'/);
   assert.match(posting, /sourceType: returnOrder\.sourceType \|\| returnOrder\.refType \|\| 'returnOrder'/);
   assert.match(posting, /sourceId: returnOrder\.sourceId \|\| returnOrderId \|\| returnOrderCode/);
-  assert.match(posting, /\{ ledgerType: 'AR-RETURN' \}/);
-  assert.match(posting, /\{ category: 'AR-RETURN' \}/);
 });
 
-test('manual backfill detects uppercase/ledgerType/category AR-RETURN and remains dry-run by default', () => {
+test('manual backfill remains dry-run by default and goes through posting engine compatibility wrapper', () => {
   assert.match(backfill, /const dryRun = !apply/);
   assert.match(backfill, /\{ ledgerType: 'AR-RETURN' \}/);
   assert.match(backfill, /\{ category: 'AR-RETURN' \}/);
   assert.match(backfill, /\{ code: \/\^AR-RETURN-\//);
+  assert.match(backfill, /postingEngine\.postReturnOrderAR/);
 });
