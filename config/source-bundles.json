@@ -30,7 +30,7 @@
         "src/services/reportLegacy.service.source/part-02.jsfrag",
         "src/services/reportLegacy.service.source/part-03.jsfrag"
       ],
-      "sourceSha256": "59f08b71c78ddd5c4832ae5843016bd3d953aaf9fe43fd0750b9c3a4a0a349b6"
+      "sourceSha256": "1cafb82b8dac9a993b69dc144de442000abec2054c0848afc57a88bade3cfec0"
     },
     {
       "target": "src/services/orderLegacy.service.js",
@@ -61,7 +61,7 @@
         "src/engines/delivery.legacy.engine.source/part-02.jsfrag",
         "src/engines/delivery.legacy.engine.source/part-03.jsfrag"
       ],
-      "sourceSha256": "fa1886db36bfcb4c3b17824bb06d33c834bb26769b12fa9469256e2b84748895"
+      "sourceSha256": "186106b0265875d4fe1efed2c04dee7e7927d443b72f5ecd953e89c54d98103e"
     },
     {
       "target": "services/printDataBuilder.legacy.js",

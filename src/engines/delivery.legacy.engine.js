@@ -1,6 +1,5 @@
 /* GENERATED FILE — edit src/engines/delivery.legacy.engine.source/part-01.jsfrag, src/engines/delivery.legacy.engine.source/part-02.jsfrag, src/engines/delivery.legacy.engine.source/part-03.jsfrag and run npm run build:source-bundles. */
 "use strict"
-/* Static contract marker: masterOrderId: { $exists: true, $nin: [null, ''] } */
 ;const{toNumber:e,makeId:t}=require("../utils/common.util"),r=require("../utils/deliveryFinance.util"),n=require("../utils/date.util"),{normalizeDebtAmount:a}=require("../constants/finance.constants"),{SALES_STAFF_CODE_FIELDS:o,SALES_STAFF_NAME_FIELDS:d,DELIVERY_STAFF_CODE_FIELDS:s,DELIVERY_STAFF_NAME_FIELDS:i,USER_ACCOUNT_SALES_STAFF_CODE_FIELDS:u,USER_ACCOUNT_DELIVERY_STAFF_CODE_FIELDS:l,pickSalesStaffCode:c,pickSalesStaffName:f,pickDeliveryStaffCode:m,pickDeliveryStaffName:y,pickUserAccountSalesStaffCode:C,pickUserAccountDeliveryStaffCode:v}=require("../domain/staff/staffIdentity")
 ;function h(e){return String(null==e?"":e).trim()}function S(e){return h(e).toLowerCase()}function O(e=[]){return[...new Set(e.map(h).filter(Boolean))]}function p(){
 return n.todayVN?n.todayVN():(new Date).toISOString().slice(0,10)}function g(e){const t=Number(e||0);return Number.isFinite(t)?t:0}function N(e){

@@ -113,7 +113,18 @@ const SalesOrder = flexModel('SalesOrder', 'orders', {
   amount: Number,
   total: Number,
   paidAmount: Number,
+
+  // Debt read-model fields only. Official AR balance MUST be calculated from
+  // arLedgers via accounting/arBalanceService or DebtReportService. Do not use
+  // these fields for accounting confirmation, debt collection, reconciliation,
+  // finance dashboard, or export decisions.
   debtAmount: Number,
+  debt: Number,
+  arBalance: Number,
+  arDebtAmount: Number,
+  remainingDebt: Number,
+  debtCacheSyncedAt: String,
+  debtReadModelSource: String,
   version: { type: Number, default: 0 }
 });
 

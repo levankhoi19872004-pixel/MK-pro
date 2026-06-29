@@ -6,6 +6,7 @@ const test = require('node:test');
 const { readSource } = require('./helpers/sourceBundle.util');
 
 const service = readSource(path.join(__dirname, '..', 'src/services/admin-correction/AdminDataCorrectionService.js'));
+const arAdjustmentService = readSource(path.join(__dirname, '..', 'src/services/accounting/arAdjustmentService.js'));
 const policy = readSource(path.join(__dirname, '..', 'src/policies/adminCorrectionPolicy.js'));
 const routes = readSource(path.join(__dirname, '..', 'src/routes/adminCorrectionRoutes.js'));
 const indexRoutes = readSource(path.join(__dirname, '..', 'src/routes/index.js'));
@@ -35,8 +36,9 @@ test('inventory, AR and fund corrections create adjustment records and ledger ro
   assert.match(service, /InventoryAdjustment\.create/);
   assert.match(service, /inventoryService\.postStockMovement/);
   assert.match(service, /sourceType:\s*'ADMIN_CORRECTION'/);
-  assert.match(service, /ArAdjustment\.create/);
-  assert.match(service, /ArLedger\.create/);
+  assert.match(service, /arAdjustmentService\.createArAdjustment/);
+  assert.match(arAdjustmentService, /ArAdjustment\.create/);
+  assert.match(arAdjustmentService, /ArLedger\.create/);
   assert.match(service, /FundAdjustment\.create/);
   assert.match(service, /FundLedger\.create/);
 });
@@ -50,7 +52,8 @@ test('inventory correction does not create orphan stock transaction without upda
 test('rollback is implemented as reversal, not deleting old ledger rows', () => {
   assert.match(service, /createRollbackLedger/);
   assert.match(service, /patch\.adjustQty\s*=\s*-toNumber/);
-  assert.match(service, /patch\.adjustAmount\s*=\s*-toNumber/);
+  assert.match(service, /arAdjustmentService\.rollbackArAdjustment/);
+  assert.match(arAdjustmentService, /amount:\s*-roundAmount/);
   assert.doesNotMatch(service, /deleteMany\(/);
   assert.doesNotMatch(service, /remove\(/);
 });

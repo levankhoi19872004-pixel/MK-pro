@@ -8,6 +8,7 @@ const { verifyPassword } = require('../security/passwordPolicy');
 const { readRefreshToken } = require('../security/refreshTokenCookie');
 const User = require('../models/User');
 const { MongoStore } = require('./mongoSyncService');
+const DebtReadService = require('./DebtReadService');
 
 
 function inventoryRowOpenSaleQty(row = {}) {
@@ -155,7 +156,16 @@ function createMobileService(ctx) {
       ];
     }
     const rows = await Customer.find(filter).sort({ code: 1 }).limit(requestedLimit).lean();
-    let items = rows.map(customerMongoToClient).map((customer) => ({
+    const clientCustomers = rows.map(customerMongoToClient);
+    const debtMap = await DebtReadService.loadDebtBalancesForCustomers(clientCustomers);
+    const debtForCustomer = (customer = {}) => {
+      const keys = [customer.code, customer.customerCode, customer.id, customer._id, customer.customerId]
+        .map((value) => String(value || '').trim().toLowerCase())
+        .filter(Boolean);
+      const value = keys.map((key) => debtMap.get(key)).find((item) => item !== undefined);
+      return Math.max(0, toNumber(value));
+    };
+    let items = clientCustomers.map((customer) => ({
       id: customer.id,
       code: customer.code,
       customerCode: customer.customerCode || customer.code,
@@ -170,7 +180,9 @@ function createMobileService(ctx) {
       // Chỉ giữ để UI cũ hiển thị, không dùng match/tạo đơn mới.
       staffCode: customer.legacyStaffCode || customer.staffCode || '',
       staffName: customer.legacyStaffName || customer.staffName || '',
-      debtAmount: customer.debtAmount || customer.currentDebt || customer.debt || customer.openingDebt || 0,
+      debtAmount: debtForCustomer(customer),
+      currentDebt: debtForCustomer(customer),
+      debtSource: 'arLedgers',
       monthRevenue: customer.monthRevenue || customer.monthSales || 0,
       isActive: customer.isActive !== false
     }));

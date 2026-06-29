@@ -83,12 +83,12 @@ customerCode:t.customerCode||"",customerName:t.customerName||"",amount:u,message
 return String(e||"").replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}function se(e,t=50,o=100){const r=Number(e);return!Number.isFinite(r)||r<=0?t:Math.min(Math.max(1,Math.floor(r)),o)}
 function ie(e){const t=Number(e);return!Number.isFinite(t)||t<=0?1:Math.max(1,Math.floor(t))}function ue(e,t){t&&(Array.isArray(e.$and)||(e.$and=[]),e.$and.push(t))}
 function le(t={}){const o={status:{$nin:["void","cancelled","canceled","deleted","duplicate_cancelled","reversed"]},reversed:{$ne:!0},refType:{$ne:"AR_LEDGER_REVERSAL"},type:{
-$nin:["ar_reversal","reversal","ar_void","ar_sale_reversal","ar_return_reversal"]}};if((t.dateFrom||t.dateTo||t.date)&&(o.date={},t.dateFrom&&(o.date.$gte=e.toDateOnly(t.dateFrom)),
-t.dateTo&&(o.date.$lte=e.toDateOnly(t.dateTo)),t.date&&(o.date=e.toDateOnly(t.date))),t.customerCode){const e=new RegExp(`^${ne(t.customerCode)}$`,"i");ue(o,{$or:[{customerCode:e
-},{customerId:e}]})}if(t.customerId){const e=new RegExp(`^${ne(t.customerId)}$`,"i");ue(o,{$or:[{customerId:e},{customerCode:e}]})}return o}function ce(e={}){const t=[]
-;if(e.delivery){const o=new RegExp(ne(e.delivery),"i");t.push({$or:[{deliveryStaffCode:o},{deliveryStaffName:o},{deliveryCode:o},{deliveryName:o},{nvghCode:o},{nvghName:o}]})}
-if(e.salesman){const o=new RegExp(ne(e.salesman),"i");t.push({$or:[{salesmanCode:o},{salesmanName:o},{salesStaffCode:o},{salesStaffName:o},{nvbhCode:o},{nvbhName:o}]})}
-return t.length?1===t.length?t[0]:{$and:t}:null}function me(e){return String(e||"").trim()}
+$nin:["ar_reversal","reversal","ar_void","ar_sale_reversal","ar_return_reversal"]}};if((t.dateFrom||t.dateTo||t.date)&&(o.date={},
+t.dateFrom&&(o.date.$gte=e.toDateOnly(t.dateFrom)),t.dateTo&&(o.date.$lte=e.toDateOnly(t.dateTo)),t.date&&(o.date=e.toDateOnly(t.date))),t.customerCode){
+const e=new RegExp(`^${ne(t.customerCode)}$`,"i");ue(o,{$or:[{customerCode:e},{customerId:e}]})}if(t.customerId){const e=new RegExp(`^${ne(t.customerId)}$`,"i");ue(o,{$or:[{
+customerId:e},{customerCode:e}]})}return o}function ce(e={}){const t=[];if(e.delivery){const o=new RegExp(ne(e.delivery),"i");t.push({$or:[{deliveryStaffCode:o},{
+deliveryStaffName:o},{deliveryCode:o},{deliveryName:o},{nvghCode:o},{nvghName:o}]})}if(e.salesman){const o=new RegExp(ne(e.salesman),"i");t.push({$or:[{salesmanCode:o},{
+salesmanName:o},{salesStaffCode:o},{salesStaffName:o},{nvbhCode:o},{nvbhName:o}]})}return t.length?1===t.length?t[0]:{$and:t}:null}function me(e){return String(e||"").trim()}
 const fe="id code date createdAt type source refType refId refCode orderId orderCode salesOrderId salesOrderCode customerId customerCode customerName debit credit amount status note voidReason salesStaffCode salesStaffName salesmanCode salesmanName nvbhCode nvbhName deliveryStaffCode deliveryStaffName deliveryCode deliveryName nvghCode nvghName"
 ;async function ye(t={}){const o=le(t),r=ce(t);if(!r)return o;const a={...le({}),type:{$in:["ar_sale","ar_external_debt"]},...r};(t.dateFrom||t.dateTo||t.date)&&(a.date={},
 t.dateFrom&&(a.date.$gte=e.toDateOnly(t.dateFrom)),t.dateTo&&(a.date.$lte=e.toDateOnly(t.dateTo)),t.date&&(a.date=e.toDateOnly(t.date)))

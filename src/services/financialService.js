@@ -16,6 +16,7 @@ const arLedgerUtil = require('../utils/arLedger.util');
 const postingEngine = require('../engines/posting.engine');
 const ArPostingService = require('../domain/posting/ArPostingService');
 const fundLedgerRepository = require('../repositories/fundLedgerRepository');
+const arBalanceService = require('./accounting/arBalanceService');
 
 
 
@@ -60,26 +61,22 @@ async function syncOrderDebtCacheFromAR(orderOrKey, options = {}) {
   if (!keys.length) return null;
   const order = await orderRepository.findByIdOrCode(keys[0]);
   const allKeys = [...new Set([...keys, ...ledgerOrderKeysFrom(order || {})])];
-  if (!order || !allKeys.length) return null;
+  if (!allKeys.length) return null;
 
-  const journals = await paymentRepository.findAll({}, options);
-  const balance = journals
-    .filter(isActive)
-    .filter((entry) => ledgerEntryMatchesOrder(entry, allKeys))
-    .reduce((sum, entry) => sum + toNumber(entry.debit) - toNumber(entry.credit), 0);
-  const nextDebt = Math.max(0, normalizeDebtAmount(balance));
-  const updated = {
-    ...order,
-    debtAmount: nextDebt,
-    debt: nextDebt,
-    arBalance: nextDebt,
-    arStatus: hasOpenDebt(nextDebt) ? 'ar_posted' : 'paid',
-    lifecycleStatus: hasOpenDebt(nextDebt) ? (order.lifecycleStatus || 'ar_posted') : 'paid',
-    paidAt: !hasOpenDebt(nextDebt) ? (order.paidAt || dateUtil.nowIso()) : (order.paidAt || ''),
-    updatedAt: dateUtil.nowIso()
+  // P0 debt-cache hardening:
+  // SalesOrder.debtAmount/debt/arBalance are read-model fields only. This legacy
+  // function is kept for compatibility with old command flows, but it MUST NOT
+  // write SalesOrder cache. Official debt is always read from arLedgers.
+  const officialDebt = Math.max(0, normalizeDebtAmount(await arBalanceService.getOrderBalance(allKeys, options)));
+  return {
+    order,
+    officialDebt,
+    debtAmount: officialDebt,
+    arBalance: officialDebt,
+    readModelOnly: true,
+    skippedSalesOrderCacheWrite: true,
+    source: 'arLedgers'
   };
-  await orderRepository.upsert(updated, options);
-  return updated;
 }
 
 async function syncAllocatedOrderDebtCaches(allocations = [], options = {}) {
@@ -88,12 +85,15 @@ async function syncAllocatedOrderDebtCaches(allocations = [], options = {}) {
     .map((key) => String(key || '').trim())
     .filter(Boolean);
   const unique = [...new Set(keys)];
-  const results = [];
-  for (const key of unique) {
-    const updated = await syncOrderDebtCacheFromAR(key, options);
-    if (updated) results.push(updated);
-  }
-  return results;
+  const balances = await arBalanceService.loadOrderBalances(unique.map((key) => [key]), options);
+  return unique.map((key) => ({
+    orderKey: key,
+    officialDebt: Math.max(0, normalizeDebtAmount(balances.get(key) || 0)),
+    debtAmount: Math.max(0, normalizeDebtAmount(balances.get(key) || 0)),
+    readModelOnly: true,
+    skippedSalesOrderCacheWrite: true,
+    source: 'arLedgers'
+  }));
 }
 
 function buildRunningCode(prefix, rows = []) {
@@ -200,8 +200,8 @@ async function applyReceiptToOrderDebts(receipt = {}, options = {}) {
     amount: receipt.amount
   }]);
 
-  // V45 chuẩn AR Ledger: không trừ công nợ bằng cách sửa trực tiếp order.debtAmount.
-  // order.debtAmount/arBalance chỉ là cache hiển thị, luôn được tính lại từ journals sau khi đã post AR.
+  // P0: không sync/sửa SalesOrder debt cache trong luồng thu tiền.
+  // Official debt nằm ở arLedgers; hàm này chỉ trả snapshot đối soát read-only.
   return syncAllocatedOrderDebtCaches(allocations, options);
 }
 
@@ -213,8 +213,8 @@ async function reverseReceiptFromOrderDebts(receipt = {}, options = {}) {
     amount: receipt.amount
   }]);
 
-  // Hủy phiếu thu cũng không cộng/trừ trực tiếp vào order.
-  // Bút toán đảo đã vào journals, cache được rebuild lại từ AR Ledger.
+  // P0: rollback cũng không ghi SalesOrder debt cache.
+  // Bút toán đảo vào arLedgers; snapshot trả về chỉ để log/đối soát nếu cần.
   return syncAllocatedOrderDebtCaches(allocations, options);
 }
 

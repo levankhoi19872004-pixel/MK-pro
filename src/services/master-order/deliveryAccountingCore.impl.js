@@ -43,12 +43,16 @@ async function addDebtToCustomerIfNeeded(order = {}, options = {}) {
   const customer = await customerRepository.findByIdOrCode(customerKey);
   if (!customer) return null;
   const amount = Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0));
-  const currentDebt = toNumber(customer.currentDebt ?? customer.debtAmount ?? customer.openingDebt);
-  const nextDebt = Math.max(0, normalizeDebtAmount(currentDebt + amount));
-  customer.currentDebt = nextDebt;
-  customer.debtAmount = nextDebt;
-  await customerRepository.save(customer, options);
-  return customer;
+  // P0 debt SSoT: do not mutate Customer/SalesOrder debt cache during accounting
+  // confirmation. This legacy hook is kept as a read-only compatibility snapshot;
+  // official debt is calculated from arLedgers.
+  return {
+    customer,
+    skippedCustomerDebtCacheWrite: true,
+    readModelOnly: true,
+    attemptedDelta: amount,
+    source: 'arLedgers'
+  };
 }
 
 function orderKey(order = {}) {

@@ -6,7 +6,7 @@ const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
 const { escapeRegex } = require('../../utils/query.util');
 const { normalizeDebtAmount, DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
-const { arEntryBalanceEffect } = require('../../utils/arLedger.util');
+const arBalanceService = require('../accounting/arBalanceService');
 const { parseMobilePagination, buildPagination } = require('./mobilePagination.util');
 
 const PENDING_STATUSES = ['submitted', 'under_review'];
@@ -447,34 +447,9 @@ async function getMobileCustomerDebts(query = {}) {
 }
 
 async function loadDebtBalancesForCustomers(customers = []) {
-  const codes = unique(customers.flatMap((customer) => [customer.code, customer.customerCode]));
-  const ids = unique(customers.flatMap((customer) => [customer.id, customer._id, customer.customerId]));
-  if (!codes.length && !ids.length) return new Map();
-
-  const rows = await ArLedger.find({
-    ...activeArFilter(),
-    $or: [
-      ...(codes.length ? [{ customerCode: { $in: codes } }] : []),
-      ...(ids.length ? [{ customerId: { $in: ids } }] : [])
-    ]
-  })
-    .select('customerId customerCode debit credit amount type direction')
-    .lean();
-
-  const byStableKey = new Map();
-  for (const row of rows || []) {
-    const amount = arEntryBalanceEffect(row);
-    const keys = unique([row.customerCode, row.customerId]).map(lower);
-    for (const key of keys) byStableKey.set(key, (byStableKey.get(key) || 0) + amount);
-  }
-
-  const result = new Map();
-  for (const customer of customers || []) {
-    const keys = unique([customer.code, customer.customerCode, customer.id, customer._id, customer.customerId]).map(lower);
-    const balance = keys.map((key) => byStableKey.get(key)).find((value) => value !== undefined) || 0;
-    for (const key of keys) result.set(key, normalizeDebtAmount(balance));
-  }
-  return result;
+  // Official mobile/customer debt source. Never fall back to Customer/SalesOrder
+  // debt cache fields here; arLedgers is the accounting SSoT.
+  return arBalanceService.loadCustomerBalances(customers);
 }
 
 module.exports = {

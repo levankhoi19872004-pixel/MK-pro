@@ -1,460 +1,114 @@
 /* GENERATED FILE — edit public/js/app/05-sales-orders.source/part-01.jsfrag, public/js/app/05-sales-orders.source/part-02.jsfrag, public/js/app/05-sales-orders.source/part-03.jsfrag, public/js/app/05-sales-orders.source/part-04.jsfrag and run npm run build:source-bundles. */
-
-function getSalesOrderStatusLabel(order){
-  const status=window.OrderStatusUtil?window.OrderStatusUtil.normalizeOrderStatus(order):(order?.status||'pending');
-  const merge=window.OrderStatusUtil?window.OrderStatusUtil.normalizeMergeStatus(order):(order?.mergeStatus||'unmerged');
-  const accounting=window.OrderStatusUtil?window.OrderStatusUtil.normalizeAccountingStatus(order):(order?.accountingStatus||'pending');
-  if(status==='cancelled')return 'Đã hủy';
-  if(accounting==='confirmed')return 'Đã CN';
-  if(status==='delivered')return 'Đã giao';
-  if(merge==='merged'||status==='assigned')return 'Đã gộp';
-  return 'Chờ gộp';
-}
-function getSalesOrderStatusClass(order){
-  const status=window.OrderStatusUtil?window.OrderStatusUtil.normalizeOrderStatus(order):(order?.status||'pending');
-  const merge=window.OrderStatusUtil?window.OrderStatusUtil.normalizeMergeStatus(order):(order?.mergeStatus||'unmerged');
-  const accounting=window.OrderStatusUtil?window.OrderStatusUtil.normalizeAccountingStatus(order):(order?.accountingStatus||'pending');
-  if(status==='cancelled')return 'status-cancelled';
-  if(accounting==='confirmed')return 'status-accounted';
-  if(status==='delivered')return 'status-delivered';
-  if(merge==='merged'||status==='assigned')return 'status-assigned';
-  return 'status-pending';
-}
-function isOrderMerged(order){
-  return String(order?.mergeStatus||'unmerged')==='merged' && Boolean(order?.masterOrderId || order?.masterOrderCode);
-}
-function getOrderMergeText(order){
-  return isOrderMerged(order)?'Đã gộp':'Chưa gộp';
-}
-function getOrderMergeClass(order){
-  return isOrderMerged(order)?'merged':'unmerged';
-}
+function getSalesOrderStatusLabel(order){const status=window.OrderStatusUtil?window.OrderStatusUtil.normalizeOrderStatus(order):order?.status||"pending"
+;const merge=window.OrderStatusUtil?window.OrderStatusUtil.normalizeMergeStatus(order):order?.mergeStatus||"unmerged"
+;const accounting=window.OrderStatusUtil?window.OrderStatusUtil.normalizeAccountingStatus(order):order?.accountingStatus||"pending";if(status==="cancelled")return"Đã hủy"
+;if(accounting==="confirmed")return"Đã CN";if(status==="delivered")return"Đã giao";if(merge==="merged"||status==="assigned")return"Đã gộp";return"Chờ gộp"}
+function getSalesOrderStatusClass(order){const status=window.OrderStatusUtil?window.OrderStatusUtil.normalizeOrderStatus(order):order?.status||"pending"
+;const merge=window.OrderStatusUtil?window.OrderStatusUtil.normalizeMergeStatus(order):order?.mergeStatus||"unmerged"
+;const accounting=window.OrderStatusUtil?window.OrderStatusUtil.normalizeAccountingStatus(order):order?.accountingStatus||"pending";if(status==="cancelled")return"status-cancelled"
+;if(accounting==="confirmed")return"status-accounted";if(status==="delivered")return"status-delivered";if(merge==="merged"||status==="assigned")return"status-assigned"
+;return"status-pending"}function isOrderMerged(order){return String(order?.mergeStatus||"unmerged")==="merged"&&Boolean(order?.masterOrderId||order?.masterOrderCode)}
+function getOrderMergeText(order){return isOrderMerged(order)?"Đã gộp":"Chưa gộp"}function getOrderMergeClass(order){return isOrderMerged(order)?"merged":"unmerged"}
 function renderSalesOrderItems(items){
-  const rows=(items||[]).slice(0,3).map(i=>`
-    <div class="sales-order-item">
-      <span>${i.productCode||''} - ${i.productName||''}</span>
-      <strong>${displayQtyTL(i.quantity,i)}</strong>
-    </div>`).join('');
-  const more=(items||[]).length>3?`<div class="sales-order-more">+ ${(items||[]).length-3} dòng hàng khác</div>`:'';
-  return rows+more;
-}
-
-
-function toggleSelectAllSalesOrders(){
-  const checks=[...document.querySelectorAll('.sales-order-check')];
-  if(!checks.length)return;
-  const shouldCheck=checks.some(ch=>!ch.checked);
-  checks.forEach(ch=>{ch.checked=shouldCheck;});
-  if(typeof selectAllSalesOrdersButton!=='undefined' && selectAllSalesOrdersButton){
-    selectAllSalesOrdersButton.textContent=shouldCheck?'Bỏ chọn tất cả':'Chọn tất cả';
-  }
-}
-window.toggleSelectAllSalesOrders=toggleSelectAllSalesOrders;
-
-async function printSelectedSalesOrders(){
-  try{
-    const checks=[...document.querySelectorAll('.sales-order-check:checked')];
-    const orders=checks.map(ch=>window.__salesOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
-    const ids=orders.map(order=>order.id||order.code||order.orderCode||order.salesOrderCode).filter(Boolean);
-    if(!ids.length){alert('Chưa chọn đơn con để in');return}
-    const res=await fetch('/api/print/orders/batch',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({salesOrderIds:ids})
-    });
-    const html=await res.text();
-    if(!res.ok)throw new Error(html||'Không in được nhiều đơn con');
-    const w=window.open('','_blank');
-    if(!w)throw new Error('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.');
-    w.document.open();w.document.write(html);w.document.close();
-  }catch(err){alert(err.message||'Không in được nhiều đơn con')}
-}
-window.printSelectedSalesOrders=printSelectedSalesOrders;
-
-async function openSalesOrderEdit(idx){
-  let order=window.__salesOrdersCache?.[idx];
-  if(!order)return;
-  try{order=await fetchSalesOrderDetail(order)}catch(err){alert(err.message||'Không tải được chi tiết đơn');return;}
-  editingSalesOrderId=order.id||order.code||'';
-  const editMode=resolveSalesOrderEditMode(order);
-  // Khi sửa đơn: APP/mobile mặc định bán theo khuyến mại, DMS/import mặc định bán thẳng; radio vẫn cho đổi linh hoạt.
-  setSalesMode(editMode);
-  salesItems=(order.items||[]).map(i=>{
-    const sourceProduct = findProductByKey(i.productCode || i.productId) || {};
-    const lineSource = {
-      ...sourceProduct,
-      ...i,
-      conversionRate: i.conversionRate ?? i.unitsPerCase ?? i.packingQty ?? sourceProduct.conversionRate ?? sourceProduct.unitsPerCase ?? sourceProduct.packingQty,
-      unitsPerCase: i.unitsPerCase ?? i.conversionRate ?? i.packingQty ?? sourceProduct.unitsPerCase ?? sourceProduct.conversionRate ?? sourceProduct.packingQty,
-      packingQty: i.packingQty ?? i.conversionRate ?? i.unitsPerCase ?? sourceProduct.packingQty ?? sourceProduct.conversionRate ?? sourceProduct.unitsPerCase
-    };
-    const meta = productLineMeta(lineSource);
-    const quantity=Number(i.quantity||0);
-    const split=splitCaseLoose(quantity,meta.conversionRate);
-    return {
-      productId:i.productId||i.productCode,
-      productCode:i.productCode,
-      productName:i.productName,
-      ...meta,
-      quantity,
-      caseQty:split.caseQty,
-      looseQty:split.looseQty,
-      grossPrice:Number(i.grossPrice||i.catalogSalePrice||i.salePrice||i.price||0),
-      discountPercent:Number(i.discountPercent||0),
-      discountAmount:Number(i.discountAmount||i.totalDiscountAmount||0),
-      finalPrice:Number(i.finalPrice||i.salePrice||i.price||0),
-      salePrice:Number(i.salePrice||i.price||0),
-      price:Number(i.salePrice||i.price||0),
-      amount:Number(i.amount||Number(i.quantity||0)*Number(i.salePrice||i.price||0)),
-      saleMethod:i.saleMethod||i.saleMode||editMode,
-      saleMode:i.saleMode||editMode,
-      pricingMode:i.pricingMode||editMode,
-      priceLocked:true
-    };
-  });
-  salesForm.elements.date.value=toDateOnly(order.orderDate||order.date||order.documentDate||order.importDate||order.displayDate||today());
-  salesForm.elements.paidAmount.value=Number(order.paidAmount||0);
-  if(salesForm.elements.note)salesForm.elements.note.value=order.note||'';
-  setVatInvoiceRequired(order.vatInvoiceRequired!==false);
-  if(salesForm.elements.vatInvoiceNote)salesForm.elements.vatInvoiceNote.value=order.vatInvoiceNote||'';
-  const c=customersCache.find(item=>String(item.id)===String(order.customerId)||String(item.code)===String(order.customerCode));
-  salesCustomerSelect.value=c?.id||order.customerId||order.customerCode||'';
-  if(salesCustomerSearch)salesCustomerSearch.value=c?customerSuggestionLabel(c):`${order.customerCode||''} - ${order.customerName||''}`;
-  const staffLabel = canonicalSalesStaffLabel(order);
-  if(salesStaffSelect)salesStaffSelect.value=order.salesStaffCode||order.salesmanCode||'';
-  if(salesStaffName)salesStaffName.value=order.salesStaffName||order.salesmanName||'';
-  if(salesStaffSearch)salesStaffSearch.value=staffLabel;
-  const submitBtn=salesForm.querySelector('[type="submit"]');
-  if(submitBtn)submitBtn.textContent='Lưu sửa đơn bán';
-  renderSalesItems();
-  showMessage(salesMessage,`Đang sửa đơn ${order.code||order.id}. Kế toán/Admin sửa trực tiếp trong mục Bán hàng.`);
-  openSalesOrderModal('edit');
-}
-window.openSalesOrderEdit=openSalesOrderEdit;
-
-function salesOrderVatRequired(order){
-  return order?.vatInvoiceRequired !== false;
-}
-function salesOrderVatLabel(order){
-  return salesOrderVatRequired(order)?'Xuất HĐ':'Không xuất';
-}
-function salesOrderVatClass(order){
-  return salesOrderVatRequired(order)?'vat-required':'vat-not-required';
-}
-async function patchSalesOrderVatSetting(order, required, note){
-  const key=getSalesOrderDeleteIdentity(order);
-  if(!key)throw new Error('Không xác định được mã đơn');
-  const res=await fetch(`/api/sales-orders/${encodeURIComponent(key)}/vat-invoice-setting`,{
-    method:'PATCH',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({vatInvoiceRequired:Boolean(required),note:String(note||'').trim()})
-  });
-  const json=await res.json();
-  if(!res.ok||!json.ok)throw new Error(json.message||'Không cập nhật được thiết lập VAT');
-  return json.salesOrder||json.order;
-}
-async function toggleSalesOrderVat(idx){
-  const order=window.__salesOrdersCache?.[idx];
-  if(!order)return;
-  const next=!salesOrderVatRequired(order);
-  const note=prompt(next?'Ghi chú khi chuyển sang xuất hóa đơn:':'Lý do không xuất hóa đơn:',next?(order.vatInvoiceNote||''):(order.vatInvoiceNote||'Khách hàng không lấy hóa đơn'));
-  if(note===null)return;
-  try{
-    const updated=await patchSalesOrderVatSetting(order,next,note);
-    window.__salesOrdersCache[idx]={...order,...updated};
-    await loadSalesOrders({page:salesOrderCurrentPage||1,append:false});
-  }catch(err){alert(err.message||'Không cập nhật được thiết lập VAT')}
-}
-window.toggleSalesOrderVat=toggleSalesOrderVat;
-
-async function saveSalesVatSettingFromModal(){
-  if(!editingSalesOrderId)return;
-  const order=(window.__salesOrdersCache||[]).find(row=>String(row.id||row.code)===String(editingSalesOrderId))||{id:editingSalesOrderId,code:editingSalesOrderId};
-  try{
-    const updated=await patchSalesOrderVatSetting(order,getVatInvoiceRequired(),salesForm.elements.vatInvoiceNote?.value||'');
-    showMessage(salesMessage,`Đã lưu thiết lập VAT cho đơn ${updated.code||editingSalesOrderId}`);
-    salesOrderDetailCache.delete(String(editingSalesOrderId));
-    await loadSalesOrders({page:salesOrderCurrentPage||1,append:false});
-  }catch(err){showMessage(salesMessage,err.message||'Không lưu được thiết lập VAT',true)}
-}
-window.saveSalesVatSettingFromModal=saveSalesVatSettingFromModal;
-
-function salesOrderDeleteRefs(order){
-  return [...new Set([
-    order?.id,
-    order?.code,
-    order?.orderCode,
-    order?.salesOrderCode,
-    order?.documentCode,
-    order?.invoiceCode,
-    order?.externalOrderCode,
-    order?.sourceOrderCode
-  ].map(value=>String(value||'').trim()).filter(Boolean))];
-}
-
-function getSalesOrderDeleteIdentity(order){
-  return salesOrderDeleteRefs(order)[0]||'';
-}
-
-async function readSalesOrderDeleteResponse(res){
-  const text=await res.text();
-  try{return text?JSON.parse(text):{}}catch(_err){
-    return {ok:false,message:text||`HTTP ${res.status}`};
-  }
-}
-
-function isDeleteRefNotFound(res,json){
-  const code=String(json?.code||json?.errorCode||'').toUpperCase();
-  return res.status===404 || code==='ORDER_NOT_FOUND';
-}
-
-async function sendSalesOrderDeleteRequest(ref,reason){
-  const url=`/api/sales-orders/${encodeURIComponent(ref)}`;
-  const payload={reason,deleteReason:reason};
-  const common={
-    credentials:'same-origin',
-    headers:{
-      'Content-Type':'application/json',
-      'X-Requested-With':'XMLHttpRequest'
-    },
-    body:JSON.stringify(payload)
-  };
-  const res=await fetch(url,{...common,method:'DELETE'});
-  const json=await readSalesOrderDeleteResponse(res);
-  if((res.status===404||res.status===405) && !json?.ok){
-    const fallbackRes=await fetch(`${url}/delete`,{...common,method:'POST'});
-    const fallbackJson=await readSalesOrderDeleteResponse(fallbackRes);
-    return {res:fallbackRes,json:fallbackJson,ref,usedFallback:true};
-  }
-  return {res,json,ref,usedFallback:false};
-}
-
-async function deleteSalesOrder(idx){
-  const order=window.__salesOrdersCache?.[idx];
-  if(!order)return;
-  const refs=salesOrderDeleteRefs(order);
-  const key=refs[0]||'';
-  if(!key){alert('Không xác định được mã đơn để xóa');return;}
-  const reason=prompt(`Lý do xóa đơn ${order.code||order.orderCode||order.id}?`, 'Xóa đơn bán');
-  if(reason===null)return;
-  try{
-    let lastResult=null;
-    for(const ref of refs){
-      const result=await sendSalesOrderDeleteRequest(ref,reason);
-      lastResult=result;
-      if(result.res.ok&&result.json?.ok){
-        alert(result.json.message||'Đã xóa đơn');
-        refs.forEach(candidate=>salesOrderDetailCache.delete(candidate));
-        await loadSalesOrders({page:salesOrderCurrentPage||1,append:false});
-        await loadStock();await loadDebts();await loadCashbook();
-        return;
-      }
-      if(!isDeleteRefNotFound(result.res,result.json))break;
-    }
-    throw new Error(lastResult?.json?.message||'Không xóa được đơn');
-  }catch(err){alert(err.message||'Không xóa được đơn')}
-}
-window.deleteSalesOrder=deleteSalesOrder;
-window.cancelSalesOrder=deleteSalesOrder;
-if(salesOrderList&&!salesOrderList.dataset.securityDelegationBound){
-  salesOrderList.dataset.securityDelegationBound='1';
-  salesOrderList.addEventListener('click',event=>{
-    const button=event.target.closest('[data-sales-order-action]');
-    if(!button||!salesOrderList.contains(button))return;
-    event.preventDefault();
-    event.stopPropagation();
-    const index=Number(button.dataset.orderIndex);
-    if(button.dataset.salesOrderAction==='toggle-vat'){toggleSalesOrderVat(index);return;}
-    if(button.dataset.salesOrderAction==='edit'){openSalesOrderEdit(index);return;}
-    if(button.dataset.salesOrderAction==='delete'){deleteSalesOrder(index);return;}
-  });
-}
-
-
-
-function normalizeSalesOrderStaffToken(value){
-  const raw=String(value||'').trim();
-  if(!raw)return '';
-  const first=raw.split(/\s+-\s+|\|/)[0].trim();
-  const match=first.match(/[A-Za-z0-9_.-]+/);
-  return String(match?match[0]:first).trim();
-}
-
-function clearSalesOrderStaffDataset(){
-  if(!salesOrderStaffFilter || !salesOrderStaffFilter.dataset)return;
-  delete salesOrderStaffFilter.dataset.selectedId;
-  delete salesOrderStaffFilter.dataset.id;
-  delete salesOrderStaffFilter.dataset.code;
-  delete salesOrderStaffFilter.dataset.name;
-  delete salesOrderStaffFilter.dataset.type;
-  delete salesOrderStaffFilter.dataset.label;
-  delete salesOrderStaffFilter.dataset.selectedLabel;
-}
-
-function getSalesOrderStaffSelection(){
-  if(!salesOrderStaffFilter)return { code:'', name:'', label:'', raw:'', selected:false };
-
-  const raw=String(salesOrderStaffFilter.value||'').trim();
-  const label=String(salesOrderStaffFilter.dataset?.label || salesOrderStaffFilter.dataset?.selectedLabel || '').trim();
-  const datasetCode=String(salesOrderStaffFilter.dataset?.code || '').trim();
-  const datasetName=String(salesOrderStaffFilter.dataset?.name || '').trim();
-  const selected=!!raw && !!label && raw===label && !!datasetCode;
-
-  if(selected){
-    return {
-      code: normalizeSalesOrderStaffToken(datasetCode),
-      name: datasetName,
-      label,
-      raw,
-      selected:true
-    };
-  }
-
-  const code=normalizeSalesOrderStaffToken(raw);
-  const parts=raw.split(/\s+-\s+/).map(s=>s.trim()).filter(Boolean);
-  return {
-    code,
-    name: parts.length>=2 ? parts[1] : '',
-    label: raw,
-    raw,
-    selected:false
-  };
-}
-
-function getSalesOrderStaffFilterCode(){
-  return getSalesOrderStaffSelection().code || '';
-}
-
-function getSalesOrderStaffFilterName(){
-  return getSalesOrderStaffSelection().raw || '';
-}
-
-function normalizeOrderDateForFilter(value){
-  return toDateOnly(value);
-}
-
-const SALES_ORDER_PAGE_LIMIT = 50;
-let salesOrderCurrentPage = 1;
-let salesOrderTotalRows = 0;
-let salesOrderHasMore = false;
-let salesOrderSearchTimer = null;
-let salesOrderRequestSeq = 0;
-let salesOrderAbortController = null;
-const salesOrderDetailCache = new Map();
-
-function buildSalesOrderSearchParams(page = 1){
-  const q=String(salesOrderSearchInput?.value||'').trim();
-  const source=String(salesOrderSourceFilter?.value||'').trim();
-  const dateType='orderDate';
-  const dateFrom=String(salesOrderDateFrom?.value||today()).trim();
-  const dateTo=String(salesOrderDateTo?.value||dateFrom).trim();
-  const staffCodeFilter=getSalesOrderStaffFilterCode();
-  const staffTextFilter=getSalesOrderStaffFilterName();
-  const params=new URLSearchParams();
-
-  if(dateFrom)params.set('dateFrom',dateFrom);
-  if(dateTo)params.set('dateTo',dateTo);
-  params.set('dateType',dateType);
-  if(source)params.set('source',source);
-  if(q)params.set('q',q);
-
-  // Quy tắc mới: lọc NVBH chỉ dùng mã NVBH chuẩn, không OR tên vào cùng query.
-  // Tên chỉ dùng để hiển thị/debug; backend nhận strictStaff=1 để không trả lẫn NVBH khác.
-  if(staffCodeFilter){
-    params.set('salesStaffCode',staffCodeFilter);
-    params.set('strictStaff','1');
-    params.set('includeStaffAliases','1');
-  } else if(staffTextFilter){
-    params.set('salesStaffName',staffTextFilter);
-  }
-
-  params.set('page',String(page));
-  params.set('limit',String(SALES_ORDER_PAGE_LIMIT));
-  params.set('_t',String(Date.now()));
-  return params;
-}
-
-async function fetchSalesOrderDetail(order){
-  const key=String(order?.id||order?.code||'').trim();
-  if(!key)return order;
-  if(salesOrderDetailCache.has(key))return salesOrderDetailCache.get(key);
-  const res=await fetch(`/api/sales-orders/${encodeURIComponent(key)}`);
-  const json=await res.json();
-  if(!json.ok)throw new Error(json.message||'Không tải được chi tiết đơn');
-  const detail=json.salesOrder||json.order||order;
-  salesOrderDetailCache.set(key,detail);
-  return detail;
-}
-
-function getOrderVisibleSalesStaffCode(order){
-  return normalizeSalesOrderStaffToken(
-    order?.salesStaffCode ||
-    order?.salesPersonCode ||
-    order?.salesmanCode ||
-    order?.nvbhCode ||
-    order?.maNVBH ||
-    order?.salesStaff?.code ||
-    ''
-  );
-}
-
-function filterSalesOrderRowsByCurrentStaff(rows){
-  const staff=getSalesOrderStaffSelection();
-  if(!staff.code)return Array.isArray(rows)?rows:[];
-  return (Array.isArray(rows)?rows:[]).filter(order=>getOrderVisibleSalesStaffCode(order)===staff.code);
-}
-
-function renderSalesOrderRows(orders, {append=false} = {}){
-  if(!append){
-    window.__salesOrdersCache=[];
-    if(typeof selectAllSalesOrdersButton!=='undefined' && selectAllSalesOrdersButton)selectAllSalesOrdersButton.textContent='Chọn tất cả';
-  }
-  const startIndex=(window.__salesOrdersCache||[]).length;
-  window.__salesOrdersCache=(window.__salesOrdersCache||[]).concat(orders||[]);
-  if(!window.__salesOrdersCache.length){
-    salesOrderList.innerHTML='<div class="empty-state">Không có đơn bán phù hợp bộ lọc.</div>';
-    return;
-  }
-  const html=(orders||[]).map((o,localIdx)=>{
-    const idx=startIndex+localIdx;
-    const orderDateText=typeof formatDateVN==='function'?formatDateVN(o.orderDate||o.date||''):(o.orderDate||o.date||'');
-    // SALES_HISTORY_NVBH_COLUMN_PATCH_START: hiển thị NV bán hàng theo field canonical.
-    const salesStaffName=escapeSalesHtml(canonicalSalesStaffLabel(o)||'-');
-    const orderCode=escapeSalesHtml(o.code||o.id||'');
-    const customerName=escapeSalesHtml(o.customerName||o.customerCode||'');
-    const safeOrderDate=escapeSalesHtml(orderDateText||'-');
-    // SALES_HISTORY_NVBH_COLUMN_PATCH_END
-    return `
-      <article class="sales-order-row">
-        <label class="sales-order-select"><input type="checkbox" class="sales-order-check" data-idx="${idx}"></label>
-        <strong class="sales-order-code-text" title="Mã đơn: ${orderCode}">${orderCode}</strong>
-        <span class="sales-order-customer-inline" title="Khách hàng: ${customerName}">${customerName}</span>
-        <!-- SALES_HISTORY_NVBH_COLUMN_PATCH_START -->
-        <span class="sales-order-staff-inline" title="NV bán hàng: ${salesStaffName}">${salesStaffName}</span>
-        <!-- SALES_HISTORY_NVBH_COLUMN_PATCH_END -->
-        <span class="sales-order-date" title="Ngày bán">${safeOrderDate}</span>
-        <strong class="sales-order-total-one-line" title="Giá trị đơn hàng">${money(o.totalAmount)}</strong>
-        <span class="badge ${getOrderSourceClass(o)} sales-order-source-one-line" title="Nguồn đơn">${getOrderSourceText(o)}</span>
-        ${canManageVatInvoiceSetting()
-          ? `<button type="button" class="small sales-vat-badge ${salesOrderVatClass(o)}" title="Đổi thiết lập hóa đơn VAT" data-sales-order-action="toggle-vat" data-order-index="${idx}">${salesOrderVatLabel(o)}</button>`
-          : `<span class="badge sales-vat-badge ${salesOrderVatClass(o)}">${salesOrderVatLabel(o)}</span>`}
-        <div class="sales-order-actions sales-order-actions-one-line">
-          <button class="small" data-sales-order-action="edit" data-order-index="${idx}">Sửa</button>
-          ${['cancelled','void','delivered','returned'].includes(String(o.status||'').toLowerCase())?'':`<button class="small danger" data-sales-order-action="delete" data-order-index="${idx}">Xóa</button>`}
-        </div>
-      </article>`;
-  }).join('');
-  if(append)salesOrderList.insertAdjacentHTML('beforeend',html);
-  else salesOrderList.innerHTML=html;
-}
-
-function updateSalesOrderLoadMoreButton(){
-  if(!loadMoreSalesOrdersButton)return;
-  loadMoreSalesOrdersButton.style.display=salesOrderHasMore?'inline-flex':'none';
-  loadMoreSalesOrdersButton.textContent=salesOrderHasMore?`Tải thêm (${(window.__salesOrdersCache||[]).length}/${salesOrderTotalRows})`:'Đã tải hết';
-}
-
-function debounceLoadSalesOrders(){
-  clearTimeout(salesOrderSearchTimer);
-  salesOrderSearchTimer=setTimeout(()=>loadSalesOrders({page:1,append:false}),250);
-}
+const rows=(items||[]).slice(0,3).map(i=>`\n    <div class="sales-order-item">\n      <span>${i.productCode||""} - ${i.productName||""}</span>\n      <strong>${displayQtyTL(i.quantity,i)}</strong>\n    </div>`).join("")
+;const more=(items||[]).length>3?`<div class="sales-order-more">+ ${(items||[]).length-3} dòng hàng khác</div>`:"";return rows+more}function toggleSelectAllSalesOrders(){
+const checks=[...document.querySelectorAll(".sales-order-check")];if(!checks.length)return;const shouldCheck=checks.some(ch=>!ch.checked);checks.forEach(ch=>{ch.checked=shouldCheck
+});if(typeof selectAllSalesOrdersButton!=="undefined"&&selectAllSalesOrdersButton){selectAllSalesOrdersButton.textContent=shouldCheck?"Bỏ chọn tất cả":"Chọn tất cả"}}
+window.toggleSelectAllSalesOrders=toggleSelectAllSalesOrders;async function printSelectedSalesOrders(){try{const checks=[...document.querySelectorAll(".sales-order-check:checked")]
+;const orders=checks.map(ch=>window.__salesOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean)
+;const ids=orders.map(order=>order.id||order.code||order.orderCode||order.salesOrderCode).filter(Boolean);if(!ids.length){alert("Chưa chọn đơn con để in");return}
+const res=await fetch("/api/print/orders/batch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({salesOrderIds:ids})});const html=await res.text()
+;if(!res.ok)throw new Error(html||"Không in được nhiều đơn con");const w=window.open("","_blank");if(!w)throw new Error("Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.")
+;w.document.open();w.document.write(html);w.document.close()}catch(err){alert(err.message||"Không in được nhiều đơn con")}}window.printSelectedSalesOrders=printSelectedSalesOrders
+;async function openSalesOrderEdit(idx){let order=window.__salesOrdersCache?.[idx];if(!order)return;try{order=await fetchSalesOrderDetail(order)}catch(err){
+alert(err.message||"Không tải được chi tiết đơn");return}editingSalesOrderId=order.id||order.code||"";const editMode=resolveSalesOrderEditMode(order);setSalesMode(editMode)
+;salesItems=(order.items||[]).map(i=>{const sourceProduct=findProductByKey(i.productCode||i.productId)||{};const lineSource={...sourceProduct,...i,
+conversionRate:i.conversionRate??i.unitsPerCase??i.packingQty??sourceProduct.conversionRate??sourceProduct.unitsPerCase??sourceProduct.packingQty,
+unitsPerCase:i.unitsPerCase??i.conversionRate??i.packingQty??sourceProduct.unitsPerCase??sourceProduct.conversionRate??sourceProduct.packingQty,
+packingQty:i.packingQty??i.conversionRate??i.unitsPerCase??sourceProduct.packingQty??sourceProduct.conversionRate??sourceProduct.unitsPerCase}
+;const meta=productLineMeta(lineSource);const quantity=Number(i.quantity||0);const split=splitCaseLoose(quantity,meta.conversionRate);return{productId:i.productId||i.productCode,
+productCode:i.productCode,productName:i.productName,...meta,quantity:quantity,caseQty:split.caseQty,looseQty:split.looseQty,
+grossPrice:Number(i.grossPrice||i.catalogSalePrice||i.salePrice||i.price||0),discountPercent:Number(i.discountPercent||0),
+discountAmount:Number(i.discountAmount||i.totalDiscountAmount||0),finalPrice:Number(i.finalPrice||i.salePrice||i.price||0),salePrice:Number(i.salePrice||i.price||0),
+price:Number(i.salePrice||i.price||0),amount:Number(i.amount||Number(i.quantity||0)*Number(i.salePrice||i.price||0)),saleMethod:i.saleMethod||i.saleMode||editMode,
+saleMode:i.saleMode||editMode,pricingMode:i.pricingMode||editMode,priceLocked:true}})
+;salesForm.elements.date.value=toDateOnly(order.orderDate||order.date||order.documentDate||order.importDate||order.displayDate||today())
+;salesForm.elements.paidAmount.value=Number(order.paidAmount||0);if(salesForm.elements.note)salesForm.elements.note.value=order.note||""
+;setVatInvoiceRequired(order.vatInvoiceRequired!==false);if(salesForm.elements.vatInvoiceNote)salesForm.elements.vatInvoiceNote.value=order.vatInvoiceNote||""
+;const c=customersCache.find(item=>String(item.id)===String(order.customerId)||String(item.code)===String(order.customerCode))
+;salesCustomerSelect.value=c?.id||order.customerId||order.customerCode||""
+;if(salesCustomerSearch)salesCustomerSearch.value=c?customerSuggestionLabel(c):`${order.customerCode||""} - ${order.customerName||""}`
+;const staffLabel=canonicalSalesStaffLabel(order);if(salesStaffSelect)salesStaffSelect.value=order.salesStaffCode||order.salesmanCode||""
+;if(salesStaffName)salesStaffName.value=order.salesStaffName||order.salesmanName||"";if(salesStaffSearch)salesStaffSearch.value=staffLabel
+;const submitBtn=salesForm.querySelector('[type="submit"]');if(submitBtn)submitBtn.textContent="Lưu sửa đơn bán";renderSalesItems()
+;showMessage(salesMessage,`Đang sửa đơn ${order.code||order.id}. Kế toán/Admin sửa trực tiếp trong mục Bán hàng.`);openSalesOrderModal("edit")}
+window.openSalesOrderEdit=openSalesOrderEdit;function salesOrderVatRequired(order){return order?.vatInvoiceRequired!==false}function salesOrderVatLabel(order){
+return salesOrderVatRequired(order)?"Xuất HĐ":"Không xuất"}function salesOrderVatClass(order){return salesOrderVatRequired(order)?"vat-required":"vat-not-required"}
+async function patchSalesOrderVatSetting(order,required,note){const key=getSalesOrderDeleteIdentity(order);if(!key)throw new Error("Không xác định được mã đơn")
+;const res=await fetch(`/api/sales-orders/${encodeURIComponent(key)}/vat-invoice-setting`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+vatInvoiceRequired:Boolean(required),note:String(note||"").trim()})});const json=await res.json()
+;if(!res.ok||!json.ok)throw new Error(json.message||"Không cập nhật được thiết lập VAT");return json.salesOrder||json.order}async function toggleSalesOrderVat(idx){
+const order=window.__salesOrdersCache?.[idx];if(!order)return;const next=!salesOrderVatRequired(order)
+;const note=prompt(next?"Ghi chú khi chuyển sang xuất hóa đơn:":"Lý do không xuất hóa đơn:",next?order.vatInvoiceNote||"":order.vatInvoiceNote||"Khách hàng không lấy hóa đơn")
+;if(note===null)return;try{const updated=await patchSalesOrderVatSetting(order,next,note);window.__salesOrdersCache[idx]={...order,...updated};await loadSalesOrders({
+page:salesOrderCurrentPage||1,append:false})}catch(err){alert(err.message||"Không cập nhật được thiết lập VAT")}}window.toggleSalesOrderVat=toggleSalesOrderVat
+;async function saveSalesVatSettingFromModal(){if(!editingSalesOrderId)return
+;const order=(window.__salesOrdersCache||[]).find(row=>String(row.id||row.code)===String(editingSalesOrderId))||{id:editingSalesOrderId,code:editingSalesOrderId};try{
+const updated=await patchSalesOrderVatSetting(order,getVatInvoiceRequired(),salesForm.elements.vatInvoiceNote?.value||"")
+;showMessage(salesMessage,`Đã lưu thiết lập VAT cho đơn ${updated.code||editingSalesOrderId}`);salesOrderDetailCache.delete(String(editingSalesOrderId));await loadSalesOrders({
+page:salesOrderCurrentPage||1,append:false})}catch(err){showMessage(salesMessage,err.message||"Không lưu được thiết lập VAT",true)}}
+window.saveSalesVatSettingFromModal=saveSalesVatSettingFromModal;function salesOrderDeleteRefs(order){
+return[...new Set([order?.id,order?.code,order?.orderCode,order?.salesOrderCode,order?.documentCode,order?.invoiceCode,order?.externalOrderCode,order?.sourceOrderCode].map(value=>String(value||"").trim()).filter(Boolean))]
+}function getSalesOrderDeleteIdentity(order){return salesOrderDeleteRefs(order)[0]||""}async function readSalesOrderDeleteResponse(res){const text=await res.text();try{
+return text?JSON.parse(text):{}}catch(_err){return{ok:false,message:text||`HTTP ${res.status}`}}}function isDeleteRefNotFound(res,json){
+const code=String(json?.code||json?.errorCode||"").toUpperCase();return res.status===404||code==="ORDER_NOT_FOUND"}async function sendSalesOrderDeleteRequest(ref,reason){
+const url=`/api/sales-orders/${encodeURIComponent(ref)}`;const payload={reason:reason,deleteReason:reason};const common={credentials:"same-origin",headers:{
+"Content-Type":"application/json","X-Requested-With":"XMLHttpRequest"},body:JSON.stringify(payload)};const res=await fetch(url,{...common,method:"DELETE"})
+;const json=await readSalesOrderDeleteResponse(res);if((res.status===404||res.status===405)&&!json?.ok){const fallbackRes=await fetch(`${url}/delete`,{...common,method:"POST"})
+;const fallbackJson=await readSalesOrderDeleteResponse(fallbackRes);return{res:fallbackRes,json:fallbackJson,ref:ref,usedFallback:true}}return{res:res,json:json,ref:ref,
+usedFallback:false}}async function deleteSalesOrder(idx){const order=window.__salesOrdersCache?.[idx];if(!order)return;const refs=salesOrderDeleteRefs(order);const key=refs[0]||""
+;if(!key){alert("Không xác định được mã đơn để xóa");return}const reason=prompt(`Lý do xóa đơn ${order.code||order.orderCode||order.id}?`,"Xóa đơn bán");if(reason===null)return
+;try{let lastResult=null;for(const ref of refs){const result=await sendSalesOrderDeleteRequest(ref,reason);lastResult=result;if(result.res.ok&&result.json?.ok){
+alert(result.json.message||"Đã xóa đơn");refs.forEach(candidate=>salesOrderDetailCache.delete(candidate));await loadSalesOrders({page:salesOrderCurrentPage||1,append:false})
+;await loadStock();await loadDebts();await loadCashbook();return}if(!isDeleteRefNotFound(result.res,result.json))break}
+throw new Error(lastResult?.json?.message||"Không xóa được đơn")}catch(err){alert(err.message||"Không xóa được đơn")}}window.deleteSalesOrder=deleteSalesOrder
+;window.cancelSalesOrder=deleteSalesOrder;if(salesOrderList&&!salesOrderList.dataset.securityDelegationBound){salesOrderList.dataset.securityDelegationBound="1"
+;salesOrderList.addEventListener("click",event=>{const button=event.target.closest("[data-sales-order-action]");if(!button||!salesOrderList.contains(button))return
+;event.preventDefault();event.stopPropagation();const index=Number(button.dataset.orderIndex);if(button.dataset.salesOrderAction==="toggle-vat"){toggleSalesOrderVat(index);return}
+if(button.dataset.salesOrderAction==="edit"){openSalesOrderEdit(index);return}if(button.dataset.salesOrderAction==="delete"){deleteSalesOrder(index);return}})}
+function normalizeSalesOrderStaffToken(value){const raw=String(value||"").trim();if(!raw)return"";const first=raw.split(/\s+-\s+|\|/)[0].trim()
+;const match=first.match(/[A-Za-z0-9_.-]+/);return String(match?match[0]:first).trim()}function clearSalesOrderStaffDataset(){
+if(!salesOrderStaffFilter||!salesOrderStaffFilter.dataset)return;delete salesOrderStaffFilter.dataset.selectedId;delete salesOrderStaffFilter.dataset.id
+;delete salesOrderStaffFilter.dataset.code;delete salesOrderStaffFilter.dataset.name;delete salesOrderStaffFilter.dataset.type;delete salesOrderStaffFilter.dataset.label
+;delete salesOrderStaffFilter.dataset.selectedLabel}function getSalesOrderStaffSelection(){if(!salesOrderStaffFilter)return{code:"",name:"",label:"",raw:"",selected:false}
+;const raw=String(salesOrderStaffFilter.value||"").trim();const label=String(salesOrderStaffFilter.dataset?.label||salesOrderStaffFilter.dataset?.selectedLabel||"").trim()
+;const datasetCode=String(salesOrderStaffFilter.dataset?.code||"").trim();const datasetName=String(salesOrderStaffFilter.dataset?.name||"").trim()
+;const selected=!!raw&&!!label&&raw===label&&!!datasetCode;if(selected){return{code:normalizeSalesOrderStaffToken(datasetCode),name:datasetName,label:label,raw:raw,selected:true}}
+const code=normalizeSalesOrderStaffToken(raw);const parts=raw.split(/\s+-\s+/).map(s=>s.trim()).filter(Boolean);return{code:code,name:parts.length>=2?parts[1]:"",label:raw,raw:raw,
+selected:false}}function getSalesOrderStaffFilterCode(){return getSalesOrderStaffSelection().code||""}function getSalesOrderStaffFilterName(){
+return getSalesOrderStaffSelection().raw||""}function normalizeOrderDateForFilter(value){return toDateOnly(value)}const SALES_ORDER_PAGE_LIMIT=50;let salesOrderCurrentPage=1
+;let salesOrderTotalRows=0;let salesOrderHasMore=false;let salesOrderSearchTimer=null;let salesOrderRequestSeq=0;let salesOrderAbortController=null
+;const salesOrderDetailCache=new Map;function buildSalesOrderSearchParams(page=1){const q=String(salesOrderSearchInput?.value||"").trim()
+;const source=String(salesOrderSourceFilter?.value||"").trim();const dateType="orderDate";const dateFrom=String(salesOrderDateFrom?.value||today()).trim()
+;const dateTo=String(salesOrderDateTo?.value||dateFrom).trim();const staffCodeFilter=getSalesOrderStaffFilterCode();const staffTextFilter=getSalesOrderStaffFilterName()
+;const params=new URLSearchParams;if(dateFrom)params.set("dateFrom",dateFrom);if(dateTo)params.set("dateTo",dateTo);params.set("dateType",dateType)
+;if(source)params.set("source",source);if(q)params.set("q",q);if(staffCodeFilter){params.set("salesStaffCode",staffCodeFilter);params.set("strictStaff","1")
+;params.set("includeStaffAliases","1")}else if(staffTextFilter){params.set("salesStaffName",staffTextFilter)}params.set("page",String(page))
+;params.set("limit",String(SALES_ORDER_PAGE_LIMIT));params.set("_t",String(Date.now()));return params}async function fetchSalesOrderDetail(order){
+const key=String(order?.id||order?.code||"").trim();if(!key)return order;if(salesOrderDetailCache.has(key))return salesOrderDetailCache.get(key)
+;const res=await fetch(`/api/sales-orders/${encodeURIComponent(key)}`);const json=await res.json();if(!json.ok)throw new Error(json.message||"Không tải được chi tiết đơn")
+;const detail=json.salesOrder||json.order||order;salesOrderDetailCache.set(key,detail);return detail}function getOrderVisibleSalesStaffCode(order){
+return normalizeSalesOrderStaffToken(order?.salesStaffCode||order?.salesPersonCode||order?.salesmanCode||order?.nvbhCode||order?.maNVBH||order?.salesStaff?.code||"")}
+function filterSalesOrderRowsByCurrentStaff(rows){const staff=getSalesOrderStaffSelection();if(!staff.code)return Array.isArray(rows)?rows:[]
+;return(Array.isArray(rows)?rows:[]).filter(order=>getOrderVisibleSalesStaffCode(order)===staff.code)}function renderSalesOrderRows(orders,{append:append=false}={}){if(!append){
+window.__salesOrdersCache=[];if(typeof selectAllSalesOrdersButton!=="undefined"&&selectAllSalesOrdersButton)selectAllSalesOrdersButton.textContent="Chọn tất cả"}
+const startIndex=(window.__salesOrdersCache||[]).length;window.__salesOrdersCache=(window.__salesOrdersCache||[]).concat(orders||[]);if(!window.__salesOrdersCache.length){
+salesOrderList.innerHTML='<div class="empty-state">Không có đơn bán phù hợp bộ lọc.</div>';return}const html=(orders||[]).map((o,localIdx)=>{const idx=startIndex+localIdx
+;const orderDateText=typeof formatDateVN==="function"?formatDateVN(o.orderDate||o.date||""):o.orderDate||o.date||""
+;const salesStaffName=escapeSalesHtml(canonicalSalesStaffLabel(o)||"-");const orderCode=escapeSalesHtml(o.code||o.id||"")
+;const customerName=escapeSalesHtml(o.customerName||o.customerCode||"");const safeOrderDate=escapeSalesHtml(orderDateText||"-")
+;return`\n      <article class="sales-order-row">\n        <label class="sales-order-select"><input type="checkbox" class="sales-order-check" data-idx="${idx}"></label>\n        <strong class="sales-order-code-text" title="Mã đơn: ${orderCode}">${orderCode}</strong>\n        <span class="sales-order-customer-inline" title="Khách hàng: ${customerName}">${customerName}</span>\n        \x3c!-- SALES_HISTORY_NVBH_COLUMN_PATCH_START --\x3e\n        <span class="sales-order-staff-inline" title="NV bán hàng: ${salesStaffName}">${salesStaffName}</span>\n        \x3c!-- SALES_HISTORY_NVBH_COLUMN_PATCH_END --\x3e\n        <span class="sales-order-date" title="Ngày bán">${safeOrderDate}</span>\n        <strong class="sales-order-total-one-line" title="Giá trị đơn hàng">${money(o.totalAmount)}</strong>\n        <span class="badge ${getOrderSourceClass(o)} sales-order-source-one-line" title="Nguồn đơn">${getOrderSourceText(o)}</span>\n        ${canManageVatInvoiceSetting()?`<button type="button" class="small sales-vat-badge ${salesOrderVatClass(o)}" title="Đổi thiết lập hóa đơn VAT" data-sales-order-action="toggle-vat" data-order-index="${idx}">${salesOrderVatLabel(o)}</button>`:`<span class="badge sales-vat-badge ${salesOrderVatClass(o)}">${salesOrderVatLabel(o)}</span>`}\n        <div class="sales-order-actions sales-order-actions-one-line">\n          <button class="small" data-sales-order-action="edit" data-order-index="${idx}">Sửa</button>\n          ${["cancelled","void","delivered","returned"].includes(String(o.status||"").toLowerCase())?"":`<button class="small danger" data-sales-order-action="delete" data-order-index="${idx}">Xóa</button>`}\n        </div>\n      </article>`
+}).join("");if(append)salesOrderList.insertAdjacentHTML("beforeend",html);else salesOrderList.innerHTML=html}function updateSalesOrderLoadMoreButton(){
+if(!loadMoreSalesOrdersButton)return;loadMoreSalesOrdersButton.style.display=salesOrderHasMore?"inline-flex":"none"
+;loadMoreSalesOrdersButton.textContent=salesOrderHasMore?`Tải thêm (${(window.__salesOrdersCache||[]).length}/${salesOrderTotalRows})`:"Đã tải hết"}
+function debounceLoadSalesOrders(){clearTimeout(salesOrderSearchTimer);salesOrderSearchTimer=setTimeout(()=>loadSalesOrders({page:1,append:false}),250)}

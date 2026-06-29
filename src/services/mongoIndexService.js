@@ -60,7 +60,10 @@ const INDEX_DEFINITIONS = {
     [{ createdAt: -1 }, { name: 'idx_orders_created_at_desc' }],
     [{ source: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_source_order_date_status', sparse: true }],
     [{ vatInvoiceRequired: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_vat_required_order_date_status' }],
-    [{ accountingStatus: 1, orderDate: -1, salesStaffCode: 1 }, { name: 'idx_orders_dashboard_accounting_date_staff' }]
+    [{ accountingStatus: 1, orderDate: -1, salesStaffCode: 1 }, { name: 'idx_orders_dashboard_accounting_date_staff' }],
+    // P0 debt-cache audit only: SalesOrder debt fields are read-models, not SSoT.
+    [{ debtCacheSyncedAt: 1 }, { name: 'idx_orders_debt_cache_synced_at', sparse: true }],
+    [{ customerCode: 1, debtAmount: 1 }, { name: 'idx_orders_debt_cache_audit_customer', sparse: true }]
   ],
   masterOrders: [
     [{ id: 1 }, { name: 'uniq_masterOrders_id', unique: true, sparse: true }],
@@ -134,6 +137,10 @@ const INDEX_DEFINITIONS = {
     // Unique DB-level guard được bật riêng bằng scripts/create-ar-return-unique-index.js sau audit sạch.
     [{ idempotencyKey: 1 }, { name: 'idx_arledger_idempotencyKey' }],
     [{ type: 1, sourceType: 1, sourceId: 1 }, { name: 'idx_ar_return_source_lookup' }],
+    // P0 admin AR adjustment: non-unique lookup indexes only.
+    // Unique guard is created by scripts/create-ar-adjustment-unique-index.js after audit sạch.
+    [{ sourceType: 1, sourceId: 1, type: 1 }, { name: 'idx_ar_adjustment_source_lookup' }],
+    [{ correctionId: 1, type: 1 }, { name: 'idx_ar_adjustment_correction_lookup' }],
     [{ returnOrderCode: 1, type: 1, status: 1 }, { name: 'idx_ar_return_code_type_status', sparse: true }],
     [{ customerCode: 1 }, { name: 'idx_ar_ledgers_customer_code' }],
     [{ customerName: 1 }, { name: 'idx_ar_ledgers_customer_name', sparse: true }],
@@ -175,7 +182,9 @@ const INDEX_DEFINITIONS = {
     ],
     [{ salesStaffCode: 1, customerCode: 1, createdAt: -1 }, { name: 'idx_ar_sales_staff_customer_created' }],
     [{ deliveryStaffCode: 1, customerCode: 1, createdAt: -1 }, { name: 'idx_ar_delivery_staff_customer_created' }],
-    [{ orderCode: 1, status: 1 }, { name: 'idx_ar_order_status' }]
+    [{ orderCode: 1, status: 1 }, { name: 'idx_ar_order_status' }],
+    [{ customerCode: 1, status: 1, reversed: 1, type: 1 }, { name: 'idx_ar_balance_customer_active_lookup', sparse: true }],
+    [{ orderCode: 1, status: 1, reversed: 1, type: 1 }, { name: 'idx_ar_balance_order_active_lookup', sparse: true }]
   ],
   cashbooks: [
     [{ id: 1 }, { name: 'idx_cashbooks_id' }],

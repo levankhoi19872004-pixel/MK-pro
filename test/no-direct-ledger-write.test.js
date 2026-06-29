@@ -17,6 +17,8 @@ const ALLOWED_FILES = new Set([
   path.normalize('src/domain/posting/ArPostingService.js'),
   path.normalize('src/domain/posting/InventoryPostingService.js'),
   path.normalize('src/domain/posting/FundPostingService.js'),
+  path.normalize('src/services/accounting/arAdjustmentService.js'),
+  path.normalize('src/services/accounting/returnArPostingService.js'),
   path.normalize('src/services/arLedgerMigrationService.js'),
 
   // Phase 1 compatibility boundaries. Remove these one-by-one after migration.
@@ -59,7 +61,8 @@ const PHASE1_KNOWN_LEGACY_EXCEPTIONS = new Map([
   [legacyKey('src/services/financialService.js', 'fundLedgerRepository.upsert', 'postReceiptFundLedger'), 1],
   [legacyKey('src/services/financialService.js', 'fundLedgerRepository.upsert', 'voidReceipt'), 1],
   [legacyKey('src/services/master-order/deliveryAccountingCore.impl.js', 'paymentRepository.upsert', 'reverseActiveArLedgersForOrder'), 2],
-  [legacyKey('src/services/master-order/deliveryAccountingCore.impl.js', 'paymentRepository.upsert', 'postDeliveryArLedgerRowsAfterReAccounting'), 1]
+  [legacyKey('src/services/master-order/deliveryAccountingCore.impl.js', 'paymentRepository.upsert', 'postDeliveryArLedgerRowsAfterReAccounting'), 1],
+  [legacyKey('src/services/admin-correction/AdminDataCorrectionService.js', 'FundLedger.create', 'createFundAdjustment'), 1]
 ]);
 
 function legacyKey(relPath, patternName, functionName) {

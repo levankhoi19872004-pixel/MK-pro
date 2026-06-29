@@ -18,6 +18,7 @@ const Staff = require('../../models/Staff');
 const User = require('../../models/User');
 const ImportSessionRow = require('../../models/ImportSessionRow');
 const ArLedger = require('../../models/ArLedger');
+const arAdjustmentService = require('../accounting/arAdjustmentService');
 const FundLedger = require('../../models/FundLedger');
 const StockTransaction = require('../../models/StockTransaction');
 
@@ -492,61 +493,46 @@ async function createArAdjustment(correction, actor = {}, options = {}) {
   }
   const beforeDebt = Number.isFinite(Number(patch.beforeDebt)) ? toNumber(patch.beforeDebt) : await calculateCustomerDebt(customerCode, options);
   const afterDebt = Number.isFinite(Number(patch.afterDebt)) ? toNumber(patch.afterDebt) : beforeDebt + adjustAmount;
-  const ledgerId = makeId('ARADJ');
-  const code = makeId('ARADJREQ');
-  const debit = adjustAmount > 0 ? Math.abs(adjustAmount) : 0;
-  const credit = adjustAmount < 0 ? Math.abs(adjustAmount) : 0;
-  const createOptions = options.session ? { session: options.session } : undefined;
-  const [ledger] = await ArLedger.create([{
-    id: ledgerId,
+  const result = await arAdjustmentService.createArAdjustment({
     tenantId: correction.tenantId,
-    code: ledgerId,
-    type: 'AR-ADJUSTMENT',
-    date: nowIso().slice(0, 10),
+    correctionId: correction.id || correction.correctionId || correction.correctionCode,
+    correctionCode: correction.correctionCode || correction.id,
+    customerId: text(patch.customerId || patch.customerCode || customerCode),
     customerCode,
     customerName: text(patch.customerName),
-    refType: 'adminCorrectionRequest',
-    refId: correction.id,
-    refCode: correction.correctionCode,
     amount: adjustAmount,
-    debit,
-    credit,
-    note: correction.reason,
-    status: 'posted',
-    source: 'admin_correction',
-    sourceType: 'admin_correction',
-    sourceId: correction.id,
-    sourceCode: correction.correctionCode,
-    createdAt: nowIso(),
-    updatedAt: nowIso()
-  }], createOptions);
-  const [adjustment] = await ArAdjustment.create([{
-    id: code,
-    tenantId: correction.tenantId,
-    adjustmentCode: code,
-    correctionId: correction.id,
-    correctionCode: correction.correctionCode,
-    customerCode,
-    customerName: text(patch.customerName),
     beforeDebt,
-    adjustAmount,
     afterDebt,
-    reason: correction.reason,
-    sourceType: 'admin_correction',
-    sourceId: correction.id,
-    sourceCode: correction.correctionCode,
+    reasonCode: text(patch.reasonCode || correction.reasonCode || correction.correctionType || 'ADMIN_CORRECTION'),
+    reasonText: correction.reason,
+    createdBy: correction.requestedBy || actorSnapshot(actor),
+    approvedBy: correction.approvedBy || actorSnapshot(actor),
+    createdAt: correction.createdAt,
+    approvedAt: correction.approvedAt,
+    isRollback: Boolean(correction.isRollback || String(correction.correctionCode || '').endsWith('-RB')),
+    rollbackOf: text(correction.rollbackOf || correction.metadata?.rollbackOf),
+    metadata: {
+      ...(correction.metadata || {}),
+      adminCorrectionRequest: {
+        id: correction.id,
+        correctionCode: correction.correctionCode,
+        entityType: correction.entityType,
+        entityId: correction.entityId,
+        entityCode: correction.entityCode
+      }
+    }
+  }, { ...options, actor });
+  const ledger = result.ledger || {};
+  const adjustment = result.adjustment || {
+    id: ledger.correctionId || correction.id,
+    correctionId: ledger.correctionId || correction.id,
+    correctionCode: ledger.correctionCode || correction.correctionCode,
     arLedgerId: ledger.id,
     arLedgerCode: ledger.code,
-    adjustmentKind: adjustAmount >= 0 ? 'increase_debt' : 'decrease_debt',
-    createdBy: correction.requestedBy,
-    approvedBy: actorSnapshot(actor),
     status: 'applied',
-    createdAt: correction.createdAt,
-    approvedAt: correction.approvedAt || nowIso(),
-    appliedAt: nowIso(),
-    metadata: { arLedger: ledger.toObject ? ledger.toObject() : ledger }
-  }], createOptions);
-  return { adjustment, ledgers: [{ type: 'arLedger', id: ledger.id, code: ledger.code }] };
+    metadata: { idempotentReplay: true, arLedger: ledger }
+  };
+  return { adjustment, ledgers: ledger.id ? [{ type: 'arLedger', id: ledger.id, code: ledger.code }] : [] };
 }
 
 async function createFundAdjustment(correction, actor = {}, options = {}) {
@@ -731,12 +717,9 @@ async function createRollbackLedger(correction, actor = {}, options = {}) {
     return result;
   }
   if (kind === 'ar') {
-    patch.adjustAmount = -toNumber(patch.adjustAmount ?? patch.amount);
-    patch.beforeDebt = undefined;
-    const rollbackCorrection = { ...correction, id: makeId('CORRROLL'), correctionCode: `${correction.correctionCode}-RB`, proposedPatch: patch, reason: `Rollback: ${correction.reason}`, idempotencyKey: '', isRollback: true, rollbackOf: correction.correctionCode, metadata: { ...(correction.metadata || {}), rollbackOf: correction.correctionCode } };
-    const result = await createArAdjustment(rollbackCorrection, actor, options);
-    await ArAdjustment.updateMany({ correctionCode: correction.correctionCode }, { $set: { status: 'rolled_back', rolledBackAt: nowIso() } }, options.session ? { session: options.session } : undefined);
-    return result;
+    const result = await arAdjustmentService.rollbackArAdjustment(correction, { ...options, actor, reason: `Rollback: ${correction.reason}` });
+    await ArAdjustment.updateMany({ correctionCode: correction.correctionCode }, { $set: { status: 'rolled_back', rolledBackAt: nowIso(), rollbackLedgerId: result?.ledger?.id, rollbackLedgerCode: result?.ledger?.code } }, options.session ? { session: options.session } : undefined);
+    return { adjustment: result.adjustment, ledgers: result?.ledger?.id ? [{ type: 'arLedger', id: result.ledger.id, code: result.ledger.code }] : [] };
   }
   if (kind === 'fund') {
     patch.adjustAmount = -toNumber(patch.adjustAmount ?? patch.amount);

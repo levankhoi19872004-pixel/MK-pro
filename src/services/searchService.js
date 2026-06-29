@@ -4,6 +4,7 @@ const { normalizeSearchText } = require('../utils/search.util');
 
 const searchRepository = require('../repositories/searchRepository');
 const queryGuard = require('../utils/queryGuard.util');
+const DebtReadService = require('./DebtReadService');
 const { toNumber, stripMongoFields, formatCaseLooseQty } = require('../utils/common.util');
 
 const ROLE_LABELS = {
@@ -192,12 +193,15 @@ async function searchProducts(query = {}) {
   return suggestions;
 }
 
-function toCustomerSuggestion(customer = {}, revenueByCustomer = new Map()) {
+function toCustomerSuggestion(customer = {}, revenueByCustomer = new Map(), debtMap = new Map()) {
   const raw = stripMongoFields(customer);
   const code = String(customer.code || customer.customerCode || customer.id || customer._id || '').trim();
   const name = String(customer.name || customer.customerName || '').trim();
   const phone = String(customer.phone || customer.mobile || customer.customerPhone || '').trim();
-  const debt = toNumber(customer.debtAmount ?? customer.currentDebt ?? customer.debt ?? customer.balance ?? customer.openingDebt ?? 0);
+  const debtKeys = [customer.code, customer.customerCode, customer.id, customer._id, customer.customerId]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+  const debt = Math.max(0, toNumber(debtKeys.map((key) => debtMap.get(key)).find((value) => value !== undefined)));
   const meta = buildSuggestionMeta([
     code, name, customer.businessName, customer.customerBusinessName, customer.householdBusinessName,
     customer.taxBusinessName, customer.invoiceBusinessName, customer.tenHoKinhDoanh,
@@ -221,6 +225,7 @@ function toCustomerSuggestion(customer = {}, revenueByCustomer = new Map()) {
     deliveryStaffName: String(customer.deliveryStaffName || customer.deliveryName || customer.nvghName || '').trim(),
     debtAmount: debt,
     currentDebt: debt,
+    debtSource: 'arLedgers',
     monthRevenue: toNumber(revenueByCustomer.get(code)),
     label: [code, name, phone].filter(Boolean).join(' - '),
     value: code,
@@ -251,7 +256,8 @@ async function searchCustomers(query = {}) {
       revenueByCustomer.set(key, toNumber(revenueByCustomer.get(key)) + toNumber(order.totalAmount || order.amount || order.grandTotal || order.payableAmount));
     }
   }
-  return customers.map((customer) => toCustomerSuggestion(customer, revenueByCustomer));
+  const debtMap = await DebtReadService.loadDebtBalancesForCustomers(customers);
+  return customers.map((customer) => toCustomerSuggestion(customer, revenueByCustomer, debtMap));
 }
 
 function toStaffSuggestion(staff = {}) {

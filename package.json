@@ -81,7 +81,13 @@
     "audit:ar-return-idempotency": "node scripts/audit-ar-return-idempotency.js --dry-run",
     "audit:ar-return-idempotency:json": "node scripts/audit-ar-return-idempotency.js --json",
     "mongo:ar-return-unique-index:dry": "node scripts/create-ar-return-unique-index.js --dry-run",
-    "mongo:ar-return-unique-index": "node scripts/create-ar-return-unique-index.js --apply"
+    "mongo:ar-return-unique-index": "node scripts/create-ar-return-unique-index.js --apply",
+    "audit:ar-adjustment-idempotency": "node scripts/audit-ar-adjustment-idempotency.js --dry-run",
+    "audit:ar-adjustment-idempotency:json": "node scripts/audit-ar-adjustment-idempotency.js --json",
+    "mongo:ar-adjustment-unique-index:dry": "node scripts/create-ar-adjustment-unique-index.js --dry-run",
+    "mongo:ar-adjustment-unique-index": "node scripts/create-ar-adjustment-unique-index.js --apply",
+    "audit:ar-salesorder-debt-cache": "node scripts/audit-ar-salesorder-debt-cache.js --dry-run",
+    "audit:ar-salesorder-debt-cache:json": "node scripts/audit-ar-salesorder-debt-cache.js --json"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
