@@ -63,6 +63,181 @@ function orderDisplayCode(order = {}) {
   return String(order.code || order.orderCode || order.id || order._id || '').trim();
 }
 
+function cleanLedgerText(value = '') {
+  return String(value || '').trim();
+}
+
+function lowerLedgerText(value = '') {
+  return cleanLedgerText(value).toLowerCase();
+}
+
+function reversalActor(user = {}, fallback = 'system') {
+  if (typeof user === 'string') return cleanLedgerText(user) || fallback;
+  return cleanLedgerText(user.id || user.code || user.name || user.email || fallback) || fallback;
+}
+
+function directionFromDebitCredit(debit = 0, credit = 0) {
+  const d = toNumber(debit);
+  const c = toNumber(credit);
+  if (d > 0 && c > 0) {
+    throw new Error('Invalid AR ledger reversal: debit and credit cannot both be positive.');
+  }
+  if (d > 0) return 'debit';
+  if (c > 0) return 'credit';
+  return '';
+}
+
+function isArReturnRow(row = {}) {
+  const type = lowerLedgerText(row.type);
+  const category = cleanLedgerText(row.category).toUpperCase();
+  const ledgerType = cleanLedgerText(row.ledgerType).toUpperCase();
+  return type === 'ar_return' || category === 'AR-RETURN' || ledgerType === 'AR-RETURN';
+}
+
+function canonicalArSourceCategory(row = {}, isReturn = false) {
+  if (isReturn) return 'AR-RETURN';
+  const type = lowerLedgerText(row.type);
+  if (type === 'ar_sale') return 'AR-SALE';
+  if (type === 'ar_receipt') return 'AR-RECEIPT';
+  const category = cleanLedgerText(row.category).toUpperCase();
+  if (category.startsWith('AR-')) return category;
+  const ledgerType = cleanLedgerText(row.ledgerType).toUpperCase();
+  if (ledgerType.startsWith('AR-')) return ledgerType;
+  return 'AR-SALE';
+}
+
+function reversalCategoryForSource(sourceCategory = '') {
+  const normalized = cleanLedgerText(sourceCategory).toUpperCase();
+  if (normalized === 'AR-RETURN') return 'AR-RETURN-REVERSAL';
+  if (normalized === 'AR-RECEIPT') return 'AR-RECEIPT-REVERSAL';
+  return 'AR-SALE-REVERSAL';
+}
+
+function stripLedgerPrefix(value = '') {
+  let result = cleanLedgerText(value);
+  for (let i = 0; i < 4; i += 1) {
+    const next = result.replace(/^AR-(SALE|RETURN|RECEIPT)-(REVERSAL-|REV-|VOID-)?/i, '');
+    if (next === result) break;
+    result = next;
+  }
+  return cleanLedgerText(result);
+}
+
+function reversalBusinessKey(old = {}, order = {}) {
+  return stripLedgerPrefix(
+    old.returnOrderCode
+    || old.returnOrderId
+    || old.sourceCode
+    || old.sourceId
+    || old.refCode
+    || old.refId
+    || old.salesOrderCode
+    || old.salesOrderId
+    || old.orderCode
+    || old.orderId
+    || orderDisplayCode(order)
+    || orderKey(order)
+    || old.code
+    || old.id
+    || makeId('AR')
+  ) || makeId('AR');
+}
+
+function appendAuditTrail(row = {}, event = {}) {
+  const existing = Array.isArray(row.auditTrail) ? row.auditTrail : [];
+  return [...existing, event];
+}
+
+function buildReAccountingReversalRow(old = {}, order = {}, user = {}, reverseBatchId = '') {
+  const debit = toNumber(old.debit);
+  const credit = toNumber(old.credit);
+  const amount = Math.max(debit, credit, toNumber(old.amount));
+  if (amount <= 0) return null;
+
+  const isReturn = isArReturnRow(old);
+  const sourceCategory = canonicalArSourceCategory(old, isReturn);
+  const reversalCategory = reversalCategoryForSource(sourceCategory);
+  const reverseDebit = credit;
+  const reverseCredit = debit;
+  const direction = directionFromDebitCredit(reverseDebit, reverseCredit);
+  const actor = reversalActor(user, 'admin');
+  const now = dateUtil.nowIso();
+  const businessKey = reversalBusinessKey(old, order);
+  const { _id, __v, ...baseOld } = old || {};
+  void _id;
+  void __v;
+
+  return {
+    ...baseOld,
+    id: `${reversalCategory}-${businessKey}-${reverseBatchId}`,
+    code: `${reversalCategory}-${businessKey}-${reverseBatchId}`,
+    type: isReturn ? 'ar_return_reversal' : 'ar_sale_reversal',
+    entryType: 'reversal',
+    ledgerType: reversalCategory,
+    category: reversalCategory,
+    sourceCategory,
+    sourceAction: 'reverse',
+    refType: 'AR_LEDGER_REVERSAL',
+    refId: cleanLedgerText(old.id || old._id || old.code),
+    refCode: cleanLedgerText(old.code || old.id || old._id),
+    debit: reverseDebit,
+    credit: reverseCredit,
+    direction,
+    amountField: direction,
+    amount,
+    status: 'posted',
+    accountingConfirmed: true,
+    accountingStatus: 'confirmed',
+    accountingConfirmedBy: actor,
+    source: 'admin_delivery_re_accounting',
+    note: `Đảo bút toán ${old.code || old.id || ''} do admin mở khóa điều chỉnh đơn giao ${orderDisplayCode(order)}`,
+    originalLedgerId: cleanLedgerText(old.id || old._id || old.code),
+    originalLedgerCode: cleanLedgerText(old.code || old.id || old._id),
+    reversalOf: cleanLedgerText(old.id || old._id || old.code),
+    reversedFromId: cleanLedgerText(old.id || old._id),
+    reversedFromCode: cleanLedgerText(old.code || old.id),
+    accountingBatchId: reverseBatchId,
+    reAccountingBatchId: reverseBatchId,
+    createdBy: actor,
+    createdAt: now,
+    updatedAt: now,
+    auditTrail: appendAuditTrail(old, {
+      action: isReturn ? 'reverse_ar_return' : 'reverse_ar_sale',
+      at: now,
+      by: actor,
+      accountingBatchId: reverseBatchId,
+      originalLedgerId: cleanLedgerText(old.id || old._id || old.code),
+      originalLedgerCode: cleanLedgerText(old.code || old.id || old._id),
+      debit: reverseDebit,
+      credit: reverseCredit,
+      direction
+    })
+  };
+}
+
+function markLedgerReversedPatch(old = {}, user = {}, reverseBatchId = '') {
+  const actor = reversalActor(user, 'admin');
+  const now = dateUtil.nowIso();
+  return {
+    ...old,
+    reversed: true,
+    status: 'reversed',
+    lifecycleStatus: 'reversed',
+    accountingStatus: 'reversed',
+    reversedAt: now,
+    reversedBy: actor,
+    accountingBatchId: reverseBatchId,
+    reAccountingBatchId: reverseBatchId,
+    updatedAt: now,
+    auditTrail: appendAuditTrail(old, {
+      action: 'mark_ar_ledger_reversed',
+      at: now,
+      by: actor,
+      accountingBatchId: reverseBatchId
+    })
+  };
+}
+
 function isAccountingReopenPending(order = {}) {
   const accountingStatus = String(order.accountingStatus || '').toLowerCase();
   return Boolean(
@@ -102,7 +277,17 @@ function makeArBaseRow(order = {}, extra = {}) {
     deliveryStaffName: String(order.deliveryStaffName || '').trim(),
     debit: toNumber(extra.debit),
     credit: toNumber(extra.credit),
+    direction: extra.direction || directionFromDebitCredit(toNumber(extra.debit), toNumber(extra.credit)),
     amount: toNumber(extra.amount ?? Math.max(toNumber(extra.debit), toNumber(extra.credit))),
+    amountField: extra.amountField || extra.direction || directionFromDebitCredit(toNumber(extra.debit), toNumber(extra.credit)),
+    entryType: extra.entryType || '',
+    ledgerType: extra.ledgerType || '',
+    category: extra.category || '',
+    sourceCategory: extra.sourceCategory || '',
+    sourceAction: extra.sourceAction || '',
+    originalLedgerId: extra.originalLedgerId || '',
+    reversalOf: extra.reversalOf || '',
+    auditTrail: Array.isArray(extra.auditTrail) ? extra.auditTrail : [],
     note: String(extra.note || '').trim(),
     status: extra.status || 'posted',
     source: extra.source || 'mobile_delivery_re_accounting',
@@ -150,42 +335,10 @@ async function reverseActiveArLedgersForOrder(order = {}, user = {}, options = {
   const accountingBatchId = `ACC-${orderKey(order) || orderDisplayCode(order)}-${Date.now()}`;
   const reversedRows = [];
   for (const old of oldRows) {
-    const debit = toNumber(old.debit);
-    const credit = toNumber(old.credit);
-    const amount = Math.max(debit, credit, toNumber(old.amount));
-    if (amount <= 0) continue;
-    const isReturn = String(old.type||'').toLowerCase()==='ar_return';
-    const reversal = {
-      ...old,
-      id: `${isReturn?'AR-RETURN-REV':'AR-SALE-REV'}-${old.id || old.code || makeId('AR')}-${reverseBatchId}`,
-      code: `${isReturn?'AR-RETURN-REV':'AR-SALE-REV'}-${old.code || old.id || makeId('AR')}`,
-      type: isReturn ? 'ar_return_reversal' : 'ar_sale_reversal',
-      refType: isReturn ? 'RETURN_ORDER' : 'SALES_ORDER',
-      debit: credit,
-      credit: debit,
-      amount,
-      status: 'posted',
-      source: 'admin_delivery_re_accounting',
-      note: `Đảo bút toán ${old.code || old.id || ''} do admin mở khóa điều chỉnh đơn giao ${orderDisplayCode(order)}`,
-      reversedFromId: old.id || '',
-      reversedFromCode: old.code || '',
-      accountingBatchId: reverseBatchId,
-      reAccountingBatchId: reverseBatchId,
-      createdBy: user.id || user.code || user.name || 'admin',
-      createdAt: dateUtil.nowIso(),
-      updatedAt: dateUtil.nowIso()
-    };
+    const reversal = buildReAccountingReversalRow(old, order, user, reverseBatchId);
+    if (!reversal) continue;
     await paymentRepository.upsert(reversal, options);
-    await paymentRepository.upsert({
-      ...old,
-      reversed: true,
-      status: 'reversed',
-      reversedAt: dateUtil.nowIso(),
-      reversedBy: user.id || user.code || user.name || 'admin',
-      accountingBatchId: reverseBatchId,
-      reAccountingBatchId: reverseBatchId,
-      updatedAt: dateUtil.nowIso()
-    }, options);
+    await paymentRepository.upsert(markLedgerReversedPatch(old, user, reverseBatchId), options);
     reversedRows.push(reversal);
   }
   return { reverseBatchId, accountingBatchId, reversedRows, oldRows };

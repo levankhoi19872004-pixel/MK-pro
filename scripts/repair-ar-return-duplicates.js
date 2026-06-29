@@ -126,31 +126,66 @@ function planGroup(group = {}) {
   };
 }
 
+function stripArReturnPrefix(value = '') {
+  let result = clean(value);
+  for (let i = 0; i < 4; i += 1) {
+    const next = result.replace(/^AR-RETURN-(REVERSAL-|DUP-REV-|REV-)?/i, '');
+    if (next === result) break;
+    result = next;
+  }
+  return clean(result);
+}
+
 function buildReversalRow(old = {}, index = 0) {
   const amount = normalizedAmount(old);
   const oldId = clean(old.id || old.code || old._id || `row-${index}`);
+  const businessKey = stripArReturnPrefix(old.returnOrderCode || old.returnOrderId || old.sourceCode || old.sourceId || old.refCode || old.refId || old.code || old.id || index) || oldId;
   return {
     ...old,
     _id: undefined,
-    id: `AR-RETURN-DUP-REV-${oldId}-${repairId}`,
-    code: `AR-RETURN-DUP-REV-${clean(old.code || old.id || old._id || index)}-${repairId}`,
+    id: `AR-RETURN-REVERSAL-${businessKey}-${repairId}`,
+    code: `AR-RETURN-REVERSAL-${businessKey}-${repairId}`,
     type: 'ar_return_reversal',
-    ledgerType: 'AR-RETURN',
-    category: 'AR-RETURN',
+    entryType: 'reversal',
+    ledgerType: 'AR-RETURN-REVERSAL',
+    category: 'AR-RETURN-REVERSAL',
+    sourceCategory: 'AR-RETURN',
+    sourceAction: 'reverse',
+    refType: 'AR_LEDGER_REVERSAL',
     direction: 'debit',
+    amountField: 'debit',
     debit: amount,
     credit: 0,
     amount,
     status: 'posted',
+    accountingConfirmed: true,
+    accountingStatus: 'confirmed',
+    accountingConfirmedBy: confirmedBy,
     reversed: false,
     isDeleted: false,
     source: 'ar_return_duplicate_repair',
     note: `Đảo dòng AR-RETURN trùng active ${old.code || old.id || ''}; giữ nguyên audit trail, không xóa ledger.`,
+    originalLedgerId: clean(old.id || old._id || old.code),
+    originalLedgerCode: clean(old.code || old.id || old._id),
+    reversalOf: clean(old.id || old._id || old.code),
     reversedFromId: clean(old.id),
     reversedFromCode: clean(old.code),
     duplicateRepairId: repairId,
     accountingBatchId: repairId,
     createdBy: { name: confirmedBy },
+    auditTrail: [
+      ...(Array.isArray(old.auditTrail) ? old.auditTrail : []),
+      {
+        action: 'reverse_ar_return_duplicate',
+        at: now,
+        by: confirmedBy,
+        originalLedgerId: clean(old.id || old._id || old.code),
+        originalLedgerCode: clean(old.code || old.id || old._id),
+        debit: amount,
+        credit: 0,
+        direction: 'debit'
+      }
+    ],
     createdAt: now,
     updatedAt: now
   };
@@ -173,9 +208,15 @@ async function applyPlan(plan) {
       $set: {
         reversed: true,
         status: 'reversed',
+        lifecycleStatus: 'reversed',
+        accountingStatus: 'reversed',
         reversedAt: now,
         reversedBy: confirmedBy,
         duplicateRepairId: repairId,
+        auditTrail: [
+          ...(Array.isArray(old.auditTrail) ? old.auditTrail : []),
+          { action: 'mark_duplicate_ar_return_reversed', at: now, by: confirmedBy, repairId }
+        ],
         updatedAt: now
       }
     });

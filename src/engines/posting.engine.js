@@ -18,11 +18,29 @@ const {
 
 
 
+function directionFromDebitCredit(debit = 0, credit = 0) {
+  const d = toNumber(debit);
+  const c = toNumber(credit);
+  if (d > 0 && c > 0) throw new Error('Invalid AR ledger: debit and credit cannot both be positive.');
+  if (d > 0) return 'debit';
+  if (c > 0) return 'credit';
+  return '';
+}
+
+function cleanText(value = '') {
+  return String(value || '').trim();
+}
+
 function baseJournal(doc = {}, extra = {}) {
   const salesStaffCode = pickSalesStaffCode(extra) || pickSalesStaffCode(doc);
   const salesStaffName = pickSalesStaffName(extra) || pickSalesStaffName(doc);
   const deliveryStaffCode = pickDeliveryStaffCode(extra) || pickDeliveryStaffCode(doc);
   const deliveryStaffName = pickDeliveryStaffName(extra) || pickDeliveryStaffName(doc);
+  const debit = toNumber(extra.debit);
+  const credit = toNumber(extra.credit);
+  const direction = cleanText(extra.direction || directionFromDebitCredit(debit, credit) || doc.direction);
+  const accountingConfirmed = extra.accountingConfirmed ?? doc.accountingConfirmed ?? true;
+  const actor = cleanText(extra.accountingConfirmedBy || doc.accountingConfirmedBy || extra.createdBy || doc.createdBy || (accountingConfirmed ? 'system' : ''));
 
   return {
     id: extra.id || makeId('JR'),
@@ -51,15 +69,32 @@ function baseJournal(doc = {}, extra = {}) {
     sourceType: String(extra.sourceType || doc.sourceType || '').trim(),
     sourceId: String(extra.sourceId || doc.sourceId || '').trim(),
     sourceCode: String(extra.sourceCode || doc.sourceCode || '').trim(),
-    accountingConfirmedBy: String(extra.accountingConfirmedBy || doc.accountingConfirmedBy || '').trim(),
+    returnOrderId: String(extra.returnOrderId || doc.returnOrderId || '').trim(),
+    returnOrderCode: String(extra.returnOrderCode || doc.returnOrderCode || '').trim(),
+    sourceOrderId: String(extra.sourceOrderId || doc.sourceOrderId || '').trim(),
+    sourceOrderCode: String(extra.sourceOrderCode || doc.sourceOrderCode || '').trim(),
+    accountingConfirmedBy: actor,
     masterOrderId: String(extra.masterOrderId || doc.masterOrderId || doc.deliveryMasterId || '').trim(),
     masterOrderCode: String(extra.masterOrderCode || doc.masterOrderCode || doc.deliveryMasterCode || '').trim(),
     accountingBatchId: String(extra.accountingBatchId || doc.accountingBatchId || '').trim(),
-    accountingConfirmed: extra.accountingConfirmed ?? doc.accountingConfirmed ?? true,
+    accountingConfirmed,
     accountingStatus: String(extra.accountingStatus || doc.accountingStatus || 'confirmed').trim(),
-    debit: toNumber(extra.debit),
-    credit: toNumber(extra.credit),
-    amount: toNumber(extra.amount ?? Math.max(toNumber(extra.debit), toNumber(extra.credit))),
+    debit,
+    credit,
+    direction,
+    amount: toNumber(extra.amount ?? Math.max(debit, credit)),
+    amountField: cleanText(extra.amountField || doc.amountField || direction),
+    ledgerType: cleanText(extra.ledgerType || doc.ledgerType || ''),
+    category: cleanText(extra.category || doc.category || ''),
+    entryType: cleanText(extra.entryType || doc.entryType || ''),
+    sourceCategory: cleanText(extra.sourceCategory || doc.sourceCategory || ''),
+    sourceAction: cleanText(extra.sourceAction || doc.sourceAction || ''),
+    originalLedgerId: cleanText(extra.originalLedgerId || doc.originalLedgerId || ''),
+    originalLedgerCode: cleanText(extra.originalLedgerCode || doc.originalLedgerCode || ''),
+    reversalOf: cleanText(extra.reversalOf || doc.reversalOf || ''),
+    idempotencyKey: cleanText(extra.idempotencyKey || doc.idempotencyKey || ''),
+    auditTrail: Array.isArray(extra.auditTrail) ? extra.auditTrail : (Array.isArray(doc.auditTrail) ? doc.auditTrail : []),
+    createdBy: extra.createdBy || doc.createdBy || actor,
     note: String(extra.note || doc.note || '').trim(),
     status: extra.status || 'posted',
     source: extra.source || doc.source || 'posting_engine',
@@ -140,19 +175,44 @@ async function postSalesOrderAR(order = {}, options = {}) {
 async function reverseSalesOrderAR(order = {}, options = {}) {
   const amount = toNumber(order.debtAmount ?? Math.max(0, toNumber(order.totalAmount) - toNumber(order.paidAmount)));
   if (amount <= 0) return null;
+  const orderKey = cleanText(order.orderCode || order.code || order.orderId || order.id || order._id || makeId('AR'));
+  const actor = cleanText(options.confirmedBy || options.user?.code || options.user?.name || order.accountingConfirmedBy || 'system');
+  const now = dateUtil.nowIso();
 
   const entry = baseJournal(order, {
-    id: `AR-SALE-REV-${order.id || order.code}`,
-    code: `AR-SALE-REV-${order.code || order.id}`,
+    id: `AR-SALE-REVERSAL-${orderKey}`,
+    code: `AR-SALE-REVERSAL-${orderKey}`,
     type: 'ar_sale_reversal',
+    entryType: 'reversal',
+    ledgerType: 'AR-SALE-REVERSAL',
+    category: 'AR-SALE-REVERSAL',
+    sourceCategory: 'AR-SALE',
+    sourceAction: 'reverse',
     refType: 'SALES_ORDER_REVERSAL',
     refId: order.id || order._id || order.code,
     refCode: order.code || order.id,
     orderId: order.id || order._id || order.code,
     orderCode: order.code || order.id,
+    originalLedgerId: order.arLedgerId || order.originalLedgerId || '',
+    reversalOf: order.arLedgerId || order.originalLedgerId || order.id || order.code || '',
+    idempotencyKey: `AR-SALE-REVERSAL:${orderKey}`,
+    accountingConfirmedBy: actor,
+    createdBy: actor,
     debit: 0,
     credit: amount,
+    direction: 'credit',
+    amountField: 'credit',
     amount,
+    auditTrail: [{
+      action: 'reverse_ar_sale',
+      at: now,
+      by: actor,
+      orderId: order.id || order.orderId || '',
+      orderCode: order.code || order.orderCode || '',
+      debit: 0,
+      credit: amount,
+      direction: 'credit'
+    }],
     note: `Đảo công nợ đơn bán ${order.code || order.id}`
   });
 
@@ -246,18 +306,48 @@ async function postReturnOrderAR(returnOrder = {}, options = {}) {
 async function reverseReturnOrderAR(returnOrder = {}, options = {}) {
   const amount = returnOrderArAmount(returnOrder);
   if (amount <= 0) return null;
+  const returnKey = cleanText(returnOrder.returnOrderCode || returnOrder.code || returnOrder.returnOrderId || returnOrder.id || returnOrder._id || makeId('AR'));
+  const actor = cleanText(options.confirmedBy || options.user?.code || options.user?.name || returnOrder.accountingConfirmedBy || 'system');
+  const now = dateUtil.nowIso();
   const entry = baseJournal(returnOrder, {
-    id: `AR-RETURN-REV-${returnOrder.id || returnOrder.code}`,
-    code: `AR-RETURN-REV-${returnOrder.code || returnOrder.id}`,
+    id: `AR-RETURN-REVERSAL-${returnKey}`,
+    code: `AR-RETURN-REVERSAL-${returnKey}`,
     type: 'ar_return_reversal',
+    entryType: 'reversal',
+    ledgerType: 'AR-RETURN-REVERSAL',
+    category: 'AR-RETURN-REVERSAL',
+    sourceCategory: 'AR-RETURN',
+    sourceAction: 'reverse',
     refType: 'RETURN_ORDER_REVERSAL',
     refId: returnOrder.id || returnOrder._id || returnOrder.code,
     refCode: returnOrder.code || returnOrder.id,
+    sourceType: returnOrder.sourceType || 'returnOrder',
+    sourceId: returnOrder.sourceId || returnOrder.returnOrderId || returnOrder.id || returnOrder.code || '',
+    sourceCode: returnOrder.sourceCode || returnOrder.returnOrderCode || returnOrder.code || returnOrder.id || '',
+    returnOrderId: returnOrder.returnOrderId || returnOrder.id || returnOrder.code || '',
+    returnOrderCode: returnOrder.returnOrderCode || returnOrder.code || returnOrder.id || '',
     orderId: returnOrder.salesOrderId || returnOrder.orderId || '',
     orderCode: returnOrder.salesOrderCode || returnOrder.orderCode || '',
+    originalLedgerId: returnOrder.arLedgerId || returnOrder.originalLedgerId || '',
+    reversalOf: returnOrder.arLedgerId || returnOrder.originalLedgerId || returnOrder.id || returnOrder.code || '',
+    idempotencyKey: `AR-RETURN-REVERSAL:${returnKey}`,
+    accountingConfirmedBy: actor,
+    createdBy: actor,
     debit: amount,
     credit: 0,
+    direction: 'debit',
+    amountField: 'debit',
     amount,
+    auditTrail: [{
+      action: 'reverse_ar_return',
+      at: now,
+      by: actor,
+      returnOrderId: returnOrder.id || returnOrder.returnOrderId || '',
+      returnOrderCode: returnOrder.code || returnOrder.returnOrderCode || '',
+      debit: amount,
+      credit: 0,
+      direction: 'debit'
+    }],
     note: `Đảo giảm công nợ trả hàng ${returnOrder.code || returnOrder.id}`
   });
   await paymentRepository.upsert(entry, options);
@@ -426,18 +516,30 @@ async function reverseReceiptAR(receipt = {}, options = {}) {
     for (let index = 0; index < allocations.length; index += 1) {
       const allocation = allocations[index];
       const entry = baseJournal(receipt, {
-        id: `AR-RECEIPT-VOID-${receipt.id || receipt.code}-${allocation.orderId || allocation.orderCode || index + 1}`,
-        code: `AR-RECEIPT-VOID-${receipt.code || receipt.id}-${index + 1}`,
-        type: 'receipt_void',
-        journalType: 'RECEIPT_VOID',
-        refType: 'receipt',
+        id: `AR-RECEIPT-REVERSAL-${receipt.id || receipt.code}-${allocation.orderId || allocation.orderCode || index + 1}`,
+        code: `AR-RECEIPT-REVERSAL-${receipt.code || receipt.id}-${index + 1}`,
+        type: 'ar_receipt_reversal',
+        entryType: 'reversal',
+        ledgerType: 'AR-RECEIPT-REVERSAL',
+        category: 'AR-RECEIPT-REVERSAL',
+        sourceCategory: 'AR-RECEIPT',
+        sourceAction: 'reverse',
+        journalType: 'RECEIPT_REVERSAL',
+        refType: 'RECEIPT_REVERSAL',
         refId: receipt.id || receipt._id || receipt.code,
         refCode: receipt.code || receipt.id,
         orderId: allocation.orderId,
         orderCode: allocation.orderCode,
+        accountingConfirmedBy: receipt.accountingConfirmedBy || options.confirmedBy || 'system',
         debit: allocation.amount,
         credit: 0,
+        direction: 'debit',
+        amountField: 'debit',
         amount: allocation.amount,
+        originalLedgerId: receipt.arLedgerId || receipt.originalLedgerId || '',
+        reversalOf: receipt.arLedgerId || receipt.originalLedgerId || receipt.id || receipt.code || '',
+        idempotencyKey: `AR-RECEIPT-REVERSAL:${receipt.id || receipt.code}:${allocation.orderId || allocation.orderCode || index + 1}`,
+        auditTrail: [{ action: 'reverse_ar_receipt', at: dateUtil.nowIso(), by: receipt.accountingConfirmedBy || options.confirmedBy || 'system', debit: allocation.amount, credit: 0, direction: 'debit' }],
         note: receipt.voidReason || `Hủy phiếu thu ${receipt.code || receipt.id} - hoàn công nợ`
       });
       await paymentRepository.upsert(entry, options);
@@ -446,18 +548,30 @@ async function reverseReceiptAR(receipt = {}, options = {}) {
     return entries;
   }
   const entry = baseJournal(receipt, {
-    id: `AR-RECEIPT-VOID-${receipt.id || receipt.code}`,
-    code: `AR-RECEIPT-VOID-${receipt.code || receipt.id}`,
-    type: 'receipt_void',
-    journalType: 'RECEIPT_VOID',
-    refType: 'receipt',
+    id: `AR-RECEIPT-REVERSAL-${receipt.id || receipt.code}`,
+    code: `AR-RECEIPT-REVERSAL-${receipt.code || receipt.id}`,
+    type: 'ar_receipt_reversal',
+    entryType: 'reversal',
+    ledgerType: 'AR-RECEIPT-REVERSAL',
+    category: 'AR-RECEIPT-REVERSAL',
+    sourceCategory: 'AR-RECEIPT',
+    sourceAction: 'reverse',
+    journalType: 'RECEIPT_REVERSAL',
+    refType: 'RECEIPT_REVERSAL',
     refId: receipt.id || receipt._id || receipt.code,
     refCode: receipt.code || receipt.id,
     orderId: receipt.orderId || receipt.salesOrderId || '',
     orderCode: receipt.orderCode || receipt.salesOrderCode || receipt.refCode || '',
+    accountingConfirmedBy: receipt.accountingConfirmedBy || options.confirmedBy || 'system',
     debit: amount,
     credit: 0,
+    direction: 'debit',
+    amountField: 'debit',
     amount,
+    originalLedgerId: receipt.arLedgerId || receipt.originalLedgerId || '',
+    reversalOf: receipt.arLedgerId || receipt.originalLedgerId || receipt.id || receipt.code || '',
+    idempotencyKey: `AR-RECEIPT-REVERSAL:${receipt.id || receipt.code}`,
+    auditTrail: [{ action: 'reverse_ar_receipt', at: dateUtil.nowIso(), by: receipt.accountingConfirmedBy || options.confirmedBy || 'system', debit: amount, credit: 0, direction: 'debit' }],
     note: receipt.voidReason || `Hủy phiếu thu ${receipt.code || receipt.id} - hoàn công nợ`
   });
   await paymentRepository.upsert(entry, options);

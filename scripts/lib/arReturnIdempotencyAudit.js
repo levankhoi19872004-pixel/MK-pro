@@ -13,7 +13,17 @@ function lower(value = '') {
   return clean(value).toLowerCase();
 }
 
+function isArReturnReversalLedger(row = {}) {
+  return lower(row.type) === 'ar_return_reversal'
+    || lower(row.entryType) === 'reversal'
+    || lower(row.sourceAction) === 'reverse'
+    || clean(row.ledgerType) === 'AR-RETURN-REVERSAL'
+    || clean(row.category) === 'AR-RETURN-REVERSAL'
+    || clean(row.refType) === 'AR_LEDGER_REVERSAL';
+}
+
 function isArReturnLedger(row = {}) {
+  if (isArReturnReversalLedger(row)) return false;
   return lower(row.type) === AR_RETURN_TYPE
     || clean(row.type) === AR_RETURN_LEDGER_TYPE
     || clean(row.ledgerType) === AR_RETURN_LEDGER_TYPE
@@ -31,6 +41,12 @@ function isInactiveArReturnLedger(row = {}) {
 
 function arReturnLedgerQuery() {
   return {
+    entryType: { $ne: 'reversal' },
+    sourceAction: { $ne: 'reverse' },
+    refType: { $ne: 'AR_LEDGER_REVERSAL' },
+    type: { $nin: ['ar_return_reversal', 'ar_sale_reversal', 'ar_receipt_reversal', 'ar_reversal', 'reversal', 'ar_void'] },
+    ledgerType: { $nin: ['AR-RETURN-REVERSAL', 'AR-SALE-REVERSAL', 'AR-RECEIPT-REVERSAL'] },
+    category: { $nin: ['AR-RETURN-REVERSAL', 'AR-SALE-REVERSAL', 'AR-RECEIPT-REVERSAL'] },
     $or: [
       { type: AR_RETURN_TYPE },
       { type: AR_RETURN_LEDGER_TYPE },
@@ -236,6 +252,7 @@ module.exports = {
   arReturnLedgerQuery,
   clean,
   isArReturnLedger,
+  isArReturnReversalLedger,
   isInactiveArReturnLedger,
   normalizeSourceType,
   canonicalBusinessKey,
