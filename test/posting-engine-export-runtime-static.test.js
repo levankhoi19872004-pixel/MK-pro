@@ -52,21 +52,29 @@ test('posting.engine evaluates without ReferenceError when dependencies are pres
     module: sandboxModule,
     exports: sandboxModule.exports,
     require: (id) => {
-      if (id.includes('date.util')) return { todayVN: () => '2026-01-01', nowIso: () => '2026-01-01T00:00:00.000Z', toDateOnly: (v) => String(v || '2026-01-01').slice(0, 10) };
-      if (id.includes('paymentRepository')) return { findAll: async () => [], upsert: async (entry) => entry, deleteOne: async () => ({ deletedCount: 1 }) };
-      if (id.includes('common.util')) return { makeId: (prefix) => `${prefix}-TEST`, toNumber: (v) => Number(v || 0) || 0 };
-      if (id.includes('debug.util')) return { debugLog: () => {} };
-      if (id.includes('returnArPostingService')) return {
-        hasActiveArReturnForReturnOrder: async () => false,
-        postReturnOrderToAR: async () => null,
-        _internal: { returnOrderAmountAnalysis: (returnOrder) => ({ amount: Number(returnOrder.debtReduction || returnOrder.amount || 0) || 0 }) }
+      const paymentRepository = { findAll: async () => [], upsert: async (entry) => entry, deleteOne: async () => ({ deletedCount: 1 }) };
+      const deps = {
+        dateUtil: { todayVN: () => '2026-01-01', nowIso: () => '2026-01-01T00:00:00.000Z', toDateOnly: (v) => String(v || '2026-01-01').slice(0, 10) },
+        paymentRepository,
+        paymentRepositoryRuntime: () => paymentRepository,
+        commonUtil: { makeId: (prefix) => `${prefix}-TEST`, toNumber: (v) => Number(v || 0) || 0 },
+        debugUtil: { debugLog: () => {} },
+        arLedgerValidation: { assertValidArLedgerEntry: () => true },
+        arLedgerStatus: { isActiveLedgerDoc: () => true },
+        returnArPostingService: {
+          hasActiveArReturnForReturnOrder: async () => false,
+          postReturnOrderToAR: async () => null,
+          buildReturnARLedgerEntry: (returnOrder, extra) => ({ ...returnOrder, ...extra }),
+          _internal: { returnOrderAmountAnalysis: (returnOrder) => ({ amount: Number(returnOrder.debtReduction || returnOrder.amount || 0) || 0 }) }
+        },
+        staffIdentity: {
+          pickSalesStaffCode: () => '',
+          pickSalesStaffName: () => '',
+          pickDeliveryStaffCode: () => '',
+          pickDeliveryStaffName: () => ''
+        }
       };
-      if (id.includes('staffIdentity')) return {
-        pickSalesStaffCode: () => '',
-        pickSalesStaffName: () => '',
-        pickDeliveryStaffCode: () => '',
-        pickDeliveryStaffName: () => ''
-      };
+      if (id === './posting.dependencies' || id.endsWith('/posting.dependencies')) return deps;
       throw new Error(`Unexpected require in posting.engine static runtime test: ${id}`);
     }
   };
@@ -74,4 +82,6 @@ test('posting.engine evaluates without ReferenceError when dependencies are pres
   vm.runInNewContext(source, sandbox, { filename: postingEnginePath });
   assert.strictEqual(typeof sandboxModule.exports.postSalesOrderAR, 'function');
   assert.strictEqual(typeof sandboxModule.exports.reverseSalesOrderAR, 'function');
+  assert.match(source, /assertValidArLedgerEntry/);
+  assert.match(source, /posting\.dependencies/);
 });

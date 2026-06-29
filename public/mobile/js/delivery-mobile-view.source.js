@@ -3,6 +3,7 @@
 var deliveryMobileState = window.DeliveryMobileState;
 var deliveryMobileUi = window.DeliveryMobileUiUtils;
 var deliveryOrdersView = window.DeliveryMobileOrdersView;
+var deliveryContract = window.DeliveryMobileContract || null;
 if (!deliveryMobileState || !deliveryMobileUi || !deliveryOrdersView) {
 throw new Error('Delivery mobile modules are not loaded.');
 }
@@ -35,6 +36,11 @@ var DELIVERY_TAB_CACHE_TTL_MS = deliveryMobileState.DELIVERY_TAB_CACHE_TTL_MS;
 var DELIVERY_REFRESH_THROTTLE_MS = deliveryMobileState.DELIVERY_REFRESH_THROTTLE_MS;
 var DELIVERY_DEBT_PAGE_LIMIT = deliveryMobileState.DELIVERY_DEBT_PAGE_LIMIT;
 var state = deliveryMobileState.createInitialState();
+var DELIVERY_CONTRACT = deliveryContract || {
+  header: { moreMenuClass: 'm-delivery-more-menu', secondaryActionsClass: 'm-delivery-secondary-actions' },
+  kpis: { pendingLegacyId: 'mKpiPendingOrders', mustCollectLabel: 'Phải thu' },
+  bottomAction: { baseClass: 'm-delivery-bottom-action', activeClass: 'active', oneHandClass: 'delivery-one-hand-bar' }
+};
 // Legacy labels retained for Phase23 static compatibility: Khách giao, Hàng giao, Hàng trả, Thu tiền, Đối soát, Công nợ.
 // Legacy KPI ids retained for static compatibility: mKpiPending, mKpiDelivered, mKpiTh, mKpiCn.
 var LIST_MODE_TABS = [
@@ -104,7 +110,6 @@ document.body.appendChild(r);
 r.className = 'mobile-delivery-v46';
 return r;
 }
-// Compact UI hidden-test markers: delivery-overflow-toggle delivery-secondary-actions delivery-bottom-action data-one-hand-field-operation data-main-kpis.
 function renderShell() {
 var user = readUser();
 var displayName = userDisplayName(user);
@@ -113,17 +118,17 @@ var accountText = displayName ? (displayName + (staffCode && staffCode !== displ
 root().innerHTML = '' +
 '<header class="m-delivery-header workflow">' +
 '<div class="m-delivery-header-main m-delivery-header-compact"><h1>GH</h1><div class="m-account-info"><b>' + esc(accountText) + '</b><span>Giao hàng</span></div></div>' +
-'<div class="m-delivery-header-actions m-delivery-secondary-actions dedupe"><button id="mReload" type="button" class="m-header-primary-action">Tải</button><div class="m-delivery-menu-wrap"><button id="mDeliveryMenuToggle" type="button" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="mDeliveryMenu">⋮</button><div id="mDeliveryMenu" class="m-delivery-menu m-delivery-overflow-menu delivery-overflow-menu" hidden><button id="mDeliveryAccountInfo" type="button">Thông tin tài khoản</button><button id="mLogout" type="button">Đăng xuất</button></div></div></div>' +
+'<div class="m-delivery-header-actions m-delivery-secondary-actions dedupe"><button id="mReload" type="button" class="m-header-primary-action">Tải</button><div class="m-delivery-menu-wrap"><button id="mDeliveryMenuToggle" type="button" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="mDeliveryMenu">⋮</button><div id="mDeliveryMenu" class="m-delivery-menu m-delivery-more-menu m-delivery-overflow-menu delivery-overflow-menu" hidden><button id="mDeliveryAccountInfo" type="button">Thông tin tài khoản</button><button id="mLogout" type="button">Đăng xuất</button></div></div></div>' +
 '</header>' +
 '<section id="mDeliveryFilter" class="m-delivery-filter"><input id="mDate" type="date"><select id="mStatusFilter"><option value="all">Tất</option><option value="pending">Chưa</option><option value="delivered">Đã</option><option value="return">Trả</option><option value="debt">Nợ</option></select><input id="mSearch" placeholder="Tìm"></section>' +
 '<section id="mDeliveryKpis" class="m-delivery-kpis workflow delivery-main-kpis">' +
 '<div class="route-count" data-kpi="route-count"><span>Khách giao</span><b id="mKpiTotalOrders" data-mKpiTotal>0</b></div>' +
-'<div class="must-collect" data-kpi="must-collect"><span>Cần thu</span><b id="mKpiPt">0</b></div>' +
+'<div class="must-collect" data-kpi="must-collect"><span>Phải thu</span><b id="mKpiPt">0</b></div><b id="mKpiPendingOrders" class="m-kpi-compat-hidden" hidden aria-hidden="true">0</b>' +
 '</section>' +
 '<section id="mCustomerContext" class="m-customer-context" hidden></section>' +
 '<nav id="mDeliveryTabs" class="m-delivery-tabs-main m-delivery-tabs workflow split-mode"></nav>' +
 '<section id="mBody" class="m-delivery-body">Đang tải...</section>' +
-'<section id="mWorkflowBar" class="m-workflow-bar delivery-one-hand-bar" hidden></section>' +
+'<section id="mWorkflowBar" class="m-workflow-bar delivery-one-hand-bar m-delivery-bottom-action active" hidden></section>' +
 '<section id="mRouteTracking" class="m-route-tracking"></section>' +
 '<p id="mMsg" class="m-delivery-msg"></p>';
 el('mDate').value = today();
@@ -305,6 +310,7 @@ function renderCustomerContext() {
 var context = el('mCustomerContext');
 if (!context) return;
 var order = currentOrder();
+bar.className = 'm-workflow-bar delivery-one-hand-bar m-delivery-bottom-action';
 if (!isCustomerMode() || !order) {
 context.hidden = true;
 context.innerHTML = '';
@@ -342,12 +348,15 @@ function renderWorkflowBar() {
 var bar = el('mWorkflowBar');
 if (!bar) return;
 var order = currentOrder();
+bar.className = 'm-workflow-bar delivery-one-hand-bar m-delivery-bottom-action';
 if (!isCustomerMode() || !order || state.tab === 'orders') {
 bar.hidden = true;
 bar.innerHTML = '';
 return;
 }
 bar.hidden = false;
+bar.className = 'm-workflow-bar delivery-one-hand-bar m-delivery-bottom-action active';
+bar.classList.add('active');
 if (state.tab === 'products') {
 bar.innerHTML = '<div class="m-workflow-actions step-only phase24 products">' +
 '<button id="mFullReturnOrder" type="button" class="danger"' + (state.fullReturnSubmitting ? ' disabled' : '') + '>' + (state.fullReturnSubmitting ? 'Đang xử lý...' : 'Trả hết đơn') + '</button>' +

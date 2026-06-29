@@ -140,10 +140,10 @@
 .m-delivery-header-actions.dedupe{grid-template-columns:auto auto;position:relative;}
 .m-delivery-menu-wrap{position:relative;display:inline-flex;}
 .m-delivery-menu-wrap>button{min-width:42px;}
-.m-delivery-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:60;display:grid;gap:4px;min-width:172px;padding:7px;border:1px solid #cbd5e1;border-radius:12px;background:#ffffff;box-shadow:0 16px 32px rgba(15,23,42,.22);}
-.m-delivery-menu[hidden]{display:none!important;}
-.m-delivery-menu button{justify-content:flex-start;width:100%;min-height:38px;border:0;background:#ffffff;color:#0f172a;text-align:left;font-size:12px;font-weight:900;padding:8px 10px;border-radius:9px;}
-.m-delivery-menu button:hover,.m-delivery-menu button:focus{background:#eff6ff;color:#1d4ed8;}
+.m-delivery-menu,.m-delivery-more-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:60;display:grid;gap:4px;min-width:172px;padding:7px;border:1px solid #cbd5e1;border-radius:12px;background:#ffffff;box-shadow:0 16px 32px rgba(15,23,42,.22);}
+.m-delivery-menu[hidden],.m-delivery-more-menu[hidden]{display:none!important;}
+.m-delivery-menu button,.m-delivery-more-menu button{justify-content:flex-start;width:100%;min-height:38px;border:0;background:#ffffff;color:#0f172a;text-align:left;font-size:12px;font-weight:900;padding:8px 10px;border-radius:9px;}
+.m-delivery-menu button:hover,.m-delivery-menu button:focus,.m-delivery-more-menu button:hover,.m-delivery-more-menu button:focus{background:#eff6ff;color:#1d4ed8;}
 .m-recon-header-card{grid-template-columns:1fr;}
 @media (max-width:380px){.m-delivery-header-actions.dedupe{grid-template-columns:1fr auto;}.m-delivery-menu{right:0;}}
 /* DELIVERY_DEDUPLICATE_ACTIONS_UI_END */
@@ -200,7 +200,7 @@
 .m-order-workflow-summary.compact.must-collect-only .m-order-must-collect{border-color:#bbf7d0;background:#f0fdf4;}
 .m-order-workflow-summary.compact.must-collect-only .m-order-must-collect b{color:#047857;}
 /* One-hand bottom action contract. */
-.m-workflow-bar.delivery-one-hand-bar.delivery-bottom-action{bottom:calc(8px + env(safe-area-inset-bottom));z-index:45;}
+.m-workflow-bar.delivery-one-hand-bar.delivery-bottom-action,.m-workflow-bar.delivery-one-hand-bar.m-delivery-bottom-action{bottom:calc(8px + env(safe-area-inset-bottom));z-index:45;}
 .m-workflow-bar.delivery-one-hand-bar .m-workflow-actions.step-only.phase24 button{min-height:44px;}
 .m-workflow-bar.delivery-one-hand-bar [data-action="primary"]{min-height:46px;}
 @media (max-width:380px){
@@ -217,3 +217,9 @@
 .m-delivery-tabs-main.customer-mode,.m-delivery-tabs-main.workflow.split-mode.customer-mode{grid-template-columns:repeat(4,minmax(0,1fr));}
 .m-order-card-compact .m-order-workflow-summary{grid-template-columns:1fr auto;}
 .m-order-card-compact [data-financial-metric="must-collect"]{font-weight:700;}
+
+/* PHASE67_DELIVERY_UI_CONTRACT_START */
+.m-kpi-compat-hidden{display:none!important;}
+.m-delivery-more-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:60;}
+.m-workflow-bar.m-delivery-bottom-action.active{bottom:calc(8px + env(safe-area-inset-bottom));z-index:45;}
+/* PHASE67_DELIVERY_UI_CONTRACT_END */

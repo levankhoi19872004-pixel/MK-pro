@@ -7,6 +7,7 @@
   var amount = ui.amount;
   var keyOf = ui.keyOf;
   var num = ui.num;
+  var contract = window.DeliveryMobileContract || { orderCard: { mustCollectLabel: 'Phải thu', metricClass: 'm-order-must-collect', metricName: 'must-collect' } };
 
   function orderItems(order) {
     return Array.isArray(order && order.items) ? order.items : [];
@@ -84,7 +85,7 @@
         (salesStaff ? '<p class="m-order-line">NVBH: ' + esc(salesStaff) + '</p>' : '') +
         '<div class="m-order-workflow-summary compact must-collect-only" data-card-metrics="must-collect">' +
           '<span class="m-order-product-brief"><em>Hàng giao</em><b>' + esc(productBrief) + '</b></span>' +
-          '<span class="m-order-must-collect" data-financial-metric="must-collect"><em>Cần thu</em><b>' + money(mustCollect) + '</b></span>' +
+          '<span class="m-order-must-collect" data-financial-metric="must-collect"><em>Phải thu:</em><b>' + money(mustCollect) + '</b></span>' +
         '</div>' +
         (note ? '<p class="m-order-note">Ghi chú: ' + esc(note) + '</p>' : '') +
       '</button>' +

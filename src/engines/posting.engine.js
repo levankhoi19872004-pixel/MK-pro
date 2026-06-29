@@ -1,22 +1,25 @@
 'use strict';
 
-const dateUtil = require('../utils/date.util');
-const paymentRepository = require('../repositories/paymentRepository');
+const postingDependencies = require('./posting.dependencies');
+const dateUtil = postingDependencies.dateUtil;
+const paymentRepository = postingDependencies.paymentRepository;
 function paymentRepositoryRuntime() {
-  return require('../repositories/paymentRepository');
+  return typeof postingDependencies.paymentRepositoryRuntime === 'function'
+    ? postingDependencies.paymentRepositoryRuntime()
+    : postingDependencies.paymentRepository;
 }
 const initialPaymentRepositoryUpsert = paymentRepository.upsert;
-const { makeId, toNumber } = require('../utils/common.util');
-const { debugLog } = require('../utils/debug.util');
-const { assertValidArLedgerEntry } = require('../utils/arLedgerValidation.util');
-const { isActiveLedgerDoc } = require('../utils/arLedgerStatus.util');
-const returnArPostingService = require('../services/accounting/returnArPostingService');
+const { makeId, toNumber } = postingDependencies.commonUtil;
+const { debugLog } = postingDependencies.debugUtil;
+const { assertValidArLedgerEntry } = postingDependencies.arLedgerValidation;
+const { isActiveLedgerDoc } = postingDependencies.arLedgerStatus;
+const returnArPostingService = postingDependencies.returnArPostingService;
 const {
   pickSalesStaffCode,
   pickSalesStaffName,
   pickDeliveryStaffCode,
   pickDeliveryStaffName
-} = require('../domain/staff/staffIdentity');
+} = postingDependencies.staffIdentity;
 
 
 

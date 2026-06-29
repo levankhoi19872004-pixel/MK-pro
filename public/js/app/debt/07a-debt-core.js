@@ -110,17 +110,19 @@ async function loadDebts(){
       const res=await fetch(url);
       const json=await res.json();
       if(!json.ok)throw new Error(json.message||'Không tải được công nợ');
-      const ledger=Array.isArray(json.debts)?json.debts:[];
+      if(json.debugSource&&json.debugSource.usesSnapshot===true)throw new Error('API công nợ còn dùng snapshot cũ, chưa phải arLedgers SSoT');
+      const ledger=Array.isArray(json.orders)?json.orders:(Array.isArray(json.debts)?json.debts:[]);
       window.debtLedgerRowsCache=ledger;
       const summary=json.summary||{};
-      debtsCache=mergeDebtCustomerSummaryFromDebtRows(json.customerSummary, ledger);
-      const totalDebt=Number(summary.totalDebt ?? ledger.reduce((sum,d)=>sum+normalizeDebtAmount(d.debt),0));
+      if(summary.tolerance||summary.debtZeroTolerance){window.DEBT_ZERO_TOLERANCE=Number(summary.tolerance||summary.debtZeroTolerance)||DEBT_ZERO_TOLERANCE;DEBT_ZERO_TOLERANCE=window.DEBT_ZERO_TOLERANCE;}
+      debtsCache=mergeDebtCustomerSummaryFromDebtRows(json.customers||json.customerSummary, ledger);
+      const totalDebt=Number(summary.totalDebt ?? ledger.reduce((sum,d)=>sum+normalizeDebtAmount(d.remainingDebtDisplay ?? d.debt),0));
       if(debtTotalKpi)debtTotalKpi.textContent=money(totalDebt);
-      if(debtCount)debtCount.textContent=`${summary.customerCount??debtsCache.length} khách · ${summary.orderCount??ledger.length} đơn · Quá hạn ${summary.overdueCount??0}`;
-      if(debtCustomerCountKpi)debtCustomerCountKpi.textContent=money(summary.customerCount??debtsCache.length);
-      if(debtOrderCountKpi)debtOrderCountKpi.textContent=money(summary.orderCount??ledger.length);
+      if(debtCount)debtCount.textContent=`${summary.customerDebtCount??summary.customerCount??debtsCache.length} khách · ${summary.orderDebtCount??summary.orderCount??ledger.length} đơn · Quá hạn ${summary.overdueCount??0}`;
+      if(debtCustomerCountKpi)debtCustomerCountKpi.textContent=money(summary.customerDebtCount??summary.customerCount??debtsCache.length);
+      if(debtOrderCountKpi)debtOrderCountKpi.textContent=money(summary.orderDebtCount??summary.orderCount??ledger.length);
       if(debtOverdueCountKpi)debtOverdueCountKpi.textContent=money(summary.overdueCount??0);
-      if(debtTable)debtTable.innerHTML=ledger.map(d=>`<tr><td>${escapeHtml(d.orderCode||'')}</td><td>${escapeHtml(d.customerCode||'')} ${escapeHtml(d.customerName||'')}</td><td>${money(d.debt)}</td></tr>`).join('');
+      if(debtTable)debtTable.innerHTML=ledger.map(d=>`<tr><td>${escapeHtml(d.orderCode||'')}</td><td>${escapeHtml(d.customerCode||'')} ${escapeHtml(d.customerName||'')}</td><td>${money(d.remainingDebtDisplay ?? d.debt)}</td></tr>`).join('');
 
       const rows=debtsCache.filter(d=>{
         if(criteria.status==='paid')return !hasOpenDebt(d.debt);
@@ -262,12 +264,14 @@ function mergeDebtCustomerSummaryFromDebtRows(customerSummary=[], debtRows=[]){
         orderCode: row.orderCode || row.salesOrderCode || row.refCode || '',
         documentDate: row.documentDate || row.date || '',
         dueDate: row.dueDate || row.documentDate || row.date || '',
-        debit: Number(row.debit||0),
-        credit: Number(row.credit||0),
+        debit: Number(row.arSaleAmount ?? row.debit ?? 0),
+        credit: Number(row.totalCredit ?? row.credit ?? 0),
         receiptAmount: Number(row.receiptAmount||0),
         returnAmount: Number(row.returnAmount||0),
         bonusAmount: Number(row.bonusAmount||0),
-        debt: normalizeDebtAmount(row.debt),
+        remainingDebt: Number(row.remainingDebt ?? row.rawDebt ?? row.debt ?? 0),
+        remainingDebtDisplay: Number(row.remainingDebtDisplay ?? normalizeDebtAmount(row.debt)),
+        debt: normalizeDebtAmount(row.remainingDebtDisplay ?? row.debt),
         overdueDays: Number(row.overdueDays||0),
         agingDays: Number(row.agingDays||0),
         status: row.status || '',

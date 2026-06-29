@@ -8,7 +8,7 @@ const {
   normalizeArKey
 } = require('../../utils/arLedger.util');
 const { toNumber } = require('../../utils/common.util');
-const { buildActiveLedgerMongoFilter } = require('../../utils/arLedgerStatus.util');
+const { buildConfirmedArLedgerFilter } = require('../../utils/arLedgerStatus.util');
 
 
 function getArLedgerModel() {
@@ -28,7 +28,7 @@ function unique(values = []) {
 }
 
 function activeArLedgerQuery(extra = {}) {
-  return buildActiveLedgerMongoFilter(extra, { extraInactiveStatuses: ['duplicate_cancelled', 'draft'] });
+  return buildConfirmedArLedgerFilter(extra, { extraInactiveStatuses: ['duplicate_cancelled', 'draft'] });
 }
 
 function orderIdentityValues(order = {}) {

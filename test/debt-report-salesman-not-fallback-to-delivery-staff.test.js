@@ -1,15 +1,14 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const test = require('node:test');
 
-const ArLedger = require('../src/models/ArLedger');
-const Customer = require('../src/models/Customer');
+const { buildCustomerDebtReadModelFromLedgers } = require('../src/services/accounting/arCustomerDebtReadModel.service');
 
 function assertNoSalesmanStaffFallback() {
   const masterSource = require('./helpers/sourceBundle.util').readSource('src/services/master-order/masterOrderLegacy.service.js');
   const reportSource = require('./helpers/sourceBundle.util').readSource('src/services/reportLegacy.service.js');
+  const readModelSource = require('./helpers/sourceBundle.util').readSource('src/services/accounting/arCustomerDebtReadModel.service.js');
 
   assert.doesNotMatch(
     masterSource,
@@ -26,95 +25,52 @@ function assertNoSalesmanStaffFallback() {
     /salesmanName:\s*customer\.salesmanName\s*\|\|\s*customer\.staffName/,
     'Debt customer meta must not use customer.staffName as NVBH fallback'
   );
-  assert.equal(
-    reportSource.includes("salesmanName: { $max: { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', { $ifNull: ['$nvbhName', '$staffName'] }] }] } }"),
-    false,
-    'Debt aggregate salesmanName must not fallback to $staffName, which may contain NVGH'
+  assert.doesNotMatch(
+    readModelSource,
+    /salesmanName:\s*firstText\([^\n]+staffName/,
+    'Debt read model must not use generic staffName as NVBH when salesStaffName/nvbhName are absent'
   );
-  assert.equal(
-    reportSource.includes("deliveryStaffName: { $max: { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', { $ifNull: ['$nvghName', '$staffName'] }] }] } }"),
-    false,
-    'Debt aggregate deliveryStaffName must not fallback to $staffName, which may contain NVBH'
-  );
-  assert.equal(
-    reportSource.includes("deliveryStaffCode: { $max: { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', { $ifNull: ['$deliveryStaff', { $ifNull: ['$nvghCode', '$staffCode'] }] }] }] } }"),
-    false,
-    'Debt aggregate deliveryStaffCode must not fallback to $staffCode, which may contain NVBH'
+  assert.doesNotMatch(
+    readModelSource,
+    /deliveryStaffName:\s*firstText\([^\n]+staffName/,
+    'Debt read model must not use generic staffName as NVGH when deliveryStaffName/nvghName are absent'
   );
 }
 
 test('debtReport keeps NVBH separate from NVGH when staffName contains delivery staff', async () => {
   assertNoSalesmanStaffFallback();
 
-  const originalAggregate = ArLedger.aggregate;
-  const originalArFind = ArLedger.find;
-  const originalFind = Customer.find;
-  let capturedPipeline = null;
+  const report = buildCustomerDebtReadModelFromLedgers([
+    {
+      _id: 'ar-sale-staff-boundary',
+      account: 'AR',
+      accountingConfirmed: true,
+      accountingStatus: 'confirmed',
+      status: 'posted',
+      category: 'AR-SALE',
+      type: 'ar_sale',
+      date: '2026-06-09',
+      customerCode: '4499704',
+      customerName: 'Chị Giang Điệp',
+      orderCode: 'HU90203391',
+      orderId: 'SO90203391',
+      salesStaffCode: 'nvbh-da',
+      salesStaffName: 'Đỗ Thị Anh',
+      staffCode: 'ghtp',
+      staffName: 'Hiếu Giao Hàng TP',
+      deliveryStaffCode: 'ghtp',
+      deliveryStaffName: 'Hiếu Giao Hàng TP',
+      debit: 1271203,
+      credit: 0,
+      amount: 1271203,
+      direction: 'debit'
+    }
+  ], { status: 'all', q: '4499704' }, { today: '2026-06-09' });
 
-  ArLedger.aggregate = (pipeline) => {
-    capturedPipeline = pipeline;
-    return {
-      allowDiskUse() { return this; },
-      exec: async () => ([{
-        _id: {
-          customerCode: '4499704',
-          customerName: 'Chị Giang Điệp',
-          orderCode: 'HU90203391',
-          orderId: 'SO90203391'
-        },
-        firstDate: '2026-06-09',
-        lastDate: '2026-06-09',
-        debit: 1271203,
-        credit: 0,
-        receiptAmount: 0,
-        returnAmount: 0,
-        bonusAmount: 0,
-        salesmanCode: 'nvbh-da',
-        salesmanName: 'Đỗ Thị Anh',
-        deliveryStaffCode: 'ghtp',
-        deliveryStaffName: 'Hiếu Giao Hàng TP'
-      }])
-    };
-  };
-
-  ArLedger.find = () => ({
-    select() { return this; },
-    sort() { return this; },
-    skip() { return this; },
-    limit() { return this; },
-    lean: async () => []
-  });
-
-  Customer.find = () => ({
-    select() { return this; },
-    limit() { return this; },
-    lean: async () => [],
-    catch() { return this; }
-  });
-
-  try {
-    delete require.cache[require.resolve('../src/services/reportService')];
-    const reportService = require('../src/services/reportService');
-    const result = await reportService.debtReport({ date: '2026-06-09', limit: 10 });
-    assert.equal(result.debts.length, 1);
-    assert.equal(result.debts[0].salesmanName, 'Đỗ Thị Anh');
-    assert.equal(result.debts[0].deliveryStaffName, 'Hiếu Giao Hàng TP');
-    assert.notEqual(result.debts[0].salesmanName, result.debts[0].deliveryStaffName);
-
-    const groupStage = capturedPipeline.find((stage) => stage.$group);
-    assert.ok(groupStage, 'debtReport must build a $group stage');
-    assert.deepEqual(
-      groupStage.$group.salesmanName,
-      { $max: { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', '$nvbhName'] }] } }
-    );
-    assert.deepEqual(
-      groupStage.$group.deliveryStaffName,
-      { $max: { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', '$nvghName'] }] } }
-    );
-  } finally {
-    ArLedger.aggregate = originalAggregate;
-    ArLedger.find = originalArFind;
-    Customer.find = originalFind;
-    delete require.cache[require.resolve('../src/services/reportService')];
-  }
+  assert.equal(report.debts.length, 1);
+  assert.equal(report.debts[0].salesmanName, 'Đỗ Thị Anh');
+  assert.equal(report.debts[0].deliveryStaffName, 'Hiếu Giao Hàng TP');
+  assert.notEqual(report.debts[0].salesmanName, report.debts[0].deliveryStaffName);
+  assert.equal(report.customers[0].salesmanName, 'Đỗ Thị Anh');
+  assert.equal(report.customers[0].deliveryStaffName, 'Hiếu Giao Hàng TP');
 });

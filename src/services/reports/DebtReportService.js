@@ -1,7 +1,7 @@
 'use strict';
 
 const ArLedger = require('../../models/ArLedger');
-const legacy = require('../reportLegacy.service');
+const arCustomerDebtReadModel = require('../accounting/arCustomerDebtReadModel.service');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount } = require('../../constants/finance.constants');
 const {
   activeDocumentFilter,
@@ -228,14 +228,14 @@ async function arLedgerDetailReport(query = {}) {
 }
 
 module.exports = {
-  // Current/open-debt APIs remain on the optimized legacy implementation.
-  debtReport: legacy.debtReport,
-  debtInit: legacy.debtInit,
-  debtCustomers: legacy.debtCustomers,
-  debtCustomerDetail: legacy.debtCustomerDetail,
-  debtArLedger: legacy.debtArLedger,
-  debtBySalesmanReport: legacy.debtBySalesmanReport,
-  debtByDeliveryReport: legacy.debtByDeliveryReport,
+  // Customer debt screen read model: arLedgers is the only SSoT for current/open debt.
+  debtReport: arCustomerDebtReadModel.debtReport,
+  debtInit: arCustomerDebtReadModel.debtInit,
+  debtCustomers: arCustomerDebtReadModel.debtCustomers,
+  debtCustomerDetail: arCustomerDebtReadModel.debtCustomerDetail,
+  debtArLedger: arCustomerDebtReadModel.debtArLedger,
+  debtBySalesmanReport: arCustomerDebtReadModel.debtBySalesmanReport,
+  debtByDeliveryReport: arCustomerDebtReadModel.debtByDeliveryReport,
   periodDebtReport,
   arLedgerDetailReport
 };
