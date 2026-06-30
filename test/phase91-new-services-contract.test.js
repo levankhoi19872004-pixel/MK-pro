@@ -92,6 +92,10 @@ test('Delivery Today New UI renders returnOrders business block without requirin
   assert.match(source, /returnOrderCodes/);
   assert.match(source, /Mã SP/);
   assert.match(source, /SL trả/);
+  assert.match(source, /Điều chỉnh hàng trả theo sản phẩm/);
+  assert.match(source, /correctedReturnItems/);
+  assert.match(source, /oldReturnQty/);
+  assert.match(source, /newReturnQty/);
 });
 
 test('Delivery Today New listOrders uses delivery operational list instead of broad SalesOrder date scan', async () => {
@@ -141,4 +145,16 @@ test('Delivery Today New listOrders uses delivery operational list instead of br
 
   deliveryTodayNewService.setDeliveryListServiceForTest(null);
   deliveryTodayNewService.setModelsForTest(null);
+});
+
+test('Delivery Today New item-level return adjustment UI keeps Phase92 immutable correction contract', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/new/91-delivery-today-new.js'), 'utf8');
+  assert.match(source, /Điều chỉnh hàng trả \/ tiền thu/);
+  assert.match(source, /không sửa phiếu returnOrders cũ/);
+  assert.match(source, /Không sinh AR-RETURN/i);
+  assert.match(source, /correctedReturnItems/);
+  assert.doesNotMatch(source, /fetch\([^)]*return-orders/i);
+  assert.doesNotMatch(source, /\/api\/return-orders/);
 });

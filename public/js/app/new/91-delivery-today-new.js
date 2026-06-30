@@ -2,7 +2,7 @@
   'use strict';
 
   var rootId = 'deliveryTodayNewRoot';
-  var state = { rows: [], selectedIndex: -1, loaded: false, versionCache: {} };
+  var state = { rows: [], selectedIndex: -1, loaded: false, versionCache: {}, correctionReturnItems: [] };
 
   function byId(id) { return document.getElementById(id); }
   function esc(value) {
@@ -95,7 +95,7 @@
       '.delivery-new-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:10px 0;}' +
       '.delivery-new-detail-cell{border:1px solid #dbe7f5;border-radius:10px;padding:9px 10px;background:#fff;}.delivery-new-detail-cell span{display:block;color:#64748b;font-size:12px;}.delivery-new-detail-cell b{display:block;text-align:right;font-size:16px;margin-top:4px;}' +
       '.delivery-new-safe-note{border:1px solid #bae6fd;background:#eff6ff;border-radius:10px;padding:10px 12px;color:#075985;font-weight:700;margin:8px 0;}' +
-      '.delivery-new-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.delivery-new-version-list{margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:8px;color:#334155;}.delivery-new-returnorders{margin:12px 0;border:1px solid #dbe7f5;border-radius:12px;background:#fff;overflow:hidden;}.delivery-new-returnorders-header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}.delivery-new-returnorders-header h4{margin:0;font-size:14px;}.delivery-new-returnorders-header small{display:block;color:#64748b;margin-top:3px;}.delivery-new-returnorder-card{padding:10px 12px;border-bottom:1px dashed #dbe7f5;}.delivery-new-returnorder-card:last-child{border-bottom:0;}.delivery-new-returnorder-meta{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:space-between;color:#475569;font-size:12px;}.delivery-new-returnorder-meta b{color:#0f172a;}.delivery-new-return-items{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}.delivery-new-return-items th,.delivery-new-return-items td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-return-items th{color:#64748b;font-weight:800;background:#f8fafc;}.delivery-new-return-items .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}.delivery-new-returnorder-note{margin-top:8px;}' +
+      '.delivery-new-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.delivery-new-version-list{margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:8px;color:#334155;}.delivery-new-returnorders{margin:12px 0;border:1px solid #dbe7f5;border-radius:12px;background:#fff;overflow:hidden;}.delivery-new-returnorders-header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}.delivery-new-returnorders-header h4{margin:0;font-size:14px;}.delivery-new-returnorders-header small{display:block;color:#64748b;margin-top:3px;}.delivery-new-returnorder-card{padding:10px 12px;border-bottom:1px dashed #dbe7f5;}.delivery-new-returnorder-card:last-child{border-bottom:0;}.delivery-new-returnorder-meta{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:space-between;color:#475569;font-size:12px;}.delivery-new-returnorder-meta b{color:#0f172a;}.delivery-new-return-items{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}.delivery-new-return-items th,.delivery-new-return-items td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-return-items th{color:#64748b;font-weight:800;background:#f8fafc;}.delivery-new-return-items .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}.delivery-new-returnorder-note{margin-top:8px;}.delivery-new-adjust-table{width:100%;border-collapse:collapse;margin:8px 0 10px;font-size:12px;}.delivery-new-adjust-table th,.delivery-new-adjust-table td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-adjust-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-adjust-table .num{text-align:right;font-variant-numeric:tabular-nums;}.delivery-new-adjust-table input{width:88px;text-align:right;}' +
       '.delivery-new-correction-modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1000;width:min(900px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow:auto;box-shadow:0 18px 50px rgba(15,23,42,.35);}' +
       '.delivery-new-form-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;}.delivery-new-form-grid label{font-weight:700;color:#0f172a;}.delivery-new-form-grid input{width:100%;}.delivery-new-form-grid .wide{grid-column:span 2;}' +
       '@media(max-width:1100px){.delivery-new-list-grid,.delivery-new-row{grid-template-columns:minmax(180px,1.5fr) 80px 80px 80px 80px 80px 85px;}.delivery-new-list-grid span:nth-child(8),.delivery-new-row span:nth-child(8){display:none;}}' +
@@ -237,7 +237,7 @@
       '<div class="new-detail-row"><span>NVGH</span><b>' + esc((row.deliveryStaffCode || '') + ' - ' + (row.deliveryStaffName || '')) + '</b></div>' +
       '<div class="new-detail-row"><span>Phiên bản closeout</span><b>v' + esc(row.version || 0) + (row.correctionVersionApplied ? ' · có điều chỉnh' : '') + '</b></div>' +
       (row.correctionVersionApplied ? '<div class="new-detail-row"><span>Mã điều chỉnh</span><b>' + esc(row.correctionCode || row.correctionId || '') + '</b></div>' : '') +
-      (confirmed ? '<div class="delivery-new-detail-actions"><button id="deliveryTodayNewCorrectionOpen" type="button" class="primary-action">Tạo điều chỉnh</button><button id="deliveryTodayNewVersionsLoad" type="button" class="secondary">Xem lịch sử version</button></div>' : '') +
+      (confirmed ? '<div class="delivery-new-detail-actions"><button id="deliveryTodayNewCorrectionOpen" type="button" class="primary-action">Điều chỉnh hàng trả / tiền thu</button><button id="deliveryTodayNewVersionsLoad" type="button" class="secondary">Xem lịch sử version</button></div>' : '') +
       '<div id="deliveryTodayNewVersionList" class="delivery-new-version-list"></div>';
     var openBtn = byId('deliveryTodayNewCorrectionOpen');
     if (openBtn) openBtn.addEventListener('click', function () { openCorrectionModal(row); });
@@ -256,32 +256,108 @@
     return '/api/new/delivery-today/closeouts/' + encodeURIComponent(rowKey(row)) + '/versions';
   }
 
+  function qty(value) {
+    var n = Number(String(value == null ? 0 : value).replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function returnAdjustmentItemsFromRow(row) {
+    var returns = Array.isArray(row && row.returnOrders) ? row.returnOrders : [];
+    var map = {};
+    returns.forEach(function (ro) {
+      (Array.isArray(ro.items) ? ro.items : []).forEach(function (item) {
+        var productCode = String(item.productCode || '').trim();
+        var productName = String(item.productName || '').trim();
+        var oldQty = qty(item.returnQty);
+        var amount = num(item.amount);
+        var unitPrice = num(item.unitPrice) || (oldQty ? Math.round(amount / oldQty) : 0);
+        var key = productCode + '|' + productName + '|' + unitPrice;
+        if (!map[key]) {
+          map[key] = {
+            productCode: productCode,
+            productName: productName,
+            unit: item.unit || '',
+            oldReturnQty: 0,
+            newReturnQty: 0,
+            unitPrice: unitPrice,
+            oldAmount: 0
+          };
+        }
+        map[key].oldReturnQty += oldQty;
+        map[key].newReturnQty += oldQty;
+        map[key].oldAmount += amount || Math.round(oldQty * unitPrice);
+      });
+    });
+    return Object.keys(map).map(function (key) { return map[key]; });
+  }
+
+  function renderReturnAdjustmentTable(items) {
+    if (!items.length) {
+      return '<div class="delivery-new-safe-note">Chưa có chi tiết mặt hàng trong phiếu trả. Có thể điều chỉnh theo tổng tiền hàng trả ở ô bên dưới.</div>' +
+        '<div class="delivery-new-form-grid">' +
+          '<label>Hàng trả hiện tại<input id="deliveryCorrectionOldReturn" disabled value="0"></label>' +
+          '<label>Hàng trả đúng<input id="deliveryCorrectionNewReturn" inputmode="numeric" value="0"></label>' +
+        '</div>';
+    }
+    return '<h4>Điều chỉnh hàng trả theo sản phẩm</h4>' +
+      '<table class="delivery-new-adjust-table"><thead><tr><th>Mã SP</th><th>Tên SP</th><th class="num">SL cũ</th><th class="num">SL đúng</th><th class="num">Đơn giá</th><th class="num">Chênh lệch</th></tr></thead><tbody>' +
+      items.map(function (item, index) {
+        return '<tr>' +
+          '<td>' + esc(item.productCode) + '</td>' +
+          '<td>' + esc(item.productName) + '</td>' +
+          '<td class="num">' + esc(item.oldReturnQty) + '</td>' +
+          '<td class="num"><input class="deliveryCorrectionReturnQty" data-index="' + index + '" inputmode="numeric" value="' + esc(item.newReturnQty) + '"></td>' +
+          '<td class="num">' + money(item.unitPrice) + '</td>' +
+          '<td class="num delivery-new-return" data-return-delta="' + index + '">0</td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table>';
+  }
+
   function openCorrectionModal(row) {
     var modal = byId('deliveryTodayNewCorrectionModal');
     if (!modal || !row) return;
+    var returnItems = returnAdjustmentItemsFromRow(row);
+    state.correctionReturnItems = returnItems;
     modal.hidden = false;
     modal.innerHTML = '' +
-      '<h3>Tạo điều chỉnh sau chốt</h3>' +
-      '<div class="delivery-new-safe-note">Hệ thống sẽ tạo closeout version mới, không sửa bản cũ, không sinh AR-RETURN và không sinh AR-SALE-REVERSAL.</div>' +
+      '<h3>Điều chỉnh hàng trả / tiền thu sau chốt</h3>' +
+      '<div class="delivery-new-safe-note">Đơn đã xác nhận kế toán: điều chỉnh hàng trả chỉ tạo closeout version mới và AR-DEBT-ADJUSTMENT, không sửa phiếu returnOrders cũ, không sinh AR-RETURN.</div>' +
       '<div class="delivery-new-safe-note">Hàng trả hiện tại được tổng hợp từ ' + esc(row.returnOrderCount || 0) + ' phiếu trả: ' + esc((row.returnOrderCodes || []).join(', ') || 'không có') + '.</div>' +
+      renderReturnAdjustmentTable(returnItems).replace('id="deliveryCorrectionOldReturn" disabled value="0"', 'id="deliveryCorrectionOldReturn" disabled value="' + esc(money(row.returnedAmount)) + '"').replace('id="deliveryCorrectionNewReturn" inputmode="numeric" value="0"', 'id="deliveryCorrectionNewReturn" inputmode="numeric" value="' + esc(row.returnedAmount || 0) + '"') +
+      '<h4>Điều chỉnh tiền thu</h4>' +
       '<div class="delivery-new-form-grid">' +
-        '<label>Hàng trả hiện tại<input id="deliveryCorrectionOldReturn" disabled value="' + esc(money(row.returnedAmount)) + '"></label>' +
-        '<label>Hàng trả đúng<input id="deliveryCorrectionNewReturn" inputmode="numeric" value="' + esc(row.returnedAmount || 0) + '"></label>' +
         '<label>Tiền thu hiện tại<input id="deliveryCorrectionOldCash" disabled value="' + esc(money(row.collectedAmount)) + '"></label>' +
         '<label>Tiền thu đúng<input id="deliveryCorrectionNewCash" inputmode="numeric" value="' + esc(row.collectedAmount || 0) + '"></label>' +
-        '<label class="wide">Lý do bắt buộc<input id="deliveryCorrectionReason" placeholder="Ví dụ: kế toán nhập thiếu tiền thu"></label>' +
+        '<label class="wide">Lý do bắt buộc<input id="deliveryCorrectionReason" placeholder="Ví dụ: sửa số lượng hàng trả sau đối soát"></label>' +
         '<label class="wide">Ghi chú<input id="deliveryCorrectionNote" placeholder="Ghi chú thêm nếu có"></label>' +
       '</div>' +
       '<div id="deliveryCorrectionPreview" class="delivery-new-safe-note"></div>' +
       '<div class="delivery-new-detail-actions"><button id="deliveryCorrectionSubmit" type="button" class="primary-action">Lưu điều chỉnh</button><button id="deliveryCorrectionCancel" type="button" class="secondary">Đóng</button></div>';
 
+    function currentReturnDelta() {
+      if (!state.correctionReturnItems.length) {
+        return num(byId('deliveryCorrectionNewReturn') && byId('deliveryCorrectionNewReturn').value) - num(row.returnedAmount);
+      }
+      return state.correctionReturnItems.reduce(function (sum, item, index) {
+        var input = document.querySelector('.deliveryCorrectionReturnQty[data-index="' + index + '"]');
+        var newQty = qty(input ? input.value : item.newReturnQty);
+        var delta = Math.round((newQty - qty(item.oldReturnQty)) * num(item.unitPrice));
+        var cell = document.querySelector('[data-return-delta="' + index + '"]');
+        if (cell) cell.textContent = money(delta);
+        return sum + delta;
+      }, 0);
+    }
+
     function preview() {
-      var returnDelta = num(byId('deliveryCorrectionNewReturn').value) - num(row.returnedAmount);
+      var returnDelta = currentReturnDelta();
       var cashDelta = num(byId('deliveryCorrectionNewCash').value) - num(row.collectedAmount);
       var debtDelta = -returnDelta - cashDelta;
       var box = byId('deliveryCorrectionPreview');
       if (box) box.textContent = 'Xem trước: hàng trả ' + money(returnDelta) + ' · tiền thu ' + money(cashDelta) + ' · công nợ ' + money(debtDelta);
     }
+
+    Array.prototype.forEach.call(modal.querySelectorAll('.deliveryCorrectionReturnQty'), function (el) { el.addEventListener('input', preview); });
     ['deliveryCorrectionNewReturn', 'deliveryCorrectionNewCash'].forEach(function (id) {
       var el = byId(id);
       if (el) el.addEventListener('input', preview);
@@ -289,29 +365,64 @@
     preview();
 
     var cancel = byId('deliveryCorrectionCancel');
-    if (cancel) cancel.addEventListener('click', function () { modal.hidden = true; modal.innerHTML = ''; });
+    if (cancel) cancel.addEventListener('click', function () { modal.hidden = true; modal.innerHTML = ''; state.correctionReturnItems = []; });
     var submit = byId('deliveryCorrectionSubmit');
     if (submit) submit.addEventListener('click', function () { submitCorrection(row); });
   }
 
   async function submitCorrection(row) {
-    var returnDelta = num(byId('deliveryCorrectionNewReturn').value) - num(row.returnedAmount);
-    var cashDelta = num(byId('deliveryCorrectionNewCash').value) - num(row.collectedAmount);
+    var hasItemAdjustments = state.correctionReturnItems && state.correctionReturnItems.length;
+    var returnDelta = 0;
+    var correctedReturnItems = [];
+    if (hasItemAdjustments) {
+      correctedReturnItems = state.correctionReturnItems.map(function (item, index) {
+        var input = document.querySelector('.deliveryCorrectionReturnQty[data-index="' + index + '"]');
+        var newQty = qty(input ? input.value : item.newReturnQty);
+        var adjustmentQty = newQty - qty(item.oldReturnQty);
+        var adjustmentAmount = Math.round(adjustmentQty * num(item.unitPrice));
+        returnDelta += adjustmentAmount;
+        return {
+          productCode: item.productCode,
+          productName: item.productName,
+          oldReturnQty: item.oldReturnQty,
+          newReturnQty: newQty,
+          unitPrice: item.unitPrice,
+          adjustmentQty: adjustmentQty,
+          adjustmentAmount: adjustmentAmount
+        };
+      });
+    } else {
+      returnDelta = num(byId('deliveryCorrectionNewReturn').value) - num(row.returnedAmount);
+    }
+    var oldCash = num(row.collectedAmount);
+    var newCash = num(byId('deliveryCorrectionNewCash').value);
+    var cashDelta = newCash - oldCash;
     var reason = byId('deliveryCorrectionReason') ? byId('deliveryCorrectionReason').value.trim() : '';
     var note = byId('deliveryCorrectionNote') ? byId('deliveryCorrectionNote').value.trim() : '';
     if (!reason) { setMessage('Bắt buộc nhập lý do điều chỉnh.', true); return; }
     if (!returnDelta && !cashDelta) { setMessage('Không có chênh lệch để điều chỉnh.', true); return; }
     try {
+      var body = {
+        reason: reason,
+        note: note,
+        correctedCashLines: [{ paymentMethod: 'delivery_collected', oldAmount: oldCash, newAmount: newCash, adjustmentAmount: cashDelta }]
+      };
+      if (hasItemAdjustments) {
+        body.correctedReturnItems = correctedReturnItems;
+      } else {
+        body.returnAdjustmentAmount = returnDelta;
+      }
       var res = await fetch(correctionEndpoint(row), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ returnAdjustmentAmount: returnDelta, cashAdjustmentAmount: cashDelta, reason: reason, note: note })
+        body: JSON.stringify(body)
       });
       var json = await res.json();
       if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tạo được điều chỉnh');
       var modal = byId('deliveryTodayNewCorrectionModal');
       if (modal) { modal.hidden = true; modal.innerHTML = ''; }
-      setMessage('Đã tạo điều chỉnh và closeout version mới.');
+      state.correctionReturnItems = [];
+      setMessage('Đã tạo điều chỉnh hàng trả/tiền thu và closeout version mới.');
       await load();
     } catch (err) {
       setMessage(err.message || 'Không tạo được điều chỉnh', true);
