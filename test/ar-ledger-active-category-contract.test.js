@@ -117,7 +117,7 @@ test('technical reversed or voided ledgers remain inactive', () => {
   assert.equal(isActiveLedgerDoc(baseLedger({ status: 'superseded' })), false);
 });
 
-test('debt read model includes AR-RETURN-REVERSAL as debit net impact', () => {
+test('Phase88 debt read model excludes legacy AR-RETURN-REVERSAL rows from v2 debt balance', () => {
   const rows = [
     baseLedger({
       _id: 'sale',
@@ -172,11 +172,6 @@ test('debt read model includes AR-RETURN-REVERSAL as debit net impact', () => {
   ];
 
   const report = buildCustomerDebtReadModelFromLedgers(rows, { status: 'all', q: '4501256' }, { today: '2026-06-29' });
-  assert.equal(report.orders.length, 1);
-  const order = report.orders[0];
-  assert.equal(order.totalDebit, 5418153);
-  assert.equal(order.totalCredit, 5140632);
-  assert.equal(order.remainingDebt, 277521);
-  assert.equal(order.returnAmount, 276632);
-  assert.equal(order.returnReversalAmount, 276632);
+  assert.equal(report.orders.length, 0);
+  assert.equal(report.customers.length, 0);
 });

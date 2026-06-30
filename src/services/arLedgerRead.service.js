@@ -2,7 +2,7 @@
 
 const dateUtil = require('../utils/date.util');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
-const { isCanonicalArDebtLedger, validateArLedgerContract } = require('../domain/ar/arLedgerValidator');
+const { isCanonicalArDebtLedger, validateArLedgerContract, PHASE87_READ_MODEL_CATEGORIES } = require('../domain/ar/arLedgerValidator');
 const {
   buildCanonicalArLedgerMatch,
   normalizeArDebtFilters,
@@ -42,7 +42,7 @@ function normalizeAndValidateRows(rows = [], filters = {}) {
   const rawCanonicalLedgers = [];
   const rejectedLedgers = [];
   for (const row of Array.isArray(rows) ? rows : []) {
-    if (isCanonicalArDebtLedger(row) && canonicalRowMatchesFilters(row, filters)) {
+    if (isCanonicalArDebtLedger(row) && PHASE87_READ_MODEL_CATEGORIES.includes(clean(row.category).toUpperCase()) && canonicalRowMatchesFilters(row, filters)) {
       rawCanonicalLedgers.push(row);
     } else {
       rejectedLedgers.push({ ledgerId: clean(row.id || row.code || row._id), validation: validateArLedgerContract(row) });
@@ -157,7 +157,7 @@ function createOrderBucket(ledger = {}, rebuiltAt = dateUtil.nowIso()) {
     lastDebtDate: '',
     status: 'paid',
     rebuiltAt,
-    readModelVersion: 'phase80-unified-ar-ledger-read-standard-v1'
+    readModelVersion: 'phase87-single-ar-debt-closeout-v2'
   };
 }
 
@@ -170,7 +170,7 @@ function aggregateRowsByOrder(ledgers = [], filters = {}) {
     const key = `${ledger.customerCode}::${ledger.sourceId}`;
     if (!map.has(key)) map.set(key, createOrderBucket(ledger, rebuiltAt));
     const target = map.get(key);
-    if (ledger.category === 'AR-SALE') {
+    if (ledger.category === 'AR-DEBT-OPEN') {
       target.salesStaffCode = ledger.salesStaffCode || target.salesStaffCode;
       target.salesStaffName = ledger.salesStaffName || target.salesStaffName;
       target.deliveryStaffCode = ledger.deliveryStaffCode || target.deliveryStaffCode;

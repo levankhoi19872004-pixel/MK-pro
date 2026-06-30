@@ -35,6 +35,11 @@ function normalizeArCategory(doc = {}) {
   const type = lower(doc.type);
   const text = combinedIdentityText(doc);
 
+  if (exact === 'AR-DEBT-OPEN' || type === 'ar_debt_open' || /AR[-_ ]?DEBT[-_ ]?OPEN/.test(text)) return 'AR-DEBT-OPEN';
+  if (exact === 'AR-DEBT-PAYMENT' || type === 'ar_debt_payment' || /AR[-_ ]?DEBT[-_ ]?PAYMENT/.test(text)) return 'AR-DEBT-PAYMENT';
+  if (exact === 'AR-DEBT-ADJUSTMENT' || type === 'ar_debt_adjustment' || /AR[-_ ]?DEBT[-_ ]?ADJUSTMENT/.test(text)) return 'AR-DEBT-ADJUSTMENT';
+  if (exact === 'AR-DEBT-VOID' || type === 'ar_debt_void' || /AR[-_ ]?DEBT[-_ ]?VOID/.test(text)) return 'AR-DEBT-VOID';
+
   if (
     exact === 'AR-SALE-REVERSAL'
     || type === 'ar_sale_reversal'
@@ -71,13 +76,13 @@ function isBusinessArReturnReversal(doc = {}) {
 
 function getArLedgerCategoryEffect(doc = {}) {
   const category = normalizeArCategory(doc);
-  if (['AR-SALE', 'AR-EXTERNAL-DEBT', 'AR-RETURN-REVERSAL', 'AR-RECEIPT-REVERSAL'].includes(category)) {
+  if (['AR-DEBT-OPEN', 'AR-SALE', 'AR-EXTERNAL-DEBT', 'AR-RETURN-REVERSAL', 'AR-RECEIPT-REVERSAL'].includes(category)) {
     return { category, defaultSide: 'debit', effect: 'increase_ar' };
   }
-  if (['AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RECEIPT', 'AR-BONUS-ALLOWANCE'].includes(category)) {
+  if (['AR-DEBT-PAYMENT', 'AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RECEIPT', 'AR-BONUS-ALLOWANCE'].includes(category)) {
     return { category, defaultSide: 'credit', effect: 'decrease_ar' };
   }
-  if (category === 'AR-ADJUSTMENT') {
+  if (category === 'AR-DEBT-ADJUSTMENT' || category === 'AR-DEBT-VOID' || category === 'AR-ADJUSTMENT') {
     return { category, defaultSide: 'explicit', effect: 'adjust_ar' };
   }
   return { category, defaultSide: 'explicit', effect: 'explicit_ar' };

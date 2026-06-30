@@ -41,7 +41,7 @@ test('DeliveryEngine staff lookup accepts users code and staffCode', () => {
 
 test('business staff repository lookup does not match username or _id', () => {
   const repo = read('src/repositories/userRepository.js');
-  const legacy = read('src/services/master-order/masterOrderLegacy.service.js');
+  const legacy = read('src/services/master-order/masterOrderQuery.impl.js');
 
   assert.match(repo, /function buildBusinessStaffCodeFilter/);
   assert.match(repo, /async function findBusinessStaffByCode/);
@@ -50,7 +50,7 @@ test('business staff repository lookup does not match username or _id', () => {
   assert.doesNotMatch(businessFilter, /\{\s*_id\s*:/);
 
   assert.match(legacy, /findBusinessStaffByCode/);
-  assert.doesNotMatch(legacy.match(/async function resolveStaff[\s\S]*?\n}\n/)?.[0] || '', /StaffName|findStaffByIdOrCode/);
+  assert.doesNotMatch(legacy.match(/async function resolveStaff[\s\S]*?\n}\n/)?.[0] || '', /StaffName|findStaffByIdOrCode|username|_id/);
 });
 
 test('web and mobile tokens must not use username as staffCode fallback', () => {

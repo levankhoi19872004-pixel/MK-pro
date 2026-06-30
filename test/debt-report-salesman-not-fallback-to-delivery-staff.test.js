@@ -42,22 +42,22 @@ test('debtReport keeps NVBH separate from NVGH when staffName contains delivery 
 
   const report = buildCustomerDebtReadModelFromLedgers([
     {
-      _id: 'ar-sale-staff-boundary',
+      _id: 'ar-debt-open-staff-boundary',
       account: 'AR',
       accountingConfirmed: true,
       accountingStatus: 'confirmed',
       status: 'posted',
-      category: 'AR-SALE',
-      ledgerType: 'AR-SALE',
+      category: 'AR-DEBT-OPEN',
+      ledgerType: 'AR-DEBT-OPEN',
       entryType: 'normal',
-      sourceType: 'salesOrder',
+      sourceType: 'SALES_ORDER_DELIVERY_CLOSEOUT',
       sourceId: 'SO90203391',
       sourceCode: 'HU90203391',
       active: true,
       reversed: false,
-      idempotencyKey: 'AR-SALE:salesOrder:SO90203391',
+      idempotencyKey: 'AR-DEBT-OPEN:SO90203391',
       accountingBatchId: 'ACC-SO90203391-TEST',
-      type: 'ar_sale',
+      type: 'ar_debt_open',
       date: '2026-06-09',
       customerCode: '4499704',
       customerName: 'Chị Giang Điệp',
@@ -72,7 +72,8 @@ test('debtReport keeps NVBH separate from NVGH when staffName contains delivery 
       debit: 1271203,
       credit: 0,
       amount: 1271203,
-      direction: 'debit'
+      direction: 'debit',
+      amountField: 'debit'
     }
   ], { status: 'all', q: '4499704' }, { today: '2026-06-09' });
 

@@ -9,10 +9,8 @@ function read(file) {
   return require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', file));
 }
 
-test('debt report reads only arLedgers and does not remap from Customer/User', () => {
+test('debt report delegates to AR debt read model v2 and does not remap from Customer/User', () => {
   const src = read('src/services/reportLegacy.service.js');
-
-  assert.match(src, /REPORT_DEBT_ARLEDGER_ONLY_MATCH_START/);
 
   assert.doesNotMatch(src, /require\(['"]\.\.\/models\/Customer['"]\)/);
   assert.doesNotMatch(src, /require\(['"]\.\.\/models\/User['"]\)/);
@@ -23,6 +21,7 @@ test('debt report reads only arLedgers and does not remap from Customer/User', (
   assert.doesNotMatch(src, /makeCustomerDebtMeta/);
   assert.doesNotMatch(src, /buildCustomerMetaMap/);
 
-  assert.match(src, /ArLedger\.aggregate/);
-  assert.match(src, /ledgerCollection:\s*['"]arLedgers['"]/);
+  assert.match(src, /arCustomerDebtReadModel\.service/);
+  assert.match(src, /async function debtReport[\s\S]*arCustomerDebtReadModel\.debtReport/);
+  assert.match(src, /debtSource:\s*['"]AR_DEBT_READ_MODEL_V2['"]/);
 });

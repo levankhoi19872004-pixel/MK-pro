@@ -17,15 +17,16 @@ function functionBlock(source, name) {
   return source.slice(start, end);
 }
 
-test('DeliverySettlementService owns delivery settlement posting boundaries', () => {
+test('DeliverySettlementService owns operational closeout boundaries and no longer posts AR directly', () => {
   const source = read('src/domain/settlement/DeliverySettlementService.js');
 
-  assert.match(source, /const ArPostingService = require\('\.\.\/posting\/ArPostingService'\);/);
   assert.match(source, /const fundService = require\('\.\.\/\.\.\/services\/fundService'\);/);
   assert.match(source, /async function recordCollectedMoney\(order = \{\}, options = \{\}\)/);
   assert.match(source, /async function submitCashToFund\(idOrCode, body = \{\}\)/);
   assert.match(source, /async function cashInTransitReport\(query = \{\}\)/);
-  assert.match(source, /ArPostingService\.postReceipt\(\{/);
+  assert.doesNotMatch(source, /const ArPostingService = require\(/);
+  assert.doesNotMatch(source, /ArPostingService\.postReceipt\s*\(/);
+  assert.match(source, /AccountingCloseoutService/);
   assert.match(source, /fundService\.confirmDeliveryCashSubmission\(target, payload\)/);
   assert.match(source, /DeliveryCashInTransitReportService/);
   assert.match(source, /DeliveryCashInTransitReportService\.listDeliveryCashInTransit\(query\)/);

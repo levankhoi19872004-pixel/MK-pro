@@ -97,7 +97,10 @@ test('sync domain converts an offline command to a visible non-editable pending 
   assert.equal(order.pendingSync, true);
   assert.equal(order.canEdit, false);
   assert.equal(order.totalAmount, 200);
-  assert.equal(order.debtAmount, 150);
+  assert.equal(order.debtAmount, null);
+  assert.equal(order.currentDebtAmount, null);
+  assert.equal(order.debtSource, 'UNAVAILABLE_PENDING_SYNC');
+  assert.equal(order.debtDisplayText, 'Chưa có dữ liệu công nợ');
 });
 
 test('phase 4 lowers the main bundle budget and bumps browser cache version', () => {

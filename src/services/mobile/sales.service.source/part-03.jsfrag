@@ -31,7 +31,9 @@
         goodsAmountAfterPromotion: totalAmount,
         totalAmount,
         paidAmount,
-        debtAmount: totalAmount - paidAmount,
+        debtAmount: 0,
+        currentDebtAmount: 0,
+        debtSource: 'PENDING_ACCOUNTING_NOT_AR_DEBT',
         promotionCodes: Array.from(new Set(items.map((item) => item.promotionCode).filter(Boolean))),
         saleMethod: PROMOTION,
         saleMode: PROMOTION,
@@ -299,10 +301,6 @@
     const numberValue = (field) => ({ $convert: { input: field, to: 'double', onError: 0, onNull: 0 } });
     const totalExpr = numberValue({ $ifNull: ['$totalAmount', { $ifNull: ['$amount', '$grandTotal'] }] });
     const paidExpr = numberValue({ $ifNull: ['$paidAmount', '$paymentAmount'] });
-    const rawDebtExpr = numberValue({
-      $ifNull: ['$debtAmount', { $subtract: [totalExpr, paidExpr] }]
-    });
-    const debtExpr = { $cond: [{ $gt: [rawDebtExpr, 0] }, rawDebtExpr, 0] };
 
     const result = await SalesOrder.aggregate([
       { $match: match },
@@ -337,7 +335,6 @@
               grandTotal: 1,
               paidAmount: 1,
               paymentAmount: 1,
-              debtAmount: 1,
               status: 1,
               lifecycleStatus: 1,
               deliveryStatus: 1,
@@ -368,7 +365,7 @@
               orderCount: { $sum: 1 },
               totalAmount: { $sum: totalExpr },
               paidAmount: { $sum: paidExpr },
-              debtAmount: { $sum: debtExpr }
+              debtAmount: { $sum: 0 }
             }
           }]
         }
@@ -377,48 +374,55 @@
 
     const facet = result?.[0] || {};
     const totals = facet.totals?.[0] || {};
-    const items = (facet.rows || []).map((order) => ({
-      id: order.id || String(order._id || ''),
-      code: order.code,
-      date: order.date || order.orderDate,
-      customerName: order.customerName,
-      totalAmount: toNumber(order.totalAmount ?? order.amount ?? order.grandTotal),
-      paidAmount: toNumber(order.paidAmount ?? order.paymentAmount),
-      debtAmount: Math.max(0, toNumber(
-        order.debtAmount ?? (toNumber(order.totalAmount ?? order.amount ?? order.grandTotal) - toNumber(order.paidAmount ?? order.paymentAmount))
-      )),
-      status: order.status,
-      lifecycleStatus: order.lifecycleStatus || order.status || '',
-      deliveryStatus: order.deliveryStatus || 'pending',
-      deleted: Boolean(order.deleted),
-      isDeleted: Boolean(order.isDeleted),
-      deletedAt: order.deletedAt || '',
-      deleteMode: order.deleteMode || '',
-      deleteReason: order.deleteReason || '',
-      masterOrderId: order.masterOrderId || '',
-      masterOrderCode: order.masterOrderCode || '',
-      mergeStatus: order.mergeStatus || 'unmerged',
-      canEdit: mobileSalesOrderCanEdit(order),
-      editLockReason: mobileSalesOrderEditLockReason(order),
-      stockPosted: order.stockPosted === true,
-      customerId: order.customerId,
-      customerCode: order.customerCode,
-      customerPhone: order.customerPhone,
-      customerAddress: order.customerAddress,
-      salesStaffCode: order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH || '',
-      salesStaffName: order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName || '',
-      salesPersonCode: order.salesPersonCode || '',
-      salesPersonName: order.salesPersonName || '',
-      salesmanCode: order.salesmanCode || '',
-      salesmanName: order.salesmanName || '',
-      nvbhCode: order.nvbhCode || '',
-      nvbhName: order.nvbhName || '',
-      maNVBH: order.maNVBH || '',
-      maNVBHName: order.maNVBHName || '',
-      items: order.items || [],
-      note: order.note || '',
-      createdAt: order.createdAt
-    })).filter((order) => orderStatusUtil.isOrderVisibleInHistory(order));
+    const visibleRows = (facet.rows || []).filter((order) => orderStatusUtil.isOrderVisibleInHistory(order));
+    const customerCodes = Array.from(new Set(visibleRows.map((order) => String(order.customerCode || '').trim()).filter(Boolean)));
+    const debtMap = await arDebtRuntimeView.getCustomerDebtMap(customerCodes, { status: 'all' });
+    const items = visibleRows.map((order) => {
+      const runtimeDebt = debtMap.get(String(order.customerCode || '').trim()) || arDebtRuntimeView._internal.emptyCustomerDebt(order.customerCode || '');
+      return {
+        id: order.id || String(order._id || ''),
+        code: order.code,
+        date: order.date || order.orderDate,
+        customerName: order.customerName,
+        totalAmount: toNumber(order.totalAmount ?? order.amount ?? order.grandTotal),
+        paidAmount: toNumber(order.paidAmount ?? order.paymentAmount),
+        debtAmount: runtimeDebt.currentDebtAmount,
+        currentDebtAmount: runtimeDebt.currentDebtAmount,
+        debtSource: runtimeDebt.debtSource,
+        status: order.status,
+        lifecycleStatus: order.lifecycleStatus || order.status || '',
+        deliveryStatus: order.deliveryStatus || 'pending',
+        deleted: Boolean(order.deleted),
+        isDeleted: Boolean(order.isDeleted),
+        deletedAt: order.deletedAt || '',
+        deleteMode: order.deleteMode || '',
+        deleteReason: order.deleteReason || '',
+        masterOrderId: order.masterOrderId || '',
+        masterOrderCode: order.masterOrderCode || '',
+        mergeStatus: order.mergeStatus || 'unmerged',
+        canEdit: mobileSalesOrderCanEdit(order),
+        editLockReason: mobileSalesOrderEditLockReason(order),
+        stockPosted: order.stockPosted === true,
+        customerId: order.customerId,
+        customerCode: order.customerCode,
+        customerPhone: order.customerPhone,
+        customerAddress: order.customerAddress,
+        salesStaffCode: order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH || '',
+        salesStaffName: order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName || '',
+        salesPersonCode: order.salesPersonCode || '',
+        salesPersonName: order.salesPersonName || '',
+        salesmanCode: order.salesmanCode || '',
+        salesmanName: order.salesmanName || '',
+        nvbhCode: order.nvbhCode || '',
+        nvbhName: order.nvbhName || '',
+        maNVBH: order.maNVBH || '',
+        maNVBHName: order.maNVBHName || '',
+        items: order.items || [],
+        note: order.note || '',
+        createdAt: order.createdAt
+      };
+    });
+    const debtSummaryAmount = Array.from(debtMap.values()).reduce((sum, row) => sum + Number(row.currentDebtAmount || 0), 0);
 
     return {
       body: {
@@ -429,7 +433,8 @@
         summary: {
           totalAmount: toNumber(totals.totalAmount),
           paidAmount: toNumber(totals.paidAmount),
-          debtAmount: toNumber(totals.debtAmount),
+          debtAmount: debtSummaryAmount,
+          debtSource: arDebtRuntimeView.DEBT_SOURCE,
           orderCount: toNumber(totals.orderCount)
         },
         pagination: buildPagination({ page, limit, totalRows: totals.orderCount || 0 })

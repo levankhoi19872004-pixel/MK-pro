@@ -4,7 +4,6 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const arLedgerRead = require('../src/services/arLedgerRead.service');
 const policy = require('../src/domain/ar/arLedgerQueryPolicy');
-const { buildArSaleLedger, buildArSaleReversalLedger } = require('../src/domain/ar/arLedgerContract');
 const { FakeModel, b0038423Order } = require('./helpers/phase79FakeModels');
 
 function setupLedgerRows(rows) {
@@ -13,21 +12,79 @@ function setupLedgerRows(rows) {
   return ArLedger;
 }
 
-test('buildCanonicalArLedgerMatch enforces confirmed active canonical AR categories', () => {
+function debtOpen(overrides = {}) {
+  const order = b0038423Order(overrides.order || {});
+  const amount = Number(overrides.amount ?? order.debtAmount ?? order.remainingDebt ?? order.totalAmount ?? 0);
+  const sourceId = overrides.sourceId || order.id;
+  const sourceCode = overrides.sourceCode || order.code;
+  return {
+    account: 'AR',
+    category: 'AR-DEBT-OPEN',
+    ledgerType: 'AR-DEBT-OPEN',
+    entryType: 'normal',
+    sourceType: 'SALES_ORDER_DELIVERY_CLOSEOUT',
+    sourceId,
+    sourceCode,
+    orderId: sourceId,
+    orderCode: sourceCode,
+    salesOrderId: sourceId,
+    salesOrderCode: sourceCode,
+    customerCode: order.customerCode,
+    customerName: order.customerName,
+    salesStaffCode: order.salesStaffCode,
+    salesStaffName: order.salesStaffName,
+    deliveryStaffCode: order.deliveryStaffCode,
+    deliveryStaffName: order.deliveryStaffName,
+    debit: amount,
+    credit: 0,
+    amount,
+    direction: 'debit',
+    amountField: 'debit',
+    active: true,
+    reversed: false,
+    accountingConfirmed: true,
+    accountingStatus: 'confirmed',
+    accountingBatchId: `CLOSEOUT-${sourceId}`,
+    id: `AR-DEBT-OPEN-${sourceCode}`,
+    code: `AR-DEBT-OPEN-${sourceCode}`,
+    idempotencyKey: `AR-DEBT-OPEN:${sourceId}`,
+    date: '2026-06-30',
+    ...overrides
+  };
+}
+
+function debtPayment(open, amount) {
+  return {
+    ...open,
+    category: 'AR-DEBT-PAYMENT',
+    ledgerType: 'AR-DEBT-PAYMENT',
+    sourceType: 'DEBT_PAYMENT',
+    debit: 0,
+    credit: amount,
+    amount,
+    direction: 'credit',
+    amountField: 'credit',
+    id: `AR-DEBT-PAYMENT-${open.sourceCode}`,
+    code: `AR-DEBT-PAYMENT-${open.sourceCode}`,
+    idempotencyKey: `AR-DEBT-PAYMENT:PAY-${open.sourceId}`
+  };
+}
+
+test('buildCanonicalArLedgerMatch enforces confirmed active Phase87 canonical AR categories', () => {
   const match = policy.buildCanonicalArLedgerMatch({ deliveryStaffCode: 'ghth', status: 'open' });
   assert.equal(match.account, 'AR');
   assert.equal(match.accountingConfirmed, true);
   assert.equal(match.accountingStatus, 'confirmed');
   assert.equal(match.active, true);
   assert.deepEqual(match.reversed, { $ne: true });
-  assert.ok(match.category.$in.includes('AR-SALE'));
+  assert.deepEqual(match.category.$in, ['AR-DEBT-OPEN', 'AR-DEBT-PAYMENT', 'AR-DEBT-ADJUSTMENT', 'AR-DEBT-VOID']);
   assert.ok(match.$and.some((part) => JSON.stringify(part).includes('deliveryStaffCode')));
 });
 
-test('getCanonicalArLedgers rejects dirty AR-SALE and never computes by code regex', async () => {
-  const sale = buildArSaleLedger(b0038423Order(), { accountant: 'kt01', timestamp: '1' });
-  const dirty = { ...sale, id: 'AR-SALE-DIRTY-B0038423', code: 'AR-SALE-DIRTY-B0038423', category: '', ledgerType: '', entryType: '' };
-  setupLedgerRows([sale, dirty]);
+test('getCanonicalArLedgers rejects dirty AR-DEBT-OPEN and never computes by code regex', async () => {
+  const open = debtOpen({ amount: 10402373 });
+  const dirty = { ...open, id: 'AR-DEBT-OPEN-DIRTY-B0038423', code: 'AR-DEBT-OPEN-DIRTY-B0038423', category: '', ledgerType: '', entryType: '' };
+  setupLedgerRows([open, dirty]);
   const result = await arLedgerRead.getCanonicalArLedgers({ deliveryStaffCode: 'GHTH' }, { includeRejected: true });
   assert.equal(result.canonicalLedgers.length, 1);
   assert.equal(result.canonicalLedgers[0].sourceCode, 'B0038423');
@@ -35,9 +92,9 @@ test('getCanonicalArLedgers rejects dirty AR-SALE and never computes by code reg
 });
 
 test('aggregateDebtByCustomer and aggregateDebtByOrder use debit minus credit only', async () => {
-  const sale = buildArSaleLedger(b0038423Order({ amount: 10402373 }), { accountant: 'kt01', timestamp: '1' });
-  const reversal = buildArSaleReversalLedger(sale, { accountant: 'kt01', timestamp: '2' });
-  setupLedgerRows([sale, reversal]);
+  const open = debtOpen({ amount: 10402373 });
+  const payment = debtPayment(open, 10402373);
+  setupLedgerRows([open, payment]);
   const orders = await arLedgerRead.aggregateDebtByOrder({ status: 'all', deliveryStaffCode: 'ghth' });
   assert.equal(orders.length, 1);
   assert.equal(orders[0].debit, 10402373);

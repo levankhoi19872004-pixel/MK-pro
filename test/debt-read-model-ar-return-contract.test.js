@@ -68,23 +68,13 @@ test('B0038424 debt read model contract: AR-RETURN category/idempotencyKey is co
   assert.equal(normalizeDebtAmount(rawDebt), 0);
 });
 
-test('reportLegacy read model uses confirmed AR ledgers, multi-field AR-RETURN classifier and return-order join fallback', () => {
+test('reportLegacy debt report delegates to AR debt read model v2 instead of classifying AR-RETURN legacy', () => {
   const src = read('src/services/reportLegacy.service.js');
 
-  assert.match(src, /account:\s*\/\^AR\$\/i/);
-  assert.match(src, /accountingConfirmed:\s*true/);
-  assert.match(src, /accountingStatus:\s*\{\s*\$in:\s*\['confirmed', 'locked', 'posted', 'accounting_confirmed'\]/);
-  assert.match(src, /entryType:\s*\{\s*\$ne:\s*'reversal'\s*\}/);
-  assert.match(src, /function extractSalesOrderCodeFromReturnToken/);
-  assert.match(src, /AR-RETURN:RO-/);
-  assert.match(src, /idempotencyKey:\s*\{\s*\$in:\s*orderCodes\s*\}/);
-  assert.match(src, /sourceOrderCode:\s*\{\s*\$in:\s*orderCodes\s*\}/);
-  assert.match(src, /returnOrderCode:\s*\{\s*\$in:\s*orderCodes\s*\}/);
-  assert.match(src, /isReturn:\s*\{\s*\$or:/);
-  assert.match(src, /\$eq:\s*\[\{\s*\$toUpper:[\s\S]*'AR-RETURN'\]/);
-  assert.match(src, /\$regexMatch:\s*\{\s*input:\s*\{\s*\$toUpper:[\s\S]*\$idempotencyKey[\s\S]*regex:\s*\/\^AR-RETURN:\//);
-  assert.match(src, /returnAmount:\s*\{\s*\$sum:\s*\{\s*\$cond:\s*\['\$isReturn', '\$creditLikeAmount', 0\]/);
-  assert.doesNotMatch(src, /returnAmount:\s*\{\s*\$sum:\s*\{\s*\$cond:\s*\[\{\s*\$regexMatch:\s*\{\s*input:\s*\{\s*\$toLower:\s*\{\s*\$ifNull:\s*\['\$type', ''\]/);
+  assert.match(src, /arCustomerDebtReadModel\.debtReport\(query\)/);
+  assert.match(src, /debtSource:\s*'AR_DEBT_READ_MODEL_V2'/);
+  assert.doesNotMatch(src, /isReturn:\s*\{\s*\$or:/);
+  assert.doesNotMatch(src, /returnAmount:\s*\{\s*\$sum:\s*\{\s*\$cond:\s*\['\$isReturn'/);
 });
 
 test('DebtReadService matches AR-RETURN:RO-B0038424 to B0038424 and blocks collection after tolerance', () => {

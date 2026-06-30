@@ -2,7 +2,18 @@
 
 const { toNumber } = require('../../utils/common.util');
 
+const PHASE87_READ_MODEL_CATEGORIES = Object.freeze([
+  'AR-DEBT-OPEN',
+  'AR-DEBT-PAYMENT',
+  'AR-DEBT-ADJUSTMENT',
+  'AR-DEBT-VOID'
+]);
+
+// Legacy categories are retained only so legacy audit/migration and old repair tests
+// can validate their existing rows. They are never canonical for the Phase88 debt
+// read model because isCanonicalArDebtLedger() below allows only AR-DEBT-* enums.
 const DEBT_CATEGORIES = Object.freeze([
+  ...PHASE87_READ_MODEL_CATEGORIES,
   'AR-SALE',
   'AR-SALE-REVERSAL',
   'AR-RETURN',
@@ -14,6 +25,10 @@ const DEBT_CATEGORIES = Object.freeze([
 ]);
 
 const CATEGORY_EFFECT = Object.freeze({
+  'AR-DEBT-OPEN': 'debit',
+  'AR-DEBT-PAYMENT': 'credit',
+  'AR-DEBT-ADJUSTMENT': 'either',
+  'AR-DEBT-VOID': 'either',
   'AR-SALE': 'debit',
   'AR-SALE-REVERSAL': 'credit',
   'AR-RETURN': 'credit',
@@ -36,17 +51,40 @@ function lower(value = '') {
   return clean(value).toLowerCase();
 }
 
+function hasOwnValue(source = {}, field) {
+  return Object.prototype.hasOwnProperty.call(source, field)
+    && source[field] !== undefined
+    && source[field] !== null
+    && clean(source[field]) !== '';
+}
+
 function ledgerIdentity(ledger = {}) {
   return clean(ledger.id || ledger.code || ledger._id || '(unknown)');
 }
 
+function moneyField(ledger = {}, field, errors = []) {
+  if (!hasOwnValue(ledger, field)) {
+    errors.push({ code: 'DIRTY_LEDGER_MISSING_AMOUNT_FIELD', field });
+    return 0;
+  }
+  const raw = Number(toNumber(ledger[field]));
+  if (!Number.isFinite(raw)) {
+    errors.push({ code: 'DIRTY_LEDGER_INVALID_AMOUNT_FIELD', field, value: ledger[field] });
+    return 0;
+  }
+  const amount = Math.round(raw);
+  if (amount < 0) errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', field, reason: 'negative amount', value: amount });
+  return amount;
+}
+
 function normalizeAccountingAmount(ledger = {}) {
-  const debit = Math.max(0, Math.round(toNumber(ledger.debit)));
-  const credit = Math.max(0, Math.round(toNumber(ledger.credit)));
-  const amount = Math.max(0, Math.round(toNumber(ledger.amount || Math.max(debit, credit))));
-  const direction = lower(ledger.direction || (debit > 0 ? 'debit' : (credit > 0 ? 'credit' : '')));
-  const amountField = lower(ledger.amountField || direction);
-  return { debit, credit, amount, direction, amountField };
+  const errors = [];
+  const debit = moneyField(ledger, 'debit', errors);
+  const credit = moneyField(ledger, 'credit', errors);
+  const amount = moneyField(ledger, 'amount', errors);
+  const direction = lower(hasOwnValue(ledger, 'direction') ? ledger.direction : '');
+  const amountField = lower(hasOwnValue(ledger, 'amountField') ? ledger.amountField : '');
+  return { debit, credit, amount, direction, amountField, errors };
 }
 
 function pushRequired(errors, ledger, field, code) {
@@ -63,49 +101,33 @@ function hasAccRevMismatch(ledger = {}) {
   return /ACC-/i.test(id) && /^REV-/i.test(batch);
 }
 
-const AR_RETURN_AMOUNT_SOURCE_FIELDS = Object.freeze([
-  'amount',
-  'debtneduction',
-  'debtreduction',
-  'returnamount',
-  'totalreturnamount',
-  'totalamount',
-  'returnedamount',
-  'totalvalue',
-  'items'
-]);
-
-function effectiveAmountFieldForValidation(category, amountField, direction) {
-  const field = lower(amountField || direction);
-  if (category === 'AR-RETURN' && AR_RETURN_AMOUNT_SOURCE_FIELDS.includes(field)) return 'credit';
-  return field;
-}
-
 function validateDebitCreditShape(ledger = {}, errors = []) {
   const category = upper(ledger.category);
   const effect = CATEGORY_EFFECT[category];
-  const { debit, credit, amount, direction, amountField } = normalizeAccountingAmount(ledger);
-  const effectiveAmountField = effectiveAmountFieldForValidation(category, amountField, direction);
+  const amounts = normalizeAccountingAmount(ledger);
+  const { debit, credit, amount, direction, amountField } = amounts;
+  for (const error of amounts.errors || []) errors.push(error);
 
-  if (toNumber(ledger.debit) < 0) errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', field: 'debit', reason: 'negative debit' });
-  if (toNumber(ledger.credit) < 0) errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', field: 'credit', reason: 'negative credit' });
-  if (toNumber(ledger.amount) < 0) errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', field: 'amount', reason: 'negative amount' });
+  if (!hasOwnValue(ledger, 'direction')) errors.push({ code: 'DIRTY_LEDGER_MISSING_DIRECTION', field: 'direction' });
+  if (!hasOwnValue(ledger, 'amountField')) errors.push({ code: 'DIRTY_LEDGER_MISSING_AMOUNT_FIELD', field: 'amountField' });
   if (debit > 0 && credit > 0) errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', reason: 'debit and credit both positive', debit, credit });
   if (debit === 0 && credit === 0 && amount > 0) errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', reason: 'amount positive but debit/credit zero', amount });
 
   if (effect === 'debit') {
-    if (!(debit > 0 && credit === 0 && direction === 'debit' && effectiveAmountField === 'debit')) {
+    if (!(debit > 0 && credit === 0 && direction === 'debit' && amountField === 'debit')) {
       errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', category, expected: 'debit only', debit, credit, direction, amountField });
     }
   } else if (effect === 'credit') {
-    if (!(credit > 0 && debit === 0 && direction === 'credit' && effectiveAmountField === 'credit')) {
+    if (!(credit > 0 && debit === 0 && direction === 'credit' && amountField === 'credit')) {
       errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', category, expected: 'credit only', debit, credit, direction, amountField });
     }
   } else if (effect === 'either') {
-    if (!((debit > 0 && credit === 0 && direction === 'debit' && effectiveAmountField === 'debit')
-      || (credit > 0 && debit === 0 && direction === 'credit' && effectiveAmountField === 'credit'))) {
+    if (!((debit > 0 && credit === 0 && direction === 'debit' && amountField === 'debit')
+      || (credit > 0 && debit === 0 && direction === 'credit' && amountField === 'credit'))) {
       errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', category, expected: 'single sided adjustment', debit, credit, direction, amountField });
     }
+  } else {
+    errors.push({ code: 'DIRTY_LEDGER_UNSUPPORTED_READ_MODEL_CATEGORY', category });
   }
 
   if (amount !== Math.max(debit, credit)) {
@@ -134,7 +156,7 @@ function validateArLedgerContract(ledger = {}) {
   pushBoolRequired(errors, ledger, 'accountingConfirmed', true, 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT');
 
   if (category && !DEBT_CATEGORIES.includes(category)) {
-    errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'category', value: ledger.category });
+    errors.push({ code: 'DIRTY_LEDGER_UNSUPPORTED_READ_MODEL_CATEGORY', field: 'category', value: ledger.category });
   }
   if (category && ledgerType && ledgerType !== category) {
     errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'ledgerType', expected: category, actual: ledger.ledgerType });
@@ -154,27 +176,30 @@ function validateArLedgerContract(ledger = {}) {
 
   validateDebitCreditShape(ledger, errors);
 
-  if (category === 'AR-SALE') {
+  if (category === 'AR-DEBT-OPEN') {
     if (entryType !== 'normal') errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'entryType', expected: 'normal', actual: ledger.entryType });
-    if (clean(ledger.sourceType) !== 'salesOrder') errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'sourceType', expected: 'salesOrder', actual: ledger.sourceType });
-    if (!/^AR-SALE:salesOrder:[^\s:]+(?::ACC-[^\s]+)?$/.test(clean(ledger.idempotencyKey))) {
-      errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'idempotencyKey', expected: 'AR-SALE:salesOrder:<sourceId>[:ACC-*]' });
-    }
-    if (!/^ACC-/.test(clean(ledger.accountingBatchId))) {
-      errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'accountingBatchId', expected: 'ACC-*', actual: ledger.accountingBatchId });
+    if (clean(ledger.sourceType) !== 'SALES_ORDER_DELIVERY_CLOSEOUT') errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'sourceType', expected: 'SALES_ORDER_DELIVERY_CLOSEOUT', actual: ledger.sourceType });
+    if (!/^AR-DEBT-OPEN:[^\s:]+$/.test(clean(ledger.idempotencyKey))) {
+      errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'idempotencyKey', expected: 'AR-DEBT-OPEN:<orderId>' });
     }
   }
 
-  if (category === 'AR-SALE-REVERSAL') {
-    if (entryType !== 'reversal') errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'entryType', expected: 'reversal', actual: ledger.entryType });
-    if (clean(ledger.sourceType) !== 'salesOrder') errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'sourceType', expected: 'salesOrder', actual: ledger.sourceType });
-    pushRequired(errors, ledger, 'reversedLedgerId', 'DIRTY_LEDGER_MISSING_REVERSED_LEDGER_ID');
-    if (!/^AR-SALE-REVERSAL:salesOrder:[^:]+:.+/.test(clean(ledger.idempotencyKey))) {
-      errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'idempotencyKey', expected: 'AR-SALE-REVERSAL:salesOrder:<sourceId>:<originalLedgerId>' });
+  if (category === 'AR-DEBT-PAYMENT') {
+    if (entryType !== 'normal') errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'entryType', expected: 'normal', actual: ledger.entryType });
+    if (!/^AR-DEBT-PAYMENT:[^\s:]+/.test(clean(ledger.idempotencyKey))) {
+      errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'idempotencyKey', expected: 'AR-DEBT-PAYMENT:<paymentId>...' });
     }
-    if (!/^REV-/.test(clean(ledger.accountingBatchId))) {
-      errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'accountingBatchId', expected: 'REV-*', actual: ledger.accountingBatchId });
+  }
+
+  if (category === 'AR-DEBT-ADJUSTMENT') {
+    if (entryType !== 'normal') errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'entryType', expected: 'normal', actual: ledger.entryType });
+    if (!/^AR-DEBT-ADJUSTMENT:[^\s:]+/.test(clean(ledger.idempotencyKey))) {
+      errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'idempotencyKey', expected: 'AR-DEBT-ADJUSTMENT:<orderId>...' });
     }
+  }
+
+  if (category === 'AR-DEBT-VOID') {
+    if (entryType !== 'normal') errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'entryType', expected: 'normal', actual: ledger.entryType });
   }
 
   return {
@@ -198,23 +223,37 @@ function assertValidArLedgerContract(ledger = {}) {
   return ledger;
 }
 
-function isCanonicalArDebtLedger(ledger = {}) {
-  const category = upper(ledger.category);
-  if (!DEBT_CATEGORIES.includes(category)) return false;
+function isEligibleActiveConfirmedArLedger(ledger = {}) {
   if (ledger.accountingConfirmed !== true) return false;
   if (clean(ledger.accountingStatus) !== 'confirmed') return false;
   if (ledger.active !== true) return false;
   if (ledger.reversed === true || ledger.isDeleted === true || ledger.deleted === true) return false;
   if (clean(ledger.deletedAt)) return false;
+  return true;
+}
+
+function isCanonicalArDebtLedger(ledger = {}) {
+  const category = upper(ledger.category);
+  if (!DEBT_CATEGORIES.includes(category)) return false;
+  if (!isEligibleActiveConfirmedArLedger(ledger)) return false;
+  return validateArLedgerContract(ledger).ok;
+}
+
+function isPhase87ReadModelArDebtLedger(ledger = {}) {
+  const category = upper(ledger.category);
+  if (!PHASE87_READ_MODEL_CATEGORIES.includes(category)) return false;
+  if (!isEligibleActiveConfirmedArLedger(ledger)) return false;
   return validateArLedgerContract(ledger).ok;
 }
 
 module.exports = {
   DEBT_CATEGORIES,
+  PHASE87_READ_MODEL_CATEGORIES,
   CATEGORY_EFFECT,
   normalizeAccountingAmount,
   validateArLedgerContract,
   assertValidArLedgerContract,
   isCanonicalArDebtLedger,
+  isPhase87ReadModelArDebtLedger,
   hasAccRevMismatch
 };

@@ -8,7 +8,7 @@ const { verifyPassword } = require('../security/passwordPolicy');
 const { readRefreshToken } = require('../security/refreshTokenCookie');
 const User = require('../models/User');
 const { MongoStore } = require('./mongoSyncService');
-const DebtReadService = require('./DebtReadService');
+const arDebtRuntimeView = require('./accounting/arDebtRuntimeView.service');
 
 
 function inventoryRowOpenSaleQty(row = {}) {
@@ -157,13 +157,11 @@ function createMobileService(ctx) {
     }
     const rows = await Customer.find(filter).sort({ code: 1 }).limit(requestedLimit).lean();
     const clientCustomers = rows.map(customerMongoToClient);
-    const debtMap = await DebtReadService.loadDebtBalancesForCustomers(clientCustomers);
+    const customerCodes = Array.from(new Set(clientCustomers.map((customer) => String(customer.customerCode || customer.code || '').trim()).filter(Boolean)));
+    const debtMap = await arDebtRuntimeView.getCustomerDebtMap(customerCodes, { status: 'all' });
     const debtForCustomer = (customer = {}) => {
-      const keys = [customer.code, customer.customerCode, customer.id, customer._id, customer.customerId]
-        .map((value) => String(value || '').trim().toLowerCase())
-        .filter(Boolean);
-      const value = keys.map((key) => debtMap.get(key)).find((item) => item !== undefined);
-      return Math.max(0, toNumber(value));
+      const code = String(customer.customerCode || customer.code || '').trim();
+      return debtMap.get(code) || arDebtRuntimeView._internal.emptyCustomerDebt(code);
     };
     let items = clientCustomers.map((customer) => ({
       id: customer.id,
@@ -180,9 +178,10 @@ function createMobileService(ctx) {
       // Chỉ giữ để UI cũ hiển thị, không dùng match/tạo đơn mới.
       staffCode: customer.legacyStaffCode || customer.staffCode || '',
       staffName: customer.legacyStaffName || customer.staffName || '',
-      debtAmount: debtForCustomer(customer),
-      currentDebt: debtForCustomer(customer),
-      debtSource: 'arLedgers',
+      debtAmount: debtForCustomer(customer).currentDebtAmount,
+      currentDebt: debtForCustomer(customer).currentDebtAmount,
+      currentDebtAmount: debtForCustomer(customer).currentDebtAmount,
+      debtSource: debtForCustomer(customer).debtSource,
       monthRevenue: customer.monthRevenue || customer.monthSales || 0,
       isActive: customer.isActive !== false
     }));
@@ -366,7 +365,9 @@ function createMobileService(ctx) {
       totalQuantity,
       totalAmount,
       paidAmount,
-      debtAmount: totalAmount - paidAmount,
+      debtAmount: 0,
+      currentDebtAmount: 0,
+      debtSource: 'PENDING_ACCOUNTING_NOT_AR_DEBT',
       status: 'pending',
       lifecycleStatus: 'pending',
       orderDate: date,
@@ -466,20 +467,26 @@ function createMobileService(ctx) {
     const data = await getPrimaryDataSnapshot();
     const today = dateUtil.todayVN();
     const onlyMine = String(query.mine || '1') !== '0';
-    const items = data.salesOrders
+    const rows = data.salesOrders
       .filter((order) => order.date === today)
       .filter((order) => !onlyMine || isOwnedByMobileSalesUser(order, mobileUser))
       .slice()
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
-      .slice(0, 50)
-      .map((order) => ({
+      .slice(0, 50);
+    const customerCodes = Array.from(new Set(rows.map((order) => String(order.customerCode || '').trim()).filter(Boolean)));
+    const debtMap = await arDebtRuntimeView.getCustomerDebtMap(customerCodes, { status: 'all' });
+    const items = rows.map((order) => {
+      const runtimeDebt = debtMap.get(String(order.customerCode || '').trim()) || arDebtRuntimeView._internal.emptyCustomerDebt(order.customerCode || '');
+      return {
         id: order.id,
         code: order.code,
         date: order.date,
         customerName: order.customerName,
         totalAmount: toNumber(order.totalAmount),
         paidAmount: toNumber(order.paidAmount),
-        debtAmount: toNumber(order.debtAmount),
+        debtAmount: runtimeDebt.currentDebtAmount,
+        currentDebtAmount: runtimeDebt.currentDebtAmount,
+        debtSource: runtimeDebt.debtSource,
         status: order.status,
         deliveryStatus: order.deliveryStatus || 'pending',
         masterOrderId: order.masterOrderId || '',
@@ -493,7 +500,8 @@ function createMobileService(ctx) {
         items: order.items || [],
         note: order.note || '',
         createdAt: order.createdAt
-      }));
+      };
+    });
     return { body: { ok: true, source: 'mobile-users-route', items } };
   }
 

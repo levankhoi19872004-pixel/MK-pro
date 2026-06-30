@@ -54,14 +54,13 @@ test('reportService.js staff seed filter không dùng staffCode/staffName khi l�
   assert.doesNotMatch(block, /\{\s*staffName\s*:/);
 });
 
-test('reportService.js công nợ lấy NVBH/NVGH của đơn từ AR-SALE, không để PAYMENT/RETURN override', () => {
+test('reportService.js công nợ runtime lấy NVBH/NVGH từ AR debt read model v2, không tự seed từ AR-SALE legacy', () => {
   const src = read('src/services/reportLegacy.service.js');
-  assert.match(src, /DEBT_REPORT_ORDER_STAFF_FROM_AR_SALE_ONLY_START/);
-  assert.match(src, /saleSalesmanCode/);
-  assert.match(src, /saleDeliveryStaffName/);
-  assert.match(src, /regex:\s*'sale\|external_debt'/);
-  assert.match(src, /row\.saleSalesmanCode \|\| row\.fallbackSalesmanCode/);
-  assert.match(src, /row\.saleDeliveryStaffName \|\| row\.fallbackDeliveryStaffName/);
+  assert.match(src, /arCustomerDebtReadModel\.service/);
+  assert.match(src, /debtSource:\s*['"]AR_DEBT_READ_MODEL_V2['"]/);
+  assert.doesNotMatch(src, /DEBT_REPORT_ORDER_STAFF_FROM_AR_SALE_ONLY_START/);
+  assert.doesNotMatch(src, /row\.saleSalesmanCode \|\| row\.fallbackSalesmanCode/);
+  assert.doesNotMatch(src, /row\.saleDeliveryStaffName \|\| row\.fallbackDeliveryStaffName/);
 });
 
 test('UI công nợ render NVBH/NVGH bằng code mới từ API debts/arLedgers', () => {

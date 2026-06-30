@@ -31,11 +31,24 @@ test('Phase36D delete sales order performs safe early exit for already-deleted o
   assert.match(service, /Phase36D revised: chỉ hydrate dependency context một lần trong transaction/);
 });
 
-test('Phase36D debt customer detail queries use AR ledger projection and lean', () => {
+test('Phase36D debt customer detail delegates to AR debt read model boundary instead of direct ArLedger query', () => {
   const source = read('src/services/reportLegacy.service.source/part-02.jsfrag') + read('src/services/reportLegacy.service.source/part-03.jsfrag');
-  assert.match(source, /const DEBT_AR_LEDGER_DETAIL_PROJECTION =/);
-  assert.match(source, /ArLedger\.find\(match\)\n\s+\.select\(DEBT_AR_LEDGER_DETAIL_PROJECTION\)\n\s+\.sort\(\{ date: -1, createdAt: -1 \}\)\n\s+\.limit\(200\)\n\s+\.lean\(\)/);
-  assert.match(source, /ArLedger\.find\(match\)\n\s+\.select\(DEBT_AR_LEDGER_DETAIL_PROJECTION\)\n\s+\.sort\(\{ date: -1, createdAt: -1 \}\)\n\s+\.skip\(skip\)\n\s+\.limit\(limit \+ 1\)\n\s+\.lean\(\)/);
+  const debtReportMatch = source.match(/async function debtReport\(query = \{\}\) \{[\s\S]*?\n\}/);
+  const debtCustomerDetailMatch = source.match(/async function debtCustomerDetail\(query = \{\}\) \{[\s\S]*?\n\}/);
+
+  assert.ok(debtReportMatch, 'debtReport function must exist');
+  assert.ok(debtCustomerDetailMatch, 'debtCustomerDetail function must exist');
+
+  const debtReportSource = debtReportMatch[0];
+  const detailSource = debtCustomerDetailMatch[0];
+
+  assert.match(debtReportSource, /arCustomerDebtReadModel\.debtReport\(query\)/);
+  assert.match(debtReportSource, /debtSource:\s*'AR_DEBT_READ_MODEL_V2'/);
+  assert.match(detailSource, /return debtReport\(/);
+
+  assert.doesNotMatch(debtReportSource, /ArLedger\.find\(/);
+  assert.doesNotMatch(detailSource, /ArLedger\.find\(/);
+  assert.doesNotMatch(detailSource, /DEBT_AR_LEDGER_DETAIL_PROJECTION/);
 });
 
 test('Phase36D debt read service projects AR ledger order debt rows', () => {

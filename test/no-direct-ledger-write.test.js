@@ -20,6 +20,8 @@ const ALLOWED_FILES = new Set([
   path.normalize('src/services/accounting/arAdjustmentService.js'),
   path.normalize('src/services/accounting/externalDebtArPostingService.js'),
   path.normalize('src/services/accounting/returnArPostingService.js'),
+  path.normalize('src/services/accounting/ArDebtOpenPostingService.js'),
+  path.normalize('src/services/accounting/ArDebtAdjustmentPostingService.js'),
   path.normalize('src/services/arLedgerMigrationService.js'),
 
   // Phase 1 compatibility boundaries. Remove these one-by-one after migration.

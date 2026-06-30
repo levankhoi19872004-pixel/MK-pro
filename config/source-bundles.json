@@ -30,7 +30,7 @@
         "src/services/reportLegacy.service.source/part-02.jsfrag",
         "src/services/reportLegacy.service.source/part-03.jsfrag"
       ],
-      "sourceSha256": "295d6ae8eaaa706761696b472ddd767440d4017a695e7eb5b261a8a64fe5678d"
+      "sourceSha256": "1a4fcd059e01560ba010554e8652d18a420a67243e306a6cadc4811d39223ce7"
     },
     {
       "target": "src/services/orderLegacy.service.js",
@@ -51,7 +51,7 @@
         "src/services/mobile/sales.service.source/part-02.jsfrag",
         "src/services/mobile/sales.service.source/part-03.jsfrag"
       ],
-      "sourceSha256": "b1b47d7e0f13c06513cf84d76e4ed6b50a3340ca5559023849cfa123e1b21a58"
+      "sourceSha256": "9c04fb15ef2c43c409fe1dcf55e4cb9741b68d7e10e80c3361922ac88e5cf864"
     },
     {
       "target": "src/engines/delivery.legacy.engine.js",

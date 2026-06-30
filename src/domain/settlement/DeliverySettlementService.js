@@ -1,6 +1,7 @@
 'use strict';
 
-const ArPostingService = require('../posting/ArPostingService');
+// Phase87: delivery settlement/closeout is operational data only.
+const AccountingCloseoutService = require('../../services/accounting/AccountingCloseoutService');
 const DeliveryCashInTransitReportService = require('./DeliveryCashInTransitReportService');
 const fundService = require('../../services/fundService');
 const dateUtil = require('../../utils/date.util');
@@ -19,59 +20,82 @@ function pickDeliveryStaffName(body = {}) {
   return String(body.deliveryStaffName || body.staffName || body.deliveryName || '').trim();
 }
 
+
+function legacyAccountingRequested() {
+  return String(process.env.USE_LEGACY_DELIVERY_ACCOUNTING || '').toLowerCase() === 'true';
+}
+
+function assertUnsafeLegacyRollbackAllowed() {
+  if (!legacyAccountingRequested()) return false;
+  const production = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+  const allowed = String(process.env.ALLOW_UNSAFE_LEGACY_AR_ROLLBACK || '').toLowerCase() === 'true';
+  if (production && !allowed) {
+    const err = new Error('Legacy delivery accounting bị chặn ở production vì có thể sinh AR-SALE/AR-RETURN/AR-RECEIPT.');
+    err.code = 'UNSAFE_LEGACY_DELIVERY_ACCOUNTING_BLOCKED_IN_PRODUCTION';
+    err.severity = 'P0';
+    throw err;
+  }
+  return true;
+}
+
 function getLegacyAccountingImplementation() {
-  // Lazy-load the extracted accounting command implementation. This preserves
-  // rollback behavior without re-entering the public master-order facade.
+  // Lazy-load retained only as emergency rollback for USE_LEGACY_DELIVERY_ACCOUNTING=true.
   return require('../../services/master-order/deliveryAccountingCommand.impl');
 }
 
 async function recordCollectedMoney(order = {}, options = {}) {
-  const posted = [];
-
   const cashAmount = toMoney(order.cashCollected ?? order.cashAmount ?? 0);
   const bankAmount = toMoney(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0);
-
-  if (cashAmount > 0) {
-    posted.push(await ArPostingService.postReceipt({
-      ...order,
-      id: `DELIVERY-CASH-${order.id || order.code}`,
-      code: `DELIVERY-CASH-${order.code || order.id}`,
-      method: 'cash',
-      amount: cashAmount,
-      source: 'delivery_settlement'
-    }, options));
-  }
-
-  if (bankAmount > 0) {
-    posted.push(await ArPostingService.postReceipt({
-      ...order,
-      id: `DELIVERY-BANK-${order.id || order.code}`,
-      code: `DELIVERY-BANK-${order.code || order.id}`,
-      method: 'transfer',
-      amount: bankAmount,
-      source: 'delivery_settlement'
-    }, options));
-  }
-
-  return posted.filter(Boolean);
+  return {
+    posted: false,
+    arPosted: false,
+    source: 'delivery_closeout_operational_cash',
+    policy: 'delivery cash is captured in salesOrders.deliveryCloseout and does not create AR-RECEIPT',
+    cashAmount,
+    bankAmount,
+    collectedAmount: cashAmount + bankAmount,
+    paymentIds: [
+      cashAmount > 0 ? `delivery-cash:${order.id || order.code || ''}` : '',
+      bankAmount > 0 ? `delivery-bank:${order.id || order.code || ''}` : ''
+    ].filter(Boolean),
+    optionsApplied: Boolean(options && options.session)
+  };
 }
 
 async function confirmAccounting(masterOrderIdOrBody = {}, body = {}, options = {}) {
-  // Phase 1 Strangler: domain boundary đã tồn tại nhưng lõi accounting vẫn giữ legacy.
-  // Hỗ trợ cả contract hiện tại confirmDeliveryAccounting(body) và contract mở rộng
-  // confirmAccounting(masterOrderId, body, options) cho phase sau.
-  if (masterOrderIdOrBody && typeof masterOrderIdOrBody === 'object') {
-    return getLegacyAccountingImplementation().confirmDeliveryAccounting(masterOrderIdOrBody, body || options || {});
+  // Phase87 active path: accounting closeout posts exactly one AR-DEBT-OPEN when finalDebtAmount > 0.
+  // Emergency rollback marker retained for static/rollback compatibility:
+  // getLegacyAccountingImplementation().confirmDeliveryAccounting(masterOrderIdOrBody, body || options || {});
+  if (assertUnsafeLegacyRollbackAllowed()) {
+    if (masterOrderIdOrBody && typeof masterOrderIdOrBody === 'object') {
+      return getLegacyAccountingImplementation().confirmDeliveryAccounting(masterOrderIdOrBody, body || options || {});
+    }
+    return getLegacyAccountingImplementation().confirmDeliveryAccounting({
+      ...(body || {}),
+      masterOrderId: masterOrderIdOrBody || body.masterOrderId || body.id || ''
+    }, options);
   }
 
-  return getLegacyAccountingImplementation().confirmDeliveryAccounting({
+  if (masterOrderIdOrBody && typeof masterOrderIdOrBody === 'object') {
+    return AccountingCloseoutService.confirmDeliveryAccounting(masterOrderIdOrBody, body || options || {});
+  }
+
+  return AccountingCloseoutService.confirmDeliveryAccounting({
     ...(body || {}),
     masterOrderId: masterOrderIdOrBody || body.masterOrderId || body.id || ''
   }, options);
 }
 
 async function unlockAccounting(idOrCode, body = {}, options = {}) {
-  return getLegacyAccountingImplementation().adminUnlockDeliveryAccounting(idOrCode, body, options);
+  if (assertUnsafeLegacyRollbackAllowed()) {
+    return getLegacyAccountingImplementation().adminUnlockDeliveryAccounting(idOrCode, body, options);
+  }
+  return {
+    error: 'Đơn đã accounting_confirmed không được mở khóa sửa in-place. Hãy dùng DeliveryCloseoutCorrectionService để tạo correction và AR-DEBT-ADJUSTMENT.',
+    status: 400,
+    orderId: idOrCode,
+    correctionRequired: true
+  };
 }
 
 async function submitCashToFund(idOrCode, body = {}) {
@@ -125,5 +149,6 @@ module.exports = {
   confirmAccounting,
   unlockAccounting,
   submitCashToFund,
-  cashInTransitReport
+  cashInTransitReport,
+  _internal: { assertUnsafeLegacyRollbackAllowed, legacyAccountingRequested }
 };

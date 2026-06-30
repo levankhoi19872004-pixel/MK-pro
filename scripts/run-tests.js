@@ -55,7 +55,13 @@ for (const file of isolatedFiles) {
   if (code !== 0) status = code;
 }
 
-const sharedStatus = runNodeTest(sharedFiles, 'shared suite');
-if (sharedStatus !== 0) status = sharedStatus;
+const sharedChunkSize = Math.max(1, Math.floor(Number(process.env.TEST_SHARED_CHUNK_SIZE || 40)) || 40);
+for (let i = 0; i < sharedFiles.length; i += sharedChunkSize) {
+  const chunk = sharedFiles.slice(i, i + sharedChunkSize);
+  const first = path.relative(ROOT, chunk[0] || '');
+  const last = path.relative(ROOT, chunk[chunk.length - 1] || '');
+  const code = runNodeTest(chunk, `shared suite ${i + 1}-${i + chunk.length} ${first}..${last}`);
+  if (code !== 0) status = code;
+}
 
 process.exit(status);

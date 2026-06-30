@@ -8,11 +8,7 @@ const {
   hasOpenDebt,
   isOverpaid
 } = require('../../constants/finance.constants');
-const {
-  normalizeArCategory: classifyArLedgerCategory,
-  normalizeArLedgerAmounts: classifyArLedgerAmounts
-} = require('../../utils/arLedgerCategoryEffect.util');
-const { isCanonicalArDebtLedger } = require('../../domain/ar/arLedgerValidator');
+const { isPhase87ReadModelArDebtLedger, PHASE87_READ_MODEL_CATEGORIES, normalizeAccountingAmount, validateArLedgerContract } = require('../../domain/ar/arLedgerValidator');
 const { filterReadModelEligibleArLedgers } = require('../../domain/ar/arLedgerQueryPolicy');
 const arLedgerReadService = require('../arLedgerRead.service');
 
@@ -302,11 +298,6 @@ function expandKeys(values = []) {
     out.add(key);
     const fromReturn = extractOrderCodeFromReturnToken(key);
     if (fromReturn) out.add(fromReturn);
-    if (/^[A-Z0-9]+$/i.test(key) && !/^RO-/i.test(key)) {
-      out.add(`RO-${key}`);
-      out.add(`AR-RETURN:RO-${key}`);
-      out.add(`AR-RETURN-RO-${key}`);
-    }
   }
   return Array.from(out);
 }
@@ -360,15 +351,17 @@ async function buildScopedMongoMatch(query = {}) {
 function isActiveConfirmedArDebtLedger(row = {}) {
   const statuses = [row.status, row.lifecycleStatus].map(lower).filter(Boolean);
   if (statuses.some((status) => INACTIVE_AR_STATUSES.includes(status))) return false;
-  return isCanonicalArDebtLedger(row);
+  return isPhase87ReadModelArDebtLedger(row) && PHASE87_READ_MODEL_CATEGORIES.includes(upper(row.category));
 }
 
 function normalizeArCategory(row = {}) {
-  const normalized = classifyArLedgerCategory(row);
-  return normalized === 'AR-BONUS-ALLOWANCE' ? 'AR-BONUS' : normalized;
+  return upper(row.category);
 }
 function normalizeLedgerAmounts(row = {}, category = normalizeArCategory(row)) {
-  return classifyArLedgerAmounts({ ...row, category: category === 'AR-BONUS' ? 'AR-BONUS-ALLOWANCE' : category });
+  if (!PHASE87_READ_MODEL_CATEGORIES.includes(category)) {
+    return { amount: 0, debit: 0, credit: 0, direction: '', amountField: '' };
+  }
+  return normalizeAccountingAmount(row);
 }
 function normalizeLedger(row = {}) {
   const category = normalizeArCategory(row);
@@ -676,16 +669,13 @@ function buildCustomerDebtReadModelFromLedgers(ledgerRows = [], query = {}, opti
     if (!target.phone && ledger.phone) target.phone = ledger.phone;
     if (!target.address && ledger.address) target.address = ledger.address;
 
-    applyStaff(target, ledger, { prefer: ledger.category === 'AR-SALE' });
+    applyStaff(target, ledger, { prefer: ledger.category === 'AR-DEBT-OPEN' });
     target.totalDebit += ledger.debit;
     target.totalCredit += ledger.credit;
 
-    if (ledger.category === 'AR-SALE') target.arSaleAmount += ledger.debit || ledger.amount;
-    else if (ledger.category === 'AR-RECEIPT') target.receiptAmount += ledger.credit || ledger.amount;
-    else if (ledger.category === 'AR-RETURN') target.returnAmount += ledger.credit || ledger.amount;
-    else if (ledger.category === 'AR-RETURN-REVERSAL') target.returnReversalAmount += ledger.debit || ledger.amount;
-    else if (ledger.category === 'AR-BONUS') target.bonusAmount += ledger.credit || ledger.amount;
-    else if (ledger.category === 'AR-ADJUSTMENT') {
+    if (ledger.category === 'AR-DEBT-OPEN') target.arSaleAmount += ledger.debit;
+    else if (ledger.category === 'AR-DEBT-PAYMENT') target.receiptAmount += ledger.credit;
+    else if (ledger.category === 'AR-DEBT-ADJUSTMENT' || ledger.category === 'AR-DEBT-VOID') {
       target.adjustmentDebitAmount += ledger.debit;
       target.adjustmentCreditAmount += ledger.credit;
     }

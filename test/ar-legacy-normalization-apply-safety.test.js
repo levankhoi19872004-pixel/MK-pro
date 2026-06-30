@@ -47,7 +47,7 @@ test('Phase81 dry-run apply does not mutate ledger rows', async () => {
   assert.equal(model.rows[0].category, undefined);
 });
 
-test('Phase81 apply on fixture creates canonical ledger readable by Phase80 read layer', async () => {
+test('Phase81 apply keeps legacy AR-SALE normalized but Phase87 read layer excludes it', async () => {
   const row = saleFixture();
   const plan = buildNormalizationPlan([row], { salesOrders: [salesOrder], returnOrders: [], debtCollections: [], fundLedgers: [] });
   const model = new FakeModel([row]);
@@ -55,7 +55,7 @@ test('Phase81 apply on fixture creates canonical ledger readable by Phase80 read
   arLedgerReadService.setModelsForTest({ ArLedger: model });
   const canonical = await arLedgerReadService.getCanonicalArLedgers({ status: 'all' });
   arLedgerReadService.setModelsForTest(null);
-  assert.equal(canonical.length, 1);
-  assert.equal(canonical[0].category, 'AR-SALE');
-  assert.equal(canonical[0].sourceId, 'SO1780001001');
+  assert.equal(model.rows[0].category, 'AR-SALE');
+  assert.equal(model.rows[0].sourceId, 'SO1780001001');
+  assert.equal(canonical.length, 0);
 });

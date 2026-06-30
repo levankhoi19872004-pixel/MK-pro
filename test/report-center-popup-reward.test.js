@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const RewardReportService = require('../src/services/reports/RewardReportService');
-const ArLedger = require('../src/models/ArLedger');
+const arLedgerReadService = require('../src/services/arLedgerRead.service');
 const ReportCenterService = require('../src/services/reports/ReportCenterService');
 
 test('Report directory stays on the main screen and each report opens in a popup', () => {
@@ -69,17 +69,12 @@ test('reward report is visible only to business roles and sourced from AR bonus 
 
 
 test('reward report returns only rewarded customers with summary and pagination metadata', async () => {
-  const originalAggregate = ArLedger.aggregate;
-  ArLedger.aggregate = () => ({
-    allowDiskUse() { return this; },
-    async exec() {
-      return [
-        { type: 'ar_bonus', refType: 'BONUS_ALLOWANCE', customerCode: 'KH01', customerName: 'Nhà A', date: '2026-06-03', _reportBusinessDate: '2026-06-03', orderCode: 'SO1', credit: 120000 },
-        { type: 'ar_bonus', refType: 'BONUS_ALLOWANCE', customerCode: 'KH02', customerName: 'Nhà B', date: '2026-06-04', _reportBusinessDate: '2026-06-04', orderCode: 'SO2', credit: 80000 },
-        { type: 'ar_receipt', refType: 'RECEIPT', customerCode: 'KH03', customerName: 'Nhà C', date: '2026-06-04', _reportBusinessDate: '2026-06-04', credit: 90000 }
-      ];
-    }
-  });
+  const originalGetCanonicalArLedgers = arLedgerReadService.getCanonicalArLedgers;
+  arLedgerReadService.getCanonicalArLedgers = async () => [
+    { type: 'ar_bonus', refType: 'BONUS_ALLOWANCE', customerCode: 'KH01', customerName: 'Nhà A', date: '2026-06-03', _reportBusinessDate: '2026-06-03', orderCode: 'SO1', credit: 120000 },
+    { type: 'ar_bonus', refType: 'BONUS_ALLOWANCE', customerCode: 'KH02', customerName: 'Nhà B', date: '2026-06-04', _reportBusinessDate: '2026-06-04', orderCode: 'SO2', credit: 80000 },
+    { type: 'ar_receipt', refType: 'RECEIPT', customerCode: 'KH03', customerName: 'Nhà C', date: '2026-06-04', _reportBusinessDate: '2026-06-04', credit: 90000 }
+  ];
 
   try {
     const result = await RewardReportService.rewardByCustomerReport({
@@ -97,6 +92,6 @@ test('reward report returns only rewarded customers with summary and pagination 
     assert.equal(result.rewards.length, 1);
     assert.equal(result.rewards[0].customerCode, 'KH01');
   } finally {
-    ArLedger.aggregate = originalAggregate;
+    arLedgerReadService.getCanonicalArLedgers = originalGetCanonicalArLedgers;
   }
 });

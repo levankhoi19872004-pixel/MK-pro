@@ -15,14 +15,16 @@ test('financialService no longer writes SalesOrder debt cache in syncOrderDebtCa
   assert.doesNotMatch(body, /patchByIdentity\s*\(/);
 });
 
-test('legacy mobile customer list reads debt from DebtReadService/arLedgers, not Customer cache', () => {
+test('legacy mobile customer list reads debt from arDebtRuntimeView, not Customer cache', () => {
   const source = fs.readFileSync('src/services/mobileService.js', 'utf8');
   const start = source.indexOf('async function customers');
   const end = source.indexOf('\n  async function products', start);
   const body = source.slice(start, end);
-  assert.match(body, /DebtReadService\.loadDebtBalancesForCustomers/);
-  assert.match(body, /debtSource:\s*'arLedgers'/);
+  assert.match(source, /arDebtRuntimeView\s*=\s*require\(['"]\.\/accounting\/arDebtRuntimeView\.service['"]\)/);
+  assert.match(body, /arDebtRuntimeView\.getCustomerDebtMap/);
+  assert.match(body, /debtSource:\s*debtForCustomer\(customer\)\.debtSource/);
   assert.doesNotMatch(body, /customer\.debtAmount\s*\|\|\s*customer\.currentDebt/);
+  assert.doesNotMatch(body, /DebtReadService\.loadDebtBalancesForCustomers/);
 });
 
 

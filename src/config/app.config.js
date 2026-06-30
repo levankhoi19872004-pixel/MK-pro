@@ -248,6 +248,12 @@ function validateRuntimeConfig(env = process.env, options = {}) {
     }
   }
 
+  if (production && profile === 'server'
+    && String(env.USE_LEGACY_DELIVERY_ACCOUNTING || '').toLowerCase() === 'true'
+    && String(env.ALLOW_UNSAFE_LEGACY_AR_ROLLBACK || '').toLowerCase() !== 'true') {
+    issues.push({ variable: 'USE_LEGACY_DELIVERY_ACCOUNTING', message: 'production không được bật legacy delivery accounting vì có thể sinh AR-SALE/AR-RETURN/AR-RECEIPT. Rollback khẩn cấp phải có ALLOW_UNSAFE_LEGACY_AR_ROLLBACK=true.' });
+  }
+
   if (production && profile === 'server') {
     if (config.security.accessSecret.length < 32) issues.push({ variable: 'JWT_SECRET', message: 'production phải có tối thiểu 32 ký tự' });
     if (isPlaceholderSecret(config.security.accessSecret)) issues.push({ variable: 'JWT_SECRET', message: 'không được dùng giá trị mẫu/mặc định trong production' });

@@ -51,7 +51,8 @@ test('domain boundaries delegate to the intended posting/lifecycle services', ()
   assert.match(returns, /ArPostingService\.postReturn\(\{/);
 
   const settlement = read('src/domain/settlement/DeliverySettlementService.js');
-  assert.match(settlement, /ArPostingService\.postReceipt\(\{/);
+  assert.match(settlement, /AccountingCloseoutService\.confirmDeliveryAccounting\(/);
+  assert.doesNotMatch(settlement, /ArPostingService\.postReceipt\s*\(/);
   assert.match(settlement, /fundService\.confirmDeliveryCashSubmission\(/);
   assert.match(settlement, /DeliveryCashInTransitReportService\.listDeliveryCashInTransit\(query\)/);
   assert.doesNotMatch(settlement, /fundService\.buildDeliverySubmissionDraft\(query\)/);

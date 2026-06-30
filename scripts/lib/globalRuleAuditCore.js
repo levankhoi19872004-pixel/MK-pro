@@ -54,13 +54,7 @@ const PROFILES = {
   ar: {
     title: 'AR access contract',
     dirs: ['src', 'public/js', 'public/mobile/js'],
-    legacyAllow: [
-      'src/services/arLedgerMigrationService.js',
-      'src/services/mobile/sales.service.js',
-      'src/services/mobileService.js',
-      'src/services/reportLegacy.service.js',
-      'public/mobile/js/sales/sync.js'
-    ],
+    legacyAllow: [],
     allow: [
       ...COMMON_ALLOWED,
       'src/services/arLedgerRead.service.js',
@@ -72,6 +66,8 @@ const PROFILES = {
       /^src\/services\/accounting\/ar.*service\.js$/i,
       'src/services/accounting/arCustomerDebtReadModel.service.js',
       'src/services/DebtReadService.js',
+      'src/services/arLedgerMigrationService.js',
+      'src/services/accounting/arDebtRuntimeView.service.js',
       'src/services/mobile/mobileDebtQuery.service.js',
       'src/repositories/mobile/delivery.repository.js',
       'src/repositories/salesOrderDeletion.repository.js',
@@ -131,7 +127,6 @@ const PROFILES = {
     allow: [
       ...COMMON_ALLOWED,
       'public/js/app/debt/07a-debt-core.js',
-      'public/mobile/js/sales/sync.js'
     ],
     rules: [
       { code: 'FRONTEND_DEBT_FROM_ORDER_MATH', severity: 'P1', pattern: /(totalAmount\s*-\s*paidAmount|debtAmount\s*:\s*[^\n;]*totalAmount[^\n;]*paidAmount)/g, message: 'Frontend/mobile không được tính công nợ lõi từ totalAmount-paidAmount.' },

@@ -11,16 +11,16 @@ const { FakeModel } = require('./helpers/phase79FakeModels');
 function arLedger(overrides = {}) {
   const orderCode = overrides.orderCode || overrides.sourceCode || 'B0000000';
   const sourceId = overrides.sourceId || overrides.salesOrderId || `SO-${orderCode}`;
-  const category = overrides.category || 'AR-SALE';
+  const category = overrides.category || 'AR-DEBT-OPEN';
   const credit = Number(overrides.credit || 0);
   const debit = Number(overrides.debit || 0);
   return {
     account: 'AR',
     category,
     ledgerType: category,
-    entryType: category.endsWith('REVERSAL') ? 'reversal' : 'normal',
+    entryType: 'normal',
     type: category.toLowerCase().replaceAll('-', '_'),
-    sourceType: 'salesOrder',
+    sourceType: category === 'AR-DEBT-OPEN' ? 'SALES_ORDER_DELIVERY_CLOSEOUT' : (category === 'AR-DEBT-PAYMENT' ? 'DEBT_PAYMENT' : 'SALES_ORDER_DELIVERY_CLOSEOUT_CORRECTION'),
     sourceId,
     sourceCode: orderCode,
     orderId: sourceId,
@@ -35,7 +35,7 @@ function arLedger(overrides = {}) {
     salesStaffName: overrides.salesStaffName || 'Minh Khai',
     accountingConfirmed: true,
     accountingStatus: 'confirmed',
-    accountingBatchId: category === 'AR-SALE' ? `ACC-${sourceId}-TEST` : `PAY-${sourceId}-TEST`,
+    accountingBatchId: category === 'AR-DEBT-OPEN' ? `CLOSEOUT-${sourceId}-TEST` : `PAY-${sourceId}-TEST`,
     active: true,
     reversed: false,
     debit,
@@ -46,9 +46,11 @@ function arLedger(overrides = {}) {
     date: '2026-06-30',
     id: `${category}-${orderCode}-${Math.max(debit, credit)}`,
     code: `${category}-${orderCode}-${Math.max(debit, credit)}`,
-    idempotencyKey: category === 'AR-SALE'
-      ? `AR-SALE:salesOrder:${sourceId}`
-      : `${category}:salesOrder:${sourceId}:${Math.max(debit, credit)}`,
+    idempotencyKey: category === 'AR-DEBT-OPEN'
+      ? `AR-DEBT-OPEN:${sourceId}`
+      : (category === 'AR-DEBT-PAYMENT'
+        ? `AR-DEBT-PAYMENT:PAY-${sourceId}-${Math.max(debit, credit)}`
+        : `${category}:${sourceId}:${Math.max(debit, credit)}`),
     ...overrides
   };
 }
@@ -61,8 +63,7 @@ function setup(rows) {
 
 test('debt screen reads directly from canonical arLedgers even when arDebtOrders/arDebtCustomers are empty', async () => {
   setup([
-    arLedger({ orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', debit: 487484570 }),
-    arLedger({ category: 'AR-RECEIPT', orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', credit: 190000000 }),
+    arLedger({ orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', debit: 296935030 }),
     arLedger({ orderCode: 'B0038355', sourceId: 'SO1782550380268132', customerCode: 'BBHAIHD', customerName: 'Hải HD', debit: 237632080 })
   ]);
 
@@ -71,24 +72,24 @@ test('debt screen reads directly from canonical arLedgers even when arDebtOrders
   assert.equal(result.source, 'mongo_ar_ledgers_read_model_v2');
   assert.equal(result.ledgerCollection, 'arLedgers');
   assert.equal(result.debugSource.source, 'arLedgers');
-  assert.equal(result.summary.totalDebt, 535116650);
+  assert.equal(result.summary.totalDebt, 534567110);
   assert.equal(result.summary.customerDebtCount, 2);
 
   const hoaSon = result.customers.find((row) => row.customerCode === 'BBHOASON');
   const haiHd = result.customers.find((row) => row.customerCode === 'BBHAIHD');
-  assert.equal(hoaSon.debt, 297484570);
+  assert.equal(hoaSon.debt, 296935030);
   assert.equal(haiHd.debt, 237632080);
 
   const hoaOrder = hoaSon.orders.find((row) => row.orderCode === 'B0038442');
-  assert.equal(hoaOrder.arSaleAmount, 487484570);
-  assert.equal(hoaOrder.receiptAmount, 190000000);
-  assert.equal(hoaOrder.remainingDebt, 297484570);
+  assert.equal(hoaOrder.arSaleAmount, 296935030);
+  assert.equal(hoaOrder.receiptAmount, 0);
+  assert.equal(hoaOrder.remainingDebt, 296935030);
 });
 
 
-test('orphan active AR-SALE-REVERSAL is ignored so Hoa Sơn re-accounting debt does not disappear', async () => {
+test('legacy technical AR rows are ignored so Hoa Sơn Phase87 debt stays based on AR-DEBT categories', async () => {
   setup([
-    arLedger({ orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', debit: 487484570 }),
+    arLedger({ orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', debit: 296935030 }),
     arLedger({
       category: 'AR-SALE-REVERSAL',
       orderCode: 'B0038442',
@@ -108,7 +109,7 @@ test('orphan active AR-SALE-REVERSAL is ignored so Hoa Sơn re-accounting debt d
       orderCode: 'B0038442',
       sourceId: 'RO-B0038442',
       sourceCode: 'RO-B0038442',
-      sourceType: 'returnOrder',
+      sourceType: 'SALES_ORDER_DELIVERY_CLOSEOUT_CORRECTION',
       returnOrderId: 'RO-B0038442',
       returnOrderCode: 'RO-B0038442',
       sourceOrderId: 'SO1782723235234708',
@@ -119,26 +120,26 @@ test('orphan active AR-SALE-REVERSAL is ignored so Hoa Sơn re-accounting debt d
       customerName: 'Hoa Sơn',
       credit: 549540,
       amountField: 'amount',
-      idempotencyKey: 'AR-RETURN:RO-B0038442'
+      idempotencyKey: 'AR-DEBT-ADJUSTMENT:SO1782723235234708:RETURN-RO-B0038442'
     })
   ]);
 
   const result = await reportService.debtCustomers({ deliveryStaffCode: 'ghnpp', status: 'open', limit: 20 });
   const hoaSon = result.customers.find((row) => row.customerCode === 'BBHOASON');
 
-  assert.ok(hoaSon, 'Hoa Sơn must stay visible as open debt after re-accounting');
+  assert.ok(hoaSon, 'Hoa Sơn must stay visible as open debt after Phase87 closeout');
   assert.equal(hoaSon.debt, 296935030);
-  assert.equal(hoaSon.orders[0].arSaleAmount, 487484570);
-  assert.equal(hoaSon.orders[0].receiptAmount, 190000000);
-  assert.equal(hoaSon.orders[0].returnAmount, 549540);
+  assert.equal(hoaSon.orders[0].arSaleAmount, 296935030);
+  assert.equal(hoaSon.orders[0].receiptAmount, 0);
+  assert.equal(hoaSon.orders[0].returnAmount, 0);
   assert.equal(hoaSon.orders[0].remainingDebt, 296935030);
 });
 
-test('dirty AR-RECEIPT is excluded from canonical debt and auditably cannot reduce debt', async () => {
+test('dirty AR-DEBT-PAYMENT is excluded from canonical debt and auditably cannot reduce debt', async () => {
   setup([
-    arLedger({ orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', debit: 487484570 }),
+    arLedger({ orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', debit: 296935030 }),
     {
-      ...arLedger({ category: 'AR-RECEIPT', orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', credit: 190000000 }),
+      ...arLedger({ category: 'AR-DEBT-PAYMENT', orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', credit: 190000000 }),
       category: '',
       ledgerType: '',
       entryType: ''
@@ -147,7 +148,7 @@ test('dirty AR-RECEIPT is excluded from canonical debt and auditably cannot redu
 
   const result = await reportService.debtCustomers({ deliveryStaffCode: 'ghnpp', status: 'open' });
   assert.equal(result.customers.length, 1);
-  assert.equal(result.customers[0].debt, 487484570, 'dirty receipt must not be accepted by direct AR ledger debt API');
+  assert.equal(result.customers[0].debt, 296935030, 'dirty Phase87 payment must not be accepted by direct AR ledger debt API');
 });
 
 test('debt report service no longer exposes arDebtOrders/arDebtCustomers as the main UI source', () => {

@@ -10,24 +10,32 @@ const {
 } = require('../src/services/accounting/arCustomerDebtReadModel.service');
 
 function baseLedger(overrides = {}) {
-  const category = overrides.category || 'AR-SALE';
-  const entryType = category.endsWith('REVERSAL') ? 'reversal' : 'normal';
+  const category = overrides.category || 'AR-DEBT-OPEN';
   const orderId = overrides.orderId || overrides.salesOrderId || 'SO178255038016695';
   const orderCode = overrides.orderCode || overrides.salesOrderCode || 'B0038424';
   const sourceId = overrides.sourceId || overrides.salesOrderId || overrides.orderId || orderId;
   const sourceCode = overrides.sourceCode || overrides.salesOrderCode || overrides.orderCode || orderCode;
+  const debit = Number(overrides.debit || 0);
+  const credit = Number(overrides.credit || 0);
+  const direction = overrides.direction || (debit > 0 ? 'debit' : credit > 0 ? 'credit' : '');
+  const sourceType = overrides.sourceType || (category === 'AR-DEBT-OPEN'
+    ? 'SALES_ORDER_DELIVERY_CLOSEOUT'
+    : category === 'AR-DEBT-PAYMENT'
+      ? 'CUSTOMER_DEBT_PAYMENT'
+      : 'DELIVERY_CLOSEOUT_CORRECTION');
+  const idempotencyKey = overrides.idempotencyKey || (category === 'AR-DEBT-OPEN'
+    ? `AR-DEBT-OPEN:${sourceId}`
+    : `${category}:${sourceId}:${sourceCode}`);
   return {
     account: 'AR',
     category,
     ledgerType: category,
-    entryType,
-    sourceType: category === 'AR-RETURN' ? 'returnOrder' : 'salesOrder',
+    entryType: 'normal',
+    sourceType,
     sourceId,
     sourceCode,
-    idempotencyKey: category === 'AR-SALE'
-      ? `AR-SALE:salesOrder:${sourceId}`
-      : `${category}:${sourceId}:${sourceCode}`,
-    accountingBatchId: category === 'AR-SALE' ? `ACC-${sourceId}-TEST` : `BATCH-${sourceId}-TEST`,
+    idempotencyKey,
+    accountingBatchId: category === 'AR-DEBT-OPEN' ? `ACC-${sourceId}-TEST` : `BATCH-${sourceId}-TEST`,
     accountingConfirmed: true,
     accountingStatus: 'confirmed',
     active: true,
@@ -46,11 +54,11 @@ function baseLedger(overrides = {}) {
     deliveryStaffName: 'Thành GH Tiền hải',
     salesStaffCode: '35095',
     salesStaffName: 'Nguyễn Đình Thành',
-    debit: 0,
-    credit: 0,
-    amount: 0,
-    direction: '',
-    amountField: '',
+    debit,
+    credit,
+    amount: Number(overrides.amount !== undefined ? overrides.amount : Math.max(debit, credit)),
+    direction,
+    amountField: overrides.amountField || direction,
     ...overrides
   };
 }
@@ -59,60 +67,36 @@ function b0038424Fixture() {
   return [
     baseLedger({
       _id: 'sale-ledger',
-      id: 'AR-SALE-B0038424',
-      code: 'AR-SALE-B0038424',
-      category: 'AR-SALE',
-      ledgerType: 'AR-SALE',
-      type: 'ar_sale',
-      debit: 5141521,
-      amount: 5141521,
-      direction: 'debit'
+      id: 'AR-DEBT-OPEN-B0038424',
+      code: 'AR-DEBT-OPEN-B0038424',
+      debit: 5141521
     }),
     baseLedger({
       _id: 'receipt-ledger',
-      id: 'AR-RECEIPT-B0038424',
-      code: 'AR-RECEIPT-B0038424',
-      category: 'AR-RECEIPT',
-      ledgerType: 'AR-RECEIPT',
-      type: 'ar_receipt',
-      credit: 4864000,
-      amount: 4864000,
-      direction: 'credit'
+      id: 'AR-DEBT-PAYMENT-B0038424',
+      code: 'AR-DEBT-PAYMENT-B0038424',
+      category: 'AR-DEBT-PAYMENT',
+      ledgerType: 'AR-DEBT-PAYMENT',
+      credit: 4864000
     }),
     baseLedger({
-      _id: 'return-ledger',
-      id: 'AR-RETURN-RO-B0038424-ACC-SO178255038016695-1782746702140',
-      code: 'AR-RETURN-RO-B0038424-ACC-SO178255038016695-1782746702140',
-      category: 'AR-RETURN',
-      ledgerType: 'AR-RETURN',
-      type: 'ar_return',
-      accountingBatchId: 'ACC-SO178255038016695-1782746702140',
-      orderId: 'SO178255038016695',
-      orderCode: 'B0038424',
-      salesOrderId: 'SO178255038016695',
-      salesOrderCode: 'B0038424',
-      sourceOrderId: 'SO178255038016695',
-      sourceOrderCode: 'B0038424',
-      returnOrderId: 'RO-B0038424',
-      returnOrderCode: 'RO-B0038424',
+      _id: 'return-adjustment-ledger',
+      id: 'AR-DEBT-ADJUSTMENT-RO-B0038424',
+      code: 'AR-DEBT-ADJUSTMENT-RO-B0038424',
+      category: 'AR-DEBT-ADJUSTMENT',
+      ledgerType: 'AR-DEBT-ADJUSTMENT',
       sourceId: 'RO-B0038424',
       sourceCode: 'RO-B0038424',
-      source: 'returnOrders',
-      sourceModel: 'returnOrders',
-      sourceType: 'returnOrder',
-      refType: 'RETURN_ORDER',
-      refId: 'RO-B0038424',
-      refCode: 'RO-B0038424',
-      idempotencyKey: 'AR-RETURN:RO-B0038424',
+      sourceType: 'DELIVERY_CLOSEOUT_CORRECTION',
+      idempotencyKey: 'AR-DEBT-ADJUSTMENT:SO178255038016695:V2',
       credit: 276632,
-      amount: 276632,
-      direction: 'credit',
-      amountField: 'amount'
+      returnOrderId: 'RO-B0038424',
+      returnOrderCode: 'RO-B0038424'
     })
   ];
 }
 
-test('AR customer debt read model groups RO-B0038424 AR-RETURN into B0038424 and applies tolerance', () => {
+test('AR customer debt read model groups AR-DEBT adjustment into B0038424 and applies tolerance', () => {
   const report = buildCustomerDebtReadModelFromLedgers(b0038424Fixture(), { status: 'all', q: '4501256' }, { today: '2026-06-29' });
 
   assert.equal(report.debugSource.source, 'arLedgers');
@@ -124,20 +108,21 @@ test('AR customer debt read model groups RO-B0038424 AR-RETURN into B0038424 and
   assert.equal(order.orderCode, 'B0038424');
   assert.equal(order.arSaleAmount, 5141521);
   assert.equal(order.receiptAmount, 4864000);
-  assert.equal(order.returnAmount, 276632);
+  assert.equal(order.returnAmount, 0);
+  assert.equal(order.adjustmentCreditAmount, 276632);
   assert.equal(order.totalDebit, 5141521);
   assert.equal(order.totalCredit, 5140632);
   assert.equal(order.remainingDebt, 889);
   assert.equal(order.remainingDebtDisplay, 0);
   assert.equal(order.debt, 0);
   assert.equal(order.debtStatus, 'settled_by_tolerance');
-  assert.deepEqual(order.ledgerIds, ['sale-ledger', 'receipt-ledger', 'return-ledger']);
+  assert.deepEqual(order.ledgerIds, ['sale-ledger', 'receipt-ledger', 'return-adjustment-ledger']);
 
   const customer = report.customers[0];
   assert.equal(customer.customerCode, '4501256');
   assert.equal(customer.debt, 0);
   assert.equal(customer.rawDebt, 889);
-  assert.equal(customer.orders[0].returnAmount, 276632);
+  assert.equal(customer.orders[0].adjustmentCreditAmount, 276632);
 });
 
 test('AR customer debt read model excludes settled tolerance rows from Khách còn nợ', () => {
@@ -148,118 +133,107 @@ test('AR customer debt read model excludes settled tolerance rows from Khách c�
   assert.equal(report.summary.customerDebtCount, 0);
 });
 
-test('AR customer debt read model ignores inactive/unconfirmed ledgers and keeps reversal as debit category', () => {
+test('AR customer debt read model ignores inactive/unconfirmed ledgers and keeps debit adjustment category', () => {
   const rows = [
     ...b0038424Fixture(),
     baseLedger({
-      _id: 'voided-return',
-      id: 'AR-RETURN-VOIDED',
-      code: 'AR-RETURN-VOIDED',
-      category: 'AR-RETURN',
+      _id: 'voided-adjustment',
+      id: 'AR-DEBT-ADJUSTMENT-VOIDED',
+      code: 'AR-DEBT-ADJUSTMENT-VOIDED',
+      category: 'AR-DEBT-ADJUSTMENT',
+      ledgerType: 'AR-DEBT-ADJUSTMENT',
       status: 'voided',
-      credit: 999999,
-      amount: 999999,
-      direction: 'credit'
+      active: false,
+      credit: 999999
     }),
     baseLedger({
-      _id: 'unconfirmed-return',
-      id: 'AR-RETURN-UNCONFIRMED',
-      code: 'AR-RETURN-UNCONFIRMED',
-      category: 'AR-RETURN',
+      _id: 'unconfirmed-adjustment',
+      id: 'AR-DEBT-ADJUSTMENT-UNCONFIRMED',
+      code: 'AR-DEBT-ADJUSTMENT-UNCONFIRMED',
+      category: 'AR-DEBT-ADJUSTMENT',
+      ledgerType: 'AR-DEBT-ADJUSTMENT',
       accountingConfirmed: false,
-      credit: 999999,
-      amount: 999999,
-      direction: 'credit'
+      credit: 999999
     }),
     baseLedger({
-      _id: 'return-reversal',
-      id: 'AR-RETURN-REVERSAL-RO-B0038424',
-      code: 'AR-RETURN-REVERSAL-RO-B0038424',
-      category: 'AR-RETURN-REVERSAL',
-      ledgerType: 'AR-RETURN-REVERSAL',
-      type: 'ar_return_reversal',
-      debit: 5000,
-      amount: 5000,
-      direction: 'debit'
+      _id: 'debit-adjustment',
+      id: 'AR-DEBT-ADJUSTMENT-DEBIT-B0038424',
+      code: 'AR-DEBT-ADJUSTMENT-DEBIT-B0038424',
+      category: 'AR-DEBT-ADJUSTMENT',
+      ledgerType: 'AR-DEBT-ADJUSTMENT',
+      debit: 5000
     })
   ];
   const report = buildCustomerDebtReadModelFromLedgers(rows, { status: 'all', q: '4501256' }, { today: '2026-06-29' });
   const order = report.orders[0];
 
-  assert.equal(normalizeArCategory({ category: 'AR-RETURN-REVERSAL' }), 'AR-RETURN-REVERSAL');
+  assert.equal(normalizeArCategory({ category: 'AR-DEBT-ADJUSTMENT' }), 'AR-DEBT-ADJUSTMENT');
   assert.equal(canonicalOrderKey({ returnOrderId: 'RO-B0038424' }), 'B0038424');
-  assert.equal(order.returnAmount, 276632);
-  assert.equal(order.returnReversalAmount, 5000);
+  assert.equal(order.returnAmount, 0);
+  assert.equal(order.adjustmentCreditAmount, 276632);
+  assert.equal(order.adjustmentDebitAmount, 5000);
   assert.equal(order.totalDebit, 5146521);
   assert.equal(order.totalCredit, 5140632);
   assert.equal(order.remainingDebt, 5889);
   assert.equal(order.remainingDebtDisplay, 5889);
-  assert.equal(order.ledgerIds.includes('voided-return'), false);
-  assert.equal(order.ledgerIds.includes('unconfirmed-return'), false);
+  assert.equal(order.ledgerIds.includes('voided-adjustment'), false);
+  assert.equal(order.ledgerIds.includes('unconfirmed-adjustment'), false);
 });
 
 test('AR customer debt read model status filters separate open, settled tolerance and overpaid customers', () => {
   const rows = [
     baseLedger({
       _id: 'cust-a-sale',
-      id: 'AR-SALE-A001',
-      code: 'AR-SALE-A001',
-      category: 'AR-SALE',
+      id: 'AR-DEBT-OPEN-A001',
+      code: 'AR-DEBT-OPEN-A001',
       customerCode: 'A001',
       customerName: 'Customer A',
       orderId: 'SO-A001',
       orderCode: 'A001-ORDER',
       salesOrderId: 'SO-A001',
       salesOrderCode: 'A001-ORDER',
-      debit: 1000000,
-      amount: 1000000,
-      direction: 'debit'
+      debit: 1000000
     }),
     baseLedger({
       _id: 'cust-a-receipt',
-      id: 'AR-RECEIPT-A001',
-      code: 'AR-RECEIPT-A001',
-      category: 'AR-RECEIPT',
+      id: 'AR-DEBT-PAYMENT-A001',
+      code: 'AR-DEBT-PAYMENT-A001',
+      category: 'AR-DEBT-PAYMENT',
+      ledgerType: 'AR-DEBT-PAYMENT',
       customerCode: 'A001',
       customerName: 'Customer A',
       orderId: 'SO-A001',
       orderCode: 'A001-ORDER',
       salesOrderId: 'SO-A001',
       salesOrderCode: 'A001-ORDER',
-      credit: 300000,
-      amount: 300000,
-      direction: 'credit'
+      credit: 300000
     }),
     ...b0038424Fixture(),
     baseLedger({
       _id: 'cust-c-sale',
-      id: 'AR-SALE-C001',
-      code: 'AR-SALE-C001',
-      category: 'AR-SALE',
+      id: 'AR-DEBT-OPEN-C001',
+      code: 'AR-DEBT-OPEN-C001',
       customerCode: 'C001',
       customerName: 'Customer C',
       orderId: 'SO-C001',
       orderCode: 'C001-ORDER',
       salesOrderId: 'SO-C001',
       salesOrderCode: 'C001-ORDER',
-      debit: 1000000,
-      amount: 1000000,
-      direction: 'debit'
+      debit: 1000000
     }),
     baseLedger({
       _id: 'cust-c-receipt',
-      id: 'AR-RECEIPT-C001',
-      code: 'AR-RECEIPT-C001',
-      category: 'AR-RECEIPT',
+      id: 'AR-DEBT-PAYMENT-C001',
+      code: 'AR-DEBT-PAYMENT-C001',
+      category: 'AR-DEBT-PAYMENT',
+      ledgerType: 'AR-DEBT-PAYMENT',
       customerCode: 'C001',
       customerName: 'Customer C',
       orderId: 'SO-C001',
       orderCode: 'C001-ORDER',
       salesOrderId: 'SO-C001',
       salesOrderCode: 'C001-ORDER',
-      credit: 1200000,
-      amount: 1200000,
-      direction: 'credit'
+      credit: 1200000
     })
   ];
 

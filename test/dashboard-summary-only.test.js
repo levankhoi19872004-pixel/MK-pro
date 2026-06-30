@@ -12,7 +12,8 @@ test('dashboard reads aggregate summaries and does not call full list reports', 
   assert.ok(block);
   assert.match(block, /source:\s*'mongo_summary_only'/);
   assert.match(block, /SalesOrder\.aggregate/);
-  assert.match(block, /ArLedger\.aggregate/);
+  assert.match(block, /arDebtRuntimeView\.getDebtSummary/);
+  assert.doesNotMatch(block, /ArLedger\.aggregate/);
   assert.match(block, /FundLedger\.aggregate/);
   assert.match(block, /MasterOrder\.aggregate/);
   assert.match(block, /ImportOrder\.aggregate/);

@@ -3,8 +3,9 @@
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../../constants/finance.constants');
 const {
   DEBT_CATEGORIES,
+  PHASE87_READ_MODEL_CATEGORIES,
   normalizeAccountingAmount,
-  isCanonicalArDebtLedger,
+  isPhase87ReadModelArDebtLedger,
   validateArLedgerContract
 } = require('./arLedgerValidator');
 
@@ -66,63 +67,24 @@ function appendAnd(match, condition) {
   return match;
 }
 
-const AR_REVERSAL_CATEGORIES = Object.freeze([
-  // Technical sale/receipt reversal rows are read-model eligible only when
-  // their original active ledger is also present. AR-RETURN-REVERSAL is a
-  // business debit row that restores receivables after a real return is voided.
-  'AR-SALE-REVERSAL',
-  'AR-RECEIPT-REVERSAL'
-]);
-
 function ledgerIdentityKeys(row = {}) {
-  return [
-    row.id,
-    row.code,
-    row._id,
-    row.ledgerId,
-    row.originalLedgerId,
-    row.originalLedgerCode
-  ].map(clean).filter(Boolean);
+  return [row.id, row.code, row._id, row.ledgerId].map(clean).filter(Boolean);
 }
 
-function reversalOriginalKeys(row = {}) {
-  return [
-    row.reversedLedgerId,
-    row.originalLedgerId,
-    row.reversalOf,
-    row.reversedFromId,
-    row.reversedFromCode,
-    row.refId,
-    row.refCode
-  ].map(clean).filter(Boolean);
+function reversalOriginalKeys() {
+  return [];
 }
 
-function isArDebtReversalLedger(row = {}) {
-  const identity = [row.category, row.ledgerType, row.type, row.code, row.id, row.idempotencyKey]
-    .map(clean).filter(Boolean).join(' ').toUpperCase();
-  if (/AR[-_ ]?RETURN[-_ ]?REVERSAL|AR_RETURN_REVERSAL/.test(identity)) return false;
-  return AR_REVERSAL_CATEGORIES.includes(clean(row.category || row.ledgerType || row.type).toUpperCase())
-    || clean(row.entryType).toLowerCase() === 'reversal'
-    || clean(row.sourceAction).toLowerCase() === 'reverse';
+function isArDebtReversalLedger() {
+  return false;
 }
 
 function filterReadModelEligibleArLedgers(rows = []) {
-  const canonicalRows = (Array.isArray(rows) ? rows : []).filter(isCanonicalArDebtLedger);
-  const originalKeys = new Set();
-  for (const row of canonicalRows) {
-    if (isArDebtReversalLedger(row)) continue;
-    for (const key of ledgerIdentityKeys(row)) originalKeys.add(key);
-  }
-  return canonicalRows.filter((row) => {
-    if (!isArDebtReversalLedger(row)) return true;
-    const keys = reversalOriginalKeys(row);
-    return keys.length > 0 && keys.some((key) => originalKeys.has(key));
-  });
+  return (Array.isArray(rows) ? rows : []).filter(isPhase87ReadModelArDebtLedger);
 }
 
-function isOrphanReadModelReversal(row = {}, rows = []) {
-  if (!isCanonicalArDebtLedger(row) || !isArDebtReversalLedger(row)) return false;
-  return !filterReadModelEligibleArLedgers(rows).includes(row);
+function isOrphanReadModelReversal() {
+  return false;
 }
 
 function buildCanonicalArLedgerMatch(filters = {}) {
@@ -133,7 +95,7 @@ function buildCanonicalArLedgerMatch(filters = {}) {
     accountingStatus: 'confirmed',
     active: true,
     reversed: { $ne: true },
-    category: { $in: [...DEBT_CATEGORIES] }
+    category: { $in: [...PHASE87_READ_MODEL_CATEGORIES] }
   };
 
   if (clean(filters.tenantId)) match.tenantId = clean(filters.tenantId);
@@ -182,7 +144,7 @@ function buildCanonicalArLedgerMatch(filters = {}) {
 }
 
 function getSignedArAmount(ledger = {}) {
-  if (!isCanonicalArDebtLedger(ledger)) {
+  if (!isPhase87ReadModelArDebtLedger(ledger)) {
     const validation = validateArLedgerContract(ledger);
     const error = new Error(`Cannot compute AR signed amount from non-canonical ledger: ${validation.ledgerId}`);
     error.code = 'NON_CANONICAL_AR_LEDGER';
@@ -270,7 +232,6 @@ module.exports = {
   canonicalRowMatchesFilters,
   matchesDebtStatus,
   getSignedArAmount,
-  AR_REVERSAL_CATEGORIES,
   isArDebtReversalLedger,
   ledgerIdentityKeys,
   reversalOriginalKeys,

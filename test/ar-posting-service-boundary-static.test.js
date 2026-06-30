@@ -7,15 +7,17 @@ const test = require('node:test');
 
 const ROOT = path.resolve(__dirname, '..');
 const read = (file) => require('./helpers/sourceBundle.util').readSource(file);
+function readActual(file) {
+  return fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+}
 
-test('master order legacy does not write arLedgers directly in batch accounting flow', () => {
-  const source = read('src/services/master-order/masterOrderLegacy.service.js');
 
-  assert.match(source, /const ArPostingService = require\('\.\.\/\.\.\/domain\/posting\/ArPostingService'\);/);
-  assert.doesNotMatch(source, /MongoStore\.arLedgers\.(insertMany|bulkWrite|create|findOneAndUpdate)\s*\(/);
-  assert.match(source, /ArPostingService\.postBatch\(reversalRows/);
-  assert.match(source, /ArPostingService\.markReversed\(rowsToMarkReversed/);
-  assert.match(source, /ArPostingService\.postBatch\(ledgerRows/);
+test('master order production accounting defaults to strict closeout and blocks unsafe legacy AR rollback', () => {
+  const boundary = readActual('src/services/master-order/deliveryAccounting.service.js');
+  assert.match(boundary, /DeliverySettlementService\.confirmAccounting/);
+  assert.match(boundary, /UNSAFE_LEGACY_DELIVERY_ACCOUNTING_BLOCKED_IN_PRODUCTION/);
+  assert.match(boundary, /ALLOW_UNSAFE_LEGACY_AR_ROLLBACK/);
+  assert.match(boundary, /AR-SALE\/AR-RETURN\/AR-RECEIPT legacy/);
 });
 
 test('ArPostingService exposes batch posting wrappers through paymentRepository', () => {

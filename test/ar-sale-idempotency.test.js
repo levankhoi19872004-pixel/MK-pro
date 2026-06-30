@@ -17,7 +17,7 @@ function setup() {
   return { SalesOrder, ArLedger, AuditLog, ArDebtOrder, ArDebtCustomer };
 }
 
-test('confirmSalesOrderAR creates one full-contract AR-SALE and retry does not duplicate', async () => {
+test('legacy confirmSalesOrderAR remains idempotent but no longer feeds Phase87 debt read model', async () => {
   const h = setup();
   const first = await arPosting.confirmSalesOrderAR({ orderId: 'SO1782550380164673', accountant: 'kt01' });
   const second = await arPosting.confirmSalesOrderAR({ orderCode: 'B0038423', accountant: 'kt01' });
@@ -29,9 +29,8 @@ test('confirmSalesOrderAR creates one full-contract AR-SALE and retry does not d
   assert.equal(sales[0].idempotencyKey, 'AR-SALE:salesOrder:SO1782550380164673');
   assert.equal(sales[0].customerCode, '4501221');
   assert.equal(sales[0].debit, 10402373);
-  assert.equal(h.ArDebtOrder.rows.length, 1);
-  assert.equal(h.ArDebtCustomer.rows.length, 1);
-  assert.equal(h.ArDebtCustomer.rows[0].remainingDebt, 10402373);
+  assert.equal(h.ArDebtOrder.rows.length, 0);
+  assert.equal(h.ArDebtCustomer.rows.length, 0);
 });
 
 test('confirmSalesOrderAR audits dirty AR-SALE but does not use it as canonical', async () => {

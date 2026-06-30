@@ -144,12 +144,6 @@ async function salesReport(query = {}) {
   );
   const totalExpr = numberExpression(['totalAmount', 'amount', 'grandTotal', 'total', 'value'], 0);
   const paidExpr = numberExpression(['paidAmount', 'paymentAmount'], 0);
-  const debtExpr = {
-    $let: {
-      vars: { remaining: { $subtract: [totalExpr, paidExpr] } },
-      in: { $cond: [{ $gt: ['$$remaining', 0] }, '$$remaining', 0] }
-    }
-  };
   const staffCodeExpr = firstValueExpression(['salesStaffCode', 'salesmanCode', 'nvbhCode'], '');
   const staffNameExpr = firstValueExpression(['salesStaffName', 'salesmanName', 'nvbhName'], '');
 
@@ -169,7 +163,7 @@ async function salesReport(query = {}) {
               orderCount: { $sum: 1 },
               totalAmount: { $sum: totalExpr },
               paidAmount: { $sum: paidExpr },
-              debtAmount: { $sum: debtExpr }
+              debtAmount: { $sum: 0 }
             }
           }],
           bySalesman: [
@@ -188,20 +182,29 @@ async function salesReport(query = {}) {
   );
 
   const facet = result?.[0] || {};
-  const rows = (facet.rows || []).map((order) => ({
-    id: order.id || String(order._id || ''),
-    code: order.code || order.orderCode || '',
-    date: dateUtil.toDateOnly(order.date || order.orderDate || order.createdAt),
-    customerCode: order.customerCode || '',
-    customerName: order.customerName || '',
-    salesmanCode: order.salesStaffCode || order.salesmanCode || order.nvbhCode || '',
-    salesmanName: order.salesStaffName || order.salesmanName || order.nvbhName || '',
-    totalAmount: totalOf(order),
-    paidAmount: toNumber(order.paidAmount || order.paymentAmount),
-    debtAmount: Math.max(0, totalOf(order) - toNumber(order.paidAmount || order.paymentAmount)),
-    status: order.status || ''
-  }));
+  const rawRows = facet.rows || [];
+  const customerCodes = Array.from(new Set(rawRows.map((order) => String(order.customerCode || '').trim()).filter(Boolean)));
+  const debtMap = await arDebtRuntimeView.getCustomerDebtMap(customerCodes, { status: 'all' });
+  const rows = rawRows.map((order) => {
+    const runtimeDebt = debtMap.get(String(order.customerCode || '').trim()) || arDebtRuntimeView._internal.emptyCustomerDebt(order.customerCode || '');
+    return {
+      id: order.id || String(order._id || ''),
+      code: order.code || order.orderCode || '',
+      date: dateUtil.toDateOnly(order.date || order.orderDate || order.createdAt),
+      customerCode: order.customerCode || '',
+      customerName: order.customerName || '',
+      salesmanCode: order.salesStaffCode || order.salesmanCode || order.nvbhCode || '',
+      salesmanName: order.salesStaffName || order.salesmanName || order.nvbhName || '',
+      totalAmount: totalOf(order),
+      paidAmount: toNumber(order.paidAmount || order.paymentAmount),
+      debtAmount: runtimeDebt.currentDebtAmount,
+      currentDebtAmount: runtimeDebt.currentDebtAmount,
+      debtSource: runtimeDebt.debtSource,
+      status: order.status || ''
+    };
+  });
   const totals = facet.totals?.[0] || {};
+  const runtimeDebtSummaryAmount = Array.from(debtMap.values()).reduce((sum, row) => sum + Number(row.currentDebtAmount || 0), 0);
   const meta = reportMeta(page, limit, totals.orderCount || 0);
   const bySalesman = (facet.bySalesman || []).map((row) => ({
     salesmanCode: row?._id?.code || '',
@@ -220,7 +223,8 @@ async function salesReport(query = {}) {
       orderCount: toNumber(totals.orderCount),
       totalAmount: toNumber(totals.totalAmount),
       paidAmount: toNumber(totals.paidAmount),
-      debtAmount: toNumber(totals.debtAmount)
+      debtAmount: runtimeDebtSummaryAmount,
+      debtSource: arDebtRuntimeView.DEBT_SOURCE
     }
   };
 }
@@ -424,7 +428,7 @@ async function dashboardReport(query = {}) {
   const importFilter = buildActiveDateMongoFilter(query, ['date', 'documentDate', 'importDate', 'createdAt']);
   const activeArFilter = { status: { $nin: REPORT_INACTIVE_STATUSES } };
 
-  const [salesRows, debtRows, stockData, fundRows, deliveryRows, importRows] = await runReportSource(
+  const [salesRows, debtSummary, stockData, fundRows, deliveryRows, importRows] = await runReportSource(
     'dashboard',
     query,
     () => Promise.all([
@@ -432,10 +436,7 @@ async function dashboardReport(query = {}) {
         { $match: salesFilter },
         { $group: { _id: null, orderCount: { $sum: 1 }, totalAmount: { $sum: salesTotalExpr }, paidAmount: { $sum: salesPaidExpr } } }
       ]),
-      ArLedger.aggregate([
-        { $match: activeArFilter },
-        { $group: { _id: null, debit: { $sum: numberExpression(['debit', 'arDebit'], 0) }, credit: { $sum: numberExpression(['credit', 'arCredit'], 0) } } }
-      ]),
+      arDebtRuntimeView.getDebtSummary({ status: 'all' }),
       inventoryStockService.getInventorySummary({}),
       FundLedger.aggregate([
         { $match: fundFilter },
@@ -453,7 +454,7 @@ async function dashboardReport(query = {}) {
   );
 
   const sales = salesRows?.[0] || {};
-  const debt = debtRows?.[0] || {};
+  const debt = debtSummary || {};
   const delivery = deliveryRows?.[0] || {};
   const imports = importRows?.[0] || {};
   const fundAmount = (fundType, direction) => toNumber((fundRows || []).find((row) =>
@@ -464,7 +465,7 @@ async function dashboardReport(query = {}) {
   const cashOut = fundAmount('cash', 'out');
   const bankIn = fundAmount('bank', 'in');
   const bankOut = fundAmount('bank', 'out');
-  const totalDebt = normalizeDebtAmount(toNumber(debt.debit) - toNumber(debt.credit));
+  const totalDebt = normalizeDebtAmount(toNumber(debt.totalDebt));
 
   return {
     source: 'mongo_summary_only',
@@ -473,11 +474,12 @@ async function dashboardReport(query = {}) {
         orderCount: toNumber(sales.orderCount),
         totalAmount: toNumber(sales.totalAmount),
         paidAmount: toNumber(sales.paidAmount),
-        debtAmount: Math.max(0, toNumber(sales.totalAmount) - toNumber(sales.paidAmount))
+        debtAmount: totalDebt,
+        debtSource: arDebtRuntimeView.DEBT_SOURCE
       },
       debts: {
-        totalDebit: toNumber(debt.debit),
-        totalCredit: toNumber(debt.credit),
+        totalDebit: 0,
+        totalCredit: 0,
         totalDebt,
         debtZeroTolerance: DEBT_ZERO_TOLERANCE
       },

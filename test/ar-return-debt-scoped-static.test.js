@@ -31,10 +31,11 @@ test('posting engine writes AR-RETURN as credit and keeps sales-order linkage', 
   assert.match(postingEngine, /orderCode:\s*salesOrderCode/);
 });
 
-test('debt report groups return credit into returnAmount, not UI hardcode', () => {
-  assert.match(debtReportSource, /returnAmount:\s*\{\s*\$sum:\s*\{\s*\$cond/);
-  assert.match(debtReportSource, /regex:\s*'return'/);
-  assert.match(debtReportSource, /debt:\s*\{\s*\$subtract:\s*\['\$debit', '\$credit'\]/);
+test('debt report no longer classifies AR-RETURN legacy and delegates to strict AR debt read model v2', () => {
+  assert.match(debtReportSource, /arCustomerDebtReadModel\.debtReport\(query\)/);
+  assert.match(debtReportSource, /debtSource:\s*'AR_DEBT_READ_MODEL_V2'/);
+  assert.doesNotMatch(debtReportSource, /returnAmount:\s*\{\s*\$sum:\s*\{\s*\$cond/);
+  assert.doesNotMatch(debtReportSource, /regex:\s*'return'/);
 });
 
 test('manual backfill script is dry-run by default and delegates duplicate prevention through posting wrapper', () => {

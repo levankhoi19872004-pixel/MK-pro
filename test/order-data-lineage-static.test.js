@@ -56,12 +56,23 @@ test('returnOrders snapshot NVBH/NVGH and never treat staffName as NVBH', () => 
   assert.doesNotMatch(engine, /salesStaffName:\s*text\(body\.salesStaffName \|\| order\.salesStaffName \|\| order\.staffName\)/);
 });
 
-test('debt report displays staff from arLedgers AR-SALE row, not customer/user/payment metadata', () => {
+test('debt report staff lineage uses AR debt read model v2 and does not depend on AR-SALE legacy', () => {
   const src = read('src/services/reportLegacy.service.js');
-  assert.ok(src.includes('DEBT_REPORT_ORDER_STAFF_FROM_AR_SALE_ONLY_START'));
-  assert.ok(src.includes('ORDER_DATA_LINEAGE_REPORT_AR_SALE_STAFF_ONLY_START'));
-  assert.ok(src.includes("salesmanName: row.saleSalesmanName || row.fallbackSalesmanName || ''"));
-  assert.ok(src.includes("deliveryStaffName: row.saleDeliveryStaffName || row.fallbackDeliveryStaffName || ''"));
+
+  assert.ok(
+    src.includes("require('./accounting/arDebtRuntimeView.service')")
+      || src.includes('arDebtRuntimeView'),
+    'debt report/runtime output must delegate customer debt values to arDebtRuntimeView'
+  );
+  assert.ok(
+    src.includes('arCustomerDebtReadModel.debtReport(query)')
+      || src.includes('AR_DEBT_READ_MODEL_V2'),
+    'debt report must delegate runtime debt calculation to AR debt read model v2'
+  );
+  assert.doesNotMatch(src, /DEBT_REPORT_ORDER_STAFF_FROM_AR_SALE_ONLY_START/);
+  assert.doesNotMatch(src, /ORDER_DATA_LINEAGE_REPORT_AR_SALE_STAFF_ONLY_START/);
+  assert.doesNotMatch(src, /saleSalesmanName\s*\|\|\s*row\.fallbackSalesmanName/);
+  assert.doesNotMatch(src, /saleDeliveryStaffName\s*\|\|\s*row\.fallbackDeliveryStaffName/);
   assert.doesNotMatch(src, /salesmanName:\s*row\.salesmanName \|\| cmeta\.salesmanName/);
   assert.doesNotMatch(src, /deliveryStaffName:\s*row\.deliveryStaffName \|\| cmeta\.deliveryStaffName/);
 });
