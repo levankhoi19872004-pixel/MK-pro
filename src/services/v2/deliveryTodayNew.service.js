@@ -122,6 +122,29 @@ function closeoutOf(order = {}) {
   return order.deliveryCloseout && typeof order.deliveryCloseout === 'object' ? order.deliveryCloseout : {};
 }
 
+function firstMoney(source = {}, keys = []) {
+  for (const key of keys) {
+    if (source[key] !== undefined && source[key] !== null && source[key] !== '') return money(source[key]);
+  }
+  return 0;
+}
+
+function closeoutMoneyBreakdown(closeout = {}) {
+  const cashAmount = firstMoney(closeout, ['cashAmount', 'cashCollectedAmount', 'cash', 'cashInAmount', 'cashPaymentAmount']);
+  const bankAmount = firstMoney(closeout, ['bankAmount', 'transferAmount', 'bankCollectedAmount', 'transferCollectedAmount', 'bankPaymentAmount']);
+  const rewardAmount = firstMoney(closeout, ['rewardAmount', 'bonusAmount', 'rewardOffsetAmount', 'promotionOffsetAmount']);
+  const offsetAmount = firstMoney(closeout, ['offsetAmount', 'debtOffsetAmount', 'otherOffsetAmount']);
+  const explicitCollected = firstMoney(closeout, ['collectedAmount', 'cashCollectedTotal', 'paidAmount']);
+  const breakdownCollected = cashAmount + bankAmount + rewardAmount + offsetAmount;
+  return {
+    cashAmount,
+    bankAmount,
+    rewardAmount,
+    offsetAmount,
+    collectedAmount: breakdownCollected || explicitCollected
+  };
+}
+
 function closeoutStatus(order = {}) {
   return text(closeoutOf(order).status || order.accountingStatus || order.status || order.deliveryStatus || 'draft');
 }
@@ -252,7 +275,16 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
   const originalAmount = money((latestVersion && (latestVersion.originalAmount ?? latestVersion.saleAmount)) ?? closeout.originalAmount ?? orderAmount(order));
   const legacyReturnedAmount = money(uniqueReturns.reduce((sum, row) => sum + money(row.amount), 0));
   const returnedAmount = money((latestVersion && (latestVersion.returnedAmount ?? latestVersion.returnAmount)) ?? legacyReturnedAmount);
-  const collected = money((latestVersion && (latestVersion.collectedAmount ?? latestVersion.cashCollectedAmount)) ?? collectedAmount(order));
+  const baseBreakdown = closeoutMoneyBreakdown(closeout);
+  const adjustedCashAmount = latestVersion
+    ? money(baseBreakdown.cashAmount + money(latestVersion.cashAdjustmentAmount))
+    : baseBreakdown.cashAmount;
+  const bankAmount = baseBreakdown.bankAmount;
+  const rewardAmount = baseBreakdown.rewardAmount;
+  const offsetAmount = baseBreakdown.offsetAmount;
+  const collected = money((latestVersion && (latestVersion.collectedAmount ?? latestVersion.cashCollectedAmount))
+    ?? (adjustedCashAmount + bankAmount + rewardAmount + offsetAmount)
+    ?? collectedAmount(order));
   const finalDebtAmount = money((latestVersion && (latestVersion.finalDebtAmount ?? latestVersion.debtAmount)) ?? (originalAmount - returnedAmount - collected));
   const closeoutFinalDebt = latestVersion
     ? finalDebtAmount
@@ -280,6 +312,10 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     debtAdjustmentAmount: latestVersion ? money(latestVersion.debtAdjustmentAmount) : 0,
     originalAmount,
     returnedAmount,
+    cashAmount: adjustedCashAmount,
+    bankAmount,
+    rewardAmount,
+    offsetAmount,
     collectedAmount: collected,
     finalDebtAmount,
     closeoutFinalDebtAmount: closeoutFinalDebt,
@@ -298,6 +334,10 @@ function summarizeRows(rows = []) {
     summary.orderCount += 1;
     summary.originalAmount += money(row.originalAmount);
     summary.returnedAmount += money(row.returnedAmount);
+    summary.cashAmount += money(row.cashAmount);
+    summary.bankAmount += money(row.bankAmount);
+    summary.rewardAmount += money(row.rewardAmount);
+    summary.offsetAmount += money(row.offsetAmount);
     summary.collectedAmount += money(row.collectedAmount);
     summary.finalDebtAmount += money(row.finalDebtAmount);
     if (row.accountingConfirmed) summary.accountingConfirmedCount += 1;
@@ -309,6 +349,10 @@ function summarizeRows(rows = []) {
     closeoutMismatchCount: 0,
     originalAmount: 0,
     returnedAmount: 0,
+    cashAmount: 0,
+    bankAmount: 0,
+    rewardAmount: 0,
+    offsetAmount: 0,
     collectedAmount: 0,
     finalDebtAmount: 0
   });
@@ -343,5 +387,5 @@ module.exports = {
   summarizeOrder,
   summarizeRows,
   setModelsForTest,
-  _private: { money, orderBusinessIds, returnAmountFromItems, isValidReturn, normalizeReturn, loadLatestVersionsForOrders, latestVersionForOrder }
+  _private: { money, orderBusinessIds, returnAmountFromItems, isValidReturn, normalizeReturn, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown }
 };
