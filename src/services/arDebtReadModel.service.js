@@ -253,6 +253,43 @@ async function rebuildAllDebtReadModels(options = {}) {
   return { scope: 'all', ...result };
 }
 
+
+function debtDisplayAmount(row = {}) {
+  return normalizeDebtAmount(row.remainingDebtDisplay ?? row.debt ?? row.remainingDebt ?? row.rawDebt ?? 0, DEBT_ZERO_TOLERANCE);
+}
+
+function exposeDebtCustomer(row = {}) {
+  const debt = debtDisplayAmount(row);
+  return {
+    ...row,
+    debt,
+    totalDebt: debt,
+    totalDebtDisplay: debt,
+    remainingDebtDisplay: debt,
+    salesmanCode: row.salesmanCode || row.salesStaffCode || '',
+    salesmanName: row.salesmanName || row.salesStaffName || '',
+    deliveryCode: row.deliveryCode || row.deliveryStaffCode || '',
+    deliveryName: row.deliveryName || row.deliveryStaffName || ''
+  };
+}
+
+function exposeDebtOrder(row = {}) {
+  const debt = debtDisplayAmount(row);
+  return {
+    ...row,
+    debt,
+    remainingDebtDisplay: debt,
+    orderId: row.orderId || row.sourceId || '',
+    orderCode: row.orderCode || row.sourceCode || '',
+    documentDate: row.documentDate || row.lastDebtDate || '',
+    dueDate: row.dueDate || row.lastDebtDate || '',
+    salesmanCode: row.salesmanCode || row.salesStaffCode || '',
+    salesmanName: row.salesmanName || row.salesStaffName || '',
+    deliveryCode: row.deliveryCode || row.deliveryStaffCode || '',
+    deliveryName: row.deliveryName || row.deliveryStaffName || ''
+  };
+}
+
 function matchesStatus(row = {}, status = 'open') {
   const normalized = lower(status || 'open');
   if (['all', ''].includes(normalized)) return true;
@@ -327,13 +364,15 @@ async function getDebtCustomers(filters = {}) {
     source: 'arDebtCustomers',
     usesSnapshot: false
   };
+  const exposedCustomers = page.rows.map(exposeDebtCustomer);
+  const exposedOrders = pageOrders.map(exposeDebtOrder);
   return {
     source: 'phase79_ar_debt_read_model',
     readModelCollections: { debtCustomers: 'arDebtCustomers', debtOrders: 'arDebtOrders' },
-    customers: page.rows,
-    customerSummary: page.rows,
-    debts: page.rows,
-    orders: pageOrders,
+    customers: exposedCustomers,
+    customerSummary: exposedCustomers,
+    debts: exposedCustomers,
+    orders: exposedOrders,
     summary,
     debugSource: { source: 'canonical arLedgers -> arDebtCustomers/arDebtOrders', usesSnapshot: false, readModel: 'arDebtReadModel.service' }
   };
@@ -360,12 +399,13 @@ async function getDebtOrders(customerCode, filters = {}) {
     source: 'arDebtOrders',
     usesSnapshot: false
   };
+  const exposedOrders = page.rows.map(exposeDebtOrder);
   return {
     source: 'phase79_ar_debt_read_model',
     readModelCollections: { debtCustomers: 'arDebtCustomers', debtOrders: 'arDebtOrders' },
     customerCode: scoped.customerCode || '',
-    orders: page.rows,
-    debts: page.rows,
+    orders: exposedOrders,
+    debts: exposedOrders,
     customerSummary: [],
     customers: [],
     summary,
