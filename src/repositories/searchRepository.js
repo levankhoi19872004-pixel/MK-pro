@@ -255,7 +255,15 @@ async function findProducts(query = {}) {
       sortScoredRows(indexedRows, productSearchScore, nq, limit, ['code', 'productCode', 'sku']),
       ['code', 'productCode', 'sku']
     );
-    if (indexedMatches.length >= limit || isNumericKeyword(q)) return indexedMatches.slice(0, limit);
+
+    // Product autocomplete must support typing any 3-4 digit fragment, including
+    // fragments with leading zero such as "0864".  The indexed lookup above is
+    // intentionally fast (exact/prefix on code fields), but it is not complete for
+    // numeric fragments in the middle/end of productCode/barcode.  Do not return an
+    // empty numeric result here; fall through to the bounded regex scan below so
+    // edit-order autocomplete can still find matching products without converting
+    // "0864" to "864".
+    if (indexedMatches.length >= limit) return indexedMatches.slice(0, limit);
   }
 
   const rawRegex = { $regex: escapeRegex(q), $options: 'i' };

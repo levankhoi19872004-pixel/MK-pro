@@ -56,23 +56,29 @@
     }
   }
 
+  function isProductSuggestionBox(box){
+    const id = String(box && box.id || '').toLowerCase();
+    return id === 'productsuggestions' || id === 'salesproductsuggestions' || id === 'importproductsuggestions';
+  }
+
   function render({box, items, label, onPick, emptyText='Không tìm thấy dữ liệu'}){
     if(!box) return [];
     const originalCount = (items || []).length;
     const list = (items || []).slice(0, 20);
+    const productSuggestionBox = isProductSuggestionBox(box);
     show(box);
-    box.classList.toggle('has-many', box.id === 'productSuggestions' && originalCount > 6);
+    box.classList.toggle('has-many', productSuggestionBox && originalCount > 6);
     if(!list.length){
       box.classList.remove('has-many');
       box.innerHTML = `<div class="suggestion-item muted">${escapeHtml(emptyText)}</div>`;
       return list;
     }
-    const headerHtml = (box.id === 'productSuggestions' && originalCount > 6)
+    const headerHtml = (productSuggestionBox && originalCount > 6)
       ? `<div class="suggestion-empty suggestion-scroll-note">Có ${originalCount} sản phẩm. Kéo trong khung để xem thêm.</div>`
       : '';
     box.innerHTML = headerHtml + list.map((item, index) => {
       const rawLabel = label(item);
-      const htmlLabel = (box.id === 'productSuggestions'
+      const htmlLabel = (productSuggestionBox
         && window.UnifiedProductSearch
         && typeof window.UnifiedProductSearch.labelHtml === 'function')
         ? window.UnifiedProductSearch.labelHtml(item, 'sales')
@@ -254,5 +260,5 @@
     else clearSelected(input);
   }
 
-  window.SearchAutocomplete = { normalizeText, escapeHtml, matchText, show, hide, wire, cancel, clear };
+  window.SearchAutocomplete = { normalizeText, escapeHtml, matchText, show, hide, wire, cancel, clear, isProductSuggestionBox };
 })();

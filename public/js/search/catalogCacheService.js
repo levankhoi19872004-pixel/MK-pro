@@ -56,7 +56,7 @@
     const sep = url.includes('?') ? '&' : '?';
     const res = await fetch(`${url}${sep}_t=${Date.now()}`, { credentials: 'same-origin', headers: authHeaders() });
     const json = await res.json();
-    if(!json.ok) throw new Error(json.message || 'Không tải được dữ liệu');
+    if(json.ok === false || json.success === false) throw new Error(json.message || 'Không tải được dữ liệu');
     return json;
   }
 
@@ -115,7 +115,7 @@
 
     const url = `${endpoint('products')}?q=${encodeURIComponent(q)}&limit=${limit}&includeStock=1&activeOnly=1`;
     const promise = fetchJson(url).then(json => {
-      const rows = dedupe(json.products || json.items || [], ['code','productCode','sku','id']);
+      const rows = dedupe(json.products || json.items || json.data || [], ['code','productCode','sku','id']);
       setCached(state.productSearchCache, key, rows);
       syncGlobals('products', rows);
       return rows;
@@ -137,7 +137,7 @@
     const mobile = options.mobile ? '&mobile=1&includeMetrics=1' : '';
     const url = `${endpoint('customers')}?q=${encodeURIComponent(q)}&limit=${limit}&activeOnly=1${mobile}`;
     const promise = fetchJson(url).then(json => {
-      const rows = dedupe(json.customers || json.items || [], ['code','customerCode','id']);
+      const rows = dedupe(json.customers || json.items || json.data || [], ['code','customerCode','id']);
       setCached(state.customerSearchCache, key, rows);
       syncGlobals('customers', rows);
       return rows;
@@ -166,7 +166,7 @@
     if(q.length < 2 && !options.allowAll) return { rows: [], meta: { page, limit, total: 0 } };
     const url = `${listEndpoint('products')}?page=${page}&limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
     const json = await fetchJson(url);
-    const rows = dedupe(json.products || json.items || [], ['code','productCode','sku','id']);
+    const rows = dedupe(json.products || json.items || json.data || [], ['code','productCode','sku','id']);
     syncGlobals('products', rows);
     return { rows, meta: json.meta || null };
   }
@@ -178,7 +178,7 @@
     if(q.length < 2 && !options.allowAll) return { rows: [], meta: { page, limit, total: 0 } };
     const url = `${listEndpoint('customers')}?page=${page}&limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
     const json = await fetchJson(url);
-    const rows = dedupe(json.customers || json.items || [], ['code','customerCode','id']);
+    const rows = dedupe(json.customers || json.items || json.data || [], ['code','customerCode','id']);
     syncGlobals('customers', rows);
     return { rows, meta: json.meta || null };
   }

@@ -142,8 +142,8 @@ function numericDigits(value){ return String(value ?? '').replace(/\D/g,''); }
     if(q || !getCatalog().length){
       const res = await fetch(`/api/catalog/products/search?q=${encodeURIComponent(q)}&limit=${limit}&includeStock=1&activeOnly=1&_t=${Date.now()}`);
       const json = await res.json();
-      if(!json.ok) throw new Error(json.message || 'Không tìm được sản phẩm');
-      const rows = json.products || json.items || [];
+      if(json.ok === false || json.success === false) throw new Error(json.message || 'Không tìm được sản phẩm');
+      const rows = json.products || json.items || json.data || [];
       sync(rows);
       return rows.slice(0, limit);
     }

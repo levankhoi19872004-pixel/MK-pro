@@ -3,7 +3,7 @@
 const searchService = require('../services/searchService');
 
 function ok(res, type, items, extra = {}) {
-  res.json({ ok: true, source: 'unified-search', type, items, ...extra });
+  res.json({ ok: true, success: true, source: 'unified-search', type, items, data: items, ...extra });
 }
 
 function fail(res, message, err) {

@@ -144,6 +144,19 @@ function groupCanonicalLedgers(ledgerRows = [], options = {}) {
         masterOrderCode: ledger.masterOrderCode,
         debit: 0,
         credit: 0,
+        originalAmount: 0,
+        arSale: 0,
+        returnedAmount: 0,
+        returnAmount: 0,
+        cashAmount: 0,
+        transferAmount: 0,
+        bankAmount: 0,
+        collectedAmount: 0,
+        paidAmount: 0,
+        rewardAmount: 0,
+        bonusAmount: 0,
+        offsetAmount: 0,
+        finalDebtAmount: 0,
         remainingDebt: 0,
         rawDebt: 0,
         ledgerCount: 0,
@@ -162,6 +175,19 @@ function groupCanonicalLedgers(ledgerRows = [], options = {}) {
       target.deliveryStaffName = ledger.deliveryStaffName || target.deliveryStaffName;
       target.masterOrderId = ledger.masterOrderId || target.masterOrderId;
       target.masterOrderCode = ledger.masterOrderCode || target.masterOrderCode;
+      target.originalAmount = Math.round(toNumber(ledger.originalAmount));
+      target.arSale = target.originalAmount;
+      target.returnedAmount = Math.round(toNumber(ledger.returnedAmount));
+      target.returnAmount = target.returnedAmount;
+      target.cashAmount = Math.round(toNumber(ledger.cashAmount));
+      target.transferAmount = Math.round(toNumber(ledger.transferAmount));
+      target.bankAmount = Math.round(toNumber(ledger.bankAmount));
+      target.collectedAmount = Math.round(toNumber(ledger.collectedAmount));
+      target.paidAmount = target.collectedAmount;
+      target.rewardAmount = Math.round(toNumber(ledger.rewardAmount));
+      target.bonusAmount = Math.round(toNumber(ledger.bonusAmount));
+      target.offsetAmount = Math.round(toNumber(ledger.offsetAmount));
+      target.finalDebtAmount = Math.round(toNumber(ledger.finalDebtAmount));
     }
     target.debit += ledger.debit;
     target.credit += ledger.credit;

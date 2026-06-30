@@ -1,11 +1,23 @@
 'use strict';
 
 const dateUtil = require('../../utils/date.util');
-const orderRepository = require('../../repositories/orderRepository');
-const auditService = require('../auditService');
-const { withMongoTransaction } = require('../../utils/transaction.util');
 const { compactDeliveryOrderKeys } = require('../master-order/masterOrderIdentity.util');
-const { findReturnOrdersForDeliveryChildren } = require('../master-order/masterOrderReturn.impl');
+
+function getOrderRepository() {
+  return require('../../repositories/orderRepository');
+}
+
+function getAuditService() {
+  return require('../auditService');
+}
+
+function getTransactionUtil() {
+  return require('../../utils/transaction.util');
+}
+
+function getMasterOrderReturnImpl() {
+  return require('../master-order/masterOrderReturn.impl');
+}
 const DeliveryCloseoutService = require('./DeliveryCloseoutService');
 const ArDebtOpenPostingService = require('./ArDebtOpenPostingService');
 
@@ -107,7 +119,7 @@ function buildConfirmedOrderPatch(order = {}, closeout = {}, actor = 'accountant
 }
 
 async function loadOrders(selectedOrderIds = []) {
-  const rows = await orderRepository.findManyByIdentity(selectedOrderIds, {
+  const rows = await getOrderRepository().findManyByIdentity(selectedOrderIds, {
     limit: Math.max(1, selectedOrderIds.length),
     projection: [
       'id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderId', 'salesOrderCode',
@@ -172,9 +184,9 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
 
   const confirmedCloseout = DeliveryCloseoutService.confirmCloseout(order, computed, { actor });
   const updatedOrder = buildConfirmedOrderPatch(order, confirmedCloseout, actor);
-  await orderRepository.upsert(updatedOrder, options);
+  await getOrderRepository().upsert(updatedOrder, options);
   const arResult = await ArDebtOpenPostingService.postDebtOpen(updatedOrder, confirmedCloseout, options);
-  await auditService.log('ACCOUNTING_CONFIRM_DELIVERY_CLOSEOUT', {
+  await getAuditService().log('ACCOUNTING_CONFIRM_DELIVERY_CLOSEOUT', {
     refType: 'SALES_ORDER',
     refId: DeliveryCloseoutService.orderId(order),
     refCode: DeliveryCloseoutService.orderCode(order),
@@ -191,11 +203,11 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
   const actor = clean(normalized.confirmedBy || body.confirmedBy || body.userName || body.accountantName || 'accountant');
   const orders = await loadOrders(selectedOrderIds);
   if (!orders.length) return { error: `Không tìm thấy đơn đã chọn trong ngày ${date} để kế toán xác nhận`, status: 404 };
-  const returnOrders = await findReturnOrdersForDeliveryChildren(orders);
+  const returnOrders = await getMasterOrderReturnImpl().findReturnOrdersForDeliveryChildren(orders);
   const returnByKey = groupReturnOrdersBySalesOrder(returnOrders, orders);
 
   const results = [];
-  await withMongoTransaction(async (session) => {
+  await getTransactionUtil().withMongoTransaction(async (session) => {
     for (const order of orders) {
       const rows = returnOrdersForOrder(order, returnByKey);
       const result = await confirmOneOrder(order, rows, { session, actor, confirmedBy: actor });

@@ -5,7 +5,7 @@ const productService = require('../services/productService');
 async function list(req, res) {
   try {
     const result = await productService.listProducts(req.query);
-    res.json({ ok: true, source: 'mongo-route', products: result.products, meta: result.meta || undefined });
+    res.json({ ok: true, success: true, source: 'mongo-route', products: result.products, data: result.products, meta: result.meta || undefined });
   } catch (err) {
     res.status(500).json({ ok: false, message: 'Không lấy được danh sách sản phẩm từ MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
@@ -14,7 +14,7 @@ async function list(req, res) {
 async function search(req, res) {
   try {
     const products = await productService.searchProducts(req.query);
-    res.json({ ok: true, source: 'mongo-search', items: products, products });
+    res.json({ ok: true, success: true, source: 'mongo-search', items: products, products, data: products });
   } catch (err) {
     res.status(500).json({ ok: false, message: 'Không tìm kiếm được sản phẩm từ MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }

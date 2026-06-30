@@ -130,7 +130,7 @@
     });
     const json = await res.json().catch(function () { return {}; });
     if (!res.ok || json.ok === false) throw new Error(json.message || 'Không tìm được dữ liệu');
-    const rows = json.items || json.products || json.customers || json.users || json.staffs || json.orders || json.masterOrders || json.arLedger || json.debts || [];
+    const rows = json.items || json.data || json.products || json.customers || json.users || json.staffs || json.orders || json.masterOrders || json.arLedger || json.debts || [];
     return normalizeSuggestions(rows, options.type || path);
   }
 
