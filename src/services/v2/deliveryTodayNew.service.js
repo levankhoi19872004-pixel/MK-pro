@@ -38,6 +38,51 @@ function money(value) {
   return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
+function normalizeQty(value) {
+  const n = Number(toNumber(value));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeOrderItem(item = {}) {
+  const deliveredQty = normalizeQty(
+    item.deliveredQty
+      ?? item.deliveryQty
+      ?? item.shipQty
+      ?? item.quantity
+      ?? item.qty
+      ?? item.totalQty
+      ?? item.soldQty
+      ?? item.looseQty
+      ?? item.units
+  );
+  const unitPrice = money(
+    item.unitPrice
+      ?? item.salePrice
+      ?? item.price
+      ?? item.finalPrice
+      ?? item.priceAfterPromotion
+      ?? item.actualPrice
+  );
+  const amount = money(item.amount ?? item.lineTotal ?? item.totalAmount ?? item.finalAmount ?? (deliveredQty * unitPrice));
+  return {
+    productCode: text(item.productCode || item.code || item.sku || item.itemCode),
+    productName: text(item.productName || item.name || item.description || item.itemName),
+    unit: text(item.unit || item.baseUnit || item.uom || item.unitName),
+    deliveredQty,
+    unitPrice,
+    amount,
+    conversionRate: normalizeQty(item.conversionRate || item.packing || item.boxSize || 0),
+    caseQty: normalizeQty(item.caseQty || item.boxQty || item.thung || 0),
+    looseQty: normalizeQty(item.looseQty || item.le || 0)
+  };
+}
+
+function compactOrderItems(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .map(normalizeOrderItem)
+    .filter((item) => item.productCode || item.productName || item.deliveredQty || item.amount);
+}
+
 function dateOnly(value) {
   return dateUtil.toDateOnly(value || '', '');
 }
@@ -366,6 +411,9 @@ function normalizeDeliveryOperationalRow(row = {}) {
     deliveryStaffName: text(row.deliveryStaffName || row.deliveryName || row.nvghName),
     deliveryDate: dateOnly(row.deliveryDate || row.date || row.orderDate || row.documentDate),
     totalAmount: money(row.totalReceivable ?? row.originalAmount ?? row.totalAmount ?? row.amount),
+    items: compactOrderItems(row.items || row.orderItems || row.soldItems || row.products || row.lines || []),
+    orderItems: compactOrderItems(row.orderItems || row.items || row.soldItems || row.products || row.lines || []),
+    soldItems: compactOrderItems(row.soldItems || row.items || row.orderItems || row.products || row.lines || []),
     cashAmount: money(row.cashAmount ?? row.cashCollected ?? 0),
     bankAmount: money(row.bankAmount ?? row.bankCollected ?? row.transferAmount ?? 0),
     rewardAmount: money(row.rewardAmount ?? row.bonusAmount ?? row.displayRewardAmount ?? 0),
@@ -452,6 +500,9 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     deliveryStaffCode: text(order.deliveryStaffCode || order.deliveryCode || order.nvghCode),
     deliveryStaffName: text(order.deliveryStaffName || order.deliveryName || order.nvghName),
     status: text(order.status || order.deliveryStatus || order.accountingStatus || 'draft'),
+    items: compactOrderItems(order.items || order.orderItems || order.soldItems || order.products || order.lines || []),
+    orderItems: compactOrderItems(order.orderItems || order.items || order.soldItems || order.products || order.lines || []),
+    soldItems: compactOrderItems(order.soldItems || order.items || order.orderItems || order.products || order.lines || []),
     closeoutStatus: latestVersion ? text(latestVersion.status || 'corrected_confirmed') : closeoutStatus(order),
     accountingConfirmed: isConfirmedCloseout(order),
     correctionVersionApplied: Boolean(latestVersion),
@@ -558,5 +609,5 @@ module.exports = {
   summarizeRows,
   setModelsForTest,
   setDeliveryListServiceForTest,
-  _private: { money, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
+  _private: { money, normalizeQty, normalizeOrderItem, compactOrderItems, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
 };

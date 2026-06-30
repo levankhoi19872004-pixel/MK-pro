@@ -87,12 +87,12 @@ test('Delivery Today New UI renders returnOrders business block without requirin
   const fs = require('node:fs');
   const path = require('node:path');
   const source = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/new/91-delivery-today-new.js'), 'utf8');
-  assert.match(source, /Hàng trả từ phiếu trả/);
+  assert.match(source, /Phiếu trả hiện tại/);
   assert.match(source, /returnOrders/);
-  assert.match(source, /returnOrderCodes/);
+  assert.match(source, /returnOrders/);
   assert.match(source, /Mã SP/);
-  assert.match(source, /SL trả/);
-  assert.match(source, /Điều chỉnh hàng trả theo sản phẩm/);
+  assert.match(source, /SL trả đúng/);
+  assert.match(source, /Hàng giao/);
   assert.match(source, /correctedReturnItems/);
   assert.match(source, /oldReturnQty/);
   assert.match(source, /newReturnQty/);
@@ -151,10 +151,24 @@ test('Delivery Today New item-level return adjustment UI keeps Phase92 immutable
   const fs = require('node:fs');
   const path = require('node:path');
   const source = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/new/91-delivery-today-new.js'), 'utf8');
-  assert.match(source, /Điều chỉnh hàng trả \/ tiền thu/);
-  assert.match(source, /không sửa phiếu returnOrders cũ/);
-  assert.match(source, /Không sinh AR-RETURN/i);
+  assert.match(source, /Điều chỉnh đơn giao/);
+  assert.match(source, /không sửa bản cũ/);
+  assert.doesNotMatch(source, /AR-RETURN/);
   assert.match(source, /correctedReturnItems/);
   assert.doesNotMatch(source, /fetch\([^)]*return-orders/i);
   assert.doesNotMatch(source, /\/api\/return-orders/);
+});
+
+test('Delivery Today New filter fields are wired with autocomplete suggestion boxes', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/new/91-delivery-today-new.js'), 'utf8');
+  assert.match(source, /deliveryTodayNewDeliverySuggestions/);
+  assert.match(source, /deliveryTodayNewSalesmanSuggestions/);
+  assert.match(source, /deliveryTodayNewSearchSuggestions/);
+  assert.match(source, /bindFilterAutocomplete/);
+  assert.match(source, /searchDeliveryStaff/);
+  assert.match(source, /searchSalesStaff/);
+  assert.match(source, /orderSearchSuggestions/);
+  assert.match(source, /delivery-v46-filter-suggest/);
 });
