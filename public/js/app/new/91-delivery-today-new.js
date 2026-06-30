@@ -95,7 +95,7 @@
       '.delivery-new-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:10px 0;}' +
       '.delivery-new-detail-cell{border:1px solid #dbe7f5;border-radius:10px;padding:9px 10px;background:#fff;}.delivery-new-detail-cell span{display:block;color:#64748b;font-size:12px;}.delivery-new-detail-cell b{display:block;text-align:right;font-size:16px;margin-top:4px;}' +
       '.delivery-new-safe-note{border:1px solid #bae6fd;background:#eff6ff;border-radius:10px;padding:10px 12px;color:#075985;font-weight:700;margin:8px 0;}' +
-      '.delivery-new-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.delivery-new-version-list{margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:8px;color:#334155;}' +
+      '.delivery-new-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.delivery-new-version-list{margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:8px;color:#334155;}.delivery-new-returnorders{margin:12px 0;border:1px solid #dbe7f5;border-radius:12px;background:#fff;overflow:hidden;}.delivery-new-returnorders-header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}.delivery-new-returnorders-header h4{margin:0;font-size:14px;}.delivery-new-returnorders-header small{display:block;color:#64748b;margin-top:3px;}.delivery-new-returnorder-card{padding:10px 12px;border-bottom:1px dashed #dbe7f5;}.delivery-new-returnorder-card:last-child{border-bottom:0;}.delivery-new-returnorder-meta{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:space-between;color:#475569;font-size:12px;}.delivery-new-returnorder-meta b{color:#0f172a;}.delivery-new-return-items{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}.delivery-new-return-items th,.delivery-new-return-items td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-return-items th{color:#64748b;font-weight:800;background:#f8fafc;}.delivery-new-return-items .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}.delivery-new-returnorder-note{margin-top:8px;}' +
       '.delivery-new-correction-modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1000;width:min(900px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow:auto;box-shadow:0 18px 50px rgba(15,23,42,.35);}' +
       '.delivery-new-form-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;}.delivery-new-form-grid label{font-weight:700;color:#0f172a;}.delivery-new-form-grid input{width:100%;}.delivery-new-form-grid .wide{grid-column:span 2;}' +
       '@media(max-width:1100px){.delivery-new-list-grid,.delivery-new-row{grid-template-columns:minmax(180px,1.5fr) 80px 80px 80px 80px 80px 85px;}.delivery-new-list-grid span:nth-child(8),.delivery-new-row span:nth-child(8){display:none;}}' +
@@ -176,6 +176,46 @@
     return '<div class="delivery-new-detail-cell"><span>' + esc(label) + '</span><b class="' + (className || '') + '">' + esc(value) + '</b></div>';
   }
 
+  function renderReturnOrdersBlock(row) {
+    var returns = Array.isArray(row && row.returnOrders) ? row.returnOrders : [];
+    if (!returns.length) {
+      return '<section class="delivery-new-returnorders"><div class="delivery-new-returnorders-header"><div><h4>Hàng trả từ phiếu trả</h4><small>Đơn này chưa có phiếu trả hàng hợp lệ.</small></div><b class="delivery-new-zero">0</b></div></section>';
+    }
+    var totalAmount = returns.reduce(function (sum, ro) { return sum + num(ro.totalAmount || ro.amount); }, 0);
+    var totalQty = returns.reduce(function (sum, ro) { return sum + Number(ro.totalQty || 0); }, 0);
+    var latest = row.latestReturnDate || returns.map(function (ro) { return ro.returnDate || ''; }).filter(Boolean).sort().slice(-1)[0] || '';
+    var cards = returns.map(function (ro) {
+      var items = Array.isArray(ro.items) ? ro.items : [];
+      var itemRows = items.length ? (
+        '<table class="delivery-new-return-items"><thead><tr><th>Mã SP</th><th>Tên SP</th><th class="num">SL trả</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th></tr></thead><tbody>' +
+        items.map(function (item) {
+          return '<tr>' +
+            '<td>' + esc(item.productCode || '') + '</td>' +
+            '<td>' + esc(item.productName || '') + '</td>' +
+            '<td class="num">' + esc(item.returnQty == null ? '' : item.returnQty) + '</td>' +
+            '<td class="num">' + money(item.unitPrice) + '</td>' +
+            '<td class="num delivery-new-return">' + money(item.amount) + '</td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table>'
+      ) : '<div class="muted delivery-new-returnorder-note">Phiếu trả chưa có chi tiết mặt hàng.</div>';
+      return '<article class="delivery-new-returnorder-card">' +
+        '<div class="delivery-new-returnorder-meta">' +
+          '<span>Phiếu: <b>' + esc(ro.code || ro.id || '') + '</b></span>' +
+          '<span>Ngày: <b>' + esc(ro.returnDate || '') + '</b></span>' +
+          '<span>Trạng thái: <b>' + esc(ro.status || '') + '</b></span>' +
+          '<span>Tổng: <b class="delivery-new-return">' + money(ro.totalAmount || ro.amount) + '</b></span>' +
+        '</div>' +
+        itemRows +
+        (ro.note ? '<div class="muted delivery-new-returnorder-note">Ghi chú: ' + esc(ro.note) + '</div>' : '') +
+      '</article>';
+    }).join('');
+    return '<section class="delivery-new-returnorders">' +
+      '<div class="delivery-new-returnorders-header"><div><h4>Hàng trả từ phiếu trả</h4><small>' + returns.length + ' phiếu · SL ' + esc(totalQty) + (latest ? ' · gần nhất ' + esc(latest) : '') + '</small></div><b class="delivery-new-return">' + money(totalAmount) + '</b></div>' +
+      cards +
+    '</section>';
+  }
+
   function renderDetail(row) {
     var box = byId('deliveryTodayNewDetail');
     if (!box) return;
@@ -192,6 +232,7 @@
         detailCell('Hàng trả', money(row.returnedAmount), 'delivery-new-return') +
         detailCell('Công nợ cuối', money(row.finalDebtAmount), num(row.finalDebtAmount) > 0 ? 'delivery-new-debt' : 'delivery-new-zero') +
       '</div>' +
+      renderReturnOrdersBlock(row) +
       '<div class="new-detail-row"><span>NVBH</span><b>' + esc((row.salesStaffCode || '') + ' - ' + (row.salesStaffName || '')) + '</b></div>' +
       '<div class="new-detail-row"><span>NVGH</span><b>' + esc((row.deliveryStaffCode || '') + ' - ' + (row.deliveryStaffName || '')) + '</b></div>' +
       '<div class="new-detail-row"><span>Phiên bản closeout</span><b>v' + esc(row.version || 0) + (row.correctionVersionApplied ? ' · có điều chỉnh' : '') + '</b></div>' +
@@ -222,6 +263,7 @@
     modal.innerHTML = '' +
       '<h3>Tạo điều chỉnh sau chốt</h3>' +
       '<div class="delivery-new-safe-note">Hệ thống sẽ tạo closeout version mới, không sửa bản cũ, không sinh AR-RETURN và không sinh AR-SALE-REVERSAL.</div>' +
+      '<div class="delivery-new-safe-note">Hàng trả hiện tại được tổng hợp từ ' + esc(row.returnOrderCount || 0) + ' phiếu trả: ' + esc((row.returnOrderCodes || []).join(', ') || 'không có') + '.</div>' +
       '<div class="delivery-new-form-grid">' +
         '<label>Hàng trả hiện tại<input id="deliveryCorrectionOldReturn" disabled value="' + esc(money(row.returnedAmount)) + '"></label>' +
         '<label>Hàng trả đúng<input id="deliveryCorrectionNewReturn" inputmode="numeric" value="' + esc(row.returnedAmount || 0) + '"></label>' +

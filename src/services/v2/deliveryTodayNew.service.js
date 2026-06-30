@@ -166,16 +166,76 @@ function returnAmountFromItems(items = []) {
   }, 0);
 }
 
+function numberValue(value) {
+  const n = Number(toNumber(value));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeReturnItem(item = {}) {
+  const returnQty = numberValue(
+    item.returnQty
+      ?? item.returnedQty
+      ?? item.actualReturnQty
+      ?? item.quantity
+      ?? item.qty
+      ?? item.totalQty
+      ?? item.units
+      ?? item.looseQty
+  );
+  const unitPrice = money(
+    item.unitPrice
+      ?? item.salePrice
+      ?? item.price
+      ?? item.finalPrice
+      ?? item.actualPrice
+      ?? item.priceAfterPromotion
+  );
+  const amount = money(item.returnAmount ?? item.amount ?? item.lineTotal ?? item.totalAmount ?? (returnQty * unitPrice));
+  return {
+    productCode: text(item.productCode || item.code || item.sku || item.itemCode),
+    productName: text(item.productName || item.name || item.description || item.itemName),
+    unit: text(item.unit || item.baseUnit || item.uom || item.unitName),
+    returnQty,
+    unitPrice,
+    amount
+  };
+}
+
+function compactReturnItems(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .map(normalizeReturnItem)
+    .filter((item) => item.productCode || item.productName || item.returnQty || item.amount);
+}
+
 function normalizeReturn(row = {}) {
+  const items = compactReturnItems(row.items);
+  const totalAmount = money(row.returnAmount ?? row.amount ?? row.totalAmount ?? returnAmountFromItems(items.length ? items : row.items));
+  const totalQty = numberValue(
+    row.totalQty
+      ?? row.returnQty
+      ?? row.quantity
+      ?? row.qty
+      ?? items.reduce((sum, item) => sum + numberValue(item.returnQty), 0)
+  );
+  const returnDate = dateOnly(row.returnDate || row.date || row.documentDate || row.deliveryDate || row.createdAt);
   return {
     id: text(row.id || row.code || row._id),
     code: text(row.code || row.returnOrderCode || row.id || row._id),
     orderId: text(row.salesOrderId || row.orderId || row.sourceOrderId),
     orderCode: text(row.salesOrderCode || row.orderCode || row.sourceOrderCode),
-    amount: money(row.returnAmount ?? row.amount ?? returnAmountFromItems(row.items)),
+    customerCode: text(row.customerCode),
+    customerName: text(row.customerName),
+    amount: totalAmount,
+    totalAmount,
+    totalQty,
     status: text(row.status || row.returnStatus || row.returnState || 'valid'),
+    accountingStatus: text(row.accountingStatus || ''),
+    warehouseStatus: text(row.warehouseStatus || row.warehouseReceiveStatus || row.stockReceiveStatus || ''),
     stockPosted: row.stockPosted === true,
-    createdAt: text(row.createdAt || row.date || row.returnDate || row.documentDate)
+    note: text(row.note || row.accountingNote || ''),
+    returnDate,
+    createdAt: text(row.createdAt || row.date || row.returnDate || row.documentDate),
+    items
   };
 }
 
@@ -283,8 +343,7 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
   const rewardAmount = baseBreakdown.rewardAmount;
   const offsetAmount = baseBreakdown.offsetAmount;
   const collected = money((latestVersion && (latestVersion.collectedAmount ?? latestVersion.cashCollectedAmount))
-    ?? (adjustedCashAmount + bankAmount + rewardAmount + offsetAmount)
-    ?? collectedAmount(order));
+    ?? (baseBreakdown.collectedAmount || collectedAmount(order)));
   const finalDebtAmount = money((latestVersion && (latestVersion.finalDebtAmount ?? latestVersion.debtAmount)) ?? (originalAmount - returnedAmount - collected));
   const closeoutFinalDebt = latestVersion
     ? finalDebtAmount
@@ -312,6 +371,22 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     debtAdjustmentAmount: latestVersion ? money(latestVersion.debtAdjustmentAmount) : 0,
     originalAmount,
     returnedAmount,
+    returnOrderCount: uniqueReturns.length,
+    returnOrderCodes: uniqueReturns.map((row) => row.code || row.id).filter(Boolean),
+    latestReturnDate: uniqueReturns.map((row) => row.returnDate || row.createdAt).filter(Boolean).sort().slice(-1)[0] || '',
+    returnOrders: uniqueReturns.map((row) => ({
+      id: row.id,
+      code: row.code,
+      returnDate: row.returnDate,
+      status: row.status,
+      accountingStatus: row.accountingStatus,
+      warehouseStatus: row.warehouseStatus,
+      stockPosted: row.stockPosted,
+      note: row.note,
+      totalAmount: money(row.totalAmount ?? row.amount),
+      totalQty: numberValue(row.totalQty),
+      items: Array.isArray(row.items) ? row.items : []
+    })),
     cashAmount: adjustedCashAmount,
     bankAmount,
     rewardAmount,
@@ -387,5 +462,5 @@ module.exports = {
   summarizeOrder,
   summarizeRows,
   setModelsForTest,
-  _private: { money, orderBusinessIds, returnAmountFromItems, isValidReturn, normalizeReturn, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown }
+  _private: { money, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown }
 };

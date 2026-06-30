@@ -43,3 +43,53 @@ test('Delivery Today New summarizes original, returnOrders, collected and final 
   assert.equal(row.accountingConfirmed, true);
   assert.equal(row.correctionRequired, true);
 });
+
+test('Delivery Today New exposes returnOrders details and item rows for business UI', () => {
+  const normalized = deliveryTodayNewService._private.normalizeReturn({
+    id: 'RO1',
+    code: 'RO-SO1',
+    salesOrderId: 'SO1',
+    salesOrderCode: 'B0001',
+    customerCode: 'KH1',
+    customerName: 'Khach 1',
+    returnDate: '2026-06-30',
+    status: 'confirmed',
+    note: 'Hàng móp',
+    items: [
+      {
+        productCode: '0864',
+        productName: 'SP 0864',
+        unit: 'gói',
+        returnQty: 2,
+        unitPrice: 50000
+      }
+    ]
+  });
+  const order = {
+    id: 'SO1',
+    code: 'B0001',
+    customerCode: 'KH1',
+    customerName: 'Khach 1',
+    totalAmount: 200000,
+    deliveryCloseout: { status: 'accounting_confirmed', finalDebtAmount: 100000, version: 1 }
+  };
+  const row = deliveryTodayNewService.summarizeOrder(order, new Map([['SO1', [normalized]]]));
+  assert.equal(row.returnOrderCount, 1);
+  assert.deepEqual(row.returnOrderCodes, ['RO-SO1']);
+  assert.equal(row.latestReturnDate, '2026-06-30');
+  assert.equal(row.returnOrders[0].code, 'RO-SO1');
+  assert.equal(row.returnOrders[0].totalAmount, 100000);
+  assert.equal(row.returnOrders[0].items[0].productCode, '0864');
+  assert.equal(row.returnOrders[0].items[0].returnQty, 2);
+});
+
+test('Delivery Today New UI renders returnOrders business block without requiring correction flow', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/new/91-delivery-today-new.js'), 'utf8');
+  assert.match(source, /Hàng trả từ phiếu trả/);
+  assert.match(source, /returnOrders/);
+  assert.match(source, /returnOrderCodes/);
+  assert.match(source, /Mã SP/);
+  assert.match(source, /SL trả/);
+});
