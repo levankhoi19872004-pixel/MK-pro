@@ -99,6 +99,39 @@ function activeOrderMatch() {
   };
 }
 
+function truthyFlag(value) {
+  const normalized = text(value).toLowerCase();
+  return ['1', 'true', 'yes', 'y', 'on'].includes(normalized);
+}
+
+function hasSearchCriteria(query = {}) {
+  const q = text(query.q || query.search || query.keyword || query.orderCode || query.customerCode || query.customerName);
+  const delivery = text(query.delivery || query.deliveryStaffCode || query.deliveryStaff || query.nvgh);
+  const salesman = text(query.salesman || query.salesStaffCode || query.salesStaff || query.nvbh);
+  const deliveryDate = dateOnly(query.date || query.deliveryDate || query.orderDate);
+  const dateTouched = truthyFlag(query.deliveryDateChangedByUser || query.deliveryDateTouched || query.dateTouched);
+  return Boolean(q || delivery || salesman || (dateTouched && deliveryDate));
+}
+
+function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {
+  return {
+    rows: [],
+    orders: [],
+    summary: summarizeRows([]),
+    diagnostics: {
+      source: 'delivery-today-new-v2-guarded-empty',
+      endpoint: '/api/new/delivery-today/orders',
+      reason,
+      searchCriteriaRequired: true,
+      hasSearchCriteria: hasSearchCriteria(query),
+      writePolicy: 'read-only; confirmed orders require DeliveryCloseoutCorrectionService; latest correction comes from deliveryCloseoutVersions',
+      deliverySourceApplied: false,
+      fallbackEnabled: false,
+      matchKeys: []
+    }
+  };
+}
+
 function buildOrderMatch(query = {}) {
   const match = activeOrderMatch();
   const deliveryDate = dateOnly(query.date || query.deliveryDate || query.orderDate);
@@ -577,6 +610,9 @@ function summarizeRows(rows = []) {
 }
 
 async function listOrders(query = {}, options = {}) {
+  if (!hasSearchCriteria(query)) {
+    return emptyListResult(query);
+  }
   const useSalesOrderFallback = query.includeUnassignedSalesOrders === '1' || options.includeUnassignedSalesOrders === true;
   const deliveryOrders = await loadDeliveryOperationalOrders(query, options);
   const orders = deliveryOrders.length || !useSalesOrderFallback
@@ -597,6 +633,7 @@ async function listOrders(query = {}, options = {}) {
       writePolicy: 'read-only; confirmed orders require DeliveryCloseoutCorrectionService; latest correction comes from deliveryCloseoutVersions',
       deliverySourceApplied: Boolean(deliveryOrders.length || !useSalesOrderFallback),
       fallbackEnabled: useSalesOrderFallback,
+      hasSearchCriteria: hasSearchCriteria(query),
       matchKeys: Object.keys(buildOrderMatch(query))
     }
   };
@@ -604,10 +641,11 @@ async function listOrders(query = {}, options = {}) {
 
 module.exports = {
   listOrders,
+  hasSearchCriteria,
   buildOrderMatch,
   summarizeOrder,
   summarizeRows,
   setModelsForTest,
   setDeliveryListServiceForTest,
-  _private: { money, normalizeQty, normalizeOrderItem, compactOrderItems, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
+  _private: { money, truthyFlag, hasSearchCriteria, emptyListResult, normalizeQty, normalizeOrderItem, compactOrderItems, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
 };

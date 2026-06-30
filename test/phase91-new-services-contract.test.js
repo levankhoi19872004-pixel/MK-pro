@@ -98,6 +98,36 @@ test('Delivery Today New UI renders returnOrders business block without requirin
   assert.match(source, /newReturnQty/);
 });
 
+
+test('Delivery Today New backend returns guarded empty result when no user search criteria is provided', async () => {
+  let deliveryListCalled = false;
+  let salesOrderFindCalled = false;
+  deliveryTodayNewService.setDeliveryListServiceForTest({
+    async listDeliveryToday() {
+      deliveryListCalled = true;
+      return { orders: [{ id: 'SHOULD-NOT-LOAD' }] };
+    }
+  });
+  deliveryTodayNewService.setModelsForTest({
+    SalesOrder: { find() { salesOrderFindCalled = true; throw new Error('SalesOrder.find must not be used without criteria'); } },
+    ReturnOrder: { find() { throw new Error('ReturnOrder.find must not be used without criteria'); } },
+    DeliveryCloseoutVersion: { find() { throw new Error('DeliveryCloseoutVersion.find must not be used without criteria'); } }
+  });
+
+  const result = await deliveryTodayNewService.listOrders({ date: '2026-06-30', deliveryDateChangedByUser: '0' });
+  assert.equal(deliveryTodayNewService.hasSearchCriteria({ date: '2026-06-30', deliveryDateChangedByUser: '0' }), false);
+  assert.equal(deliveryTodayNewService.hasSearchCriteria({ date: '2026-06-30', deliveryDateChangedByUser: '1' }), true);
+  assert.equal(deliveryTodayNewService.hasSearchCriteria({ delivery: 'ghkx' }), true);
+  assert.equal(deliveryListCalled, false);
+  assert.equal(salesOrderFindCalled, false);
+  assert.equal(result.rows.length, 0);
+  assert.equal(result.summary.orderCount, 0);
+  assert.equal(result.diagnostics.searchCriteriaRequired, true);
+
+  deliveryTodayNewService.setDeliveryListServiceForTest(null);
+  deliveryTodayNewService.setModelsForTest(null);
+});
+
 test('Delivery Today New listOrders uses delivery operational list instead of broad SalesOrder date scan', async () => {
   let salesOrderFindCalled = false;
   deliveryTodayNewService.setDeliveryListServiceForTest({
@@ -134,7 +164,7 @@ test('Delivery Today New listOrders uses delivery operational list instead of br
     DeliveryCloseoutVersion: { find() { return { sort() { return { lean: async () => [] }; } }; } }
   });
 
-  const result = await deliveryTodayNewService.listOrders({ date: '2026-06-30' });
+  const result = await deliveryTodayNewService.listOrders({ date: '2026-06-30', deliveryDateChangedByUser: '1' });
   assert.equal(salesOrderFindCalled, false);
   assert.equal(result.rows.length, 1);
   assert.equal(result.rows[0].orderId, 'SO-DELIVERY-1');
@@ -171,4 +201,23 @@ test('Delivery Today New filter fields are wired with autocomplete suggestion bo
   assert.match(source, /searchSalesStaff/);
   assert.match(source, /orderSearchSuggestions/);
   assert.match(source, /delivery-v46-filter-suggest/);
+});
+
+
+test('Delivery Today New UI requires explicit user search before loading results', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/new/91-delivery-today-new.js'), 'utf8');
+  assert.match(source, /hasValidSearchCriteria/);
+  assert.match(source, /deliveryDateTouched/);
+  assert.match(source, /deliveryDateChangedByUser/);
+  assert.match(source, /resetResultsState/);
+  assert.match(source, /deliveryTodayNewEmptyState/);
+  assert.match(source, /Vui lòng nhập ít nhất một điều kiện tìm kiếm/);
+  const initBody = source.slice(source.indexOf('function initWhenTabActive'), source.indexOf('document.addEventListener', source.indexOf('function initWhenTabActive')));
+  assert.doesNotMatch(initBody, /load\(\)/);
+  const resetStart = source.indexOf('function resetFiltersToEmptyState');
+  const resetBody = source.slice(resetStart, source.indexOf('function hasValidSearchCriteria', resetStart));
+  assert.match(resetBody, /state\.deliveryDateTouched\s*=\s*false/);
+  assert.doesNotMatch(resetBody, /load\(\)/);
 });

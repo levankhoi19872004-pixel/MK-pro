@@ -2,7 +2,7 @@
   'use strict';
 
   var rootId = 'deliveryTodayNewRoot';
-  var state = { rows: [], selectedIndex: -1, loaded: false, versionCache: {}, correctionReturnItems: [], adjustmentRow: null, activeTab: 'overview', selectedSalesmanKeys: {}, salesmanGroups: [] };
+  var state = { rows: [], selectedIndex: -1, loaded: false, hasSearched: false, userTouchedFilters: false, deliveryDateTouched: false, versionCache: {}, correctionReturnItems: [], adjustmentRow: null, activeTab: 'overview', selectedSalesmanKeys: {}, salesmanGroups: [] };
 
   function byId(id) { return document.getElementById(id); }
   function esc(value) {
@@ -42,6 +42,7 @@
           '<button id="deliveryTodayNewReset" type="button" class="secondary">Xóa lọc</button>' +
         '</div>' +
       '</section>' +
+      '<section id="deliveryTodayNewEmptyState" class="card delivery-new-empty-state"><b>Chưa có dữ liệu hiển thị.</b><span>Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải đơn.</span></section>' +
       '<section class="delivery-v46-kpis delivery-new-kpis" aria-label="KPI Đơn giao hôm nay New">' +
         '<div class="delivery-v46-kpi kpi-pt"><span>Phải thu</span><b id="deliveryTodayNewOriginal">0</b></div>' +
         '<div class="delivery-v46-kpi kpi-tm"><span>Tiền mặt</span><b id="deliveryTodayNewCash">0</b></div>' +
@@ -65,19 +66,27 @@
 
     var dateInput = byId('deliveryTodayNewDate');
     if (dateInput && !dateInput.value) dateInput.value = today();
+    if (dateInput) {
+      dateInput.addEventListener('change', function () {
+        state.deliveryDateTouched = true;
+        state.userTouchedFilters = true;
+      });
+    }
     var loadButton = byId('deliveryTodayNewLoad');
     var resetButton = byId('deliveryTodayNewReset');
     if (loadButton) loadButton.addEventListener('click', load);
-    if (resetButton) resetButton.addEventListener('click', function () {
-      ['deliveryTodayNewSearch', 'deliveryTodayNewDelivery', 'deliveryTodayNewSalesman'].forEach(function (id) { var el = byId(id); if (el) el.value = ''; });
-      load();
-    });
+    if (resetButton) resetButton.addEventListener('click', resetFiltersToEmptyState);
     ['deliveryTodayNewSearch', 'deliveryTodayNewDelivery', 'deliveryTodayNewSalesman'].forEach(function (id) {
       var el = byId(id);
-      if (el) el.addEventListener('keydown', function (event) { if (event.key === 'Enter') load(); });
+      if (el) {
+        el.addEventListener('input', function () { state.userTouchedFilters = true; });
+        el.addEventListener('change', function () { state.userTouchedFilters = true; });
+        el.addEventListener('keydown', function (event) { if (event.key === 'Enter') load(); });
+      }
     });
     ensureScopedStyle();
     bindFilterAutocomplete();
+    resetResultsState('Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải đơn.');
     return root;
   }
 
@@ -86,7 +95,7 @@
     var style = document.createElement('style');
     style.id = 'deliveryTodayNewScopedStyle';
     style.textContent = '' +
-      '.delivery-new-main-list{display:block;}.delivery-new-list-panel-full{width:100%;}.delivery-new-salesman-panel{margin:12px 0;padding:0;overflow:hidden;}.delivery-new-salesman-empty{padding:14px;color:#64748b;text-align:center;border:1px dashed #cbd5e1;border-radius:12px;}.delivery-new-salesman-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-header h3{margin:0;font-size:15px;}.delivery-new-salesman-header small{display:inline-block;margin-left:8px;color:#475569;}.delivery-new-salesman-actions{display:flex;gap:8px;flex-wrap:wrap;}.delivery-new-salesman-row{display:grid;grid-template-columns:minmax(240px,1.4fr) 70px repeat(6,1fr);gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-row:last-child{border-bottom:0;}.delivery-new-salesman-check{display:flex;align-items:center;gap:8px;font-weight:800;}.delivery-new-salesman-check input{width:16px;height:16px;}.delivery-new-salesman-row .muted{font-size:11px;color:#64748b;}.delivery-new-salesman-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-salesman-kpis{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px;padding:12px;background:#f8fafc;border-top:1px solid #dbe7f5;}.delivery-new-salesman-kpi{border:1px solid #dbe7f5;border-radius:12px;padding:10px;background:#fff;}.delivery-new-salesman-kpi span{display:block;color:#64748b;font-size:12px;font-weight:800;}.delivery-new-salesman-kpi b{display:block;font-size:18px;margin-top:4px;font-variant-numeric:tabular-nums;}.delivery-new-list-grid{grid-template-columns:minmax(230px,1.8fr) 95px 95px 95px 95px 95px 100px 105px 110px;}' +
+      '.delivery-new-main-list{display:block;}.delivery-new-list-panel-full{width:100%;}.delivery-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.delivery-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.delivery-new-empty-state span{display:block;color:#64748b;font-weight:700;}.delivery-new-results-hidden{display:none!important;}.delivery-new-salesman-panel{margin:12px 0;padding:0;overflow:hidden;}.delivery-new-salesman-empty{padding:14px;color:#64748b;text-align:center;border:1px dashed #cbd5e1;border-radius:12px;}.delivery-new-salesman-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-header h3{margin:0;font-size:15px;}.delivery-new-salesman-header small{display:inline-block;margin-left:8px;color:#475569;}.delivery-new-salesman-actions{display:flex;gap:8px;flex-wrap:wrap;}.delivery-new-salesman-row{display:grid;grid-template-columns:minmax(240px,1.4fr) 70px repeat(6,1fr);gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-row:last-child{border-bottom:0;}.delivery-new-salesman-check{display:flex;align-items:center;gap:8px;font-weight:800;}.delivery-new-salesman-check input{width:16px;height:16px;}.delivery-new-salesman-row .muted{font-size:11px;color:#64748b;}.delivery-new-salesman-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-salesman-kpis{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px;padding:12px;background:#f8fafc;border-top:1px solid #dbe7f5;}.delivery-new-salesman-kpi{border:1px solid #dbe7f5;border-radius:12px;padding:10px;background:#fff;}.delivery-new-salesman-kpi span{display:block;color:#64748b;font-size:12px;font-weight:800;}.delivery-new-salesman-kpi b{display:block;font-size:18px;margin-top:4px;font-variant-numeric:tabular-nums;}.delivery-new-list-grid{grid-template-columns:minmax(230px,1.8fr) 95px 95px 95px 95px 95px 100px 105px 110px;}' +
       '.delivery-new-row{display:grid;grid-template-columns:minmax(230px,1.8fr) 95px 95px 95px 95px 95px 100px 105px 110px;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-row-action{text-align:right;}.delivery-new-row-action button{padding:7px 10px;border-radius:10px;}' +
       '.delivery-new-row:hover{background:#eff6ff;}' +
       '.delivery-new-row b{font-weight:800;}.delivery-new-row small{display:block;color:#334155;margin-top:3px;}' +
@@ -246,7 +255,8 @@
       function (item) {
         var input = byId('deliveryTodayNewDelivery');
         if (input) input.value = staffCode(item, 'delivery') || staffName(item, 'delivery');
-        load();
+        state.userTouchedFilters = true;
+        setMessage('Đã chọn NVGH. Bấm Tải đơn để xem danh sách tương ứng.');
       }
     );
     wireLocalAutocomplete(
@@ -261,7 +271,8 @@
       function (item) {
         var input = byId('deliveryTodayNewSalesman');
         if (input) input.value = staffCode(item, 'sales') || staffName(item, 'sales');
-        load();
+        state.userTouchedFilters = true;
+        setMessage('Đã chọn NVBH. Bấm Tải đơn để xem danh sách tương ứng.');
       }
     );
     wireLocalAutocomplete(
@@ -274,7 +285,8 @@
       function (row) {
         var input = byId('deliveryTodayNewSearch');
         if (input) input.value = row.orderCode || row.orderId || row.customerCode || '';
-        load();
+        state.userTouchedFilters = true;
+        setMessage('Đã chọn đơn/khách hàng. Bấm Tải đơn để xem danh sách tương ứng.');
       }
     );
   }
@@ -284,7 +296,8 @@
       date: byId('deliveryTodayNewDate') ? byId('deliveryTodayNewDate').value : '',
       q: byId('deliveryTodayNewSearch') ? byId('deliveryTodayNewSearch').value.trim() : '',
       delivery: byId('deliveryTodayNewDelivery') ? byId('deliveryTodayNewDelivery').value.trim() : '',
-      salesman: byId('deliveryTodayNewSalesman') ? byId('deliveryTodayNewSalesman').value.trim() : ''
+      salesman: byId('deliveryTodayNewSalesman') ? byId('deliveryTodayNewSalesman').value.trim() : '',
+      deliveryDateChangedByUser: state.deliveryDateTouched ? '1' : '0'
     };
   }
 
@@ -293,6 +306,53 @@
     if (!message) return;
     message.textContent = text || '';
     message.className = 'message' + (isError ? ' error-text' : '');
+  }
+
+  function setElementVisible(selector, visible) {
+    var el = selector.charAt(0) === '#' ? byId(selector.slice(1)) : document.querySelector(selector);
+    if (!el) return;
+    if (visible) el.classList.remove('delivery-new-results-hidden');
+    else el.classList.add('delivery-new-results-hidden');
+  }
+
+  function setResultSectionsVisible(visible) {
+    setElementVisible('#deliveryTodayNewEmptyState', !visible);
+    setElementVisible('.delivery-new-kpis', visible);
+    setElementVisible('#deliveryTodayNewSalesmanPanel', visible);
+    setElementVisible('.delivery-new-main-list', visible);
+  }
+
+  function renderEmptyState(message) {
+    var empty = byId('deliveryTodayNewEmptyState');
+    if (!empty) return;
+    empty.innerHTML = '<b>Chưa có dữ liệu hiển thị.</b><span>' + esc(message || 'Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải đơn.') + '</span>';
+  }
+
+  function resetResultsState(message) {
+    state.rows = [];
+    state.salesmanGroups = [];
+    state.selectedSalesmanKeys = {};
+    state.selectedIndex = -1;
+    state.hasSearched = false;
+    state.loaded = false;
+    applySummary({});
+    renderEmptyState(message);
+    setResultSectionsVisible(false);
+  }
+
+  function resetFiltersToEmptyState() {
+    ['deliveryTodayNewSearch', 'deliveryTodayNewDelivery', 'deliveryTodayNewSalesman'].forEach(function (id) { var el = byId(id); if (el) el.value = ''; });
+    var dateInput = byId('deliveryTodayNewDate');
+    if (dateInput) dateInput.value = today();
+    state.deliveryDateTouched = false;
+    state.userTouchedFilters = false;
+    resetResultsState('Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải đơn.');
+    setMessage('');
+  }
+
+  function hasValidSearchCriteria() {
+    var f = filters();
+    return Boolean(f.q || f.delivery || f.salesman || (state.deliveryDateTouched === true && f.date));
   }
 
   function applySummary(summary) {
@@ -419,6 +479,7 @@
   function renderSalesmanGroupPanel() {
     var box = byId('deliveryTodayNewSalesmanPanel');
     if (!box) return;
+    if (!state.hasSearched) { box.innerHTML = '<div class="delivery-new-salesman-empty">Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải đơn.</div>'; return; }
     var groups = state.salesmanGroups || [];
     if (!groups.length) {
       box.innerHTML = '<div class="delivery-new-salesman-empty">Chưa có NVBH trong danh sách đơn đang tải.</div>';
@@ -458,6 +519,7 @@
   function renderRows() {
     var list = byId('deliveryTodayNewTable');
     if (!list) return;
+    if (!state.hasSearched) { list.innerHTML = '<div class="empty-state">Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải đơn.</div>'; return; }
     var visibleRows = getVisibleRowsBySelectedSalesmen();
     if (!state.rows.length) {
       list.innerHTML = '<div class="empty-state">Không có đơn theo bộ lọc.</div>';
@@ -961,6 +1023,11 @@
 
   async function load() {
     ensureRoot();
+    if (!hasValidSearchCriteria()) {
+      resetResultsState('Vui lòng nhập ít nhất một điều kiện tìm kiếm.');
+      setMessage('Vui lòng nhập ít nhất một điều kiện tìm kiếm.', true);
+      return;
+    }
     setMessage('Đang tải đơn giao hôm nay...');
     try {
       var params = new URLSearchParams(filters());
@@ -974,6 +1041,8 @@
       state.salesmanGroups.forEach(function (group) { state.selectedSalesmanKeys[group.key] = true; });
       state.selectedIndex = state.rows.length ? 0 : -1;
       state.loaded = true;
+      state.hasSearched = true;
+      setResultSectionsVisible(true);
       applySummary(data.summary || json.summary || {});
       renderSalesmanGroupPanel();
       renderRows();
@@ -982,6 +1051,8 @@
       state.rows = [];
       state.salesmanGroups = [];
       state.selectedSalesmanKeys = {};
+      state.hasSearched = true;
+      setResultSectionsVisible(true);
       applySummary({});
       renderSalesmanGroupPanel();
       renderRows();
@@ -992,7 +1063,6 @@
   function initWhenTabActive(tabId) {
     if (tabId !== 'deliveryTodayNewTab') return;
     ensureRoot();
-    if (!state.loaded) load();
   }
 
   document.addEventListener('DOMContentLoaded', function () {
