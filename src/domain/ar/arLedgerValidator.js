@@ -63,10 +63,29 @@ function hasAccRevMismatch(ledger = {}) {
   return /ACC-/i.test(id) && /^REV-/i.test(batch);
 }
 
+const AR_RETURN_AMOUNT_SOURCE_FIELDS = Object.freeze([
+  'amount',
+  'debtneduction',
+  'debtreduction',
+  'returnamount',
+  'totalreturnamount',
+  'totalamount',
+  'returnedamount',
+  'totalvalue',
+  'items'
+]);
+
+function effectiveAmountFieldForValidation(category, amountField, direction) {
+  const field = lower(amountField || direction);
+  if (category === 'AR-RETURN' && AR_RETURN_AMOUNT_SOURCE_FIELDS.includes(field)) return 'credit';
+  return field;
+}
+
 function validateDebitCreditShape(ledger = {}, errors = []) {
   const category = upper(ledger.category);
   const effect = CATEGORY_EFFECT[category];
   const { debit, credit, amount, direction, amountField } = normalizeAccountingAmount(ledger);
+  const effectiveAmountField = effectiveAmountFieldForValidation(category, amountField, direction);
 
   if (toNumber(ledger.debit) < 0) errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', field: 'debit', reason: 'negative debit' });
   if (toNumber(ledger.credit) < 0) errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', field: 'credit', reason: 'negative credit' });
@@ -75,16 +94,16 @@ function validateDebitCreditShape(ledger = {}, errors = []) {
   if (debit === 0 && credit === 0 && amount > 0) errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', reason: 'amount positive but debit/credit zero', amount });
 
   if (effect === 'debit') {
-    if (!(debit > 0 && credit === 0 && direction === 'debit' && amountField === 'debit')) {
+    if (!(debit > 0 && credit === 0 && direction === 'debit' && effectiveAmountField === 'debit')) {
       errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', category, expected: 'debit only', debit, credit, direction, amountField });
     }
   } else if (effect === 'credit') {
-    if (!(credit > 0 && debit === 0 && direction === 'credit' && amountField === 'credit')) {
+    if (!(credit > 0 && debit === 0 && direction === 'credit' && effectiveAmountField === 'credit')) {
       errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', category, expected: 'credit only', debit, credit, direction, amountField });
     }
   } else if (effect === 'either') {
-    if (!((debit > 0 && credit === 0 && direction === 'debit' && amountField === 'debit')
-      || (credit > 0 && debit === 0 && direction === 'credit' && amountField === 'credit'))) {
+    if (!((debit > 0 && credit === 0 && direction === 'debit' && effectiveAmountField === 'debit')
+      || (credit > 0 && debit === 0 && direction === 'credit' && effectiveAmountField === 'credit'))) {
       errors.push({ code: 'DIRTY_LEDGER_INVALID_DEBIT_CREDIT', category, expected: 'single sided adjustment', debit, credit, direction, amountField });
     }
   }

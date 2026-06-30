@@ -106,7 +106,8 @@ function b0038424Fixture() {
       idempotencyKey: 'AR-RETURN:RO-B0038424',
       credit: 276632,
       amount: 276632,
-      direction: 'credit'
+      direction: 'credit',
+      amountField: 'amount'
     })
   ];
 }

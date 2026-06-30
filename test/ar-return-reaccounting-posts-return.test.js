@@ -41,3 +41,26 @@ test('markAccountingReturnOrdersConfirmed sets accountingConfirmed true and acco
   assert.match(helperFn, /accountingConfirmedAt:/, 'returnOrders must keep accounting confirmation timestamp');
   assert.match(helperFn, /await returnOrderRepository\.upsert\(confirmed, options\);/, 'helper must persist returnOrder confirmation through repository');
 });
+
+
+test('AR-RETURN builder stores canonical amountField credit and keeps source amount field separately', () => {
+  const { buildReturnARLedgerEntry } = require('../src/services/accounting/returnArPostingService');
+  const entry = buildReturnARLedgerEntry({
+    id: 'RO-B0038442',
+    code: 'RO-B0038442',
+    sourceModel: 'returnOrders',
+    accountingConfirmed: true,
+    accountingStatus: 'confirmed',
+    customerCode: 'BBHOASON',
+    customerName: 'Hoa Sơn',
+    amount: 549540,
+    salesOrderId: 'SO1782723235234708',
+    salesOrderCode: 'B0038442'
+  }, { accountingBatchId: 'ACC-SO1782723235234708-TEST' });
+
+  assert.equal(entry.category, 'AR-RETURN');
+  assert.equal(entry.credit, 549540);
+  assert.equal(entry.direction, 'credit');
+  assert.equal(entry.amountField, 'credit');
+  assert.equal(entry.amountSourceField, 'amount');
+});

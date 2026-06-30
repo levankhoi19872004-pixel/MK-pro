@@ -103,7 +103,24 @@ test('orphan active AR-SALE-REVERSAL is ignored so Hoa Sơn re-accounting debt d
       idempotencyKey: 'AR-SALE-REVERSAL:salesOrder:SO1782723235234708:AR-SALE-OLD-HOASON'
     }),
     arLedger({ category: 'AR-RECEIPT', orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', credit: 190000000 }),
-    arLedger({ category: 'AR-RETURN', orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', credit: 549540 })
+    arLedger({
+      category: 'AR-RETURN',
+      orderCode: 'B0038442',
+      sourceId: 'RO-B0038442',
+      sourceCode: 'RO-B0038442',
+      sourceType: 'returnOrder',
+      returnOrderId: 'RO-B0038442',
+      returnOrderCode: 'RO-B0038442',
+      sourceOrderId: 'SO1782723235234708',
+      sourceOrderCode: 'B0038442',
+      salesOrderId: 'SO1782723235234708',
+      salesOrderCode: 'B0038442',
+      customerCode: 'BBHOASON',
+      customerName: 'Hoa Sơn',
+      credit: 549540,
+      amountField: 'amount',
+      idempotencyKey: 'AR-RETURN:RO-B0038442'
+    })
   ]);
 
   const result = await reportService.debtCustomers({ deliveryStaffCode: 'ghnpp', status: 'open', limit: 20 });
