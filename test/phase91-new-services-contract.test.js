@@ -221,3 +221,59 @@ test('Delivery Today New UI requires explicit user search before loading results
   assert.match(resetBody, /state\.deliveryDateTouched\s*=\s*false/);
   assert.doesNotMatch(resetBody, /load\(\)/);
 });
+
+test('Debt New backend returns guarded empty result when no user search criteria is provided', async () => {
+  let arFindCalled = false;
+  debtNewService.setModelsForTest({
+    ArLedger: {
+      find() {
+        arFindCalled = true;
+        throw new Error('ArLedger.find must not be used without search criteria');
+      }
+    }
+  });
+
+  const result = await debtNewService.listCustomers({ status: 'open' });
+  assert.equal(debtNewService.hasSearchCriteria({ status: 'open' }), false);
+  assert.equal(debtNewService.hasSearchCriteria({ q: 'B0038496', status: 'open' }), true);
+  assert.equal(debtNewService.hasSearchCriteria({ salesman: '39534' }), true);
+  assert.equal(debtNewService.hasSearchCriteria({ delivery: 'ghkx' }), true);
+  assert.equal(arFindCalled, false);
+  assert.equal(result.customers.length, 0);
+  assert.equal(result.summary.customerCount, 0);
+  assert.equal(result.diagnostics.searchCriteriaRequired, true);
+
+  debtNewService.setModelsForTest(null);
+});
+
+test('Debt New UI requires explicit user search and exposes debt collection workflow', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/new/92-debt-new.js'), 'utf8');
+  assert.match(source, /hasValidSearchCriteria/);
+  assert.match(source, /debtNewEmptyState/);
+  assert.match(source, /resetResultsState/);
+  assert.match(source, /Vui lòng nhập ít nhất một điều kiện tìm kiếm/);
+  assert.match(source, /Tạo phiếu thu chờ xác nhận/);
+  assert.match(source, /submitted/);
+  assert.match(source, /AR-DEBT-PAYMENT/);
+  assert.match(source, /debtNewSubmitCollection/);
+  assert.match(source, /\/api\/new\/debt\/collections/);
+  const initBody = source.slice(source.indexOf('function initWhenTabActive'), source.indexOf('document.addEventListener', source.indexOf('function initWhenTabActive')));
+  assert.doesNotMatch(initBody, /load\(\)/);
+  const resetStart = source.indexOf('function resetFiltersToEmptyState');
+  const resetBody = source.slice(resetStart, source.indexOf('function applySummary', resetStart));
+  assert.doesNotMatch(resetBody, /load\(\)/);
+});
+
+test('Debt New routes expose collection submit confirm and reject under /api/new', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const route = fs.readFileSync(path.join(__dirname, '..', 'src/routes/newOperationsRoutes.js'), 'utf8');
+  assert.match(route, /DebtCollectionService/);
+  assert.match(route, /debt\/collections/);
+  assert.match(route, /submitDebtCollection/);
+  assert.match(route, /confirmDebtCollection/);
+  assert.match(route, /rejectDebtCollection/);
+  assert.match(route, /writeRoles/);
+});

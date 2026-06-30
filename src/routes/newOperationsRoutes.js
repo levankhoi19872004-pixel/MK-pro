@@ -5,6 +5,7 @@ const { requireAuth, requireRole } = require('../middlewares/auth.middleware');
 const deliveryTodayNewService = require('../services/v2/deliveryTodayNew.service');
 const debtNewService = require('../services/v2/debtNew.service');
 const deliveryCloseoutCorrectionService = require('../services/deliveryCloseoutCorrection.service');
+const DebtCollectionService = require('../services/DebtCollectionService');
 
 const router = express.Router();
 const readRoles = requireRole(['admin', 'manager', 'accountant', 'warehouse']);
@@ -109,6 +110,85 @@ router.get('/debt/customers', requireAuth, readRoles, async (req, res) => {
     });
   } catch (err) {
     return sendError(res, err, 'Không tải được Công nợ (New)');
+  }
+});
+
+function debtCollectionResult(res, result = {}, successStatus = 200) {
+  if (result && result.error) {
+    return res.status(result.status || 400).json({
+      ok: false,
+      success: false,
+      code: result.code || 'DEBT_COLLECTION_ERROR',
+      message: result.error
+    });
+  }
+  const status = result.statusCode || result.status || successStatus;
+  const body = result.body || result;
+  return res.status(status).json({ ok: true, success: true, ...body });
+}
+
+function actorForDebtCollection(req) {
+  const user = req.user || {};
+  const fallbackCode = user.staffCode || user.code || user.salesStaffCode || user.salesmanCode || user.deliveryStaffCode || user.shipperCode || user.username || user.email || user.name || 'web-accountant';
+  return {
+    ...user,
+    staffCode: user.staffCode || user.code || fallbackCode,
+    code: user.code || user.staffCode || fallbackCode
+  };
+}
+
+router.get('/debt/collections', requireAuth, readRoles, async (req, res) => {
+  try {
+    const result = await DebtCollectionService.listDebtCollections(req.query || {});
+    return res.json({
+      ok: true,
+      success: true,
+      message: 'Đã tải phiếu thu công nợ (New)',
+      items: result.items || [],
+      collections: result.items || [],
+      summary: result.summary || {},
+      canonicalRoute: '/api/new/debt/collections'
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không tải được phiếu thu công nợ (New)');
+  }
+});
+
+router.post('/debt/collections', requireAuth, writeRoles, async (req, res) => {
+  try {
+    const result = await DebtCollectionService.submitDebtCollection({
+      body: req.body || {},
+      mobileUser: actorForDebtCollection(req)
+    });
+    return debtCollectionResult(res, result, 201);
+  } catch (err) {
+    return sendError(res, err, 'Không tạo được phiếu thu công nợ (New)');
+  }
+});
+
+router.post('/debt/collections/:id/confirm', requireAuth, writeRoles, async (req, res) => {
+  try {
+    const result = await DebtCollectionService.confirmDebtCollection(req.params.id, {
+      ...(req.body || {}),
+      user: actorForDebtCollection(req),
+      accountingUserName: req.user?.name || req.user?.fullName || req.user?.username || req.user?.email || ''
+    });
+    return debtCollectionResult(res, result);
+  } catch (err) {
+    return sendError(res, err, 'Không xác nhận được phiếu thu công nợ (New)');
+  }
+});
+
+router.post('/debt/collections/:id/reject', requireAuth, writeRoles, async (req, res) => {
+  try {
+    const result = await DebtCollectionService.rejectDebtCollection(req.params.id, {
+      ...(req.body || {}),
+      user: actorForDebtCollection(req),
+      accountingUserName: req.user?.name || req.user?.fullName || req.user?.username || req.user?.email || ''
+    });
+    return debtCollectionResult(res, result);
+  } catch (err) {
+    return sendError(res, err, 'Không từ chối được phiếu thu công nợ (New)');
   }
 });
 

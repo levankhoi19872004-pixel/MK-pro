@@ -32,6 +32,52 @@ function escapeRegExp(value = '') {
   return text(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function hasSearchCriteria(query = {}) {
+  const q = text(query.q || query.search || query.keyword || query.customerName || query.phone);
+  const customer = text(query.customerCode || query.customerId || query.code || query.id);
+  const order = text(query.orderCode || query.salesOrderCode || query.sourceCode || query.sourceId || query.salesOrderId || query.orderId);
+  const salesman = text(query.salesman || query.salesStaffCode || query.salesmanCode || query.nvbhCode || query.nvbh);
+  const delivery = text(query.delivery || query.deliveryStaffCode || query.deliveryCode || query.nvghCode || query.nvgh);
+  // Trạng thái mặc định như open/all/paid/overpaid không được tính là điều kiện tìm kiếm.
+  return Boolean(q || customer || order || salesman || delivery);
+}
+
+function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {
+  return {
+    ledgers: [],
+    orders: [],
+    customers: [],
+    summary: emptySummary(),
+    diagnostics: {
+      source: 'debt-new-v2-guarded-empty',
+      endpoint: '/api/new/debt/customers',
+      reason,
+      searchCriteriaRequired: true,
+      hasSearchCriteria: hasSearchCriteria(query),
+      allowedCategories: ALLOWED_CATEGORIES,
+      excludedLegacyCategories: ['AR-SALE', 'AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RECEIPT'],
+      writePolicy: 'read-only from AR-DEBT-* only; debt collections are submitted separately and do not reduce debt until accounting confirm'
+    }
+  };
+}
+
+function emptySummary() {
+  return {
+    customerCount: 0,
+    orderCount: 0,
+    debtOrderCount: 0,
+    totalDebt: 0,
+    totalDebit: 0,
+    totalCredit: 0,
+    overdueAmount: 0,
+    creditBalanceAmount: 0,
+    overpaidCustomerCount: 0,
+    paidCustomerCount: 0,
+    openCustomerCount: 0,
+    ledgerCount: 0
+  };
+}
+
 function buildLedgerMatch(query = {}) {
   const match = {
     account: /^AR$/i,
@@ -45,7 +91,7 @@ function buildLedgerMatch(query = {}) {
     status: { $nin: ['void', 'voided', 'cancelled', 'canceled', 'deleted', 'reversed'] }
   };
 
-  const q = text(query.q || query.search || query.keyword);
+  const q = text(query.q || query.search || query.keyword || query.customerName || query.phone);
   if (q) {
     const rx = new RegExp(escapeRegExp(q), 'i');
     match.$or = [
@@ -63,11 +109,18 @@ function buildLedgerMatch(query = {}) {
     ];
   }
 
-  const customer = text(query.customerCode || query.customerId || query.code);
+  const customer = text(query.customerCode || query.customerId || query.code || query.id);
   if (customer) {
     const rx = new RegExp(`^${escapeRegExp(customer)}$`, 'i');
     match.$and = Array.isArray(match.$and) ? match.$and : [];
     match.$and.push({ $or: [{ customerCode: rx }, { customerId: rx }] });
+  }
+
+  const order = text(query.orderCode || query.salesOrderCode || query.sourceCode || query.sourceId || query.salesOrderId || query.orderId);
+  if (order) {
+    const rx = new RegExp(`^${escapeRegExp(order)}$`, 'i');
+    match.$and = Array.isArray(match.$and) ? match.$and : [];
+    match.$and.push({ $or: [{ sourceCode: rx }, { salesOrderCode: rx }, { orderCode: rx }, { refCode: rx }, { sourceId: rx }, { salesOrderId: rx }, { orderId: rx }, { refId: rx }] });
   }
 
   const salesman = text(query.salesman || query.salesStaffCode || query.nvbh);
@@ -142,6 +195,7 @@ function groupLedgers(ledgerRows = [], query = {}) {
         customerName: ledger.customerName,
         orderId: ledger.sourceId || ledger.orderKey,
         orderCode: ledger.sourceCode || ledger.orderKey,
+        orderDate: ledger.date,
         salesStaffCode: ledger.salesStaffCode,
         salesStaffName: ledger.salesStaffName,
         deliveryStaffCode: ledger.deliveryStaffCode,
@@ -165,6 +219,7 @@ function groupLedgers(ledgerRows = [], query = {}) {
     order.ledgerCount += 1;
     order.categories[ledger.category] = (order.categories[ledger.category] || 0) + ledger.effect;
     if (!order.lastDebtDate || ledger.date > order.lastDebtDate) order.lastDebtDate = ledger.date;
+    if (!order.orderDate || ledger.date < order.orderDate) order.orderDate = ledger.date;
   }
 
   let orders = Array.from(orderMap.values()).map((row) => {
@@ -234,36 +289,53 @@ function groupLedgers(ledgerRows = [], query = {}) {
   const summary = customers.reduce((acc, row) => {
     acc.customerCount += 1;
     acc.orderCount += row.orderCount;
+    acc.debtOrderCount += row.orders.filter((order) => hasOpenDebt(order.debt)).length;
     acc.totalDebt += row.debt;
     acc.totalDebit += row.debit;
     acc.totalCredit += row.credit;
+    acc.creditBalanceAmount += row.debt < 0 ? Math.abs(row.debt) : 0;
+    acc.openCustomerCount += hasOpenDebt(row.debt) ? 1 : 0;
+    acc.paidCustomerCount += !hasOpenDebt(row.debt) && row.debt === 0 ? 1 : 0;
+    acc.overpaidCustomerCount += row.debt < 0 ? 1 : 0;
     acc.ledgerCount += row.ledgerCount;
     return acc;
-  }, { customerCount: 0, orderCount: 0, totalDebt: 0, totalDebit: 0, totalCredit: 0, ledgerCount: ledgers.length });
+  }, { ...emptySummary(), ledgerCount: ledgers.length });
 
   summary.totalDebt = money(summary.totalDebt);
   summary.totalDebit = money(summary.totalDebit);
   summary.totalCredit = money(summary.totalCredit);
+  summary.creditBalanceAmount = money(summary.creditBalanceAmount);
+  summary.overdueAmount = money(summary.overdueAmount);
 
   return { ledgers, orders, customers, summary };
 }
 
 async function listCustomers(query = {}, options = {}) {
-  const limit = Math.max(1, Math.min(500, Number(query.ledgerLimit || query.limit || 500)));
+  if (!hasSearchCriteria(query)) {
+    return emptyListResult(query);
+  }
+  const normalizedQuery = { ...query };
+  if (!text(normalizedQuery.q || normalizedQuery.search || normalizedQuery.keyword)) {
+    const textSearch = text(normalizedQuery.customerName || normalizedQuery.phone);
+    if (textSearch) normalizedQuery.q = textSearch;
+  }
+  const limit = Math.max(1, Math.min(500, Number(normalizedQuery.ledgerLimit || normalizedQuery.limit || 500)));
   const ledgerRows = await arLedgerReadService.getCanonicalArLedgers({
-    ...query,
+    ...normalizedQuery,
     limit,
     status: 'all'
   }, options);
-  const grouped = groupLedgers(ledgerRows, query);
+  const grouped = groupLedgers(ledgerRows, normalizedQuery);
   return {
     ...grouped,
     diagnostics: {
-      source: 'debt-new-v1',
-      endpoint: '/api/debt-new/customers',
+      source: 'debt-new-v2-ar-debt-read-model',
+      endpoint: '/api/new/debt/customers',
+      hasSearchCriteria: hasSearchCriteria(query),
+      searchCriteriaRequired: false,
       allowedCategories: ALLOWED_CATEGORIES,
       excludedLegacyCategories: ['AR-SALE', 'AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RECEIPT'],
-      writePolicy: 'read-only from AR-DEBT-* only'
+      writePolicy: 'read-only from AR-DEBT-* only; submitted debt collections do not reduce official debt until accounting confirm'
     }
   };
 }
@@ -271,9 +343,10 @@ async function listCustomers(query = {}, options = {}) {
 module.exports = {
   ALLOWED_CATEGORIES,
   buildLedgerMatch,
+  hasSearchCriteria,
   ledgerEffect,
   groupLedgers,
   listCustomers,
   setModelsForTest,
-  _private: { normalizeLedger, orderKey }
+  _private: { normalizeLedger, orderKey, hasSearchCriteria, emptyListResult, emptySummary }
 };
