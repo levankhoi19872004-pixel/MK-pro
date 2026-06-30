@@ -85,6 +85,38 @@ test('debt screen reads directly from canonical arLedgers even when arDebtOrders
   assert.equal(hoaOrder.remainingDebt, 297484570);
 });
 
+
+test('orphan active AR-SALE-REVERSAL is ignored so Hoa Sơn re-accounting debt does not disappear', async () => {
+  setup([
+    arLedger({ orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', debit: 487484570 }),
+    arLedger({
+      category: 'AR-SALE-REVERSAL',
+      orderCode: 'B0038442',
+      sourceId: 'SO1782723235234708',
+      customerCode: 'BBHOASON',
+      customerName: 'Hoa Sơn',
+      credit: 487484570,
+      accountingBatchId: 'REV-SO1782723235234708-OLD',
+      reversedLedgerId: 'AR-SALE-OLD-HOASON',
+      originalLedgerId: 'AR-SALE-OLD-HOASON',
+      reversalOf: 'AR-SALE-OLD-HOASON',
+      idempotencyKey: 'AR-SALE-REVERSAL:salesOrder:SO1782723235234708:AR-SALE-OLD-HOASON'
+    }),
+    arLedger({ category: 'AR-RECEIPT', orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', credit: 190000000 }),
+    arLedger({ category: 'AR-RETURN', orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', credit: 549540 })
+  ]);
+
+  const result = await reportService.debtCustomers({ deliveryStaffCode: 'ghnpp', status: 'open', limit: 20 });
+  const hoaSon = result.customers.find((row) => row.customerCode === 'BBHOASON');
+
+  assert.ok(hoaSon, 'Hoa Sơn must stay visible as open debt after re-accounting');
+  assert.equal(hoaSon.debt, 296935030);
+  assert.equal(hoaSon.orders[0].arSaleAmount, 487484570);
+  assert.equal(hoaSon.orders[0].receiptAmount, 190000000);
+  assert.equal(hoaSon.orders[0].returnAmount, 549540);
+  assert.equal(hoaSon.orders[0].remainingDebt, 296935030);
+});
+
 test('dirty AR-RECEIPT is excluded from canonical debt and auditably cannot reduce debt', async () => {
   setup([
     arLedger({ orderCode: 'B0038442', sourceId: 'SO1782723235234708', customerCode: 'BBHOASON', customerName: 'Hoa Sơn', debit: 487484570 }),

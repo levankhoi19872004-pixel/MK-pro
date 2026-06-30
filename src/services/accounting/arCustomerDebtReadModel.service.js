@@ -13,6 +13,7 @@ const {
   normalizeArLedgerAmounts: classifyArLedgerAmounts
 } = require('../../utils/arLedgerCategoryEffect.util');
 const { isCanonicalArDebtLedger } = require('../../domain/ar/arLedgerValidator');
+const { filterReadModelEligibleArLedgers } = require('../../domain/ar/arLedgerQueryPolicy');
 const arLedgerReadService = require('../arLedgerRead.service');
 
 const INACTIVE_AR_STATUSES = Object.freeze([
@@ -657,7 +658,8 @@ function buildPersonSummary(orderRows = [], options = {}) {
 
 function buildCustomerDebtReadModelFromLedgers(ledgerRows = [], query = {}, options = {}) {
   const tolerance = Number.isFinite(Number(options.tolerance)) ? Number(options.tolerance) : DEBT_ZERO_TOLERANCE;
-  const normalizedLedgers = (Array.isArray(ledgerRows) ? ledgerRows : []).filter(isActiveConfirmedArDebtLedger).map(normalizeLedger).filter((row) => row.orderKey);
+  const eligibleLedgerRows = filterReadModelEligibleArLedgers((Array.isArray(ledgerRows) ? ledgerRows : []).filter(isActiveConfirmedArDebtLedger));
+  const normalizedLedgers = eligibleLedgerRows.map(normalizeLedger).filter((row) => row.orderKey);
   const orderMap = new Map();
 
   for (const ledger of normalizedLedgers) {

@@ -30,3 +30,21 @@ test('rebuild read model matches canonical ledger aggregate', () => {
   assert.equal(result.debtOrders[0].remainingDebt, 0);
   assert.equal(result.debtCustomers[0].remainingDebt, 0);
 });
+
+
+test('orphan active reversal is excluded from debt read model when original active ledger is missing', () => {
+  const sale = buildArSaleLedger(b0038423Order({ amount: 10402373 }), { accountant: 'kt01', timestamp: '1' });
+  const replacement = buildArSaleLedger(b0038423Order({ amount: 10402373 }), {
+    accountant: 'kt01',
+    timestamp: '3',
+    accountingBatchId: 'ACC-SO1782550380164673-REPOST',
+    idempotencyKey: 'AR-SALE:salesOrder:SO1782550380164673:ACC-SO1782550380164673-REPOST'
+  });
+  const orphanReversal = buildArSaleReversalLedger(sale, { accountant: 'kt01', timestamp: '2' });
+  const result = groupCanonicalLedgers([orphanReversal, replacement]);
+  assert.equal(result.canonicalLedgers.length, 1);
+  assert.equal(result.rejectedLedgers.length, 1);
+  assert.equal(result.rejectedLedgers[0].validation.errors[0].code, 'ORPHAN_AR_REVERSAL_EXCLUDED_FROM_DEBT_READ_MODEL');
+  assert.equal(result.debtOrders[0].remainingDebt, 10402373);
+  assert.equal(result.debtCustomers[0].remainingDebt, 10402373);
+});

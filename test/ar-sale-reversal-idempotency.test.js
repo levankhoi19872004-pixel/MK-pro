@@ -17,7 +17,7 @@ function setup() {
   return { SalesOrder, ArLedger, AuditLog, ArDebtOrder, ArDebtCustomer };
 }
 
-test('reverseSalesOrderAR creates exactly one AR-SALE-REVERSAL and marks original inactive', async () => {
+test('reverseSalesOrderAR creates one AR-SALE-REVERSAL and orphan reversal does not create negative customer debt', async () => {
   const h = setup();
   await arPosting.confirmSalesOrderAR({ orderId: 'SO1782550380164673', accountant: 'kt01' });
   const first = await arPosting.reverseSalesOrderAR({ orderId: 'SO1782550380164673', accountant: 'kt01', reason: 'test reverse' });
@@ -33,5 +33,6 @@ test('reverseSalesOrderAR creates exactly one AR-SALE-REVERSAL and marks origina
   assert.equal(original.active, false);
   assert.equal(original.reversed, true);
   assert.ok(original.reversalLedgerId);
-  assert.equal(h.ArDebtCustomer.rows[0].remainingDebt, -10402373);
+  assert.equal(h.ArDebtCustomer.rows.length, 0, 'orphan active reversal must not create negative debt after original was marked inactive');
+  assert.equal(h.ArDebtOrder.rows.length, 0, 'reversed sale must be settled in the current debt read model');
 });

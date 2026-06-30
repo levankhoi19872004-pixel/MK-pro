@@ -9,6 +9,11 @@ const {
   validateArLedgerContract
 } = require('../domain/ar/arLedgerValidator');
 const arLedgerReadService = require('./arLedgerRead.service');
+const {
+  filterReadModelEligibleArLedgers,
+  isArDebtReversalLedger,
+  reversalOriginalKeys
+} = require('../domain/ar/arLedgerQueryPolicy');
 
 let models = null;
 function getModels() {
@@ -92,12 +97,32 @@ function normalizeCanonicalLedger(row = {}) {
 }
 
 function groupCanonicalLedgers(ledgerRows = [], options = {}) {
-  const canonical = [];
+  const rawCanonical = [];
   const rejected = [];
   for (const row of Array.isArray(ledgerRows) ? ledgerRows : []) {
-    if (isCanonicalArDebtLedger(row)) canonical.push(normalizeCanonicalLedger(row));
+    if (isCanonicalArDebtLedger(row)) rawCanonical.push(row);
     else rejected.push({ ledgerId: ledgerId(row), validation: validateArLedgerContract(row) });
   }
+  const eligibleRows = filterReadModelEligibleArLedgers(rawCanonical);
+  const eligibleSet = new Set(eligibleRows);
+  for (const row of rawCanonical) {
+    if (!eligibleSet.has(row) && isArDebtReversalLedger(row)) {
+      rejected.push({
+        ledgerId: ledgerId(row),
+        validation: {
+          ok: false,
+          category: clean(row.category).toUpperCase(),
+          errors: [{
+            code: 'ORPHAN_AR_REVERSAL_EXCLUDED_FROM_DEBT_READ_MODEL',
+            field: 'reversedLedgerId',
+            reason: 'Active reversal ledger has no active original ledger in the same canonical read set.',
+            originalKeys: reversalOriginalKeys(row)
+          }]
+        }
+      });
+    }
+  }
+  const canonical = eligibleRows.map(normalizeCanonicalLedger);
 
   const orderMap = new Map();
   for (const ledger of canonical) {
