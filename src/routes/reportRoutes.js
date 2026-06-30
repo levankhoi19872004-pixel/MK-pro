@@ -18,6 +18,7 @@ router.post('/inventory/rebuild', adminOnly, reportController.rebuildInventory);
 router.post('/inventory/normalize-one-warehouse', adminOnly, reportController.normalizeOneWarehouse);
 router.get('/debts/init', viewBusinessReports, reportController.debtsInit);
 router.get('/debts/customers', viewBusinessReports, reportController.debtsCustomers);
+router.get('/debts/customers/:customerCode/orders', viewBusinessReports, reportController.debtsCustomerOrders);
 router.get('/debts/customer-detail/:customerCode?', viewBusinessReports, reportController.debtsCustomerDetail);
 router.get('/debts/ar-ledger', viewBusinessReports, reportController.debtsArLedger);
 router.get('/debts', viewBusinessReports, reportController.debts);
@@ -38,6 +39,7 @@ router.post('/reports/inventory/rebuild', adminOnly, reportController.rebuildInv
 router.post('/reports/inventory/normalize-one-warehouse', adminOnly, reportController.normalizeOneWarehouse);
 router.get('/reports/debts/init', viewBusinessReports, reportController.debtsInit);
 router.get('/reports/debts/customers', viewBusinessReports, reportController.debtsCustomers);
+router.get('/reports/debts/customers/:customerCode/orders', viewBusinessReports, reportController.debtsCustomerOrders);
 router.get('/reports/debts/customer-detail/:customerCode?', viewBusinessReports, reportController.debtsCustomerDetail);
 router.get('/reports/debts/ar-ledger', viewBusinessReports, reportController.debtsArLedger);
 router.get('/reports/debts', viewBusinessReports, reportController.debts);

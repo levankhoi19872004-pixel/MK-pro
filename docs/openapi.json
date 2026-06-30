@@ -2361,6 +2361,46 @@
         ]
       }
     },
+    "/api/debts/customers/{customerCode}/orders": {
+      "get": {
+        "tags": [
+          "Debts"
+        ],
+        "summary": "GET /api/debts/customers/{customerCode}/orders",
+        "operationId": "getDebtsCustomersCustomerCodeOrders",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/debts/init": {
       "get": {
         "tags": [
@@ -12851,6 +12891,46 @@
         ],
         "summary": "GET /api/reports/debts/customers",
         "operationId": "getReportsDebtsCustomers",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/reports/debts/customers/{customerCode}/orders": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "GET /api/reports/debts/customers/{customerCode}/orders",
+        "operationId": "getReportsDebtsCustomersCustomerCodeOrders",
         "responses": {
           "200": {
             "description": "Success response",

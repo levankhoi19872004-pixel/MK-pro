@@ -91,6 +91,12 @@ const debtsCustomerDetail = asyncHandler(async (req, res) => {
   res.json({ ok: true, ...result });
 });
 
+const debtsCustomerOrders = asyncHandler(async (req, res) => {
+  const query = { ...(req.query || {}), customerCode: req.params.customerCode || req.query.customerCode || req.query.code };
+  const result = await reportService.debtCustomerDetail(query);
+  res.json({ ok: true, ...result });
+});
+
 const debtsArLedger = asyncHandler(async (req, res) => {
   const result = await reportService.debtArLedger(req.query || {});
   res.json({ ok: true, ...result });
@@ -213,6 +219,7 @@ module.exports = {
   debtsInit,
   debtsCustomers,
   debtsCustomerDetail,
+  debtsCustomerOrders,
   debtsArLedger,
   debtsBySalesman,
   debtsByDelivery,

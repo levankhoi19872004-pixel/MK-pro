@@ -2,6 +2,7 @@
 
 const ArLedger = require('../../models/ArLedger');
 const arCustomerDebtReadModel = require('../accounting/arCustomerDebtReadModel.service');
+const phase79ArDebtReadModel = require('../arDebtReadModel.service');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount } = require('../../constants/finance.constants');
 const {
   activeDocumentFilter,
@@ -231,8 +232,8 @@ module.exports = {
   // Customer debt screen read model: arLedgers is the only SSoT for current/open debt.
   debtReport: arCustomerDebtReadModel.debtReport,
   debtInit: arCustomerDebtReadModel.debtInit,
-  debtCustomers: arCustomerDebtReadModel.debtCustomers,
-  debtCustomerDetail: arCustomerDebtReadModel.debtCustomerDetail,
+  debtCustomers: phase79ArDebtReadModel.getDebtCustomers,
+  debtCustomerDetail: (query = {}) => phase79ArDebtReadModel.getDebtOrders(query.customerCode || query.code || query.customerId || query.id || query.q, query),
   debtArLedger: arCustomerDebtReadModel.debtArLedger,
   debtBySalesmanReport: arCustomerDebtReadModel.debtBySalesmanReport,
   debtByDeliveryReport: arCustomerDebtReadModel.debtByDeliveryReport,

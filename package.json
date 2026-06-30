@@ -94,7 +94,11 @@
     "audit:ar-return-duplicates:json": "node scripts/audit-ar-return-duplicates.js --json",
     "repair:ar-return-duplicates:dry": "node scripts/repair-ar-return-duplicates.js --dry-run",
     "repair:ar-return-duplicates": "node scripts/repair-ar-return-duplicates.js --apply",
-    "debug:delivery-accounting-order": "node scripts/debug-delivery-accounting-order.js"
+    "debug:delivery-accounting-order": "node scripts/debug-delivery-accounting-order.js",
+    "phase79:audit": "node scripts/audit-ar-ledger-contract.js --dry-run",
+    "phase79:plan": "node scripts/plan-ar-clean-rebuild.js --dry-run",
+    "phase79:rebuild:dry": "node scripts/rebuild-ar-debt-read-model.js --dry-run --all",
+    "phase79:reconcile:dry": "node scripts/reconcile-ar-debt-after-rebuild.js --dry-run --all"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

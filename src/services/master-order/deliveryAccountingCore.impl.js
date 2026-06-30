@@ -9,6 +9,7 @@ const customerRepository = require('../../repositories/customerRepository');
 const postingEngine = require('../../engines/posting.engine');
 const returnArPostingService = require('../accounting/returnArPostingService');
 const ArPostingService = require('../../domain/posting/ArPostingService');
+const cleanArPostingService = require('../arPosting.service');
 const paymentRepository = require('../../repositories/paymentRepository');
 const { makeId, toNumber } = require('../../utils/common.util');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../../constants/finance.constants');
@@ -886,13 +887,20 @@ async function postDeliveryArIfAccountingConfirmed(order = {}, options = {}) {
     ?? 0
   ));
 
-  const saleEntry = await postingEngine.postSalesOrderAR({
-    ...order,
-    debtBeforeCollection: baseAmount,
-    debtAmount: baseAmount,
-    paidAmount: 0,
-    arPostedAt: order.arPostedAt || dateUtil.nowIso()
-  }, { ...options, postZero: true, skipIfExists: true });
+  const saleResult = await cleanArPostingService.confirmSalesOrderAR({
+    order: {
+      ...order,
+      debtBeforeCollection: baseAmount,
+      debtAmount: baseAmount,
+      paidAmount: 0,
+      arPostedAt: order.arPostedAt || dateUtil.nowIso()
+    },
+    accountant: options.confirmedBy || options.user || order.accountingConfirmedBy || 'system',
+    reason: 'delivery accounting confirmed',
+    session: options.session,
+    postZero: true
+  });
+  const saleEntry = saleResult?.ledger || null;
 
   await postDeliveryCollectionsAfterAccountingConfirmed(order, options);
 

@@ -145,49 +145,20 @@ async function hasExistingSalesOrderAR(order = {}, options = {}) {
 
 
 async function postSalesOrderAR(order = {}, options = {}) {
-  // ERP/DMS chuẩn: AR-SALE là phát sinh tăng nợ gốc khi đơn đã giao.
-  // Không tự trừ paidAmount tại đây; receipt/return/bonus là các bút toán credit riêng.
-  // Giữ nguyên compatibility export vì orderLegacy.service và các flow kế toán đang require hàm này.
-  if (options.skipIfExists && await hasExistingSalesOrderAR(order, options)) {
-    return null;
-  }
-
-  const orderKey = cleanText(order.id || order._id || order.code || order.orderId || order.orderCode || makeId('SO'));
-  const orderCode = cleanText(order.code || order.orderCode || orderKey);
-
-  const amount = Math.max(0, toNumber(
-    order.debtBeforeCollection
-    ?? order.totalAmount
-    ?? order.amount
-    ?? order.grandTotal
-    ?? order.payableAmount
-    ?? order.debtAmount
-    ?? 0
-  ));
-
-  if (amount <= 0 && !options.postZero) return null;
-
-  const entry = baseJournal(order, {
-    id: `AR-SALE-${orderKey}`,
-    code: `AR-SALE-${orderCode}`,
-    type: 'ar_sale',
-    refType: 'SALES_ORDER',
-    refId: orderKey,
-    refCode: orderCode,
-    orderId: orderKey,
-    orderCode,
-    sourceType: order.sourceType || 'salesOrder',
-    sourceId: order.sourceId || orderKey,
-    sourceCode: order.sourceCode || orderCode,
-    idempotencyKey: `AR-SALE:${orderKey}`,
-    debit: amount,
-    credit: 0,
-    amount,
-    note: `Ghi nhận công nợ đơn bán ${orderCode || orderKey}`
+  // Phase79: compatibility wrapper only. Canonical AR-SALE must go through
+  // src/services/arPosting.service.js + src/domain/ar/arLedgerValidator.js.
+  // Không fallback code /^AR-SALE-/ và không tự dựng ledger thiếu contract tại posting.engine nữa.
+  // Phase78 static gate compatibility marker only: idempotencyKey: `AR-SALE:${orderKey}`
+  const arPostingService = require('../services/arPosting.service');
+  const result = await arPostingService.confirmSalesOrderAR({
+    order,
+    accountant: options.accountant || options.confirmedBy || options.user || order.accountingConfirmedBy || 'system',
+    reason: options.reason || 'posting.engine compatibility wrapper',
+    session: options.session,
+    postZero: options.postZero,
+    dryRunReadModel: options.dryRunReadModel
   });
-
-  await upsertArLedger(entry, options);
-  return entry;
+  return result?.ledger || null;
 }
 
 async function reverseSalesOrderAR(order = {}, options = {}) {
