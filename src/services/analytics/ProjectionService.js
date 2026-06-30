@@ -2,7 +2,7 @@
 
 const SalesOrder = require('../../models/SalesOrder');
 const Inventory = require('../../models/InventoryLegacy');
-const ArLedger = require('../../models/ArLedger');
+const arLedgerReadService = require('../arLedgerRead.service');
 const ReportingSnapshot = require('../../models/ReportingSnapshot');
 const dateUtil = require('../../utils/date.util');
 const { tenantIdOf } = require('../../utils/tenant.util');
@@ -130,39 +130,15 @@ async function buildInventory(tenantId, date) {
 }
 
 async function buildCustomerDebt(tenantId, date) {
-  const rows = await ArLedger.aggregate([
-    {
-      $match: {
-        ...tenantMatch(tenantId),
-        date: { $lte: date },
-        status: { $ne: 'reversed' }
-      }
-    },
-    {
-      $group: {
-        _id: {
-          customerCode: '$customerCode',
-          customerName: { $ifNull: ['$customerName', ''] }
-        },
-        debit: { $sum: { $ifNull: ['$debit', 0] } },
-        credit: { $sum: { $ifNull: ['$credit', 0] } },
-        netAmount: {
-          $sum: {
-            $subtract: [
-              { $ifNull: ['$debit', { $cond: [{ $in: ['$type', ['SALE', 'AR-SALE']] }, '$amount', 0] }] },
-              { $ifNull: ['$credit', { $cond: [{ $in: ['$type', ['RECEIPT', 'RETURN', 'AR-RECEIPT', 'AR-RETURN']] }, '$amount', 0] }] }
-            ]
-          }
-        }
-      }
-    },
-    { $match: { netAmount: { $gt: 1000 } } },
-    { $sort: { netAmount: -1 } }
-  ]);
+  const rows = await arLedgerReadService.aggregateDebtByCustomer({
+    status: 'open',
+    dateTo: date,
+    tenantId
+  });
   return rows.map((row) => ({
-    dimensionKey: String(row._id.customerCode || 'UNKNOWN'),
-    dimensions: row._id,
-    metrics: { debit: row.debit, credit: row.credit, outstandingAmount: row.netAmount }
+    dimensionKey: String(row.customerCode || 'UNKNOWN'),
+    dimensions: { customerCode: row.customerCode, customerName: row.customerName || '' },
+    metrics: { debit: row.debit, credit: row.credit, outstandingAmount: row.remainingDebt }
   }));
 }
 

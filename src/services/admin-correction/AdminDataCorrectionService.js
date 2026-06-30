@@ -17,7 +17,7 @@ const Product = require('../../models/Product');
 const Staff = require('../../models/Staff');
 const User = require('../../models/User');
 const ImportSessionRow = require('../../models/ImportSessionRow');
-const ArLedger = require('../../models/ArLedger');
+const arLedgerReadService = require('../arLedgerRead.service');
 const arAdjustmentService = require('../accounting/arAdjustmentService');
 const FundPostingService = require('../../domain/posting/FundPostingService');
 const FundLedger = require('../../models/FundLedger');
@@ -205,18 +205,9 @@ function ensurePatch(patch = {}) {
 async function calculateCustomerDebt(customerCode, options = {}) {
   const code = text(customerCode);
   if (!code) return 0;
-  const pipeline = [
-    { $match: { customerCode: code, status: { $ne: 'void' } } },
-    { $group: { _id: null, debit: { $sum: { $ifNull: ['$debit', 0] } }, credit: { $sum: { $ifNull: ['$credit', 0] } }, amount: { $sum: { $ifNull: ['$amount', 0] } } } }
-  ];
-  const aggregate = ArLedger.aggregate(pipeline);
-  if (options.session) aggregate.session(options.session);
-  const [row] = await aggregate;
-  if (!row) return 0;
-  const debit = toNumber(row.debit);
-  const credit = toNumber(row.credit);
-  if (debit || credit) return debit - credit;
-  return toNumber(row.amount);
+  const rows = await arLedgerReadService.getCanonicalLedgersByCustomer(code, { status: 'all' }, options);
+  return rows.reduce((sum, row) => sum + toNumber(row.debit) - toNumber(row.credit), 0);
+
 }
 
 async function calculateFundBalance({ fundCode = '', fundType = 'cash', account = '' } = {}, options = {}) {

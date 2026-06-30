@@ -1,6 +1,6 @@
 'use strict';
 
-const ArLedger = require('../../models/ArLedger');
+const arLedgerReadService = require('../arLedgerRead.service');
 const ImportOrder = require('../../models/ImportOrder');
 const SalesReportService = require('./SalesReportService');
 const InventoryReportService = require('./InventoryReportService');
@@ -28,16 +28,7 @@ async function dashboardReport(query = {}) {
     FinanceReportService.financeReport({ ...query, full: '1', export: '1' }),
     DeliveryReportService.deliveryReport({ ...query, full: '1', export: '1' }),
     ReturnReportService.returnReport({ ...query, full: '1', export: '1' }),
-    ArLedger.aggregate([
-      { $match: activeDocumentFilter() },
-      {
-        $group: {
-          _id: null,
-          debit: { $sum: { $convert: { input: { $ifNull: ['$debit', '$arDebit'] }, to: 'double', onError: 0, onNull: 0 } } },
-          credit: { $sum: { $convert: { input: { $ifNull: ['$credit', '$arCredit'] }, to: 'double', onError: 0, onNull: 0 } } }
-        }
-      }
-    ]),
+    arLedgerReadService.aggregateDebtByCustomer({ status: 'all', dateFrom, dateTo }),
     ImportOrder.aggregate([
       { $match: activeDocumentFilter() },
       ...businessDateStages(dateFrom, dateTo, ['importDate', 'date', 'documentDate'], '_reportBusinessDate'),
@@ -51,7 +42,7 @@ async function dashboardReport(query = {}) {
     ])
   ]);
 
-  const debt = debtRows?.[0] || {};
+  const debt = Array.isArray(debtRows) ? debtRows.reduce((acc, row) => { acc.debit += toNumber(row.debit); acc.credit += toNumber(row.credit); return acc; }, { debit: 0, credit: 0 }) : {};
   const imports = importRows?.[0] || {};
   const totalDebt = toNumber(debt.debit) - toNumber(debt.credit);
   return {

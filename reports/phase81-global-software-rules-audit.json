@@ -1,0 +1,131 @@
+{
+  "generatedAt": "2026-06-30T05:03:46.099Z",
+  "issueCount": 5,
+  "summary": {
+    "P3-legacy-compatibility": 5
+  },
+  "profiles": [
+    {
+      "profile": "ar",
+      "title": "AR access contract",
+      "generatedAt": "2026-06-30T05:03:45.987Z",
+      "issueCount": 5,
+      "summary": {
+        "P3-legacy-compatibility": 5
+      },
+      "issues": [
+        {
+          "code": "DIRECT_AR_LEDGER_READ",
+          "severity": "P3-legacy-compatibility",
+          "file": "src/services/arLedgerMigrationService.js",
+          "line": 33,
+          "snippet": "sBackfillFromJournals({ logger = console } = {}) { const currentCount = await ArLedger.countDocuments({}).catch(() => 0); if (currentCount > 0) return { skipped: true, reason: 'arLedgers_not_empty', count: currentCount }; const legac",
+          "message": "Runtime đọc arLedgers trực tiếp thay vì qua AR read service/read model."
+        },
+        {
+          "code": "SALES_ORDER_DEBT_CALC",
+          "severity": "P3-legacy-compatibility",
+          "file": "src/services/mobile/sales.service.js",
+          "line": 175,
+          "snippet": "talAmount??e.amount??e.grandTotal), paidAmount:b(e.paidAmount??e.paymentAmount),debtAmount:Math.max(0,b(e.debtAmount??b(e.totalAmount??e.amount??e.grandTotal)-b(e.paidAmount??e.paymentAmount))),status:e.status, lifecycleStatus:e.lifecycleSt",
+          "message": "Có dấu hiệu tính công nợ từ salesOrders/totalAmount-paidAmount."
+        },
+        {
+          "code": "SALES_ORDER_DEBT_CALC",
+          "severity": "P3-legacy-compatibility",
+          "file": "src/services/mobileService.js",
+          "line": 369,
+          "snippet": "), items, totalQuantity, totalAmount, paidAmount, debtAmount: totalAmount - paidAmount, status: 'pending', lifecycleStatus: 'pending', orderDate: date, deliveryStatus: 'pending', a",
+          "message": "Có dấu hiệu tính công nợ từ salesOrders/totalAmount-paidAmount."
+        },
+        {
+          "code": "SALES_ORDER_DEBT_CALC",
+          "severity": "P3-legacy-compatibility",
+          "file": "src/services/reportLegacy.service.js",
+          "line": 227,
+          "snippet": "rCount:f(h.orderCount),totalAmount:f(h.totalAmount),paidAmount:f(h.paidAmount), debtAmount:Math.max(0,f(h.totalAmount)-f(h.paidAmount))},debts:{totalDebit:f(S.debit),totalCredit:f(S.credit),totalDebt:L,debtZeroTolerance:g},stock:A?.summary|",
+          "message": "Có dấu hiệu tính công nợ từ salesOrders/totalAmount-paidAmount."
+        },
+        {
+          "code": "SALES_ORDER_DEBT_CALC",
+          "severity": "P3-legacy-compatibility",
+          "file": "public/mobile/js/sales/sync.js",
+          "line": 19,
+          "snippet": ", 10), customerName, customerCode, totalAmount, paidAmount, debtAmount: Math.max(0, totalAmount - paidAmount), status: operation.status || 'pending', deliveryStatus: 'pending_sync', pendingSync: true, syn",
+          "message": "Có dấu hiệu tính công nợ từ salesOrders/totalAmount-paidAmount."
+        }
+      ]
+    },
+    {
+      "profile": "inventory",
+      "title": "Inventory access contract",
+      "generatedAt": "2026-06-30T05:03:46.047Z",
+      "issueCount": 0,
+      "summary": {},
+      "issues": []
+    },
+    {
+      "profile": "fund",
+      "title": "Fund ledger access contract",
+      "generatedAt": "2026-06-30T05:03:46.087Z",
+      "issueCount": 0,
+      "summary": {},
+      "issues": []
+    },
+    {
+      "profile": "frontend",
+      "title": "Frontend core business calculation contract",
+      "generatedAt": "2026-06-30T05:03:46.099Z",
+      "issueCount": 0,
+      "summary": {},
+      "issues": []
+    }
+  ],
+  "issues": [
+    {
+      "profile": "ar",
+      "code": "DIRECT_AR_LEDGER_READ",
+      "severity": "P3-legacy-compatibility",
+      "file": "src/services/arLedgerMigrationService.js",
+      "line": 33,
+      "snippet": "sBackfillFromJournals({ logger = console } = {}) { const currentCount = await ArLedger.countDocuments({}).catch(() => 0); if (currentCount > 0) return { skipped: true, reason: 'arLedgers_not_empty', count: currentCount }; const legac",
+      "message": "Runtime đọc arLedgers trực tiếp thay vì qua AR read service/read model."
+    },
+    {
+      "profile": "ar",
+      "code": "SALES_ORDER_DEBT_CALC",
+      "severity": "P3-legacy-compatibility",
+      "file": "src/services/mobile/sales.service.js",
+      "line": 175,
+      "snippet": "talAmount??e.amount??e.grandTotal), paidAmount:b(e.paidAmount??e.paymentAmount),debtAmount:Math.max(0,b(e.debtAmount??b(e.totalAmount??e.amount??e.grandTotal)-b(e.paidAmount??e.paymentAmount))),status:e.status, lifecycleStatus:e.lifecycleSt",
+      "message": "Có dấu hiệu tính công nợ từ salesOrders/totalAmount-paidAmount."
+    },
+    {
+      "profile": "ar",
+      "code": "SALES_ORDER_DEBT_CALC",
+      "severity": "P3-legacy-compatibility",
+      "file": "src/services/mobileService.js",
+      "line": 369,
+      "snippet": "), items, totalQuantity, totalAmount, paidAmount, debtAmount: totalAmount - paidAmount, status: 'pending', lifecycleStatus: 'pending', orderDate: date, deliveryStatus: 'pending', a",
+      "message": "Có dấu hiệu tính công nợ từ salesOrders/totalAmount-paidAmount."
+    },
+    {
+      "profile": "ar",
+      "code": "SALES_ORDER_DEBT_CALC",
+      "severity": "P3-legacy-compatibility",
+      "file": "src/services/reportLegacy.service.js",
+      "line": 227,
+      "snippet": "rCount:f(h.orderCount),totalAmount:f(h.totalAmount),paidAmount:f(h.paidAmount), debtAmount:Math.max(0,f(h.totalAmount)-f(h.paidAmount))},debts:{totalDebit:f(S.debit),totalCredit:f(S.credit),totalDebt:L,debtZeroTolerance:g},stock:A?.summary|",
+      "message": "Có dấu hiệu tính công nợ từ salesOrders/totalAmount-paidAmount."
+    },
+    {
+      "profile": "ar",
+      "code": "SALES_ORDER_DEBT_CALC",
+      "severity": "P3-legacy-compatibility",
+      "file": "public/mobile/js/sales/sync.js",
+      "line": 19,
+      "snippet": ", 10), customerName, customerCode, totalAmount, paidAmount, debtAmount: Math.max(0, totalAmount - paidAmount), status: operation.status || 'pending', deliveryStatus: 'pending_sync', pendingSync: true, syn",
+      "message": "Có dấu hiệu tính công nợ từ salesOrders/totalAmount-paidAmount."
+    }
+  ]
+}

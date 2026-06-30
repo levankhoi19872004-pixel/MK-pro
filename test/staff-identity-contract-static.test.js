@@ -38,3 +38,23 @@ test('staffRules uses staff identity contract for code matching', () => {
   assert.match(src, /pickDeliveryStaffCode/);
   assert.doesNotMatch(src, /const codeFields = \[[\s\S]*staffCode[\s\S]*username[\s\S]*staffId[\s\S]*\]/);
 });
+
+test('staff identity utility normalizes canonical NVBH/NVGH fields and keeps audit actor separate', () => {
+  const util = require('../src/utils/assertStaffIdentityContract.util');
+  const identity = util.normalizeStaffIdentity({
+    salesmanCode: 'SALE01',
+    salesmanName: 'NV bán',
+    deliveryCode: 'GH01',
+    deliveryName: 'NV giao',
+    staffCode: 'KT01',
+    staffName: 'Kế toán'
+  });
+  assert.deepEqual(identity, {
+    salesStaffCode: 'SALE01',
+    salesStaffName: 'NV bán',
+    deliveryStaffCode: 'GH01',
+    deliveryStaffName: 'NV giao',
+    auditStaffCode: 'KT01',
+    auditStaffName: 'Kế toán'
+  });
+});

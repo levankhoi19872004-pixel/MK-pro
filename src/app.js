@@ -431,7 +431,10 @@ async function startServer() {
   }
 
   installGracefulShutdown(server);
-  logger.info({ bindHost: BIND_HOST, port: PORT, release: internalReleaseSummary() }, `HTTP server listening on http://${BIND_HOST}:${PORT}; application bootstrap is starting`);
+  const httpListenMessage = `HTTP server listening on http://${BIND_HOST}:${PORT}; application bootstrap is starting`;
+  logger.info({ bindHost: BIND_HOST, port: PORT, release: internalReleaseSummary() }, httpListenMessage);
+  process.stdout.write(`${httpListenMessage}
+`);
 
   try {
     registerDefaultOutboxHandlers();

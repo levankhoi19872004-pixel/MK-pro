@@ -191,8 +191,18 @@ async function findDirtySaleLedgers(sourceId, options = {}) {
       { idempotencyKey: `AR-SALE:salesOrder:${sourceId}` }
     ]
   }, options);
-  return (rows || []).filter((row) => clean(row.category).toUpperCase() === 'AR-SALE' || /^AR-SALE-/i.test(clean(row.code || row.id)))
-    .filter((row) => !isCanonicalArDebtLedger(row));
+  return (rows || []).filter((row) => {
+    const category = clean(row.category).toUpperCase();
+    const ledgerType = clean(row.ledgerType).toUpperCase();
+    const sourceType = clean(row.sourceType).toLowerCase();
+    const idempotencyKey = clean(row.idempotencyKey);
+    const legacyCode = clean(row.code || row.id).toUpperCase();
+    return category === 'AR-SALE'
+      || ledgerType === 'AR-SALE'
+      || idempotencyKey === `AR-SALE:salesOrder:${sourceId}`
+      || legacyCode.startsWith('AR-SALE')
+      || (sourceType === 'salesorder' && clean(row.sourceId) === clean(sourceId));
+  }).filter((row) => !isCanonicalArDebtLedger(row));
 }
 
 async function confirmSalesOrderAR(input = {}) {

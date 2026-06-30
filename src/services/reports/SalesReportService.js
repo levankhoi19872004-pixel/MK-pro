@@ -2,7 +2,7 @@
 
 const SalesOrder = require('../../models/SalesOrder');
 const Product = require('../../models/Product');
-const ArLedger = require('../../models/ArLedger');
+const arLedgerReadService = require('../arLedgerRead.service');
 const {
   activeDocumentFilter,
   accountingConfirmedFilter,
@@ -180,21 +180,7 @@ async function loadConfirmedOrders(query = {}) {
 async function loadArByOrders(orders = []) {
   const keys = Array.from(new Set(orders.flatMap(orderIdentityValues)));
   if (!keys.length) return new Map();
-  const ledgers = await ArLedger.find({
-    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'] },
-    $or: [
-      { orderId: { $in: keys } },
-      { salesOrderId: { $in: keys } },
-      { sourceOrderId: { $in: keys } },
-      { refId: { $in: keys } },
-      { sourceId: { $in: keys } },
-      { orderCode: { $in: keys } },
-      { salesOrderCode: { $in: keys } },
-      { sourceOrderCode: { $in: keys } },
-      { refCode: { $in: keys } },
-      { sourceCode: { $in: keys } }
-    ]
-  }).lean();
+  const ledgers = await arLedgerReadService.getCanonicalLedgersByOrderKeys(keys, { status: 'all' });
 
   const keyToOrder = new Map();
   for (const order of orders) {

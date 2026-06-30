@@ -1,7 +1,7 @@
 'use strict';
 
 const ReturnOrder = require('../../models/ReturnOrder');
-const ArLedger = require('../../models/ArLedger');
+const arLedgerReadService = require('../arLedgerRead.service');
 const {
   activeDocumentFilter,
   returnConfirmedFilter,
@@ -39,22 +39,8 @@ async function loadConfirmedReturns(query = {}) {
 async function loadReturnArCredits(returns = []) {
   const keys = Array.from(new Set(returns.flatMap(returnIdentityValues)));
   if (!keys.length) return new Map();
-  const ledgers = await ArLedger.find({
-    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'] },
-    credit: { $gt: 0 },
-    $or: [
-      { type: { $regex: /return/i } },
-      { sourceType: { $regex: /return/i } },
-      { refType: { $regex: /return/i } },
-      { source: { $regex: /return/i } }
-    ],
-    $and: [{
-      $or: [
-        { refId: { $in: keys } }, { sourceId: { $in: keys } }, { orderId: { $in: keys } },
-        { refCode: { $in: keys } }, { sourceCode: { $in: keys } }, { orderCode: { $in: keys } }
-      ]
-    }]
-  }).lean();
+  const ledgers = (await arLedgerReadService.getCanonicalLedgersByOrderKeys(keys, { status: 'all' }))
+    .filter((ledger) => String(ledger.category || '').toUpperCase().includes('RETURN') && toNumber(ledger.credit) > 0);
 
   const keyToCanonical = new Map();
   for (const row of returns) {

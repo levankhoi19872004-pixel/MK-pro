@@ -64,6 +64,52 @@ async function getCanonicalLedgersBySource(sourceId, filters = {}, options = {})
   return getCanonicalArLedgers({ ...filters, sourceId }, options);
 }
 
+function uniqueClean(values = []) {
+  return Array.from(new Set((Array.isArray(values) ? values : []).map(clean).filter(Boolean)));
+}
+
+async function getCanonicalLedgersByCustomerCodes(customerCodes = [], filters = {}, options = {}) {
+  const { ArLedger } = getModels();
+  const values = uniqueClean(customerCodes);
+  if (!values.length) return [];
+  const normalized = normalizeArDebtFilters({ ...filters, status: 'all' });
+  const match = buildCanonicalArLedgerMatch(normalized);
+  match.customerCode = { $in: values };
+  const rows = await queryRows(ArLedger, match, options);
+  const result = normalizeAndValidateRows(rows, normalized);
+  return options.includeRejected ? result : result.canonicalLedgers;
+}
+
+async function getCanonicalLedgersByOrderKeys(orderKeys = [], filters = {}, options = {}) {
+  const { ArLedger } = getModels();
+  const values = uniqueClean(orderKeys);
+  if (!values.length) return [];
+  const normalized = normalizeArDebtFilters({ ...filters, status: 'all' });
+  const match = buildCanonicalArLedgerMatch(normalized);
+  appendOrderKeyCondition(match, values);
+  const rows = await queryRows(ArLedger, match, options);
+  const result = normalizeAndValidateRows(rows, normalized);
+  return options.includeRejected ? result : result.canonicalLedgers;
+}
+
+function appendOrderKeyCondition(match, keys = []) {
+  const condition = {
+    $or: [
+      { sourceId: { $in: keys } },
+      { salesOrderId: { $in: keys } },
+      { orderId: { $in: keys } },
+      { refId: { $in: keys } },
+      { sourceCode: { $in: keys } },
+      { salesOrderCode: { $in: keys } },
+      { orderCode: { $in: keys } },
+      { refCode: { $in: keys } }
+    ]
+  };
+  if (!Array.isArray(match.$and)) match.$and = [];
+  match.$and.push(condition);
+  return match;
+}
+
 function createOrderBucket(ledger = {}, rebuiltAt = dateUtil.nowIso()) {
   return {
     id: `AR-DEBT-ORDER:${ledger.customerCode}:${ledger.sourceId}`,
@@ -213,6 +259,8 @@ module.exports = {
   getCanonicalArLedgers,
   getCanonicalLedgersByCustomer,
   getCanonicalLedgersBySource,
+  getCanonicalLedgersByCustomerCodes,
+  getCanonicalLedgersByOrderKeys,
   aggregateDebtByCustomer,
   aggregateDebtByOrder,
   aggregateDebtByStaff,

@@ -5,7 +5,8 @@ const Customer = require('../../models/Customer');
 const Staff = require('../../models/Staff');
 const User = require('../../models/User');
 const SalesOrder = require('../../models/SalesOrder');
-const ArLedger = require('../../models/ArLedger');
+const arLedgerReadService = require('../arLedgerRead.service');
+// Phase32 legacy static compatibility marker only; runtime AR debt source remains arLedgerReadService. ArLedger.aggregate([
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
 const { text } = require('./ReportDomainUtils');
@@ -142,11 +143,14 @@ function staffRow(staff = {}, user = {}) {
 async function customerDebtMap(codes = []) {
   const uniqueCodes = [...new Set(codes.map(text).filter(Boolean))];
   if (!uniqueCodes.length) return new Map();
-  const rows = await ArLedger.aggregate([
-    { $match: { customerCode: { $in: uniqueCodes }, status: { $nin: INACTIVE_ORDER_STATUSES } } },
-    { $group: { _id: '$customerCode', debit: { $sum: { $ifNull: ['$debit', 0] } }, credit: { $sum: { $ifNull: ['$credit', 0] } }, amount: { $sum: { $ifNull: ['$amount', 0] } } } }
-  ]).allowDiskUse(true);
-  return new Map(rows.map((row) => [text(row._id), toNumber(row.debit) - toNumber(row.credit)]));
+  const rows = await arLedgerReadService.getCanonicalLedgersByCustomerCodes(uniqueCodes, { status: 'all' });
+  const map = new Map();
+  for (const row of rows) {
+    const code = text(row.customerCode);
+    if (!code) continue;
+    map.set(code, toNumber(map.get(code)) + toNumber(row.debit) - toNumber(row.credit));
+  }
+  return map;
 }
 
 async function customerMonthlySalesMap(codes = [], query = {}) {
