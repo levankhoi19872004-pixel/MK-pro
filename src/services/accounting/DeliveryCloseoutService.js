@@ -176,6 +176,44 @@ function collectDeliveryPaymentRows(order = {}, explicitPayments = []) {
   return rows;
 }
 
+function firstMoney(source = {}, fields = []) {
+  for (const field of fields) {
+    if (hasOwnValue(source, field)) return requireMoney(source, field, { label: 'salesOrders.deliveryCloseout', field }, { nonNegative: true });
+  }
+  return 0;
+}
+
+function closeoutMoney(source = {}, fields = []) {
+  return firstMoney(source, fields);
+}
+
+function summarizeCloseoutBreakdownPayments(order = {}) {
+  const closeout = order.deliveryCloseout && typeof order.deliveryCloseout === 'object' ? order.deliveryCloseout : null;
+  if (!closeout) return { collectedAmount: 0, paymentIds: [], paymentRows: [] };
+  const cashAmount = closeoutMoney(closeout, ['cashAmount', 'cashCollectedAmount', 'collectedCashAmount', 'collectedCash', 'cashCollected', 'cash']);
+  const transferAmount = closeoutMoney(closeout, ['transferAmount', 'bankAmount', 'bankCollectedAmount', 'collectedTransferAmount', 'collectedTransfer', 'transferCollected', 'bankCollected', 'bank']);
+  const rows = [];
+  if (cashAmount > 0) rows.push({ id: 'delivery-closeout-cash', sourceType: 'DELIVERY_CLOSEOUT_BREAKDOWN', status: 'confirmed', method: 'cash', amount: cashAmount });
+  if (transferAmount > 0) rows.push({ id: 'delivery-closeout-transfer', sourceType: 'DELIVERY_CLOSEOUT_BREAKDOWN', status: 'confirmed', method: 'transfer', amount: transferAmount });
+  return {
+    collectedAmount: rows.reduce((sum, row) => sum + paymentAmount(row), 0),
+    paymentIds: rows.map((row) => paymentId(row)).filter(Boolean),
+    paymentRows: rows
+  };
+}
+
+function summarizeOffsets(order = {}) {
+  const closeout = order.deliveryCloseout && typeof order.deliveryCloseout === 'object' ? order.deliveryCloseout : null;
+  if (!closeout) return { offsetAmount: 0, offsetRows: [] };
+  const explicitOffset = closeoutMoney(closeout, ['offsetAmount', 'debtOffsetAmount', 'deliveryOffsetAmount']);
+  const rewardOffset = closeoutMoney(closeout, ['rewardAmount', 'bonusAmount', 'displayRewardAmount', 'bonusReturnAmount', 'allowanceAmount']);
+  const offsetAmount = money(explicitOffset + rewardOffset);
+  const offsetRows = [];
+  if (explicitOffset > 0) offsetRows.push({ type: 'offset', amount: explicitOffset });
+  if (rewardOffset > 0) offsetRows.push({ type: 'reward', amount: rewardOffset });
+  return { offsetAmount, offsetRows };
+}
+
 function summarizePayments(order = {}, explicitPayments = []) {
   const rows = collectDeliveryPaymentRows(order, explicitPayments);
   if (rows.length > 0) {
@@ -193,6 +231,8 @@ function summarizePayments(order = {}, explicitPayments = []) {
       paymentRows: []
     };
   }
+  const breakdown = summarizeCloseoutBreakdownPayments(order);
+  if (breakdown.collectedAmount > 0) return breakdown;
   return { collectedAmount: 0, paymentIds: [], paymentRows: [] };
 }
 
@@ -216,6 +256,8 @@ function publicCloseoutVersion(closeout = {}) {
     deliveredAmount: closeout.deliveredAmount,
     returnedAmount: closeout.returnedAmount,
     collectedAmount: closeout.collectedAmount,
+    offsetAmount: closeout.offsetAmount || 0,
+    rewardAmount: closeout.rewardAmount || 0,
     finalDebtAmount: closeout.finalDebtAmount,
     returnOrderIds: closeout.returnOrderIds,
     paymentIds: closeout.paymentIds,
@@ -234,8 +276,9 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
   const baseAmount = originalAmount(order);
   const returnSummary = summarizeReturnOrders(returnOrders);
   const paymentSummary = summarizePayments(order, payments);
+  const offsetSummary = summarizeOffsets(order);
   const deliveredAmount = money(baseAmount - returnSummary.returnedAmount);
-  const finalDebtAmount = money(baseAmount - returnSummary.returnedAmount - paymentSummary.collectedAmount);
+  const finalDebtAmount = money(baseAmount - returnSummary.returnedAmount - paymentSummary.collectedAmount - offsetSummary.offsetAmount);
   const version = options.version || nextVersion(order);
   const now = options.now || dateUtil.nowIso();
   const status = options.status || 'draft';
@@ -246,6 +289,8 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
     deliveredAmount,
     returnedAmount: returnSummary.returnedAmount,
     collectedAmount: paymentSummary.collectedAmount,
+    offsetAmount: offsetSummary.offsetAmount,
+    rewardAmount: offsetSummary.offsetRows.filter((row) => row.type === 'reward').reduce((sum, row) => sum + money(row.amount), 0),
     finalDebtAmount,
     returnOrderIds: returnSummary.returnOrderIds,
     paymentIds: paymentSummary.paymentIds
@@ -256,6 +301,8 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
     deliveredAmount,
     returnedAmount: returnSummary.returnedAmount,
     collectedAmount: paymentSummary.collectedAmount,
+    offsetAmount: offsetSummary.offsetAmount,
+    rewardAmount: offsetSummary.offsetRows.filter((row) => row.type === 'reward').reduce((sum, row) => sum + money(row.amount), 0),
     finalDebtAmount,
     returnOrderIds: returnSummary.returnOrderIds,
     paymentIds: paymentSummary.paymentIds,
@@ -275,7 +322,8 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
     updatedAt: now,
     updatedBy: clean(options.actor || 'system'),
     activeReturnOrders: returnSummary.activeReturnOrders,
-    paymentRows: paymentSummary.paymentRows
+    paymentRows: paymentSummary.paymentRows,
+    offsetRows: offsetSummary.offsetRows
   };
 }
 
@@ -342,6 +390,7 @@ function confirmCloseout(order = {}, computed = {}, options = {}) {
   ];
   delete snapshot.activeReturnOrders;
   delete snapshot.paymentRows;
+  delete snapshot.offsetRows;
   return snapshot;
 }
 
@@ -352,6 +401,7 @@ module.exports = {
   assertNoLedgerShape,
   collectDeliveryPaymentRows,
   summarizePayments,
+  summarizeOffsets,
   summarizeReturnOrders,
   returnOrderAmount,
   isActiveReturnOrder,
@@ -369,6 +419,7 @@ module.exports = {
     stableHash,
     publicCloseoutVersion,
     hasOwnValue,
+    summarizeCloseoutBreakdownPayments,
     contractError
   }
 };

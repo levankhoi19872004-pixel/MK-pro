@@ -29,38 +29,48 @@ function adjustmentSide(deltaDebt) {
 }
 
 function buildAdjustmentLedger(order = {}, context = {}, options = {}) {
-  const side = adjustmentSide(context.deltaDebt);
+  const side = adjustmentSide(context.deltaDebt ?? context.debtAdjustmentAmount);
   if (side.amount <= 0) return null;
-  const sourceId = clean(DeliveryCloseoutService.orderId(order) || context.orderId || context.sourceId);
-  const sourceCode = clean(DeliveryCloseoutService.orderCode(order) || context.orderCode || sourceId);
-  if (!sourceId) {
+  const salesOrderId = clean(DeliveryCloseoutService.orderId(order) || context.orderId || context.salesOrderId);
+  const salesOrderCode = clean(DeliveryCloseoutService.orderCode(order) || context.orderCode || context.salesOrderCode || salesOrderId);
+  if (!salesOrderId) {
     const err = new Error('Không thể sinh AR-DEBT-ADJUSTMENT vì thiếu orderId.');
     err.code = 'AR_DEBT_ADJUSTMENT_MISSING_ORDER_ID';
     throw err;
   }
+  const sourceType = clean(options.sourceType || context.sourceType || (context.correctionId ? 'DELIVERY_CLOSEOUT_CORRECTION' : 'SALES_ORDER_DELIVERY_CLOSEOUT_CORRECTION'));
+  const sourceId = clean(options.sourceId || context.sourceId || context.correctionId || salesOrderId);
+  const sourceCode = clean(options.sourceCode || context.sourceCode || context.correctionCode || salesOrderCode);
   const version = clean(context.deliveryCloseoutVersion || context.version || 'v0');
   const reason = clean(context.reason || options.reason || 'delivery closeout correction');
-  const reasonHash = shortHash(`${sourceId}:${version}:${money(context.deltaDebt)}:${reason}`);
+  const reasonHash = shortHash(`${sourceId}:${salesOrderId}:${version}:${money(context.deltaDebt ?? context.debtAdjustmentAmount)}:${reason}`);
   const now = options.now || dateUtil.nowIso();
   return {
-    id: `AR-DEBT-ADJUSTMENT-${sourceId}-${version}-${reasonHash}`,
-    code: `AR-DEBT-ADJUSTMENT-${sourceCode}-${version}-${reasonHash}`,
-    idempotencyKey: `AR-DEBT-ADJUSTMENT:${sourceId}:${version}:${money(context.deltaDebt)}:${reasonHash}`,
+    id: clean(context.ledgerId || `AR-DEBT-ADJUSTMENT-${sourceId}-${version}-${reasonHash}`),
+    code: clean(context.ledgerCode || `AR-DEBT-ADJUSTMENT-${sourceCode}-${version}-${reasonHash}`),
+    idempotencyKey: clean(context.idempotencyKey || `AR-DEBT-ADJUSTMENT:${sourceId}:${salesOrderId}:${version}:${money(context.deltaDebt ?? context.debtAdjustmentAmount)}:${reasonHash}`),
     date: dateUtil.toDateOnly(options.date || context.correctedAt || now),
     account: 'AR',
     category: 'AR-DEBT-ADJUSTMENT',
     ledgerType: 'AR-DEBT-ADJUSTMENT',
     entryType: 'normal',
-    sourceType: 'SALES_ORDER_DELIVERY_CLOSEOUT_CORRECTION',
+    sourceType,
     sourceId,
     sourceCode,
-    refType: 'SALES_ORDER_DELIVERY_CLOSEOUT_CORRECTION',
+    sourceModel: 'deliveryCloseoutCorrections',
+    refType: sourceType,
     refId: sourceId,
     refCode: sourceCode,
-    orderId: sourceId,
-    orderCode: sourceCode,
-    salesOrderId: sourceId,
-    salesOrderCode: sourceCode,
+    orderId: salesOrderId,
+    orderCode: salesOrderCode,
+    salesOrderId,
+    salesOrderCode,
+    correctionId: clean(context.correctionId || sourceId),
+    correctionCode: clean(context.correctionCode || sourceCode),
+    originalCloseoutId: clean(context.originalCloseoutId),
+    originalCloseoutCode: clean(context.originalCloseoutCode),
+    newCloseoutId: clean(context.newCloseoutId),
+    newCloseoutCode: clean(context.newCloseoutCode),
     customerId: clean(order.customerId),
     customerCode: clean(order.customerCode),
     customerName: clean(order.customerName),
@@ -87,7 +97,10 @@ function buildAdjustmentLedger(order = {}, context = {}, options = {}) {
     deliveryCloseoutHash: clean(context.deliveryCloseoutHash || context.calculationHash),
     oldFinalDebtAmount: money(context.oldFinalDebtAmount),
     newFinalDebtAmount: money(context.newFinalDebtAmount),
-    deltaDebt: money(context.deltaDebt),
+    deltaDebt: money(context.deltaDebt ?? context.debtAdjustmentAmount),
+    debtAdjustmentAmount: money(context.debtAdjustmentAmount ?? context.deltaDebt),
+    returnAdjustmentAmount: money(context.returnAdjustmentAmount),
+    cashAdjustmentAmount: money(context.cashAdjustmentAmount),
     returnOrderIds: Array.isArray(context.returnOrderIds) ? context.returnOrderIds : [],
     reason,
     correctedBy: clean(context.correctedBy || options.actor || 'accountant'),
@@ -95,7 +108,7 @@ function buildAdjustmentLedger(order = {}, context = {}, options = {}) {
     createdAt: now,
     updatedAt: now,
     createdBy: clean(context.correctedBy || options.actor || 'accountant'),
-    note: clean(options.note || `Điều chỉnh công nợ sau correction chốt giao hàng ${sourceCode}: delta=${money(context.deltaDebt)}`)
+    note: clean(options.note || `Điều chỉnh công nợ sau correction chốt giao hàng ${salesOrderCode}: delta=${money(context.deltaDebt ?? context.debtAdjustmentAmount)}`)
   };
 }
 
@@ -111,7 +124,7 @@ async function postAdjustment(order = {}, context = {}, options = {}) {
   if (Array.isArray(existing) && existing.length) return { posted: false, idempotent: true, entry: existing[0] };
   const saved = await paymentRepository.upsert(entry, options);
   if (options.skipReadModelRebuild !== true) {
-    await arDebtReadModel.rebuildDebtForSource(entry.sourceId, { ...options, dryRun: options.dryRunReadModel === true });
+    await arDebtReadModel.rebuildDebtForSource(entry.salesOrderId || entry.orderId || entry.sourceId, { ...options, dryRun: options.dryRunReadModel === true });
   }
   return { posted: true, entry: saved || entry };
 }

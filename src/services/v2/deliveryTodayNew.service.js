@@ -8,7 +8,8 @@ function getModels() {
   if (models) return models;
   models = {
     SalesOrder: require('../../models/SalesOrder'),
-    ReturnOrder: require('../../models/ReturnOrder')
+    ReturnOrder: require('../../models/ReturnOrder'),
+    DeliveryCloseoutVersion: require('../../models/DeliveryCloseoutVersion')
   };
   return models;
 }
@@ -194,12 +195,49 @@ async function loadReturnsForOrders(orders = [], options = {}) {
   return map;
 }
 
+
+async function loadLatestVersionsForOrders(orders = [], options = {}) {
+  const ids = Array.from(new Set(orders.flatMap(orderBusinessIds).filter(Boolean)));
+  if (!ids.length) return new Map();
+  const { DeliveryCloseoutVersion } = getModels();
+  const match = {
+    $or: [
+      { salesOrderId: { $in: ids } },
+      { salesOrderCode: { $in: ids } },
+      { orderId: { $in: ids } },
+      { orderCode: { $in: ids } },
+      { originalCloseoutId: { $in: ids } },
+      { originalCloseoutCode: { $in: ids } }
+    ]
+  };
+  const query = DeliveryCloseoutVersion.find(match).sort({ closeoutVersion: -1, createdAt: -1 }).lean();
+  if (options.session) query.session(options.session);
+  const rows = await query;
+  const map = new Map();
+  for (const row of rows || []) {
+    const keys = [row.salesOrderId, row.salesOrderCode, row.orderId, row.orderCode, row.originalCloseoutId, row.originalCloseoutCode].map(text).filter(Boolean);
+    for (const key of keys) {
+      const current = map.get(key);
+      if (!current || Number(row.closeoutVersion || 0) > Number(current.closeoutVersion || 0)) map.set(key, row);
+    }
+  }
+  return map;
+}
+
+function latestVersionForOrder(order = {}, versionsByKey = new Map()) {
+  for (const id of orderBusinessIds(order)) {
+    const version = versionsByKey.get(id);
+    if (version) return version;
+  }
+  return null;
+}
+
 function collectedAmount(order = {}) {
   const closeout = closeoutOf(order);
   return money(closeout.collectedAmount ?? order.collectedAmount ?? order.deliveryCollectedAmount ?? order.paidAmount ?? order.paymentAmount ?? 0);
 }
 
-function summarizeOrder(order = {}, returnsByKey = new Map()) {
+function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = new Map()) {
   const ids = orderBusinessIds(order);
   const returns = ids.flatMap((id) => returnsByKey.get(id) || []);
   const seen = new Set();
@@ -210,11 +248,15 @@ function summarizeOrder(order = {}, returnsByKey = new Map()) {
     return true;
   });
   const closeout = closeoutOf(order);
-  const originalAmount = money(closeout.originalAmount ?? orderAmount(order));
-  const returnedAmount = money(uniqueReturns.reduce((sum, row) => sum + money(row.amount), 0));
-  const collected = collectedAmount(order);
-  const finalDebtAmount = money(originalAmount - returnedAmount - collected);
-  const closeoutFinalDebt = closeout.finalDebtAmount !== undefined ? money(closeout.finalDebtAmount) : finalDebtAmount;
+  const latestVersion = latestVersionForOrder(order, versionsByKey);
+  const originalAmount = money((latestVersion && (latestVersion.originalAmount ?? latestVersion.saleAmount)) ?? closeout.originalAmount ?? orderAmount(order));
+  const legacyReturnedAmount = money(uniqueReturns.reduce((sum, row) => sum + money(row.amount), 0));
+  const returnedAmount = money((latestVersion && (latestVersion.returnedAmount ?? latestVersion.returnAmount)) ?? legacyReturnedAmount);
+  const collected = money((latestVersion && (latestVersion.collectedAmount ?? latestVersion.cashCollectedAmount)) ?? collectedAmount(order));
+  const finalDebtAmount = money((latestVersion && (latestVersion.finalDebtAmount ?? latestVersion.debtAmount)) ?? (originalAmount - returnedAmount - collected));
+  const closeoutFinalDebt = latestVersion
+    ? finalDebtAmount
+    : (closeout.finalDebtAmount !== undefined ? money(closeout.finalDebtAmount) : finalDebtAmount);
   return {
     id: text(order.id || order._id),
     orderId: text(order.id || order._id),
@@ -227,8 +269,15 @@ function summarizeOrder(order = {}, returnsByKey = new Map()) {
     deliveryStaffCode: text(order.deliveryStaffCode || order.deliveryCode || order.nvghCode),
     deliveryStaffName: text(order.deliveryStaffName || order.deliveryName || order.nvghName),
     status: text(order.status || order.deliveryStatus || order.accountingStatus || 'draft'),
-    closeoutStatus: closeoutStatus(order),
+    closeoutStatus: latestVersion ? text(latestVersion.status || 'corrected_confirmed') : closeoutStatus(order),
     accountingConfirmed: isConfirmedCloseout(order),
+    correctionVersionApplied: Boolean(latestVersion),
+    correctionId: latestVersion ? text(latestVersion.correctionId) : '',
+    correctionCode: latestVersion ? text(latestVersion.correctionCode) : '',
+    closeoutVersionId: latestVersion ? text(latestVersion.id || latestVersion.code) : '',
+    returnAdjustmentAmount: latestVersion ? money(latestVersion.returnAdjustmentAmount) : 0,
+    cashAdjustmentAmount: latestVersion ? money(latestVersion.cashAdjustmentAmount) : 0,
+    debtAdjustmentAmount: latestVersion ? money(latestVersion.debtAdjustmentAmount) : 0,
     originalAmount,
     returnedAmount,
     collectedAmount: collected,
@@ -237,8 +286,8 @@ function summarizeOrder(order = {}, returnsByKey = new Map()) {
     closeoutDelta: money(closeoutFinalDebt - finalDebtAmount),
     returnOrderIds: uniqueReturns.map((row) => row.id || row.code).filter(Boolean),
     paymentIds: Array.isArray(closeout.paymentIds) ? closeout.paymentIds : [],
-    version: money(closeout.version ?? (Array.isArray(closeout.versions) ? closeout.versions.length : 0)),
-    source: 'salesOrders.deliveryCloseout + returnOrders',
+    version: latestVersion ? Number(latestVersion.closeoutVersion || 0) : Number(closeout.version || (Array.isArray(closeout.versions) ? closeout.versions.length : 0) || 0),
+    source: latestVersion ? 'deliveryCloseoutVersions + AR-DEBT-ADJUSTMENT' : 'salesOrders.deliveryCloseout + returnOrders',
     correctionRequired: isConfirmedCloseout(order),
     correctionMessage: isConfirmedCloseout(order) ? 'Đơn đã xác nhận kế toán: mọi sửa đổi phải qua correction flow.' : ''
   };
@@ -273,15 +322,16 @@ async function listOrders(query = {}, options = {}) {
   if (options.session) mongoQuery.session(options.session);
   const orders = await mongoQuery;
   const returnsByKey = await loadReturnsForOrders(orders, options);
-  const rows = orders.map((order) => summarizeOrder(order, returnsByKey));
+  const versionsByKey = await loadLatestVersionsForOrders(orders, options);
+  const rows = orders.map((order) => summarizeOrder(order, returnsByKey, versionsByKey));
   return {
     rows,
     orders: rows,
     summary: summarizeRows(rows),
     diagnostics: {
-      source: 'delivery-today-new-v1',
+      source: 'delivery-today-new-v2-correction-version-aware',
       endpoint: '/api/delivery-new/orders',
-      writePolicy: 'read-only; confirmed orders require DeliveryCloseoutCorrectionService',
+      writePolicy: 'read-only; confirmed orders require DeliveryCloseoutCorrectionService; latest correction comes from deliveryCloseoutVersions',
       matchKeys: Object.keys(match)
     }
   };
@@ -293,5 +343,5 @@ module.exports = {
   summarizeOrder,
   summarizeRows,
   setModelsForTest,
-  _private: { money, orderBusinessIds, returnAmountFromItems, isValidReturn, normalizeReturn }
+  _private: { money, orderBusinessIds, returnAmountFromItems, isValidReturn, normalizeReturn, loadLatestVersionsForOrders, latestVersionForOrder }
 };

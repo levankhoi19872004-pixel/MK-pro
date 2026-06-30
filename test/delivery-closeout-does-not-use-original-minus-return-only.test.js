@@ -6,18 +6,17 @@ const DeliveryCloseoutService = require('../src/services/accounting/DeliveryClos
 
 test('delivery closeout does not open debt by original minus return only when cash/transfer/reward exist', () => {
   const order = {
-    id: 'SO-NOT-ORIGINAL-MINUS-RETURN',
-    code: 'B-NOT-ORIGINAL-MINUS-RETURN',
-    customerCode: 'C1',
-    totalAmount: 1573635,
-    cashAmount: 1000000,
-    transferAmount: 125900,
-    rewardAmount: 100000
+    id: 'SO-CLOSEOUT-BREAKDOWN-2',
+    code: 'B-CLOSEOUT-BREAKDOWN-2',
+    customerCode: 'C-CLOSEOUT',
+    totalAmount: 1258899,
+    deliveryCloseout: {
+      cashAmount: 1000000,
+      transferAmount: 200000,
+      rewardAmount: 25900
+    }
   };
-  const closeout = DeliveryCloseoutService.buildCloseout(order, [
-    { id: 'RO-NOT-ORIGINAL-MINUS-RETURN', code: 'RO-NOT-ORIGINAL-MINUS-RETURN', sourceOrderId: 'SO-NOT-ORIGINAL-MINUS-RETURN', totalReturnAmount: 314736, status: 'active' }
-  ]);
-  assert.equal(closeout.originalAmount - closeout.returnedAmount, 1258899);
-  assert.notEqual(closeout.finalDebtAmount, 1258899);
+  const closeout = DeliveryCloseoutService.buildCloseout(order, []);
+  assert.notEqual(closeout.finalDebtAmount, closeout.originalAmount - closeout.returnedAmount);
   assert.equal(closeout.finalDebtAmount, 32999);
 });

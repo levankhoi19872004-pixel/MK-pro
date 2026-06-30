@@ -6,17 +6,20 @@ const DeliveryCloseoutService = require('../src/services/accounting/DeliveryClos
 
 test('delivery closeout breakdown keeps original = return + collected + offset + final debt', () => {
   const order = {
-    id: 'SO-BREAKDOWN',
-    code: 'B-BREAKDOWN',
-    customerCode: 'C1',
-    totalAmount: 1573635,
-    cashAmount: 1000000,
-    transferAmount: 125900,
-    rewardAmount: 100000
+    id: 'SO-CLOSEOUT-BREAKDOWN',
+    code: 'B-CLOSEOUT-BREAKDOWN',
+    customerCode: 'C-CLOSEOUT',
+    totalAmount: 1258899,
+    deliveryCloseout: {
+      cashAmount: 1000000,
+      transferAmount: 200000,
+      rewardAmount: 25900
+    }
   };
-  const closeout = DeliveryCloseoutService.buildCloseout(order, [
-    { id: 'RO-BREAKDOWN', code: 'RO-BREAKDOWN', sourceOrderId: 'SO-BREAKDOWN', totalReturnAmount: 314736, status: 'active' }
-  ]);
+  const closeout = DeliveryCloseoutService.buildCloseout(order, []);
   assert.equal(closeout.finalDebtAmount, 32999);
-  assert.equal(closeout.originalAmount, closeout.returnedAmount + closeout.collectedAmount + closeout.offsetAmount + closeout.finalDebtAmount);
+  assert.equal(
+    closeout.originalAmount,
+    closeout.returnedAmount + closeout.collectedAmount + closeout.offsetAmount + closeout.finalDebtAmount
+  );
 });

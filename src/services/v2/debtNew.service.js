@@ -93,6 +93,10 @@ function ledgerEffect(row = {}) {
 }
 
 function orderKey(row = {}) {
+  const sourceType = upper(row.sourceType || row.refType);
+  if (sourceType === 'DELIVERY_CLOSEOUT_CORRECTION') {
+    return text(row.salesOrderId || row.orderId || row.salesOrderCode || row.orderCode || row.originalCloseoutId || row.newCloseoutId || row.sourceId || row.sourceCode || row.code || row.id);
+  }
   return text(row.sourceId || row.salesOrderId || row.orderId || row.refId || row.sourceCode || row.salesOrderCode || row.orderCode || row.refCode || row.code || row.id);
 }
 
@@ -107,6 +111,9 @@ function normalizeLedger(row = {}) {
     customerName: text(row.customerName),
     sourceId: text(row.sourceId || row.salesOrderId || row.orderId || row.refId),
     sourceCode: text(row.sourceCode || row.salesOrderCode || row.orderCode || row.refCode),
+    sourceType: upper(row.sourceType || row.refType),
+    correctionId: text(row.correctionId),
+    correctionCode: text(row.correctionCode),
     orderKey: orderKey(row),
     salesStaffCode: text(row.salesStaffCode || row.salesmanCode || row.nvbhCode),
     salesStaffName: text(row.salesStaffName || row.salesmanName || row.nvbhName),

@@ -45,7 +45,8 @@
       '<section class="new-two-pane">' +
         '<section class="card"><h3>Danh sách đơn New</h3><div class="new-table-wrap"><table class="new-table"><thead><tr><th>Đơn / khách</th><th>PT</th><th>HT</th><th>Đã thu</th><th>CN cuối</th><th>Trạng thái</th></tr></thead><tbody id="deliveryTodayNewTable"><tr><td colspan="6">Chưa tải dữ liệu.</td></tr></tbody></table></div></section>' +
         '<section class="card"><h3>Chi tiết closeout</h3><div id="deliveryTodayNewDetail" class="new-detail-list"><div class="empty-state">Chọn một đơn để xem chi tiết.</div></div></section>' +
-      '</section>';
+      '</section>' +
+      '<section id="deliveryTodayNewCorrectionModal" class="card" hidden></section>';
 
     var dateInput = byId('deliveryTodayNewDate');
     if (dateInput && !dateInput.value) dateInput.value = today();
@@ -146,7 +147,98 @@
       detailRow('Công nợ cuối', money(row.finalDebtAmount), num(row.finalDebtAmount) > 0 ? 'new-debt-positive' : '') +
       detailRow('ReturnOrders', (row.returnOrderIds || []).join(', ') || 'Không có') +
       detailRow('Closeout version', row.version || 0) +
-      detailRow('Sai lệch closeout', money(row.closeoutDelta), num(row.closeoutDelta) ? 'new-debt-positive' : '');
+      detailRow('Version từ correction', row.correctionVersionApplied ? 'Có - ' + (row.correctionCode || row.correctionId || '') : 'Không') +
+      detailRow('Điều chỉnh hàng trả', money(row.returnAdjustmentAmount), num(row.returnAdjustmentAmount) ? 'new-credit' : '') +
+      detailRow('Điều chỉnh tiền thu', money(row.cashAdjustmentAmount), num(row.cashAdjustmentAmount) ? 'new-credit' : '') +
+      detailRow('Điều chỉnh công nợ', money(row.debtAdjustmentAmount), num(row.debtAdjustmentAmount) > 0 ? 'new-debt-positive' : 'new-credit') +
+      detailRow('Sai lệch closeout', money(row.closeoutDelta), num(row.closeoutDelta) ? 'new-debt-positive' : '') +
+      (confirmed ? '<div class="new-detail-actions"><button id="deliveryTodayNewCorrectionOpen" type="button" class="primary-action">Tạo điều chỉnh</button><button id="deliveryTodayNewVersionsLoad" type="button" class="secondary">Lịch sử version</button></div>' : '');
+    var openBtn = byId('deliveryTodayNewCorrectionOpen');
+    if (openBtn) openBtn.addEventListener('click', function () { openCorrectionModal(row); });
+    var versionsBtn = byId('deliveryTodayNewVersionsLoad');
+    if (versionsBtn) versionsBtn.addEventListener('click', function () { loadVersions(row); });
+  }
+
+
+  function correctionEndpoint(row) {
+    return '/api/new/delivery-today/closeouts/' + encodeURIComponent(row.orderId || row.orderCode || row.closeoutVersionId || row.correctionId) + '/corrections';
+  }
+
+  function versionsEndpoint(row) {
+    return '/api/new/delivery-today/closeouts/' + encodeURIComponent(row.orderId || row.orderCode || row.closeoutVersionId || row.correctionId) + '/versions';
+  }
+
+  function openCorrectionModal(row) {
+    var modal = byId('deliveryTodayNewCorrectionModal');
+    if (!modal || !row) return;
+    modal.hidden = false;
+    modal.innerHTML = '' +
+      '<h3>Tạo điều chỉnh closeout</h3>' +
+      '<div class="new-safe-note">Hệ thống sẽ tạo version mới, không sửa bản chốt cũ. Không sinh AR-RETURN, không sinh AR-SALE-REVERSAL.</div>' +
+      '<div class="new-module-toolbar">' +
+        '<label>Hàng trả cũ<input id="deliveryCorrectionOldReturn" disabled value="' + esc(money(row.returnedAmount)) + '"></label>' +
+        '<label>Hàng trả sau điều chỉnh<input id="deliveryCorrectionNewReturn" inputmode="numeric" value="' + esc(row.returnedAmount || 0) + '"></label>' +
+        '<label>Tiền thu cũ<input id="deliveryCorrectionOldCash" disabled value="' + esc(money(row.collectedAmount)) + '"></label>' +
+        '<label>Tiền thu sau điều chỉnh<input id="deliveryCorrectionNewCash" inputmode="numeric" value="' + esc(row.collectedAmount || 0) + '"></label>' +
+        '<label class="wide">Lý do bắt buộc<input id="deliveryCorrectionReason" placeholder="Ví dụ: kế toán nhập thiếu tiền thu"></label>' +
+        '<label class="wide">Ghi chú<input id="deliveryCorrectionNote" placeholder="Ghi chú thêm nếu có"></label>' +
+      '</div>' +
+      '<div id="deliveryCorrectionPreview" class="new-safe-note"></div>' +
+      '<div class="new-detail-actions"><button id="deliveryCorrectionSubmit" type="button" class="primary-action">Lưu điều chỉnh</button><button id="deliveryCorrectionCancel" type="button" class="secondary">Đóng</button></div>';
+
+    function preview() {
+      var returnDelta = num(byId('deliveryCorrectionNewReturn').value) - num(row.returnedAmount);
+      var cashDelta = num(byId('deliveryCorrectionNewCash').value) - num(row.collectedAmount);
+      var debtDelta = -returnDelta - cashDelta;
+      var box = byId('deliveryCorrectionPreview');
+      if (box) box.textContent = 'Preview: hàng trả ' + money(returnDelta) + ' · tiền thu ' + money(cashDelta) + ' · công nợ ' + money(debtDelta);
+    }
+    ['deliveryCorrectionNewReturn', 'deliveryCorrectionNewCash'].forEach(function (id) {
+      var el = byId(id);
+      if (el) el.addEventListener('input', preview);
+    });
+    preview();
+
+    var cancel = byId('deliveryCorrectionCancel');
+    if (cancel) cancel.addEventListener('click', function () { modal.hidden = true; modal.innerHTML = ''; });
+    var submit = byId('deliveryCorrectionSubmit');
+    if (submit) submit.addEventListener('click', function () { submitCorrection(row); });
+  }
+
+  async function submitCorrection(row) {
+    var returnDelta = num(byId('deliveryCorrectionNewReturn').value) - num(row.returnedAmount);
+    var cashDelta = num(byId('deliveryCorrectionNewCash').value) - num(row.collectedAmount);
+    var reason = byId('deliveryCorrectionReason') ? byId('deliveryCorrectionReason').value.trim() : '';
+    var note = byId('deliveryCorrectionNote') ? byId('deliveryCorrectionNote').value.trim() : '';
+    if (!reason) { setMessage('Bắt buộc nhập lý do điều chỉnh.', true); return; }
+    if (!returnDelta && !cashDelta) { setMessage('Không có chênh lệch để điều chỉnh.', true); return; }
+    try {
+      var res = await fetch(correctionEndpoint(row), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ returnAdjustmentAmount: returnDelta, cashAdjustmentAmount: cashDelta, reason: reason, note: note })
+      });
+      var json = await res.json();
+      if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tạo được điều chỉnh');
+      var modal = byId('deliveryTodayNewCorrectionModal');
+      if (modal) { modal.hidden = true; modal.innerHTML = ''; }
+      setMessage('Đã tạo điều chỉnh và closeout version mới.');
+      await load();
+    } catch (err) {
+      setMessage(err.message || 'Không tạo được điều chỉnh', true);
+    }
+  }
+
+  async function loadVersions(row) {
+    try {
+      var res = await fetch(versionsEndpoint(row));
+      var json = await res.json();
+      if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tải được version');
+      var versions = json.versions || json.rows || [];
+      setMessage('Closeout versions: ' + versions.map(function (v) { return 'v' + (v.closeoutVersion || '?') + '=' + money(v.finalDebtAmount || v.debtAmount); }).join(' | '));
+    } catch (err) {
+      setMessage(err.message || 'Không tải được lịch sử version', true);
+    }
   }
 
   async function load() {
