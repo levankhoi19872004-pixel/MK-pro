@@ -19,3 +19,14 @@ test('debt collection panel clears payment amount and disables submit when no pa
   assert.match(src, /submitButton\.disabled=!allowed/);
   assert.match(src, /Khách này không còn đơn nợ để thanh toán/);
 });
+
+
+test('debt UI sends canonical debt API filter params and does not require customer q when NVGH is present', () => {
+  const src = read('public/js/app/debt/07a-debt-core.js');
+  assert.match(src, /return Boolean\(criteria\.q \|\| criteria\.salesman \|\| criteria\.delivery\);/);
+  assert.match(src, /params\.set\('salesStaffCode',criteria\.salesman\)/);
+  assert.match(src, /params\.set\('deliveryStaffCode',criteria\.delivery\)/);
+  assert.match(src, /params\.set\('status',criteria\.status\|\|'open'\)/);
+  assert.doesNotMatch(src, /params\.set\('delivery',criteria\.delivery\)/);
+  assert.doesNotMatch(src, /params\.set\('salesman',criteria\.salesman\)/);
+});

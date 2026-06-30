@@ -110,9 +110,9 @@ async function loadDebts(){
   debtLoadPromise=(async()=>{
     const params=new URLSearchParams();
     if(criteria.q)params.set('q',criteria.q);
-    if(criteria.salesman)params.set('salesman',criteria.salesman);
-    if(criteria.delivery)params.set('delivery',criteria.delivery);
-    if(criteria.status && criteria.status!=='all')params.set('status',criteria.status);
+    if(criteria.salesman)params.set('salesStaffCode',criteria.salesman);
+    if(criteria.delivery)params.set('deliveryStaffCode',criteria.delivery);
+    params.set('status',criteria.status||'open');
     params.set('page','1');
     params.set('limit','50');
     params.set('includePaid',criteria.status==='paid'?'1':'0');

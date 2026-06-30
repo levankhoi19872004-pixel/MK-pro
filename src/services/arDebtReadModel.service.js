@@ -271,6 +271,15 @@ function matchesStatus(row = {}, status = 'open') {
   return lower(row.status) === normalized;
 }
 
+function codeEquals(actual, expected) {
+  const left = clean(actual);
+  const right = clean(expected);
+  if (!right) return true;
+  // Staff filters are still code-only filters, but compare normalized text so
+  // production rows using GHTH and UI input ghth do not disappear.
+  return lower(left) === lower(right);
+}
+
 function applyFilters(rows = [], filters = {}) {
   let out = [...rows];
   const q = lower(filters.q || filters.search || filters.keyword);
@@ -280,9 +289,9 @@ function applyFilters(rows = [], filters = {}) {
   const customer = clean(filters.customerCode || filters.code || filters.customerId);
   if (customer) out = out.filter((row) => [row.customerCode, row.customerName].some((value) => lower(value) === lower(customer) || lower(value).includes(lower(customer))));
   const sales = clean(filters.salesStaffCode || filters.salesman);
-  if (sales) out = out.filter((row) => clean(row.salesStaffCode) === sales);
+  if (sales) out = out.filter((row) => codeEquals(row.salesStaffCode, sales));
   const delivery = clean(filters.deliveryStaffCode || filters.delivery);
-  if (delivery) out = out.filter((row) => clean(row.deliveryStaffCode) === delivery);
+  if (delivery) out = out.filter((row) => codeEquals(row.deliveryStaffCode, delivery));
   out = out.filter((row) => matchesStatus(row, filters.status || 'open'));
   return out;
 }
@@ -302,13 +311,17 @@ async function readModelRows(Model, filters = {}) {
 }
 
 async function getDebtCustomers(filters = {}) {
-  const { ArDebtCustomer } = getModels();
+  const { ArDebtCustomer, ArDebtOrder } = getModels();
   let rows = await readModelRows(ArDebtCustomer, filters);
+  let orderRows = await readModelRows(ArDebtOrder, filters);
   if (!rows.length && filters.live === true) {
     const rebuilt = await rebuildAllDebtReadModels({ dryRun: true });
     rows = applyFilters(rebuilt.debtCustomers, filters);
+    orderRows = applyFilters(rebuilt.debtOrders, filters);
   }
   const page = paginate(rows, filters);
+  const pageCustomerCodes = new Set(page.rows.map((row) => clean(row.customerCode)).filter(Boolean));
+  const pageOrders = orderRows.filter((row) => !pageCustomerCodes.size || pageCustomerCodes.has(clean(row.customerCode)));
   const summary = {
     page: page.page,
     limit: page.limit,
@@ -317,6 +330,9 @@ async function getDebtCustomers(filters = {}) {
     totalDebt: rows.filter((row) => hasOpenDebt(row.remainingDebt)).reduce((sum, row) => sum + Math.max(0, row.remainingDebt), 0),
     customerDebtCount: rows.filter((row) => hasOpenDebt(row.remainingDebt)).length,
     customerCount: rows.length,
+    orderDebtCount: orderRows.filter((row) => hasOpenDebt(row.remainingDebt)).length,
+    orderCount: orderRows.length,
+    readModelEmpty: rows.length === 0 && orderRows.length === 0,
     debtZeroTolerance: DEBT_ZERO_TOLERANCE,
     source: 'arDebtCustomers',
     usesSnapshot: false
@@ -327,9 +343,9 @@ async function getDebtCustomers(filters = {}) {
     customers: page.rows,
     customerSummary: page.rows,
     debts: page.rows,
-    orders: [],
+    orders: pageOrders,
     summary,
-    debugSource: { source: 'canonical arLedgers -> arDebtCustomers', usesSnapshot: false, readModel: 'arDebtReadModel.service' }
+    debugSource: { source: 'canonical arLedgers -> arDebtCustomers/arDebtOrders', usesSnapshot: false, readModel: 'arDebtReadModel.service' }
   };
 }
 

@@ -37,3 +37,21 @@ test('Debt API service filters deliveryStaffCode=ghth exactly and returns custom
   assert.equal(result.orders[0].deliveryStaffCode, 'ghth');
   assert.equal(result.summary.orderDebtCount, 1);
 });
+
+test('Debt API normalizes staff code case and returns order rows with customer list', async () => {
+  const ArLedger = new FakeModel([]);
+  const ArDebtOrder = new FakeModel([
+    { id: 'DEBT-ORDER:4501221:SO1782550380164673', customerCode: '4501221', customerName: 'Chị Hương', sourceId: 'SO1782550380164673', sourceCode: 'B0038423', salesStaffCode: '35095', deliveryStaffCode: 'GHTH', debit: 10402373, credit: 0, rawDebt: 10402373, remainingDebt: 10402373, orderCount: 1, ledgerCount: 1, status: 'open' }
+  ]);
+  const ArDebtCustomer = new FakeModel([
+    { id: 'DEBT-CUSTOMER:4501221', customerCode: '4501221', customerName: 'Chị Hương', salesStaffCode: '35095', deliveryStaffCode: 'GHTH', debit: 10402373, credit: 0, rawDebt: 10402373, remainingDebt: 10402373, orderCount: 1, ledgerCount: 1, status: 'open' }
+  ]);
+  arDebtReadModel.setModelsForTest({ ArLedger, ArDebtOrder, ArDebtCustomer });
+
+  const result = await arDebtReadModel.getDebtCustomers({ deliveryStaffCode: 'ghth', status: 'open', page: 1, limit: 10 });
+  assert.equal(result.customers.length, 1);
+  assert.equal(result.customers[0].customerCode, '4501221');
+  assert.equal(result.orders.length, 1);
+  assert.equal(result.orders[0].sourceCode, 'B0038423');
+  assert.equal(result.summary.orderDebtCount, 1);
+});
