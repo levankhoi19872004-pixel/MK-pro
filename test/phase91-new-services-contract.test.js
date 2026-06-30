@@ -93,3 +93,52 @@ test('Delivery Today New UI renders returnOrders business block without requirin
   assert.match(source, /Mã SP/);
   assert.match(source, /SL trả/);
 });
+
+test('Delivery Today New listOrders uses delivery operational list instead of broad SalesOrder date scan', async () => {
+  let salesOrderFindCalled = false;
+  deliveryTodayNewService.setDeliveryListServiceForTest({
+    async listDeliveryToday(query) {
+      assert.equal(query.date, '2026-06-30');
+      return {
+        orders: [
+          {
+            id: 'SO-DELIVERY-1',
+            code: 'B0001',
+            salesOrderId: 'SO-DELIVERY-1',
+            salesOrderCode: 'B0001',
+            customerCode: 'KH1',
+            customerName: 'Khach 1',
+            deliveryDate: '2026-06-30',
+            deliveryStaffCode: 'GH1',
+            deliveryStaffName: 'Giao hang 1',
+            salesStaffCode: 'NV1',
+            salesStaffName: 'Ban hang 1',
+            totalReceivable: 1000000,
+            cashAmount: 200000,
+            bankAmount: 50000,
+            rewardAmount: 10000,
+            accountingConfirmed: true,
+            accountingStatus: 'accounting_confirmed'
+          }
+        ]
+      };
+    }
+  });
+  deliveryTodayNewService.setModelsForTest({
+    SalesOrder: { find() { salesOrderFindCalled = true; throw new Error('SalesOrder.find must not be used by default'); } },
+    ReturnOrder: { find() { return { lean: async () => [] }; } },
+    DeliveryCloseoutVersion: { find() { return { sort() { return { lean: async () => [] }; } }; } }
+  });
+
+  const result = await deliveryTodayNewService.listOrders({ date: '2026-06-30' });
+  assert.equal(salesOrderFindCalled, false);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].orderId, 'SO-DELIVERY-1');
+  assert.equal(result.rows[0].cashAmount, 200000);
+  assert.equal(result.rows[0].bankAmount, 50000);
+  assert.equal(result.rows[0].rewardAmount, 10000);
+  assert.equal(result.diagnostics.deliverySourceApplied, true);
+
+  deliveryTodayNewService.setDeliveryListServiceForTest(null);
+  deliveryTodayNewService.setModelsForTest(null);
+});

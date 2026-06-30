@@ -4,6 +4,7 @@ const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
 
 let models = null;
+let deliveryListService = null;
 function getModels() {
   if (models) return models;
   models = {
@@ -16,6 +17,16 @@ function getModels() {
 
 function setModelsForTest(nextModels) {
   models = nextModels || null;
+}
+
+function getDeliveryListService() {
+  if (deliveryListService) return deliveryListService;
+  deliveryListService = require('../master-order/masterOrderLegacy.service');
+  return deliveryListService;
+}
+
+function setDeliveryListServiceForTest(nextService) {
+  deliveryListService = nextService || null;
 }
 
 function text(value = '') {
@@ -143,6 +154,27 @@ function closeoutMoneyBreakdown(closeout = {}) {
     offsetAmount,
     collectedAmount: breakdownCollected || explicitCollected
   };
+}
+
+function deliveryOperationalMoneyBreakdown(order = {}) {
+  const cashAmount = firstMoney(order, ['cashAmount', 'cashCollected', 'cashCollectedAmount']);
+  const bankAmount = firstMoney(order, ['bankAmount', 'bankCollected', 'transferAmount', 'transferCollectedAmount']);
+  const rewardAmount = firstMoney(order, ['rewardAmount', 'bonusAmount', 'displayRewardAmount', 'bonusReturnAmount']);
+  const offsetAmount = firstMoney(order, ['offsetAmount', 'debtOffsetAmount', 'otherOffsetAmount']);
+  return {
+    cashAmount,
+    bankAmount,
+    rewardAmount,
+    offsetAmount,
+    collectedAmount: cashAmount + bankAmount + rewardAmount + offsetAmount
+  };
+}
+
+function moneyBreakdownForOrder(order = {}) {
+  const closeout = closeoutOf(order);
+  const closeoutBreakdown = closeoutMoneyBreakdown(closeout);
+  if (closeoutBreakdown.collectedAmount || !order._deliveryOperationalSource) return closeoutBreakdown;
+  return deliveryOperationalMoneyBreakdown(order);
 }
 
 function closeoutStatus(order = {}) {
@@ -315,6 +347,66 @@ function latestVersionForOrder(order = {}, versionsByKey = new Map()) {
   return null;
 }
 
+function normalizeDeliveryOperationalRow(row = {}) {
+  const orderId = text(row.salesOrderId || row.orderId || row.id || row._id);
+  const code = text(row.salesOrderCode || row.orderCode || row.code || row.displayOrderCode || orderId);
+  return {
+    ...row,
+    _deliveryOperationalSource: true,
+    id: orderId || code,
+    orderId: orderId || code,
+    code,
+    orderCode: code,
+    salesOrderCode: code,
+    customerCode: text(row.customerCode),
+    customerName: text(row.customerName),
+    salesStaffCode: text(row.salesStaffCode || row.salesmanCode || row.nvbhCode),
+    salesStaffName: text(row.salesStaffName || row.salesmanName || row.nvbhName),
+    deliveryStaffCode: text(row.deliveryStaffCode || row.deliveryCode || row.nvghCode),
+    deliveryStaffName: text(row.deliveryStaffName || row.deliveryName || row.nvghName),
+    deliveryDate: dateOnly(row.deliveryDate || row.date || row.orderDate || row.documentDate),
+    totalAmount: money(row.totalReceivable ?? row.originalAmount ?? row.totalAmount ?? row.amount),
+    cashAmount: money(row.cashAmount ?? row.cashCollected ?? 0),
+    bankAmount: money(row.bankAmount ?? row.bankCollected ?? row.transferAmount ?? 0),
+    rewardAmount: money(row.rewardAmount ?? row.bonusAmount ?? row.displayRewardAmount ?? 0),
+    offsetAmount: money(row.offsetAmount ?? 0),
+    status: text(row.status || row.deliveryStatus || row.accountingStatus || 'draft'),
+    accountingConfirmed: row.accountingConfirmed === true,
+    accountingStatus: text(row.accountingStatus || '')
+  };
+}
+
+async function loadDeliveryOperationalOrders(query = {}, options = {}) {
+  const service = options.deliveryListService || getDeliveryListService();
+  if (!service || typeof service.listDeliveryToday !== 'function') return [];
+  const limit = Math.max(1, Math.min(500, Number(query.limit || 100)));
+  const result = await service.listDeliveryToday({
+    date: query.date || query.deliveryDate || query.orderDate,
+    q: query.q || query.search || query.keyword,
+    delivery: query.delivery || query.deliveryStaffCode || query.nvgh,
+    deliveryStaff: query.delivery || query.deliveryStaffCode || query.nvgh,
+    deliveryStaffCode: query.delivery || query.deliveryStaffCode || query.nvgh,
+    salesman: query.salesman || query.salesStaffCode || query.nvbh,
+    salesStaff: query.salesman || query.salesStaffCode || query.nvbh,
+    salesStaffCode: query.salesman || query.salesStaffCode || query.nvbh,
+    route: query.route || query.routeName,
+    status: query.status,
+    page: query.page || 1,
+    limit
+  });
+  const rows = Array.isArray(result && result.orders) ? result.orders : [];
+  return rows.map(normalizeDeliveryOperationalRow);
+}
+
+async function loadSalesOrdersFallback(query = {}, options = {}) {
+  const { SalesOrder } = getModels();
+  const limit = Math.max(1, Math.min(500, Number(query.limit || 100)));
+  const match = buildOrderMatch(query);
+  const mongoQuery = SalesOrder.find(match).sort({ deliveryDate: -1, orderDate: -1, createdAt: -1 }).limit(limit).lean();
+  if (options.session) mongoQuery.session(options.session);
+  return mongoQuery;
+}
+
 function collectedAmount(order = {}) {
   const closeout = closeoutOf(order);
   return money(closeout.collectedAmount ?? order.collectedAmount ?? order.deliveryCollectedAmount ?? order.paidAmount ?? order.paymentAmount ?? 0);
@@ -335,7 +427,7 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
   const originalAmount = money((latestVersion && (latestVersion.originalAmount ?? latestVersion.saleAmount)) ?? closeout.originalAmount ?? orderAmount(order));
   const legacyReturnedAmount = money(uniqueReturns.reduce((sum, row) => sum + money(row.amount), 0));
   const returnedAmount = money((latestVersion && (latestVersion.returnedAmount ?? latestVersion.returnAmount)) ?? legacyReturnedAmount);
-  const baseBreakdown = closeoutMoneyBreakdown(closeout);
+  const baseBreakdown = moneyBreakdownForOrder(order);
   const adjustedCashAmount = latestVersion
     ? money(baseBreakdown.cashAmount + money(latestVersion.cashAdjustmentAmount))
     : baseBreakdown.cashAmount;
@@ -434,12 +526,11 @@ function summarizeRows(rows = []) {
 }
 
 async function listOrders(query = {}, options = {}) {
-  const { SalesOrder } = getModels();
-  const limit = Math.max(1, Math.min(500, Number(query.limit || 100)));
-  const match = buildOrderMatch(query);
-  const mongoQuery = SalesOrder.find(match).sort({ deliveryDate: -1, orderDate: -1, createdAt: -1 }).limit(limit).lean();
-  if (options.session) mongoQuery.session(options.session);
-  const orders = await mongoQuery;
+  const useSalesOrderFallback = query.includeUnassignedSalesOrders === '1' || options.includeUnassignedSalesOrders === true;
+  const deliveryOrders = await loadDeliveryOperationalOrders(query, options);
+  const orders = deliveryOrders.length || !useSalesOrderFallback
+    ? deliveryOrders
+    : await loadSalesOrdersFallback(query, options);
   const returnsByKey = await loadReturnsForOrders(orders, options);
   const versionsByKey = await loadLatestVersionsForOrders(orders, options);
   const rows = orders.map((order) => summarizeOrder(order, returnsByKey, versionsByKey));
@@ -448,10 +539,14 @@ async function listOrders(query = {}, options = {}) {
     orders: rows,
     summary: summarizeRows(rows),
     diagnostics: {
-      source: 'delivery-today-new-v2-correction-version-aware',
-      endpoint: '/api/delivery-new/orders',
+      source: deliveryOrders.length || !useSalesOrderFallback
+        ? 'delivery-today-new-v2-delivery-operational-list + returnOrders + correction-versions'
+        : 'delivery-today-new-v2-salesOrders-fallback',
+      endpoint: '/api/new/delivery-today/orders',
       writePolicy: 'read-only; confirmed orders require DeliveryCloseoutCorrectionService; latest correction comes from deliveryCloseoutVersions',
-      matchKeys: Object.keys(match)
+      deliverySourceApplied: Boolean(deliveryOrders.length || !useSalesOrderFallback),
+      fallbackEnabled: useSalesOrderFallback,
+      matchKeys: Object.keys(buildOrderMatch(query))
     }
   };
 }
@@ -462,5 +557,6 @@ module.exports = {
   summarizeOrder,
   summarizeRows,
   setModelsForTest,
-  _private: { money, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown }
+  setDeliveryListServiceForTest,
+  _private: { money, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
 };
