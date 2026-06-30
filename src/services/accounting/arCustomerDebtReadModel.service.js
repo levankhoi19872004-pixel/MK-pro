@@ -12,6 +12,8 @@ const {
   normalizeArCategory: classifyArLedgerCategory,
   normalizeArLedgerAmounts: classifyArLedgerAmounts
 } = require('../../utils/arLedgerCategoryEffect.util');
+const { isCanonicalArDebtLedger } = require('../../domain/ar/arLedgerValidator');
+const arLedgerReadService = require('../arLedgerRead.service');
 
 const INACTIVE_AR_STATUSES = Object.freeze([
   'void',
@@ -41,6 +43,7 @@ function getArLedgerModel() {
 
 function setArLedgerModelForTest(model) {
   ArLedgerModel = model;
+  arLedgerReadService.setModelsForTest(model ? { ArLedger: model } : null);
 }
 
 function text(value) {
@@ -354,16 +357,9 @@ async function buildScopedMongoMatch(query = {}) {
 
 
 function isActiveConfirmedArDebtLedger(row = {}) {
-  const account = upper(row.account || 'AR');
-  if (account && account !== 'AR') return false;
-  if (row.accountingConfirmed !== true) return false;
-  const accountingStatus = lower(row.accountingStatus);
-  if (!CONFIRMED_AR_ACCOUNTING_STATUSES.includes(accountingStatus)) return false;
   const statuses = [row.status, row.lifecycleStatus].map(lower).filter(Boolean);
   if (statuses.some((status) => INACTIVE_AR_STATUSES.includes(status))) return false;
-  if (row.reversed === true || row.isDeleted === true || row.deleted === true) return false;
-  if (text(row.deletedAt)) return false;
-  return true;
+  return isCanonicalArDebtLedger(row);
 }
 
 function normalizeArCategory(row = {}) {
@@ -757,15 +753,13 @@ function buildCustomerDebtReadModelFromLedgers(ledgerRows = [], query = {}, opti
 }
 
 async function loadLedgerRows(query = {}) {
+  // Debt screen SSoT cleanup: the customer debt UI must read canonical
+  // arLedgers directly, not arDebtOrders/arDebtCustomers or salesOrders caches.
+  // The blank-init behavior is preserved to avoid loading the whole ledger table
+  // before the user provides a filter.
   if (!hasSearchCriteria(query)) return [];
-  const match = await buildScopedMongoMatch(query);
-  const limit = Math.min(Math.max(toNumber(query.rawLimit) || DEFAULT_QUERY_LIMIT, 1000), 20000);
-  const ArLedger = getArLedgerModel();
-  return ArLedger.find(match)
-    .select('id code tenantId date createdAt account type category ledgerType source sourceType sourceModel sourceId sourceCode sourceOrderId sourceOrderCode returnOrderId returnOrderCode refType refId refCode orderId orderCode salesOrderId salesOrderCode customerId customerCode customerName customerPhone phone customerAddress address salesStaffCode salesStaffName salesmanCode salesmanName nvbhCode nvbhName staffCode staffName deliveryStaffCode deliveryStaffName deliveryCode deliveryName nvghCode nvghName amount debit credit arDebit arCredit direction status accountingConfirmed accountingStatus lifecycleStatus reversed isDeleted deleted deletedAt idempotencyKey metadata note')
-    .sort({ date: -1, createdAt: -1, _id: -1 })
-    .limit(limit)
-    .lean();
+  const limit = Math.min(Math.max(toNumber(query.rawLimit || query.limit) || DEFAULT_QUERY_LIMIT, 1000), 20000);
+  return arLedgerReadService.getCanonicalArLedgers({ ...query, status: query.status || 'all', limit }, { includeRejected: false });
 }
 
 async function debtReport(query = {}) {

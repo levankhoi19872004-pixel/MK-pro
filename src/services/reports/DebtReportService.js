@@ -1,7 +1,6 @@
 'use strict';
 
 const arCustomerDebtReadModel = require('../accounting/arCustomerDebtReadModel.service');
-const phase79ArDebtReadModel = require('../arDebtReadModel.service');
 const arLedgerReadService = require('../arLedgerRead.service');
 // Phase80 legacy static marker: const ArLedger = require('../models/ArLedger');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount } = require('../../constants/finance.constants');
@@ -221,8 +220,8 @@ module.exports = {
   // Customer debt screen read model: arLedgers is the only SSoT for current/open debt.
   debtReport: arCustomerDebtReadModel.debtReport,
   debtInit: arCustomerDebtReadModel.debtInit,
-  debtCustomers: phase79ArDebtReadModel.getDebtCustomers,
-  debtCustomerDetail: (query = {}) => phase79ArDebtReadModel.getDebtOrders(query.customerCode || query.code || query.customerId || query.id || query.q, query),
+  debtCustomers: arCustomerDebtReadModel.debtCustomers,
+  debtCustomerDetail: arCustomerDebtReadModel.debtCustomerDetail,
   debtArLedger: arCustomerDebtReadModel.debtArLedger,
   debtBySalesmanReport: arCustomerDebtReadModel.debtBySalesmanReport,
   debtByDeliveryReport: arCustomerDebtReadModel.debtByDeliveryReport,

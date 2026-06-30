@@ -10,6 +10,7 @@ module.exports = {
   debugUtil: require('../utils/debug.util'),
   arLedgerValidation: require('../utils/arLedgerValidation.util'),
   arLedgerStatus: require('../utils/arLedgerStatus.util'),
+  arLedgerContractValidation: require('../domain/ar/arLedgerValidator'),
   returnArPostingService: require('../services/accounting/returnArPostingService'),
   staffIdentity: require('../domain/staff/staffIdentity')
 };

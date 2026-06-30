@@ -1,0 +1,37 @@
+===== target_ar_sale_reaccounting_contract.test =====
+> node --test test/ar-sale-reaccounting-contract.test.js
+TAP version 13
+# Subtest: AR-SALE builder creates canonical re-accounting ledger accepted by debt read model
+ok 1 - AR-SALE builder creates canonical re-accounting ledger accepted by debt read model
+  ---
+  duration_ms: 17.183451
+  type: 'test'
+  ...
+# Subtest: dirty re-accounting AR-SALE missing contract is rejected
+ok 2 - dirty re-accounting AR-SALE missing contract is rejected
+  ---
+  duration_ms: 0.263305
+  type: 'test'
+  ...
+# Subtest: delivery re-accounting posts new AR-SALE through canonical builder, not makeArBaseRow
+ok 3 - delivery re-accounting posts new AR-SALE through canonical builder, not makeArBaseRow
+  ---
+  duration_ms: 1.865982
+  type: 'test'
+  ...
+# Subtest: batch delivery AR-SALE writer uses canonical builder and deterministic ACC-suffixed code
+ok 4 - batch delivery AR-SALE writer uses canonical builder and deterministic ACC-suffixed code
+  ---
+  duration_ms: 0.575514
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 114.148548
+EXIT_CODE=0

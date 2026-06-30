@@ -1,0 +1,8 @@
+===== check_path_portability =====
+> npm run check:path-portability
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 check:path-portability
+> node scripts/check-path-portability.js
+
+PATH_PORTABILITY_OK 1565 paths, 1125 JavaScript files
+EXIT_CODE=0

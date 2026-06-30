@@ -65,9 +65,16 @@ for (const relative of allPaths) {
   }
 }
 
+function stripCommentsForRequireScan(source) {
+  return String(source || '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\r\n]*/gm, '$1');
+}
+
+
 const requirePattern = /\brequire\(\s*(['"])(\.{1,2}\/[^'"\r\n]+)\1\s*\)/g;
 for (const file of sourceFiles) {
-  const source = fs.readFileSync(file, 'utf8');
+  const source = stripCommentsForRequireScan(fs.readFileSync(file, 'utf8'));
   for (const match of source.matchAll(requirePattern)) {
     const request = match[2];
     if (!resolveLocalRequire(file, request)) {

@@ -1,0 +1,20 @@
+===== audit_ar_access =====
+> node scripts/audit-ar-access-violations.js --strict
+# AR access contract
+
+- Generated at: 2026-06-30T09:36:18.932Z
+- Issue count: 5
+- P0: 0
+- P1: 0
+- P2: 0
+- P3 legacy compatibility: 5
+
+| Severity | Profile | Code | File | Line | Message |
+|---|---|---|---:|---:|---|
+| P3-legacy-compatibility | ar | DIRECT_AR_LEDGER_READ | src/services/arLedgerMigrationService.js | 33 | Runtime đọc arLedgers trực tiếp thay vì qua AR read service/read model. |
+| P3-legacy-compatibility | ar | SALES_ORDER_DEBT_CALC | src/services/mobile/sales.service.js | 175 | Có dấu hiệu tính công nợ từ salesOrders/totalAmount-paidAmount. |
+| P3-legacy-compatibility | ar | SALES_ORDER_DEBT_CALC | src/services/mobileService.js | 369 | Có dấu hiệu tính công nợ từ salesOrders/totalAmount-paidAmount. |
+| P3-legacy-compatibility | ar | SALES_ORDER_DEBT_CALC | src/services/reportLegacy.service.js | 227 | Có dấu hiệu tính công nợ từ salesOrders/totalAmount-paidAmount. |
+| P3-legacy-compatibility | ar | SALES_ORDER_DEBT_CALC | public/mobile/js/sales/sync.js | 19 | Có dấu hiệu tính công nợ từ salesOrders/totalAmount-paidAmount. |
+
+EXIT_CODE=0

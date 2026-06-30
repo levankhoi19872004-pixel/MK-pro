@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: Render startup opens HTTP port before Mongo bootstrap and gates business APIs
+ok 1 - Render startup opens HTTP port before Mongo bootstrap and gates business APIs
+  ---
+  duration_ms: 2200.122279
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2298.77576

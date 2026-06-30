@@ -1,0 +1,8 @@
+===== check_release_manifest =====
+> npm run check:release-manifest
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 check:release-manifest
+> node scripts/generate-release-manifest.js --check
+
+RELEASE_MANIFEST_OK 2026-06-30-01
+EXIT_CODE=0

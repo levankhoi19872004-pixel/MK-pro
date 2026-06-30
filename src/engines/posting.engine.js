@@ -20,6 +20,7 @@ const {
   pickDeliveryStaffCode,
   pickDeliveryStaffName
 } = postingDependencies.staffIdentity;
+const assertValidCanonicalArLedgerContract = postingDependencies.arLedgerContractValidation?.assertValidArLedgerContract || (() => true);
 
 
 
@@ -95,6 +96,8 @@ function baseJournal(doc = {}, extra = {}) {
     direction,
     amount: toNumber(extra.amount ?? Math.max(debit, credit)),
     amountField: cleanText(extra.amountField || doc.amountField || direction),
+    active: extra.active ?? doc.active ?? true,
+    reversed: extra.reversed ?? doc.reversed ?? false,
     ledgerType: cleanText(extra.ledgerType || doc.ledgerType || ''),
     category: cleanText(extra.category || doc.category || ''),
     entryType: cleanText(extra.entryType || doc.entryType || ''),
@@ -377,91 +380,72 @@ async function postReceiptAR(receipt = {}, options = {}) {
   const amount = toNumber(receipt.amount ?? receipt.totalAmount ?? receipt.value);
   if (amount <= 0) return null;
   const allocations = normalizeAllocations(receipt);
+  const canonicalReceiptExtra = (allocation = {}, index = 0, allocationAmount = amount) => {
+    const sourceId = cleanText(allocation.orderId || allocation.salesOrderId || receipt.orderId || receipt.salesOrderId || receipt.sourceId || receipt.refId || receipt.id || receipt.code);
+    const sourceCode = cleanText(allocation.orderCode || allocation.salesOrderCode || receipt.orderCode || receipt.salesOrderCode || receipt.sourceCode || receipt.refCode || receipt.code || receipt.id || sourceId);
+    const receiptKey = cleanText(receipt.id || receipt.code || receipt.refId || receipt.refCode || sourceId || index + 1);
+    return {
+      id: `AR-RECEIPT-${receiptKey}-${sourceId || sourceCode || index + 1}`,
+      code: `AR-RECEIPT-${receipt.code || receipt.id || sourceCode || receiptKey}-${index + 1}`,
+      type: 'ar_receipt',
+      category: 'AR-RECEIPT',
+      ledgerType: 'AR-RECEIPT',
+      entryType: 'normal',
+      refType: receipt.refType || 'RECEIPT',
+      refId: receipt.refId || receipt.id || receipt._id || receipt.code || receiptKey,
+      refCode: receipt.refCode || receipt.code || receipt.id || receiptKey,
+      source: receipt.source || 'posting_engine',
+      sourceType: 'salesOrder',
+      sourceId,
+      sourceCode,
+      method: receipt.method || receipt.paymentMethod || '',
+      paymentMethod: receipt.paymentMethod || receipt.method || '',
+      deliveryDate: receipt.deliveryDate || receipt.date || dateUtil.todayVN(),
+      orderId: sourceId,
+      orderCode: sourceCode,
+      salesOrderId: sourceId,
+      salesOrderCode: sourceCode,
+      accountingConfirmed: true,
+      accountingStatus: 'confirmed',
+      active: true,
+      reversed: false,
+      masterOrderId: receipt.masterOrderId || '',
+      masterOrderCode: receipt.masterOrderCode || '',
+      orderType: allocation.orderType || receipt.orderType || '',
+      deliveryStaffCode: allocation.deliveryStaffCode || receipt.deliveryStaffCode || '',
+      deliveryStaffName: allocation.deliveryStaffName || receipt.deliveryStaffName || '',
+      salesmanCode: allocation.salesStaffCode || receipt.salesmanCode || receipt.salesStaffCode || '',
+      salesmanName: allocation.salesStaffName || receipt.salesmanName || receipt.salesStaffName || '',
+      salesStaffCode: allocation.salesStaffCode || receipt.salesStaffCode || receipt.salesmanCode || '',
+      salesStaffName: allocation.salesStaffName || receipt.salesStaffName || receipt.salesmanName || '',
+      collectorType: receipt.collectorType || '',
+      collectorCode: receipt.collectorCode || '',
+      collectorName: receipt.collectorName || '',
+      accountingConfirmedBy: receipt.accountingConfirmedBy || 'system',
+      idempotencyKey: receipt.idempotencyKey
+        ? `${receipt.idempotencyKey}:${sourceId || sourceCode || index + 1}`
+        : `AR-RECEIPT:salesOrder:${sourceId || sourceCode}:${receiptKey}:${index + 1}`,
+      debit: 0,
+      credit: allocationAmount,
+      amount: allocationAmount,
+      direction: 'credit',
+      amountField: 'credit',
+      note: receipt.note || `Thu công nợ ${receipt.code || receipt.id || sourceCode}`
+    };
+  };
   if (allocations.length) {
     const entries = [];
     for (let index = 0; index < allocations.length; index += 1) {
       const allocation = allocations[index];
-      const entry = baseJournal(receipt, {
-        id: `AR-RECEIPT-${receipt.id || receipt.code}-${allocation.orderId || allocation.orderCode || index + 1}`,
-        code: `AR-RECEIPT-${receipt.code || receipt.id}-${index + 1}`,
-        type: 'ar_receipt',
-        refType: receipt.refType || 'RECEIPT',
-        refId: receipt.refId || receipt.id || receipt._id || receipt.code,
-        refCode: receipt.refCode || receipt.code || receipt.id,
-        source: receipt.source || 'posting_engine',
-        method: receipt.method || receipt.paymentMethod || '',
-        paymentMethod: receipt.paymentMethod || receipt.method || '',
-        deliveryDate: receipt.deliveryDate || receipt.date || dateUtil.todayVN(),
-        orderId: allocation.orderId,
-        orderCode: allocation.orderCode,
-        accountingConfirmed: true,
-        accountingStatus: 'confirmed',
-        masterOrderId: receipt.masterOrderId || '',
-        masterOrderCode: receipt.masterOrderCode || '',
-        orderType: allocation.orderType || receipt.orderType || '',
-        deliveryStaffCode: allocation.deliveryStaffCode || receipt.deliveryStaffCode || '',
-        deliveryStaffName: allocation.deliveryStaffName || receipt.deliveryStaffName || '',
-        salesmanCode: allocation.salesStaffCode || receipt.salesmanCode || receipt.salesStaffCode || '',
-        salesmanName: allocation.salesStaffName || receipt.salesmanName || receipt.salesStaffName || '',
-        salesStaffCode: allocation.salesStaffCode || receipt.salesStaffCode || receipt.salesmanCode || '',
-        salesStaffName: allocation.salesStaffName || receipt.salesStaffName || receipt.salesmanName || '',
-        collectorType: receipt.collectorType || '',
-        collectorCode: receipt.collectorCode || '',
-        collectorName: receipt.collectorName || '',
-        sourceType: receipt.sourceType || 'debtCollection',
-        sourceId: receipt.sourceId || receipt.refId || '',
-        sourceCode: receipt.sourceCode || receipt.refCode || '',
-        accountingConfirmedBy: receipt.accountingConfirmedBy || '',
-        idempotencyKey: receipt.idempotencyKey
-          ? `${receipt.idempotencyKey}:${allocation.orderId || allocation.orderCode || index + 1}`
-          : `AR-RECEIPT:${receipt.id || receipt.code}:${allocation.orderId || allocation.orderCode || index + 1}`,
-        debit: 0,
-        credit: allocation.amount,
-        amount: allocation.amount,
-        note: receipt.note || `Thu công nợ ${receipt.code || receipt.id}`
-      });
+      const entry = baseJournal(receipt, canonicalReceiptExtra(allocation, index, allocation.amount));
+      assertValidCanonicalArLedgerContract(entry);
       await upsertArLedger(entry, options);
       entries.push(entry);
     }
     return entries;
   }
-  const entry = baseJournal(receipt, {
-    id: `AR-RECEIPT-${receipt.id || receipt.code}`,
-    code: `AR-RECEIPT-${receipt.code || receipt.id}`,
-    type: 'ar_receipt',
-    refType: receipt.refType || 'RECEIPT',
-    refId: receipt.refId || receipt.id || receipt._id || receipt.code,
-    refCode: receipt.refCode || receipt.code || receipt.id,
-    source: receipt.source || 'posting_engine',
-    method: receipt.method || receipt.paymentMethod || '',
-    paymentMethod: receipt.paymentMethod || receipt.method || '',
-    deliveryDate: receipt.deliveryDate || receipt.date || dateUtil.todayVN(),
-    orderId: receipt.orderId || receipt.salesOrderId || '',
-    orderCode: receipt.orderCode || receipt.salesOrderCode || receipt.refCode || '',
-    accountingConfirmed: true,
-    accountingStatus: 'confirmed',
-    masterOrderId: receipt.masterOrderId || '',
-    masterOrderCode: receipt.masterOrderCode || '',
-    orderType: receipt.orderType || '',
-    deliveryStaffCode: receipt.deliveryStaffCode || '',
-    deliveryStaffName: receipt.deliveryStaffName || '',
-    salesmanCode: receipt.salesmanCode || receipt.salesStaffCode || '',
-    salesmanName: receipt.salesmanName || receipt.salesStaffName || '',
-    salesStaffCode: receipt.salesStaffCode || receipt.salesmanCode || '',
-    salesStaffName: receipt.salesStaffName || receipt.salesmanName || '',
-    collectorType: receipt.collectorType || '',
-    collectorCode: receipt.collectorCode || '',
-    collectorName: receipt.collectorName || '',
-    sourceType: receipt.sourceType || 'debtCollection',
-    sourceId: receipt.sourceId || receipt.refId || '',
-    sourceCode: receipt.sourceCode || receipt.refCode || '',
-    accountingConfirmedBy: receipt.accountingConfirmedBy || '',
-    idempotencyKey: receipt.idempotencyKey || `AR-RECEIPT:${receipt.id || receipt.code}`,
-    debit: 0,
-    credit: amount,
-    amount,
-    note: receipt.note || `Thu công nợ ${receipt.code || receipt.id}`
-  });
+  const entry = baseJournal(receipt, canonicalReceiptExtra({}, 0, amount));
+  assertValidCanonicalArLedgerContract(entry);
   await upsertArLedger(entry, options);
   return entry;
 }

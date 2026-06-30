@@ -1,0 +1,8 @@
+===== docs_check =====
+> npm run docs:check
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 docs:check
+> node scripts/generate-openapi.js --check
+
+OpenAPI document is up to date. Scanned operations: 343.
+EXIT_CODE=0

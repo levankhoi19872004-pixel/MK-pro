@@ -1,0 +1,31 @@
+===== target_no_legacy_ar_debt_read.test =====
+> node --test test/no-legacy-ar-debt-read.test.js
+TAP version 13
+# Subtest: audit-ar-read-standard detects direct AR ledger reads, salesOrder debt math, and regex fallback
+ok 1 - audit-ar-read-standard detects direct AR ledger reads, salesOrder debt math, and regex fallback
+  ---
+  duration_ms: 1.430629
+  type: 'test'
+  ...
+# Subtest: Phase80 standard files exist and own AR ledger data access
+ok 2 - Phase80 standard files exist and own AR ledger data access
+  ---
+  duration_ms: 0.850247
+  type: 'test'
+  ...
+# Subtest: high-risk controllers do not query ArLedger directly or compute debt from salesOrders
+ok 3 - high-risk controllers do not query ArLedger directly or compute debt from salesOrders
+  ---
+  duration_ms: 0.517838
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 96.926262
+EXIT_CODE=0

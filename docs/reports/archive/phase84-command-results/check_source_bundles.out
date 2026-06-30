@@ -1,0 +1,8 @@
+===== check_source_bundles =====
+> npm run check:source-bundles
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 check:source-bundles
+> node scripts/build-source-bundles.js --check
+
+[source-bundles] OK 19 bundles
+EXIT_CODE=0

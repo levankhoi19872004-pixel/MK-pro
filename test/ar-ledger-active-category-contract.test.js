@@ -17,22 +17,41 @@ const { validateArLedgerEntry } = require('../src/utils/arLedgerValidation.util'
 const { buildCustomerDebtReadModelFromLedgers } = require('../src/services/accounting/arCustomerDebtReadModel.service');
 
 function baseLedger(overrides = {}) {
+  const category = overrides.category || 'AR-SALE';
+  const orderId = overrides.orderId || overrides.salesOrderId || 'SO178255038016695';
+  const orderCode = overrides.orderCode || overrides.salesOrderCode || 'B0038424';
+  const sourceId = overrides.sourceId || overrides.salesOrderId || overrides.orderId || orderId;
+  const sourceCode = overrides.sourceCode || overrides.salesOrderCode || overrides.orderCode || orderCode;
   return {
     account: 'AR',
+    category,
+    ledgerType: category,
+    entryType: category.endsWith('REVERSAL') ? 'reversal' : 'normal',
+    sourceType: category === 'AR-RETURN' ? 'returnOrder' : 'salesOrder',
+    sourceId,
+    sourceCode,
+    idempotencyKey: category === 'AR-SALE'
+      ? `AR-SALE:salesOrder:${sourceId}`
+      : `${category}:${sourceId}:${sourceCode}`,
+    accountingBatchId: category === 'AR-SALE' ? `ACC-${sourceId}-TEST` : `BATCH-${sourceId}-TEST`,
     accountingConfirmed: true,
     accountingStatus: 'confirmed',
+    active: true,
+    reversed: false,
     status: 'posted',
     tenantId: '',
     customerCode: '4501256',
     customerName: 'Chị Sen',
-    orderId: 'SO178255038016695',
-    orderCode: 'B0038424',
-    salesOrderId: 'SO178255038016695',
-    salesOrderCode: 'B0038424',
+    orderId,
+    orderCode,
+    salesOrderId: orderId,
+    salesOrderCode: orderCode,
     date: '2026-06-29',
     debit: 0,
     credit: 0,
     amount: 0,
+    direction: '',
+    amountField: '',
     ...overrides
   };
 }

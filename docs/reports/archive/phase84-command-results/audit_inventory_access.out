@@ -1,0 +1,15 @@
+===== audit_inventory_access =====
+> node scripts/audit-inventory-access-violations.js --strict
+# Inventory access contract
+
+- Generated at: 2026-06-30T09:36:19.085Z
+- Issue count: 0
+- P0: 0
+- P1: 0
+- P2: 0
+- P3 legacy compatibility: 0
+
+| Severity | Profile | Code | File | Line | Message |
+|---|---|---|---:|---:|---|
+
+EXIT_CODE=0

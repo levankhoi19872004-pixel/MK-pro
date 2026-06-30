@@ -1,0 +1,5 @@
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 check:syntax
+> node scripts/check-js-syntax.js
+
+SYNTAX_OK 1125 JavaScript files
