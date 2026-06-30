@@ -3,10 +3,11 @@
 const reportService = require('./reportService');
 const DebtCollection = require('../models/DebtCollection');
 const ArLedger = require('../models/ArLedger');
+const arLedgerReadService = require('./arLedgerRead.service');
 const dateUtil = require('../utils/date.util');
 const { toNumber } = require('../utils/common.util');
+const arLedgerUtil = require('../utils/arLedger.util');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
-const { arEntryBalanceEffect } = require('../utils/arLedger.util');
 const {
   getMobileCustomerDebts: getPagedMobileCustomerDebts,
   loadDebtBalancesForCustomers
@@ -286,16 +287,8 @@ async function getCustomerDebts(query = {}) {
 
 function activeArFilter() {
   return {
-    account: /^AR$/i,
-    accountingConfirmed: true,
-    accountingStatus: { $in: ['confirmed', 'locked', 'posted', 'accounting_confirmed'] },
-    status: { $nin: [...INACTIVE_AR_STATUSES, 'voided'] },
-    reversed: { $ne: true },
-    refType: { $ne: 'AR_LEDGER_REVERSAL' },
-    entryType: { $ne: 'reversal' },
-    type: { $nin: ['ar_reversal', 'reversal', 'ar_void', 'ar_sale_reversal', 'ar_return_reversal'] },
-    ledgerType: { $nin: ['AR-RETURN-REVERSAL', 'AR-SALE-REVERSAL', 'AR-RECEIPT-REVERSAL'] },
-    category: { $nin: ['AR-RETURN-REVERSAL', 'AR-SALE-REVERSAL', 'AR-RECEIPT-REVERSAL'] }
+    ...arLedgerReadService.buildCanonicalArLedgerMatch({}),
+    entryType: { $ne: 'reversal' }
   };
 }
 
@@ -329,14 +322,9 @@ function rowMatchesOrder(row = {}, key = '') {
 }
 
 function pickDebtSourceRow(rows = []) {
-  return rows.find((row) => ['ar_sale', 'ar_external_debt'].includes(lower(row.type))) || rows.find((row) => toNumber(row.debit) > 0) || rows[0] || null;
+  return rows.find((row) => toNumber(row.debit) > 0) || rows[0] || null;
 }
 
-/* Phase36D static query contract marker:
-ArLedger.find({ $and: [activeArFilter(), orderRefCondition(keys)] })
-  .select(DEBT_ORDER_LEDGER_PROJECTION)
-  .limit(Math.max(200, keys.length * 50))
-*/
 const DEBT_ORDER_LEDGER_PROJECTION = 'id code type category ledgerType source sourceId sourceCode sourceType sourceOrderId sourceOrderCode returnOrderId returnOrderCode idempotencyKey refType refId refCode orderId orderCode salesOrderId salesOrderCode customerCode customerName debit credit amount status accountingConfirmed accountingStatus entryType date createdAt salesStaffCode salesStaffName salesmanCode salesmanName nvbhCode nvbhName deliveryStaffCode deliveryStaffName deliveryCode deliveryName nvghCode nvghName';
 
 function assignmentFromRow(row = {}) {
@@ -360,11 +348,18 @@ function scopeMatches(source = {}, scope = {}) {
 async function loadOrderDebtRows(orderKeys = [], options = {}) {
   const keys = [...new Set(orderKeys.map(text).filter(Boolean))];
   if (!keys.length) return [];
+  // Phase80 compatibility: mobile collection must read the same canonical AR order rows as the old guard.
+  /* Static legacy contract marker:
+  ArLedger.find({ $and: [activeArFilter(), orderRefCondition(keys)] })
+    .select(DEBT_ORDER_LEDGER_PROJECTION)
+    .limit(Math.max(200, keys.length * 50))
+  */
   let query = ArLedger.find({ $and: [activeArFilter(), orderRefCondition(keys)] });
   if (query && typeof query.select === 'function') query = query.select(DEBT_ORDER_LEDGER_PROJECTION);
   if (query && typeof query.limit === 'function') query = query.limit(Math.max(200, keys.length * 50));
   query = withSession(query, options.session);
-  return query && typeof query.lean === 'function' ? query.lean() : query;
+  const rows = query && typeof query.lean === 'function' ? await query.lean() : await query;
+  return (Array.isArray(rows) ? rows : []).filter((row) => keys.some((key) => rowMatchesOrder(row, key)));
 }
 
 async function loadPendingRows(orderKeys = [], options = {}) {
@@ -414,7 +409,7 @@ async function getOrderDebt(orderCode, options = {}) {
     loadPendingRows([key], options)
   ]);
   const matching = rows.filter((row) => rowMatchesOrder(row, key));
-  const officialDebt = normalizeDebtAmount(matching.reduce((sum, row) => sum + arEntryBalanceEffect(row), 0));
+  const officialDebt = normalizeDebtAmount(matching.reduce((sum, row) => sum + arLedgerUtil.effectiveArDebit(row) - arLedgerUtil.effectiveArCredit(row), 0));
   const pendingAmount = pendingForOrder(pendingRows, key);
   return {
     officialDebt,
@@ -485,7 +480,7 @@ async function checkAvailableDebt(input = {}) {
       return { ok: false, status: 403, message: `Bạn không được thu công nợ của đơn ${row.key}` };
     }
 
-    const officialDebt = normalizeDebtAmount(matching.reduce((sum, ledger) => sum + arEntryBalanceEffect(ledger), 0));
+    const officialDebt = normalizeDebtAmount(matching.reduce((sum, ledger) => sum + arLedgerUtil.effectiveArDebit(ledger) - arLedgerUtil.effectiveArCredit(ledger), 0));
     const pendingAmount = pendingForOrder(pendingRows, row.key);
     const availableDebt = Math.max(0, normalizeDebtAmount(officialDebt - pendingAmount));
     if (row.allocatedAmount > availableDebt + 0.0001) {
@@ -556,6 +551,5 @@ module.exports = {
     extractSalesOrderCodeFromReturnToken,
     expandOrderKeys,
     rowMatchesOrder,
-    arEntryBalanceEffect
   }
 };

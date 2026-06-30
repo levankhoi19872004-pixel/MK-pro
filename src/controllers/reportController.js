@@ -40,6 +40,33 @@ function isTruthyFlag(value) {
   return ['1', 'true', 'yes', 'full'].includes(String(value || '').trim().toLowerCase());
 }
 
+
+function debtStandardData(result = {}) {
+  return {
+    customers: Array.isArray(result.customers) ? result.customers : (Array.isArray(result.customerSummary) ? result.customerSummary : []),
+    orders: Array.isArray(result.orders) ? result.orders : (Array.isArray(result.debts) ? result.debts : []),
+    summary: result.summary || {},
+    pagination: {
+      page: result.summary?.page || result.meta?.page || 1,
+      limit: result.summary?.limit || result.meta?.limit || 50,
+      total: result.summary?.total || result.meta?.total || 0,
+      hasMore: Boolean(result.summary?.hasMore || result.meta?.hasMore)
+    },
+    diagnostics: {
+      source: result.source || result.debugSource?.source || 'arDebtReadModel.service',
+      readModel: result.debugSource?.readModel || 'arDebtReadModel.service',
+      readModelCollections: result.readModelCollections || {},
+      usesSnapshot: result.debugSource?.usesSnapshot === true,
+      readModelEmpty: result.summary?.readModelEmpty === true
+    }
+  };
+}
+
+function sendDebtStandardResponse(res, result = {}, extra = {}) {
+  const data = debtStandardData(result);
+  return res.json({ ok: true, success: true, data, ...extra, ...result });
+}
+
 function hasCustomerDetailQuery(query = {}) {
   return Boolean(
     query.customerCode ||
@@ -68,11 +95,11 @@ const debts = asyncHandler(async (req, res) => {
 
   if (hasCustomerDetailQuery(query)) {
     const result = await reportService.debtCustomerDetail(query);
-    return res.json({ ok: true, compatibility: 'customer-detail', redirectedFrom: '/api/debts', ...result });
+    return sendDebtStandardResponse(res, result, { compatibility: 'customer-detail', redirectedFrom: '/api/debts' });
   }
 
   const result = await reportService.debtCustomers(query);
-  return res.json({ ok: true, compatibility: 'customers-light', redirectedFrom: '/api/debts', ...result });
+  return sendDebtStandardResponse(res, result, { compatibility: 'customers-light', redirectedFrom: '/api/debts' });
 });
 
 const debtsInit = asyncHandler(async (req, res) => {
@@ -82,19 +109,19 @@ const debtsInit = asyncHandler(async (req, res) => {
 
 const debtsCustomers = asyncHandler(async (req, res) => {
   const result = await reportService.debtCustomers(req.query || {});
-  res.json({ ok: true, ...result });
+  sendDebtStandardResponse(res, result);
 });
 
 const debtsCustomerDetail = asyncHandler(async (req, res) => {
   const query = { ...(req.query || {}), customerCode: req.params.customerCode || req.query.customerCode || req.query.code };
   const result = await reportService.debtCustomerDetail(query);
-  res.json({ ok: true, ...result });
+  sendDebtStandardResponse(res, result);
 });
 
 const debtsCustomerOrders = asyncHandler(async (req, res) => {
   const query = { ...(req.query || {}), customerCode: req.params.customerCode || req.query.customerCode || req.query.code };
   const result = await reportService.debtCustomerDetail(query);
-  res.json({ ok: true, ...result });
+  sendDebtStandardResponse(res, result);
 });
 
 const debtsArLedger = asyncHandler(async (req, res) => {

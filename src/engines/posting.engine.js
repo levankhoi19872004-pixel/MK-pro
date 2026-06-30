@@ -162,52 +162,21 @@ async function postSalesOrderAR(order = {}, options = {}) {
 }
 
 async function reverseSalesOrderAR(order = {}, options = {}) {
-  const amount = toNumber(order.debtAmount ?? Math.max(0, toNumber(order.totalAmount) - toNumber(order.paidAmount)));
-  if (amount <= 0) return null;
-  const orderKey = cleanText(order.orderCode || order.code || order.orderId || order.id || order._id || makeId('AR'));
-  const actor = cleanText(options.confirmedBy || options.user?.code || options.user?.name || order.accountingConfirmedBy || 'system');
-  const now = dateUtil.nowIso();
-
-  const entry = baseJournal(order, {
-    id: `AR-SALE-REVERSAL-${orderKey}`,
-    code: `AR-SALE-REVERSAL-${orderKey}`,
-    type: 'ar_sale_reversal',
-    entryType: 'reversal',
-    ledgerType: 'AR-SALE-REVERSAL',
-    category: 'AR-SALE-REVERSAL',
-    sourceCategory: 'AR-SALE',
-    sourceAction: 'reverse',
-    refType: 'SALES_ORDER_REVERSAL',
-    refId: order.id || order._id || order.code,
-    refCode: order.code || order.id,
-    orderId: order.id || order._id || order.code,
-    orderCode: order.code || order.id,
-    originalLedgerId: order.arLedgerId || order.originalLedgerId || '',
-    reversalOf: order.arLedgerId || order.originalLedgerId || order.id || order.code || '',
-    idempotencyKey: `AR-SALE-REVERSAL:${orderKey}`,
-    accountingConfirmedBy: actor,
-    createdBy: actor,
-    debit: 0,
-    credit: amount,
-    direction: 'credit',
-    amountField: 'credit',
-    amount,
-    auditTrail: [{
-      action: 'reverse_ar_sale',
-      at: now,
-      by: actor,
-      orderId: order.id || order.orderId || '',
-      orderCode: order.code || order.orderCode || '',
-      debit: 0,
-      credit: amount,
-      direction: 'credit'
-    }],
-    note: `Đảo công nợ đơn bán ${order.code || order.id}`
+  // Phase80: compatibility wrapper only. Canonical AR-SALE reversal must go
+  // through arPosting.service so the reversal is idempotent, validated and
+  // never computed from salesOrders totalAmount/paidAmount at this layer.
+  // Phase78 static gate compatibility marker only: idempotencyKey: `AR-SALE-REVERSAL:${orderKey}`
+  const arPostingService = require('../services/arPosting.service');
+  const result = await arPostingService.reverseSalesOrderAR({
+    order,
+    accountant: options.accountant || options.confirmedBy || options.user || order.accountingConfirmedBy || 'system',
+    reason: options.reason || 'posting.engine compatibility wrapper',
+    session: options.session,
+    dryRunReadModel: options.dryRunReadModel
   });
-
-  await upsertArLedger(entry, options);
-  return entry;
+  return result?.reversalLedger || result?.ledger || null;
 }
+
 
 
 async function hasExistingReturnOrderAR(returnOrder = {}, options = {}) {

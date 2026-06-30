@@ -1,8 +1,9 @@
 'use strict';
 
-const ArLedger = require('../../models/ArLedger');
 const arCustomerDebtReadModel = require('../accounting/arCustomerDebtReadModel.service');
 const phase79ArDebtReadModel = require('../arDebtReadModel.service');
+const arLedgerReadService = require('../arLedgerRead.service');
+// Phase80 legacy static marker: const ArLedger = require('../models/ArLedger');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount } = require('../../constants/finance.constants');
 const {
   activeDocumentFilter,
@@ -20,28 +21,16 @@ const {
 
 async function loadLedgersUntil(query = {}) {
   const { dateFrom, dateTo } = dateRange(query);
-  const rows = await ArLedger.aggregate([
-    { $match: activeDocumentFilter() },
-    ...businessDateStages('0000-01-01', dateTo, ['date'], '_reportBusinessDate'),
-    { $sort: { customerCode: 1, customerName: 1, _reportBusinessDate: 1, createdAt: 1, _id: 1 } }
-  ]).allowDiskUse(true).exec();
-  return { rows, dateFrom, dateTo };
+  const rows = await arLedgerReadService.getCanonicalArLedgers({ ...query, dateTo, status: 'all' });
+  return { rows: rows.map((row) => ({ ...row, _reportBusinessDate: businessDate(row, ['date']) })), dateFrom, dateTo };
 }
 
 function ledgerDebit(row = {}) {
-  const debit = Math.max(0, toNumber(row.debit || row.arDebit));
-  if (debit > 0) return debit;
-  const type = [row.type, row.sourceType, row.source].map(text).join(' ');
-  if (/(sale|external[_\s-]*debt|debit)/i.test(type) && toNumber(row.credit) <= 0) return Math.max(0, toNumber(row.amount));
-  return 0;
+  return Math.max(0, toNumber(row.debit));
 }
 
 function ledgerCredit(row = {}) {
-  const credit = Math.max(0, toNumber(row.credit || row.arCredit));
-  if (credit > 0) return credit;
-  const type = [row.type, row.sourceType, row.source].map(text).join(' ');
-  if (!/(sale|external[_\s-]*debt|debit)/i.test(type)) return Math.max(0, toNumber(row.amount));
-  return 0;
+  return Math.max(0, toNumber(row.credit));
 }
 
 function matchesQuery(row = {}, query = {}) {

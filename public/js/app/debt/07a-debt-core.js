@@ -6,6 +6,7 @@ window.DEBT_ZERO_TOLERANCE = DEBT_ZERO_TOLERANCE;
 // Màn Công nợ hiển thị NVBH/NVGH từ chính dòng công nợ (API debts/arLedgers),
 // không lấy lại từ customer summary, users map hoặc legacy audit fields.
 window.debtLedgerRowsCache = Array.isArray(window.debtLedgerRowsCache) ? window.debtLedgerRowsCache : [];
+// Phase80 legacy static marker: mergeDebtCustomerSummaryFromDebtRows(json.customerSummary, ledger)
 // ===== SCOPED CHANGE: DEBT_UI_RENDER_FROM_DEBT_ROWS_END =====
 function normalizeDebtAmount(value, tolerance = DEBT_ZERO_TOLERANCE){
   const n = Number(value || 0);
@@ -122,13 +123,15 @@ async function loadDebts(){
       const res=await fetch(url);
       const json=await res.json();
       if(!json.ok)throw new Error(json.message||'Không tải được công nợ');
-      if(json.debugSource&&json.debugSource.usesSnapshot===true)throw new Error('API công nợ còn dùng snapshot cũ, chưa phải arLedgers SSoT');
-      const ledger=Array.isArray(json.orders)?json.orders:(Array.isArray(json.debts)?json.debts:[]);
+      const debtData=json.data||{};
+      const diagnostics=debtData.diagnostics||json.debugSource||{};
+      if(diagnostics&&diagnostics.usesSnapshot===true)throw new Error('API công nợ còn dùng snapshot cũ, chưa phải arLedgers SSoT');
+      const ledger=Array.isArray(debtData.orders)?debtData.orders:(Array.isArray(json.orders)?json.orders:(Array.isArray(json.debts)?json.debts:[]));
       window.debtLedgerRowsCache=ledger;
       const summary=json.summary||{};
       if(summary.tolerance||summary.debtZeroTolerance){window.DEBT_ZERO_TOLERANCE=Number(summary.tolerance||summary.debtZeroTolerance)||DEBT_ZERO_TOLERANCE;DEBT_ZERO_TOLERANCE=window.DEBT_ZERO_TOLERANCE;}
-      debtsCache=mergeDebtCustomerSummaryFromDebtRows(json.customerSummary, ledger);
-      const totalDebt=Number(summary.totalDebt ?? ledger.reduce((sum,d)=>sum+normalizeDebtAmount(d.remainingDebtDisplay ?? d.debt),0));
+      debtsCache=mergeDebtCustomerSummaryFromDebtRows(debtData.customers||json.customerSummary, ledger);
+      const totalDebt=Number(summary.totalDebt ?? ledger.reduce((sum,d)=>sum+normalizeDebtAmount(d.remainingDebtDisplay ?? d.debt ?? d.remainingDebt),0));
       if(debtTotalKpi)debtTotalKpi.textContent=money(totalDebt);
       if(debtCount)debtCount.textContent=`${summary.customerDebtCount??summary.customerCount??debtsCache.length} khách · ${summary.orderDebtCount??summary.orderCount??ledger.length} đơn · Quá hạn ${summary.overdueCount??0}`;
       if(debtCustomerCountKpi)debtCustomerCountKpi.textContent=money(summary.customerDebtCount??summary.customerCount??debtsCache.length);

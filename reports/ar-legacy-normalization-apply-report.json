@@ -1,0 +1,4289 @@
+{
+  "options": {
+    "dryRun": false,
+    "apply": true,
+    "json": false,
+    "planPath": "E:\\MK-pro\\reports\\ar-legacy-normalization-plan.json",
+    "actor": "phase81-ar-legacy-normalization"
+  },
+  "result": {
+    "dryRun": false,
+    "requestedActions": 712,
+    "appliedActions": 712,
+    "skippedActions": 0,
+    "details": [
+      {
+        "ledgerCode": "AR-SALE-SO1780942931951365-ACC-SO1780942931951365-1781019990371",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203388",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931954172-ACC-SO1780942931954172-1781067976329",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942888437368-ACC-SO1780942888437368-1781067977352",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178094293195366-ACC-SO178094293195366-1781073990444",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931953901-ACC-SO1780942931953901-1781073991491",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931953928-ACC-SO1780942931953928-1781073992514",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931954134-ACC-SO1780942931954134-1781073993742",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178094293195422-ACC-SO178094293195422-1781073994561",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931954336-ACC-SO1780942931954336-1781073995382",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780932781546406-ACC-SO1780932781546406-1781073996406",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780933026820171-ACC-SO1780933026820171-1781073997429",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780933224157374-ACC-SO1780933224157374-1781073998455",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931950334-ACC-SO1780942931950334-1781073999479",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931950338-ACC-SO1780942931950338-1781074000504",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931950422-ACC-SO1780942931950422-1781074001528",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931950650-ACC-SO1780942931950650-1781074002563",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931950690-ACC-SO1780942931950690-1781074003587",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780915949957186-ACC-SO1780915949957186-1781074004613",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931956874-ACC-SO1780942931956874-1781074005636",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043685420263",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043685420353",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043685421316",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043685421449",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043685421454",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043685421567",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043685421583",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043685421727",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625375497",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625376513",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625376736",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625376773",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625377312",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178104307391063",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043586040668",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625378807",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625378424-ACC-SO1781043625378424-1781102612069",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203650",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625376505-ACC-SO1781043625376505-1781102690774",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203645",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-RC1781102773726258-SO1781043685421727",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-RC1781102801629641-SO1781043685421567",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942814875531",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942814877274",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942814877287",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO17809428148783",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942814879418",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942814879667",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942814879993",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780943651824685",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931952327",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931952742",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931952858",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203438",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942814874348",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942814877789",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931953919",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203440",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942814876332",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178094281487777",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942814880197",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780943586524916",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931953250",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931953283",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942834733713",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942834734782",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931957667",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203439",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942814875510",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942814876338",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931951234",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931953403",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780915953837396",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780916007715860",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178094287524153",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931956322",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931956683",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931956694",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178094293195566",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203425",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942875239116",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178094287523916",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942875239237",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942875239745",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178094287524050",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931954809",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178094287523892",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942875240290",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178094287524173",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931955894",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931955583",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780915882648366",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942875239790",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931955381",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931955904",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942875235954",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942875238177",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931948523",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931950636",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942875234617",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942875237853",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931948227",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931948539",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931949395",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931949967",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178093485465467",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780934525107685",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942875235229",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-SO20260608854654",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942875236212-ACC-SO1780942875236212-1781110523925",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942875237132-ACC-SO1780942875237132-1781110525191",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780934662915356-ACC-SO1780934662915356-1781110577615",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625377611-ACC-SO1781043625377611-1781132657812",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625376303-ACC-SO1781043625376303-1781133129524",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625381231-ACC-SO1781043625381231-1781145134322",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203654-ACC-SO1781043625381231-1781145134322",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780942931948268-ACC-SO1780942931948268-1781149429726",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625379949-ACC-SO1781043625379949-1781202544759",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203652-ACC-SO1781043625379949-1781202544759",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223604776267",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90204077",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223604775228",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223604775304",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223604776428",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223604776739",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223604776966",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223604775107",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223604775798",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223604776665",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223572874682",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223572875130",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90204068",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223439378567",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90204108",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781224378340594",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178122437834070",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781224378340924",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223572874238",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223572874407",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223572875594",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223572875671",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223572875757",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223572875804",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223572876745",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178122346980483",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223469806791",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223540955441",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223540956880",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223540957296",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781224016532309",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90204062",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90204091",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90204092",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90204090",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223635912251",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223635913657",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781224016532197",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223505321124",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223505321488",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223505321720",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223505321765",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223505323186",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223505323430",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223505323554",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223505324915",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223505320965",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223505321336",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223505323605",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178122350532455",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223505325551",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223505325659",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223505325753",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781224016531989",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178122401653224",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781224016532985",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90204098",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90204104",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC178128301127256-SO1781223505325551",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781307995547145-SO178122401653224",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781307977289235-SO1781223505325753",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781307977289235-SO178122401653224",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781308070860489-SO1781223505320965",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781308060474164-SO178122350532455",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046586253",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046586690",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046581141",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046581933",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046582130",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046582680",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046582752",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046583262",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046583291",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046583322",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046583501",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046583857",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046584396",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046585144",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046585285",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0037455",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046580499",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046581179",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046581631",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046578350",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046578560",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046579248",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO17812740465796",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046580125",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046576325",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046576363",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046576890",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046576954",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0037439",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781338552426750-EDO1781318807247658",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781338367891829-EDO1781318755319633",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046585151",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046585974",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046586899",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046565786",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046566615",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046567548",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178127404656763",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046567706",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046568214",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046568874",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046568886",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046568944",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046569162",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046569362",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046569460",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178127404657060",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046570946",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046571299",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0037489",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0037480",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO17812236359122",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223635912329",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223635913741",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178122363591378",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223635913831",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223635913905",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223540955308",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223540956111",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223540956417",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178122354095676",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223540956956",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223540956969",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781223540957899",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90204054",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90204085",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445515105",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445515615",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445516373",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445516387",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445516485",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445516553",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178110744551687",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445517191",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445517318",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445513402",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445513572",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445513702",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445513957",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445514201",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445514289",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445514547",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445514724",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445515539",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203844",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203883",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203886",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203889",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203890",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043685422510",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043685422673",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043685422993",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043685423119",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781018469383711",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO17810185656707",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625363373",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625364890",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625365439",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625365775",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625366838",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625367184",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625367209",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625367457",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781043625369548",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203608",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203658",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780845979155919",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780846093023293",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780844688820802",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780844688817988",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780844688819562",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780844688829234",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780844688829889",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1780844688830720",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178084468883083",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046571509",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046572234",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178127404657253",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046572745",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046573529",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046573658",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046574344",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046575445",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046586245",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046587242",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046587306",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046587371",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046576686",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046576972",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046577273",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046577557",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046577641",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046577908",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046578508",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046578555",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046578605",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781274046578854",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0037445",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0037504",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781489326228976-EDO1781318897325905",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781489722324337-SO1781043625379949",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781515787545642-EDO1781318503314139",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781515692725648-SO1781107445517318",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781515664675853-SO1781274046586899",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781497040238760-EDO1781318755319633",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729471935",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178136872947245",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729473463",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729473671",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729474680",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178136872947586",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729469179",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729469910",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729470911",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729471101",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729471779",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729461339",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729462283",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729462743",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178136872946489",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781669474999708-EDO1781319146606209",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781660005367447-EDO1781318807247658",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781659766076824-EDO1781318807247658",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781659738002964-EDO1781318807247658",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781655133377528-SO1780934662915356",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781655133377528-SO178122354095676",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781659811365415-EDO1781318807247658",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781688010734663-SO1781107445515539",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781688010734663-SO1781107445514724",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781688330938945-EDO1781318897325905",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781688380498380-EDO1781318897325905",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781651888895975-SO1781224016532985",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781651888895975-SO1781223439378567",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781596632113967-SO1781043685422993",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781585738574330-SO1781043685422510",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781742615764842",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781742615761257",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781742615765301",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781742615766188",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781742615765225",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0037609",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516907895818-ACC-SO1781516907895818-1781771873049",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178151690789767-ACC-SO178151690789767-1781771873049",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516908025198-ACC-SO1781516908025198-1781771873048",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516908026133-ACC-SO1781516908026133-1781771873049",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516908027181-ACC-SO1781516908027181-1781771873049",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516907895283-ACC-SO1781516907895283-1781771873049",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516907896832-ACC-SO1781516907896832-1781771873049",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178151690789962-ACC-SO178151690789962-1781771873049",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516908025180-ACC-SO1781516908025180-1781771873048",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516908027643-ACC-SO1781516908027643-1781771873049",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516907899966-ACC-SO1781516907899966-1781771873049",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516907896763-ACC-SO1781516907896763-1781771873049",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516907897302-ACC-SO1781516907897302-1781771873049",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729583887-ACC-SO1781368729583887-1781772070400",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729465556-ACC-SO1781368729465556-1781772070400",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729465947-ACC-SO1781368729465947-1781772070400",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729455411-ACC-SO1781368729455411-1781772070400",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729468138-ACC-SO1781368729468138-1781772070400",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729464269-ACC-SO1781368729464269-1781772070400",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729465654-ACC-SO1781368729465654-1781772070400",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729467715-ACC-SO1781368729467715-1781772070400",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729467857-ACC-SO1781368729467857-1781772070400",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729468128-ACC-SO1781368729468128-1781772070400",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729459802-ACC-SO1781368729459802-1781772070401",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729459965-ACC-SO1781368729459965-1781772070401",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729466124-ACC-SO1781368729466124-1781772070400",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729466470-ACC-SO1781368729466470-1781772070400",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729458225-ACC-SO1781368729458225-1781772070401",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729461256-ACC-SO1781368729461256-1781772070401",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870579464",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781777383796683-SO1781742615761257",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC178177512375153-EDO1781318897325905",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC178177507243470-EDO1781318897325905",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178168587049298",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781852724286514-EDO1781319146606209",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781858193113339-SO1781274046585151",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781515256041269-SO1780942931948268",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781944300684674",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781913504201319",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781944300683811",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781944300683412",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781969339449591-SO1781742615764842",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178186292945242",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929453359",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929453530",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0037855",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929451118",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178186292945375",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178186292945532",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929456530",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178186292945742",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929460218",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178186292945184",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929453280",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929460973",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929450775",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178186292945550",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929459267",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929459775",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781772828889445",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781772828956322",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781772828957286",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178177282895773",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781772828889685",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781772828890316",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781772828891852",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781772828892827",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781772828956387",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178177282895695",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0037798",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870686441",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870687415",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870688855",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870688744",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870691797",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870686901",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870687253",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178168587068985",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870690524",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870694315",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870686391",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870686683",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870692763",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870694655",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781685870694917",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0037756",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0037704",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781599707795371",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781599707858860",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781599707797367",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781599707800746",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781599707796953",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781599707886195",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781599707800286",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781599707803784",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781599707794319",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178159970779587",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781599707880566",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781599707804141",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781599707874978",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516907924355",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516908023240",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516907931369",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516908018813",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516908023838",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516908024415",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516907936812",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516908024878",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516907923232",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516907930425",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516907934229",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178151690793424",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516907937921",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781516908022582",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0037602",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729582782",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729475633",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729478843",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729482656",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729576276",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729579387",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729581547",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729476118",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729579876",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729582684",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729479696",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729575891",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729578877",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729582746",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781368729481726",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0037556",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203859",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203860",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445524598",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445524637",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445524937",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445511673",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445511977",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445512137",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445512840",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107582642166",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203856",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445523393",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445523394",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445523762",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445508435",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445510129",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445517500",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445517662",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445523125",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445509163",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445509939",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445511715",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781107445513612",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90203866",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781772829054838",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781772828873711",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929460165",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929460387",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929348166",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929349308",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929350137",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929319948",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929320953",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178186292932326",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929324377",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0037864",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929461139",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929321399",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929348613",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929331858",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781862929314286",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1782175732643597-SO1781368729455411",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1782175732643597-SO1781368729458225",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1782175787648208-EDO1781318897325905",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1782176300137888-SO1781223469806791",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1782176414970357-SO178151690793424",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1782176430055364-SO1781599707800746",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1782175753127373-SO1781368729455411",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1782184032536695-EDO1781318755319633",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782120525188213",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1781970129184603-SO1781368729459802",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1782437718843505-SO178122346980483",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1782545999202498-EDO1781319146606209",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081118236",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081118506",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081118512",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081118691",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178246508111935",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081120394",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081120432",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081121728",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081267178",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081267885",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081268608",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081268642",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081112285",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782380374964213",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782205950205470",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0038077",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781944300681196",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1781944300497379",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782120525190209",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178229382778256",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782293827608784",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782381127700995",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1782546307531246-SO1781043685422673",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380266193",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380266348",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380177336",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380180118",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380180133",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380180399",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380181620",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178255038025639",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380258136",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380259620",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380260292",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178255038026098",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178255038026111",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380261498",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380262271",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-REV-AR-RETURN-RO-B0038432-ACC-SO1782550380256477-1782724203175-REV-SO1782550380256477-1782724423719",
+        "actionType": "MARK_DUPLICATE_INACTIVE",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-REVERSAL-RO-B0038424-REV-SO178255038016695-1782744308336",
+        "actionType": "MARK_DUPLICATE_INACTIVE",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0038424-ACC-SO178255038016695-1782744308336",
+        "actionType": "MARK_DUPLICATE_INACTIVE",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-REVERSAL-RO-B0038424-REV-SO178255038016695-1782746611470",
+        "actionType": "MARK_DUPLICATE_INACTIVE",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0038424-ACC-SO178255038016695-1782746611470",
+        "actionType": "MARK_DUPLICATE_INACTIVE",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-REVERSAL-RO-B0038424-REV-SO178255038016695-1782746702140",
+        "actionType": "MARK_DUPLICATE_INACTIVE",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0038424-ACC-SO178255038016695-1782746702140",
+        "actionType": "MARK_DUPLICATE_INACTIVE",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380178383-ACC-SO1782550380178383-1782748341056",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0038413-ACC-SO1782550380178383-1782748341056",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178255038016116",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380162539",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380162975",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380163886",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380165435",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380167532",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380167692",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380168867",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380266101",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380266136",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380267966",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380057592",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380058639",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380060230",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178255038006184",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RECEIPT-DC1782723572801660-SO1781107445511673",
+        "actionType": "NORMALIZE_AR_RECEIPT_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782380374962190",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782380374963517",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782380374963675",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178238037496499",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782380374965428",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178238037496572",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782380374966625",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782380374966932",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782380798748205",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782381127697595",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782381127698580",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782381127699316",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782381127701334",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782381127704146",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782381127720283",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782381127725604",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782381127732554",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782450691009511",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782450691007731",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782450691008253",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-HU90206340",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081112454",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081112714",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081114214",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380262633",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380263675",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178255038026390",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380263994",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380263995",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380264491",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380264728",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380264935",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380264983",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380265278",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380173118",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380174213",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380174329",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380174726",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380174982",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380175291",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380175903",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380176237",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380176903",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380177475",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380177760",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380168430",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380169439",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380169825",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380170643",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380171682",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380171848",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380172132",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178255038017244",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782701483358520",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782701483357460",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380064828",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380064993",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380071396",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380071670",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081156757",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO178246508115984",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081159878",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081160989",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081163349",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081163463",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081171543",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081121782",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081122410",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081124527",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081114517",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081114579",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081115426",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081116332",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081116349",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081117285",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081266759",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081267149",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081267380",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081267535",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081261720",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081262410",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081263372",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081263930",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081264311",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081264319",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081264421",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081171563",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081259224",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081259592",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081259741",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081259877",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081260149",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782465081260212",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0038321",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380178606-ACC-SO1782550380178606-1782785916874",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0038415-ACC-SO1782550380178606-1782785916874",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380179943-ACC-SO1782550380179943-1782785920124",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0038416-ACC-SO1782550380179943-1782785920124",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-REVERSAL-RO-B0038432-REV-SO1782550380256477-1782785923393",
+        "actionType": "MARK_DUPLICATE_INACTIVE",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-SALE-SO1782550380256477-ACC-SO1782550380256477-1782785923393",
+        "actionType": "NORMALIZE_AR_SALE_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      },
+      {
+        "ledgerCode": "AR-RETURN-RO-B0038432-ACC-SO1782550380256477-1782785923393",
+        "actionType": "NORMALIZE_AR_RETURN_CONTRACT",
+        "matchedCount": 1,
+        "modifiedCount": 1
+      }
+    ]
+  }
+}

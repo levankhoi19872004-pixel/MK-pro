@@ -1,0 +1,290 @@
+{
+  "mode": "phase81-plan-only",
+  "readOnly": true,
+  "generatedAt": "2026-06-30T04:02:34.389Z",
+  "options": {
+    "dryRun": true,
+    "json": false,
+    "markdown": false,
+    "sourceId": "SO1782550380164673",
+    "customerCode": ""
+  },
+  "sourceCounts": {
+    "salesOrders": 1,
+    "returnOrders": 1,
+    "debtCollections": 0,
+    "fundLedgers": 0
+  },
+  "summary": {
+    "rowsAudited": 6,
+    "actionCount": 6,
+    "safeToAutoApplyCount": 0,
+    "manualReviewCount": 6,
+    "byType": {
+      "MANUAL_REVIEW_REQUIRED": 6
+    },
+    "byConfidence": {
+      "low": 6
+    },
+    "safeToAutoApply": 0
+  },
+  "actions": [
+    {
+      "actionType": "MANUAL_REVIEW_REQUIRED",
+      "ledgerId": "6a42951b2f7a8ebc12b8f61a",
+      "ledgerCode": "AR-SALE-SO1782550380164673",
+      "reason": "ACC/REV mismatch, B0038423/B0038424, or complex reversal chain requires manual accounting review.",
+      "confidence": "low",
+      "safeToAutoApply": false,
+      "before": {
+        "category": "",
+        "ledgerType": "",
+        "entryType": "",
+        "customerCode": "4501221",
+        "customerName": "Chị Hương",
+        "salesStaffCode": "35095",
+        "salesStaffName": "Nguyễn Đình Thành",
+        "deliveryStaffCode": "ghth",
+        "deliveryStaffName": "Thành GH Tiền hải",
+        "masterOrderId": "MO1782550618236269",
+        "masterOrderCode": "DT1782550618236397",
+        "accountingStatus": "reversed",
+        "reversed": true,
+        "debit": 10402373,
+        "credit": 0,
+        "amount": 10402373,
+        "direction": "debit",
+        "amountField": "debit",
+        "originalLedgerId": ""
+      },
+      "after": {},
+      "safetyChecks": [
+        {
+          "code": "MANUAL_REVIEW_REQUIRED",
+          "ok": false,
+          "message": "ACC/REV mismatch, B0038423/B0038424, or complex reversal chain requires manual accounting review."
+        }
+      ],
+      "rollbackPatch": {},
+      "relatedSourceSnapshot": null,
+      "filter": {
+        "_id": "6a42951b2f7a8ebc12b8f61a"
+      }
+    },
+    {
+      "actionType": "MANUAL_REVIEW_REQUIRED",
+      "ledgerId": "6a4295202f7a8ebc12b8f62a",
+      "ledgerCode": "AR-BONUS-SO1782550380164673",
+      "reason": "ACC/REV mismatch, B0038423/B0038424, or complex reversal chain requires manual accounting review.",
+      "confidence": "low",
+      "safeToAutoApply": false,
+      "before": {
+        "category": "",
+        "ledgerType": "",
+        "entryType": "",
+        "sourceType": "",
+        "sourceId": "",
+        "sourceCode": "",
+        "customerCode": "4501221",
+        "customerName": "Chị Hương",
+        "salesStaffCode": "35095",
+        "salesStaffName": "Nguyễn Đình Thành",
+        "deliveryStaffCode": "ghth",
+        "deliveryStaffName": "Thành GH Tiền hải",
+        "masterOrderId": "MO1782550618236269",
+        "masterOrderCode": "DT1782550618236397",
+        "idempotencyKey": "",
+        "accountingStatus": "confirmed",
+        "debit": 0,
+        "credit": 1350000,
+        "amount": 1350000,
+        "direction": "credit",
+        "amountField": "credit",
+        "returnOrderId": "",
+        "returnOrderCode": "",
+        "sourceOrderId": "",
+        "sourceOrderCode": "",
+        "originalLedgerId": ""
+      },
+      "after": {},
+      "safetyChecks": [
+        {
+          "code": "MANUAL_REVIEW_REQUIRED",
+          "ok": false,
+          "message": "ACC/REV mismatch, B0038423/B0038424, or complex reversal chain requires manual accounting review."
+        }
+      ],
+      "rollbackPatch": {},
+      "relatedSourceSnapshot": null,
+      "filter": {
+        "_id": "6a4295202f7a8ebc12b8f62a"
+      }
+    },
+    {
+      "actionType": "MANUAL_REVIEW_REQUIRED",
+      "ledgerId": "6a430b6a2f7a8ebc12b92bb9",
+      "ledgerCode": "AR-SALE-REVERSAL-B0038423-REV-SO1782550380164673-1782778730341",
+      "reason": "ACC/REV mismatch, B0038423/B0038424, or complex reversal chain requires manual accounting review.",
+      "confidence": "low",
+      "safeToAutoApply": false,
+      "before": {
+        "category": "AR-SALE-REVERSAL",
+        "ledgerType": "AR-SALE-REVERSAL",
+        "entryType": "reversal",
+        "customerCode": "4501221",
+        "customerName": "Chị Hương",
+        "salesStaffCode": "35095",
+        "salesStaffName": "Nguyễn Đình Thành",
+        "deliveryStaffCode": "ghth",
+        "deliveryStaffName": "Thành GH Tiền hải",
+        "masterOrderId": "MO1782550618236269",
+        "masterOrderCode": "DT1782550618236397",
+        "accountingStatus": "confirmed",
+        "debit": 0,
+        "credit": 10402373,
+        "amount": 10402373,
+        "direction": "credit",
+        "amountField": "credit",
+        "originalLedgerId": "AR-SALE-SO1782550380164673"
+      },
+      "after": {},
+      "safetyChecks": [
+        {
+          "code": "MANUAL_REVIEW_REQUIRED",
+          "ok": false,
+          "message": "ACC/REV mismatch, B0038423/B0038424, or complex reversal chain requires manual accounting review."
+        }
+      ],
+      "rollbackPatch": {},
+      "relatedSourceSnapshot": null,
+      "filter": {
+        "_id": "6a430b6a2f7a8ebc12b92bb9"
+      }
+    },
+    {
+      "actionType": "MANUAL_REVIEW_REQUIRED",
+      "ledgerId": "6a430b6a2f7a8ebc12b92bba",
+      "ledgerCode": "AR-SALE-SO1782550380164673-ACC-SO1782550380164673-1782778730341",
+      "reason": "ACC/REV mismatch, B0038423/B0038424, or complex reversal chain requires manual accounting review.",
+      "confidence": "low",
+      "safeToAutoApply": false,
+      "before": {
+        "category": "",
+        "ledgerType": "",
+        "entryType": "",
+        "customerCode": "4501221",
+        "customerName": "Chị Hương",
+        "salesStaffCode": "35095",
+        "salesStaffName": "Nguyễn Đình Thành",
+        "deliveryStaffCode": "ghth",
+        "deliveryStaffName": "Thành GH Tiền hải",
+        "masterOrderId": "MO1782550618236269",
+        "masterOrderCode": "DT1782550618236397",
+        "accountingStatus": "reversed",
+        "reversed": true,
+        "debit": 10402373,
+        "credit": 0,
+        "amount": 10402373,
+        "direction": "debit",
+        "amountField": "debit",
+        "originalLedgerId": ""
+      },
+      "after": {},
+      "safetyChecks": [
+        {
+          "code": "MANUAL_REVIEW_REQUIRED",
+          "ok": false,
+          "message": "ACC/REV mismatch, B0038423/B0038424, or complex reversal chain requires manual accounting review."
+        }
+      ],
+      "rollbackPatch": {},
+      "relatedSourceSnapshot": null,
+      "filter": {
+        "_id": "6a430b6a2f7a8ebc12b92bba"
+      }
+    },
+    {
+      "actionType": "MANUAL_REVIEW_REQUIRED",
+      "ledgerId": "6a430bd42f7a8ebc12b92bbb",
+      "ledgerCode": "AR-SALE-REVERSAL-B0038423-REV-SO1782550380164673-1782778836570",
+      "reason": "ACC/REV mismatch, B0038423/B0038424, or complex reversal chain requires manual accounting review.",
+      "confidence": "low",
+      "safeToAutoApply": false,
+      "before": {
+        "category": "AR-SALE-REVERSAL",
+        "ledgerType": "AR-SALE-REVERSAL",
+        "entryType": "reversal",
+        "customerCode": "4501221",
+        "customerName": "Chị Hương",
+        "salesStaffCode": "35095",
+        "salesStaffName": "Nguyễn Đình Thành",
+        "deliveryStaffCode": "ghth",
+        "deliveryStaffName": "Thành GH Tiền hải",
+        "masterOrderId": "MO1782550618236269",
+        "masterOrderCode": "DT1782550618236397",
+        "accountingStatus": "confirmed",
+        "debit": 0,
+        "credit": 10402373,
+        "amount": 10402373,
+        "direction": "credit",
+        "amountField": "credit",
+        "originalLedgerId": "AR-SALE-SO1782550380164673-ACC-SO1782550380164673-1782778730341"
+      },
+      "after": {},
+      "safetyChecks": [
+        {
+          "code": "MANUAL_REVIEW_REQUIRED",
+          "ok": false,
+          "message": "ACC/REV mismatch, B0038423/B0038424, or complex reversal chain requires manual accounting review."
+        }
+      ],
+      "rollbackPatch": {},
+      "relatedSourceSnapshot": null,
+      "filter": {
+        "_id": "6a430bd42f7a8ebc12b92bbb"
+      }
+    },
+    {
+      "actionType": "MANUAL_REVIEW_REQUIRED",
+      "ledgerId": "6a430bd52f7a8ebc12b92bbc",
+      "ledgerCode": "AR-SALE-SO1782550380164673-ACC-SO1782550380164673-1782778836570",
+      "reason": "ACC/REV mismatch, B0038423/B0038424, or complex reversal chain requires manual accounting review.",
+      "confidence": "low",
+      "safeToAutoApply": false,
+      "before": {
+        "category": "",
+        "ledgerType": "",
+        "entryType": "",
+        "customerCode": "4501221",
+        "customerName": "Chị Hương",
+        "salesStaffCode": "35095",
+        "salesStaffName": "Nguyễn Đình Thành",
+        "deliveryStaffCode": "ghth",
+        "deliveryStaffName": "Thành GH Tiền hải",
+        "masterOrderId": "MO1782550618236269",
+        "masterOrderCode": "DT1782550618236397",
+        "accountingStatus": "confirmed",
+        "debit": 10402373,
+        "credit": 0,
+        "amount": 10402373,
+        "direction": "debit",
+        "amountField": "debit",
+        "originalLedgerId": ""
+      },
+      "after": {},
+      "safetyChecks": [
+        {
+          "code": "MANUAL_REVIEW_REQUIRED",
+          "ok": false,
+          "message": "ACC/REV mismatch, B0038423/B0038424, or complex reversal chain requires manual accounting review."
+        }
+      ],
+      "rollbackPatch": {},
+      "relatedSourceSnapshot": null,
+      "filter": {
+        "_id": "6a430bd52f7a8ebc12b92bbc"
+      }
+    }
+  ],
+  "safetyNote": "Only confidence=high and non-manual actions may be auto-applied. No ledger is deleted. Every action includes rollbackPatch."
+}

@@ -98,7 +98,12 @@
     "phase79:audit": "node scripts/audit-ar-ledger-contract.js --dry-run",
     "phase79:plan": "node scripts/plan-ar-clean-rebuild.js --dry-run",
     "phase79:rebuild:dry": "node scripts/rebuild-ar-debt-read-model.js --dry-run --all",
-    "phase79:reconcile:dry": "node scripts/reconcile-ar-debt-after-rebuild.js --dry-run --all"
+    "phase79:reconcile:dry": "node scripts/reconcile-ar-debt-after-rebuild.js --dry-run --all",
+    "phase81:audit": "node scripts/audit-ar-legacy-contract-detail.js --markdown",
+    "phase81:plan": "node scripts/plan-ar-legacy-contract-normalization.js --dry-run --markdown",
+    "phase81:apply:dry": "node scripts/apply-ar-legacy-contract-normalization.js",
+    "phase81:apply": "node scripts/apply-ar-legacy-contract-normalization.js --apply",
+    "phase81:reconcile": "node scripts/reconcile-ar-after-legacy-normalization.js --markdown"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

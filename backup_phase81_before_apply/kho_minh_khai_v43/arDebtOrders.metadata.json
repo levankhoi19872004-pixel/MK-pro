@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"61aeba8bfca34e009d89818a84be9a38","collectionName":"arDebtOrders","type":"collection"}

@@ -4,11 +4,11 @@ const dateUtil = require('../utils/date.util');
 const { toNumber } = require('../utils/common.util');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 const {
-  DEBT_CATEGORIES,
   isCanonicalArDebtLedger,
   normalizeAccountingAmount,
   validateArLedgerContract
 } = require('../domain/ar/arLedgerValidator');
+const arLedgerReadService = require('./arLedgerRead.service');
 
 let models = null;
 function getModels() {
@@ -59,15 +59,7 @@ function effect(row = {}) {
 }
 
 function buildCanonicalLedgerMongoMatch(extra = {}) {
-  return {
-    ...extra,
-    account: 'AR',
-    accountingConfirmed: true,
-    accountingStatus: 'confirmed',
-    active: true,
-    reversed: { $ne: true },
-    category: { $in: [...DEBT_CATEGORIES] }
-  };
+  return arLedgerReadService.buildCanonicalArLedgerMatch(extra);
 }
 
 function normalizeCanonicalLedger(row = {}) {
@@ -213,10 +205,8 @@ function groupCanonicalLedgers(ledgerRows = [], options = {}) {
 
 async function loadCanonicalLedgerRows(filter = {}, options = {}) {
   const { ArLedger } = getModels();
-  const query = ArLedger.find(buildCanonicalLedgerMongoMatch(filter));
-  if (options.session && typeof query.session === 'function') query.session(options.session);
-  if (typeof query.lean === 'function') query.lean();
-  return query;
+  arLedgerReadService.setModelsForTest({ ArLedger });
+  return arLedgerReadService.getCanonicalArLedgers(filter, { ...options, includeRejected: false });
 }
 
 function sourceFilter(sourceIdValue) {
