@@ -2,22 +2,9 @@
 
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
+const paymentRepository = require('../../repositories/paymentRepository');
+const arDebtReadModel = require('../arDebtReadModel.service');
 const DeliveryCloseoutService = require('./DeliveryCloseoutService');
-
-const adapters = { paymentRepository: null, arDebtReadModel: null };
-
-function setAdaptersForTest(next = {}) {
-  adapters.paymentRepository = next.paymentRepository || null;
-  adapters.arDebtReadModel = next.arDebtReadModel || null;
-}
-
-function getPaymentRepository() {
-  return adapters.paymentRepository || require('../../repositories/paymentRepository');
-}
-
-function getArDebtReadModel() {
-  return adapters.arDebtReadModel || require('../arDebtReadModel.service');
-}
 
 function clean(value = '') {
   return String(value ?? '').trim();
@@ -88,18 +75,10 @@ function buildDebtOpenLedger(order = {}, closeout = {}, options = {}) {
     accountingStatus: 'confirmed',
     accountingBatchId,
     deliveryCloseoutVersion: closeout.version,
-    deliveryCloseoutVersionNo: closeout.currentVersionNo || closeout.versionNo || closeout.version,
-    deliveryCloseoutContractVersion: closeout.contractVersion || 2,
     deliveryCloseoutHash: closeout.calculationHash,
     originalAmount: money(closeout.originalAmount),
     returnedAmount: money(closeout.returnedAmount),
-    cashAmount: money(closeout.cashAmount),
-    transferAmount: money(closeout.transferAmount),
-    bankAmount: money(closeout.bankAmount),
     collectedAmount: money(closeout.collectedAmount),
-    rewardAmount: money(closeout.rewardAmount),
-    bonusAmount: money(closeout.bonusAmount),
-    offsetAmount: money(closeout.offsetAmount),
     finalDebtAmount: amount,
     returnOrderIds: Array.isArray(closeout.returnOrderIds) ? closeout.returnOrderIds : [],
     paymentIds: Array.isArray(closeout.paymentIds) ? closeout.paymentIds : [],
@@ -111,7 +90,7 @@ function buildDebtOpenLedger(order = {}, closeout = {}, options = {}) {
 }
 
 async function findExisting(idempotencyKey, options = {}) {
-  const rows = await getPaymentRepository().findAll({
+  const rows = await paymentRepository.findAll({
     idempotencyKey,
     active: true,
     reversed: { $ne: true },
@@ -146,9 +125,9 @@ async function postDebtOpen(order = {}, closeout = {}, options = {}) {
     throw err;
   }
 
-  const saved = await getPaymentRepository().upsert(entry, options);
+  const saved = await paymentRepository.upsert(entry, options);
   if (options.skipReadModelRebuild !== true) {
-    await getArDebtReadModel().rebuildDebtForSource(entry.sourceId, { ...options, dryRun: options.dryRunReadModel === true });
+    await arDebtReadModel.rebuildDebtForSource(entry.sourceId, { ...options, dryRun: options.dryRunReadModel === true });
   }
   return { posted: true, entry: saved || entry };
 }
@@ -156,5 +135,5 @@ async function postDebtOpen(order = {}, closeout = {}, options = {}) {
 module.exports = {
   buildDebtOpenLedger,
   postDebtOpen,
-  _internal: { money, idSeed, findExisting, setAdaptersForTest }
+  _internal: { money, idSeed, findExisting }
 };

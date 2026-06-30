@@ -22,13 +22,6 @@ function positiveMoney(value) {
   return Math.max(0, money(value));
 }
 
-function firstMoney(source = {}, fields = []) {
-  for (const field of fields) {
-    if (hasOwnValue(source, field)) return positiveMoney(source[field]);
-  }
-  return 0;
-}
-
 function hasOwnValue(source = {}, field) {
   return Object.prototype.hasOwnProperty.call(source, field)
     && source[field] !== undefined
@@ -183,72 +176,24 @@ function collectDeliveryPaymentRows(order = {}, explicitPayments = []) {
   return rows;
 }
 
-function inferPaymentMethod(row = {}) {
-  const text = clean(row.method || row.paymentMethod || row.type || row.sourceType).toLowerCase();
-  if (/transfer|bank|chuyển|chuyen|ck/.test(text)) return 'transfer';
-  return 'cash';
-}
-
 function summarizePayments(order = {}, explicitPayments = []) {
   const rows = collectDeliveryPaymentRows(order, explicitPayments);
-  const closeout = order.deliveryCloseout || {};
   if (rows.length > 0) {
-    let cashAmount = 0;
-    let transferAmount = 0;
-    for (const row of rows) {
-      const amount = paymentAmount(row);
-      if (inferPaymentMethod(row) === 'transfer') transferAmount += amount;
-      else cashAmount += amount;
-    }
-    const bankAmount = transferAmount;
     return {
-      cashAmount,
-      transferAmount,
-      bankAmount,
-      collectedAmount: cashAmount + transferAmount,
+      collectedAmount: rows.reduce((sum, row) => sum + paymentAmount(row), 0),
       paymentIds: rows.map((row) => paymentId(row)).filter(Boolean),
       paymentRows: rows
     };
   }
-
-  const cashAmount = firstMoney(closeout, ['cashAmount']) || firstMoney(order, ['cashAmount']);
-  const transferAmount = firstMoney(closeout, ['transferAmount', 'bankAmount']) || firstMoney(order, ['transferAmount', 'bankAmount']);
-  const bankAmount = transferAmount;
-  if (cashAmount > 0 || transferAmount > 0) {
-    return {
-      cashAmount,
-      transferAmount,
-      bankAmount,
-      collectedAmount: cashAmount + transferAmount,
-      paymentIds: Array.isArray(closeout.paymentIds) ? closeout.paymentIds.map(clean).filter(Boolean) : [],
-      paymentRows: []
-    };
-  }
-
   if (order.deliveryCloseout && hasOwnValue(order.deliveryCloseout, 'collectedAmount')) {
     const collectedAmount = requireMoney(order.deliveryCloseout, 'collectedAmount', { label: 'salesOrders.deliveryCloseout', id: orderId(order), code: orderCode(order) }, { nonNegative: true });
     return {
-      cashAmount: 0,
-      transferAmount: 0,
-      bankAmount: 0,
       collectedAmount,
       paymentIds: Array.isArray(order.deliveryCloseout.paymentIds) ? order.deliveryCloseout.paymentIds.map(clean).filter(Boolean) : [],
       paymentRows: []
     };
   }
-  return { cashAmount: 0, transferAmount: 0, bankAmount: 0, collectedAmount: 0, paymentIds: [], paymentRows: [] };
-}
-
-function summarizeOffsets(order = {}) {
-  const closeout = order.deliveryCloseout || {};
-  const rewardAmount = firstMoney(closeout, ['rewardAmount', 'displayRewardAmount']) || firstMoney(order, ['rewardAmount', 'displayRewardAmount']);
-  const bonusAmount = firstMoney(closeout, ['bonusAmount', 'bonusReturnAmount']) || firstMoney(order, ['bonusAmount', 'bonusReturnAmount']);
-  const explicitOffset = firstMoney(closeout, ['offsetAmount', 'allowanceAmount']) || firstMoney(order, ['offsetAmount', 'allowanceAmount']);
-  const offsetRows = Array.isArray(closeout.offsets)
-    ? closeout.offsets.reduce((sum, row) => sum + positiveMoney(row.offsetAmount ?? row.amount), 0)
-    : 0;
-  const offsetAmount = explicitOffset > 0 ? explicitOffset : rewardAmount + bonusAmount + offsetRows;
-  return { rewardAmount, bonusAmount, offsetAmount };
+  return { collectedAmount: 0, paymentIds: [], paymentRows: [] };
 }
 
 function stableHash(payload = {}) {
@@ -260,28 +205,18 @@ function stableHash(payload = {}) {
 function nextVersion(order = {}) {
   const closeout = order.deliveryCloseout || {};
   const versions = Array.isArray(closeout.versions) ? closeout.versions : [];
-  const current = Number(closeout.currentVersionNo || closeout.version || versions.length || 0);
+  const current = Number(closeout.version || versions.length || 0);
   return Math.max(current, versions.length) + 1;
 }
 
 function publicCloseoutVersion(closeout = {}) {
   return {
-    contractVersion: closeout.contractVersion || 2,
     version: closeout.version,
-    versionNo: closeout.versionNo || closeout.version,
-    currentVersionNo: closeout.currentVersionNo || closeout.version,
     originalAmount: closeout.originalAmount,
     deliveredAmount: closeout.deliveredAmount,
     returnedAmount: closeout.returnedAmount,
-    cashAmount: closeout.cashAmount || 0,
-    transferAmount: closeout.transferAmount || 0,
-    bankAmount: closeout.bankAmount || 0,
     collectedAmount: closeout.collectedAmount,
-    rewardAmount: closeout.rewardAmount || 0,
-    bonusAmount: closeout.bonusAmount || 0,
-    offsetAmount: closeout.offsetAmount || 0,
     finalDebtAmount: closeout.finalDebtAmount,
-    overpaymentAmount: closeout.overpaymentAmount || 0,
     returnOrderIds: closeout.returnOrderIds,
     paymentIds: closeout.paymentIds,
     status: closeout.status,
@@ -299,56 +234,33 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
   const baseAmount = originalAmount(order);
   const returnSummary = summarizeReturnOrders(returnOrders);
   const paymentSummary = summarizePayments(order, payments);
-  const offsetSummary = summarizeOffsets(order);
   const deliveredAmount = money(baseAmount - returnSummary.returnedAmount);
-  const rawFinalDebtAmount = money(baseAmount - returnSummary.returnedAmount - paymentSummary.collectedAmount - offsetSummary.offsetAmount);
-  const finalDebtAmount = rawFinalDebtAmount;
-  const overpaymentAmount = rawFinalDebtAmount < 0 ? Math.abs(rawFinalDebtAmount) : 0;
+  const finalDebtAmount = money(baseAmount - returnSummary.returnedAmount - paymentSummary.collectedAmount);
   const version = options.version || nextVersion(order);
   const now = options.now || dateUtil.nowIso();
   const status = options.status || 'draft';
   const payloadForHash = {
-    contractVersion: 2,
     orderId: orderId(order),
     orderCode: orderCode(order),
     originalAmount: baseAmount,
     deliveredAmount,
     returnedAmount: returnSummary.returnedAmount,
-    cashAmount: paymentSummary.cashAmount,
-    transferAmount: paymentSummary.transferAmount,
-    bankAmount: paymentSummary.bankAmount,
     collectedAmount: paymentSummary.collectedAmount,
-    rewardAmount: offsetSummary.rewardAmount,
-    bonusAmount: offsetSummary.bonusAmount,
-    offsetAmount: offsetSummary.offsetAmount,
     finalDebtAmount,
-    overpaymentAmount,
     returnOrderIds: returnSummary.returnOrderIds,
     paymentIds: paymentSummary.paymentIds
   };
   const previousVersions = Array.isArray(order.deliveryCloseout?.versions) ? order.deliveryCloseout.versions : [];
   return {
-    contractVersion: 2,
-    sourceVersion: 'phase87-delivery-closeout-single-ar-debt',
     originalAmount: baseAmount,
     deliveredAmount,
     returnedAmount: returnSummary.returnedAmount,
-    cashAmount: paymentSummary.cashAmount,
-    transferAmount: paymentSummary.transferAmount,
-    bankAmount: paymentSummary.bankAmount,
     collectedAmount: paymentSummary.collectedAmount,
-    rewardAmount: offsetSummary.rewardAmount,
-    bonusAmount: offsetSummary.bonusAmount,
-    offsetAmount: offsetSummary.offsetAmount,
     finalDebtAmount,
-    overpaymentAmount,
     returnOrderIds: returnSummary.returnOrderIds,
     paymentIds: paymentSummary.paymentIds,
-    warnings: [],
     status,
     version,
-    versionNo: version,
-    currentVersionNo: version,
     versions: previousVersions,
     calculationHash: stableHash(payloadForHash),
     sourceHash: stableHash({
@@ -379,7 +291,7 @@ function assertNoLedgerShape(closeout = {}) {
 function compareCloseout(expected = {}, actual = {}, options = {}) {
   if (!actual || typeof actual !== 'object' || !clean(actual.status)) return { ok: true, skipped: true, reason: 'missing_deliveryCloseout' };
   assertNoLedgerShape(actual);
-  const fields = ['originalAmount', 'deliveredAmount', 'returnedAmount', 'cashAmount', 'transferAmount', 'bankAmount', 'collectedAmount', 'rewardAmount', 'bonusAmount', 'offsetAmount', 'finalDebtAmount'];
+  const fields = ['originalAmount', 'deliveredAmount', 'returnedAmount', 'collectedAmount', 'finalDebtAmount'];
   const tolerance = Math.max(0, Number(options.tolerance || 0));
   const mismatches = [];
   for (const field of fields) {
@@ -433,35 +345,13 @@ function confirmCloseout(order = {}, computed = {}, options = {}) {
   return snapshot;
 }
 
-
-async function calculateFromSources(input = {}, options = {}) {
-  if (input.order) {
-    return buildCloseout(input.order, input.returnOrders || [], input.payments || [], options);
-  }
-  const orderIdentity = clean(input.orderId || input.orderCode);
-  if (!orderIdentity) {
-    throw contractError('CONTRACT_VALIDATION_ERROR', 'calculateFromSources cần order hoặc orderId/orderCode rõ ràng.');
-  }
-  const orderRepository = require('../../repositories/orderRepository');
-  const { findReturnOrdersForDeliveryChildren } = require('../master-order/masterOrderReturn.impl');
-  const rows = await orderRepository.findManyByIdentity([orderIdentity], { limit: 1, session: input.session || options.session });
-  const order = Array.isArray(rows) && rows[0];
-  if (!order) {
-    throw contractError('SALES_ORDER_NOT_FOUND', `Không tìm thấy salesOrder để tính deliveryCloseout: ${orderIdentity}`);
-  }
-  const returnOrders = await findReturnOrdersForDeliveryChildren([order], { session: input.session || options.session });
-  return buildCloseout(order, returnOrders, input.payments || [], options);
-}
-
 module.exports = {
   buildCloseout,
-  calculateFromSources,
   compareCloseout,
   confirmCloseout,
   assertNoLedgerShape,
   collectDeliveryPaymentRows,
   summarizePayments,
-  summarizeOffsets,
   summarizeReturnOrders,
   returnOrderAmount,
   isActiveReturnOrder,
@@ -478,7 +368,6 @@ module.exports = {
     requireMoney,
     stableHash,
     publicCloseoutVersion,
-    inferPaymentMethod,
     hasOwnValue,
     contractError
   }

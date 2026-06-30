@@ -5,6 +5,8 @@ const test = require('node:test');
 
 const DeliveryCloseoutService = require('../src/services/accounting/DeliveryCloseoutService');
 const ArDebtOpenPostingService = require('../src/services/accounting/ArDebtOpenPostingService');
+const paymentRepository = require('../src/repositories/paymentRepository');
+const arDebtReadModel = require('../src/services/arDebtReadModel.service');
 
 function patch(target, replacements) {
   const originals = {};
@@ -40,18 +42,19 @@ test('Hoa Sơn strict closeout final debt posts exactly one AR-DEBT-OPEN', async
   assert.equal(closeout.finalDebtAmount, 296935030);
 
   const posted = [];
-  ArDebtOpenPostingService._internal.setAdaptersForTest({
-    paymentRepository: {
-      findAll: async () => [],
-      upsert: async (entry) => { posted.push(entry); return entry; }
-    },
-    arDebtReadModel: { rebuildDebtForSource: async () => ({ dryRun: true }) }
+  const restorePayment = patch(paymentRepository, {
+    findAll: async () => [],
+    upsert: async (entry) => { posted.push(entry); return entry; }
+  });
+  const restoreReadModel = patch(arDebtReadModel, {
+    rebuildDebtForSource: async () => ({ dryRun: true })
   });
   try {
     const result = await ArDebtOpenPostingService.postDebtOpen(order, closeout, { skipReadModelRebuild: false });
     assert.equal(result.posted, true);
   } finally {
-    ArDebtOpenPostingService._internal.setAdaptersForTest();
+    restoreReadModel();
+    restorePayment();
   }
 
   assert.equal(posted.length, 1);
