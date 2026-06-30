@@ -85,7 +85,7 @@ function buildArSaleLedger(order = {}, context = {}) {
     masterOrderId: clean(order.masterOrderId || order.deliveryMasterId),
     masterOrderCode: clean(order.masterOrderCode || order.deliveryMasterCode),
     accountingBatchId,
-    idempotencyKey: `AR-SALE:salesOrder:${sourceId}`,
+    idempotencyKey: clean(context.idempotencyKey) || `AR-SALE:salesOrder:${sourceId}`,
     accountingStatus: 'confirmed',
     accountingConfirmed: true,
     accountingConfirmedBy: actor,

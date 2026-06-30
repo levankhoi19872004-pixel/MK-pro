@@ -14,6 +14,8 @@ const paymentRepository = require('../../repositories/paymentRepository');
 const { makeId, toNumber } = require('../../utils/common.util');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../../constants/finance.constants');
 const { debugLog } = require('../../utils/debug.util');
+const { assertValidArLedgerContract } = require('../../domain/ar/arLedgerContract');
+const { buildDeliveryReAccountingArSaleLedger } = require('../../domain/ar/arSaleReaccountingFactory');
 const {
   compactDeliveryOrderKeys,
   buildIdentityInFilter
@@ -195,8 +197,15 @@ function buildReAccountingReversalRow(old = {}, order = {}, user = {}, reverseBa
     originalLedgerId: cleanLedgerText(old.id || old._id || old.code),
     originalLedgerCode: cleanLedgerText(old.code || old.id || old._id),
     reversalOf: cleanLedgerText(old.id || old._id || old.code),
+    reversedLedgerId: cleanLedgerText(old.id || old._id || old.code),
     reversedFromId: cleanLedgerText(old.id || old._id),
     reversedFromCode: cleanLedgerText(old.code || old.id),
+    sourceType: cleanLedgerText(old.sourceType || (isReturn ? 'returnOrder' : 'salesOrder')),
+    sourceId: cleanLedgerText(old.sourceId || old.salesOrderId || old.orderId || orderKey(order) || orderDisplayCode(order)),
+    sourceCode: cleanLedgerText(old.sourceCode || old.salesOrderCode || old.orderCode || orderDisplayCode(order) || orderKey(order)),
+    idempotencyKey: `${reversalCategory}:salesOrder:${cleanLedgerText(old.sourceId || old.salesOrderId || old.orderId || orderKey(order) || orderDisplayCode(order))}:${cleanLedgerText(old.id || old._id || old.code)}`,
+    active: true,
+    reversed: false,
     accountingBatchId: reverseBatchId,
     reAccountingBatchId: reverseBatchId,
     createdBy: actor,
@@ -301,6 +310,13 @@ function makeArBaseRow(order = {}, extra = {}) {
   };
 }
 
+function buildCanonicalArSaleRow(order = {}, extra = {}) {
+  return buildDeliveryReAccountingArSaleLedger(order, {
+    ...extra,
+    amount: Math.max(0, toNumber(extra.amount ?? extra.debit ?? deliveryFinance.deliveryDebtBase(order)))
+  });
+}
+
 function arLedgerKeysForOrder(order = {}) {
   return [...new Set([order.id, order._id, order.code, order.orderId, order.orderCode, order.refId, order.refCode]
     .map((value) => String(value || '').trim()).filter(Boolean))];
@@ -338,6 +354,7 @@ async function reverseActiveArLedgersForOrder(order = {}, user = {}, options = {
   for (const old of oldRows) {
     const reversal = buildReAccountingReversalRow(old, order, user, reverseBatchId);
     if (!reversal) continue;
+    assertValidArLedgerContract(reversal);
     await paymentRepository.upsert(reversal, options);
     await paymentRepository.upsert(markLedgerReversedPatch(old, user, reverseBatchId), options);
     reversedRows.push(reversal);
@@ -349,18 +366,15 @@ async function postDeliveryArLedgerRowsAfterReAccounting(order = {}, accountingB
   const key = orderKey(order) || orderDisplayCode(order);
   const code = orderDisplayCode(order) || key;
   const baseAmount = Math.max(0, normalizeDebtAmount(deliveryFinance.deliveryDebtBase(order)));
-  const entry = makeArBaseRow(order, {
+  const entry = buildCanonicalArSaleRow(order, {
     id: `AR-SALE-${key}-${accountingBatchId}`,
-    code: `AR-SALE-${code}`,
-    type: 'ar_sale',
-    refType: 'SALES_ORDER',
-    debit: baseAmount,
-    credit: 0,
+    code: `AR-SALE-${code}-${accountingBatchId}`,
     amount: baseAmount,
-    postZero: true,
+    createdBy: options.confirmedBy || options.user?.name || order.accountingConfirmedBy || 'accountant',
     note: `Ghi nhận lại AR-SALE đơn bán ${code} sau điều chỉnh admin`,
     accountingBatchId,
-    reAccountingBatchId: accountingBatchId
+    reAccountingBatchId: accountingBatchId,
+    source: 'admin_delivery_re_accounting'
   });
   await paymentRepository.upsert(entry, options);
   return [entry];
@@ -699,9 +713,17 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
 }
 
 function makeBatchArRow(order = {}, extra = {}) {
+  const amount = Math.max(0, toNumber(extra.amount));
+  if (String(extra.type || '').toLowerCase() === 'ar_sale') {
+    return buildCanonicalArSaleRow(order, {
+      ...extra,
+      amount,
+      source: extra.source || 'delivery_batch_post',
+      createdBy: extra.createdBy || 'accountant'
+    });
+  }
   const key = orderKey(order) || orderDisplayCode(order);
   const code = orderDisplayCode(order) || key;
-  const amount = Math.max(0, toNumber(extra.amount));
   return makeArBaseRow(order, {
     id: extra.id,
     code: extra.code || extra.id,
@@ -804,26 +826,11 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
         const oldCredit = toNumber(oldRow.credit);
         const oldAmount = Math.max(oldDebit, oldCredit, toNumber(oldRow.amount));
         if (oldAmount <= 0) continue;
-        reversalRows.push({
-          ...oldRow,
-          id: `AR-SALE-REV-${oldRow.id || oldRow.code || makeId('AR')}-${reverseBatchId}`,
-          code: `AR-SALE-REV-${oldRow.code || oldRow.id || makeId('AR')}-${reverseBatchId}`,
-          type: 'ar_sale_reversal',
-          refType: 'SALES_ORDER',
-          debit: oldCredit,
-          credit: oldDebit,
-          amount: oldAmount,
-          status: 'posted',
-          source: 'delivery_accounting_confirm_repost',
-          note: `Đảo AR-SALE cũ ${oldRow.code || oldRow.id || ''} trước khi xác nhận kế toán lại đơn ${code || key}`,
-          reversedFromId: oldRow.id || '',
-          reversedFromCode: oldRow.code || '',
-          accountingBatchId: reverseBatchId,
-          reAccountingBatchId: reverseBatchId,
-          createdBy: confirmedBy,
-          createdAt: dateUtil.nowIso(),
-          updatedAt: dateUtil.nowIso()
-        });
+        const reversal = buildReAccountingReversalRow(oldRow, order, { name: confirmedBy }, reverseBatchId);
+        if (reversal) {
+          assertValidArLedgerContract(reversal);
+          reversalRows.push(reversal);
+        }
         if (oldRow.id || oldRow.code) {
           rowsToMarkReversed.push({
             ...oldRow,
@@ -841,7 +848,7 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
 
     ledgerRows.push(makeBatchArRow(order, {
       id: `AR-SALE-${idSeed}${repostSuffix}`,
-      code: `AR-SALE-${code || idSeed}`,
+      code: `AR-SALE-${code || idSeed}-${accountingBatchId}`,
       type: 'ar_sale',
       refType: 'SALES_ORDER',
       debit: baseAmount,

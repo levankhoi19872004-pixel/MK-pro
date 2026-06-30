@@ -138,8 +138,8 @@ function validateArLedgerContract(ledger = {}) {
   if (category === 'AR-SALE') {
     if (entryType !== 'normal') errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'entryType', expected: 'normal', actual: ledger.entryType });
     if (clean(ledger.sourceType) !== 'salesOrder') errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'sourceType', expected: 'salesOrder', actual: ledger.sourceType });
-    if (!/^AR-SALE:salesOrder:[^\s]+$/.test(clean(ledger.idempotencyKey))) {
-      errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'idempotencyKey', expected: 'AR-SALE:salesOrder:<sourceId>' });
+    if (!/^AR-SALE:salesOrder:[^\s:]+(?::ACC-[^\s]+)?$/.test(clean(ledger.idempotencyKey))) {
+      errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'idempotencyKey', expected: 'AR-SALE:salesOrder:<sourceId>[:ACC-*]' });
     }
     if (!/^ACC-/.test(clean(ledger.accountingBatchId))) {
       errors.push({ code: 'DIRTY_LEDGER_CONFIRMED_BUT_INVALID_CONTRACT', field: 'accountingBatchId', expected: 'ACC-*', actual: ledger.accountingBatchId });
