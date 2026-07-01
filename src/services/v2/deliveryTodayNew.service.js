@@ -2,6 +2,7 @@
 
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
+const { normalizeDebtAmount, DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
 
 let models = null;
 let deliveryListService = null;
@@ -124,7 +125,8 @@ function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {
       reason,
       searchCriteriaRequired: true,
       hasSearchCriteria: hasSearchCriteria(query),
-      writePolicy: 'read-only; confirmed orders require DeliveryCloseoutCorrectionService; latest correction comes from deliveryCloseoutVersions',
+      writePolicy: 'read-only list; closeout must use POST /api/new/delivery-today/closeout; confirmed orders require DeliveryCloseoutCorrectionService; latest correction comes from deliveryCloseoutVersions',
+      debtZeroTolerance: DEBT_ZERO_TOLERANCE,
       deliverySourceApplied: false,
       fallbackEnabled: false,
       matchKeys: []
@@ -517,10 +519,11 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
   const offsetAmount = baseBreakdown.offsetAmount;
   const collected = money((latestVersion && (latestVersion.collectedAmount ?? latestVersion.cashCollectedAmount))
     ?? (baseBreakdown.collectedAmount || collectedAmount(order)));
-  const finalDebtAmount = money((latestVersion && (latestVersion.finalDebtAmount ?? latestVersion.debtAmount)) ?? (originalAmount - returnedAmount - collected));
+  const rawFinalDebtAmount = money((latestVersion && (latestVersion.finalDebtAmount ?? latestVersion.debtAmount)) ?? (originalAmount - returnedAmount - collected));
+  const finalDebtAmount = normalizeDebtAmount(rawFinalDebtAmount);
   const closeoutFinalDebt = latestVersion
     ? finalDebtAmount
-    : (closeout.finalDebtAmount !== undefined ? money(closeout.finalDebtAmount) : finalDebtAmount);
+    : (closeout.finalDebtAmount !== undefined ? normalizeDebtAmount(closeout.finalDebtAmount) : finalDebtAmount);
   return {
     id: text(order.id || order._id),
     orderId: text(order.id || order._id),
@@ -537,6 +540,7 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     orderItems: compactOrderItems(order.orderItems || order.items || order.soldItems || order.products || order.lines || []),
     soldItems: compactOrderItems(order.soldItems || order.items || order.orderItems || order.products || order.lines || []),
     closeoutStatus: latestVersion ? text(latestVersion.status || 'corrected_confirmed') : closeoutStatus(order),
+    deliveryCloseoutStatus: isConfirmedCloseout(order) ? 'closed' : text(order.deliveryCloseoutStatus || closeout.deliveryCloseoutStatus || ''),
     accountingConfirmed: isConfirmedCloseout(order),
     correctionVersionApplied: Boolean(latestVersion),
     correctionId: latestVersion ? text(latestVersion.correctionId) : '',
@@ -569,6 +573,7 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     offsetAmount,
     collectedAmount: collected,
     finalDebtAmount,
+    rawFinalDebtAmount,
     closeoutFinalDebtAmount: closeoutFinalDebt,
     closeoutDelta: money(closeoutFinalDebt - finalDebtAmount),
     returnOrderIds: uniqueReturns.map((row) => row.id || row.code).filter(Boolean),
@@ -630,7 +635,8 @@ async function listOrders(query = {}, options = {}) {
         ? 'delivery-today-new-v2-delivery-operational-list + returnOrders + correction-versions'
         : 'delivery-today-new-v2-salesOrders-fallback',
       endpoint: '/api/new/delivery-today/orders',
-      writePolicy: 'read-only; confirmed orders require DeliveryCloseoutCorrectionService; latest correction comes from deliveryCloseoutVersions',
+      writePolicy: 'read-only list; closeout must use POST /api/new/delivery-today/closeout; confirmed orders require DeliveryCloseoutCorrectionService; latest correction comes from deliveryCloseoutVersions',
+      debtZeroTolerance: DEBT_ZERO_TOLERANCE,
       deliverySourceApplied: Boolean(deliveryOrders.length || !useSalesOrderFallback),
       fallbackEnabled: useSalesOrderFallback,
       hasSearchCriteria: hasSearchCriteria(query),
@@ -647,5 +653,5 @@ module.exports = {
   summarizeRows,
   setModelsForTest,
   setDeliveryListServiceForTest,
-  _private: { money, truthyFlag, hasSearchCriteria, emptyListResult, normalizeQty, normalizeOrderItem, compactOrderItems, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
+  _private: { money, normalizeDebtAmount, DEBT_ZERO_TOLERANCE, truthyFlag, hasSearchCriteria, emptyListResult, normalizeQty, normalizeOrderItem, compactOrderItems, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
 };

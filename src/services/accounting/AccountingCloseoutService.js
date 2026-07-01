@@ -135,7 +135,8 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
   const existingCloseout = order.deliveryCloseout || {};
   const computed = DeliveryCloseoutService.buildCloseout(order, returnOrders, [], {
     actor,
-    status: existingCloseout.status || 'pending_accounting'
+    status: existingCloseout.status || 'pending_accounting',
+    reason: clean(options.reason || options.closeoutReason || '')
   });
 
   if (DeliveryCloseoutService.hasReturnSignalWithoutReturnOrders(order, computed)) {
@@ -170,16 +171,16 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     return { skipped: true, idempotent: true, orderId: DeliveryCloseoutService.orderId(order), closeout: existingCloseout, arDebtOpen: postResult };
   }
 
-  const confirmedCloseout = DeliveryCloseoutService.confirmCloseout(order, computed, { actor });
+  const confirmedCloseout = DeliveryCloseoutService.confirmCloseout(order, computed, { actor, reason: clean(options.reason || options.closeoutReason || '') });
   const updatedOrder = buildConfirmedOrderPatch(order, confirmedCloseout, actor);
   await orderRepository.upsert(updatedOrder, options);
-  const arResult = await ArDebtOpenPostingService.postDebtOpen(updatedOrder, confirmedCloseout, options);
+  const arResult = await ArDebtOpenPostingService.postDebtOpen(updatedOrder, confirmedCloseout, { ...options, note: clean(options.note || options.reason || `Mở công nợ cuối cùng từ chốt giao hàng ${DeliveryCloseoutService.orderCode(order)}`) });
   await auditService.log('ACCOUNTING_CONFIRM_DELIVERY_CLOSEOUT', {
     refType: 'SALES_ORDER',
     refId: DeliveryCloseoutService.orderId(order),
     refCode: DeliveryCloseoutService.orderCode(order),
     user: actor,
-    note: `Xác nhận kế toán chốt giao hàng: finalDebt=${confirmedCloseout.finalDebtAmount}, AR=${arResult.posted ? 'AR-DEBT-OPEN' : arResult.reason || 'idempotent'}`
+    note: `Xác nhận kế toán chốt giao hàng: finalDebt=${confirmedCloseout.finalDebtAmount}, AR=${arResult.posted ? 'AR-DEBT-OPEN' : arResult.reason || 'idempotent'}, reason=${clean(options.reason || options.closeoutReason || '')}`
   });
   return { confirmed: true, orderId: DeliveryCloseoutService.orderId(order), closeout: confirmedCloseout, arDebtOpen: arResult };
 }
@@ -189,6 +190,7 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
   const selectedOrderIds = normalized.selectedOrderIds || normalizeOrderIds(body);
   if (!selectedOrderIds.length) return { error: 'Vui lòng chọn ít nhất một đơn để xác nhận kế toán', status: 400 };
   const actor = clean(normalized.confirmedBy || body.confirmedBy || body.userName || body.accountantName || 'accountant');
+  const reason = clean(normalized.reason || body.reason || body.note || 'Chốt sổ giao hàng cuối ngày');
   const orders = await loadOrders(selectedOrderIds);
   if (!orders.length) return { error: `Không tìm thấy đơn đã chọn trong ngày ${date} để kế toán xác nhận`, status: 404 };
   const returnOrders = await findReturnOrdersForDeliveryChildren(orders);
@@ -198,7 +200,7 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
   await withMongoTransaction(async (session) => {
     for (const order of orders) {
       const rows = returnOrdersForOrder(order, returnByKey);
-      const result = await confirmOneOrder(order, rows, { session, actor, confirmedBy: actor });
+      const result = await confirmOneOrder(order, rows, { session, actor, confirmedBy: actor, reason, note: reason });
       results.push(result);
     }
   });
@@ -213,7 +215,8 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     architecture: 'salesOrders.deliveryCloseout -> single AR-DEBT-OPEN',
     arPolicy: 'no AR-SALE / AR-RETURN / AR-RECEIPT from delivery accounting',
     results,
-    message: `Kế toán đã xác nhận ${confirmedOrders} đơn theo deliveryCloseout. Công nợ chỉ sinh AR-DEBT-OPEN nếu finalDebtAmount > 0.`
+    reason,
+    message: `Kế toán đã xác nhận ${confirmedOrders} đơn theo deliveryCloseout. Công nợ chỉ sinh AR-DEBT-OPEN nếu finalDebtAmount > 0 sau ngưỡng dung sai ±1.000.`
   };
 }
 
@@ -222,6 +225,7 @@ async function confirmDeliveryAccounting(body = {}) {
   const selectedOrderIds = normalizeOrderIds(body);
   if (!selectedOrderIds.length) return { error: 'Vui lòng chọn ít nhất một đơn để xác nhận kế toán', status: 400 };
   const confirmedBy = clean(body.confirmedBy || body.userName || body.accountantName || 'accountant');
+  const reason = clean(body.reason || body.note || 'Chốt sổ giao hàng cuối ngày');
   const now = Date.now();
   cleanupGuards(now);
   const key = guardKey(date, selectedOrderIds, confirmedBy);
@@ -229,7 +233,7 @@ async function confirmDeliveryAccounting(body = {}) {
   if (existing && existing.expiresAt > now) {
     return existing.promise.then((result) => ({ ...result, duplicateSubmitSuppressed: true }));
   }
-  const promise = confirmDeliveryAccountingInternal(body, { date, selectedOrderIds, confirmedBy });
+  const promise = confirmDeliveryAccountingInternal(body, { date, selectedOrderIds, confirmedBy, reason });
   inFlight.set(key, { expiresAt: now + CONFIRM_GUARD_TTL_MS, promise });
   try {
     const result = await promise;

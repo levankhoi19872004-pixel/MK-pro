@@ -2,6 +2,7 @@
 
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
+const { normalizeDebtAmount } = require('../../constants/finance.constants');
 const paymentRepository = require('../../repositories/paymentRepository');
 const arDebtReadModel = require('../arDebtReadModel.service');
 const DeliveryCloseoutService = require('./DeliveryCloseoutService');
@@ -21,7 +22,7 @@ function idSeed(order = {}) {
 }
 
 function buildDebtOpenLedger(order = {}, closeout = {}, options = {}) {
-  const amount = money(closeout.finalDebtAmount);
+  const amount = normalizeDebtAmount(closeout.finalDebtAmount);
   const sourceId = idSeed(order);
   const sourceCode = clean(DeliveryCloseoutService.orderCode(order) || sourceId);
   if (!sourceId) {
@@ -100,7 +101,7 @@ async function findExisting(idempotencyKey, options = {}) {
 }
 
 async function postDebtOpen(order = {}, closeout = {}, options = {}) {
-  const amount = money(closeout.finalDebtAmount);
+  const amount = normalizeDebtAmount(closeout.finalDebtAmount);
   if (amount < 0) {
     return {
       posted: false,
@@ -135,5 +136,5 @@ async function postDebtOpen(order = {}, closeout = {}, options = {}) {
 module.exports = {
   buildDebtOpenLedger,
   postDebtOpen,
-  _internal: { money, idSeed, findExisting }
+  _internal: { money, normalizeDebtAmount, idSeed, findExisting }
 };

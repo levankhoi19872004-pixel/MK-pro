@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
+const { normalizeDebtAmount } = require('../../constants/finance.constants');
 
 const INACTIVE_RETURN_STATUSES = new Set(['cancelled', 'canceled', 'void', 'voided', 'deleted', 'removed', 'cleared', 'duplicate_cancelled', 'inactive']);
 const CONFIRMED_RETURN_STATUSES = new Set(['confirmed', 'accounting_confirmed', 'warehouse_received', 'received', 'posted']);
@@ -19,7 +20,7 @@ function money(value) {
 }
 
 function positiveMoney(value) {
-  return Math.max(0, money(value));
+  return Math.max(0, normalizeDebtAmount(value));
 }
 
 function hasOwnValue(source = {}, field) {
@@ -278,7 +279,8 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
   const paymentSummary = summarizePayments(order, payments);
   const offsetSummary = summarizeOffsets(order);
   const deliveredAmount = money(baseAmount - returnSummary.returnedAmount);
-  const finalDebtAmount = money(baseAmount - returnSummary.returnedAmount - paymentSummary.collectedAmount - offsetSummary.offsetAmount);
+  const rawFinalDebtAmount = money(baseAmount - returnSummary.returnedAmount - paymentSummary.collectedAmount - offsetSummary.offsetAmount);
+  const finalDebtAmount = normalizeDebtAmount(rawFinalDebtAmount);
   const version = options.version || nextVersion(order);
   const now = options.now || dateUtil.nowIso();
   const status = options.status || 'draft';
@@ -292,6 +294,7 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
     offsetAmount: offsetSummary.offsetAmount,
     rewardAmount: offsetSummary.offsetRows.filter((row) => row.type === 'reward').reduce((sum, row) => sum + money(row.amount), 0),
     finalDebtAmount,
+    rawFinalDebtAmount,
     returnOrderIds: returnSummary.returnOrderIds,
     paymentIds: paymentSummary.paymentIds
   };
@@ -304,6 +307,7 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
     offsetAmount: offsetSummary.offsetAmount,
     rewardAmount: offsetSummary.offsetRows.filter((row) => row.type === 'reward').reduce((sum, row) => sum + money(row.amount), 0),
     finalDebtAmount,
+    rawFinalDebtAmount,
     returnOrderIds: returnSummary.returnOrderIds,
     paymentIds: paymentSummary.paymentIds,
     status,
@@ -321,6 +325,7 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
     createdBy: order.deliveryCloseout?.createdBy || clean(options.actor || 'system'),
     updatedAt: now,
     updatedBy: clean(options.actor || 'system'),
+    reason: clean(options.reason || order.deliveryCloseout?.reason || ''),
     activeReturnOrders: returnSummary.activeReturnOrders,
     paymentRows: paymentSummary.paymentRows,
     offsetRows: offsetSummary.offsetRows
@@ -347,8 +352,9 @@ function compareCloseout(expected = {}, actual = {}, options = {}) {
       mismatches.push({ field, expected: money(expected[field]), actual: null, reason: 'missing_required_closeout_field' });
       continue;
     }
-    const expectedAmount = money(expected[field]);
-    const actualAmount = requireMoney(actual, field, { label: 'salesOrders.deliveryCloseout' }, { nonNegative: field !== 'finalDebtAmount' && field !== 'deliveredAmount' });
+    const expectedAmount = field === 'finalDebtAmount' ? normalizeDebtAmount(expected[field]) : money(expected[field]);
+    const actualRawAmount = requireMoney(actual, field, { label: 'salesOrders.deliveryCloseout' }, { nonNegative: field !== 'finalDebtAmount' && field !== 'deliveredAmount' });
+    const actualAmount = field === 'finalDebtAmount' ? normalizeDebtAmount(actualRawAmount) : actualRawAmount;
     if (Math.abs(expectedAmount - actualAmount) > tolerance) {
       mismatches.push({ field, expected: expectedAmount, actual: actualAmount, delta: expectedAmount - actualAmount });
     }
@@ -373,7 +379,8 @@ function confirmCloseout(order = {}, computed = {}, options = {}) {
     confirmedAt: now,
     confirmedBy: actor,
     updatedAt: now,
-    updatedBy: actor
+    updatedBy: actor,
+    reason: clean(options.reason || computed.reason || '')
   };
   const versionEntry = publicCloseoutVersion(snapshot);
   const previousVersions = Array.isArray(order.deliveryCloseout?.versions) ? order.deliveryCloseout.versions : [];
@@ -409,6 +416,7 @@ module.exports = {
   orderId,
   orderCode,
   positiveMoney,
+  normalizeDebtAmount,
   hasReturnSignalWithoutReturnOrders,
   validateSalesOrderContract,
   validateReturnOrderContract,

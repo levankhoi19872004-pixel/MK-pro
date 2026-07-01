@@ -11,7 +11,8 @@ test('Delivery Today New has salesman grouping panel like legacy delivery screen
   assert.match(source, /NVBH thuộc NVGH/);
   assert.match(source, /delivery-new-salesman-panel/);
   assert.match(source, /delivery-new-salesman-row/);
-  assert.match(source, /delivery-new-salesman-kpis/);
+  assert.match(source, /delivery-new-salesman-compact/);
+  assert.doesNotMatch(source, /delivery-new-salesman-kpis/);
 });
 
 test('Delivery Today New salesman grouping supports checkbox selection', () => {
@@ -22,9 +23,10 @@ test('Delivery Today New salesman grouping supports checkbox selection', () => {
   assert.match(source, /Chọn tất cả/);
 });
 
-test('Delivery Today New rows and KPI use selected salesman filter', () => {
+test('Delivery Today New rows and compact selected-salesman total use selected salesman filter', () => {
   assert.match(source, /getVisibleRowsBySelectedSalesmen/);
   assert.match(source, /summarizeVisibleRows/);
+  assert.match(source, /renderSelectedSalesmanCompactSummary/);
   assert.match(source, /renderSalesmanGroupPanel/);
   const renderRowsIndex = source.indexOf('function renderRows');
   const renderRowsBody = source.slice(renderRowsIndex, source.indexOf('function detailCell', renderRowsIndex));

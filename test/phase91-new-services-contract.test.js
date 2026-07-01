@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const debtNewService = require('../src/services/v2/debtNew.service');
 const deliveryTodayNewService = require('../src/services/v2/deliveryTodayNew.service');
+const { normalizeDebtAmount, DEBT_ZERO_TOLERANCE } = require('../src/constants/finance.constants');
 
 test('Debt New read model only counts AR-DEBT-* categories and excludes legacy AR categories', () => {
   const rows = [
@@ -276,4 +277,168 @@ test('Debt New routes expose collection submit confirm and reject under /api/new
   assert.match(route, /confirmDebtCollection/);
   assert.match(route, /rejectDebtCollection/);
   assert.match(route, /writeRoles/);
+});
+
+test('Debt New suggestion API is guarded and limited', async () => {
+  let arFindCalled = false;
+  debtNewService.setModelsForTest({
+    ArLedger: {
+      find() {
+        arFindCalled = true;
+        throw new Error('ArLedger.find must not be used when suggestion q is too short');
+      }
+    }
+  });
+
+  const result = await debtNewService.suggestions({ type: 'customerOrder', q: 'B', limit: 99 });
+  assert.equal(arFindCalled, false);
+  assert.equal(result.items.length, 0);
+  assert.equal(result.diagnostics.searchCriteriaRequired, true);
+  assert.equal(result.diagnostics.minQueryLength, 2);
+  assert.equal(debtNewService._private.suggestionLimit(99), 10);
+
+  debtNewService.setModelsForTest(null);
+});
+
+test('Debt New compact filter UI wires autocomplete without breaking search gate', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/new/92-debt-new.js'), 'utf8');
+  assert.match(source, /debt-new-filter-card/);
+  assert.match(source, /debt-new-filter-grid/);
+  assert.match(source, /debt-new-source-badge/);
+  assert.match(source, /debtNewSearchSuggestions/);
+  assert.match(source, /debtNewSalesmanSuggestions/);
+  assert.match(source, /debtNewDeliverySuggestions/);
+  assert.match(source, /fetch\('\/api\/new\/debt\/suggestions\?/);
+  assert.match(source, /value\.length < 2/);
+  assert.match(source, /limit: '10'/);
+  assert.match(source, /resetSelectedFilters\(\)/);
+  assert.match(source, /closeAllSuggestions\(\)/);
+  assert.match(source, /customerCode/);
+  assert.match(source, /orderCode/);
+  assert.match(source, /salesStaffCode/);
+  assert.match(source, /deliveryStaffCode/);
+  assert.doesNotMatch(source.slice(source.indexOf('function chooseSuggestion'), source.indexOf('function moveSuggestionActive')), /load\(\)/);
+});
+
+test('Debt New suggestion route is scoped and authenticated', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const route = fs.readFileSync(path.join(__dirname, '..', 'src/routes/newOperationsRoutes.js'), 'utf8');
+  assert.match(route, /router\.get\('\/debt\/suggestions'/);
+  assert.match(route, /debtNewService\.suggestions/);
+  assert.match(route, /requireAuth, readRoles/);
+  assert.match(route, /canonicalRoute: '\/api\/new\/debt\/suggestions'/);
+});
+
+test('Debt New suggestions return customer order and staff items from AR-DEBT read rows', async () => {
+  const rows = [
+    {
+      account: 'AR', category: 'AR-DEBT-OPEN', ledgerType: 'AR-DEBT-OPEN', debit: 1858440, credit: 0, amount: 1858440,
+      customerCode: 'B0038496', customerName: 'An Bình', sourceId: 'SO1', sourceCode: 'SO178-AB', orderCode: 'SO178-AB',
+      salesStaffCode: '39534', salesStaffName: 'Lương Thị Kiều', deliveryStaffCode: 'ghkx', deliveryStaffName: 'Thành GH Kiến Xương',
+      active: true, accountingConfirmed: true, accountingStatus: 'confirmed', direction: 'debit', amountField: 'debit'
+    }
+  ];
+  debtNewService.setModelsForTest({
+    ArLedger: {
+      find() {
+        return {
+          sort() { return this; },
+          limit() { return this; },
+          lean() { return this; },
+          then(resolve) { return Promise.resolve(resolve(rows)); }
+        };
+      }
+    }
+  });
+
+  const customerResult = await debtNewService.suggestions({ type: 'customerOrder', q: 'B003', limit: 10 });
+  assert.equal(customerResult.items.some((item) => item.type === 'customer' && item.code === 'B0038496'), true);
+  assert.equal(customerResult.items.some((item) => item.type === 'order' && item.orderCode === 'SO178-AB'), true);
+
+  const staffResult = await debtNewService.suggestions({ type: 'salesman', q: 'Kiều', limit: 10 });
+  assert.equal(staffResult.items.length, 1);
+  assert.equal(staffResult.items[0].code, '39534');
+  assert.match(staffResult.items[0].label, /Lương Thị Kiều/);
+
+  debtNewService.setModelsForTest(null);
+});
+
+
+test('Debt zero tolerance normalizes delivery debt between -1000 and 1000 to zero', () => {
+  assert.equal(DEBT_ZERO_TOLERANCE, 1000);
+  assert.equal(normalizeDebtAmount(999), 0);
+  assert.equal(normalizeDebtAmount(1000), 0);
+  assert.equal(normalizeDebtAmount(1001), 1001);
+  assert.equal(normalizeDebtAmount(-999), 0);
+  assert.equal(normalizeDebtAmount(-1000), 0);
+  assert.equal(normalizeDebtAmount(-1001), -1001);
+});
+
+test('Delivery Today New backend summary uses normalized debt amount', () => {
+  const rowA = deliveryTodayNewService.summarizeOrder({
+    id: 'SO-TOLERANCE-1', code: 'SO-TOLERANCE-1', customerCode: 'KH1', customerName: 'Khach 1', totalAmount: 1000000,
+    deliveryCloseout: { collectedAmount: 999500, status: 'draft' }
+  }, new Map(), new Map());
+  assert.equal(rowA.rawFinalDebtAmount, 500);
+  assert.equal(rowA.finalDebtAmount, 0);
+
+  const rowB = deliveryTodayNewService.summarizeOrder({
+    id: 'SO-TOLERANCE-2', code: 'SO-TOLERANCE-2', customerCode: 'KH2', customerName: 'Khach 2', totalAmount: 1000000,
+    deliveryCloseout: { collectedAmount: 998999, status: 'draft' }
+  }, new Map(), new Map());
+  assert.equal(rowB.finalDebtAmount, 1001);
+
+  const summary = deliveryTodayNewService.summarizeRows([rowA, rowB]);
+  assert.equal(summary.finalDebtAmount, 1001);
+});
+
+test('Delivery Today New closeout UI has compact KPI and closeout action', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/new/91-delivery-today-new.js'), 'utf8');
+  assert.match(source, /deliveryTodayNewCloseout/);
+  assert.match(source, /Chốt sổ giao hàng/);
+  assert.match(source, /deliveryTodayNewCloseoutModal/);
+  assert.match(source, /renderSelectedSalesmanCompactSummary/);
+  assert.match(source, /Tổng theo NVBH đã chọn/);
+  assert.match(source, /\/api\/new\/delivery-today\/closeout/);
+  assert.match(source, /Đã chốt sổ/);
+  assert.doesNotMatch(source, /delivery-new-salesman-kpis/);
+  assert.doesNotMatch(source, /renderSalesmanKpis/);
+});
+
+test('Delivery Today New closeout route is authenticated and uses accounting closeout service', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const route = fs.readFileSync(path.join(__dirname, '..', 'src/routes/newOperationsRoutes.js'), 'utf8');
+  assert.match(route, /router\.post\('\/delivery-today\/closeout'/);
+  assert.match(route, /closeoutRoles = requireRole\(\['admin', 'accountant'\]\)/);
+  assert.match(route, /requireAuth, closeoutRoles/);
+  assert.match(route, /AccountingCloseoutService\.confirmDeliveryAccounting/);
+  assert.match(route, /DELIVERY_CLOSEOUT_REASON_REQUIRED/);
+  assert.match(route, /debtLedgerCreated/);
+  assert.match(route, /skippedZeroDebt/);
+  assert.match(route, /totalDebtPosted/);
+  assert.match(route, /canonicalRoute: '\/api\/new\/delivery-today\/closeout'/);
+});
+
+test('AR-DEBT-OPEN posting source applies debt zero tolerance before creating ledger', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src/services/accounting/ArDebtOpenPostingService.js'), 'utf8');
+  assert.match(source, /normalizeDebtAmount/);
+  assert.match(source, /const amount = normalizeDebtAmount\(closeout\.finalDebtAmount\)/);
+  assert.match(source, /amount < 0/);
+  assert.match(source, /overpayment_final_debt_negative/);
+  assert.match(source, /amount === 0/);
+  assert.match(source, /zero_final_debt/);
+  assert.match(source, /category: 'AR-DEBT-OPEN'/);
+  assert.match(source, /ledgerType: 'AR-DEBT-OPEN'/);
+  assert.match(source, /entryType: 'normal'/);
+  assert.match(source, /active: true/);
+  assert.match(source, /reversed: false/);
+  assert.match(source, /idempotencyKey: `AR-DEBT-OPEN:\$\{sourceId\}`/);
 });

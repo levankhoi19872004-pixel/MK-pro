@@ -4,6 +4,13 @@ const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../..
 const { normalizeAccountingAmount } = require('../../domain/ar/arLedgerValidator');
 const arLedgerReadService = require('../arLedgerRead.service');
 
+let modelsForDebtNew = null;
+function getDebtNewModels() {
+  if (modelsForDebtNew) return modelsForDebtNew;
+  modelsForDebtNew = { ArLedger: require('../../models/ArLedger') };
+  return modelsForDebtNew;
+}
+
 const ALLOWED_CATEGORIES = Object.freeze([
   'AR-DEBT-OPEN',
   'AR-DEBT-PAYMENT',
@@ -12,6 +19,7 @@ const ALLOWED_CATEGORIES = Object.freeze([
 ]);
 
 function setModelsForTest(nextModels) {
+  modelsForDebtNew = nextModels || null;
   arLedgerReadService.setModelsForTest(nextModels || null);
 }
 
@@ -340,6 +348,156 @@ async function listCustomers(query = {}, options = {}) {
   };
 }
 
+
+
+async function findSuggestionLedgers(match = {}, limit = 100, options = {}) {
+  const { ArLedger } = getDebtNewModels();
+  const query = ArLedger.find(match);
+  if (options.session && typeof query.session === 'function') query.session(options.session);
+  if (typeof query.sort === 'function') query.sort({ customerCode: 1, customerName: 1, sourceCode: 1, date: -1, createdAt: -1 });
+  if (typeof query.limit === 'function') query.limit(Math.max(1, Math.min(200, Number(limit) || 100)));
+  if (typeof query.lean === 'function') query.lean();
+  return query;
+}
+
+function suggestionLimit(value) {
+  const n = Number(value || 10);
+  return Math.max(1, Math.min(10, Number.isFinite(n) ? Math.round(n) : 10));
+}
+
+function suggestionTextMatches(value, q) {
+  const hay = upper(value);
+  const needle = upper(q);
+  return hay.includes(needle);
+}
+
+function formatSuggestionMoney(value) {
+  return money(value).toLocaleString('vi-VN');
+}
+
+function pushUniqueSuggestion(target, seen, item, q) {
+  const key = `${item.type || ''}:${item.code || ''}:${item.orderCode || ''}:${item.name || ''}`.toUpperCase();
+  if (!key || seen.has(key)) return;
+  const starts = upper(item.code || item.orderCode || item.label).startsWith(upper(q));
+  target.push({ ...item, _rank: starts ? 0 : 1 });
+  seen.add(key);
+}
+
+function emptySuggestionResult(type, reason = 'MIN_QUERY_LENGTH') {
+  return {
+    items: [],
+    diagnostics: {
+      source: 'debt-new-suggestions-guarded-empty',
+      endpoint: '/api/new/debt/suggestions',
+      type: text(type || ''),
+      reason,
+      minQueryLength: 2,
+      limit: 10,
+      searchCriteriaRequired: true
+    }
+  };
+}
+
+async function customerOrderSuggestions(q, type, limit, options = {}) {
+  const rows = await findSuggestionLedgers(buildLedgerMatch({ q }), Math.max(50, limit * 10), options);
+  const result = groupLedgers(Array.isArray(rows) ? rows : [], { status: 'all' });
+  const items = [];
+  const seen = new Set();
+  const includeCustomer = !type || type === 'customerorder' || type === 'customers' || type === 'customer';
+  const includeOrder = !type || type === 'customerorder' || type === 'orders' || type === 'order';
+
+  for (const customer of result.customers || []) {
+    if (includeCustomer && (suggestionTextMatches(customer.customerCode, q) || suggestionTextMatches(customer.customerName, q) || suggestionTextMatches(customer.phone, q))) {
+      pushUniqueSuggestion(items, seen, {
+        type: 'customer',
+        code: customer.customerCode || '',
+        name: customer.customerName || '',
+        phone: customer.phone || '',
+        debtAmount: customer.debt || customer.remainingDebt || 0,
+        label: [customer.customerCode, customer.customerName].filter(Boolean).join(' - '),
+        subLabel: [customer.phone ? `SĐT: ${customer.phone}` : '', `Nợ: ${formatSuggestionMoney(customer.debt || customer.remainingDebt || 0)}`].filter(Boolean).join(' · ')
+      }, q);
+    }
+    if (includeOrder) {
+      for (const order of customer.orders || []) {
+        const orderCode = order.orderCode || order.salesOrderCode || order.orderId || order.salesOrderId || '';
+        if (!suggestionTextMatches(orderCode, q) && !suggestionTextMatches(customer.customerCode, q) && !suggestionTextMatches(customer.customerName, q)) continue;
+        pushUniqueSuggestion(items, seen, {
+          type: 'order',
+          orderCode,
+          code: orderCode,
+          customerCode: customer.customerCode || order.customerCode || '',
+          customerName: customer.customerName || order.customerName || '',
+          debtAmount: order.debt || order.remainingDebt || 0,
+          label: [orderCode, customer.customerCode || order.customerCode, customer.customerName || order.customerName].filter(Boolean).join(' - '),
+          subLabel: `Còn nợ: ${formatSuggestionMoney(order.debt || order.remainingDebt || 0)}`
+        }, q);
+      }
+    }
+  }
+
+  return {
+    items: items.sort((a, b) => (a._rank - b._rank) || String(a.label || '').localeCompare(String(b.label || ''), 'vi')).slice(0, limit).map(({ _rank, ...row }) => row),
+    diagnostics: {
+      source: 'debt-new-suggestions-ar-debt-read-model',
+      endpoint: '/api/new/debt/suggestions',
+      type: type || 'customerOrder',
+      limit,
+      searchCriteriaRequired: false
+    }
+  };
+}
+
+async function staffSuggestions(q, role, limit, options = {}) {
+  const isDelivery = ['delivery', 'deliverystaff', 'nvgh'].includes(role);
+  const rows = await findSuggestionLedgers(buildLedgerMatch(isDelivery ? { delivery: q } : { salesman: q }), Math.max(50, limit * 10), options);
+  const result = groupLedgers(Array.isArray(rows) ? rows : [], { status: 'all' });
+  const map = new Map();
+  for (const customer of result.customers || []) {
+    const code = text(isDelivery ? customer.deliveryStaffCode : customer.salesStaffCode);
+    const name = text(isDelivery ? customer.deliveryStaffName : customer.salesStaffName);
+    if (!code && !name) continue;
+    if (!suggestionTextMatches(code, q) && !suggestionTextMatches(name, q)) continue;
+    const key = upper(code || name);
+    const row = map.get(key) || { code, name, customerCount: 0, debtAmount: 0 };
+    row.customerCount += 1;
+    row.debtAmount += money(customer.debt || customer.remainingDebt || 0);
+    map.set(key, row);
+  }
+  const items = Array.from(map.values()).map((row) => ({
+    type: isDelivery ? 'delivery' : 'salesman',
+    code: row.code,
+    name: row.name,
+    label: [row.code, row.name].filter(Boolean).join(' - '),
+    subLabel: `Khách nợ: ${row.customerCount} · Nợ: ${formatSuggestionMoney(row.debtAmount)}`,
+    debtAmount: money(row.debtAmount),
+    customerCount: row.customerCount,
+    _rank: upper(row.code).startsWith(upper(q)) ? 0 : 1
+  })).sort((a, b) => (a._rank - b._rank) || String(a.label || '').localeCompare(String(b.label || ''), 'vi')).slice(0, limit).map(({ _rank, ...row }) => row);
+  return {
+    items,
+    diagnostics: {
+      source: 'debt-new-staff-suggestions-ar-debt-read-model',
+      endpoint: '/api/new/debt/suggestions',
+      type: isDelivery ? 'delivery' : 'salesman',
+      limit,
+      searchCriteriaRequired: false
+    }
+  };
+}
+
+async function suggestions(query = {}, options = {}) {
+  const q = text(query.q || query.search || query.keyword);
+  const type = upper(query.type || 'customerOrder').replace(/[^A-Z]/g, '').toLowerCase();
+  const limit = suggestionLimit(query.limit);
+  if (q.length < 2) return emptySuggestionResult(query.type, 'MIN_QUERY_LENGTH');
+  if (['salesman', 'sales', 'salesstaff', 'nvbh'].includes(type)) return staffSuggestions(q, 'salesman', limit, options);
+  if (['delivery', 'deliverystaff', 'nvgh'].includes(type)) return staffSuggestions(q, 'delivery', limit, options);
+  if (['order', 'orders'].includes(type)) return customerOrderSuggestions(q, 'order', limit, options);
+  if (['customer', 'customers'].includes(type)) return customerOrderSuggestions(q, 'customer', limit, options);
+  return customerOrderSuggestions(q, 'customerorder', limit, options);
+}
+
 module.exports = {
   ALLOWED_CATEGORIES,
   buildLedgerMatch,
@@ -347,6 +505,7 @@ module.exports = {
   ledgerEffect,
   groupLedgers,
   listCustomers,
+  suggestions,
   setModelsForTest,
-  _private: { normalizeLedger, orderKey, hasSearchCriteria, emptyListResult, emptySummary }
+  _private: { normalizeLedger, orderKey, hasSearchCriteria, emptyListResult, emptySummary, emptySuggestionResult, suggestionLimit, findSuggestionLedgers }
 };

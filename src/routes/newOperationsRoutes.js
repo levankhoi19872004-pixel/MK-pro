@@ -6,10 +6,12 @@ const deliveryTodayNewService = require('../services/v2/deliveryTodayNew.service
 const debtNewService = require('../services/v2/debtNew.service');
 const deliveryCloseoutCorrectionService = require('../services/deliveryCloseoutCorrection.service');
 const DebtCollectionService = require('../services/DebtCollectionService');
+const AccountingCloseoutService = require('../services/accounting/AccountingCloseoutService');
 
 const router = express.Router();
 const readRoles = requireRole(['admin', 'manager', 'accountant', 'warehouse']);
 const writeRoles = requireRole(['admin', 'manager', 'accountant']);
+const closeoutRoles = requireRole(['admin', 'accountant']);
 
 function sendError(res, err, fallback) {
   const status = Number(err && err.status) || 500;
@@ -37,6 +39,56 @@ router.get('/delivery-today/orders', requireAuth, readRoles, async (req, res) =>
     });
   } catch (err) {
     return sendError(res, err, 'Không tải được Đơn giao hôm nay (New)');
+  }
+});
+
+router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const reason = String(body.reason || body.note || '').trim();
+    if (!reason) {
+      return res.status(400).json({ ok: false, success: false, code: 'DELIVERY_CLOSEOUT_REASON_REQUIRED', message: 'Vui lòng nhập lý do chốt sổ giao hàng.' });
+    }
+    const actor = req.user?.username || req.user?.name || req.user?.email || req.user?.role || 'accountant';
+    const result = await AccountingCloseoutService.confirmDeliveryAccounting({
+      ...body,
+      date: body.date || body.deliveryDate,
+      confirmedBy: actor,
+      accountantName: actor,
+      reason
+    });
+    if (result && result.error) {
+      return res.status(result.status || 400).json({ ok: false, success: false, code: result.code || 'DELIVERY_CLOSEOUT_REJECTED', message: result.error, data: result });
+    }
+    const rows = Array.isArray(result && result.results) ? result.results : [];
+    const debtLedgerCreated = rows.filter((row) => row.arDebtOpen && row.arDebtOpen.posted).length;
+    const idempotentLedgers = rows.filter((row) => row.arDebtOpen && row.arDebtOpen.idempotent).length;
+    const skippedZeroDebt = rows.filter((row) => row.arDebtOpen && row.arDebtOpen.skipped && row.arDebtOpen.reason === 'zero_final_debt').length;
+    const overpaymentWarnings = rows.filter((row) => row.arDebtOpen && row.arDebtOpen.exception).map((row) => ({ orderId: row.orderId, reason: row.arDebtOpen.reason, overpaymentAmount: row.arDebtOpen.overpaymentAmount }));
+    const totalDebtPosted = rows.reduce((sum, row) => {
+      const entry = row.arDebtOpen && row.arDebtOpen.entry;
+      const amount = entry ? Number(entry.amount || entry.debit || 0) : 0;
+      return sum + (Number.isFinite(amount) && amount > 0 ? Math.round(amount) : 0);
+    }, 0);
+    const closeoutId = `DTC-${String(body.date || body.deliveryDate || '').replace(/[^0-9]/g, '') || 'DATE'}-${String(body.deliveryStaffCode || body.delivery || 'ALL').replace(/[^a-zA-Z0-9_-]/g, '')}-${Date.now()}`;
+    return res.json({
+      ok: true,
+      success: true,
+      message: 'Đã chốt sổ giao hàng',
+      closeoutId,
+      checkedOrders: result.totalOrders || rows.length,
+      closedOrders: result.confirmedOrders || 0,
+      skippedOrders: result.skippedOrders || 0,
+      debtLedgerCreated,
+      idempotentLedgers,
+      skippedZeroDebt,
+      totalDebtPosted,
+      warnings: overpaymentWarnings,
+      data: { ...result, closeoutId, debtLedgerCreated, idempotentLedgers, skippedZeroDebt, totalDebtPosted, warnings: overpaymentWarnings },
+      canonicalRoute: '/api/new/delivery-today/closeout'
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không chốt được sổ giao hàng');
   }
 });
 
@@ -91,6 +143,23 @@ router.get('/delivery-today/closeouts/:id/versions', requireAuth, readRoles, asy
     });
   } catch (err) {
     return sendError(res, err, 'Không tải được closeout versions');
+  }
+});
+
+
+router.get('/debt/suggestions', requireAuth, readRoles, async (req, res) => {
+  try {
+    const result = await debtNewService.suggestions(req.query || {});
+    return res.json({
+      ok: true,
+      success: true,
+      message: 'Đã tải gợi ý Công nợ (New)',
+      items: result.items || [],
+      diagnostics: result.diagnostics,
+      canonicalRoute: '/api/new/debt/suggestions'
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không tải được gợi ý Công nợ (New)');
   }
 });
 
