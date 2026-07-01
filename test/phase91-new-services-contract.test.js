@@ -547,3 +547,73 @@ test('Closeout source code blocks PT minus HT debt formula and exposes diagnosti
   assert.match(accountingSource, /normalizedDebtAmount/);
   assert.match(accountingSource, /OVERPAID_OR_NEGATIVE_DEBT/);
 });
+
+test('Phase110 delivery debt formula subtracts TH/reward before posting AR-DEBT', () => {
+  let result = calculateDeliveryDebtAmount({
+    receivableAmount: 5400573,
+    cashAmount: 0,
+    bankAmount: 0,
+    rewardAmount: 1820000,
+    returnAmount: 0
+  });
+  assert.equal(result.rawDebtAmount, 3580573);
+  assert.equal(result.debtAmount, 3580573);
+
+  result = calculateDeliveryDebtAmount({
+    receivableAmount: 3525946,
+    cashAmount: 0,
+    bankAmount: 2600000,
+    rewardAmount: 925000,
+    returnAmount: 0
+  });
+  assert.equal(result.rawDebtAmount, 946);
+  assert.equal(result.debtAmount, 0);
+
+  result = calculateDeliveryDebtAmount({
+    receivableAmount: 10000000,
+    cashAmount: 1000000,
+    bankAmount: 2000000,
+    rewardAmount: 3000000,
+    returnAmount: 4000000
+  });
+  assert.equal(result.rawDebtAmount, 0);
+  assert.equal(result.debtAmount, 0);
+});
+
+test('Phase110 delivery closeout maps reward/offset aliases into TH and final debt', () => {
+  const aliases = [
+    'rewardAmount',
+    'bonusAmount',
+    'allowanceAmount',
+    'promotionRewardAmount',
+    'displayRewardAmount',
+    'bonusReturnAmount',
+    'offsetAmount',
+    'debtOffsetAmount'
+  ];
+  for (const field of aliases) {
+    const order = {
+      id: `SO-${field}`,
+      code: `B-${field}`,
+      customerCode: 'KH1',
+      customerName: 'Khach 1',
+      totalAmount: 5400573,
+      [field]: 1820000
+    };
+    const closeout = DeliveryCloseoutService.buildCloseout(order, [], [], { actor: 'test' });
+    assert.equal(closeout.rawFinalDebtAmount, 3580573, `alias ${field} must be deducted from debt`);
+    assert.equal(closeout.finalDebtAmount, 3580573, `alias ${field} must be posted as normalized debt`);
+    assert.equal(closeout.offsetAmount, 1820000, `alias ${field} must appear in TH/offset diagnostic`);
+  }
+});
+
+test('Phase110 AR-DEBT-OPEN source stores reward/offset diagnostic fields', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src/services/accounting/ArDebtOpenPostingService.js'), 'utf8');
+  assert.match(source, /amount = normalizeDebtAmount\(closeout\.finalDebtAmount\)/);
+  assert.match(source, /rewardAmount:\s*money\(closeout\.offsetAmount \?\? closeout\.rewardAmount\)/);
+  assert.match(source, /offsetAmount:\s*money\(closeout\.offsetAmount\)/);
+  assert.match(source, /rawFinalDebtAmount/);
+  assert.match(source, /finalDebtAmount/);
+});

@@ -550,7 +550,9 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     rewardAmount: money(rewardAmount + offsetAmount),
     returnAmount: returnedAmount
   });
-  const rawFinalDebtAmount = money((latestVersion && (latestVersion.finalDebtAmount ?? latestVersion.debtAmount)) ?? debtCalculation.rawDebtAmount);
+  const rawFinalDebtAmount = latestVersion
+    ? money(latestVersion.finalDebtAmount ?? latestVersion.debtAmount ?? debtCalculation.rawDebtAmount)
+    : money(debtCalculation.rawDebtAmount);
   const finalDebtAmount = normalizeDebtAmount(rawFinalDebtAmount);
   const closeoutFinalDebt = latestVersion
     ? finalDebtAmount

@@ -141,3 +141,21 @@ test('Phase109 correction versions expose final-state payment fields in models',
     assert.match(correctionModel, new RegExp(`${token}: Number`));
   }
 });
+
+test('Phase110 delivery closeout and AR-DEBT posting must include reward/TH in debt formula and diagnostics', () => {
+  const finance = read('src/constants/finance.constants.js');
+  const closeout = read('src/services/accounting/DeliveryCloseoutService.js');
+  const arOpen = read('src/services/accounting/ArDebtOpenPostingService.js');
+  const accounting = read('src/services/accounting/AccountingCloseoutService.js');
+  assert.match(finance, /REWARD_AMOUNT_FIELDS/);
+  assert.match(finance, /rewardAmount/);
+  assert.match(finance, /offsetAmount/);
+  assert.match(finance, /debtOffsetAmount/);
+  assert.match(finance, /receivableAmount - cashAmount - bankAmount - rewardAmount - returnAmount/);
+  assert.match(closeout, /rewardAmount:\s*money\(offsetSummary\.offsetAmount\)/);
+  assert.match(arOpen, /rewardAmount:\s*money\(closeout\.offsetAmount \?\? closeout\.rewardAmount\)/);
+  assert.match(accounting, /rewardAmount:\s*DeliveryCloseoutService\._internal\.money\(closeout\.offsetAmount \?\? closeout\.rewardAmount\)/);
+  assert.doesNotMatch(arOpen, /receivableAmount\s*-\s*cashAmount\s*-\s*bankAmount\s*-\s*returnAmount/);
+  assert.doesNotMatch(closeout, /receivableAmount\s*-\s*cashAmount\s*-\s*bankAmount\s*-\s*returnAmount/);
+});
+

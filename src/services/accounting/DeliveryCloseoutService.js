@@ -198,7 +198,8 @@ function closeoutMoney(source = {}, fields = []) {
 
 const CASH_FIELDS = ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount', 'paymentCashAmount', 'paidCashAmount', 'paidCash', 'collectedCash', 'deliveryCashAmount', 'collectedCashAmount', 'cashCollected', 'cash'];
 const BANK_FIELDS = ['bankAmount', 'transferAmount', 'bankTransferAmount', 'paymentTransferAmount', 'paymentBankAmount', 'paidBankAmount', 'paidTransferAmount', 'collectedBankAmount', 'deliveryBankAmount', 'bankCollectedAmount', 'collectedTransferAmount', 'collectedTransfer', 'transferCollected', 'bankCollected', 'bank'];
-const REWARD_FIELDS = ['rewardAmount', 'bonusAmount', 'allowanceAmount', 'promotionRewardAmount', 'displayRewardAmount', 'bonusReturnAmount'];
+const REWARD_FIELDS = ['rewardAmount', 'bonusAmount', 'allowanceAmount', 'promotionRewardAmount', 'displayRewardAmount', 'bonusReturnAmount', 'rewardOffsetAmount', 'promotionOffsetAmount'];
+const OFFSET_FIELDS = ['offsetAmount', 'debtOffsetAmount', 'deliveryOffsetAmount', 'otherOffsetAmount'];
 const RETURN_FIELDS = ['returnAmount', 'returnedAmount', 'returnOrderAmount', 'actualReturnAmount', 'returnAmountFromReturnOrders', 'syncedReturnAmountFromReturnOrders'];
 
 function orderMoneyValue(order = {}, closeout = {}, fields = [], label = 'amount') {
@@ -236,13 +237,18 @@ function summarizeCloseoutBreakdownPayments(order = {}) {
 
 function summarizeOffsets(order = {}) {
   const closeout = order.deliveryCloseout && typeof order.deliveryCloseout === 'object' ? order.deliveryCloseout : {};
-  const explicitOffset = orderMoneyValue(order, closeout, ['offsetAmount', 'debtOffsetAmount', 'deliveryOffsetAmount'], 'offsetAmount');
+  const explicitOffset = orderMoneyValue(order, closeout, OFFSET_FIELDS, 'offsetAmount');
   const rewardOffset = orderMoneyValue(order, closeout, REWARD_FIELDS, 'rewardAmount');
-  const offsetAmount = money(explicitOffset + rewardOffset);
+
+  // TH trên màn giao hàng là khoản cấn trừ hợp lệ. Một số dữ liệu legacy lưu cùng giá trị
+  // ở cả offsetAmount và rewardAmount; nếu cộng đôi sẽ làm giảm công nợ sai.
+  const offsetAmount = explicitOffset > 0 && rewardOffset > 0 && explicitOffset === rewardOffset
+    ? money(rewardOffset)
+    : money(explicitOffset + rewardOffset);
   const offsetRows = [];
   if (explicitOffset > 0) offsetRows.push({ type: 'offset', amount: explicitOffset });
   if (rewardOffset > 0) offsetRows.push({ type: 'reward', amount: rewardOffset });
-  return { offsetAmount, rewardAmount: rewardOffset, offsetRows };
+  return { offsetAmount, rewardAmount: rewardOffset || explicitOffset, offsetRows };
 }
 
 function summarizePayments(order = {}, explicitPayments = []) {
@@ -324,6 +330,7 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
     receivableAmount: baseAmount,
     cashAmount,
     bankAmount,
+    // rewardAmount trong công thức là toàn bộ TH/cấn trừ đã chuẩn hóa (reward + offset, chống double-count).
     rewardAmount: money(offsetSummary.offsetAmount),
     returnAmount: returnSummary.returnedAmount
   });
