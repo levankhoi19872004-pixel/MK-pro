@@ -45,6 +45,10 @@ router.get('/delivery-today/orders', requireAuth, readRoles, async (req, res) =>
 router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, res) => {
   try {
     const body = req.body || {};
+    const orderIds = Array.isArray(body.orderIds) ? body.orderIds.map((value) => String(value || '').trim()).filter(Boolean) : [];
+    if (!orderIds.length) {
+      return res.status(400).json({ ok: false, success: false, code: 'ORDER_SELECTION_REQUIRED', message: 'Vui lòng chọn ít nhất một đơn để chốt sổ.' });
+    }
     const reason = String(body.reason || body.note || '').trim();
     if (!reason) {
       return res.status(400).json({ ok: false, success: false, code: 'DELIVERY_CLOSEOUT_REASON_REQUIRED', message: 'Vui lòng nhập lý do chốt sổ giao hàng.' });

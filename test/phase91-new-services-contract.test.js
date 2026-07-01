@@ -442,3 +442,26 @@ test('AR-DEBT-OPEN posting source applies debt zero tolerance before creating le
   assert.match(source, /reversed: false/);
   assert.match(source, /idempotencyKey: `AR-DEBT-OPEN:\$\{sourceId\}`/);
 });
+
+test('Delivery closeout route requires explicit selected orderIds', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const route = fs.readFileSync(path.join(__dirname, '..', 'src/routes/newOperationsRoutes.js'), 'utf8');
+  assert.match(route, /ORDER_SELECTION_REQUIRED/);
+  assert.match(route, /Array\.isArray\(body\.orderIds\)/);
+  assert.match(route, /Vui lòng chọn ít nhất một đơn để chốt sổ/);
+  assert.match(route, /AccountingCloseoutService\.confirmDeliveryAccounting/);
+});
+
+test('Accounting closeout validates selected order scope before posting AR-DEBT', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src/services/accounting/AccountingCloseoutService.js'), 'utf8');
+  assert.match(source, /function validateSelectedOrderScope/);
+  assert.match(source, /ORDER_SELECTION_REQUIRED/);
+  assert.match(source, /ORDER_SELECTION_NOT_FOUND/);
+  assert.match(source, /ORDER_SELECTION_DATE_MISMATCH/);
+  assert.match(source, /ORDER_SELECTION_DELIVERY_STAFF_MISMATCH/);
+  assert.match(source, /ORDER_SELECTION_SALES_STAFF_MISMATCH/);
+  assert.match(source, /validateSelectedOrderScope\(orders, body, selectedOrderIds\)/);
+});

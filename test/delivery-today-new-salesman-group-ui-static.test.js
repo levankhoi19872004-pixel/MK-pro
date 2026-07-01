@@ -42,3 +42,29 @@ test('Delivery Today New salesman grouping does not touch legacy accounting flow
   assert.doesNotMatch(source, /InventoryPostingService/);
   assert.doesNotMatch(source, /ReturnArPostingService/);
 });
+
+test('Delivery Today New order list has selectable rows and clear header columns', () => {
+  assert.match(source, /deliveryTodayNewSelectAllOrders/);
+  assert.match(source, /deliveryTodayNewClearOrders/);
+  assert.match(source, /deliveryTodayNewSelectionCount/);
+  assert.match(source, /deliveryTodayNewOrderSelect/);
+  assert.match(source, /selectedOrderIds:\s*new Set\(\)/);
+  assert.match(source, /toggleOrderSelection/);
+  assert.match(source, /selectAllVisibleOrders/);
+  assert.match(source, /clearSelectedOrders/);
+  assert.match(source, /getSelectedOrders/);
+  assert.match(source, /closeoutScope:\s*'selected_orders'/);
+  assert.doesNotMatch(source, /Đơn \/ Khách hàngPTTMCKTHHTCNTrạng tháiThao tác/);
+});
+
+test('Delivery Today New closeout is based on selected orderIds only', () => {
+  const submitStart = source.indexOf('async function submitCloseout');
+  const submitBody = source.slice(submitStart, source.indexOf('function detailCell', submitStart));
+  assert.match(submitBody, /var rows = selectedCloseoutRows\(\)/);
+  assert.match(submitBody, /var orderIds = rows\.map\(rowKey\)/);
+  assert.match(submitBody, /orderIds: orderIds/);
+  assert.match(submitBody, /closeoutScope:\s*'selected_orders'/);
+  const selectedStart = source.indexOf('function selectedCloseoutRows');
+  const selectedBody = source.slice(selectedStart, source.indexOf('function closeoutSummary', selectedStart));
+  assert.match(selectedBody, /getSelectedOrders\(\)/);
+});

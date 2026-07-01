@@ -2,7 +2,7 @@
   'use strict';
 
   var rootId = 'deliveryTodayNewRoot';
-  var state = { rows: [], selectedIndex: -1, loaded: false, hasSearched: false, userTouchedFilters: false, deliveryDateTouched: false, versionCache: {}, correctionReturnItems: [], adjustmentRow: null, activeTab: 'overview', selectedSalesmanKeys: {}, salesmanGroups: [], closeoutBusy: false };
+  var state = { rows: [], selectedIndex: -1, loaded: false, hasSearched: false, userTouchedFilters: false, deliveryDateTouched: false, versionCache: {}, correctionReturnItems: [], adjustmentRow: null, activeTab: 'overview', selectedSalesmanKeys: {}, salesmanGroups: [], selectedOrderIds: new Set(), closeoutBusy: false };
 
   function byId(id) { return document.getElementById(id); }
   function esc(value) {
@@ -56,8 +56,8 @@
       '</section>' +
       '<main class="delivery-new-main-list">' +
         '<section class="card delivery-v46-list-panel delivery-new-list-panel-full">' +
-          '<div class="delivery-v46-panel-title delivery-v46-panel-title-with-actions"><h3>Danh sách đơn</h3><div class="delivery-v46-list-actions delivery-new-closeout-toolbar"><span id="deliveryTodayNewOrderCount">0 đơn</span><button id="deliveryTodayNewCloseout" type="button" class="primary-action delivery-new-closeout-btn" disabled>Chốt sổ giao hàng</button></div></div>' +
-          '<div class="mk-delivery-list-head mk-delivery-list-grid delivery-new-list-grid"><span>Đơn / Khách hàng</span><span>PT</span><span>TM</span><span>CK</span><span>TH</span><span>HT</span><span>CN</span><span>Trạng thái</span><span>Thao tác</span></div>' +
+          '<div class="delivery-v46-panel-title delivery-v46-panel-title-with-actions delivery-new-orders-toolbar"><h3>Danh sách đơn</h3><div class="delivery-v46-list-actions delivery-new-closeout-toolbar"><span id="deliveryTodayNewOrderCount">0 đơn</span><span id="deliveryTodayNewSelectionCount" class="delivery-new-selection-count">0 đơn được chọn</span><button id="deliveryTodayNewSelectAllOrders" type="button" class="secondary">Chọn tất cả</button><button id="deliveryTodayNewClearOrders" type="button" class="secondary">Bỏ chọn</button><button id="deliveryTodayNewCloseout" type="button" class="primary-action delivery-new-closeout-btn" disabled>Chốt sổ giao hàng</button></div></div>' +
+          '<div class="mk-delivery-list-head mk-delivery-list-grid delivery-new-list-grid"><span class="delivery-new-order-check-head">✓</span><span>Đơn / Khách hàng</span><span>PT</span><span>TM</span><span>CK</span><span>TH</span><span>HT</span><span>CN</span><span>Trạng thái</span><span>Thao tác</span></div>' +
           '<div id="deliveryTodayNewTable" class="delivery-v46-list"><div class="empty-state">Chưa tải đơn.</div></div>' +
         '</section>' +
       '</main>' +
@@ -79,6 +79,10 @@
     if (resetButton) resetButton.addEventListener('click', resetFiltersToEmptyState);
     var closeoutButton = byId('deliveryTodayNewCloseout');
     if (closeoutButton) closeoutButton.addEventListener('click', openCloseoutModal);
+    var selectAllOrdersButton = byId('deliveryTodayNewSelectAllOrders');
+    var clearOrdersButton = byId('deliveryTodayNewClearOrders');
+    if (selectAllOrdersButton) selectAllOrdersButton.addEventListener('click', selectAllVisibleOrders);
+    if (clearOrdersButton) clearOrdersButton.addEventListener('click', clearSelectedOrders);
     ['deliveryTodayNewSearch', 'deliveryTodayNewDelivery', 'deliveryTodayNewSalesman'].forEach(function (id) {
       var el = byId(id);
       if (el) {
@@ -98,8 +102,8 @@
     var style = document.createElement('style');
     style.id = 'deliveryTodayNewScopedStyle';
     style.textContent = '' +
-      '.delivery-new-main-list{display:block;}.delivery-new-list-panel-full{width:100%;}.delivery-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.delivery-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.delivery-new-empty-state span{display:block;color:#64748b;font-weight:700;}.delivery-new-results-hidden{display:none!important;}.delivery-new-salesman-panel{margin:12px 0;padding:0;overflow:hidden;}.delivery-new-salesman-empty{padding:14px;color:#64748b;text-align:center;border:1px dashed #cbd5e1;border-radius:12px;}.delivery-new-salesman-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-header h3{margin:0;font-size:15px;}.delivery-new-salesman-header small{display:inline-block;margin-left:8px;color:#475569;}.delivery-new-salesman-actions{display:flex;gap:8px;flex-wrap:wrap;}.delivery-new-salesman-row{display:grid;grid-template-columns:minmax(240px,1.4fr) 70px repeat(6,1fr);gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-row:last-child{border-bottom:0;}.delivery-new-salesman-check{display:flex;align-items:center;gap:8px;font-weight:800;}.delivery-new-salesman-check input{width:16px;height:16px;}.delivery-new-salesman-row .muted{font-size:11px;color:#64748b;}.delivery-new-salesman-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-salesman-compact{margin-top:6px;color:#334155;font-size:12px;font-weight:800;line-height:1.5;}.delivery-new-salesman-compact b{font-variant-numeric:tabular-nums;}.delivery-new-closeout-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}.delivery-new-closeout-btn[disabled]{opacity:.55;cursor:not-allowed;}.delivery-new-closeout-warning{padding:10px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-weight:800;margin:10px 0;}.delivery-new-list-grid{grid-template-columns:minmax(230px,1.8fr) 95px 95px 95px 95px 95px 100px 105px 110px;}' +
-      '.delivery-new-row{display:grid;grid-template-columns:minmax(230px,1.8fr) 95px 95px 95px 95px 95px 100px 105px 110px;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-row-action{text-align:right;}.delivery-new-row-action button{padding:7px 10px;border-radius:10px;}' +
+      '.delivery-new-main-list{display:block;}.delivery-new-list-panel-full{width:100%;}.delivery-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.delivery-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.delivery-new-empty-state span{display:block;color:#64748b;font-weight:700;}.delivery-new-results-hidden{display:none!important;}.delivery-new-salesman-panel{margin:12px 0;padding:0;overflow:hidden;}.delivery-new-salesman-empty{padding:14px;color:#64748b;text-align:center;border:1px dashed #cbd5e1;border-radius:12px;}.delivery-new-salesman-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-header h3{margin:0;font-size:15px;}.delivery-new-salesman-header small{display:inline-block;margin-left:8px;color:#475569;}.delivery-new-salesman-actions{display:flex;gap:8px;flex-wrap:wrap;}.delivery-new-salesman-row{display:grid;grid-template-columns:minmax(240px,1.4fr) 70px repeat(6,1fr);gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-row:last-child{border-bottom:0;}.delivery-new-salesman-check{display:flex;align-items:center;gap:8px;font-weight:800;}.delivery-new-salesman-check input{width:16px;height:16px;}.delivery-new-salesman-row .muted{font-size:11px;color:#64748b;}.delivery-new-salesman-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-salesman-compact{margin-top:6px;color:#334155;font-size:12px;font-weight:800;line-height:1.5;}.delivery-new-salesman-compact b{font-variant-numeric:tabular-nums;}.delivery-new-orders-toolbar{align-items:center;gap:12px;}.delivery-new-selection-count{font-weight:800;color:#475569;white-space:nowrap;}.delivery-new-closeout-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.delivery-new-closeout-toolbar .secondary{padding:7px 10px;border-radius:10px;}.delivery-new-closeout-btn[disabled]{opacity:.55;cursor:not-allowed;}.delivery-new-closeout-warning{padding:10px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-weight:800;margin:10px 0;}.delivery-new-list-grid{grid-template-columns:32px minmax(230px,1.8fr) 95px 95px 95px 95px 95px 100px 105px 110px;gap:8px;align-items:center;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:1px solid #dbe7f5;}.delivery-new-order-check-head{text-align:center;font-weight:900;color:#2563eb;}' +
+      '.delivery-new-row{display:grid;grid-template-columns:32px minmax(230px,1.8fr) 95px 95px 95px 95px 95px 100px 105px 110px;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-row.selected{background:#eff6ff;}.delivery-new-row-action{text-align:right;}.delivery-new-row-action button{padding:7px 10px;border-radius:10px;}.delivery-new-order-checkbox{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox input{width:16px;height:16px;accent-color:#2563eb;}' +
       '.delivery-new-row:hover{background:#eff6ff;}' +
       '.delivery-new-row b{font-weight:800;}.delivery-new-row small{display:block;color:#334155;margin-top:3px;}' +
       '.delivery-new-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}' +
@@ -113,8 +117,8 @@
       '.delivery-new-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.delivery-new-version-list{margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:8px;color:#334155;}.delivery-new-returnorders{margin:12px 0;border:1px solid #dbe7f5;border-radius:12px;background:#fff;overflow:hidden;}.delivery-new-returnorders-header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}.delivery-new-returnorders-header h4{margin:0;font-size:14px;}.delivery-new-returnorders-header small{display:block;color:#64748b;margin-top:3px;}.delivery-new-returnorder-card{padding:10px 12px;border-bottom:1px dashed #dbe7f5;}.delivery-new-returnorder-card:last-child{border-bottom:0;}.delivery-new-returnorder-meta{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:space-between;color:#475569;font-size:12px;}.delivery-new-returnorder-meta b{color:#0f172a;}.delivery-new-return-items{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}.delivery-new-return-items th,.delivery-new-return-items td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-return-items th{color:#64748b;font-weight:800;background:#f8fafc;}.delivery-new-return-items .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}.delivery-new-returnorder-note{margin-top:8px;}.delivery-new-adjust-table{width:100%;border-collapse:collapse;margin:8px 0 10px;font-size:12px;}.delivery-new-adjust-table th,.delivery-new-adjust-table td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-adjust-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-adjust-table .num{text-align:right;font-variant-numeric:tabular-nums;}.delivery-new-adjust-table input{width:88px;text-align:right;}.delivery-v46-suggest-box .empty{padding:8px 10px;color:#64748b;font-size:12px;}.delivery-v46-suggest-box button strong{font-size:12px;color:#0b4dbb;}.delivery-v46-suggest-box button em{font-style:normal;font-size:11px;color:#64748b;}' +
       '.delivery-new-modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.36);padding:28px;overflow:auto;}.delivery-new-adjustment-dialog{width:min(1280px,96vw);margin:0 auto;background:#fff;border-radius:18px;box-shadow:0 18px 50px rgba(15,23,42,.35);padding:18px;}.delivery-new-modal-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid #dbe7f5;padding-bottom:12px;margin-bottom:12px;}.delivery-new-modal-header h3{margin:0;font-size:20px;}.delivery-new-modal-header small{display:block;color:#475569;margin-top:4px;}.delivery-new-modal-close{border:0;background:#e5edf8;border-radius:999px;padding:8px 12px;font-weight:800;cursor:pointer;}.delivery-new-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px;}.delivery-new-tab{border:1px solid #cbd5e1;background:#f8fafc;border-radius:999px;padding:8px 12px;font-weight:800;cursor:pointer;}.delivery-new-tab.active{background:#2563eb;color:#fff;border-color:#2563eb;}.delivery-new-tab-panel{border:1px solid #dbe7f5;border-radius:14px;padding:12px;background:#fff;min-height:260px;}.delivery-new-modal-footer{display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:end;border-top:1px solid #dbe7f5;margin-top:12px;padding-top:12px;}.delivery-new-modal-footer label{font-weight:800;}.delivery-new-modal-footer input{width:100%;}.delivery-new-modal-footer .wide{grid-column:span 1;}.delivery-new-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:10px;}.delivery-new-business-table{width:100%;border-collapse:collapse;font-size:12px;}.delivery-new-business-table th,.delivery-new-business-table td{border-top:1px solid #e2e8f0;padding:7px 6px;text-align:left;}.delivery-new-business-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-business-table .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-business-table input{width:92px;text-align:right;}.delivery-new-preview-cards{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-top:10px;}.delivery-new-history-block{margin:10px 0;border:1px solid #dbe7f5;border-radius:12px;overflow:hidden;}.delivery-new-history-block h4{margin:0;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}' +
       '.delivery-new-form-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;}.delivery-new-form-grid label{font-weight:700;color:#0f172a;}.delivery-new-form-grid input{width:100%;}.delivery-new-form-grid .wide{grid-column:span 2;}' +
-      '@media(max-width:1100px){.delivery-new-list-grid,.delivery-new-row{grid-template-columns:minmax(180px,1.5fr) 80px 80px 80px 80px 80px 85px 95px;}.delivery-new-list-grid span:nth-child(8),.delivery-new-row span:nth-child(8){display:none;}.delivery-new-summary-grid,.delivery-new-preview-cards{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row{grid-template-columns:minmax(200px,1fr) 70px repeat(3,1fr);}.delivery-new-salesman-row span:nth-child(n+6){display:none;}}' +
-      '@media(max-width:760px){.delivery-new-list-grid{display:none;}.delivery-new-row{grid-template-columns:1fr 1fr;}.delivery-new-form-grid,.delivery-new-summary-grid,.delivery-new-preview-cards,.delivery-new-modal-footer{grid-template-columns:1fr;}.delivery-new-salesman-row{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row span:nth-child(n+5){display:none;}.delivery-new-form-grid .wide{grid-column:span 1;}.delivery-new-modal-backdrop{padding:10px;}.delivery-new-adjustment-dialog{width:100%;}}';
+      '@media(max-width:1100px){.delivery-v46-list-panel{overflow-x:auto;}.delivery-new-list-grid,.delivery-new-row{grid-template-columns:32px minmax(180px,1.5fr) 80px 80px 80px 80px 80px 85px 95px 100px;min-width:980px;}.delivery-new-summary-grid,.delivery-new-preview-cards{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row{grid-template-columns:minmax(200px,1fr) 70px repeat(3,1fr);}.delivery-new-salesman-row span:nth-child(n+6){display:none;}}' +
+      '@media(max-width:760px){.delivery-new-list-grid,.delivery-new-row{min-width:980px;grid-template-columns:32px minmax(180px,1.5fr) 80px 80px 80px 80px 80px 85px 95px 100px;}.delivery-new-form-grid,.delivery-new-summary-grid,.delivery-new-preview-cards,.delivery-new-modal-footer{grid-template-columns:1fr;}.delivery-new-salesman-row{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row span:nth-child(n+5){display:none;}.delivery-new-form-grid .wide{grid-column:span 1;}.delivery-new-modal-backdrop{padding:10px;}.delivery-new-adjustment-dialog{width:100%;}}';
     document.head.appendChild(style);
   }
 
@@ -335,6 +339,7 @@
     state.rows = [];
     state.salesmanGroups = [];
     state.selectedSalesmanKeys = {};
+    state.selectedOrderIds = new Set();
     state.selectedIndex = -1;
     state.hasSearched = false;
     state.loaded = false;
@@ -446,7 +451,67 @@
     }, { orderCount: 0, originalAmount: 0, cashAmount: 0, bankAmount: 0, rewardAmount: 0, offsetAmount: 0, returnedAmount: 0, finalDebtAmount: 0 });
   }
 
+  function ensureSelectedOrderSet() {
+    if (state.selectedOrderIds instanceof Set) return state.selectedOrderIds;
+    state.selectedOrderIds = new Set();
+    return state.selectedOrderIds;
+  }
+
+  function orderSelectionKey(row) { return rowKey(row); }
+
+  function isOrderSelectable(row) {
+    return Boolean(row && orderSelectionKey(row) && !isConfirmed(row));
+  }
+
+  function isOrderSelected(row) {
+    return ensureSelectedOrderSet().has(orderSelectionKey(row));
+  }
+
+  function getSelectableVisibleRows() {
+    return getVisibleRowsBySelectedSalesmen().filter(isOrderSelectable);
+  }
+
+  function pruneSelectedOrderIds(visibleRows) {
+    var allowed = new Set((visibleRows || getVisibleRowsBySelectedSalesmen()).filter(isOrderSelectable).map(orderSelectionKey));
+    var selected = ensureSelectedOrderSet();
+    Array.from(selected).forEach(function (key) { if (!allowed.has(key)) selected.delete(key); });
+  }
+
+  function toggleOrderSelection(orderId, checked) {
+    var key = String(orderId || '').trim();
+    if (!key) return;
+    var selected = ensureSelectedOrderSet();
+    if (checked) selected.add(key);
+    else selected.delete(key);
+    renderRows();
+  }
+
+  function selectAllVisibleOrders() {
+    var selected = ensureSelectedOrderSet();
+    getSelectableVisibleRows().forEach(function (row) { selected.add(orderSelectionKey(row)); });
+    renderRows();
+  }
+
+  function clearSelectedOrders() {
+    ensureSelectedOrderSet().clear();
+    renderRows();
+  }
+
+  function getSelectedOrders() {
+    var selected = ensureSelectedOrderSet();
+    return getVisibleRowsBySelectedSalesmen().filter(function (row) { return isOrderSelectable(row) && selected.has(orderSelectionKey(row)); });
+  }
+
+  function getSelectedCloseoutSummary() {
+    return closeoutSummary(getSelectedOrders());
+  }
+
+  function canCloseoutSelectedOrders() {
+    return getSelectedOrders().length > 0 && !state.closeoutBusy;
+  }
+
   function applySelectedSalesmanFilter() {
+    pruneSelectedOrderIds(getVisibleRowsBySelectedSalesmen());
     renderSalesmanGroupPanel();
     renderRows();
     updateCloseoutButton();
@@ -523,25 +588,53 @@
     if (clearAll) clearAll.addEventListener('click', clearAllSalesmen);
   }
 
+  function updateOrderSelectionToolbar(visibleRows) {
+    var countEl = byId('deliveryTodayNewOrderCount');
+    var selectedEl = byId('deliveryTodayNewSelectionCount');
+    var selectAll = byId('deliveryTodayNewSelectAllOrders');
+    var clearAll = byId('deliveryTodayNewClearOrders');
+    var visible = visibleRows || getVisibleRowsBySelectedSalesmen();
+    var selectable = visible.filter(isOrderSelectable);
+    var selectedCount = getSelectedOrders().length;
+    if (countEl) countEl.textContent = visible.length + ' đơn';
+    if (selectedEl) selectedEl.textContent = selectedCount + ' đơn được chọn / ' + selectable.length + ' đơn có thể chốt';
+    if (selectAll) selectAll.disabled = !selectable.length || selectedCount === selectable.length;
+    if (clearAll) clearAll.disabled = !selectedCount;
+  }
+
   function renderRows() {
     var list = byId('deliveryTodayNewTable');
     if (!list) return;
-    if (!state.hasSearched) { list.innerHTML = '<div class="empty-state">Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải đơn.</div>'; updateCloseoutButton(); return; }
+    if (!state.hasSearched) {
+      list.innerHTML = '<div class="empty-state">Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải đơn.</div>';
+      updateOrderSelectionToolbar([]);
+      updateCloseoutButton();
+      return;
+    }
     var visibleRows = getVisibleRowsBySelectedSalesmen();
+    pruneSelectedOrderIds(visibleRows);
     if (!state.rows.length) {
       list.innerHTML = '<div class="empty-state">Không có đơn theo bộ lọc.</div>';
+      updateOrderSelectionToolbar([]);
       updateCloseoutButton();
       return;
     }
     if (!visibleRows.length) {
       list.innerHTML = '<div class="empty-state">Chưa chọn NVBH nào.</div>';
+      updateOrderSelectionToolbar([]);
       updateCloseoutButton();
       return;
     }
     list.innerHTML = visibleRows.map(function (row, index) {
       var confirmed = isConfirmed(row);
+      var selectable = isOrderSelectable(row);
+      var key = orderSelectionKey(row);
+      var checked = isOrderSelected(row) ? ' checked' : '';
+      var disabled = selectable ? '' : ' disabled';
+      var selectedClass = checked ? ' selected' : '';
       var debtClass = num(row.finalDebtAmount) > 0 ? 'delivery-new-debt' : 'delivery-new-zero';
-      return '<div data-index="' + index + '" class="delivery-new-row">' +
+      return '<div data-index="' + index + '" data-order-key="' + esc(key) + '" class="delivery-new-row' + selectedClass + '">' +
+        '<label class="delivery-new-order-checkbox" title="' + esc(selectable ? 'Chọn đơn để chốt sổ' : 'Đơn đã chốt hoặc không đủ điều kiện chọn') + '"><input type="checkbox" class="deliveryTodayNewOrderSelect" data-order-key="' + esc(key) + '"' + checked + disabled + '></label>' +
         '<span><b>' + esc(row.orderCode || row.orderId) + '</b><small>' + esc(row.customerName || '') + ' · ' + esc(row.customerCode || '') + '</small></span>' +
         '<span class="delivery-new-money">' + money(row.originalAmount) + '</span>' +
         '<span class="delivery-new-money">' + money(row.cashAmount) + '</span>' +
@@ -553,6 +646,12 @@
         '<span class="delivery-new-row-action"><button type="button" class="primary-action deliveryTodayNewAdjustBtn" data-adjust-index="' + index + '">Điều chỉnh</button></span>' +
       '</div>';
     }).join('');
+    Array.prototype.forEach.call(list.querySelectorAll('.deliveryTodayNewOrderSelect'), function (input) {
+      input.addEventListener('change', function (event) {
+        event.stopPropagation();
+        toggleOrderSelection(input.dataset.orderKey, input.checked);
+      });
+    });
     Array.prototype.forEach.call(list.querySelectorAll('[data-adjust-index]'), function (btn) {
       btn.addEventListener('click', function (event) {
         event.preventDefault();
@@ -560,22 +659,29 @@
         openAdjustmentPopup(getVisibleRowsBySelectedSalesmen()[Number(btn.dataset.adjustIndex)]);
       });
     });
+    updateOrderSelectionToolbar(visibleRows);
     updateCloseoutButton();
   }
 
   function selectedCloseoutRows() {
-    return getVisibleRowsBySelectedSalesmen().filter(function (row) { return row && rowKey(row); });
+    return getSelectedOrders();
   }
 
   function closeoutSummary(rows) {
     return (rows || []).reduce(function (summary, row) {
       summary.orderCount += 1;
+      summary.originalAmount += num(row.originalAmount);
+      summary.cashAmount += num(row.cashAmount);
+      summary.bankAmount += num(row.bankAmount);
+      summary.rewardAmount += num(row.rewardAmount);
+      summary.offsetAmount += num(row.offsetAmount);
+      summary.returnedAmount += num(row.returnedAmount);
       summary.totalDebt += Math.max(0, num(row.finalDebtAmount));
       if (num(row.finalDebtAmount) > 0) summary.debtOrderCount += 1;
       if (num(row.finalDebtAmount) === 0) summary.zeroDebtCount += 1;
       if (num(row.finalDebtAmount) < 0) summary.overpaidCount += 1;
       return summary;
-    }, { orderCount: 0, debtOrderCount: 0, zeroDebtCount: 0, overpaidCount: 0, totalDebt: 0 });
+    }, { orderCount: 0, originalAmount: 0, cashAmount: 0, bankAmount: 0, rewardAmount: 0, offsetAmount: 0, returnedAmount: 0, debtOrderCount: 0, zeroDebtCount: 0, overpaidCount: 0, totalDebt: 0 });
   }
 
   function updateCloseoutButton() {
@@ -583,9 +689,10 @@
     if (!btn) return;
     var rows = state.hasSearched ? selectedCloseoutRows() : [];
     var summary = closeoutSummary(rows);
-    btn.disabled = state.closeoutBusy || !rows.length;
+    btn.disabled = !canCloseoutSelectedOrders();
     btn.textContent = state.closeoutBusy ? 'Đang chốt...' : ('Chốt sổ giao hàng' + (rows.length ? ' (' + rows.length + ')' : ''));
-    btn.title = rows.length ? ('Chuyển CN còn lại sang AR-DEBT: ' + money(summary.totalDebt)) : 'Cần tải dữ liệu và chọn ít nhất một NVBH/đơn';
+    btn.title = rows.length ? ('Chuyển CN còn lại sang AR-DEBT: ' + money(summary.totalDebt)) : 'Vui lòng chọn ít nhất một đơn để chốt sổ.';
+    updateOrderSelectionToolbar(getVisibleRowsBySelectedSalesmen());
   }
 
   function closeCloseoutModal() {
@@ -597,7 +704,7 @@
     var modal = byId('deliveryTodayNewCloseoutModal');
     if (!modal) return;
     var rows = selectedCloseoutRows();
-    if (!rows.length) { setMessage('Vui lòng tải đơn và chọn ít nhất một NVBH trước khi chốt sổ.', true); return; }
+    if (!rows.length) { setMessage('Vui lòng chọn ít nhất một đơn để chốt sổ.', true); return; }
     var summary = closeoutSummary(rows);
     var f = filters();
     var selectedGroups = (state.salesmanGroups || []).filter(function (group) { return state.selectedSalesmanKeys && state.selectedSalesmanKeys[group.key]; });
@@ -609,7 +716,12 @@
           detailCell('Ngày giao', f.date || 'Theo bộ lọc') +
           detailCell('NVGH', f.delivery || 'Theo bộ lọc') +
           detailCell('NVBH đã chọn', selectedGroups.length + '/' + (state.salesmanGroups || []).length) +
-          detailCell('Số đơn chốt', summary.orderCount) +
+          detailCell('Số đơn đã chọn', summary.orderCount) +
+          detailCell('Tổng phải thu', money(summary.originalAmount)) +
+          detailCell('Tổng tiền mặt', money(summary.cashAmount)) +
+          detailCell('Tổng chuyển khoản', money(summary.bankAmount)) +
+          detailCell('Tổng trả thưởng', money(num(summary.rewardAmount) + num(summary.offsetAmount))) +
+          detailCell('Tổng hàng trả', money(summary.returnedAmount), 'delivery-new-return') +
           detailCell('Đơn còn nợ > 1.000', summary.debtOrderCount) +
           detailCell('CN chuyển sang công nợ', money(summary.totalDebt), summary.totalDebt > 0 ? 'delivery-new-debt' : 'delivery-new-zero') +
         '</div>' +
@@ -654,7 +766,7 @@
           salesStaffCodes: salesStaffCodes,
           orderIds: orderIds,
           reason: reason,
-          closeoutScope: 'filtered_selection'
+          closeoutScope: 'selected_orders'
         })
       });
       var json = await res.json();
@@ -1156,6 +1268,7 @@
       state.rows = data.rows || data.orders || json.rows || [];
       state.salesmanGroups = buildSalesmanGroups(state.rows);
       state.selectedSalesmanKeys = {};
+      state.selectedOrderIds = new Set();
       state.salesmanGroups.forEach(function (group) { state.selectedSalesmanKeys[group.key] = true; });
       state.selectedIndex = state.rows.length ? 0 : -1;
       state.loaded = true;
@@ -1169,6 +1282,7 @@
       state.rows = [];
       state.salesmanGroups = [];
       state.selectedSalesmanKeys = {};
+      state.selectedOrderIds = new Set();
       state.hasSearched = true;
       setResultSectionsVisible(true);
       applySummary({});

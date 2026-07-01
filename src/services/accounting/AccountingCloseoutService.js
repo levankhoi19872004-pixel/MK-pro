@@ -128,6 +128,75 @@ async function loadOrders(selectedOrderIds = []) {
   return rows || [];
 }
 
+function orderIdentityValues(order = {}) {
+  return unique([
+    order.id,
+    order._id,
+    order.code,
+    order.orderCode,
+    order.documentCode,
+    order.invoiceCode,
+    order.salesOrderId,
+    order.salesOrderCode
+  ]);
+}
+
+function orderMatchesInputId(order = {}, inputId = '') {
+  const key = clean(inputId);
+  return Boolean(key) && orderIdentityValues(order).includes(key);
+}
+
+function orderDeliveryDate(order = {}) {
+  return dateUtil.toDateOnly(order.deliveryDate || order.date || order.orderDate || order.createdAt || '');
+}
+
+function orderDeliveryStaffCode(order = {}) {
+  return clean(order.deliveryStaffCode || order.deliveryCode || order.nvghCode);
+}
+
+function orderSalesStaffCode(order = {}) {
+  return clean(order.salesStaffCode || order.salesmanCode || order.nvbhCode);
+}
+
+function validateSelectedOrderScope(orders = [], body = {}, selectedOrderIds = []) {
+  if (!Array.isArray(selectedOrderIds) || !selectedOrderIds.length) {
+    return { error: 'Vui lòng chọn ít nhất một đơn để chốt sổ.', status: 400, code: 'ORDER_SELECTION_REQUIRED' };
+  }
+  const missing = selectedOrderIds.filter((id) => !orders.some((order) => orderMatchesInputId(order, id)));
+  if (missing.length) {
+    return { error: `Không tìm thấy hoặc không được phép chốt ${missing.length} đơn đã chọn.`, status: 404, code: 'ORDER_SELECTION_NOT_FOUND', missingOrderIds: missing };
+  }
+
+  const requestedDate = dateUtil.toDateOnly(body.deliveryDate || body.date || '');
+  if (requestedDate) {
+    const mismatched = orders.filter((order) => orderDeliveryDate(order) && orderDeliveryDate(order) !== requestedDate);
+    if (mismatched.length) {
+      return { error: 'Có đơn không thuộc đúng ngày giao đang chốt.', status: 400, code: 'ORDER_SELECTION_DATE_MISMATCH', orderIds: mismatched.map((order) => clean(order.id || order.code || order.orderCode)) };
+    }
+  }
+
+  const requestedDelivery = clean(body.deliveryStaffCode || body.delivery || body.nvghCode);
+  if (requestedDelivery) {
+    const mismatched = orders.filter((order) => orderDeliveryStaffCode(order) && orderDeliveryStaffCode(order) !== requestedDelivery);
+    if (mismatched.length) {
+      return { error: 'Có đơn không thuộc đúng NVGH đang chốt.', status: 400, code: 'ORDER_SELECTION_DELIVERY_STAFF_MISMATCH', orderIds: mismatched.map((order) => clean(order.id || order.code || order.orderCode)) };
+    }
+  }
+
+  const requestedSales = unique(Array.isArray(body.salesStaffCodes) ? body.salesStaffCodes : [body.salesStaffCode, body.salesman, body.nvbhCode]);
+  if (requestedSales.length) {
+    const mismatched = orders.filter((order) => {
+      const code = orderSalesStaffCode(order);
+      return code && !requestedSales.includes(code);
+    });
+    if (mismatched.length) {
+      return { error: 'Có đơn không thuộc đúng NVBH đã chọn.', status: 400, code: 'ORDER_SELECTION_SALES_STAFF_MISMATCH', orderIds: mismatched.map((order) => clean(order.id || order.code || order.orderCode)) };
+    }
+  }
+
+  return null;
+}
+
 async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
   const actor = clean(options.actor || 'accountant');
   if (!isCompletedDelivery(order)) return { skipped: true, reason: 'delivery_not_completed', orderId: DeliveryCloseoutService.orderId(order) };
@@ -192,7 +261,9 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
   const actor = clean(normalized.confirmedBy || body.confirmedBy || body.userName || body.accountantName || 'accountant');
   const reason = clean(normalized.reason || body.reason || body.note || 'Chốt sổ giao hàng cuối ngày');
   const orders = await loadOrders(selectedOrderIds);
-  if (!orders.length) return { error: `Không tìm thấy đơn đã chọn trong ngày ${date} để kế toán xác nhận`, status: 404 };
+  if (!orders.length) return { error: `Không tìm thấy đơn đã chọn trong ngày ${date} để kế toán xác nhận`, status: 404, code: 'ORDER_SELECTION_NOT_FOUND' };
+  const scopeError = validateSelectedOrderScope(orders, body, selectedOrderIds);
+  if (scopeError) return scopeError;
   const returnOrders = await findReturnOrdersForDeliveryChildren(orders);
   const returnByKey = groupReturnOrdersBySalesOrder(returnOrders, orders);
 
@@ -254,6 +325,10 @@ module.exports = {
   returnOrdersForOrder,
   _internal: {
     normalizeOrderIds,
+    validateSelectedOrderScope,
+    orderDeliveryDate,
+    orderDeliveryStaffCode,
+    orderSalesStaffCode,
     isCompletedDelivery,
     buildConfirmedOrderPatch,
     guardKey,
