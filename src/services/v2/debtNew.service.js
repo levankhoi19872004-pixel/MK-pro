@@ -350,6 +350,42 @@ async function listCustomers(query = {}, options = {}) {
 
 
 
+
+async function customerDetail(query = {}, options = {}) {
+  const customerCode = text(query.customerCode || query.code || query.id);
+  if (!customerCode) {
+    return {
+      ok: false,
+      customer: null,
+      debtOrders: [],
+      movements: [],
+      pendingCollections: [],
+      diagnostics: {
+        source: 'debt-new-detail-guarded-empty',
+        endpoint: '/api/new/debt/customers/:customerCode/detail',
+        reason: 'CUSTOMER_CODE_REQUIRED',
+        searchCriteriaRequired: true
+      }
+    };
+  }
+  const result = await listCustomers({ ...query, customerCode, status: query.status || 'all' }, options);
+  const customer = (result.customers || []).find((row) => upper(row.customerCode) === upper(customerCode)) || (result.customers || [])[0] || null;
+  const movements = (result.ledgers || []).filter((row) => upper(row.customerCode) === upper(customerCode));
+  return {
+    ok: true,
+    customer,
+    debtOrders: customer ? (customer.orders || []) : [],
+    movements,
+    pendingCollections: [],
+    diagnostics: {
+      source: 'debt-new-detail-ar-debt-read-model',
+      endpoint: '/api/new/debt/customers/:customerCode/detail',
+      searchCriteriaRequired: false,
+      allowedCategories: ALLOWED_CATEGORIES
+    }
+  };
+}
+
 async function findSuggestionLedgers(match = {}, limit = 100, options = {}) {
   const { ArLedger } = getDebtNewModels();
   const query = ArLedger.find(match);
@@ -505,6 +541,7 @@ module.exports = {
   ledgerEffect,
   groupLedgers,
   listCustomers,
+  customerDetail,
   suggestions,
   setModelsForTest,
   _private: { normalizeLedger, orderKey, hasSearchCriteria, emptyListResult, emptySummary, emptySuggestionResult, suggestionLimit, findSuggestionLedgers }

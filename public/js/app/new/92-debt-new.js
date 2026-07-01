@@ -11,6 +11,9 @@
     selectedOrderKeys: {},
     collections: [],
     selectedFilters: { customerCode: '', orderCode: '', salesStaffCode: '', deliveryStaffCode: '' },
+    modalOpen: false,
+    modalTab: 'overview',
+    detailLoading: false,
     suggest: {
       timers: {},
       requestSeq: { search: 0, salesman: 0, delivery: 0 },
@@ -71,11 +74,12 @@
         '<article class="new-kpi-card"><span>Debit</span><b id="debtNewDebit">0</b></article>' +
         '<article class="new-kpi-card"><span>Credit</span><b id="debtNewCredit">0</b></article>' +
       '</section>' +
-      '<section class="new-two-pane debt-new-results">' +
-        '<section class="card"><h3>Khách công nợ New</h3><div class="new-table-wrap"><table class="new-table"><thead><tr><th>Khách hàng</th><th>NVBH / NVGH</th><th>Số đơn</th><th>Còn nợ</th><th>Trạng thái</th></tr></thead><tbody id="debtNewCustomerTable"><tr><td colspan="5">Chưa tải dữ liệu.</td></tr></tbody></table></div></section>' +
-        '<section class="card"><h3>Đơn của khách / Phiếu thu</h3><div id="debtNewDetail" class="new-detail-list"><div class="empty-state">Chọn một khách để xem đơn nợ.</div></div></section>' +
+      '<section class="card debt-new-customers-panel debt-new-results">' +
+        '<div class="ui-page-header debt-new-main-header"><div><h3>Khách công nợ New</h3><p class="muted">Chọn một khách hoặc bấm <b>Chi tiết</b> để mở popup công nợ, đơn nợ và lập phiếu thu.</p></div></div>' +
+        '<div class="new-table-wrap debt-new-customer-table-wrap"><table class="new-table debt-new-customer-table"><thead><tr><th>Mã khách hàng</th><th>Tên khách hàng</th><th>NVBH</th><th>NVGH</th><th>Số đơn nợ</th><th>Còn nợ</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="debtNewCustomerTable"><tr><td colspan="8">Chưa tải dữ liệu.</td></tr></tbody></table></div>' +
       '</section>' +
-      '<section class="card debt-new-collections-panel debt-new-results"><div class="ui-page-header"><div><h3>Phiếu thu chờ xác nhận</h3><p class="muted">Phiếu <b>submitted</b> chưa làm giảm công nợ. Chỉ khi kế toán xác nhận mới sinh <b>AR-DEBT-PAYMENT</b> và fund ledger theo contract backend.</p></div><button id="debtNewReloadCollections" type="button" class="secondary">Tải phiếu</button></div><div id="debtNewCollectionsList" class="new-detail-list"><div class="empty-state">Chưa tải phiếu thu.</div></div></section>';
+      '<section class="card debt-new-collections-panel debt-new-results"><div class="ui-page-header"><div><h3>Phiếu thu chờ xác nhận</h3><p class="muted">Phiếu <b>submitted</b> chưa làm giảm công nợ. Chi tiết và thao tác confirm/reject nằm trong popup từng khách.</p></div><button id="debtNewReloadCollections" type="button" class="secondary">Tải phiếu</button></div><div id="debtNewCollectionsList" class="new-detail-list"><div class="empty-state">Chưa tải phiếu thu.</div></div></section>' +
+      '<div id="debtNewCustomerModal" class="debt-new-modal" hidden></div>';
 
     ensureScopedStyle();
     var loadButton = byId('debtNewLoad');
@@ -88,6 +92,9 @@
     document.addEventListener('click', function (event) {
       if (!event.target || !event.target.closest || !event.target.closest('.debt-new-suggest-wrap')) closeAllSuggestions();
     });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && state.modalOpen) closeDebtCustomerModal();
+    });
     var status = byId('debtNewStatus');
     if (status) status.addEventListener('change', function () { state.userTouchedFilters = true; });
     resetResultsState('Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải.');
@@ -99,7 +106,7 @@
     var style = document.createElement('style');
     style.id = 'debtNewScopedStyle';
     style.textContent = '' +
-      '.debt-new-filter-card{padding:14px 16px 12px;margin-bottom:12px;}.debt-new-filter-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}.debt-new-filter-title h2{margin:0 0 4px;font-size:18px;line-height:1.2;}.debt-new-filter-title p{margin:0;font-size:12px;line-height:1.35;}.debt-new-source-badge{white-space:nowrap;padding:5px 10px;font-size:12px;align-self:flex-start;}.debt-new-filter-grid{display:grid;grid-template-columns:minmax(320px,2fr) minmax(170px,1fr) minmax(170px,1fr) minmax(145px,.75fr) auto auto;gap:10px;align-items:end;}.debt-new-field{position:relative;display:flex;flex-direction:column;gap:4px;margin:0;font-weight:800;color:#334155;font-size:12px;line-height:1.2;}.debt-new-field input,.debt-new-field select,.debt-new-load-btn,.debt-new-reset-btn{height:34px;box-sizing:border-box;border-radius:9px;}.debt-new-field input,.debt-new-field select{width:100%;padding:7px 10px;border:1px solid #cbd5e1;background:#fff;font-size:13px;}.debt-new-load-btn,.debt-new-reset-btn{padding:0 14px;white-space:nowrap;align-self:end;}.debt-new-message{min-height:18px;margin:8px 0 0;}.debt-new-suggest-wrap{position:relative;}.debt-new-suggest{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:1000;background:#fff;border:1px solid #dbe7f5;border-radius:12px;box-shadow:0 18px 36px rgba(15,23,42,.16);padding:6px;max-height:280px;overflow:auto;}.debt-new-suggest[hidden]{display:none!important;}.debt-new-suggest-item{display:block;width:100%;border:0;background:#fff;text-align:left;border-radius:9px;padding:8px 10px;cursor:pointer;color:#14213d;}.debt-new-suggest-item:hover,.debt-new-suggest-item.active{background:#eff6ff;outline:2px solid rgba(37,99,235,.12);}.debt-new-suggest-item b{display:block;font-size:13px;color:#0f3ea9;}.debt-new-suggest-item span{display:block;margin-top:2px;font-size:12px;color:#64748b;}.debt-new-suggest-empty,.debt-new-suggest-loading{padding:9px 10px;color:#64748b;font-weight:700;font-size:12px;}.debt-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.debt-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.debt-new-empty-state span{display:block;color:#64748b;font-weight:700;}.debt-new-results-hidden{display:none!important;}.debt-new-status{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-weight:800;font-size:12px;background:#eef2ff;color:#1d0fb4;}.debt-new-status.open{background:#fee2e2;color:#b91c1c;}.debt-new-status.paid{background:#dcfce7;color:#166534;}.debt-new-status.overpaid{background:#e0f2fe;color:#075985;}.debt-new-allocation-box{border:1px solid #dbe7f5;border-radius:12px;padding:12px;margin-top:12px;background:#f8fafc;}.debt-new-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0;}.debt-new-form-grid label{display:flex;flex-direction:column;gap:4px;font-weight:800;color:#334155;}.debt-new-form-grid input,.debt-new-form-grid select{padding:8px;border:1px solid #cbd5e1;border-radius:10px;}.debt-new-order-check{width:16px;height:16px;}.debt-new-collection-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px;}.debt-new-collection-card{border:1px solid #dbe7f5;border-radius:12px;padding:10px;margin:8px 0;background:#fff;}.debt-new-collection-card h4{margin:0 0 6px;}.debt-new-collection-card small{display:block;color:#64748b;margin-top:2px;}.debt-new-allocation-warning{color:#b91c1c;font-weight:800;}.new-table tbody tr.active{background:#eff6ff;}@media (max-width:1100px){.debt-new-filter-grid{grid-template-columns:minmax(280px,1.6fr) minmax(160px,1fr) minmax(160px,1fr) minmax(140px,.8fr);}.debt-new-load-btn,.debt-new-reset-btn{width:100%;}}@media (max-width:900px){.debt-new-filter-grid{grid-template-columns:1fr 1fr;}.debt-new-field-wide{grid-column:1 / -1;}.debt-new-filter-header{align-items:flex-start;}}@media (max-width:640px){.debt-new-filter-grid{grid-template-columns:1fr;}.debt-new-filter-header{flex-direction:column;}.debt-new-source-badge{align-self:flex-start;}}';
+      '.debt-new-filter-card{padding:14px 16px 12px;margin-bottom:12px;}.debt-new-filter-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}.debt-new-filter-title h2{margin:0 0 4px;font-size:18px;line-height:1.2;}.debt-new-filter-title p{margin:0;font-size:12px;line-height:1.35;}.debt-new-source-badge{white-space:nowrap;padding:5px 10px;font-size:12px;align-self:flex-start;}.debt-new-filter-grid{display:grid;grid-template-columns:minmax(320px,2fr) minmax(170px,1fr) minmax(170px,1fr) minmax(145px,.75fr) auto auto;gap:10px;align-items:end;}.debt-new-field{position:relative;display:flex;flex-direction:column;gap:4px;margin:0;font-weight:800;color:#334155;font-size:12px;line-height:1.2;}.debt-new-field input,.debt-new-field select,.debt-new-load-btn,.debt-new-reset-btn{height:34px;box-sizing:border-box;border-radius:9px;}.debt-new-field input,.debt-new-field select{width:100%;padding:7px 10px;border:1px solid #cbd5e1;background:#fff;font-size:13px;}.debt-new-load-btn,.debt-new-reset-btn{padding:0 14px;white-space:nowrap;align-self:end;}.debt-new-message{min-height:18px;margin:8px 0 0;}.debt-new-suggest-wrap{position:relative;}.debt-new-suggest{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:1000;background:#fff;border:1px solid #dbe7f5;border-radius:12px;box-shadow:0 18px 36px rgba(15,23,42,.16);padding:6px;max-height:280px;overflow:auto;}.debt-new-suggest[hidden]{display:none!important;}.debt-new-suggest-item{display:block;width:100%;border:0;background:#fff;text-align:left;border-radius:9px;padding:8px 10px;cursor:pointer;color:#14213d;}.debt-new-suggest-item:hover,.debt-new-suggest-item.active{background:#eff6ff;outline:2px solid rgba(37,99,235,.12);}.debt-new-suggest-item b{display:block;font-size:13px;color:#0f3ea9;}.debt-new-suggest-item span{display:block;margin-top:2px;font-size:12px;color:#64748b;}.debt-new-suggest-empty,.debt-new-suggest-loading{padding:9px 10px;color:#64748b;font-weight:700;font-size:12px;}.debt-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.debt-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.debt-new-empty-state span{display:block;color:#64748b;font-weight:700;}.debt-new-results-hidden{display:none!important;}.debt-new-status{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-weight:800;font-size:12px;background:#eef2ff;color:#1d0fb4;}.debt-new-status.open{background:#fee2e2;color:#b91c1c;}.debt-new-status.paid{background:#dcfce7;color:#166534;}.debt-new-status.overpaid{background:#e0f2fe;color:#075985;}.debt-new-allocation-box{border:1px solid #dbe7f5;border-radius:12px;padding:12px;margin-top:12px;background:#f8fafc;}.debt-new-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0;}.debt-new-form-grid label{display:flex;flex-direction:column;gap:4px;font-weight:800;color:#334155;}.debt-new-form-grid input,.debt-new-form-grid select{padding:8px;border:1px solid #cbd5e1;border-radius:10px;}.debt-new-order-check{width:16px;height:16px;}.debt-new-collection-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px;}.debt-new-collection-card{border:1px solid #dbe7f5;border-radius:12px;padding:10px;margin:8px 0;background:#fff;}.debt-new-collection-card h4{margin:0 0 6px;}.debt-new-collection-card small{display:block;color:#64748b;margin-top:2px;}.debt-new-allocation-warning{color:#b91c1c;font-weight:800;}.new-table tbody tr.active{background:#eff6ff;}.debt-new-main-header{margin-bottom:8px;}.debt-new-customer-table-wrap{overflow:auto;}.debt-new-customer-table{min-width:1040px;}.debt-new-customer-table tbody tr{cursor:pointer;}.debt-new-detail-btn{white-space:nowrap;}.debt-new-collections-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px dashed #cbd5e1;border-radius:12px;padding:12px;background:#f8fafc;}.debt-new-modal{position:fixed;inset:0;z-index:3000;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:24px;}.debt-new-modal[hidden]{display:none!important;}.debt-new-modal-card{width:min(1180px,96vw);max-height:90vh;background:#fff;border-radius:18px;box-shadow:0 24px 72px rgba(15,23,42,.32);display:flex;flex-direction:column;overflow:hidden;}.debt-new-modal-header{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid #dbe7f5;padding:16px 18px 12px;}.debt-new-modal-titlebar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;}.debt-new-modal-titlebar h3{margin:0 0 6px;font-size:20px;}.debt-new-modal-meta{display:flex;flex-wrap:wrap;gap:8px 16px;color:#475569;font-weight:700;font-size:12px;}.debt-new-modal-close{border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:800;padding:8px 12px;box-shadow:0 8px 18px rgba(37,99,235,.25);}.debt-new-modal-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.debt-new-modal-tab{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:10px;padding:8px 12px;font-weight:800;}.debt-new-modal-tab.active{background:#2563eb;color:#fff;border-color:#2563eb;}.debt-new-modal-body{padding:16px 18px;overflow:auto;}.debt-new-modal-footer{position:sticky;bottom:0;background:#fff;border-top:1px solid #dbe7f5;padding:10px 18px;display:flex;justify-content:flex-end;gap:10px;}.debt-new-detail-kpis{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:10px;margin-bottom:12px;}.debt-new-detail-kpi{border:1px solid #dbe7f5;border-radius:12px;padding:10px;background:#f8fafc;}.debt-new-detail-kpi span{display:block;color:#64748b;font-size:12px;font-weight:800;}.debt-new-detail-kpi b{display:block;margin-top:4px;font-size:18px;color:#0f172a;}.debt-new-order-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;}.debt-new-order-toolbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.debt-new-modal-table-wrap{overflow:auto;border:1px solid #dbe7f5;border-radius:12px;}.debt-new-modal-table{min-width:860px;}.debt-new-modal-note{margin:0 0 12px;border:1px solid #bae6fd;background:#eff6ff;border-radius:12px;padding:10px 12px;color:#075985;font-weight:800;}.debt-new-movement-empty{border:1px dashed #cbd5e1;border-radius:12px;padding:16px;text-align:center;color:#64748b;font-weight:800;background:#f8fafc;}.debt-new-form-actions{position:sticky;bottom:0;background:#fff;padding-top:10px;}@media (max-width:1100px){.debt-new-filter-grid{grid-template-columns:minmax(280px,1.6fr) minmax(160px,1fr) minmax(160px,1fr) minmax(140px,.8fr);}.debt-new-load-btn,.debt-new-reset-btn{width:100%;}}@media (max-width:900px){.debt-new-filter-grid{grid-template-columns:1fr 1fr;}.debt-new-field-wide{grid-column:1 / -1;}.debt-new-filter-header{align-items:flex-start;}}@media (max-width:640px){.debt-new-filter-grid{grid-template-columns:1fr;}.debt-new-filter-header{flex-direction:column;}.debt-new-source-badge{align-self:flex-start;}}';
     document.head.appendChild(style);
   }
 
@@ -354,72 +361,213 @@
     var tbody = byId('debtNewCustomerTable');
     if (!tbody) return;
     if (!state.hasSearched) {
-      tbody.innerHTML = '<tr><td colspan="5">Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải.</td></tr>';
-      renderDetail(null);
+      tbody.innerHTML = '<tr><td colspan="8">Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải.</td></tr>';
+      renderDebtCustomerModal();
       return;
     }
     if (!state.customers.length) {
-      tbody.innerHTML = '<tr><td colspan="5">Không tìm thấy dữ liệu phù hợp với điều kiện tìm kiếm.</td></tr>';
-      renderDetail(null);
+      tbody.innerHTML = '<tr><td colspan="8">Không tìm thấy dữ liệu phù hợp với điều kiện tìm kiếm.</td></tr>';
+      renderDebtCustomerModal();
       return;
     }
     tbody.innerHTML = state.customers.map(function (row, index) {
       var status = String(row.status || 'open').toLowerCase();
       return '<tr data-index="' + index + '" class="' + (index === state.selectedIndex ? 'active' : '') + '">' +
-        '<td><b>' + esc(row.customerCode || '') + '</b><br><small>' + esc(row.customerName || '') + (row.phone ? ' · ' + esc(row.phone) : '') + '</small></td>' +
-        '<td><small>NVBH: ' + esc([row.salesStaffCode || row.salesmanCode, row.salesStaffName || row.salesmanName].filter(Boolean).join(' - ') || '-') + '</small><br><small>NVGH: ' + esc([row.deliveryStaffCode, row.deliveryStaffName].filter(Boolean).join(' - ') || '-') + '</small></td>' +
+        '<td><b>' + esc(row.customerCode || '') + '</b></td>' +
+        '<td><b>' + esc(row.customerName || '') + '</b>' + (row.phone ? '<br><small>SĐT: ' + esc(row.phone) + '</small>' : '') + '</td>' +
+        '<td><small>' + esc([row.salesStaffCode || row.salesmanCode, row.salesStaffName || row.salesmanName].filter(Boolean).join(' - ') || '-') + '</small></td>' +
+        '<td><small>' + esc([row.deliveryStaffCode, row.deliveryStaffName].filter(Boolean).join(' - ') || '-') + '</small></td>' +
         '<td class="new-money">' + esc(row.orderCount || 0) + '</td>' +
         '<td class="new-money ' + (num(row.debt) > 0 ? 'new-debt-positive' : 'new-credit') + '">' + money(row.debt) + '</td>' +
         '<td><span class="debt-new-status ' + esc(status) + '">' + esc(statusLabel(status)) + '</span></td>' +
+        '<td><button type="button" class="primary-action debt-new-detail-btn" data-index="' + index + '">Chi tiết</button></td>' +
       '</tr>';
     }).join('');
     Array.prototype.forEach.call(tbody.querySelectorAll('tr[data-index]'), function (tr) {
-      tr.addEventListener('click', function () {
-        state.selectedIndex = Number(tr.dataset.index);
-        state.selectedOrderKeys = {};
-        renderCustomers();
-        renderDetail(selectedCustomer());
-        loadCollections();
+      tr.addEventListener('click', function (event) {
+        if (event.target && event.target.closest && event.target.closest('button')) return;
+        openDebtCustomerModal(Number(tr.dataset.index));
       });
     });
-    if (state.selectedIndex < 0 && state.customers.length) state.selectedIndex = 0;
-    renderDetail(selectedCustomer());
+    Array.prototype.forEach.call(tbody.querySelectorAll('.debt-new-detail-btn'), function (button) {
+      button.addEventListener('click', function (event) {
+        event.stopPropagation();
+        openDebtCustomerModal(Number(button.dataset.index));
+      });
+    });
+    renderDebtCustomerModal();
   }
 
-  function renderDetail(customer) {
-    var box = byId('debtNewDetail');
-    if (!box) return;
-    if (!state.hasSearched) { box.innerHTML = '<div class="empty-state">Vui lòng tìm kiếm trước khi xem đơn nợ.</div>'; return; }
-    if (!customer) { box.innerHTML = '<div class="empty-state">Không có khách công nợ phù hợp.</div>'; return; }
-    var orders = Array.isArray(customer.orders) ? customer.orders : [];
-    var orderRows = orders.map(function (order, index) {
+  function openDebtCustomerModal(index) {
+    if (index < 0 || index >= state.customers.length) return;
+    state.selectedIndex = index;
+    state.selectedOrderKeys = {};
+    state.modalOpen = true;
+    state.modalTab = 'overview';
+    renderCustomers();
+    renderDebtCustomerModal();
+    loadCollections();
+  }
+
+  function closeDebtCustomerModal() {
+    state.modalOpen = false;
+    state.modalTab = 'overview';
+    renderDebtCustomerModal();
+  }
+
+  function setDebtCustomerModalTab(tab) {
+    state.modalTab = tab || 'overview';
+    renderDebtCustomerModal();
+  }
+
+  function customerSummaryValue(customer, key, fallback) {
+    return num(customer && (customer[key] ?? fallback ?? 0));
+  }
+
+  function selectedDebtOrderTotal(customer) {
+    return selectedDebtOrders(customer).reduce(function (sum, order) { return sum + openDebt(order); }, 0);
+  }
+
+  function renderDebtCustomerModal() {
+    var modal = byId('debtNewCustomerModal');
+    if (!modal) return;
+    if (!state.modalOpen) {
+      modal.hidden = true;
+      modal.innerHTML = '';
+      return;
+    }
+    var customer = selectedCustomer();
+    if (!customer) {
+      modal.hidden = true;
+      modal.innerHTML = '';
+      return;
+    }
+    modal.hidden = false;
+    var tabs = [
+      ['overview', 'Tổng quan'],
+      ['orders', 'Đơn nợ'],
+      ['collection', 'Lập phiếu thu'],
+      ['history', 'Lịch sử công nợ'],
+      ['pending', 'Phiếu thu chờ xác nhận']
+    ];
+    modal.innerHTML = '<div class="debt-new-modal-card" role="dialog" aria-modal="true" aria-label="Chi tiết công nợ khách hàng">' +
+      '<div class="debt-new-modal-header">' +
+        '<div class="debt-new-modal-titlebar"><div><h3>Công nợ khách hàng - ' + esc((customer.customerCode || '') + ' / ' + (customer.customerName || '')) + '</h3>' +
+          '<div class="debt-new-modal-meta"><span>NVBH: ' + esc([customer.salesStaffCode || customer.salesmanCode, customer.salesStaffName || customer.salesmanName].filter(Boolean).join(' - ') || '-') + '</span><span>NVGH: ' + esc([customer.deliveryStaffCode, customer.deliveryStaffName].filter(Boolean).join(' - ') || '-') + '</span><span>Tổng nợ: ' + money(customer.debt) + '</span><span>Số đơn nợ: ' + esc(customer.orderCount || 0) + '</span></div></div>' +
+          '<button type="button" class="debt-new-modal-close" aria-label="Đóng popup công nợ khách hàng">Đóng</button></div>' +
+        '<div class="debt-new-modal-tabs">' + tabs.map(function (tab) { return '<button type="button" class="debt-new-modal-tab' + (state.modalTab === tab[0] ? ' active' : '') + '" data-tab="' + esc(tab[0]) + '">' + esc(tab[1]) + '</button>'; }).join('') + '</div>' +
+      '</div>' +
+      '<div class="debt-new-modal-body">' + renderDebtCustomerModalBody(customer) + '</div>' +
+      '<div class="debt-new-modal-footer"><button type="button" class="secondary debt-new-modal-close-bottom">Đóng</button></div>' +
+    '</div>';
+    modal.addEventListener('click', function (event) { if (event.target === modal) closeDebtCustomerModal(); }, { once: true });
+    var card = modal.querySelector('.debt-new-modal-card');
+    if (card) card.addEventListener('click', function (event) { event.stopPropagation(); });
+    Array.prototype.forEach.call(modal.querySelectorAll('.debt-new-modal-close,.debt-new-modal-close-bottom'), function (button) {
+      button.addEventListener('click', closeDebtCustomerModal);
+    });
+    Array.prototype.forEach.call(modal.querySelectorAll('.debt-new-modal-tab'), function (button) {
+      button.addEventListener('click', function () { setDebtCustomerModalTab(button.dataset.tab); });
+    });
+    bindDebtCustomerModalBody(customer);
+  }
+
+  function renderDebtCustomerModalBody(customer) {
+    if (state.modalTab === 'orders') return renderDebtOrdersTab(customer);
+    if (state.modalTab === 'collection') return renderDebtCollectionTab(customer);
+    if (state.modalTab === 'history') return renderDebtHistoryTab(customer);
+    if (state.modalTab === 'pending') return renderDebtPendingCollectionsTab(customer);
+    return renderDebtOverviewTab(customer);
+  }
+
+  function renderDebtOverviewTab(customer) {
+    return '<div class="debt-new-modal-note">Nguồn đọc: AR-DEBT-* read model. Phiếu thu <b>submitted</b> chưa làm giảm nợ; kế toán confirm mới sinh <b>AR-DEBT-PAYMENT</b> và fund ledger.</div>' +
+      '<div class="debt-new-detail-kpis">' +
+        '<article class="debt-new-detail-kpi"><span>Tổng nợ</span><b>' + money(customer.debt) + '</b></article>' +
+        '<article class="debt-new-detail-kpi"><span>Số đơn nợ</span><b>' + esc(customer.orderCount || 0) + '</b></article>' +
+        '<article class="debt-new-detail-kpi"><span>Debit</span><b>' + money(customerSummaryValue(customer, 'debit')) + '</b></article>' +
+        '<article class="debt-new-detail-kpi"><span>Credit</span><b>' + money(customerSummaryValue(customer, 'credit')) + '</b></article>' +
+        '<article class="debt-new-detail-kpi"><span>Dư có</span><b>' + money(customer.debt < 0 ? Math.abs(num(customer.debt)) : 0) + '</b></article>' +
+        '<article class="debt-new-detail-kpi"><span>Trạng thái</span><b>' + esc(statusLabel(customer.status)) + '</b></article>' +
+      '</div>' + renderDebtOrdersTab(customer, true);
+  }
+
+  function renderDebtOrdersTab(customer, readonly) {
+    var orders = Array.isArray(customer && customer.orders) ? customer.orders : [];
+    var selected = selectedDebtOrders(customer);
+    var selectedTotal = selected.reduce(function (sum, order) { return sum + openDebt(order); }, 0);
+    var rows = orders.map(function (order, index) {
       var key = orderKey(order) || String(index);
       var checked = state.selectedOrderKeys[key] ? ' checked' : '';
       return '<tr>' +
-        '<td><input class="debt-new-order-check" type="checkbox" data-order-index="' + index + '"' + checked + '></td>' +
-        '<td><b>' + esc(order.orderCode || order.orderId) + '</b><br><small>' + esc(order.orderDate || order.lastDebtDate || '') + '</small></td>' +
+        '<td><input class="debt-new-order-check" type="checkbox" data-order-index="' + index + '"' + checked + (readonly ? '' : '') + '></td>' +
+        '<td><b>' + esc(order.orderCode || order.orderId) + '</b></td>' +
+        '<td>' + esc(order.orderDate || order.lastDebtDate || '') + '</td>' +
         '<td class="new-money">' + money(order.debit) + '</td>' +
         '<td class="new-money new-credit">' + money(order.credit) + '</td>' +
         '<td class="new-money ' + (openDebt(order) > 0 ? 'new-debt-positive' : 'new-credit') + '">' + money(order.debt) + '</td>' +
         '<td><span class="debt-new-status ' + esc(order.status || 'open') + '">' + esc(statusLabel(order.status)) + '</span></td>' +
       '</tr>';
     }).join('');
-    box.innerHTML = '<div class="new-safe-note">Nguồn đọc: AR-DEBT-* only. Phiếu thu <b>submitted</b> chưa làm giảm nợ; confirm mới post <b>AR-DEBT-PAYMENT</b> và fund ledger.</div>' +
-      '<div class="new-detail-row"><span>Khách hàng</span><b>' + esc((customer.customerCode || '') + ' - ' + (customer.customerName || '')) + '</b></div>' +
-      '<div class="new-detail-row"><span>Tổng nợ</span><b class="' + (num(customer.debt) > 0 ? 'new-debt-positive' : 'new-credit') + '">' + money(customer.debt) + '</b></div>' +
-      '<div class="new-table-wrap"><table class="new-table"><thead><tr><th>Thu</th><th>Đơn</th><th>Debit</th><th>Credit</th><th>Còn nợ</th><th>Trạng thái</th></tr></thead><tbody>' +
-      (orderRows || '<tr><td colspan="6">Khách này không có đơn trong read model New.</td></tr>') +
-      '</tbody></table></div>' +
-      '<div id="debtNewCollectionBox" class="debt-new-allocation-box"></div>';
-    Array.prototype.forEach.call(box.querySelectorAll('.debt-new-order-check'), function (input) {
+    return '<div class="debt-new-order-toolbar"><div><b>Đơn nợ</b><div class="muted">Đã chọn ' + selected.length + ' đơn · Tổng nợ chọn: <b>' + money(selectedTotal) + '</b></div></div>' +
+      '<div class="debt-new-order-toolbar-actions"><button id="debtNewSelectAllDebtOrders" type="button" class="secondary">Chọn tất cả đơn nợ</button><button id="debtNewClearDebtOrders" type="button" class="secondary">Bỏ chọn</button><button type="button" class="primary-action debt-new-go-collection">Lập phiếu thu</button></div></div>' +
+      '<div class="debt-new-modal-table-wrap"><table class="new-table debt-new-modal-table"><thead><tr><th>Chọn thu</th><th>Mã đơn</th><th>Ngày đơn</th><th>Phải thu / Debit</th><th>Đã thu / Credit</th><th>Còn nợ</th><th>Trạng thái</th></tr></thead><tbody>' +
+      (rows || '<tr><td colspan="7">Khách này không có đơn trong read model New.</td></tr>') +
+      '</tbody></table></div>';
+  }
+
+  function renderDebtCollectionTab(customer) {
+    return '<div class="debt-new-modal-note">Chỉ lập phiếu thu cho các đơn được tick ở tab <b>Đơn nợ</b>. Phiếu thu tạo ra trạng thái <b>submitted</b> và chưa làm giảm công nợ.</div><div id="debtNewCollectionBox" class="debt-new-allocation-box"></div>';
+  }
+
+  function renderDebtHistoryTab(customer) {
+    var orders = Array.isArray(customer && customer.orders) ? customer.orders : [];
+    var rows = [];
+    orders.forEach(function (order) {
+      var categories = order.categories || {};
+      Object.keys(categories).forEach(function (category) {
+        rows.push({ date: order.lastDebtDate || order.orderDate || '', category: category, orderCode: order.orderCode || order.orderId || '', debit: category.indexOf('PAYMENT') >= 0 ? 0 : categories[category], credit: category.indexOf('PAYMENT') >= 0 ? Math.abs(categories[category]) : 0, note: 'Từ AR-DEBT read model' });
+      });
+    });
+    if (!rows.length) return '<div class="debt-new-movement-empty">Chưa có lịch sử công nợ chi tiết trong dữ liệu trả về.</div>';
+    return '<div class="debt-new-modal-table-wrap"><table class="new-table debt-new-modal-table"><thead><tr><th>Ngày</th><th>Loại ledger</th><th>Mã đơn</th><th>Debit</th><th>Credit</th><th>Ghi chú / source</th></tr></thead><tbody>' + rows.map(function (row) {
+      return '<tr><td>' + esc(row.date) + '</td><td>' + esc(row.category) + '</td><td>' + esc(row.orderCode) + '</td><td class="new-money">' + money(row.debit) + '</td><td class="new-money new-credit">' + money(row.credit) + '</td><td>' + esc(row.note) + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+  }
+
+  function renderDebtPendingCollectionsTab(customer) {
+    return '<div class="debt-new-modal-note">Phiếu thu liên quan khách hiện tại. Confirm mới sinh AR-DEBT-PAYMENT và fund ledger.</div>' + collectionCardsHtml(state.collections || [], true);
+  }
+
+  function bindDebtCustomerModalBody(customer) {
+    var modal = byId('debtNewCustomerModal');
+    if (!modal || !state.modalOpen) return;
+    Array.prototype.forEach.call(modal.querySelectorAll('.debt-new-order-check'), function (input) {
       input.addEventListener('change', function () {
+        var orders = Array.isArray(customer && customer.orders) ? customer.orders : [];
         var order = orders[Number(input.dataset.orderIndex)];
         if (!order) return;
         state.selectedOrderKeys[orderKey(order)] = input.checked;
-        renderCollectionForm(customer);
+        renderDebtCustomerModal();
       });
     });
-    renderCollectionForm(customer);
+    var selectAll = byId('debtNewSelectAllDebtOrders');
+    if (selectAll) selectAll.addEventListener('click', function () {
+      (customer.orders || []).forEach(function (order) { if (openDebt(order) > 0) state.selectedOrderKeys[orderKey(order)] = true; });
+      renderDebtCustomerModal();
+    });
+    var clear = byId('debtNewClearDebtOrders');
+    if (clear) clear.addEventListener('click', function () { state.selectedOrderKeys = {}; renderDebtCustomerModal(); });
+    Array.prototype.forEach.call(modal.querySelectorAll('.debt-new-go-collection'), function (button) {
+      button.addEventListener('click', function () { setDebtCustomerModalTab('collection'); });
+    });
+    if (state.modalTab === 'collection') renderCollectionForm(customer);
+    Array.prototype.forEach.call(modal.querySelectorAll('.debtNewConfirmCollection'), function (btn) {
+      btn.addEventListener('click', function () { confirmCollection(btn.dataset.id, btn.dataset.amount); });
+    });
+    Array.prototype.forEach.call(modal.querySelectorAll('.debtNewRejectCollection'), function (btn) {
+      btn.addEventListener('click', function () { rejectCollection(btn.dataset.id); });
+    });
   }
 
   function selectedDebtOrders(customer) {
@@ -521,18 +669,15 @@
       state.selectedOrderKeys = {};
       setMessage(json.message || 'Đã tạo phiếu thu nợ, chờ kế toán xác nhận.');
       await loadCollections();
-      await load();
     } catch (err) {
       setMessage(err.message || 'Không tạo được phiếu thu công nợ', true);
     }
   }
 
-  function renderCollections() {
-    var box = byId('debtNewCollectionsList');
-    if (!box) return;
-    if (!state.hasSearched) { box.innerHTML = '<div class="empty-state">Vui lòng tìm khách trước khi xem phiếu thu liên quan.</div>'; return; }
-    if (!state.collections.length) { box.innerHTML = '<div class="empty-state">Chưa có phiếu thu chờ xác nhận theo phạm vi hiện tại.</div>'; return; }
-    box.innerHTML = state.collections.map(function (row) {
+  function collectionCardsHtml(collections, fullActions) {
+    var rows = Array.isArray(collections) ? collections : [];
+    if (!rows.length) return '<div class="empty-state">Chưa có phiếu thu chờ xác nhận theo phạm vi hiện tại.</div>';
+    return rows.map(function (row) {
       var id = row.id || row.code || '';
       var status = String(row.status || '').toLowerCase();
       return '<div class="debt-new-collection-card">' +
@@ -540,15 +685,28 @@
         '<small>Khách: ' + esc((row.customerCode || '') + ' - ' + (row.customerName || '')) + '</small>' +
         '<small>Số tiền: <b>' + money(row.amount) + '</b> · ' + esc(row.paymentMethod || '') + ' · Người thu: ' + esc([row.collectorCode, row.collectorName].filter(Boolean).join(' - ')) + '</small>' +
         '<small>Phân bổ: ' + esc((row.allocations || []).map(function (a) { return (a.salesOrderCode || a.orderCode || '') + ':' + money(a.allocatedAmount || a.amount); }).join(' · ')) + '</small>' +
-        (status === 'submitted' ? '<div class="debt-new-collection-actions"><button type="button" class="primary-action debtNewConfirmCollection" data-id="' + esc(id) + '" data-amount="' + esc(row.amount || 0) + '">Xác nhận</button><button type="button" class="secondary debtNewRejectCollection" data-id="' + esc(id) + '">Từ chối</button></div>' : '') +
+        (fullActions && status === 'submitted' ? '<div class="debt-new-collection-actions"><button type="button" class="primary-action debtNewConfirmCollection" data-id="' + esc(id) + '" data-amount="' + esc(row.amount || 0) + '">Xác nhận</button><button type="button" class="secondary debtNewRejectCollection" data-id="' + esc(id) + '">Từ chối</button></div>' : '') +
       '</div>';
     }).join('');
-    Array.prototype.forEach.call(box.querySelectorAll('.debtNewConfirmCollection'), function (btn) {
-      btn.addEventListener('click', function () { confirmCollection(btn.dataset.id, btn.dataset.amount); });
+  }
+
+  function renderCollections() {
+    var box = byId('debtNewCollectionsList');
+    if (!box) return;
+    if (!state.hasSearched) { box.innerHTML = '<div class="empty-state">Vui lòng tìm khách trước khi xem phiếu thu liên quan.</div>'; return; }
+    if (!state.collections.length) { box.innerHTML = '<div class="empty-state">Chưa có phiếu thu chờ xác nhận theo phạm vi hiện tại.</div>'; return; }
+    box.innerHTML = '<div class="debt-new-collections-summary"><div><b>' + state.collections.length + ' phiếu thu chờ xác nhận</b><br><span class="muted">Mở popup từng khách để xem phân bổ, xác nhận hoặc từ chối.</span></div><button type="button" class="secondary" id="debtNewOpenFirstPendingCustomer">Xem danh sách</button></div>';
+    var openFirst = byId('debtNewOpenFirstPendingCustomer');
+    if (openFirst) openFirst.addEventListener('click', function () {
+      if (state.selectedIndex < 0 && state.customers.length) state.selectedIndex = 0;
+      if (state.selectedIndex >= 0) {
+        state.modalOpen = true;
+        state.modalTab = 'pending';
+        renderCustomers();
+        renderDebtCustomerModal();
+      }
     });
-    Array.prototype.forEach.call(box.querySelectorAll('.debtNewRejectCollection'), function (btn) {
-      btn.addEventListener('click', function () { rejectCollection(btn.dataset.id); });
-    });
+    if (state.modalOpen) renderDebtCustomerModal();
   }
 
   async function loadCollections() {
@@ -582,7 +740,6 @@
       if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không xác nhận được phiếu thu');
       setMessage(json.message || 'Đã xác nhận phiếu thu.');
       await loadCollections();
-      await load();
     } catch (err) {
       setMessage(err.message || 'Không xác nhận được phiếu thu', true);
     }
@@ -622,8 +779,9 @@
       if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tải được dữ liệu');
       var data = json.data || json;
       state.customers = data.customers || json.customers || [];
-      state.selectedIndex = state.customers.length ? 0 : -1;
+      state.selectedIndex = -1;
       state.selectedOrderKeys = {};
+      state.modalOpen = false;
       state.loaded = true;
       state.hasSearched = true;
       setResultSectionsVisible(true);

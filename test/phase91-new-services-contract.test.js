@@ -323,6 +323,57 @@ test('Debt New compact filter UI wires autocomplete without breaking search gate
   assert.doesNotMatch(source.slice(source.indexOf('function chooseSuggestion'), source.indexOf('function moveSuggestionActive')), /load\(\)/);
 });
 
+
+test('Debt New main screen uses customer detail popup instead of fixed detail panel', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/new/92-debt-new.js'), 'utf8');
+  assert.match(source, /debtNewCustomerModal/);
+  assert.match(source, /openDebtCustomerModal/);
+  assert.match(source, /renderDebtCustomerModal/);
+  assert.match(source, /Công nợ khách hàng/);
+  assert.match(source, /Tổng quan/);
+  assert.match(source, /Đơn nợ/);
+  assert.match(source, /Lập phiếu thu/);
+  assert.match(source, /Lịch sử công nợ/);
+  assert.match(source, /Phiếu thu chờ xác nhận/);
+  assert.match(source, /Chi tiết/);
+  assert.match(source, /debt-new-modal/);
+  assert.doesNotMatch(source, /Đơn của khách \/ Phiếu thu/);
+  assert.doesNotMatch(source, /debtNewDetail/);
+  assert.doesNotMatch(source, /new-two-pane debt-new-results/);
+});
+
+test('Debt New popup keeps collection workflow inside modal and main screen compact', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/new/92-debt-new.js'), 'utf8');
+  assert.match(source, /Chọn tất cả đơn nợ/);
+  assert.match(source, /debtNewSelectAllDebtOrders/);
+  assert.match(source, /debtNewClearDebtOrders/);
+  assert.match(source, /debt-new-go-collection/);
+  assert.match(source, /renderDebtCollectionTab/);
+  assert.match(source, /debtNewCollectionBox/);
+  assert.match(source, /renderDebtPendingCollectionsTab/);
+  assert.match(source, /ESC|Escape/);
+  assert.match(source, /state\.modalOpen/);
+});
+
+test('Debt New detail API is guarded and scoped by customerCode', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const route = fs.readFileSync(path.join(__dirname, '..', 'src/routes/newOperationsRoutes.js'), 'utf8');
+  const service = fs.readFileSync(path.join(__dirname, '..', 'src/services/v2/debtNew.service.js'), 'utf8');
+  assert.match(route, /router\.get\('\/debt\/customers\/:customerCode\/detail'/);
+  assert.match(route, /debtNewService\.customerDetail/);
+  assert.match(route, /CUSTOMER_CODE_REQUIRED/);
+  assert.match(service, /async function customerDetail/);
+  assert.match(service, /CUSTOMER_CODE_REQUIRED/);
+  assert.match(service, /listCustomers\(\{ \.\.\.query, customerCode/);
+  assert.match(service, /movements/);
+  assert.match(service, /debtOrders/);
+});
+
 test('Debt New suggestion route is scoped and authenticated', () => {
   const fs = require('node:fs');
   const path = require('node:path');

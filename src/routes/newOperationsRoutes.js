@@ -190,6 +190,30 @@ router.get('/debt/customers', requireAuth, readRoles, async (req, res) => {
   }
 });
 
+router.get('/debt/customers/:customerCode/detail', requireAuth, readRoles, async (req, res) => {
+  try {
+    const customerCode = String(req.params.customerCode || '').trim();
+    if (!customerCode) {
+      return res.status(400).json({ ok: false, success: false, code: 'CUSTOMER_CODE_REQUIRED', message: 'Vui lòng chọn khách hàng để xem chi tiết công nợ.' });
+    }
+    const result = await debtNewService.customerDetail({ ...(req.query || {}), customerCode });
+    return res.json({
+      ok: true,
+      success: true,
+      message: 'Đã tải chi tiết Công nợ (New)',
+      data: result,
+      customer: result.customer,
+      debtOrders: result.debtOrders,
+      movements: result.movements,
+      pendingCollections: result.pendingCollections,
+      diagnostics: result.diagnostics,
+      canonicalRoute: '/api/new/debt/customers/:customerCode/detail'
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không tải được chi tiết Công nợ (New)');
+  }
+});
+
 function debtCollectionResult(res, result = {}, successStatus = 200) {
   if (result && result.error) {
     return res.status(result.status || 400).json({
