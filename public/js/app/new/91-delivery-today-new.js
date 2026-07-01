@@ -36,6 +36,12 @@
   }
   function num(value) { return parseVietnameseMoney(value); }
   function money(value) { return formatVietnameseMoney(value); }
+  function deltaMoney(value) {
+    var n = parseVietnameseMoney(value);
+    if (n > 0) return '+' + money(n);
+    if (n < 0) return '-' + money(Math.abs(n));
+    return '0';
+  }
   function today() { return new Date().toISOString().slice(0, 10); }
   function isConfirmed(row) { return row && (row.accountingConfirmed || row.deliveryCloseoutStatus === 'closed' || row.closeoutStatus === 'accounting_confirmed' || row.closeoutStatus === 'corrected_confirmed'); }
   function statusLabel(row) {
@@ -158,7 +164,7 @@
       '.delivery-new-detail-cell{border:1px solid #dbe7f5;border-radius:10px;padding:9px 10px;background:#fff;}.delivery-new-detail-cell span{display:block;color:#64748b;font-size:12px;}.delivery-new-detail-cell b{display:block;text-align:right;font-size:16px;margin-top:4px;}' +
       '.delivery-new-safe-note{border:1px solid #bae6fd;background:#eff6ff;border-radius:10px;padding:10px 12px;color:#075985;font-weight:700;margin:8px 0;}.delivery-new-correction-warning{border-color:#fed7aa;background:#fff7ed;color:#9a3412;}.delivery-new-money-input{text-align:right;font-variant-numeric:tabular-nums;}' +
       '.delivery-new-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.delivery-new-version-list{margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:8px;color:#334155;}.delivery-new-returnorders{margin:12px 0;border:1px solid #dbe7f5;border-radius:12px;background:#fff;overflow:hidden;}.delivery-new-returnorders-header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}.delivery-new-returnorders-header h4{margin:0;font-size:14px;}.delivery-new-returnorders-header small{display:block;color:#64748b;margin-top:3px;}.delivery-new-returnorder-card{padding:10px 12px;border-bottom:1px dashed #dbe7f5;}.delivery-new-returnorder-card:last-child{border-bottom:0;}.delivery-new-returnorder-meta{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:space-between;color:#475569;font-size:12px;}.delivery-new-returnorder-meta b{color:#0f172a;}.delivery-new-return-items{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}.delivery-new-return-items th,.delivery-new-return-items td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-return-items th{color:#64748b;font-weight:800;background:#f8fafc;}.delivery-new-return-items .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}.delivery-new-returnorder-note{margin-top:8px;}.delivery-new-adjust-table{width:100%;border-collapse:collapse;margin:8px 0 10px;font-size:12px;}.delivery-new-adjust-table th,.delivery-new-adjust-table td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-adjust-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-adjust-table .num{text-align:right;font-variant-numeric:tabular-nums;}.delivery-new-adjust-table input{width:88px;text-align:right;}.delivery-v46-suggest-box .empty{padding:8px 10px;color:#64748b;font-size:12px;}.delivery-v46-suggest-box button strong{font-size:12px;color:#0b4dbb;}.delivery-v46-suggest-box button em{font-style:normal;font-size:11px;color:#64748b;}' +
-      '.delivery-new-modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.36);padding:28px;overflow:auto;}.delivery-new-adjustment-dialog{width:min(1280px,96vw);margin:0 auto;background:#fff;border-radius:18px;box-shadow:0 18px 50px rgba(15,23,42,.35);padding:18px;}.delivery-new-modal-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid #dbe7f5;padding-bottom:12px;margin-bottom:12px;}.delivery-new-modal-header h3{margin:0;font-size:20px;}.delivery-new-modal-header small{display:block;color:#475569;margin-top:4px;}.delivery-new-modal-close{border:0;background:#2563eb;color:#fff;border-radius:999px;padding:8px 12px;font-weight:900;cursor:pointer;opacity:1!important;pointer-events:auto!important;box-shadow:0 8px 18px rgba(37,99,235,.24);}.delivery-new-modal-close:focus{outline:2px solid #93c5fd;outline-offset:2px;}.delivery-new-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px;}.delivery-new-tab{border:1px solid #cbd5e1;background:#f8fafc;border-radius:999px;padding:8px 12px;font-weight:800;cursor:pointer;}.delivery-new-tab.active{background:#2563eb;color:#fff;border-color:#2563eb;}.delivery-new-tab-panel{border:1px solid #dbe7f5;border-radius:14px;padding:12px;background:#fff;min-height:260px;}.delivery-new-modal-footer{display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:end;border-top:1px solid #dbe7f5;margin-top:12px;padding-top:12px;}.delivery-new-modal-footer label{font-weight:800;}.delivery-new-modal-footer input{width:100%;}.delivery-new-modal-footer .wide{grid-column:span 1;}.delivery-new-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:10px;}.delivery-new-business-table{width:100%;border-collapse:collapse;font-size:12px;}.delivery-new-business-table th,.delivery-new-business-table td{border-top:1px solid #e2e8f0;padding:7px 6px;text-align:left;}.delivery-new-business-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-business-table .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-business-table input{width:92px;text-align:right;}.delivery-new-preview-cards{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-top:10px;}.delivery-new-history-block{margin:10px 0;border:1px solid #dbe7f5;border-radius:12px;overflow:hidden;}.delivery-new-history-block h4{margin:0;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}' +
+      '.delivery-new-modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.36);padding:28px;overflow:auto;}.delivery-new-adjustment-dialog{width:min(1280px,96vw);margin:0 auto;background:#fff;border-radius:18px;box-shadow:0 18px 50px rgba(15,23,42,.35);padding:18px;}.delivery-new-modal-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid #dbe7f5;padding-bottom:12px;margin-bottom:12px;}.delivery-new-modal-header h3{margin:0;font-size:20px;}.delivery-new-modal-header small{display:block;color:#475569;margin-top:4px;}.delivery-new-modal-close{border:0;background:#2563eb;color:#fff;border-radius:999px;padding:8px 12px;font-weight:900;cursor:pointer;opacity:1!important;pointer-events:auto!important;box-shadow:0 8px 18px rgba(37,99,235,.24);}.delivery-new-modal-close:focus{outline:2px solid #93c5fd;outline-offset:2px;}.delivery-new-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px;}.delivery-new-tab{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:999px;padding:8px 12px;font-weight:800;cursor:pointer;opacity:1;}.delivery-new-tab.active{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:900;box-shadow:0 8px 18px rgba(37,99,235,.18);}.delivery-new-tab:disabled,.delivery-new-tab.is-disabled{background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;opacity:1;cursor:not-allowed;box-shadow:none;}.delivery-new-tab-panel{border:1px solid #dbe7f5;border-radius:14px;padding:12px;background:#fff;min-height:260px;}.delivery-new-modal-footer{display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:end;border-top:1px solid #dbe7f5;margin-top:12px;padding-top:12px;}.delivery-new-modal-footer label{font-weight:800;}.delivery-new-modal-footer input{width:100%;}.delivery-new-modal-footer .wide{grid-column:span 1;}.delivery-new-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:10px;}.delivery-new-business-table{width:100%;border-collapse:collapse;font-size:12px;}.delivery-new-business-table th,.delivery-new-business-table td{border-top:1px solid #e2e8f0;padding:7px 6px;text-align:left;}.delivery-new-business-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-business-table .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-business-table input{width:92px;text-align:right;}.delivery-new-preview-cards{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-top:10px;}.delivery-new-history-block{margin:10px 0;border:1px solid #dbe7f5;border-radius:12px;overflow:hidden;}.delivery-new-history-block h4{margin:0;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}' +
       '.delivery-new-form-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;}.delivery-new-form-grid label{font-weight:700;color:#0f172a;}.delivery-new-form-grid input{width:100%;}.delivery-new-form-grid .wide{grid-column:span 2;}' +
       '@media(max-width:1100px){.delivery-v46-list-panel{overflow-x:auto;}.delivery-new-order-grid{grid-template-columns:32px minmax(220px,1.7fr) 92px 92px 92px 92px 92px 96px 108px 110px;min-width:1080px;}.delivery-new-summary-grid,.delivery-new-preview-cards{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row{grid-template-columns:minmax(200px,1fr) 70px repeat(3,1fr);}.delivery-new-salesman-row span:nth-child(n+6){display:none;}}' +
       '@media(max-width:760px){.delivery-new-order-grid{min-width:1080px;grid-template-columns:32px minmax(220px,1.7fr) 92px 92px 92px 92px 92px 96px 108px 110px;}.delivery-new-form-grid,.delivery-new-summary-grid,.delivery-new-preview-cards,.delivery-new-modal-footer{grid-template-columns:1fr;}.delivery-new-salesman-row{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row span:nth-child(n+5){display:none;}.delivery-new-form-grid .wide{grid-column:span 1;}.delivery-new-modal-backdrop{padding:10px;}.delivery-new-adjustment-dialog{width:100%;}}';
@@ -977,11 +983,17 @@
     var newCash = parseVietnameseMoney(byId('deliveryAdjustCashNew') ? byId('deliveryAdjustCashNew').value : oldCash);
     var newBank = parseVietnameseMoney(byId('deliveryAdjustBankNew') ? byId('deliveryAdjustBankNew').value : oldBank);
     var newReward = parseVietnameseMoney(byId('deliveryAdjustRewardNew') ? byId('deliveryAdjustRewardNew').value : oldReward);
-    var cashDeltaAmount = newCash - oldCash;
-    var bankDeltaAmount = newBank - oldBank;
-    var rewardDeltaAmount = newReward - oldReward;
-    var currentTotalCollected = oldCash + oldBank + oldReward;
-    var correctedTotalCollected = newCash + newBank + newReward;
+    var currentCashAmount = oldCash;
+    var correctedCashAmount = newCash;
+    var currentBankAmount = oldBank;
+    var correctedBankAmount = newBank;
+    var currentRewardAmount = oldReward;
+    var correctedRewardAmount = newReward;
+    var cashDeltaAmount = correctedCashAmount - currentCashAmount;
+    var bankDeltaAmount = correctedBankAmount - currentBankAmount;
+    var rewardDeltaAmount = correctedRewardAmount - currentRewardAmount;
+    var currentTotalCollected = currentCashAmount + currentBankAmount + currentRewardAmount;
+    var correctedTotalCollected = correctedCashAmount + correctedBankAmount + correctedRewardAmount;
     var totalCollectedDelta = correctedTotalCollected - currentTotalCollected;
     var cashDelta = totalCollectedDelta;
     var debtDelta = -returnDelta - cashDelta;
@@ -1093,19 +1105,20 @@
       : '';
     return warning + '<div class="delivery-new-form-grid">' +
       '<label>Tiền mặt hiện tại<input disabled value="' + esc(money(currentCash)) + '"></label>' +
-      '<label>Tiền mặt đúng<input id="deliveryAdjustCashNew" class="delivery-new-money-input" inputmode="numeric" value="' + esc(money(Math.max(0, currentCash))) + '"></label>' +
+      '<label>Tiền mặt sau điều chỉnh<input id="deliveryAdjustCashNew" class="delivery-new-money-input" inputmode="numeric" placeholder="Nhập số tiền cuối cùng" value="' + esc(money(Math.max(0, currentCash))) + '"></label>' +
       '<label>Chuyển khoản hiện tại<input disabled value="' + esc(money(currentBank)) + '"></label>' +
-      '<label>Chuyển khoản đúng<input id="deliveryAdjustBankNew" class="delivery-new-money-input" inputmode="numeric" value="' + esc(money(Math.max(0, currentBank))) + '"></label>' +
+      '<label>Chuyển khoản sau điều chỉnh<input id="deliveryAdjustBankNew" class="delivery-new-money-input" inputmode="numeric" placeholder="Nhập số tiền cuối cùng" value="' + esc(money(Math.max(0, currentBank))) + '"></label>' +
       '<label>Trả thưởng hiện tại<input disabled value="' + esc(money(reward)) + '"></label>' +
-      '<label>Trả thưởng đúng<input id="deliveryAdjustRewardNew" class="delivery-new-money-input" inputmode="numeric" value="' + esc(money(Math.max(0, reward))) + '"></label>' +
+      '<label>Trả thưởng sau điều chỉnh<input id="deliveryAdjustRewardNew" class="delivery-new-money-input" inputmode="numeric" placeholder="Nhập số tiền cuối cùng" value="' + esc(money(Math.max(0, reward))) + '"></label>' +
       '</div>' +
+      '<div class="delivery-new-safe-note delivery-new-final-amount-note">Nhập số tiền cuối cùng muốn ghi nhận sau điều chỉnh. Hệ thống tự tính chênh lệch = số tiền sau điều chỉnh - số tiền hiện tại.</div>' +
       '<div class="delivery-new-preview-cards">' +
         detailCellValueId('Chênh lệch tiền mặt', 'deliveryCashDeltaText', '0') +
         detailCellValueId('Chênh lệch chuyển khoản', 'deliveryBankDeltaText', '0') +
         detailCellValueId('Chênh lệch trả thưởng', 'deliveryRewardDeltaText', '0') +
         detailCellValueId('Tổng chênh lệch tiền thu', 'deliveryCashTotalDeltaText', '0') +
       '</div>' +
-      '<div class="delivery-new-safe-note">Sửa tiền thu sau xác nhận kế toán chỉ tạo version điều chỉnh, không sinh AR-RECEIPT trực tiếp.</div>';
+      '<div class="delivery-new-safe-note">Chênh lệch = số tiền sau điều chỉnh - số tiền hiện tại. Sửa tiền thu sau xác nhận kế toán chỉ tạo version điều chỉnh, không sinh AR-RECEIPT trực tiếp.</div>';
   }
 
   function renderDebtTab(row) {
@@ -1188,10 +1201,10 @@
     });
     setText('deliveryReturnAfterText', money(totals.returnAfter));
     setText('deliveryReturnDeltaText', money(totals.returnDelta));
-    setText('deliveryCashDeltaText', money(totals.cashDeltaAmount));
-    setText('deliveryBankDeltaText', money(totals.bankDeltaAmount));
-    setText('deliveryRewardDeltaText', money(totals.rewardDeltaAmount));
-    setText('deliveryCashTotalDeltaText', money(totals.totalCollectedDelta));
+    setText('deliveryCashDeltaText', deltaMoney(totals.cashDeltaAmount));
+    setText('deliveryBankDeltaText', deltaMoney(totals.bankDeltaAmount));
+    setText('deliveryRewardDeltaText', deltaMoney(totals.rewardDeltaAmount));
+    setText('deliveryCashTotalDeltaText', deltaMoney(totals.totalCollectedDelta));
   }
 
   function openAdjustmentPopup(row) {
@@ -1199,7 +1212,7 @@
     var modal = byId('deliveryTodayNewAdjustmentModal');
     if (!modal) return;
     state.adjustmentRow = row;
-    state.activeTab = 'overview';
+    state.activeTab = 'payments';
     state.correctionReturnItems = buildReturnEditItems(row);
     modal.hidden = false;
     modal.innerHTML = '' +
@@ -1267,10 +1280,10 @@
     if (!reason) { setMessage('Vui lòng nhập lý do điều chỉnh.', true); return; }
 
     var totals = totalsFromPopup(row);
-    if (totals.newCash < 0) { setMessage('Tiền mặt đúng không được âm.', true); return; }
-    if (totals.newBank < 0) { setMessage('Chuyển khoản đúng không được âm.', true); return; }
-    if (totals.newReward < 0) { setMessage('Trả thưởng đúng không được âm.', true); return; }
-    if (totals.correctedTotalCollected < 0) { setMessage('Tiền thu sau điều chỉnh không được âm.', true); return; }
+    if (totals.newCash < 0) { setMessage('Tiền mặt sau điều chỉnh không được âm.', true); return; }
+    if (totals.newBank < 0) { setMessage('Chuyển khoản sau điều chỉnh không được âm.', true); return; }
+    if (totals.newReward < 0) { setMessage('Trả thưởng sau điều chỉnh không được âm.', true); return; }
+    if (totals.correctedTotalCollected < 0) { setMessage('Tổng tiền thu sau điều chỉnh không được âm.', true); return; }
     var correctedReturnItems = totals.returnItems.filter(function (item) { return qty(item.adjustmentQty) !== 0; });
     var cashLines = [
       { paymentMethod: 'cash', oldAmount: totals.oldCash, newAmount: totals.newCash, adjustmentAmount: totals.newCash - totals.oldCash },

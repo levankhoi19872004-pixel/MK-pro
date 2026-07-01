@@ -172,9 +172,15 @@ function validateCorrectionInput(input = {}, calculated = {}) {
     err.status = 400;
     throw err;
   }
+  const paymentLabels = {
+    cash: 'Tiền mặt sau điều chỉnh',
+    bank: 'Chuyển khoản sau điều chỉnh',
+    reward: 'Trả thưởng sau điều chỉnh'
+  };
   for (const line of calculated.cashAdjustmentLines || []) {
     if (money(line.newAmount) < 0) {
-      const err = new Error('Tiền thu sau điều chỉnh không được âm.');
+      const label = paymentLabels[text(line.paymentMethod).toLowerCase()] || 'Tiền thu sau điều chỉnh';
+      const err = new Error(`${label} không được âm.`);
       err.code = 'DELIVERY_CLOSEOUT_CORRECTION_NEGATIVE_CASH';
       err.status = 400;
       throw err;

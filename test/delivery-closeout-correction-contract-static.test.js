@@ -89,6 +89,9 @@ test('Phase106 correction service rejects negative corrected payment but not neg
   assert.match(service, /if \(money\(line\.newAmount\) < 0\)/);
   assert.doesNotMatch(service, /money\(line\.newAmount\) < 0 \|\| money\(line\.oldAmount\) < 0/);
   assert.match(service, /validateCorrectionInput/);
+  assert.match(service, /Tiền mặt sau điều chỉnh/);
+  assert.match(service, /Chuyển khoản sau điều chỉnh/);
+  assert.match(service, /Trả thưởng sau điều chỉnh/);
 });
 
 test('Phase106 read-only audit script exists for negative delivery cash', () => {

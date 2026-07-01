@@ -52,11 +52,31 @@ test('Delivery Today New payment correction renders DOM delta cells and final-am
   assert.match(source, /detailCellValueId\('Tổng chênh lệch tiền thu', 'deliveryCashTotalDeltaText'/);
   assert.match(source, /parseVietnameseMoney/);
   assert.match(source, /formatVietnameseMoney/);
-  assert.match(source, /cashDeltaAmount\s*=\s*newCash\s*-\s*oldCash/);
-  assert.match(source, /bankDeltaAmount\s*=\s*newBank\s*-\s*oldBank/);
-  assert.match(source, /rewardDeltaAmount\s*=\s*newReward\s*-\s*oldReward/);
+  assert.match(source, /cashDeltaAmount\s*=\s*correctedCashAmount\s*-\s*currentCashAmount/);
+  assert.match(source, /bankDeltaAmount\s*=\s*correctedBankAmount\s*-\s*currentBankAmount/);
+  assert.match(source, /rewardDeltaAmount\s*=\s*correctedRewardAmount\s*-\s*currentRewardAmount/);
   assert.doesNotMatch(source, /oldCash\s*\+\s*newCash/);
   assert.doesNotMatch(source, /currentCashAmount\s*\+\s*correctedCashAmount/);
+});
+
+
+
+test('Delivery Today New correction modal labels final amounts and keeps disabled tab text readable', () => {
+  assert.match(source, /Tiền mặt sau điều chỉnh/);
+  assert.match(source, /Chuyển khoản sau điều chỉnh/);
+  assert.match(source, /Trả thưởng sau điều chỉnh/);
+  assert.doesNotMatch(source, /Tiền mặt đúng/);
+  assert.doesNotMatch(source, /Chuyển khoản đúng/);
+  assert.doesNotMatch(source, /Trả thưởng đúng/);
+  assert.match(source, /Nhập số tiền cuối cùng muốn ghi nhận sau điều chỉnh/);
+  assert.match(source, /delivery-new-tab:disabled/);
+  assert.match(source, /delivery-new-tab\.is-disabled/);
+  assert.match(source, /opacity:1/);
+  assert.match(source, /background:#f1f5f9/);
+  assert.match(source, /color:#64748b/);
+  assert.match(source, /delivery-new-tab\.active\{background:#2563eb;color:#fff/);
+  assert.match(source, /placeholder="Nhập số tiền cuối cùng"/);
+  assert.match(source, /deltaMoney/);
 });
 
 test('Delivery Today New adjustment modal close button stays actionable and explains correction mode', () => {
