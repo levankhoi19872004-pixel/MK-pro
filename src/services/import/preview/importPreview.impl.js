@@ -73,6 +73,76 @@ const {
   summarizeOrderShortages
 } = rows;
 
+const PROMOTION_MISSING_PRODUCT_ERROR = 'Mã sản phẩm chưa có trong danh mục';
+
+function normalizeUploadedFileName(value) {
+  const text = cleanText(value);
+  if (!text) return text;
+  if (!/[ÃÂÄ]/.test(text)) return text;
+  try {
+    const decoded = Buffer.from(text, 'latin1').toString('utf8');
+    if (decoded && decoded !== text && !decoded.includes('�')) return decoded;
+  } catch (_) {
+    // Giữ nguyên tên file nếu không phải mojibake latin1->utf8.
+  }
+  return text;
+}
+
+function addUniqueError(item, message) {
+  if (!item || !message) return;
+  if (!Array.isArray(item.errors)) item.errors = [];
+  if (!item.errors.includes(message)) item.errors.push(message);
+}
+
+function removeWarning(item, message) {
+  if (!item || !Array.isArray(item.warnings)) return;
+  item.warnings = item.warnings.filter((warning) => cleanText(warning) !== message);
+}
+
+function finalizePromotionGroupItemPreview(item) {
+  if (!item) return item;
+  item.errors = Array.isArray(item.errors) ? item.errors.filter(Boolean) : [];
+  item.warnings = Array.isArray(item.warnings) ? item.warnings.filter(Boolean) : [];
+
+  if (item.productCode && (item.missingProduct === true || item.productMatched === false)) {
+    addUniqueError(item, PROMOTION_MISSING_PRODUCT_ERROR);
+    removeWarning(item, PROMOTION_MISSING_PRODUCT_ERROR);
+  }
+
+  const valid = item.errors.length === 0 && item.missingProduct !== true && item.productMatched !== false;
+  item.valid = valid;
+  item.canImport = valid;
+  item.status = valid ? 'valid' : 'invalid';
+  item.statusText = valid ? 'Hợp lệ' : 'Lỗi';
+  return item;
+}
+
+function buildPreviewSummary(type, result = []) {
+  const safe = Array.isArray(result) ? result : [];
+  const validRows = safe.filter((row) => row && row.valid).length;
+  const invalidRows = safe.length - validRows;
+  const missingProductCount = safe.filter((row) => row && row.missingProduct === true).length;
+  return {
+    type,
+    rows: safe,
+    total: safe.length,
+    totalRows: safe.length,
+    valid: validRows,
+    validRows,
+    invalid: invalidRows,
+    invalidRows,
+    errorRows: invalidRows,
+    summary: {
+      totalRows: safe.length,
+      validRows,
+      invalidRows,
+      errorRows: invalidRows,
+      missingProductCount,
+      skippedCount: invalidRows
+    }
+  };
+}
+
 async function previewMongoNative(type, rows = [], options = {}) {
   const safeRows = Array.isArray(rows) ? rows : [];
   let result = [];
@@ -482,15 +552,15 @@ async function previewMongoNative(type, rows = [], options = {}) {
       item.warnings = [];
       if (!item.programCode) item.errors.push('Thiếu mã chương trình KM / mã nhóm');
       if (!item.productCode) item.errors.push('Thiếu mã sản phẩm');
-      if (item.productCode && !product) item.warnings.push('Mã sản phẩm chưa có trong danh mục');
       item.productMatched = Boolean(product);
       item.missingProduct = Boolean(item.productCode && !product);
+      if (item.missingProduct) item.errors.push(PROMOTION_MISSING_PRODUCT_ERROR);
       item.source = item.source || 'excel-import';
       if (product) item.productName = cleanText(product.name || item.productName);
       const key = `${item.programCode}__${item.productCode}`;
       if (seen.has(key)) item.errors.push('Trùng mã chương trình + mã sản phẩm trong file');
       seen.add(key);
-      return { ...item, valid: item.errors.length === 0 };
+      return finalizePromotionGroupItemPreview(item);
     });
   } else if (type === 'promotionGroupRules') {
     const payloads = safeRows.map(pickPromotionGroupRulePayload);
@@ -621,17 +691,17 @@ async function previewMongoNative(type, rows = [], options = {}) {
     throw new Error('Loại import không hợp lệ');
   }
 
-  return { type, rows: result, total: result.length, valid: result.filter((r) => r.valid).length, invalid: result.filter((r) => !r.valid).length };
+  return buildPreviewSummary(type, result);
 }
 
 function normalizeImportFiles({ files = [], buffer = null, fileName = '' } = {}) {
   const list = [];
   if (Array.isArray(files) && files.length) {
     files.forEach((file, index) => {
-      if (file && file.buffer) list.push({ buffer: file.buffer, fileName: cleanText(file.originalname || file.filename || file.name || `File ${index + 1}.xlsx`) });
+      if (file && file.buffer) list.push({ buffer: file.buffer, fileName: normalizeUploadedFileName(file.originalname || file.filename || file.name || `File ${index + 1}.xlsx`) });
     });
   }
-  if (!list.length && buffer) list.push({ buffer, fileName: cleanText(fileName || 'File Excel.xlsx') });
+  if (!list.length && buffer) list.push({ buffer, fileName: normalizeUploadedFileName(fileName || 'File Excel.xlsx') });
   return list;
 }
 

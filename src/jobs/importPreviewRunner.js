@@ -4,6 +4,19 @@ const fs = require('fs/promises');
 const { parseExcelBuffer } = require('../../utils/excelParser');
 const importSessionService = require('../services/importSessionService');
 
+function normalizePreviewFileName(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return text;
+  if (!/[ÃÂÄ]/.test(text)) return text;
+  try {
+    const decoded = Buffer.from(text, 'latin1').toString('utf8');
+    if (decoded && decoded !== text && !decoded.includes('�')) return decoded;
+  } catch (_) {
+    // Không phải mojibake latin1->utf8, giữ nguyên.
+  }
+  return text;
+}
+
 async function runImportPreviewPipeline({ sessionId, type, files = [], userName = '', importMode = 'create', buildPreviewFromRows }) {
   if (typeof buildPreviewFromRows !== 'function') throw new TypeError('Thiếu buildPreviewFromRows');
   const parsingSession = await importSessionService.markParsing(sessionId);
@@ -18,7 +31,7 @@ async function runImportPreviewPipeline({ sessionId, type, files = [], userName 
     const rows = [];
     const fileNames = [];
     for (const file of files) {
-      const currentFileName = file.fileName || file.originalname || 'import.xlsx';
+      const currentFileName = normalizePreviewFileName(file.fileName || file.originalname || 'import.xlsx');
       const buffer = file.buffer || await fs.readFile(file.path);
       await importSessionService.updateProgress(sessionId, { percent: 20, step: `parsing:${currentFileName}` });
       const fileRows = (await parseExcelBuffer(buffer)).map((row, index) => ({

@@ -263,8 +263,13 @@ async function importPromotionGroupItems(rows = []) {
     if (!programCode) { skipped += 1; errors.push({ row: rowNo, productCode, error: 'Thiếu mã chương trình KM / mã nhóm' }); continue; }
     if (!productCode) { skipped += 1; errors.push({ row: rowNo, productCode, error: 'Thiếu mã sản phẩm' }); continue; }
 
-    const productName = cleanText(product?.name || payload.productName || '');
-    if (!product) warnings.push({ row: rowNo, productCode, warning: `Mã sản phẩm ${productCode} chưa có trong danh mục` });
+    if (!product) {
+      skipped += 1;
+      errors.push({ row: rowNo, productCode, error: `Mã sản phẩm ${productCode} chưa có trong danh mục` });
+      continue;
+    }
+
+    const productName = cleanText(product.name || payload.productName || '');
 
     const id = cleanText(payload.id) || `${programCode}__${productCode}`;
     const doc = {

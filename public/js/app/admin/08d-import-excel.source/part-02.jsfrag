@@ -9,7 +9,11 @@ function syncImportChecksFromModal(){
     const index=Number(cb.dataset.index);
     const row=importPreviewRows[index];
     const key=getImportRowSelectKey(row,index);
-    if(cb.checked)importSelectedRowKeySet.add(key);
+    if(!isImportRowSelectable(row)){
+      importSelectedRowKeySet.delete(key);
+      cb.checked=false;
+      cb.disabled=true;
+    }else if(cb.checked)importSelectedRowKeySet.add(key);
     else importSelectedRowKeySet.delete(key);
     const inline=document.querySelector(`.import-preview-wrap .import-row-check[data-index="${cb.dataset.index}"]`);
     if(inline)inline.checked=cb.checked;
@@ -20,7 +24,7 @@ function bindImportPreviewModalControls(){
   const closeBtn=document.getElementById('closeImportPreviewModalButton');
   if(closeBtn)closeBtn.onclick=closeImportPreviewModal;
   const selectAll=document.getElementById('selectAllImportPreviewButton');
-  if(selectAll)selectAll.onclick=()=>{initImportSelectedRows(importPreviewRows);document.querySelectorAll('.import-modal-row-check').forEach(cb=>cb.checked=true);syncImportChecksFromModal();};
+  if(selectAll)selectAll.onclick=()=>{initImportSelectedRows(importPreviewRows);document.querySelectorAll('.import-modal-row-check').forEach(cb=>{const row=importPreviewRows[Number(cb.dataset.index)];cb.checked=isImportRowSelectable(row);cb.disabled=!isImportRowSelectable(row);});syncImportChecksFromModal();};
   const clearAll=document.getElementById('clearAllImportPreviewButton');
   if(clearAll)clearAll.onclick=()=>{importSelectedRowKeySet=new Set();document.querySelectorAll('.import-modal-row-check').forEach(cb=>cb.checked=false);syncImportChecksFromModal();};
   const importBtn=document.getElementById('commitImportFromModalButton');
@@ -89,14 +93,14 @@ function renderImportPreview(result){
       return {...row,hasShortage:true,statusText:row.statusText==='Hợp lệ'?'Vượt tồn':row.statusText,shortageReport:list,shortageCount:list.length,shortageQuantity:q,shortageAmount:a};
     });
   }
-  importPreviewRows=normalizeImportPreviewSalesStaffFromAccounts(importPreviewRows);
+  importPreviewRows=normalizeImportPreviewSalesStaffFromAccounts(importPreviewRows).map(normalizeImportPreviewRowValidity);
   window.__importPreviewRows=importPreviewRows;
   initImportSelectedRows(importPreviewRows);
   const total=Math.max(importPreviewRows.length,Number(result.total||result.totalRows||0));
   const valid=importPreviewRows.length===total
     ? importPreviewRows.filter(r=>r&&r.valid).length
     : Number(result.valid||result.validRows||0);
-  const selectable=importPreviewRows.filter(r=>r&&r.valid&&r.canImport!==false).length;
+  const selectable=importPreviewRows.filter(isImportRowSelectable).length;
   const unchanged=importPreviewRows.filter(r=>r&&r.action==='no_change').length;
   const invalid=Math.max(0,total-valid);
   if(importPreviewSummary){
@@ -121,17 +125,17 @@ function renderImportPreview(result){
     const invalidFirst=indexedRows.filter(x=>!x.row.valid).concat(indexedRows.filter(x=>x.row.valid));
     const visibleRows=invalidFirst.slice(0,IMPORT_PREVIEW_RENDER_LIMIT);
     const hiddenCount=Math.max(0,indexedRows.length-visibleRows.length);
-    const hiddenNote=hiddenCount>0?`<tr><td colspan="${orderMode?2:5}" class="muted">Đang tối ưu tốc độ: chỉ hiển thị ${formatNumber(visibleRows.length)} dòng đầu, còn ${formatNumber(hiddenCount)} dòng vẫn đã được chọn/import theo session.</td></tr>`:'';
+    const hiddenNote=hiddenCount>0?`<tr><td colspan="${orderMode?2:5}" class="muted">Đang tối ưu tốc độ: chỉ hiển thị ${formatNumber(visibleRows.length)} dòng đầu, còn ${formatNumber(hiddenCount)} dòng vẫn nằm trong phiên preview.</td></tr>`:'';
     if(orderMode){
       importPreviewTable.innerHTML=visibleRows.map(({row,index})=>`
         <tr data-import-row-number="${Number(row.rowNo||row.__rowNo||index+1)}" class="${row.valid?'import-valid':'import-invalid'} ${row.hasShortage?'import-shortage-row':''}">
-          <td>${row.valid&&row.canImport!==false?`<input class="import-row-check" data-index="${index}" type="checkbox" />`:''}</td>
+          <td>${isImportRowSelectable(row)?`<input class="import-row-check" data-index="${index}" type="checkbox" />`:`<input class="import-row-check" data-index="${index}" type="checkbox" disabled title="Dòng lỗi không được import" />`}</td>
           <td>${renderImportOrderPreviewSummary(row,index,{inline:true})}</td>
         </tr>`).join('')+hiddenNote;
     }else{
       importPreviewTable.innerHTML=visibleRows.map(({row,index})=>`
         <tr data-import-row-number="${Number(row.rowNo||row.__rowNo||index+1)}" class="${row.valid?'import-valid':'import-invalid'}">
-          <td>${row.valid&&row.canImport!==false?`<input class="import-row-check" data-index="${index}" type="checkbox" />`:''}</td>
+          <td>${isImportRowSelectable(row)?`<input class="import-row-check" data-index="${index}" type="checkbox" />`:`<input class="import-row-check" data-index="${index}" type="checkbox" disabled title="Dòng lỗi không được import" />`}</td>
           <td>${row.rowNo||''}</td>
           <td><span class="badge ${row.valid?(row.hasShortage?'warn':'active'):'inactive'}">${escapeImportHtml(row.statusText||(row.valid?'Hợp lệ':'Lỗi'))}</span></td>
           <td>${escapeImportHtml(importRowToText(row))}</td>
@@ -307,12 +311,14 @@ async function previewImportExcel(){
     await ensureImportUsersCache();
     renderImportPreview(json);
     const validNow=importPreviewRows.filter(r=>r&&r.valid).length;
-    const selectableNow=importPreviewRows.filter(r=>r&&r.valid&&r.canImport!==false).length;
+    const selectableNow=importPreviewRows.filter(isImportRowSelectable).length;
     const unchangedNow=importPreviewRows.filter(r=>r&&r.action==='no_change').length;
     const invalidNow=Math.max(0,importPreviewRows.length-validNow);
+    const missingProductNow=importPreviewRows.filter(importRowHasMissingCatalogProduct).length;
     const fileCount=Array.from(importExcelFile.files||[]).length;
     const modeText=getSelectedImportMode()==='update'?`${selectableNow} dòng có thay đổi, ${unchangedNow} dòng giữ nguyên`:`${validNow} dòng/đơn hợp lệ`;
-    showMessage(importDataMessage,`Đã đọc ${fileCount} file: ${modeText}, ${invalidNow} lỗi. Hãy chọn dòng rồi xác nhận.`);
+    const missingProductText=missingProductNow?` Có ${formatNumber(missingProductNow)} mã sản phẩm chưa có trong danh mục. Vui lòng cập nhật danh mục sản phẩm hoặc chỉ import các dòng hợp lệ.`:' Hãy chọn dòng rồi xác nhận.';
+    showMessage(importDataMessage,`Đã đọc ${fileCount} file: ${modeText}, ${invalidNow} lỗi.${missingProductText}`);
   }catch(err){
     importPreviewRows=[];
     importPreviewSessionId='';

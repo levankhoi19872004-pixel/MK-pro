@@ -11,20 +11,36 @@ function resetImportPreviewForModeChange(){importPreviewRows=[];importPreviewSes
 const changes=Array.isArray(row&&row.changes)?row.changes:[];if(!changes.length)return""
 ;return changes.map(change=>`${change.label||change.field}: ${change.oldValue??""} → ${change.newValue??""}`).join(" | ")}function resetImportPreviewMessage(){
 if(importDataMessage)showMessage(importDataMessage,"")}function getImportRowSelectKey(row,index){
-const code=String(row?.documentCode||row?.orderCode||row?.code||row?.username||"").trim();return code||`ROW_${index}`}function initImportSelectedRows(rows=[]){
-importSelectedRowKeySet=new Set;rows.forEach((row,index)=>{if(row&&row.valid&&row.canImport!==false)importSelectedRowKeySet.add(getImportRowSelectKey(row,index))})}
+const code=String(row?.documentCode||row?.orderCode||row?.code||row?.username||"").trim();return code||`ROW_${index}`}function importRowWarningList(row){
+return Array.isArray(row&&row.warnings)?row.warnings.filter(Boolean).map(String):[]}function importRowErrorList(row){
+return Array.isArray(row&&row.errors)?row.errors.filter(Boolean).map(String):[]}function importRowHasMissingCatalogProduct(row){if(!row)return false
+;const productCode=String(row.productCode||"").trim();const warningText=importRowWarningList(row).join(" | ").toLowerCase()
+;return row.missingProduct===true||productCode&&row.productMatched===false||warningText.includes("mã sản phẩm chưa có trong danh mục")}
+function normalizeImportPreviewRowValidity(row){if(!row||typeof row!=="object")return row;const next={...row};let errors=importRowErrorList(next)
+;let warnings=importRowWarningList(next);const missingProduct=importRowHasMissingCatalogProduct(next);if(missingProduct&&!errors.includes("Mã sản phẩm chưa có trong danh mục")){
+errors.push("Mã sản phẩm chưa có trong danh mục")}if(missingProduct){warnings=warnings.filter(w=>String(w).trim()!=="Mã sản phẩm chưa có trong danh mục")}
+const invalid=next.valid===false||String(next.status||"").toLowerCase()==="invalid"||String(next.status||"").toLowerCase()==="error"||errors.length>0||missingProduct
+;next.errors=errors;next.warnings=warnings;if(invalid){next.valid=false;next.canImport=false;next.status="invalid"
+;next.statusText=next.statusText&&next.statusText!=="Hợp lệ"?next.statusText:"Lỗi"}else{next.valid=next.valid!==false;next.status=next.status||"valid"
+;next.statusText=next.statusText||"Hợp lệ"}return next}function isImportRowSelectable(row){
+return Boolean(row&&row.valid!==false&&row.canImport!==false&&!importRowHasMissingCatalogProduct(row)&&importRowErrorList(row).length===0)}function initImportSelectedRows(rows=[]){
+importSelectedRowKeySet=new Set;rows.forEach((row,index)=>{if(isImportRowSelectable(row))importSelectedRowKeySet.add(getImportRowSelectKey(row,index))})}
 function syncImportInlineSelection(){document.querySelectorAll(".import-row-check").forEach(cb=>{const index=Number(cb.dataset.index);const row=importPreviewRows[index]
-;const key=getImportRowSelectKey(row,index);if(cb.checked)importSelectedRowKeySet.add(key);else importSelectedRowKeySet.delete(key)});syncImportSelectedCount()}
-function bindImportInlinePreviewChecks(){document.querySelectorAll(".import-row-check").forEach(cb=>{const index=Number(cb.dataset.index);const row=importPreviewRows[index]
-;cb.checked=importSelectedRowKeySet.has(getImportRowSelectKey(row,index));cb.onchange=syncImportInlineSelection})}function getSelectedImportRows(){
-return importPreviewRows.filter((row,index)=>row&&row.valid&&row.canImport!==false&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index)))}function escapeImportHtml(value){
-return String(value??"").replace(/[&<>'\"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[ch]))}function importRowToText(row){
+;const key=getImportRowSelectKey(row,index);if(!isImportRowSelectable(row)){importSelectedRowKeySet.delete(key);cb.checked=false;return}
+if(cb.checked)importSelectedRowKeySet.add(key);else importSelectedRowKeySet.delete(key)});syncImportSelectedCount()}function bindImportInlinePreviewChecks(){
+document.querySelectorAll(".import-row-check").forEach(cb=>{const index=Number(cb.dataset.index);const row=importPreviewRows[index]
+;cb.checked=isImportRowSelectable(row)&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index));cb.disabled=!isImportRowSelectable(row);cb.onchange=syncImportInlineSelection
+})}function getSelectedImportRows(){return importPreviewRows.filter((row,index)=>isImportRowSelectable(row)&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index)))}
+function escapeImportHtml(value){return String(value??"").replace(/[&<>'\"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[ch]))}function importRowToText(row){
 if(row&&row.previewMode==="order"){const customer=row.customerName||row.supplier||"";const total=row.totalAmount!==undefined?money(row.totalAmount):""
 ;const status=row.statusText||(row.valid?"Hợp lệ":"Lỗi")
 ;const shortage=row.hasShortage?` | Vượt tồn: ${displayImportAggregateQty(row.shortageQuantity||0)} | Cắt: ${money(row.shortageAmount||0)}`:""
 ;const sourceFile=row.sourceFile||row.fileName||""
 ;return`Mã đơn: ${row.documentCode||""} | Khách/NCC: ${customer} | Số dòng: ${row.lineCount||0} | Giá trị: ${total} | File: ${sourceFile||"-"} | Trạng thái: ${status}${shortage}`}
-const skip=["valid","errors","rowNo","raw","__importRows","__adjustedRows","lineDetails","shortageReport","detailErrors","password","changes","changeCount","importMode","canImport","action","statusText"]
+if(row&&(row.programCode||row.productCode)&&(row.source==="excel-import"||row.missingProduct!==undefined||row.productMatched!==undefined)){
+return[`Dòng: ${row.sourceRowNo||row.rowNo||""}`,`File: ${row.sourceFile||row.fileName||"-"}`,`Mã nhóm/CTKM: ${row.programCode||row.groupCode||""}`,`Mã sản phẩm: ${row.productCode||""}`,`Tên sản phẩm: ${row.productName||""}`].filter(Boolean).join(" | ")
+}
+const skip=["valid","errors","warnings","rowNo","sourceRowNo","sourceFile","fileName","source","raw","__importRows","__adjustedRows","lineDetails","shortageReport","detailErrors","password","changes","changeCount","importMode","canImport","action","status","statusText","productMatched","missingProduct"]
 ;const base=Object.keys(row).filter(k=>!skip.includes(k)).map(k=>`${k}: ${row[k]??""}`).join(" | ");const changes=formatSelectiveUpdateChanges(row)
 ;return[base,changes?`Thay đổi: ${changes}`:""].filter(Boolean).join(" | ")}function getImportRowMainFields(row){if(row&&row.previewMode==="order"){return[{key:"Mã đơn",
 value:row.documentCode||""},{key:"File nguồn",value:row.sourceFile||row.fileName||""},{key:"Mã NVBH",value:row.salesStaffCode||row.salesmanCode||""},{key:"NVBH",
