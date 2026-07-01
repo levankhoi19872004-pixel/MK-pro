@@ -3,6 +3,7 @@
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
 const { normalizeDebtAmount, calculateDeliveryDebtAmount, DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
+const searchService = require('../searchService');
 
 let models = null;
 let deliveryListService = null;
@@ -110,8 +111,7 @@ function hasSearchCriteria(query = {}) {
   const delivery = text(query.delivery || query.deliveryStaffCode || query.deliveryStaff || query.nvgh);
   const salesman = text(query.salesman || query.salesStaffCode || query.salesStaff || query.nvbh);
   const deliveryDate = dateOnly(query.date || query.deliveryDate || query.orderDate);
-  const dateTouched = truthyFlag(query.deliveryDateChangedByUser || query.deliveryDateTouched || query.dateTouched);
-  return Boolean(q || delivery || salesman || (dateTouched && deliveryDate));
+  return Boolean(q || delivery || salesman || deliveryDate);
 }
 
 function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {
@@ -690,6 +690,74 @@ function suggestionLimit(value) {
   return Math.max(1, Math.min(10, Number.isFinite(n) ? Math.round(n) : 10));
 }
 
+function staffSuggestionLimit(value) {
+  const n = Number(value || 50);
+  return Math.max(1, Math.min(50, Number.isFinite(n) ? Math.round(n) : 50));
+}
+
+function allowEmptySuggestion(query = {}) {
+  return ['1', 'true', 'yes'].includes(String(query.allowEmpty ?? query.showOnFocus ?? query.initial ?? '').toLowerCase());
+}
+
+function staffDirectoryLabel(row = {}) {
+  const code = text(row.code || row.staffCode || row.salesStaffCode || row.deliveryStaffCode || row.value);
+  const name = text(row.name || row.fullName || row.salesStaffName || row.deliveryStaffName || row.businessStaffName);
+  return [name, code].filter(Boolean).join(' - ');
+}
+
+async function staffDirectorySuggestions(query = {}, q = '', role = 'delivery', limit = 50, options = {}) {
+  const isDelivery = ['delivery', 'deliverystaff', 'nvgh'].includes(text(role).toLowerCase());
+  if (models) {
+    return staffSuggestionItems(query, q, isDelivery ? 'delivery' : 'salesman', Math.min(limit, 10), options);
+  }
+  const rows = await searchService.searchStaffs({
+    q,
+    role: isDelivery ? 'delivery' : 'sales',
+    allowEmpty: '1',
+    active: query.active ?? '1',
+    limit
+  });
+  const needle = text(q).toUpperCase();
+  const items = (Array.isArray(rows) ? rows : [])
+    .filter((row) => {
+      if (!needle) return true;
+      return [row.code, row.staffCode, row.name, row.fullName, row.username].some((value) => text(value).toUpperCase().includes(needle));
+    })
+    .map((row) => {
+      const code = text(isDelivery ? (row.deliveryStaffCode || row.code || row.staffCode) : (row.salesStaffCode || row.code || row.staffCode));
+      const name = text(isDelivery ? (row.deliveryStaffName || row.name || row.fullName) : (row.salesStaffName || row.name || row.fullName));
+      return {
+        type: isDelivery ? 'delivery' : 'salesman',
+        code,
+        name,
+        staffCode: code,
+        deliveryStaffCode: isDelivery ? code : undefined,
+        deliveryStaffName: isDelivery ? name : undefined,
+        salesStaffCode: isDelivery ? undefined : code,
+        salesStaffName: isDelivery ? undefined : name,
+        label: staffDirectoryLabel({ code, name }),
+        subLabel: isDelivery ? 'NVGH đang active' : 'NVBH đang active',
+        _rank: needle && text(code).toUpperCase().startsWith(needle) ? 0 : (needle && text(name).toUpperCase().startsWith(needle) ? 1 : 2)
+      };
+    })
+    .filter((row) => row.code || row.name)
+    .sort((a, b) => (a._rank - b._rank) || String(a.label || '').localeCompare(String(b.label || ''), 'vi'))
+    .slice(0, limit)
+    .map(({ _rank, ...row }) => row);
+  return {
+    items,
+    diagnostics: {
+      source: 'delivery-today-new-staff-directory-search-service',
+      endpoint: '/api/new/delivery-today/suggestions',
+      type: isDelivery ? 'delivery' : 'salesman',
+      limit,
+      searchCriteriaRequired: false,
+      openOnFocus: true,
+      valueContract: 'UI shows name-code label; API uses staff code'
+    }
+  };
+}
+
 function emptySuggestionResult(type, reason = 'MIN_QUERY_LENGTH') {
   return {
     items: [],
@@ -700,7 +768,8 @@ function emptySuggestionResult(type, reason = 'MIN_QUERY_LENGTH') {
       reason,
       minQueryLength: 2,
       limit: 10,
-      searchCriteriaRequired: true
+      searchCriteriaRequired: true,
+      note: 'Customer/order search still requires typing; NVBH/NVGH support mouse-first openOnFocus.'
     }
   };
 }
@@ -840,10 +909,14 @@ async function staffSuggestionItems(query = {}, q = '', role = 'delivery', limit
 async function suggestions(query = {}, options = {}) {
   const q = text(query.q || query.search || query.keyword);
   const type = text(query.type || 'orderCustomer').replace(/[^a-zA-Z]/g, '').toLowerCase();
+  const isDeliveryStaffType = ['delivery', 'deliverystaff', 'nvgh'].includes(type);
+  const isSalesStaffType = ['salesman', 'sales', 'salesstaff', 'nvbh'].includes(type);
+  if (isDeliveryStaffType || isSalesStaffType) {
+    const limit = staffSuggestionLimit(query.limit);
+    return staffDirectorySuggestions(query, q, isDeliveryStaffType ? 'delivery' : 'salesman', limit, options);
+  }
   const limit = suggestionLimit(query.limit);
-  if (q.length < 2) return emptySuggestionResult(query.type, 'MIN_QUERY_LENGTH');
-  if (['delivery', 'deliverystaff', 'nvgh'].includes(type)) return staffSuggestionItems(query, q, 'delivery', limit, options);
-  if (['salesman', 'sales', 'salesstaff', 'nvbh'].includes(type)) return staffSuggestionItems(query, q, 'salesman', limit, options);
+  if (q.length < 2 && !allowEmptySuggestion(query)) return emptySuggestionResult(query.type, 'MIN_QUERY_LENGTH');
   return orderCustomerSuggestions(query, q, limit, options);
 }
 
@@ -856,5 +929,5 @@ module.exports = {
   summarizeRows,
   setModelsForTest,
   setDeliveryListServiceForTest,
-  _private: { money, suggestionLimit, emptySuggestionResult, normalizeDebtAmount, calculateDeliveryDebtAmount, DEBT_ZERO_TOLERANCE, truthyFlag, hasSearchCriteria, emptyListResult, normalizeQty, normalizeOrderItem, compactOrderItems, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
+  _private: { money, suggestionLimit, staffSuggestionLimit, allowEmptySuggestion, emptySuggestionResult, normalizeDebtAmount, calculateDeliveryDebtAmount, DEBT_ZERO_TOLERANCE, truthyFlag, hasSearchCriteria, emptyListResult, normalizeQty, normalizeOrderItem, compactOrderItems, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
 };

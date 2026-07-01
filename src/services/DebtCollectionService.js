@@ -161,7 +161,7 @@ async function submitDebtCollection({ body = {}, mobileUser = {} } = {}) {
       session
     });
 
-    if (!debtCheck.ok) return fail(debtCheck.status || 409, debtCheck.message || 'Công nợ không hợp lệ', { code: debtCheck.code, reason: debtCheck.reason, detail: debtCheck.detail });
+    if (!debtCheck.ok) return fail(debtCheck.status || 409, debtCheck.message || 'Công nợ không hợp lệ');
 
     const collection = {
       id: makeId('DC'),

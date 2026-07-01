@@ -3,11 +3,12 @@
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../../constants/finance.constants');
 const { normalizeAccountingAmount } = require('../../domain/ar/arLedgerValidator');
 const arLedgerReadService = require('../arLedgerRead.service');
+const searchService = require('../searchService');
 
 let modelsForDebtNew = null;
 function getDebtNewModels() {
   if (modelsForDebtNew) return modelsForDebtNew;
-  modelsForDebtNew = { ArLedger: require('../../models/ArLedger'), DebtCollection: require('../../models/DebtCollection') };
+  modelsForDebtNew = { ArLedger: require('../../models/ArLedger') };
   return modelsForDebtNew;
 }
 
@@ -84,116 +85,6 @@ function emptySummary() {
     openCustomerCount: 0,
     ledgerCount: 0
   };
-}
-
-
-const PENDING_COLLECTION_STATUSES = Object.freeze(['submitted', 'under_review', 'pending', 'waiting_confirm', 'accounting_pending']);
-
-function debtNewOrderKey(value = {}) {
-  return text(value.orderCode || value.salesOrderCode || value.sourceOrderCode || value.refCode || value.orderId || value.salesOrderId || value.sourceOrderId || value.refId || value.sourceCode || value.sourceId || value.code || value.id);
-}
-
-function expandDebtNewOrderKeys(values = []) {
-  const out = new Set();
-  for (const value of values || []) {
-    const raw = text(value);
-    if (!raw) continue;
-    out.add(raw);
-    out.add(upper(raw));
-  }
-  return [...out].filter(Boolean);
-}
-
-function allocationMatchesDebtNewOrder(allocation = {}, orderCode = '') {
-  const expected = new Set(expandDebtNewOrderKeys([orderCode]).map(upper));
-  if (!expected.size) return false;
-  return expandDebtNewOrderKeys([
-    allocation.salesOrderCode,
-    allocation.orderCode,
-    allocation.sourceOrderCode,
-    allocation.refCode,
-    allocation.salesOrderId,
-    allocation.orderId,
-    allocation.sourceOrderId,
-    allocation.refId,
-    allocation.code,
-    allocation.id
-  ]).some((value) => expected.has(upper(value)));
-}
-
-function pendingAmountForDebtNewOrder(collections = [], orderCode = '') {
-  return (Array.isArray(collections) ? collections : []).reduce((sum, collection) => {
-    const rows = Array.isArray(collection.allocations) ? collection.allocations : [];
-    return sum + rows.reduce((inner, allocation) => {
-      return allocationMatchesDebtNewOrder(allocation, orderCode) ? inner + money(allocation.allocatedAmount ?? allocation.amount ?? allocation.paymentAmount) : inner;
-    }, 0);
-  }, 0);
-}
-
-async function loadPendingCollectionsForOrders(orderCodes = [], options = {}) {
-  const keys = expandDebtNewOrderKeys(orderCodes);
-  if (!keys.length) return [];
-  const { DebtCollection } = getDebtNewModels();
-  const filter = {
-    status: { $in: PENDING_COLLECTION_STATUSES },
-    allocations: {
-      $elemMatch: {
-        $or: [
-          { salesOrderCode: { $in: keys } },
-          { orderCode: { $in: keys } },
-          { sourceOrderCode: { $in: keys } },
-          { refCode: { $in: keys } },
-          { salesOrderId: { $in: keys } },
-          { orderId: { $in: keys } },
-          { sourceOrderId: { $in: keys } },
-          { refId: { $in: keys } }
-        ]
-      }
-    }
-  };
-  let query = DebtCollection.find(filter).limit(5000);
-  if (options.session && query && typeof query.session === 'function') query = query.session(options.session);
-  return query && typeof query.lean === 'function' ? query.lean() : query;
-}
-
-async function attachCollectibleState(grouped = {}, options = {}) {
-  const orders = Array.isArray(grouped.orders) ? grouped.orders : [];
-  const orderCodes = orders.map(debtNewOrderKey).filter(Boolean);
-  if (!orderCodes.length) return grouped;
-  const pendingRows = await loadPendingCollectionsForOrders(orderCodes, options);
-  for (const order of orders) {
-    const key = debtNewOrderKey(order);
-    const pendingCollectionAmount = pendingAmountForDebtNewOrder(pendingRows, key);
-    const remainingDebt = money(order.debt ?? order.remainingDebt ?? 0);
-    const availableToCollect = Math.max(0, normalizeDebtAmount(remainingDebt - pendingCollectionAmount, DEBT_ZERO_TOLERANCE));
-    order.remainingDebt = remainingDebt;
-    order.pendingCollectionAmount = pendingCollectionAmount;
-    order.pendingCollectedAmount = pendingCollectionAmount;
-    order.availableToCollect = availableToCollect;
-    order.availableDebt = availableToCollect;
-    order.availableDebtAmount = availableToCollect;
-    order.collectibleAmount = availableToCollect;
-  }
-  const customers = Array.isArray(grouped.customers) ? grouped.customers : [];
-  for (const customer of customers) {
-    const customerOrders = Array.isArray(customer.orders) ? customer.orders : [];
-    const pendingCollectionAmount = customerOrders.reduce((sum, order) => sum + money(order.pendingCollectionAmount), 0);
-    const remainingDebt = money(customer.debt ?? customer.remainingDebt ?? 0);
-    const availableToCollect = Math.max(0, normalizeDebtAmount(remainingDebt - pendingCollectionAmount, DEBT_ZERO_TOLERANCE));
-    customer.remainingDebt = remainingDebt;
-    customer.pendingCollectionAmount = pendingCollectionAmount;
-    customer.pendingCollectedAmount = pendingCollectionAmount;
-    customer.availableToCollect = availableToCollect;
-    customer.availableDebtAmount = availableToCollect;
-    customer.collectibleAmount = availableToCollect;
-  }
-  if (grouped.summary) {
-    grouped.summary.pendingCollectionAmount = customers.reduce((sum, row) => sum + money(row.pendingCollectionAmount), 0);
-    grouped.summary.availableToCollect = customers.reduce((sum, row) => sum + money(row.availableToCollect), 0);
-    grouped.summary.collectibleAmount = grouped.summary.availableToCollect;
-  }
-  grouped.pendingCollections = pendingRows;
-  return grouped;
 }
 
 function buildLedgerMatch(query = {}) {
@@ -443,7 +334,7 @@ async function listCustomers(query = {}, options = {}) {
     limit,
     status: 'all'
   }, options);
-  const grouped = await attachCollectibleState(groupLedgers(ledgerRows, normalizedQuery), options);
+  const grouped = groupLedgers(ledgerRows, normalizedQuery);
   return {
     ...grouped,
     diagnostics: {
@@ -486,7 +377,7 @@ async function customerDetail(query = {}, options = {}) {
     customer,
     debtOrders: customer ? (customer.orders || []) : [],
     movements,
-    pendingCollections: result.pendingCollections || [],
+    pendingCollections: [],
     diagnostics: {
       source: 'debt-new-detail-ar-debt-read-model',
       endpoint: '/api/new/debt/customers/:customerCode/detail',
@@ -508,6 +399,74 @@ async function findSuggestionLedgers(match = {}, limit = 100, options = {}) {
 function suggestionLimit(value) {
   const n = Number(value || 10);
   return Math.max(1, Math.min(10, Number.isFinite(n) ? Math.round(n) : 10));
+}
+
+function staffSuggestionLimit(value) {
+  const n = Number(value || 50);
+  return Math.max(1, Math.min(50, Number.isFinite(n) ? Math.round(n) : 50));
+}
+
+function allowEmptySuggestion(query = {}) {
+  return ['1', 'true', 'yes'].includes(String(query.allowEmpty ?? query.showOnFocus ?? query.initial ?? '').toLowerCase());
+}
+
+function staffDirectoryLabel(row = {}) {
+  const code = text(row.code || row.staffCode || row.salesStaffCode || row.deliveryStaffCode || row.value);
+  const name = text(row.name || row.fullName || row.salesStaffName || row.deliveryStaffName || row.businessStaffName);
+  return [name, code].filter(Boolean).join(' - ');
+}
+
+async function staffDirectorySuggestions(q = '', role = 'salesman', limit = 50, options = {}) {
+  const isDelivery = ['delivery', 'deliverystaff', 'nvgh'].includes(text(role).toLowerCase());
+  if (modelsForDebtNew) {
+    return staffSuggestions(q, isDelivery ? 'delivery' : 'salesman', Math.min(limit, 10), options);
+  }
+  const rows = await searchService.searchStaffs({
+    q,
+    role: isDelivery ? 'delivery' : 'sales',
+    allowEmpty: '1',
+    active: '1',
+    limit
+  });
+  const needle = upper(q);
+  const items = (Array.isArray(rows) ? rows : [])
+    .filter((row) => {
+      if (!needle) return true;
+      return [row.code, row.staffCode, row.name, row.fullName, row.username].some((value) => upper(value).includes(needle));
+    })
+    .map((row) => {
+      const code = text(isDelivery ? (row.deliveryStaffCode || row.code || row.staffCode) : (row.salesStaffCode || row.code || row.staffCode));
+      const name = text(isDelivery ? (row.deliveryStaffName || row.name || row.fullName) : (row.salesStaffName || row.name || row.fullName));
+      return {
+        type: isDelivery ? 'delivery' : 'salesman',
+        code,
+        name,
+        staffCode: code,
+        deliveryStaffCode: isDelivery ? code : undefined,
+        deliveryStaffName: isDelivery ? name : undefined,
+        salesStaffCode: isDelivery ? undefined : code,
+        salesStaffName: isDelivery ? undefined : name,
+        label: staffDirectoryLabel({ code, name }),
+        subLabel: isDelivery ? 'NVGH đang active' : 'NVBH đang active',
+        _rank: needle && upper(code).startsWith(needle) ? 0 : (needle && upper(name).startsWith(needle) ? 1 : 2)
+      };
+    })
+    .filter((row) => row.code || row.name)
+    .sort((a, b) => (a._rank - b._rank) || String(a.label || '').localeCompare(String(b.label || ''), 'vi'))
+    .slice(0, limit)
+    .map(({ _rank, ...row }) => row);
+  return {
+    items,
+    diagnostics: {
+      source: 'debt-new-staff-directory-search-service',
+      endpoint: '/api/new/debt/suggestions',
+      type: isDelivery ? 'delivery' : 'salesman',
+      limit,
+      searchCriteriaRequired: false,
+      openOnFocus: true,
+      valueContract: 'UI shows name-code label; API uses staff code'
+    }
+  };
 }
 
 function suggestionTextMatches(value, q) {
@@ -538,7 +497,8 @@ function emptySuggestionResult(type, reason = 'MIN_QUERY_LENGTH') {
       reason,
       minQueryLength: 2,
       limit: 10,
-      searchCriteriaRequired: true
+      searchCriteriaRequired: true,
+      note: 'Customer/order search still requires typing unless allowEmpty/showOnFocus is requested; NVBH/NVGH support mouse-first openOnFocus.'
     }
   };
 }
@@ -634,10 +594,10 @@ async function staffSuggestions(q, role, limit, options = {}) {
 async function suggestions(query = {}, options = {}) {
   const q = text(query.q || query.search || query.keyword);
   const type = upper(query.type || 'customerOrder').replace(/[^A-Z]/g, '').toLowerCase();
+  if (['salesman', 'sales', 'salesstaff', 'nvbh'].includes(type)) return staffDirectorySuggestions(q, 'salesman', staffSuggestionLimit(query.limit), options);
+  if (['delivery', 'deliverystaff', 'nvgh'].includes(type)) return staffDirectorySuggestions(q, 'delivery', staffSuggestionLimit(query.limit), options);
   const limit = suggestionLimit(query.limit);
-  if (q.length < 2) return emptySuggestionResult(query.type, 'MIN_QUERY_LENGTH');
-  if (['salesman', 'sales', 'salesstaff', 'nvbh'].includes(type)) return staffSuggestions(q, 'salesman', limit, options);
-  if (['delivery', 'deliverystaff', 'nvgh'].includes(type)) return staffSuggestions(q, 'delivery', limit, options);
+  if (q.length < 2 && !allowEmptySuggestion(query)) return emptySuggestionResult(query.type, 'MIN_QUERY_LENGTH');
   if (['order', 'orders'].includes(type)) return customerOrderSuggestions(q, 'order', limit, options);
   if (['customer', 'customers'].includes(type)) return customerOrderSuggestions(q, 'customer', limit, options);
   return customerOrderSuggestions(q, 'customerorder', limit, options);
@@ -649,12 +609,9 @@ module.exports = {
   hasSearchCriteria,
   ledgerEffect,
   groupLedgers,
-  attachCollectibleState,
-  loadPendingCollectionsForOrders,
-  pendingAmountForDebtNewOrder,
   listCustomers,
   customerDetail,
   suggestions,
   setModelsForTest,
-  _private: { normalizeLedger, orderKey, hasSearchCriteria, emptyListResult, emptySummary, emptySuggestionResult, suggestionLimit, findSuggestionLedgers }
+  _private: { normalizeLedger, orderKey, hasSearchCriteria, emptyListResult, emptySummary, emptySuggestionResult, suggestionLimit, staffSuggestionLimit, allowEmptySuggestion, findSuggestionLedgers }
 };

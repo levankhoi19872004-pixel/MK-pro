@@ -87,8 +87,7 @@ test('DebtReadService matches AR-RETURN:RO-B0038424 to B0038424 and blocks colle
   assert.match(src, /returnOrderCode:\s*\{\s*\$in:\s*values\s*\}/);
   assert.match(src, /sourceOrderCode:\s*\{\s*\$in:\s*values\s*\}/);
   assert.match(src, /entryType:\s*\{\s*\$ne:\s*'reversal'\s*\}/);
-  assert.match(src, /availableToCollect:\s*availableDebt/);
-  assert.match(src, /pendingCollectionAmount:\s*pendingAmount/);
+  assert.match(src, /availableDebt:\s*Math\.max\(0, normalizeDebtAmount\(officialDebt - pendingAmount\)\)/);
 
   const officialDebt = normalizeDebtAmount(5141521 - 4864000 - 276632);
   const availableDebt = Math.max(0, normalizeDebtAmount(officialDebt - 0));

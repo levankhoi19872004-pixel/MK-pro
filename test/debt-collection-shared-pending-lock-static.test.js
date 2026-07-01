@@ -18,15 +18,14 @@ test('debt collection submit is serialized per order and rechecks debt inside tr
 
 test('pending amount is shared across collectors instead of filtered by current collector', () => {
   const service = read('src/services/DebtReadService.js');
-  assert.match(service, /PENDING_STATUSES = \['submitted', 'under_review', 'pending', 'waiting_confirm', 'accounting_pending'\]/);
+  assert.match(service, /PENDING_STATUSES = \['submitted', 'under_review'\]/);
   assert.match(service, /Không lọc theo collectorCode/);
   const start = service.indexOf('function buildPendingFilter');
   const end = service.indexOf('function summarizePendingCollections', start);
   const block = service.slice(start, end);
   assert.ok(start >= 0 && end > start, 'Không xác định được block buildPendingFilter');
   assert.doesNotMatch(block, /collectorCode/);
-  assert.match(service, /availableToCollect:\s*availableDebt/);
-  assert.match(service, /pendingCollectionAmount:\s*pendingAmount/);
+  assert.match(service, /availableDebt: Math\.max\(0, normalizeDebtAmount\(officialDebt - pendingAmount\)\)/);
 });
 
 test('confirmed AR receipt keeps assignee and actual collector lineage', () => {

@@ -14,7 +14,7 @@ const {
 } = require('./mobile/mobileDebtQuery.service');
 const DebtCollectionPolicy = require('../policies/debtCollection.policy');
 
-const PENDING_STATUSES = ['submitted', 'under_review', 'pending', 'waiting_confirm', 'accounting_pending'];
+const PENDING_STATUSES = ['submitted', 'under_review'];
 const INACTIVE_AR_STATUSES = ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed'];
 
 function text(value) {
@@ -167,9 +167,7 @@ function normalizeDebtOrder(order = {}, pendingByOrder = new Map()) {
   const salesOrderCode = cleanOrderCode(order);
   const debt = normalizeDebtAmount(order.debt ?? order.debtAmount ?? 0);
   const pendingCollectedAmount = money(pendingByOrder.get(salesOrderCode) || 0);
-  const pendingCollectionAmount = pendingCollectedAmount;
-  const availableDebt = Math.max(0, normalizeDebtAmount(debt - pendingCollectionAmount));
-  const availableToCollect = availableDebt;
+  const availableDebt = Math.max(0, normalizeDebtAmount(debt - pendingCollectedAmount));
   const orderType = text(order.orderType) || (/^NDNBLH/i.test(salesOrderCode) ? 'external_debt' : 'sales_order');
 
   return {
@@ -181,12 +179,8 @@ function normalizeDebtOrder(order = {}, pendingByOrder = new Map()) {
     debit: toNumber(order.debit),
     credit: toNumber(order.credit),
     debt,
-    remainingDebt: debt,
     pendingCollectedAmount,
-    pendingCollectionAmount,
     availableDebt,
-    availableToCollect,
-    collectibleAmount: availableToCollect,
     overdueDays: toNumber(order.overdueDays),
     agingDays: toNumber(order.agingDays),
     status: order.status || '',
@@ -206,9 +200,7 @@ function normalizeCustomerDebt(row = {}, pending = {}) {
   const debtAmount = normalizeDebtAmount(row.debt ?? row.debtAmount ?? row.debtAmountTotal ?? 0);
   const orderPendingTotal = orders.reduce((sum, order) => sum + toNumber(order.pendingCollectedAmount), 0);
   const pendingCollectedAmount = money(orders.length ? orderPendingTotal : (pending.byCustomer?.get(customerKey) || 0));
-  const pendingCollectionAmount = pendingCollectedAmount;
-  const availableDebtAmount = Math.max(0, normalizeDebtAmount(debtAmount - pendingCollectionAmount));
-  const availableToCollect = availableDebtAmount;
+  const availableDebtAmount = Math.max(0, normalizeDebtAmount(debtAmount - pendingCollectedAmount));
   const oldestDebtDate = orders
     .filter((order) => hasOpenDebt(order.debt))
     .map((order) => order.orderDate || order.documentDate || '')
@@ -228,12 +220,8 @@ function normalizeCustomerDebt(row = {}, pending = {}) {
     deliveryStaffCode: text(row.deliveryStaffCode),
     deliveryStaffName: text(row.deliveryStaffName),
     debtAmount,
-    remainingDebt: debtAmount,
     pendingCollectedAmount,
-    pendingCollectionAmount,
     availableDebtAmount,
-    availableToCollect,
-    collectibleAmount: availableToCollect,
     orderCount: toNumber(row.orderCount || orders.length),
     oldestDebtDate,
     orders,
@@ -426,71 +414,6 @@ function pendingForOrder(rows = [], key = '') {
   }, 0);
 }
 
-
-function collectibleStateFromRows({ key = '', customerCode = '', ledgerRows = [], pendingRows = [] } = {}) {
-  const orderCode = text(key);
-  if (!orderCode) {
-    return {
-      orderCode: '',
-      customerCode: text(customerCode),
-      remainingDebt: 0,
-      officialDebt: 0,
-      pendingCollectionAmount: 0,
-      pendingAmount: 0,
-      availableToCollect: 0,
-      availableDebt: 0,
-      source: null,
-      rows: [],
-      readModelVersion: 'canonical-ar-ledger-collectible-v1',
-      pendingSource: 'debtCollections'
-    };
-  }
-  const matching = (Array.isArray(ledgerRows) ? ledgerRows : []).filter((row) => rowMatchesOrder(row, orderCode));
-  const remainingDebt = normalizeDebtAmount(matching.reduce((sum, row) => sum + arLedgerUtil.effectiveArDebit(row) - arLedgerUtil.effectiveArCredit(row), 0));
-  const pendingCollectionAmount = money(pendingForOrder(pendingRows, orderCode));
-  const availableToCollect = Math.max(0, normalizeDebtAmount(remainingDebt - pendingCollectionAmount));
-  return {
-    orderCode,
-    customerCode: text(customerCode || pickDebtSourceRow(matching)?.customerCode || pickDebtSourceRow(matching)?.customerId),
-    remainingDebt,
-    officialDebt: remainingDebt,
-    pendingCollectionAmount,
-    pendingAmount: pendingCollectionAmount,
-    availableToCollect,
-    availableDebt: availableToCollect,
-    source: pickDebtSourceRow(matching),
-    rows: matching,
-    readModelVersion: 'canonical-ar-ledger-collectible-v1',
-    sourceName: 'arLedgers',
-    pendingSource: 'debtCollections'
-  };
-}
-
-async function getDebtOrderCollectibleState({ customerCode = '', orderCode = '', user = null, session = null, excludeCollectionId = '' } = {}) {
-  const key = text(orderCode);
-  const customer = text(customerCode);
-  if (!customer || !key) {
-    return {
-      ok: false,
-      status: 400,
-      message: !customer ? 'Thiếu mã khách hàng' : 'Thiếu mã đơn nợ',
-      orderCode: key,
-      customerCode: customer,
-      remainingDebt: 0,
-      pendingCollectionAmount: 0,
-      availableToCollect: 0,
-      readModelVersion: 'canonical-ar-ledger-collectible-v1'
-    };
-  }
-  const options = { session, excludeCollectionId };
-  const [ledgerRows, pendingRows] = await Promise.all([
-    loadOrderDebtRows([key], options),
-    loadPendingRows([key], options)
-  ]);
-  const state = collectibleStateFromRows({ key, customerCode: customer, ledgerRows, pendingRows });
-  return { ok: true, ...state, actorUserId: text(user && (user.id || user._id || user.username || user.email)) };
-}
-
 async function getOrderDebt(orderCode, options = {}) {
   const key = text(orderCode);
   if (!key) return { officialDebt: 0, pendingAmount: 0, availableDebt: 0, source: null };
@@ -498,17 +421,15 @@ async function getOrderDebt(orderCode, options = {}) {
     loadOrderDebtRows([key], options),
     loadPendingRows([key], options)
   ]);
-  const state = collectibleStateFromRows({ key, ledgerRows: rows, pendingRows });
+  const matching = rows.filter((row) => rowMatchesOrder(row, key));
+  const officialDebt = normalizeDebtAmount(matching.reduce((sum, row) => sum + arLedgerUtil.effectiveArDebit(row) - arLedgerUtil.effectiveArCredit(row), 0));
+  const pendingAmount = pendingForOrder(pendingRows, key);
   return {
-    officialDebt: state.officialDebt,
-    remainingDebt: state.remainingDebt,
-    pendingAmount: state.pendingAmount,
-    pendingCollectionAmount: state.pendingCollectionAmount,
-    availableDebt: state.availableDebt,
-    availableToCollect: state.availableToCollect,
-    source: state.source,
-    rows: state.rows,
-    readModelVersion: state.readModelVersion
+    officialDebt,
+    pendingAmount,
+    availableDebt: Math.max(0, normalizeDebtAmount(officialDebt - pendingAmount)),
+    source: pickDebtSourceRow(matching),
+    rows: matching
   };
 }
 
@@ -579,33 +500,20 @@ async function checkAvailableDebt(input = {}) {
       };
     }
 
-    const collectible = collectibleStateFromRows({
-      key: row.key,
-      customerCode,
-      ledgerRows: matching,
-      pendingRows
-    });
-    const officialDebt = collectible.officialDebt;
-    const pendingAmount = collectible.pendingCollectionAmount;
-    const availableDebt = collectible.availableToCollect;
-    if (row.allocatedAmount > availableDebt) {
+    const officialDebt = normalizeDebtAmount(matching.reduce((sum, ledger) => sum + arLedgerUtil.effectiveArDebit(ledger) - arLedgerUtil.effectiveArCredit(ledger), 0));
+    const pendingAmount = pendingForOrder(pendingRows, row.key);
+    const availableDebt = Math.max(0, normalizeDebtAmount(officialDebt - pendingAmount));
+    if (row.allocatedAmount > availableDebt + 0.0001) {
       return {
         ok: false,
         status: 409,
-        code: 'DEBT_COLLECTION_ALLOCATION_EXCEEDS_AVAILABLE',
-        message: `Số tiền phân bổ vượt số còn có thể thu của đơn ${row.key}. Vui lòng kiểm tra phiếu thu chờ xác nhận.`,
+        message: `Số tiền thu vượt công nợ còn có thể thu của đơn ${row.key}`,
         detail: {
           orderCode: row.key,
-          customerCode,
-          allocatedAmount: row.allocatedAmount,
           requestedAmount: row.allocatedAmount,
-          remainingDebt: collectible.remainingDebt,
           officialDebt,
-          pendingCollectionAmount: pendingAmount,
           pendingAmount,
-          availableToCollect: availableDebt,
-          availableDebt,
-          readModelVersion: collectible.readModelVersion
+          availableDebt
         }
       };
     }
@@ -623,12 +531,8 @@ async function checkAvailableDebt(input = {}) {
       orderType: text(source.orderType) || (lower(source.type) === 'ar_external_debt' ? 'external_debt' : 'sales_order'),
       orderDate: dateUtil.toDateOnly(source.date || source.documentDate || source.createdAt || ''),
       beforeDebt: officialDebt,
-      remainingDebt: officialDebt,
       pendingCollectedAmount: pendingAmount,
-      pendingCollectionAmount: pendingAmount,
       availableDebt,
-      availableToCollect: availableDebt,
-      collectibleAmount: availableDebt,
       allocatedAmount: row.allocatedAmount,
       ...assignment
     });
@@ -655,7 +559,6 @@ module.exports = {
   checkAvailableDebt,
   getOrderDebt,
   sumPendingAllocation,
-  getDebtOrderCollectibleState,
   _internal: {
     normalizeCustomerDebt,
     summarizePendingCollections,
@@ -666,7 +569,6 @@ module.exports = {
     scopeMatches,
     debtCollectionAccessForSource,
     pendingForOrder,
-    collectibleStateFromRows,
     extractSalesOrderCodeFromReturnToken,
     expandOrderKeys,
     rowMatchesOrder,
