@@ -11,7 +11,8 @@ test('Delivery Today New has salesman grouping panel like legacy delivery screen
   assert.match(source, /NVBH thuộc NVGH/);
   assert.match(source, /delivery-new-salesman-panel/);
   assert.match(source, /delivery-new-salesman-row/);
-  assert.match(source, /delivery-new-salesman-compact/);
+  assert.doesNotMatch(source, /delivery-new-salesman-compact/);
+  assert.doesNotMatch(source, /Tổng theo NVBH đã chọn/);
   assert.doesNotMatch(source, /delivery-new-salesman-kpis/);
 });
 
@@ -19,19 +20,23 @@ test('Delivery Today New salesman grouping supports checkbox selection', () => {
   assert.match(source, /type="checkbox"/);
   assert.match(source, /toggleSalesmanSelection/);
   assert.match(source, /selectedSalesmanKeys/);
-  assert.match(source, /Bỏ chọn tất cả/);
-  assert.match(source, /Chọn tất cả/);
+  assert.doesNotMatch(source, /Bỏ chọn tất cả/);
+  assert.doesNotMatch(source, /deliveryTodayNewSelectAllSalesmen/);
+  assert.doesNotMatch(source, /deliveryTodayNewClearAllSalesmen/);
 });
 
-test('Delivery Today New rows and compact selected-salesman total use selected salesman filter', () => {
+test('Delivery Today New rows and top KPI cards use selected salesman filter', () => {
   assert.match(source, /getVisibleRowsBySelectedSalesmen/);
   assert.match(source, /summarizeVisibleRows/);
-  assert.match(source, /renderSelectedSalesmanCompactSummary/);
+  assert.match(source, /updateTopKpisFromSelectedSalesmen/);
   assert.match(source, /renderSalesmanGroupPanel/);
   const renderRowsIndex = source.indexOf('function renderRows');
   const renderRowsBody = source.slice(renderRowsIndex, source.indexOf('function detailCell', renderRowsIndex));
   assert.match(renderRowsBody, /getVisibleRowsBySelectedSalesmen/);
   assert.doesNotMatch(renderRowsBody, /state\.rows\.map/);
+  const selectedKpiStart = source.indexOf('function updateTopKpisFromSelectedSalesmen');
+  const selectedKpiBody = source.slice(selectedKpiStart, source.indexOf('function ensureSelectedOrderSet', selectedKpiStart));
+  assert.match(selectedKpiBody, /applySummary\(summarizeVisibleRows\(getVisibleRowsBySelectedSalesmen\(\)\)\)/);
 });
 
 test('Delivery Today New salesman grouping does not touch legacy accounting flows', () => {
@@ -75,8 +80,11 @@ test('Delivery Today New order header uses the same grid cells as order rows', (
   assert.match(source, /delivery-new-orders-table/);
   assert.match(source, /delivery-new-order-cell delivery-new-order-checkbox-cell/);
   assert.match(source, /delivery-new-order-cell delivery-new-order-customer-cell">Đơn \/ Khách hàng/);
-  ['PT', 'TM', 'CK', 'TH', 'HT', 'CN'].forEach((label) => {
+  ['Phải thu', 'Tiền mặt', 'Chuyển khoản', 'Trả thưởng', 'Hàng trả', 'Còn nợ'].forEach((label) => {
     assert.match(source, new RegExp('delivery-new-money-cell[^>]*>' + label + '<'));
+  });
+  ['>PT<', '>TM<', '>CK<', '>TH<', '>HT<', '>CN<'].forEach((legacyLabel) => {
+    assert.doesNotMatch(source, new RegExp(legacyLabel));
   });
   assert.match(source, /delivery-new-status-cell">Trạng thái/);
   assert.match(source, /delivery-new-action-cell">Thao tác/);

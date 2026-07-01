@@ -403,8 +403,9 @@ test('Delivery Today New closeout UI has compact KPI and closeout action', () =>
   assert.match(source, /deliveryTodayNewCloseout/);
   assert.match(source, /Chốt sổ giao hàng/);
   assert.match(source, /deliveryTodayNewCloseoutModal/);
-  assert.match(source, /renderSelectedSalesmanCompactSummary/);
-  assert.match(source, /Tổng theo NVBH đã chọn/);
+  assert.match(source, /updateTopKpisFromSelectedSalesmen/);
+  assert.doesNotMatch(source, /renderSelectedSalesmanCompactSummary/);
+  assert.doesNotMatch(source, /Tổng theo NVBH đã chọn/);
   assert.match(source, /\/api\/new\/delivery-today\/closeout/);
   assert.match(source, /Đã chốt sổ/);
   assert.doesNotMatch(source, /delivery-new-salesman-kpis/);

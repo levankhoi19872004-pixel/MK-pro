@@ -101,12 +101,12 @@
             '<div class="delivery-new-orders-header delivery-new-order-grid" role="row">' +
               '<div class="delivery-new-order-cell delivery-new-order-checkbox-cell"><input id="deliveryTodayNewHeaderSelectAllOrders" type="checkbox" aria-label="Chọn tất cả đơn có thể chốt"></div>' +
               '<div class="delivery-new-order-cell delivery-new-order-customer-cell">Đơn / Khách hàng</div>' +
-              '<div class="delivery-new-order-cell delivery-new-money-cell">PT</div>' +
-              '<div class="delivery-new-order-cell delivery-new-money-cell">TM</div>' +
-              '<div class="delivery-new-order-cell delivery-new-money-cell">CK</div>' +
-              '<div class="delivery-new-order-cell delivery-new-money-cell">TH</div>' +
-              '<div class="delivery-new-order-cell delivery-new-money-cell delivery-new-return">HT</div>' +
-              '<div class="delivery-new-order-cell delivery-new-money-cell delivery-new-debt">CN</div>' +
+              '<div class="delivery-new-order-cell delivery-new-money-cell">Phải thu</div>' +
+              '<div class="delivery-new-order-cell delivery-new-money-cell">Tiền mặt</div>' +
+              '<div class="delivery-new-order-cell delivery-new-money-cell">Chuyển khoản</div>' +
+              '<div class="delivery-new-order-cell delivery-new-money-cell">Trả thưởng</div>' +
+              '<div class="delivery-new-order-cell delivery-new-money-cell delivery-new-return">Hàng trả</div>' +
+              '<div class="delivery-new-order-cell delivery-new-money-cell delivery-new-debt">Còn nợ</div>' +
               '<div class="delivery-new-order-cell delivery-new-status-cell">Trạng thái</div>' +
               '<div class="delivery-new-order-cell delivery-new-action-cell">Thao tác</div>' +
             '</div>' +
@@ -162,7 +162,7 @@
     var style = document.createElement('style');
     style.id = 'deliveryTodayNewScopedStyle';
     style.textContent = '' +
-      '.delivery-new-main-list{display:block;}.delivery-new-list-panel-full{width:100%;}.delivery-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.delivery-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.delivery-new-empty-state span{display:block;color:#64748b;font-weight:700;}.delivery-new-results-hidden{display:none!important;}.delivery-new-salesman-panel{margin:12px 0;padding:0;overflow:hidden;}.delivery-new-salesman-empty{padding:14px;color:#64748b;text-align:center;border:1px dashed #cbd5e1;border-radius:12px;}.delivery-new-salesman-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-header h3{margin:0;font-size:15px;}.delivery-new-salesman-header small{display:inline-block;margin-left:8px;color:#475569;}.delivery-new-salesman-actions{display:flex;gap:8px;flex-wrap:wrap;}.delivery-new-salesman-row{display:grid;grid-template-columns:minmax(240px,1.4fr) 70px repeat(6,1fr);gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-row:last-child{border-bottom:0;}.delivery-new-salesman-check{display:flex;align-items:center;gap:8px;font-weight:800;}.delivery-new-salesman-check input{width:16px;height:16px;}.delivery-new-salesman-row .muted{font-size:11px;color:#64748b;}.delivery-new-salesman-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-salesman-compact{margin-top:6px;color:#334155;font-size:12px;font-weight:800;line-height:1.5;}.delivery-new-salesman-compact b{font-variant-numeric:tabular-nums;}.delivery-new-orders-toolbar{align-items:center;gap:12px;}.delivery-new-selection-count{font-weight:800;color:#475569;white-space:nowrap;}.delivery-new-closeout-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.delivery-new-closeout-toolbar .secondary{padding:7px 10px;border-radius:10px;}.delivery-new-closeout-btn[disabled]{opacity:.55;cursor:not-allowed;}.delivery-new-closeout-warning{padding:10px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-weight:800;margin:10px 0;}.delivery-new-orders-table{overflow-x:auto;border-top:1px solid #dbe7f5;}.delivery-new-order-grid{display:grid;grid-template-columns:32px minmax(260px,2fr) minmax(96px,.8fr) minmax(96px,.8fr) minmax(96px,.8fr) minmax(96px,.8fr) minmax(96px,.8fr) minmax(96px,.8fr) minmax(110px,.8fr) minmax(110px,.8fr);gap:10px;align-items:center;min-width:1120px;}.delivery-new-orders-header{position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:1px solid #dbe7f5;padding:8px 12px;color:#334155;font-size:12px;font-weight:900;letter-spacing:.01em;}.delivery-new-order-row{padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-order-row.selected{background:#eff6ff;}.delivery-new-order-cell{min-width:0;}.delivery-new-order-checkbox-cell{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox-cell input{width:16px;height:16px;accent-color:#2563eb;}.delivery-new-order-customer-cell{text-align:left;min-width:0;}.delivery-new-money-cell{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:900;}.delivery-new-status-cell{text-align:center;display:flex;justify-content:center;align-items:center;}.delivery-new-action-cell{text-align:right;display:flex;justify-content:flex-end;align-items:center;}.delivery-new-row-action button{padding:7px 10px;border-radius:10px;}.delivery-new-order-checkbox{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox input{width:16px;height:16px;accent-color:#2563eb;}' +
+      '.delivery-new-main-list{display:block;}.delivery-new-list-panel-full{width:100%;}.delivery-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.delivery-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.delivery-new-empty-state span{display:block;color:#64748b;font-weight:700;}.delivery-new-results-hidden{display:none!important;}.delivery-new-salesman-panel{margin:12px 0;padding:0;overflow:hidden;}.delivery-new-salesman-empty{padding:14px;color:#64748b;text-align:center;border:1px dashed #cbd5e1;border-radius:12px;}.delivery-new-salesman-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-header h3{margin:0;font-size:15px;}.delivery-new-salesman-header small{display:inline-block;margin-left:8px;color:#475569;}.delivery-new-salesman-row{display:grid;grid-template-columns:minmax(240px,1.4fr) 70px repeat(6,1fr);gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-row:last-child{border-bottom:0;}.delivery-new-salesman-check{display:flex;align-items:center;gap:8px;font-weight:800;}.delivery-new-salesman-check input{width:16px;height:16px;}.delivery-new-salesman-row .muted{font-size:11px;color:#64748b;}.delivery-new-salesman-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-orders-toolbar{align-items:center;gap:12px;}.delivery-new-selection-count{font-weight:800;color:#475569;white-space:nowrap;}.delivery-new-closeout-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.delivery-new-closeout-toolbar .secondary{padding:7px 10px;border-radius:10px;}.delivery-new-closeout-btn[disabled]{opacity:.55;cursor:not-allowed;}.delivery-new-closeout-warning{padding:10px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-weight:800;margin:10px 0;}.delivery-new-orders-table{overflow-x:auto;border-top:1px solid #dbe7f5;}.delivery-new-order-grid{display:grid;grid-template-columns:32px minmax(260px,2fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(132px,.9fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(110px,.8fr) minmax(110px,.8fr);gap:10px;align-items:center;min-width:1320px;}.delivery-new-orders-header{position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:1px solid #dbe7f5;padding:8px 12px;color:#334155;font-size:12px;font-weight:900;letter-spacing:.01em;}.delivery-new-order-row{padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-order-row.selected{background:#eff6ff;}.delivery-new-order-cell{min-width:0;}.delivery-new-order-checkbox-cell{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox-cell input{width:16px;height:16px;accent-color:#2563eb;}.delivery-new-order-customer-cell{text-align:left;min-width:0;}.delivery-new-money-cell{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:900;}.delivery-new-status-cell{text-align:center;display:flex;justify-content:center;align-items:center;}.delivery-new-action-cell{text-align:right;display:flex;justify-content:flex-end;align-items:center;}.delivery-new-row-action button{padding:7px 10px;border-radius:10px;}.delivery-new-order-checkbox{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox input{width:16px;height:16px;accent-color:#2563eb;}' +
       '.delivery-new-row:hover{background:#eff6ff;}' +
       '.delivery-new-row b{font-weight:800;}.delivery-new-row small{display:block;color:#334155;margin-top:3px;}' +
       '.delivery-new-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}' +
@@ -176,8 +176,8 @@
       '.delivery-new-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.delivery-new-version-list{margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:8px;color:#334155;}.delivery-new-returnorders{margin:12px 0;border:1px solid #dbe7f5;border-radius:12px;background:#fff;overflow:hidden;}.delivery-new-returnorders-header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}.delivery-new-returnorders-header h4{margin:0;font-size:14px;}.delivery-new-returnorders-header small{display:block;color:#64748b;margin-top:3px;}.delivery-new-returnorder-card{padding:10px 12px;border-bottom:1px dashed #dbe7f5;}.delivery-new-returnorder-card:last-child{border-bottom:0;}.delivery-new-returnorder-meta{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:space-between;color:#475569;font-size:12px;}.delivery-new-returnorder-meta b{color:#0f172a;}.delivery-new-return-items{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}.delivery-new-return-items th,.delivery-new-return-items td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-return-items th{color:#64748b;font-weight:800;background:#f8fafc;}.delivery-new-return-items .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}.delivery-new-returnorder-note{margin-top:8px;}.delivery-new-adjust-table{width:100%;border-collapse:collapse;margin:8px 0 10px;font-size:12px;}.delivery-new-adjust-table th,.delivery-new-adjust-table td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-adjust-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-adjust-table .num{text-align:right;font-variant-numeric:tabular-nums;}.delivery-new-adjust-table input{width:88px;text-align:right;}.delivery-v46-suggest-box .empty{padding:8px 10px;color:#64748b;font-size:12px;}.delivery-v46-suggest-box button strong{font-size:12px;color:#0b4dbb;}.delivery-v46-suggest-box button em{font-style:normal;font-size:11px;color:#64748b;}' +
       '.delivery-new-modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.36);padding:28px;overflow:auto;}.delivery-new-adjustment-dialog{width:min(1280px,96vw);margin:0 auto;background:#fff;border-radius:18px;box-shadow:0 18px 50px rgba(15,23,42,.35);padding:18px;}.delivery-new-modal-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid #dbe7f5;padding-bottom:12px;margin-bottom:12px;}.delivery-new-modal-header h3{margin:0;font-size:20px;}.delivery-new-modal-header small{display:block;color:#475569;margin-top:4px;}.delivery-new-modal-close{border:0;background:#2563eb;color:#fff;border-radius:999px;padding:8px 12px;font-weight:900;cursor:pointer;opacity:1!important;pointer-events:auto!important;box-shadow:0 8px 18px rgba(37,99,235,.24);}.delivery-new-modal-close:focus{outline:2px solid #93c5fd;outline-offset:2px;}.delivery-new-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px;}.delivery-new-tab{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:999px;padding:8px 12px;font-weight:800;cursor:pointer;opacity:1;}.delivery-new-tab.active{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:900;box-shadow:0 8px 18px rgba(37,99,235,.18);}.delivery-new-tab:disabled,.delivery-new-tab.is-disabled{background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;opacity:1;cursor:not-allowed;box-shadow:none;}.delivery-new-tab-panel{border:1px solid #dbe7f5;border-radius:14px;padding:12px;background:#fff;min-height:260px;}.delivery-new-modal-footer{display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:end;border-top:1px solid #dbe7f5;margin-top:12px;padding-top:12px;}.delivery-new-modal-footer label{font-weight:800;}.delivery-new-modal-footer input{width:100%;}.delivery-new-modal-footer .wide{grid-column:span 1;}.delivery-new-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:10px;}.delivery-new-business-table{width:100%;border-collapse:collapse;font-size:12px;}.delivery-new-business-table th,.delivery-new-business-table td{border-top:1px solid #e2e8f0;padding:7px 6px;text-align:left;}.delivery-new-business-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-business-table .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-business-table input{width:92px;text-align:right;}.delivery-new-preview-cards{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-top:10px;}.delivery-new-history-block{margin:10px 0;border:1px solid #dbe7f5;border-radius:12px;overflow:hidden;}.delivery-new-history-block h4{margin:0;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}' +
       '.delivery-new-form-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;}.delivery-new-form-grid label{font-weight:700;color:#0f172a;}.delivery-new-form-grid input{width:100%;}.delivery-new-form-grid .wide{grid-column:span 2;}' +
-      '@media(max-width:1100px){.delivery-v46-list-panel{overflow-x:auto;}.delivery-new-order-grid{grid-template-columns:32px minmax(220px,1.7fr) 92px 92px 92px 92px 92px 96px 108px 110px;min-width:1080px;}.delivery-new-summary-grid,.delivery-new-preview-cards{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row{grid-template-columns:minmax(200px,1fr) 70px repeat(3,1fr);}.delivery-new-salesman-row span:nth-child(n+6){display:none;}}' +
-      '@media(max-width:760px){.delivery-new-order-grid{min-width:1080px;grid-template-columns:32px minmax(220px,1.7fr) 92px 92px 92px 92px 92px 96px 108px 110px;}.delivery-new-form-grid,.delivery-new-summary-grid,.delivery-new-preview-cards,.delivery-new-modal-footer{grid-template-columns:1fr;}.delivery-new-salesman-row{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row span:nth-child(n+5){display:none;}.delivery-new-form-grid .wide{grid-column:span 1;}.delivery-new-modal-backdrop{padding:10px;}.delivery-new-adjustment-dialog{width:100%;}}';
+      '@media(max-width:1100px){.delivery-v46-list-panel{overflow-x:auto;}.delivery-new-order-grid{grid-template-columns:32px minmax(220px,1.7fr) 110px 110px 120px 110px 110px 110px 108px 110px;min-width:1220px;}.delivery-new-summary-grid,.delivery-new-preview-cards{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row{grid-template-columns:minmax(200px,1fr) 70px repeat(3,1fr);}.delivery-new-salesman-row span:nth-child(n+6){display:none;}}' +
+      '@media(max-width:760px){.delivery-new-order-grid{min-width:1220px;grid-template-columns:32px minmax(220px,1.7fr) 110px 110px 120px 110px 110px 110px 108px 110px;}.delivery-new-form-grid,.delivery-new-summary-grid,.delivery-new-preview-cards,.delivery-new-modal-footer{grid-template-columns:1fr;}.delivery-new-salesman-row{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row span:nth-child(n+5){display:none;}.delivery-new-form-grid .wide{grid-column:span 1;}.delivery-new-modal-backdrop{padding:10px;}.delivery-new-adjustment-dialog{width:100%;}}';
     document.head.appendChild(style);
   }
 
@@ -510,6 +510,11 @@
     }, { orderCount: 0, originalAmount: 0, cashAmount: 0, bankAmount: 0, rewardAmount: 0, offsetAmount: 0, returnedAmount: 0, finalDebtAmount: 0 });
   }
 
+  function updateTopKpisFromSelectedSalesmen() {
+    if (!state.hasSearched) { applySummary({ orderCount: 0 }); return; }
+    applySummary(summarizeVisibleRows(getVisibleRowsBySelectedSalesmen()));
+  }
+
   function ensureSelectedOrderSet() {
     if (state.selectedOrderIds instanceof Set) return state.selectedOrderIds;
     state.selectedOrderIds = new Set();
@@ -571,6 +576,7 @@
 
   function applySelectedSalesmanFilter() {
     pruneSelectedOrderIds(getVisibleRowsBySelectedSalesmen());
+    updateTopKpisFromSelectedSalesmen();
     renderSalesmanGroupPanel();
     renderRows();
     updateCloseoutButton();
@@ -594,19 +600,6 @@
     applySelectedSalesmanFilter();
   }
 
-  function renderSelectedSalesmanCompactSummary(summary, selectedCount, totalCount) {
-    return '<div class="delivery-new-salesman-compact">Tổng theo NVBH đã chọn: ' +
-      '<b>' + selectedCount + '/' + totalCount + ' NVBH</b> · ' +
-      '<b>' + money(summary.orderCount) + ' đơn</b> · ' +
-      'PT <b>' + money(summary.originalAmount) + '</b> · ' +
-      'TM <b>' + money(summary.cashAmount) + '</b> · ' +
-      'CK <b>' + money(summary.bankAmount) + '</b> · ' +
-      'TH <b>' + money(num(summary.rewardAmount) + num(summary.offsetAmount)) + '</b> · ' +
-      'HT <b class="delivery-new-return">' + money(summary.returnedAmount) + '</b> · ' +
-      'CN <b class="' + (num(summary.finalDebtAmount) > 0 ? 'delivery-new-debt' : 'delivery-new-zero') + '">' + money(summary.finalDebtAmount) + '</b>' +
-    '</div>';
-  }
-
 
   function renderSalesmanGroupPanel() {
     var box = byId('deliveryTodayNewSalesmanPanel');
@@ -618,33 +611,26 @@
       return;
     }
     var selected = selectedSalesmanSet();
-    var selectedCount = groups.filter(function (group) { return selected[group.key]; }).length;
     var deliveryFilter = (byId('deliveryTodayNewDelivery') && byId('deliveryTodayNewDelivery').value) || '';
     var title = deliveryFilter ? 'NVBH thuộc NVGH ' + deliveryFilter : 'NVBH trong danh sách đơn đang tải';
-    var visibleRows = getVisibleRowsBySelectedSalesmen();
-    var summary = summarizeVisibleRows(visibleRows);
     var rows = groups.map(function (group) {
       var checked = selected[group.key] ? ' checked' : '';
       return '<div class="delivery-new-salesman-row">' +
         '<label class="delivery-new-salesman-check"><input type="checkbox" data-salesman-key="' + esc(group.key) + '"' + checked + '> <span>' + esc((group.salesStaffCode || '') + (group.salesStaffCode && group.salesStaffName ? ' - ' : '') + (group.salesStaffName || 'Chưa rõ NVBH')) + '</span></label>' +
         '<span class="muted">' + esc(group.orderCount) + ' đơn</span>' +
-        '<span class="delivery-new-salesman-money">PT ' + money(group.originalAmount) + '</span>' +
-        '<span class="delivery-new-salesman-money">TM ' + money(group.cashAmount) + '</span>' +
-        '<span class="delivery-new-salesman-money">CK ' + money(group.bankAmount) + '</span>' +
-        '<span class="delivery-new-salesman-money">TH ' + money(num(group.rewardAmount) + num(group.offsetAmount)) + '</span>' +
-        '<span class="delivery-new-salesman-money delivery-new-return">HT ' + money(group.returnedAmount) + '</span>' +
-        '<span class="delivery-new-salesman-money ' + (num(group.finalDebtAmount) > 0 ? 'delivery-new-debt' : 'delivery-new-zero') + '">CN ' + money(group.finalDebtAmount) + '</span>' +
+        '<span class="delivery-new-salesman-money">Phải thu ' + money(group.originalAmount) + '</span>' +
+        '<span class="delivery-new-salesman-money">Tiền mặt ' + money(group.cashAmount) + '</span>' +
+        '<span class="delivery-new-salesman-money">Chuyển khoản ' + money(group.bankAmount) + '</span>' +
+        '<span class="delivery-new-salesman-money">Trả thưởng ' + money(num(group.rewardAmount) + num(group.offsetAmount)) + '</span>' +
+        '<span class="delivery-new-salesman-money delivery-new-return">Hàng trả ' + money(group.returnedAmount) + '</span>' +
+        '<span class="delivery-new-salesman-money ' + (num(group.finalDebtAmount) > 0 ? 'delivery-new-debt' : 'delivery-new-zero') + '">Còn nợ ' + money(group.finalDebtAmount) + '</span>' +
       '</div>';
     }).join('');
-    box.innerHTML = '<div class="delivery-new-salesman-header"><div><h3>' + esc(title) + '</h3>' + renderSelectedSalesmanCompactSummary(summary, selectedCount, groups.length) + '</div><div class="delivery-new-salesman-actions"><button type="button" id="deliveryTodayNewSelectAllSalesmen" class="secondary">Chọn tất cả</button><button type="button" id="deliveryTodayNewClearAllSalesmen" class="secondary">Bỏ chọn tất cả</button></div></div>' +
+    box.innerHTML = '<div class="delivery-new-salesman-header"><div><h3>' + esc(title) + '</h3></div></div>' +
       '<div class="delivery-new-salesman-rows">' + rows + '</div>';
     Array.prototype.forEach.call(box.querySelectorAll('input[type="checkbox"][data-salesman-key]'), function (input) {
       input.addEventListener('change', function () { toggleSalesmanSelection(input.dataset.salesmanKey, input.checked); });
     });
-    var selectAll = byId('deliveryTodayNewSelectAllSalesmen');
-    var clearAll = byId('deliveryTodayNewClearAllSalesmen');
-    if (selectAll) selectAll.addEventListener('click', selectAllSalesmen);
-    if (clearAll) clearAll.addEventListener('click', clearAllSalesmen);
   }
 
   function updateOrderSelectionToolbar(visibleRows) {
@@ -1404,7 +1390,7 @@
       state.loaded = true;
       state.hasSearched = true;
       setResultSectionsVisible(true);
-      applySummary(data.summary || json.summary || {});
+      updateTopKpisFromSelectedSalesmen();
       renderSalesmanGroupPanel();
       renderRows();
       setMessage('Đã tải ' + state.rows.length + ' đơn.');
