@@ -73,3 +73,24 @@ test('Phase92 scripts exist for index, audit, consistency audit and repair plann
     'scripts/plan-new-delivery-debt-repair.js'
   ].forEach((rel) => assert.equal(fs.existsSync(path.join(root, rel)), true, `${rel} missing`));
 });
+
+
+test('Phase106 payment correction treats corrected amount as final value and allows fixing negative current cash', () => {
+  const service = read('src/services/deliveryCloseoutCorrection.service.js');
+  assert.match(service, /correctionSemantics:\s*'corrected_final_amount'/);
+  assert.match(service, /return\s+correctedAmount\s*-\s*currentAmount/);
+  assert.match(service, /const oldAmount = money\(line\.oldAmount[\s\S]*currentAmount[\s\S]*previousAmount/);
+  assert.match(service, /const newAmount = money\(line\.newAmount[\s\S]*correctedAmount[\s\S]*finalAmount/);
+  assert.doesNotMatch(service, /if \(line\.adjustmentAmount !== undefined\) return money\(line\.adjustmentAmount\)/);
+});
+
+test('Phase106 correction service rejects negative corrected payment but not negative current payment', () => {
+  const service = read('src/services/deliveryCloseoutCorrection.service.js');
+  assert.match(service, /if \(money\(line\.newAmount\) < 0\)/);
+  assert.doesNotMatch(service, /money\(line\.newAmount\) < 0 \|\| money\(line\.oldAmount\) < 0/);
+  assert.match(service, /validateCorrectionInput/);
+});
+
+test('Phase106 read-only audit script exists for negative delivery cash', () => {
+  assert.equal(fs.existsSync(path.join(root, 'scripts/audit-delivery-payment-negative-cash.js')), true);
+});

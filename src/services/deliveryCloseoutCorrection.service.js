@@ -139,21 +139,23 @@ function normalizeReturnAdjustmentItems(items = []) {
 }
 
 function cashLineAdjustmentAmount(line = {}) {
-  if (line.adjustmentAmount !== undefined) return money(line.adjustmentAmount);
-  return money(line.newAmount) - money(line.oldAmount);
+  const currentAmount = money(line.oldAmount ?? line.currentAmount ?? line.previousAmount ?? 0);
+  const correctedAmount = money(line.newAmount ?? line.correctedAmount ?? line.finalAmount ?? line.amount ?? currentAmount);
+  return correctedAmount - currentAmount;
 }
 
 function normalizeCashAdjustmentLines(lines = []) {
   return (Array.isArray(lines) ? lines : []).map((line) => {
-    const oldAmount = money(line.oldAmount ?? line.previousAmount ?? 0);
-    const newAmount = money(line.newAmount ?? line.amount ?? oldAmount);
+    const oldAmount = money(line.oldAmount ?? line.currentAmount ?? line.currentCashAmount ?? line.currentBankAmount ?? line.currentRewardAmount ?? line.previousAmount ?? 0);
+    const newAmount = money(line.newAmount ?? line.correctedAmount ?? line.correctedCashAmount ?? line.correctedBankAmount ?? line.correctedRewardAmount ?? line.finalAmount ?? line.amount ?? oldAmount);
     const adjustmentAmount = cashLineAdjustmentAmount({ ...line, oldAmount, newAmount });
     return {
       paymentMethod: text(line.paymentMethod || line.method || 'cash'),
       oldAmount,
       newAmount,
       adjustmentAmount,
-      note: text(line.note || '')
+      note: text(line.note || ''),
+      correctionSemantics: 'corrected_final_amount'
     };
   });
 }
@@ -171,7 +173,7 @@ function validateCorrectionInput(input = {}, calculated = {}) {
     throw err;
   }
   for (const line of calculated.cashAdjustmentLines || []) {
-    if (money(line.newAmount) < 0 || money(line.oldAmount) < 0) {
+    if (money(line.newAmount) < 0) {
       const err = new Error('Tiền thu sau điều chỉnh không được âm.');
       err.code = 'DELIVERY_CLOSEOUT_CORRECTION_NEGATIVE_CASH';
       err.status = 400;
@@ -193,6 +195,7 @@ function buildIdempotencyKey(input = {}, order = {}) {
     closeout.id,
     hash(stableJson(input.correctedReturnItems || input.returnAdjustmentItems || [])),
     hash(stableJson(input.correctedCashLines || input.cashAdjustmentLines || [])),
+    hash(stableJson(input.paymentCorrection || {})),
     hash(stableJson({ returnAdjustmentAmount: money(input.returnAdjustmentAmount), cashAdjustmentAmount: money(input.cashAdjustmentAmount), debtAdjustmentAmount: input.debtAdjustmentAmount === undefined ? null : money(input.debtAdjustmentAmount) })),
     hash(text(input.reason))
   ].join(':');
@@ -541,6 +544,7 @@ module.exports = {
     previousCashAmount,
     previousDebtAmount,
     itemAdjustmentAmount,
-    cashLineAdjustmentAmount
+    cashLineAdjustmentAmount,
+    validateCorrectionInput
   }
 };

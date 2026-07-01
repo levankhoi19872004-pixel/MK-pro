@@ -10,8 +10,32 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
     });
   }
-  function num(value) { var n = Number(String(value || 0).replace(/[^0-9.-]/g, '')); return Number.isFinite(n) ? Math.round(n) : 0; }
-  function money(value) { return num(value).toLocaleString('vi-VN'); }
+  function parseVietnameseMoney(value) {
+    if (value == null || value === '') return 0;
+    if (typeof value === 'number') return Number.isFinite(value) ? Math.round(value) : 0;
+    var raw = String(value).trim();
+    if (!raw) return 0;
+    var compact = raw.replace(/\s/g, '');
+    var sign = compact.charAt(0) === '-' ? '-' : '';
+    var unsigned = sign ? compact.slice(1) : compact;
+    if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(unsigned)) {
+      var vn = sign + unsigned.replace(/\./g, '').replace(',', '.');
+      var vnNumber = Number(vn);
+      return Number.isFinite(vnNumber) ? Math.round(vnNumber) : 0;
+    }
+    if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(unsigned)) {
+      var en = sign + unsigned.replace(/,/g, '');
+      var enNumber = Number(en);
+      return Number.isFinite(enNumber) ? Math.round(enNumber) : 0;
+    }
+    var fallback = Number(compact.replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(fallback) ? Math.round(fallback) : 0;
+  }
+  function formatVietnameseMoney(value) {
+    return parseVietnameseMoney(value).toLocaleString('vi-VN');
+  }
+  function num(value) { return parseVietnameseMoney(value); }
+  function money(value) { return formatVietnameseMoney(value); }
   function today() { return new Date().toISOString().slice(0, 10); }
   function isConfirmed(row) { return row && (row.accountingConfirmed || row.deliveryCloseoutStatus === 'closed' || row.closeoutStatus === 'accounting_confirmed' || row.closeoutStatus === 'corrected_confirmed'); }
   function statusLabel(row) {
@@ -132,9 +156,9 @@
       '.delivery-new-detail-title h3{margin:0;}.delivery-new-detail-title small{display:block;color:#475569;margin-top:3px;}' +
       '.delivery-new-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:10px 0;}' +
       '.delivery-new-detail-cell{border:1px solid #dbe7f5;border-radius:10px;padding:9px 10px;background:#fff;}.delivery-new-detail-cell span{display:block;color:#64748b;font-size:12px;}.delivery-new-detail-cell b{display:block;text-align:right;font-size:16px;margin-top:4px;}' +
-      '.delivery-new-safe-note{border:1px solid #bae6fd;background:#eff6ff;border-radius:10px;padding:10px 12px;color:#075985;font-weight:700;margin:8px 0;}' +
+      '.delivery-new-safe-note{border:1px solid #bae6fd;background:#eff6ff;border-radius:10px;padding:10px 12px;color:#075985;font-weight:700;margin:8px 0;}.delivery-new-correction-warning{border-color:#fed7aa;background:#fff7ed;color:#9a3412;}.delivery-new-money-input{text-align:right;font-variant-numeric:tabular-nums;}' +
       '.delivery-new-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.delivery-new-version-list{margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:8px;color:#334155;}.delivery-new-returnorders{margin:12px 0;border:1px solid #dbe7f5;border-radius:12px;background:#fff;overflow:hidden;}.delivery-new-returnorders-header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}.delivery-new-returnorders-header h4{margin:0;font-size:14px;}.delivery-new-returnorders-header small{display:block;color:#64748b;margin-top:3px;}.delivery-new-returnorder-card{padding:10px 12px;border-bottom:1px dashed #dbe7f5;}.delivery-new-returnorder-card:last-child{border-bottom:0;}.delivery-new-returnorder-meta{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:space-between;color:#475569;font-size:12px;}.delivery-new-returnorder-meta b{color:#0f172a;}.delivery-new-return-items{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}.delivery-new-return-items th,.delivery-new-return-items td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-return-items th{color:#64748b;font-weight:800;background:#f8fafc;}.delivery-new-return-items .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}.delivery-new-returnorder-note{margin-top:8px;}.delivery-new-adjust-table{width:100%;border-collapse:collapse;margin:8px 0 10px;font-size:12px;}.delivery-new-adjust-table th,.delivery-new-adjust-table td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-adjust-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-adjust-table .num{text-align:right;font-variant-numeric:tabular-nums;}.delivery-new-adjust-table input{width:88px;text-align:right;}.delivery-v46-suggest-box .empty{padding:8px 10px;color:#64748b;font-size:12px;}.delivery-v46-suggest-box button strong{font-size:12px;color:#0b4dbb;}.delivery-v46-suggest-box button em{font-style:normal;font-size:11px;color:#64748b;}' +
-      '.delivery-new-modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.36);padding:28px;overflow:auto;}.delivery-new-adjustment-dialog{width:min(1280px,96vw);margin:0 auto;background:#fff;border-radius:18px;box-shadow:0 18px 50px rgba(15,23,42,.35);padding:18px;}.delivery-new-modal-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid #dbe7f5;padding-bottom:12px;margin-bottom:12px;}.delivery-new-modal-header h3{margin:0;font-size:20px;}.delivery-new-modal-header small{display:block;color:#475569;margin-top:4px;}.delivery-new-modal-close{border:0;background:#e5edf8;border-radius:999px;padding:8px 12px;font-weight:800;cursor:pointer;}.delivery-new-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px;}.delivery-new-tab{border:1px solid #cbd5e1;background:#f8fafc;border-radius:999px;padding:8px 12px;font-weight:800;cursor:pointer;}.delivery-new-tab.active{background:#2563eb;color:#fff;border-color:#2563eb;}.delivery-new-tab-panel{border:1px solid #dbe7f5;border-radius:14px;padding:12px;background:#fff;min-height:260px;}.delivery-new-modal-footer{display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:end;border-top:1px solid #dbe7f5;margin-top:12px;padding-top:12px;}.delivery-new-modal-footer label{font-weight:800;}.delivery-new-modal-footer input{width:100%;}.delivery-new-modal-footer .wide{grid-column:span 1;}.delivery-new-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:10px;}.delivery-new-business-table{width:100%;border-collapse:collapse;font-size:12px;}.delivery-new-business-table th,.delivery-new-business-table td{border-top:1px solid #e2e8f0;padding:7px 6px;text-align:left;}.delivery-new-business-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-business-table .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-business-table input{width:92px;text-align:right;}.delivery-new-preview-cards{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-top:10px;}.delivery-new-history-block{margin:10px 0;border:1px solid #dbe7f5;border-radius:12px;overflow:hidden;}.delivery-new-history-block h4{margin:0;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}' +
+      '.delivery-new-modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.36);padding:28px;overflow:auto;}.delivery-new-adjustment-dialog{width:min(1280px,96vw);margin:0 auto;background:#fff;border-radius:18px;box-shadow:0 18px 50px rgba(15,23,42,.35);padding:18px;}.delivery-new-modal-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid #dbe7f5;padding-bottom:12px;margin-bottom:12px;}.delivery-new-modal-header h3{margin:0;font-size:20px;}.delivery-new-modal-header small{display:block;color:#475569;margin-top:4px;}.delivery-new-modal-close{border:0;background:#2563eb;color:#fff;border-radius:999px;padding:8px 12px;font-weight:900;cursor:pointer;opacity:1!important;pointer-events:auto!important;box-shadow:0 8px 18px rgba(37,99,235,.24);}.delivery-new-modal-close:focus{outline:2px solid #93c5fd;outline-offset:2px;}.delivery-new-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px;}.delivery-new-tab{border:1px solid #cbd5e1;background:#f8fafc;border-radius:999px;padding:8px 12px;font-weight:800;cursor:pointer;}.delivery-new-tab.active{background:#2563eb;color:#fff;border-color:#2563eb;}.delivery-new-tab-panel{border:1px solid #dbe7f5;border-radius:14px;padding:12px;background:#fff;min-height:260px;}.delivery-new-modal-footer{display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:end;border-top:1px solid #dbe7f5;margin-top:12px;padding-top:12px;}.delivery-new-modal-footer label{font-weight:800;}.delivery-new-modal-footer input{width:100%;}.delivery-new-modal-footer .wide{grid-column:span 1;}.delivery-new-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:10px;}.delivery-new-business-table{width:100%;border-collapse:collapse;font-size:12px;}.delivery-new-business-table th,.delivery-new-business-table td{border-top:1px solid #e2e8f0;padding:7px 6px;text-align:left;}.delivery-new-business-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-business-table .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-business-table input{width:92px;text-align:right;}.delivery-new-preview-cards{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-top:10px;}.delivery-new-history-block{margin:10px 0;border:1px solid #dbe7f5;border-radius:12px;overflow:hidden;}.delivery-new-history-block h4{margin:0;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}' +
       '.delivery-new-form-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;}.delivery-new-form-grid label{font-weight:700;color:#0f172a;}.delivery-new-form-grid input{width:100%;}.delivery-new-form-grid .wide{grid-column:span 2;}' +
       '@media(max-width:1100px){.delivery-v46-list-panel{overflow-x:auto;}.delivery-new-order-grid{grid-template-columns:32px minmax(220px,1.7fr) 92px 92px 92px 92px 92px 96px 108px 110px;min-width:1080px;}.delivery-new-summary-grid,.delivery-new-preview-cards{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row{grid-template-columns:minmax(200px,1fr) 70px repeat(3,1fr);}.delivery-new-salesman-row span:nth-child(n+6){display:none;}}' +
       '@media(max-width:760px){.delivery-new-order-grid{min-width:1080px;grid-template-columns:32px minmax(220px,1.7fr) 92px 92px 92px 92px 92px 96px 108px 110px;}.delivery-new-form-grid,.delivery-new-summary-grid,.delivery-new-preview-cards,.delivery-new-modal-footer{grid-template-columns:1fr;}.delivery-new-salesman-row{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row span:nth-child(n+5){display:none;}.delivery-new-form-grid .wide{grid-column:span 1;}.delivery-new-modal-backdrop{padding:10px;}.delivery-new-adjustment-dialog{width:100%;}}';
@@ -812,6 +836,10 @@
     return '<div class="delivery-new-detail-cell"><span>' + esc(label) + '</span><b class="' + (className || '') + '">' + esc(value) + '</b></div>';
   }
 
+  function detailCellValueId(label, id, value, className) {
+    return '<div class="delivery-new-detail-cell"><span>' + esc(label) + '</span><b id="' + esc(id) + '" class="' + (className || '') + '">' + esc(value) + '</b></div>';
+  }
+
   function rowKey(row) { return String(row.orderId || row.orderCode || row.closeoutVersionId || row.correctionId || ''); }
 
   function correctionEndpoint(row) {
@@ -943,13 +971,19 @@
       ? returnItems.reduce(function (sum, item) { return sum + Math.round(qty(item.newReturnQty) * num(item.unitPrice)); }, 0)
       : oldReturn;
     var returnDelta = returnItems.length ? (returnAfter - oldReturn) : 0;
-    var oldCash = num(row.cashAmount);
-    var oldBank = num(row.bankAmount);
-    var oldReward = num(row.rewardAmount) + num(row.offsetAmount);
-    var newCash = num(byId('deliveryAdjustCashNew') ? byId('deliveryAdjustCashNew').value : oldCash);
-    var newBank = num(byId('deliveryAdjustBankNew') ? byId('deliveryAdjustBankNew').value : oldBank);
-    var newReward = num(byId('deliveryAdjustRewardNew') ? byId('deliveryAdjustRewardNew').value : oldReward);
-    var cashDelta = (newCash - oldCash) + (newBank - oldBank) + (newReward - oldReward);
+    var oldCash = parseVietnameseMoney(row.cashAmount);
+    var oldBank = parseVietnameseMoney(row.bankAmount);
+    var oldReward = parseVietnameseMoney(row.rewardAmount) + parseVietnameseMoney(row.offsetAmount);
+    var newCash = parseVietnameseMoney(byId('deliveryAdjustCashNew') ? byId('deliveryAdjustCashNew').value : oldCash);
+    var newBank = parseVietnameseMoney(byId('deliveryAdjustBankNew') ? byId('deliveryAdjustBankNew').value : oldBank);
+    var newReward = parseVietnameseMoney(byId('deliveryAdjustRewardNew') ? byId('deliveryAdjustRewardNew').value : oldReward);
+    var cashDeltaAmount = newCash - oldCash;
+    var bankDeltaAmount = newBank - oldBank;
+    var rewardDeltaAmount = newReward - oldReward;
+    var currentTotalCollected = oldCash + oldBank + oldReward;
+    var correctedTotalCollected = newCash + newBank + newReward;
+    var totalCollectedDelta = correctedTotalCollected - currentTotalCollected;
+    var cashDelta = totalCollectedDelta;
     var debtDelta = -returnDelta - cashDelta;
     return {
       returnItems: returnItems,
@@ -962,6 +996,12 @@
       newCash: newCash,
       newBank: newBank,
       newReward: newReward,
+      cashDeltaAmount: cashDeltaAmount,
+      bankDeltaAmount: bankDeltaAmount,
+      rewardDeltaAmount: rewardDeltaAmount,
+      currentTotalCollected: currentTotalCollected,
+      correctedTotalCollected: correctedTotalCollected,
+      totalCollectedDelta: totalCollectedDelta,
       cashDelta: cashDelta,
       debtDelta: debtDelta,
       finalDebtAfter: num(row.finalDebtAmount) + debtDelta
@@ -969,7 +1009,8 @@
   }
 
   function tabButton(key, label) {
-    return '<button type="button" class="delivery-new-tab ' + (state.activeTab === key ? 'active' : '') + '" data-tab="' + key + '">' + esc(label) + '</button>';
+    var title = isConfirmed(state.adjustmentRow) ? 'Đơn đã chốt sổ. Một số tab dùng để kiểm tra; thay đổi sẽ tạo version correction, không sửa bản cũ.' : 'Xem ' + label;
+    return '<button type="button" class="delivery-new-tab ' + (state.activeTab === key ? 'active' : '') + '" data-tab="' + key + '" title="' + esc(title) + '">' + esc(label) + '</button>';
   }
 
   function renderOverviewTab(row) {
@@ -1012,8 +1053,8 @@
       '<div class="delivery-new-preview-cards">' +
         detailCell('Tổng hàng giao', money(totalDelivered)) +
         detailCell('Tổng hàng trả hiện tại', money(row.returnedAmount), 'delivery-new-return') +
-        detailCell('Tổng hàng trả sau điều chỉnh', '<span id="deliveryReturnAfterText">' + money(row.returnedAmount) + '</span>', 'delivery-new-return') +
-        detailCell('Chênh lệch hàng trả', '<span id="deliveryReturnDeltaText">0</span>', 'delivery-new-return') +
+        detailCellValueId('Tổng hàng trả sau điều chỉnh', 'deliveryReturnAfterText', money(row.returnedAmount), 'delivery-new-return') +
+        detailCellValueId('Chênh lệch hàng trả', 'deliveryReturnDeltaText', '0', 'delivery-new-return') +
       '</div>';
   }
 
@@ -1044,20 +1085,25 @@
   }
 
   function renderPaymentTab(row) {
-    var reward = num(row.rewardAmount) + num(row.offsetAmount);
-    return '<div class="delivery-new-form-grid">' +
-      '<label>Tiền mặt hiện tại<input disabled value="' + esc(money(row.cashAmount)) + '"></label>' +
-      '<label>Tiền mặt đúng<input id="deliveryAdjustCashNew" inputmode="numeric" value="' + esc(row.cashAmount || 0) + '"></label>' +
-      '<label>Chuyển khoản hiện tại<input disabled value="' + esc(money(row.bankAmount)) + '"></label>' +
-      '<label>Chuyển khoản đúng<input id="deliveryAdjustBankNew" inputmode="numeric" value="' + esc(row.bankAmount || 0) + '"></label>' +
+    var currentCash = parseVietnameseMoney(row.cashAmount);
+    var currentBank = parseVietnameseMoney(row.bankAmount);
+    var reward = parseVietnameseMoney(row.rewardAmount) + parseVietnameseMoney(row.offsetAmount);
+    var warning = (currentCash < 0 || currentBank < 0 || reward < 0)
+      ? '<div class="delivery-new-safe-note delivery-new-correction-warning">Dữ liệu tiền thu hiện tại đang âm. Vui lòng kiểm tra phiên điều chỉnh trước hoặc chạy audit dữ liệu; vẫn có thể nhập giá trị đúng không âm để tạo version điều chỉnh.</div>'
+      : '';
+    return warning + '<div class="delivery-new-form-grid">' +
+      '<label>Tiền mặt hiện tại<input disabled value="' + esc(money(currentCash)) + '"></label>' +
+      '<label>Tiền mặt đúng<input id="deliveryAdjustCashNew" class="delivery-new-money-input" inputmode="numeric" value="' + esc(money(Math.max(0, currentCash))) + '"></label>' +
+      '<label>Chuyển khoản hiện tại<input disabled value="' + esc(money(currentBank)) + '"></label>' +
+      '<label>Chuyển khoản đúng<input id="deliveryAdjustBankNew" class="delivery-new-money-input" inputmode="numeric" value="' + esc(money(Math.max(0, currentBank))) + '"></label>' +
       '<label>Trả thưởng hiện tại<input disabled value="' + esc(money(reward)) + '"></label>' +
-      '<label>Trả thưởng đúng<input id="deliveryAdjustRewardNew" inputmode="numeric" value="' + esc(reward) + '"></label>' +
+      '<label>Trả thưởng đúng<input id="deliveryAdjustRewardNew" class="delivery-new-money-input" inputmode="numeric" value="' + esc(money(Math.max(0, reward))) + '"></label>' +
       '</div>' +
       '<div class="delivery-new-preview-cards">' +
-        detailCell('Chênh lệch tiền mặt', '<span id="deliveryCashDeltaText">0</span>') +
-        detailCell('Chênh lệch chuyển khoản', '<span id="deliveryBankDeltaText">0</span>') +
-        detailCell('Chênh lệch trả thưởng', '<span id="deliveryRewardDeltaText">0</span>') +
-        detailCell('Tổng chênh lệch tiền thu', '<span id="deliveryCashTotalDeltaText">0</span>') +
+        detailCellValueId('Chênh lệch tiền mặt', 'deliveryCashDeltaText', '0') +
+        detailCellValueId('Chênh lệch chuyển khoản', 'deliveryBankDeltaText', '0') +
+        detailCellValueId('Chênh lệch trả thưởng', 'deliveryRewardDeltaText', '0') +
+        detailCellValueId('Tổng chênh lệch tiền thu', 'deliveryCashTotalDeltaText', '0') +
       '</div>' +
       '<div class="delivery-new-safe-note">Sửa tiền thu sau xác nhận kế toán chỉ tạo version điều chỉnh, không sinh AR-RECEIPT trực tiếp.</div>';
   }
@@ -1120,7 +1166,13 @@
     });
     ['deliveryAdjustCashNew', 'deliveryAdjustBankNew', 'deliveryAdjustRewardNew'].forEach(function (id) {
       var el = byId(id);
-      if (el) el.addEventListener('input', function () { updateAdjustmentPreview(row); });
+      if (el) {
+        el.addEventListener('input', function () { updateAdjustmentPreview(row); });
+        el.addEventListener('blur', function () {
+          el.value = formatVietnameseMoney(el.value);
+          updateAdjustmentPreview(row);
+        });
+      }
     });
   }
 
@@ -1136,10 +1188,10 @@
     });
     setText('deliveryReturnAfterText', money(totals.returnAfter));
     setText('deliveryReturnDeltaText', money(totals.returnDelta));
-    setText('deliveryCashDeltaText', money(totals.newCash - totals.oldCash));
-    setText('deliveryBankDeltaText', money(totals.newBank - totals.oldBank));
-    setText('deliveryRewardDeltaText', money(totals.newReward - totals.oldReward));
-    setText('deliveryCashTotalDeltaText', money(totals.cashDelta));
+    setText('deliveryCashDeltaText', money(totals.cashDeltaAmount));
+    setText('deliveryBankDeltaText', money(totals.bankDeltaAmount));
+    setText('deliveryRewardDeltaText', money(totals.rewardDeltaAmount));
+    setText('deliveryCashTotalDeltaText', money(totals.totalCollectedDelta));
   }
 
   function openAdjustmentPopup(row) {
@@ -1156,9 +1208,9 @@
           '<div><h3>Điều chỉnh đơn giao - ' + esc(row.orderCode || row.orderId) + '</h3>' +
             '<small>' + esc(row.customerCode || '') + ' - ' + esc(row.customerName || '') + '</small>' +
             '<small>NVBH: ' + esc((row.salesStaffCode || '') + ' - ' + (row.salesStaffName || '')) + ' · NVGH: ' + esc((row.deliveryStaffCode || '') + ' - ' + (row.deliveryStaffName || '')) + ' · Ngày giao: ' + esc(row.deliveryDate || '') + ' · Trạng thái: ' + esc(statusLabel(row)) + '</small></div>' +
-          '<button type="button" id="deliveryTodayNewModalCloseTop" class="delivery-new-modal-close">Đóng</button>' +
+          '<button type="button" id="deliveryTodayNewModalCloseTop" class="delivery-new-modal-close" aria-label="Đóng modal điều chỉnh đơn giao">Đóng</button>' +
         '</div>' +
-        (isConfirmed(row) ? '<div class="delivery-new-safe-note">Đơn đã xác nhận kế toán. Mọi thay đổi sẽ tạo version mới, không sửa bản cũ.</div>' : '<div class="delivery-new-safe-note">Đơn chưa xác nhận kế toán. Vui lòng xử lý hàng trả ở luồng giao hàng hiện tại.</div>') +
+        (isConfirmed(row) ? '<div class="delivery-new-safe-note">Đơn đã chốt sổ/xác nhận kế toán. Mọi thay đổi sẽ tạo version mới, không sửa bản cũ.</div><div class="delivery-new-safe-note">Đơn đã chốt sổ. Tab Thu tiền cho phép tạo correction tiền thu; các tab khác dùng để kiểm tra dữ liệu trước khi lưu.</div>' : '<div class="delivery-new-safe-note">Đơn chưa xác nhận kế toán. Vui lòng xử lý hàng trả ở luồng giao hàng hiện tại.</div>') +
         '<div class="delivery-new-tabs">' +
           tabButton('overview', 'Tổng quan') +
           tabButton('delivery', 'Hàng giao') +
@@ -1215,6 +1267,10 @@
     if (!reason) { setMessage('Vui lòng nhập lý do điều chỉnh.', true); return; }
 
     var totals = totalsFromPopup(row);
+    if (totals.newCash < 0) { setMessage('Tiền mặt đúng không được âm.', true); return; }
+    if (totals.newBank < 0) { setMessage('Chuyển khoản đúng không được âm.', true); return; }
+    if (totals.newReward < 0) { setMessage('Trả thưởng đúng không được âm.', true); return; }
+    if (totals.correctedTotalCollected < 0) { setMessage('Tiền thu sau điều chỉnh không được âm.', true); return; }
     var correctedReturnItems = totals.returnItems.filter(function (item) { return qty(item.adjustmentQty) !== 0; });
     var cashLines = [
       { paymentMethod: 'cash', oldAmount: totals.oldCash, newAmount: totals.newCash, adjustmentAmount: totals.newCash - totals.oldCash },
@@ -1242,6 +1298,20 @@
         body: JSON.stringify({
           correctedReturnItems: correctedReturnItems,
           correctedCashLines: cashLines,
+          paymentCorrection: {
+            currentCashAmount: totals.oldCash,
+            correctedCashAmount: totals.newCash,
+            cashDeltaAmount: totals.cashDeltaAmount,
+            currentBankAmount: totals.oldBank,
+            correctedBankAmount: totals.newBank,
+            bankDeltaAmount: totals.bankDeltaAmount,
+            currentRewardAmount: totals.oldReward,
+            correctedRewardAmount: totals.newReward,
+            rewardDeltaAmount: totals.rewardDeltaAmount,
+            currentTotalCollected: totals.currentTotalCollected,
+            correctedTotalCollected: totals.correctedTotalCollected,
+            totalCollectedDelta: totals.totalCollectedDelta
+          },
           reason: reason,
           note: note
         })

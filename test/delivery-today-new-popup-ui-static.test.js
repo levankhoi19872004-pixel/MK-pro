@@ -43,3 +43,27 @@ test('Delivery Today New adjustment popup posts only Phase92 correction contract
   assert.doesNotMatch(source, /InventoryPostingService/);
   assert.doesNotMatch(source, /ReturnArPostingService/);
 });
+
+test('Delivery Today New payment correction renders DOM delta cells and final-amount semantics', () => {
+  assert.doesNotMatch(source, /<span id="deliveryCashDeltaText"/);
+  assert.match(source, /detailCellValueId\('Chênh lệch tiền mặt', 'deliveryCashDeltaText'/);
+  assert.match(source, /detailCellValueId\('Chênh lệch chuyển khoản', 'deliveryBankDeltaText'/);
+  assert.match(source, /detailCellValueId\('Chênh lệch trả thưởng', 'deliveryRewardDeltaText'/);
+  assert.match(source, /detailCellValueId\('Tổng chênh lệch tiền thu', 'deliveryCashTotalDeltaText'/);
+  assert.match(source, /parseVietnameseMoney/);
+  assert.match(source, /formatVietnameseMoney/);
+  assert.match(source, /cashDeltaAmount\s*=\s*newCash\s*-\s*oldCash/);
+  assert.match(source, /bankDeltaAmount\s*=\s*newBank\s*-\s*oldBank/);
+  assert.match(source, /rewardDeltaAmount\s*=\s*newReward\s*-\s*oldReward/);
+  assert.doesNotMatch(source, /oldCash\s*\+\s*newCash/);
+  assert.doesNotMatch(source, /currentCashAmount\s*\+\s*correctedCashAmount/);
+});
+
+test('Delivery Today New adjustment modal close button stays actionable and explains correction mode', () => {
+  assert.match(source, /aria-label="Đóng modal điều chỉnh đơn giao"/);
+  assert.match(source, /closeTop\.addEventListener\('click', closeAdjustmentPopup\)/);
+  assert.match(source, /closeBottom\.addEventListener\('click', closeAdjustmentPopup\)/);
+  assert.doesNotMatch(source, /deliveryTodayNewModalCloseTop[\s\S]{0,160}disabled/);
+  assert.match(source, /Đơn đã chốt sổ\. Tab Thu tiền cho phép tạo correction tiền thu/);
+  assert.match(source, /Dữ liệu tiền thu hiện tại đang âm/);
+});
