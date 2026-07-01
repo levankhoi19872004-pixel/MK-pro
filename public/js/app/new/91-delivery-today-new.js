@@ -2,7 +2,7 @@
   'use strict';
 
   var rootId = 'deliveryTodayNewRoot';
-  var state = { rows: [], selectedIndex: -1, loaded: false, hasSearched: false, userTouchedFilters: false, deliveryDateTouched: false, versionCache: {}, correctionReturnItems: [], adjustmentRow: null, activeTab: 'overview', selectedSalesmanKeys: {}, salesmanGroups: [], selectedOrderIds: new Set(), closeoutBusy: false };
+  var state = { rows: [], selectedIndex: -1, loaded: false, hasSearched: false, userTouchedFilters: false, deliveryDateTouched: false, versionCache: {}, correctionReturnItems: [], adjustmentRow: null, activeTab: 'overview', selectedSalesmanKeys: {}, salesmanGroups: [], selectedOrderIds: new Set(), closeoutBusy: false, modalNotice: { closeout: null, adjustment: null }, modalLoading: { closeout: false, adjustment: false } };
 
   function byId(id) { return document.getElementById(id); }
   function esc(value) {
@@ -174,7 +174,7 @@
       '.delivery-new-detail-cell{border:1px solid #dbe7f5;border-radius:10px;padding:9px 10px;background:#fff;}.delivery-new-detail-cell span{display:block;color:#64748b;font-size:12px;}.delivery-new-detail-cell b{display:block;text-align:right;font-size:16px;margin-top:4px;}' +
       '.delivery-new-safe-note{border:1px solid #bae6fd;background:#eff6ff;border-radius:10px;padding:10px 12px;color:#075985;font-weight:700;margin:8px 0;}.delivery-new-correction-warning{border-color:#fed7aa;background:#fff7ed;color:#9a3412;}.delivery-new-money-input{text-align:right;font-variant-numeric:tabular-nums;}' +
       '.delivery-new-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.delivery-new-version-list{margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:8px;color:#334155;}.delivery-new-returnorders{margin:12px 0;border:1px solid #dbe7f5;border-radius:12px;background:#fff;overflow:hidden;}.delivery-new-returnorders-header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}.delivery-new-returnorders-header h4{margin:0;font-size:14px;}.delivery-new-returnorders-header small{display:block;color:#64748b;margin-top:3px;}.delivery-new-returnorder-card{padding:10px 12px;border-bottom:1px dashed #dbe7f5;}.delivery-new-returnorder-card:last-child{border-bottom:0;}.delivery-new-returnorder-meta{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:space-between;color:#475569;font-size:12px;}.delivery-new-returnorder-meta b{color:#0f172a;}.delivery-new-return-items{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}.delivery-new-return-items th,.delivery-new-return-items td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-return-items th{color:#64748b;font-weight:800;background:#f8fafc;}.delivery-new-return-items .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}.delivery-new-returnorder-note{margin-top:8px;}.delivery-new-adjust-table{width:100%;border-collapse:collapse;margin:8px 0 10px;font-size:12px;}.delivery-new-adjust-table th,.delivery-new-adjust-table td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-adjust-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-adjust-table .num{text-align:right;font-variant-numeric:tabular-nums;}.delivery-new-adjust-table input{width:88px;text-align:right;}.delivery-v46-suggest-box .empty{padding:8px 10px;color:#64748b;font-size:12px;}.delivery-v46-suggest-box button strong{font-size:12px;color:#0b4dbb;}.delivery-v46-suggest-box button em{font-style:normal;font-size:11px;color:#64748b;}' +
-      '.delivery-new-modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.36);padding:28px;overflow:auto;}.delivery-new-adjustment-dialog{width:min(1280px,96vw);margin:0 auto;background:#fff;border-radius:18px;box-shadow:0 18px 50px rgba(15,23,42,.35);padding:18px;}.delivery-new-modal-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid #dbe7f5;padding-bottom:12px;margin-bottom:12px;}.delivery-new-modal-header h3{margin:0;font-size:20px;}.delivery-new-modal-header small{display:block;color:#475569;margin-top:4px;}.delivery-new-modal-close{border:0;background:#2563eb;color:#fff;border-radius:999px;padding:8px 12px;font-weight:900;cursor:pointer;opacity:1!important;pointer-events:auto!important;box-shadow:0 8px 18px rgba(37,99,235,.24);}.delivery-new-modal-close:focus{outline:2px solid #93c5fd;outline-offset:2px;}.delivery-new-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px;}.delivery-new-tab{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:999px;padding:8px 12px;font-weight:800;cursor:pointer;opacity:1;}.delivery-new-tab.active{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:900;box-shadow:0 8px 18px rgba(37,99,235,.18);}.delivery-new-tab:disabled,.delivery-new-tab.is-disabled{background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;opacity:1;cursor:not-allowed;box-shadow:none;}.delivery-new-tab-panel{border:1px solid #dbe7f5;border-radius:14px;padding:12px;background:#fff;min-height:260px;}.delivery-new-modal-footer{display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:end;border-top:1px solid #dbe7f5;margin-top:12px;padding-top:12px;}.delivery-new-modal-footer label{font-weight:800;}.delivery-new-modal-footer input{width:100%;}.delivery-new-modal-footer .wide{grid-column:span 1;}.delivery-new-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:10px;}.delivery-new-business-table{width:100%;border-collapse:collapse;font-size:12px;}.delivery-new-business-table th,.delivery-new-business-table td{border-top:1px solid #e2e8f0;padding:7px 6px;text-align:left;}.delivery-new-business-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-business-table .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-business-table input{width:92px;text-align:right;}.delivery-new-preview-cards{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-top:10px;}.delivery-new-history-block{margin:10px 0;border:1px solid #dbe7f5;border-radius:12px;overflow:hidden;}.delivery-new-history-block h4{margin:0;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}' +
+      '.delivery-new-modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.36);padding:28px;overflow:auto;}.delivery-new-adjustment-dialog{width:min(1280px,96vw);margin:0 auto;background:#fff;border-radius:18px;box-shadow:0 18px 50px rgba(15,23,42,.35);padding:18px;}.delivery-new-modal-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid #dbe7f5;padding-bottom:12px;margin-bottom:12px;}.delivery-new-modal-header h3{margin:0;font-size:20px;}.delivery-new-modal-header small{display:block;color:#475569;margin-top:4px;}.delivery-new-modal-close{border:0;background:#2563eb;color:#fff;border-radius:999px;padding:8px 12px;font-weight:900;cursor:pointer;opacity:1!important;pointer-events:auto!important;box-shadow:0 8px 18px rgba(37,99,235,.24);}.delivery-new-modal-close:focus{outline:2px solid #93c5fd;outline-offset:2px;}.delivery-new-modal-message{margin:10px 0;border-radius:12px;padding:10px 12px;border:1px solid #bfdbfe;background:#eff6ff;color:#075985;font-weight:800;}.delivery-new-modal-message.success{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}.delivery-new-modal-message.warning{border-color:#fed7aa;background:#fff7ed;color:#9a3412;}.delivery-new-modal-message.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c;}.delivery-new-modal-message[hidden]{display:none!important;}.delivery-new-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px;}.delivery-new-tab{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:999px;padding:8px 12px;font-weight:800;cursor:pointer;opacity:1;}.delivery-new-tab.active{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:900;box-shadow:0 8px 18px rgba(37,99,235,.18);}.delivery-new-tab:disabled,.delivery-new-tab.is-disabled{background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;opacity:1;cursor:not-allowed;box-shadow:none;}.delivery-new-tab-panel{border:1px solid #dbe7f5;border-radius:14px;padding:12px;background:#fff;min-height:260px;}.delivery-new-modal-footer{display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:end;border-top:1px solid #dbe7f5;margin-top:12px;padding-top:12px;}.delivery-new-modal-footer label{font-weight:800;}.delivery-new-modal-footer input{width:100%;}.delivery-new-modal-footer .wide{grid-column:span 1;}.delivery-new-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:10px;}.delivery-new-business-table{width:100%;border-collapse:collapse;font-size:12px;}.delivery-new-business-table th,.delivery-new-business-table td{border-top:1px solid #e2e8f0;padding:7px 6px;text-align:left;}.delivery-new-business-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-business-table .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-business-table input{width:92px;text-align:right;}.delivery-new-preview-cards{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-top:10px;}.delivery-new-history-block{margin:10px 0;border:1px solid #dbe7f5;border-radius:12px;overflow:hidden;}.delivery-new-history-block h4{margin:0;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}' +
       '.delivery-new-form-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;}.delivery-new-form-grid label{font-weight:700;color:#0f172a;}.delivery-new-form-grid input{width:100%;}.delivery-new-form-grid .wide{grid-column:span 2;}' +
       '@media(max-width:1100px){.delivery-v46-list-panel{overflow-x:auto;}.delivery-new-order-grid{grid-template-columns:32px minmax(220px,1.7fr) 110px 110px 120px 110px 110px 110px 108px 110px;min-width:1220px;}.delivery-new-summary-grid,.delivery-new-preview-cards{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row{grid-template-columns:minmax(200px,1fr) 70px repeat(3,1fr);}.delivery-new-salesman-row span:nth-child(n+6){display:none;}}' +
       '@media(max-width:760px){.delivery-new-order-grid{min-width:1220px;grid-template-columns:32px minmax(220px,1.7fr) 110px 110px 120px 110px 110px 110px 108px 110px;}.delivery-new-form-grid,.delivery-new-summary-grid,.delivery-new-preview-cards,.delivery-new-modal-footer{grid-template-columns:1fr;}.delivery-new-salesman-row{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row span:nth-child(n+5){display:none;}.delivery-new-form-grid .wide{grid-column:span 1;}.delivery-new-modal-backdrop{padding:10px;}.delivery-new-adjustment-dialog{width:100%;}}';
@@ -372,6 +372,45 @@
     if (!message) return;
     message.textContent = text || '';
     message.className = 'message' + (isError ? ' error-text' : '');
+  }
+
+  function modalMessageId(scope) {
+    return scope === 'closeout' ? 'deliveryTodayNewCloseoutModalMessage' : 'deliveryTodayNewAdjustmentModalMessage';
+  }
+
+  function setModalNotice(scope, text, type) {
+    if (!state.modalNotice) state.modalNotice = {};
+    state.modalNotice[scope] = text ? { message: String(text), type: type || 'info' } : null;
+    renderModalNotice(scope);
+  }
+
+  function setModalError(scope, text) {
+    setModalNotice(scope, text, 'error');
+  }
+
+  function clearModalNotice(scope) {
+    setModalNotice(scope, '', 'info');
+  }
+
+  function modalNoticeHtml(scope) {
+    var notice = state.modalNotice && state.modalNotice[scope];
+    if (!notice || !notice.message) return '<div id="' + modalMessageId(scope) + '" class="delivery-new-modal-message" hidden></div>';
+    return '<div id="' + modalMessageId(scope) + '" class="delivery-new-modal-message ' + esc(notice.type || 'info') + '" role="status">' + esc(notice.message) + '</div>';
+  }
+
+  function renderModalNotice(scope) {
+    var el = byId(modalMessageId(scope));
+    if (!el) return;
+    var notice = state.modalNotice && state.modalNotice[scope];
+    if (!notice || !notice.message) {
+      el.hidden = true;
+      el.textContent = '';
+      el.className = 'delivery-new-modal-message';
+      return;
+    }
+    el.hidden = false;
+    el.textContent = notice.message;
+    el.className = 'delivery-new-modal-message ' + (notice.type || 'info');
   }
 
   function setElementVisible(selector, visible) {
@@ -749,6 +788,7 @@
   function closeCloseoutModal() {
     var modal = byId('deliveryTodayNewCloseoutModal');
     if (modal) { modal.hidden = true; modal.innerHTML = ''; }
+    clearModalNotice('closeout');
   }
 
   function openCloseoutModal() {
@@ -756,6 +796,7 @@
     if (!modal) return;
     var rows = selectedCloseoutRows();
     if (!rows.length) { setMessage('Vui lòng chọn ít nhất một đơn để chốt sổ.', true); return; }
+    clearModalNotice('closeout');
     var summary = closeoutSummary(rows);
     var f = filters();
     var selectedGroups = (state.salesmanGroups || []).filter(function (group) { return state.selectedSalesmanKeys && state.selectedSalesmanKeys[group.key]; });
@@ -777,6 +818,7 @@
           detailCell('CN chuyển sang công nợ', money(summary.totalDebt), summary.totalDebt > 0 ? 'delivery-new-debt' : 'delivery-new-zero') +
         '</div>' +
         '<div class="delivery-new-closeout-warning">Chỉ phần CN sau làm tròn ngoài khoảng ±1.000 mới sinh AR-DEBT-OPEN. Đơn có CN từ -1.000 đến 1.000 được coi là hết nợ.</div>' +
+        modalNoticeHtml('closeout') +
         '<label>Lý do chốt sổ<input id="deliveryCloseoutReason" placeholder="Ví dụ: Chốt sổ giao hàng cuối ngày" value="Chốt sổ giao hàng cuối ngày"></label>' +
         '<div class="delivery-new-modal-footer">' +
           '<button type="button" id="deliveryCloseoutCancel" class="secondary">Hủy</button>' +
@@ -795,8 +837,8 @@
     var rows = selectedCloseoutRows();
     var reasonEl = byId('deliveryCloseoutReason');
     var reason = reasonEl ? reasonEl.value.trim() : '';
-    if (!rows.length) { setMessage('Không có đơn trong phạm vi chốt.', true); return; }
-    if (!reason) { setMessage('Vui lòng nhập lý do chốt sổ.', true); return; }
+    if (!rows.length) { setModalError('closeout', 'Không có đơn trong phạm vi chốt.'); return; }
+    if (!reason) { setModalError('closeout', 'Vui lòng nhập lý do chốt sổ.'); return; }
     var f = filters();
     var salesStaffCodes = (state.salesmanGroups || [])
       .filter(function (group) { return state.selectedSalesmanKeys && state.selectedSalesmanKeys[group.key]; })
@@ -805,7 +847,7 @@
     var orderIds = rows.map(rowKey).filter(Boolean).filter(function (value, index, arr) { return arr.indexOf(value) === index; });
     state.closeoutBusy = true;
     updateCloseoutButton();
-    setMessage('Đang chốt sổ giao hàng...');
+    setModalNotice('closeout', 'Đang chốt sổ giao hàng...', 'info');
     try {
       var res = await fetch('/api/new/delivery-today/closeout', {
         method: 'POST',
@@ -822,12 +864,11 @@
       });
       var json = await res.json();
       if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không chốt được sổ giao hàng');
-      closeCloseoutModal();
       var posted = json.totalDebtPosted != null ? json.totalDebtPosted : (json.data && json.data.totalDebtPosted);
-      setMessage('Đã chốt sổ giao hàng. Đã chuyển ' + money(posted || 0) + ' sang công nợ.');
-      await load();
+      setModalNotice('closeout', 'Đã chốt sổ giao hàng. Đã chuyển ' + money(posted || 0) + ' sang công nợ.', 'success');
+      await load({ silent: true });
     } catch (err) {
-      setMessage(err.message || 'Không chốt được sổ giao hàng', true);
+      setModalError('closeout', err.message || 'Không chốt được sổ giao hàng');
     } finally {
       state.closeoutBusy = false;
       updateCloseoutButton();
@@ -1171,13 +1212,13 @@
         var value = qty(input.value);
         if (value < 0) {
           input.value = 0;
-          setMessage('Số lượng trả không được âm.', true);
+          setModalError('adjustment', 'Số lượng trả không được âm.');
           value = 0;
         }
         var item = state.correctionReturnItems[idx];
         if (item && value > qty(item.deliveredQty)) {
           input.value = item.deliveredQty;
-          setMessage('Số lượng trả không được vượt quá số lượng giao.', true);
+          setModalError('adjustment', 'Số lượng trả không được vượt quá số lượng giao.');
         }
         if (item) item.newReturnQty = qty(input.value);
         renderAdjustmentTab(row);
@@ -1221,6 +1262,7 @@
     if (!modal) return;
     state.adjustmentRow = row;
     state.activeTab = 'payments';
+    clearModalNotice('adjustment');
     state.correctionReturnItems = buildReturnEditItems(row);
     modal.hidden = false;
     modal.innerHTML = '' +
@@ -1240,6 +1282,7 @@
           tabButton('debt', 'Công nợ') +
           tabButton('history', 'Lịch sử') +
         '</div>' +
+        modalNoticeHtml('adjustment') +
         '<div id="deliveryTodayNewAdjustmentContent" class="delivery-new-tab-panel"></div>' +
         '<div class="delivery-new-modal-footer">' +
           '<label>Lý do điều chỉnh<input id="deliveryAdjustmentReason" placeholder="Vui lòng nhập lý do điều chỉnh"></label>' +
@@ -1274,24 +1317,25 @@
     state.adjustmentRow = null;
     state.correctionReturnItems = [];
     state.activeTab = 'overview';
+    clearModalNotice('adjustment');
   }
 
   async function submitAdjustmentPopup(row) {
     if (!isConfirmed(row)) {
-      setMessage('Đơn chưa xác nhận kế toán. Vui lòng xử lý hàng trả ở luồng giao hàng hiện tại.', true);
+      setModalError('adjustment', 'Đơn chưa xác nhận kế toán. Vui lòng xử lý hàng trả ở luồng giao hàng hiện tại.');
       return;
     }
     var reasonEl = byId('deliveryAdjustmentReason');
     var noteEl = byId('deliveryAdjustmentNote');
     var reason = reasonEl ? reasonEl.value.trim() : '';
     var note = noteEl ? noteEl.value.trim() : '';
-    if (!reason) { setMessage('Vui lòng nhập lý do điều chỉnh.', true); return; }
+    if (!reason) { setModalError('adjustment', 'Vui lòng nhập lý do điều chỉnh.'); return; }
 
     var totals = totalsFromPopup(row);
-    if (totals.newCash < 0) { setMessage('Tiền mặt sau điều chỉnh không được âm.', true); return; }
-    if (totals.newBank < 0) { setMessage('Chuyển khoản sau điều chỉnh không được âm.', true); return; }
-    if (totals.newReward < 0) { setMessage('Trả thưởng sau điều chỉnh không được âm.', true); return; }
-    if (totals.correctedTotalCollected < 0) { setMessage('Tổng tiền thu sau điều chỉnh không được âm.', true); return; }
+    if (totals.newCash < 0) { setModalError('adjustment', 'Tiền mặt sau điều chỉnh không được âm.'); return; }
+    if (totals.newBank < 0) { setModalError('adjustment', 'Chuyển khoản sau điều chỉnh không được âm.'); return; }
+    if (totals.newReward < 0) { setModalError('adjustment', 'Trả thưởng sau điều chỉnh không được âm.'); return; }
+    if (totals.correctedTotalCollected < 0) { setModalError('adjustment', 'Tổng tiền thu sau điều chỉnh không được âm.'); return; }
     var correctedReturnItems = totals.returnItems.filter(function (item) { return qty(item.adjustmentQty) !== 0; });
     var cashLines = [
       { paymentMethod: 'cash', oldAmount: totals.oldCash, newAmount: totals.newCash, adjustmentAmount: totals.newCash - totals.oldCash },
@@ -1300,15 +1344,15 @@
     ].filter(function (line) { return num(line.adjustmentAmount) !== 0; });
 
     if (!correctedReturnItems.length && !cashLines.length) {
-      setMessage('Không có chênh lệch để điều chỉnh.', true);
+      setModalError('adjustment', 'Không có chênh lệch để điều chỉnh.');
       return;
     }
     if (correctedReturnItems.some(function (item) { return qty(item.newReturnQty) < 0; })) {
-      setMessage('Số lượng trả không được âm.', true);
+      setModalError('adjustment', 'Số lượng trả không được âm.');
       return;
     }
     if (correctedReturnItems.some(function (item) { return qty(item.newReturnQty) > qty(item.deliveredQty); })) {
-      setMessage('Số lượng trả không được vượt quá số lượng giao.', true);
+      setModalError('adjustment', 'Số lượng trả không được vượt quá số lượng giao.');
       return;
     }
 
@@ -1339,11 +1383,10 @@
       });
       var json = await res.json();
       if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tạo được điều chỉnh');
-      closeAdjustmentPopup();
-      setMessage('Đã lưu điều chỉnh và tạo version mới.');
-      await load();
+      setModalNotice('adjustment', 'Đã lưu điều chỉnh và tạo version mới.', 'success');
+      await load({ silent: true });
     } catch (err) {
-      setMessage(err.message || 'Không tạo được điều chỉnh', true);
+      setModalError('adjustment', err.message || 'Không tạo được điều chỉnh');
     }
   }
 
@@ -1361,20 +1404,22 @@
       if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tải được version');
       state.versionCache[rowKey(row)] = json.versions || json.rows || [];
       renderCachedVersions(row);
-      setMessage('Đã tải lịch sử version.');
+      if (state.adjustmentRow && rowKey(state.adjustmentRow) === rowKey(row)) setModalNotice('adjustment', 'Đã tải lịch sử version.', 'info');
     } catch (err) {
-      setMessage(err.message || 'Không tải được lịch sử version', true);
+      if (state.adjustmentRow && rowKey(state.adjustmentRow) === rowKey(row)) setModalError('adjustment', err.message || 'Không tải được lịch sử version');
     }
   }
 
-  async function load() {
+  async function load(options) {
+    options = options || {};
+    var silent = Boolean(options.silent);
     ensureRoot();
     if (!hasValidSearchCriteria()) {
       resetResultsState('Vui lòng nhập ít nhất một điều kiện tìm kiếm.');
-      setMessage('Vui lòng nhập ít nhất một điều kiện tìm kiếm.', true);
+      if (!silent) setMessage('Vui lòng nhập ít nhất một điều kiện tìm kiếm.', true);
       return;
     }
-    setMessage('Đang tải đơn giao hôm nay...');
+    if (!silent) setMessage('Đang tải đơn giao hôm nay...');
     try {
       var params = new URLSearchParams(filters());
       var res = await fetch('/api/new/delivery-today/orders?' + params.toString());
@@ -1393,7 +1438,7 @@
       updateTopKpisFromSelectedSalesmen();
       renderSalesmanGroupPanel();
       renderRows();
-      setMessage('Đã tải ' + state.rows.length + ' đơn.');
+      if (!silent) setMessage('Đã tải ' + state.rows.length + ' đơn.');
     } catch (err) {
       state.rows = [];
       state.salesmanGroups = [];
@@ -1404,7 +1449,7 @@
       applySummary({});
       renderSalesmanGroupPanel();
       renderRows();
-      setMessage(err.message || 'Không tải được Đơn giao hôm nay (New)', true);
+      if (!silent) setMessage(err.message || 'Không tải được Đơn giao hôm nay (New)', true);
     }
   }
 
