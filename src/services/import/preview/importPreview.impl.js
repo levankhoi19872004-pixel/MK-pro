@@ -62,8 +62,11 @@ const {
   pickPromotionProductRulePayload,
   pickPromotionGroupItemPayload,
   pickPromotionGroupRulePayload,
+  pickPromotionQuantityGroupDiscountPayload,
+  pickPromotionCustomerOrderValueDiscountPayload,
   pickUserImportPayload,
   preloadPromotionProductsByCode,
+  preloadPromotionCustomersByCode,
   preloadSalesStaffUsersByCode,
   resolveSalesStaffForImportRow,
   rowBase,
@@ -501,6 +504,49 @@ async function previewMongoNative(type, rows = [], options = {}) {
       const key = `${item.programCode}__${toNumber(item.minAmount)}`;
       if (seen.has(key)) item.errors.push('Trùng mã chương trình + mức doanh số trong file');
       seen.add(key);
+      return { ...item, valid: item.errors.length === 0 };
+    });
+  } else if (type === 'promotionQuantityGroupDiscounts') {
+    const payloads = safeRows.map(pickPromotionQuantityGroupDiscountPayload);
+    const productMap = await preloadPromotionProductsByCode(payloads);
+    const seen = new Set();
+    result = payloads.map((item) => {
+      const product = productMap.get(cleanText(item.productCode));
+      item.errors = [];
+      item.warnings = [];
+      if (!item.programCode) item.errors.push('Thiếu mã chương trình KM');
+      if (!item.programName) item.errors.push('Thiếu tên chương trình KM');
+      if (!item.productCode) item.errors.push('Thiếu mã sản phẩm');
+      if (item.productCode && !product) item.warnings.push('Mã sản phẩm chưa có trong danh mục');
+      if (product) item.productName = cleanText(product.name || item.productName);
+      if (toNumber(item.minQty) <= 0) item.errors.push('Số lượng tối thiểu phải lớn hơn 0');
+      if (toNumber(item.discountPercent) <= 0 || toNumber(item.discountPercent) > 100) item.errors.push('Chiết khấu % phải trong khoảng 0-100');
+      const key = `${item.programCode}__${item.productCode}`;
+      if (seen.has(key)) item.errors.push('Trùng mã chương trình + mã sản phẩm trong file');
+      seen.add(key);
+      item.productMatched = Boolean(product);
+      item.missingProduct = Boolean(item.productCode && !product);
+      return { ...item, valid: item.errors.length === 0 };
+    });
+  } else if (type === 'promotionCustomerOrderValueDiscounts') {
+    const payloads = safeRows.map(pickPromotionCustomerOrderValueDiscountPayload);
+    const customerMap = await preloadPromotionCustomersByCode(payloads);
+    const seen = new Set();
+    result = payloads.map((item) => {
+      const customer = customerMap.get(cleanText(item.customerCode));
+      item.errors = [];
+      item.warnings = [];
+      if (!item.programCode) item.errors.push('Thiếu mã chương trình KM');
+      if (!item.programName) item.errors.push('Thiếu tên chương trình KM');
+      if (!item.customerCode) item.errors.push('Thiếu mã khách hàng');
+      if (item.customerCode && !customer) item.errors.push('Mã khách hàng chưa có trong danh mục');
+      if (customer) item.customerName = cleanText(customer.name || item.customerName);
+      if (toNumber(item.minOrderAmount) <= 0) item.errors.push('Doanh số đơn tối thiểu phải lớn hơn 0');
+      if (toNumber(item.discountPercent) <= 0 || toNumber(item.discountPercent) > 100) item.errors.push('Chiết khấu % phải trong khoảng 0-100');
+      const key = `${item.programCode}__${item.customerCode}`;
+      if (seen.has(key)) item.errors.push('Trùng mã chương trình + mã khách hàng trong file');
+      seen.add(key);
+      item.customerMatched = Boolean(customer);
       return { ...item, valid: item.errors.length === 0 };
     });
   } else if (type === 'users') {

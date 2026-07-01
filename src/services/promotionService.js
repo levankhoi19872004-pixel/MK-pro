@@ -2,18 +2,21 @@
 
 const dateUtil = require('../utils/date.util');
 const promotionRepository = require('../repositories/promotionRepository');
+const Promotion = require('../models/Promotion');
+const Customer = require('../models/Customer');
 const Product = require('../models/Product');
 const PromotionProductRule = require('../models/PromotionProductRule');
 const PromotionGroupItem = require('../models/PromotionGroupItem');
 const PromotionGroupRule = require('../models/PromotionGroupRule');
 const { makeId, toNumber } = require('../utils/common.util');
+const { PROMOTION_TYPES, calculatePromotionEngine } = require('./promotion/promotionEngine.service');
 
 const PROMOTION_PROGRAM_CACHE_TTL_MS = Math.max(0, Number(process.env.PROMOTION_PROGRAM_CACHE_TTL_MS || 30000));
 const promotionProgramCache = new Map();
 const PROMOTION_PRODUCT_RULE_PROJECTION = 'id code programCode programName productCode productName discountPercent startDate endDate isActive source updatedAt';
 const PROMOTION_GROUP_ITEM_PROJECTION = 'id code programCode groupCode programName productCode productName startDate endDate isActive source updatedAt';
 const PROMOTION_GROUP_RULE_PROJECTION = 'id code programCode groupCode programName minAmount discountPercent startDate endDate isActive source updatedAt';
-const PROMOTION_PROGRAM_LIST_PROJECTION = 'id code programCode groupCode programName name content programContent description productCode startDate endDate isActive source';
+const PROMOTION_PROGRAM_LIST_PROJECTION = 'id code programCode groupCode programName name content programContent description productCode productCodes customerCodes productGroupCode productGroupName startDate endDate isActive active source promotionType type minQty minOrderAmount discountPercent';
 
 function clearPromotionProgramCache() { promotionProgramCache.clear(); }
 
@@ -32,6 +35,38 @@ function normalizeProductCodes(value) {
   return clean(value).split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean);
 }
 
+function normalizeCodeList(value) {
+  if (Array.isArray(value)) return Array.from(new Set(value.map((item) => clean(item)).filter(Boolean)));
+  return Array.from(new Set(clean(value).split(/[\n,;]+/).map((item) => clean(item)).filter(Boolean)));
+}
+
+function normalizePositiveNumber(value) {
+  const n = toNumber(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function promotionIdentity(value) {
+  return clean(value || '').toUpperCase();
+}
+
+function isPromotionModelType(type) {
+  return ['quantityGroupDiscounts', 'customerOrderValueDiscounts'].includes(type);
+}
+
+function normalizePromotionDoc(row = {}) {
+  const code = promotionIdentity(row.programCode || row.code || row.id);
+  return {
+    ...row,
+    id: clean(row.id || code),
+    code,
+    programCode: code,
+    name: clean(row.name || row.programName || ''),
+    programName: clean(row.programName || row.name || ''),
+    isActive: row.isActive !== false && row.active !== false,
+    active: row.isActive !== false && row.active !== false
+  };
+}
+
 
 function normalizeProgramCode(value) {
   return clean(value || '').toUpperCase();
@@ -40,7 +75,8 @@ function normalizeProgramCode(value) {
 
 function exactProgramCodeFilter(programCode) {
   const code = clean(programCode);
-  return { programCode: new RegExp(`^${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') };
+  const re = new RegExp(`^${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+  return { $or: [{ programCode: re }, { code: re }] };
 }
 
 function normalizeActive(value) {
@@ -273,14 +309,141 @@ async function saveGroupRule(body = {}) {
 async function deleteGroupRule(id) {
   clearPromotionProgramCache();
   const value = clean(id);
-  const result = await PromotionGroupRule.deleteOne({ $or: [{ id: value }, { _id: /^[a-f0-9]{24}$/i.test(value) ? value : null }] });
-  return { deleted: result.deletedCount > 0 };
+  if (!value) return { error: 'Thiếu mã điều kiện nhóm KM cần xóa', status: 400 };
+  const objectId = /^[a-f0-9]{24}$/i.test(value) ? value : null;
+  const result = await PromotionGroupRule.deleteOne({
+    $or: [
+      { id: value },
+      { code: value },
+      { programCode: value },
+      ...(objectId ? [{ _id: objectId }] : [])
+    ]
+  });
+  if (!toNumber(result.deletedCount)) return { error: 'Không tìm thấy điều kiện nhóm KM', status: 404 };
+  return { deleted: true };
+}
+
+async function hydrateCustomerCodes(customerCodes = []) {
+  const codes = normalizeCodeList(customerCodes);
+  if (!codes.length) return { codes, missing: [] };
+  const customers = await Customer.find({ $or: [{ code: { $in: codes } }, { customerCode: { $in: codes } }, { id: { $in: codes } }] }).lean().catch(() => []);
+  const found = new Set((customers || []).map((c) => clean(c.code || c.customerCode || c.id)).filter(Boolean));
+  return { codes, missing: codes.filter((code) => !found.has(code)) };
+}
+
+async function saveQuantityGroupDiscount(body = {}) {
+  clearPromotionProgramCache();
+  const code = promotionIdentity(body.programCode || body.code);
+  const name = clean(body.programName || body.name);
+  const productGroupCode = promotionIdentity(body.productGroupCode || body.groupCode || code);
+  const productGroupName = clean(body.productGroupName || body.groupName || name);
+  const productCodes = normalizeCodeList(body.productCodes || body.products || body.productCode);
+  const minQty = normalizePositiveNumber(body.minQty ?? body.quantityThreshold ?? body.requiredQty);
+  const discountPercent = normalizeDiscountPercent(body.discountPercent ?? body.discount ?? body.ck);
+  if (!code) return { error: 'Thiếu mã chương trình', status: 400 };
+  if (!name) return { error: 'Thiếu tên chương trình', status: 400 };
+  if (!productCodes.length) return { error: 'Cần chọn ít nhất 1 sản phẩm thuộc nhóm', status: 400 };
+  if (minQty <= 0) return { error: 'Số lượng tối thiểu phải lớn hơn 0', status: 400 };
+  if (discountPercent <= 0 || discountPercent > 100) return { error: 'Chiết khấu % phải lớn hơn 0 và không vượt 100', status: 400 };
+  const now = dateUtil.nowIso();
+  const { startDate, endDate } = normalizeProgramDates(body);
+  const payload = normalizePromotionDoc({
+    ...body,
+    id: clean(body.id || code),
+    code,
+    programCode: code,
+    name,
+    programName: name,
+    type: PROMOTION_TYPES.QUANTITY_GROUP_PERCENT_DISCOUNT,
+    promotionType: PROMOTION_TYPES.QUANTITY_GROUP_PERCENT_DISCOUNT,
+    productGroupCode,
+    productGroupName,
+    productCodes,
+    minQty,
+    qtyUnit: clean(body.qtyUnit || 'dây'),
+    discountType: 'percent',
+    discountPercent,
+    applyScope: clean(body.applyScope || 'eligible_lines'),
+    priority: toNumber(body.priority || 100),
+    stackPolicy: clean(body.stackPolicy || 'stackable'),
+    startDate,
+    endDate,
+    note: clean(body.note || ''),
+    updatedAt: now
+  });
+  if (!payload.createdAt) payload.createdAt = now;
+  const promotion = await promotionRepository.upsert(payload);
+  return { promotion: promotion.toObject ? promotion.toObject() : promotion };
+}
+
+async function saveCustomerOrderValueDiscount(body = {}) {
+  clearPromotionProgramCache();
+  const code = promotionIdentity(body.programCode || body.code);
+  const name = clean(body.programName || body.name);
+  const { codes: customerCodes, missing } = await hydrateCustomerCodes(body.customerCodes || body.customers || body.customerCode);
+  const minOrderAmount = normalizePositiveNumber(body.minOrderAmount ?? body.minAmount ?? body.requiredAmount);
+  const discountPercent = normalizeDiscountPercent(body.discountPercent ?? body.discount ?? body.ck);
+  if (!code) return { error: 'Thiếu mã chương trình', status: 400 };
+  if (!name) return { error: 'Thiếu tên chương trình', status: 400 };
+  if (!customerCodes.length) return { error: 'Cần chọn ít nhất 1 khách hàng áp dụng', status: 400 };
+  if (missing.length) return { error: `Có mã khách hàng chưa tồn tại: ${missing.slice(0, 10).join(', ')}`, status: 400 };
+  if (minOrderAmount <= 0) return { error: 'Doanh số đơn tối thiểu phải lớn hơn 0', status: 400 };
+  if (discountPercent <= 0 || discountPercent > 100) return { error: 'Chiết khấu % phải lớn hơn 0 và không vượt 100', status: 400 };
+  const now = dateUtil.nowIso();
+  const { startDate, endDate } = normalizeProgramDates(body);
+  const payload = normalizePromotionDoc({
+    ...body,
+    id: clean(body.id || code),
+    code,
+    programCode: code,
+    name,
+    programName: name,
+    type: PROMOTION_TYPES.CUSTOMER_ORDER_VALUE_EXTRA_PERCENT,
+    promotionType: PROMOTION_TYPES.CUSTOMER_ORDER_VALUE_EXTRA_PERCENT,
+    customerCodes,
+    minOrderAmount,
+    discountType: 'percent',
+    discountPercent,
+    applyScope: clean(body.applyScope || 'whole_order'),
+    baseAmountMode: clean(body.baseAmountMode || 'after_line_promotions'),
+    priority: toNumber(body.priority || 200),
+    stackPolicy: clean(body.stackPolicy || 'stackable'),
+    startDate,
+    endDate,
+    note: clean(body.note || ''),
+    updatedAt: now
+  });
+  if (!payload.createdAt) payload.createdAt = now;
+  const promotion = await promotionRepository.upsert(payload);
+  return { promotion: promotion.toObject ? promotion.toObject() : promotion };
+}
+
+async function listAdvancedPromotionRules(query = {}, promotionType) {
+  const q = clean(query.q);
+  const filter = { $or: [{ promotionType }, { type: promotionType }] };
+  if (q) filter.$and = [{ $or: [{ code: rx(q) }, { programCode: rx(q) }, { name: rx(q) }, { programName: rx(q) }, { productGroupCode: rx(q) }, { productGroupName: rx(q) }, { customerCodes: rx(q) }] }];
+  return Promotion.find(filter).sort({ priority: 1, code: 1 }).lean();
+}
+
+async function deleteAdvancedPromotionRule(id, promotionType) {
+  clearPromotionProgramCache();
+  const value = clean(id);
+  const result = await Promotion.deleteOne({
+    $and: [
+      { $or: [{ promotionType }, { type: promotionType }] },
+      { $or: [{ id: value }, { code: value }, { programCode: value }, { _id: /^[a-f0-9]{24}$/i.test(value) ? value : null }] }
+    ]
+  });
+  if (!toNumber(result.deletedCount)) return { error: 'Không tìm thấy chương trình khuyến mại', status: 404 };
+  return { deleted: true };
 }
 
 
 function normalizeProgramType(value) {
   const type = clean(value || 'productRules');
-  if (['productRules', 'groupItems', 'groupRules'].includes(type)) return type;
+  if (['productRules', 'groupItems', 'groupRules', 'quantityGroupDiscounts', 'customerOrderValueDiscounts'].includes(type)) return type;
+  if (type === PROMOTION_TYPES.QUANTITY_GROUP_PERCENT_DISCOUNT) return 'quantityGroupDiscounts';
+  if (type === PROMOTION_TYPES.CUSTOMER_ORDER_VALUE_EXTRA_PERCENT) return 'customerOrderValueDiscounts';
   return 'productRules';
 }
 
@@ -304,6 +467,26 @@ function promotionTypeConfig(typeValue) {
       searchFields: ['programCode', 'programName']
     };
   }
+  if (type === 'quantityGroupDiscounts') {
+    return {
+      type,
+      source: 'promotions',
+      Model: Promotion,
+      sort: { code: 1 },
+      searchFields: ['code', 'programCode', 'name', 'programName', 'productGroupCode', 'productGroupName'],
+      promotionType: PROMOTION_TYPES.QUANTITY_GROUP_PERCENT_DISCOUNT
+    };
+  }
+  if (type === 'customerOrderValueDiscounts') {
+    return {
+      type,
+      source: 'promotions',
+      Model: Promotion,
+      sort: { code: 1 },
+      searchFields: ['code', 'programCode', 'name', 'programName', 'customerCodes'],
+      promotionType: PROMOTION_TYPES.CUSTOMER_ORDER_VALUE_EXTRA_PERCENT
+    };
+  }
   return {
     type,
     source: 'promotionProductRules',
@@ -313,10 +496,14 @@ function promotionTypeConfig(typeValue) {
   };
 }
 
-function buildProgramSearchFilter(query = {}, cfg) {
+function buildProgramSearchFilter(query = {}, cfg = {}) {
   const q = clean(query.q);
-  if (!q) return {};
-  return { $or: (cfg.searchFields || ['programCode']).map((field) => ({ [field]: rx(q) })) };
+  const and = [];
+  if (cfg.promotionType) and.push({ $or: [{ promotionType: cfg.promotionType }, { type: cfg.promotionType }] });
+  if (q) and.push({ $or: (cfg.searchFields || ['programCode']).map((field) => ({ [field]: rx(q) })) });
+  if (!and.length) return {};
+  if (and.length === 1) return and[0];
+  return { $and: and };
 }
 
 function programNameFromRow(row = {}, fallback = '') {
@@ -432,7 +619,7 @@ async function listPromotionProgramsByType(query = {}) {
   const cacheKey = JSON.stringify({ type: 'all', q });
   const cached = promotionProgramCache.get(cacheKey);
   if (PROMOTION_PROGRAM_CACHE_TTL_MS > 0 && cached && cached.expiresAt > Date.now()) return cached.value;
-  const types = ['productRules', 'groupItems', 'groupRules'];
+  const types = ['productRules', 'groupItems', 'groupRules', 'quantityGroupDiscounts', 'customerOrderValueDiscounts'];
   const entries = await Promise.all(types.map(async (type) => [type, await listPromotionPrograms({ ...query, type })]));
   const result = Object.fromEntries(entries);
   if (PROMOTION_PROGRAM_CACHE_TTL_MS > 0) promotionProgramCache.set(cacheKey, { expiresAt: Date.now() + PROMOTION_PROGRAM_CACHE_TTL_MS, value: result });
@@ -443,8 +630,36 @@ async function getPromotionProgramDetail(programCodeValue, query = {}) {
   const programCode = normalizeProgramCode(programCodeValue);
   if (!programCode) return { error: 'Thiếu mã chương trình', status: 400 };
   const cfg = promotionTypeConfig(query.type);
-  const rows = await cfg.Model.find(exactProgramCodeFilter(programCode)).sort(cfg.sort).lean();
+  const identityFilter = exactProgramCodeFilter(programCode);
+  const detailFilter = cfg.promotionType ? { $and: [identityFilter, { $or: [{ promotionType: cfg.promotionType }, { type: cfg.promotionType }] }] } : identityFilter;
+  const rows = await cfg.Model.find(detailFilter).sort(cfg.sort).lean();
   if (!rows.length) return { error: 'Không tìm thấy chương trình khuyến mại', status: 404 };
+  if (isPromotionModelType(cfg.type)) {
+    const row = rows[0] || {};
+    const program = {
+      programCode: clean(row.programCode || row.code),
+      programName: clean(row.programName || row.name),
+      content: clean(row.programName || row.name),
+      startDate: row.startDate || '',
+      endDate: row.endDate || '',
+      timeText: [row.startDate || '', row.endDate || ''].filter(Boolean).join(' - '),
+      isActive: row.isActive !== false && row.active !== false,
+      statusText: programStatus({ startDate: row.startDate, endDate: row.endDate, isActive: row.isActive !== false && row.active !== false }),
+      productCount: Array.isArray(row.productCodes) ? row.productCodes.length : 0,
+      customerCount: Array.isArray(row.customerCodes) ? row.customerCodes.length : 0,
+      lineCount: 1,
+      sources: ['promotions']
+    };
+    return {
+      type: cfg.type,
+      program,
+      rule: { ...row, rowId: pickRowId(row) },
+      quantityGroupDiscounts: cfg.type === 'quantityGroupDiscounts' ? [{ ...row, rowId: pickRowId(row) }] : [],
+      customerOrderValueDiscounts: cfg.type === 'customerOrderValueDiscounts' ? [{ ...row, rowId: pickRowId(row) }] : [],
+      products: cfg.type === 'quantityGroupDiscounts' ? (row.productCodes || []).map((productCode, index) => ({ rowId: `${program.programCode}__${productCode}`, source: 'SL nhóm SP', productCode, productName: '', minQty: row.minQty, discountPercent: row.discountPercent, isActive: row.isActive !== false }))
+        : (row.customerCodes || []).map((customerCode, index) => ({ rowId: `${program.programCode}__${customerCode}`, source: 'CK thêm theo DS', customerCode, minOrderAmount: row.minOrderAmount, discountPercent: row.discountPercent, isActive: row.isActive !== false }))
+    };
+  }
   const group = { programCode, programName: '', startDate: '', endDate: '', isActive: true, productCodes: new Set(), sources: new Set(), lineCount: 0 };
   rows.forEach((row) => { mergeProgramMeta(group, row, cfg.source); if (row.productCode) group.productCodes.add(clean(row.productCode)); });
   if (!group.programName && cfg.type === 'groupItems') group.programName = programCode;
@@ -477,7 +692,8 @@ async function updatePromotionProgram(programCodeValue, body = {}, query = {}) {
   if (body.status !== undefined) set.isActive = clean(body.status) === 'active' || clean(body.status) === 'Hoạt động';
   if (body.startDate !== undefined || body.fromDate !== undefined || body.dateFrom !== undefined) set.startDate = startDate;
   if (body.endDate !== undefined || body.toDate !== undefined || body.dateTo !== undefined) set.endDate = endDate;
-  const result = await cfg.Model.updateMany(exactProgramCodeFilter(programCode), { $set: set });
+  const updateFilter = cfg.promotionType ? { $and: [exactProgramCodeFilter(programCode), { $or: [{ promotionType: cfg.promotionType }, { type: cfg.promotionType }] }] } : exactProgramCodeFilter(programCode);
+  const result = await cfg.Model.updateMany(updateFilter, { $set: set });
   const matched = toNumber(result.matchedCount);
   if (!matched) return { error: 'Không tìm thấy chương trình khuyến mại', status: 404 };
   const detail = await getPromotionProgramDetail(programCode, { type: cfg.type });
@@ -491,7 +707,8 @@ async function cancelPromotionProgram(programCodeValue, query = {}) {
   const cfg = promotionTypeConfig(query.type);
   const now = dateUtil.nowIso();
   const set = { isActive: false, cancelledAt: now, updatedAt: now };
-  const result = await cfg.Model.updateMany(exactProgramCodeFilter(programCode), { $set: set });
+  const updateFilter = cfg.promotionType ? { $and: [exactProgramCodeFilter(programCode), { $or: [{ promotionType: cfg.promotionType }, { type: cfg.promotionType }] }] } : exactProgramCodeFilter(programCode);
+  const result = await cfg.Model.updateMany(updateFilter, { $set: set });
   if (!toNumber(result.matchedCount)) return { error: 'Không tìm thấy chương trình khuyến mại', status: 404 };
   return { cancelled: true, type: cfg.type };
 }
@@ -625,6 +842,19 @@ async function removePromotionTier(programCodeValue, rowId) {
   return { deleted: true };
 }
 
+async function loadAdvancedPromotionRules(targetDate = '') {
+  const rules = await Promotion.find({
+    isActive: { $ne: false },
+    $or: [
+      { promotionType: PROMOTION_TYPES.QUANTITY_GROUP_PERCENT_DISCOUNT },
+      { type: PROMOTION_TYPES.QUANTITY_GROUP_PERCENT_DISCOUNT },
+      { promotionType: PROMOTION_TYPES.CUSTOMER_ORDER_VALUE_EXTRA_PERCENT },
+      { type: PROMOTION_TYPES.CUSTOMER_ORDER_VALUE_EXTRA_PERCENT }
+    ]
+  }).sort({ priority: 1, code: 1 }).lean().catch(() => []);
+  return (rules || []).filter((rule) => isRuleActiveByDate(rule, targetDate));
+}
+
 async function calculatePromotions(items = [], options = {}) {
   const productCodes = Array.from(new Set((items || []).map((i) => clean(i.productCode || i.code)).filter(Boolean)));
   const products = productCodes.length ? await Product.find({ $or: [{ code: { $in: productCodes } }, { productCode: { $in: productCodes } }, { sku: { $in: productCodes } }] }).lean() : [];
@@ -643,7 +873,7 @@ async function calculatePromotions(items = [], options = {}) {
     const product = productMap.get(productCode) || {};
     const quantity = toNumber(item.quantity ?? item.qty);
     // Quy tắc khóa cứng: mọi CTKM tính theo giá bán lưu trong danh mục sản phẩm.
-    const catalogSalePrice = toNumber(product.salePrice ?? product.price);
+    const catalogSalePrice = toNumber(product.salePrice ?? product.price ?? item.catalogSalePrice ?? item.salePrice ?? item.price);
     const promotionBaseAmount = Math.round(quantity * catalogSalePrice);
     const groupCode = groupByProduct.get(productCode) || '';
     if (groupCode) groupTotals.set(groupCode, toNumber(groupTotals.get(groupCode)) + promotionBaseAmount);
@@ -658,7 +888,10 @@ async function calculatePromotions(items = [], options = {}) {
       productCode,
       productName: clean(item.productName || product.name),
       quantity,
+      baseQty: toNumber(item.baseQty ?? quantity),
       catalogSalePrice,
+      salePrice: catalogSalePrice,
+      lineAmount: promotionBaseAmount,
       promotionBaseAmount,
       directDiscountPercent: toNumber(directRule?.discountPercent),
       directPromotionRule,
@@ -673,11 +906,11 @@ async function calculatePromotions(items = [], options = {}) {
     if (matched) bestGroupRule.set(groupCode, matched);
   }
 
-  const resultLines = lines.map((line) => {
+  const legacyLines = lines.map((line) => {
     const groupRule = bestGroupRule.get(line.groupCode);
     const groupDiscountPercent = toNumber(groupRule?.discountPercent);
     const directDiscountAmount = Math.round(line.promotionBaseAmount * line.directDiscountPercent / 100);
-    const groupDiscountAmount = Math.round(line.promotionBaseAmount * groupDiscountPercent / 100);
+    const legacyGroupDiscountAmount = Math.round(line.promotionBaseAmount * groupDiscountPercent / 100);
     const promotionRows = [];
 
     if (line.directPromotionRule && directDiscountAmount > 0) {
@@ -689,6 +922,7 @@ async function calculatePromotions(items = [], options = {}) {
         discountPercent: line.directPromotionRule.discountPercent,
         discountBeforeTax: Math.round(directDiscountAmount / 1.08),
         discountAfterTax: directDiscountAmount,
+        discountAmount: directDiscountAmount,
         promotionType: 'product',
         scope: 'product',
         productCode: line.productCode,
@@ -696,15 +930,16 @@ async function calculatePromotions(items = [], options = {}) {
       });
     }
 
-    if (groupRule && groupDiscountAmount > 0) {
+    if (groupRule && legacyGroupDiscountAmount > 0) {
       promotionRows.push({
         promotionCode: clean(groupRule.programCode || groupRule.code),
         code: clean(groupRule.programCode || groupRule.code),
         description: clean(groupRule.programName || groupRule.name || groupRule.description || groupRule.content),
         qualifiedAmount: toNumber(groupTotals.get(line.groupCode)),
         discountPercent: groupDiscountPercent,
-        discountBeforeTax: Math.round(groupDiscountAmount / 1.08),
-        discountAfterTax: groupDiscountAmount,
+        discountBeforeTax: Math.round(legacyGroupDiscountAmount / 1.08),
+        discountAfterTax: legacyGroupDiscountAmount,
+        discountAmount: legacyGroupDiscountAmount,
         promotionType: 'group',
         scope: 'group',
         productCode: line.productCode,
@@ -715,25 +950,81 @@ async function calculatePromotions(items = [], options = {}) {
     return {
       ...line,
       groupDiscountPercent,
-      groupDiscountAmount,
+      legacyGroupDiscountAmount,
+      groupDiscountAmount: legacyGroupDiscountAmount,
       directDiscountAmount,
-      totalDiscountAmount: directDiscountAmount + groupDiscountAmount,
+      totalDiscountAmount: directDiscountAmount + legacyGroupDiscountAmount,
       promotionRows
     };
   });
 
+  const advancedRules = await loadAdvancedPromotionRules(targetDate);
+  const advancedInput = legacyLines.map((line) => ({
+    productCode: line.productCode,
+    productName: line.productName,
+    quantity: line.quantity,
+    baseQty: line.baseQty,
+    salePrice: line.catalogSalePrice,
+    lineAmount: line.promotionBaseAmount,
+    discountAmount: line.totalDiscountAmount,
+    appliedPromotions: line.promotionRows
+  }));
+  const engineResult = calculatePromotionEngine({
+    customerCode: options.customerCode || options.customer?.code || options.customer?.customerCode || '',
+    orderDate: targetDate,
+    items: advancedInput,
+    rules: advancedRules
+  });
+  const engineByProduct = new Map((engineResult.items || []).map((line) => [clean(line.productCode), line]));
+
+  const resultLines = legacyLines.map((line) => {
+    const advancedLine = engineByProduct.get(line.productCode) || {};
+    const advancedTotalDiscount = toNumber(advancedLine.discountAmount);
+    const legacyTotalDiscount = toNumber(line.directDiscountAmount) + toNumber(line.legacyGroupDiscountAmount);
+    const advancedExtraDiscountAmount = Math.max(0, advancedTotalDiscount - legacyTotalDiscount);
+    const finalGroupDiscountAmount = toNumber(line.legacyGroupDiscountAmount) + advancedExtraDiscountAmount;
+    const promotionRows = Array.isArray(advancedLine.appliedPromotions) ? advancedLine.appliedPromotions : line.promotionRows;
+    return {
+      ...line,
+      groupDiscountAmount: finalGroupDiscountAmount,
+      advancedDiscountAmount: advancedExtraDiscountAmount,
+      orderValueDiscountAllocatedAmount: promotionRows.reduce((sum, row) => sum + toNumber(row.allocatedDiscountAmount), 0),
+      totalDiscountAmount: toNumber(line.directDiscountAmount) + finalGroupDiscountAmount,
+      finalLineAmount: Math.max(0, toNumber(line.promotionBaseAmount) - toNumber(line.directDiscountAmount) - finalGroupDiscountAmount),
+      promotionRows
+    };
+  });
+
+  const totalDirectDiscount = resultLines.reduce((s, i) => s + toNumber(i.directDiscountAmount), 0);
+  const totalGroupDiscount = resultLines.reduce((s, i) => s + toNumber(i.groupDiscountAmount), 0);
+  const totalAdvancedDiscount = resultLines.reduce((s, i) => s + toNumber(i.advancedDiscountAmount), 0);
+  const grossAmount = resultLines.reduce((s, i) => s + toNumber(i.promotionBaseAmount), 0);
+  const totalDiscount = resultLines.reduce((s, i) => s + toNumber(i.totalDiscountAmount), 0);
+
   return {
     lines: resultLines,
     groupTotals: Object.fromEntries(groupTotals.entries()),
-    totalDirectDiscount: resultLines.reduce((s, i) => s + toNumber(i.directDiscountAmount), 0),
-    totalGroupDiscount: resultLines.reduce((s, i) => s + toNumber(i.groupDiscountAmount), 0),
-    totalDiscount: resultLines.reduce((s, i) => s + toNumber(i.totalDiscountAmount), 0)
+    orderDiscounts: engineResult.orderDiscounts || [],
+    appliedPromotions: engineResult.appliedPromotions || [],
+    summary: {
+      grossAmount,
+      lineDiscountAmount: totalDiscount,
+      orderDiscountAmount: (engineResult.orderDiscounts || []).reduce((s, i) => s + toNumber(i.discountAmount), 0),
+      finalAmount: Math.max(0, grossAmount - totalDiscount)
+    },
+    warnings: engineResult.warnings || [],
+    totalDirectDiscount,
+    totalGroupDiscount,
+    totalAdvancedDiscount,
+    totalDiscount
   };
 }
 
+
 module.exports = {
-  normalizeDiscountPercent,
+  normalizeDiscountPercent, PROMOTION_TYPES,
   listPromotions, savePromotion, deletePromotion,
+  listAdvancedPromotionRules, saveQuantityGroupDiscount, saveCustomerOrderValueDiscount, deleteAdvancedPromotionRule,
   listPromotionPrograms, listPromotionProgramsByType, getPromotionProgramDetail, updatePromotionProgram, cancelPromotionProgram,
   addProductToPromotion, updatePromotionProduct, removePromotionProduct,
   addProductToGroup, updateGroupProduct, removeGroupProduct,

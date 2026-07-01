@@ -111,7 +111,8 @@ const res=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}?t=$
 ;const status=String(json.status||"").toLowerCase();if(status==="failed"){showMessage(importDataMessage,json.errorMessage||json.message||"Import thất bại",true);stopped=true;return
 }if(res.ok&&json.ok){if(status==="importing"||status==="processing"){showMessage(importDataMessage,describeImportCommitProgress(json.progress||{},selectedCount))
 }else if(status==="done"){stopped=true;return}}}catch(_){}if(!stopped)timer=setTimeout(poll,1200)};timer=setTimeout(poll,500);return()=>{stopped=true;if(timer)clearTimeout(timer)}}
-async function refreshAfterImport(type){if(["promotionProductRules","promotionGroupItems","promotionGroupRules"].includes(type)){
+async function refreshAfterImport(type){
+if(["promotionProductRules","promotionGroupItems","promotionGroupRules","promotionQuantityGroupDiscounts","promotionCustomerOrderValueDiscounts"].includes(type)){
 if(typeof window.reloadPromotionRules==="function")await window.reloadPromotionRules();return}if(type==="users"){if(typeof loadUsers==="function")await loadUsers();return}
 const tasks=[];const add=fn=>{if(typeof fn==="function")tasks.push(Promise.resolve().then(fn))};if(type==="salesOrders"){add(loadSalesOrders);add(loadStock)
 }else if(type==="products"){add(loadProducts);add(loadStock)}else if(type==="customers"){add(loadCustomers)}else if(type==="openingStock"){add(loadStock);add(loadProducts)

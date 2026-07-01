@@ -13,7 +13,9 @@ const handlers = [
   require('./handlers/CashbookImportHandler'),
   require('./handlers/PromotionProductImportHandler'),
   require('./handlers/PromotionGroupItemImportHandler'),
-  require('./handlers/PromotionGroupRuleImportHandler')
+  require('./handlers/PromotionGroupRuleImportHandler'),
+  require('./handlers/PromotionQuantityGroupDiscountImportHandler'),
+  require('./handlers/PromotionCustomerOrderValueDiscountImportHandler')
 ];
 
 const registry = new ImportHandlerRegistry(handlers);

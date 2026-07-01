@@ -24,7 +24,7 @@ function createMobileSalesService(ctx) {
   // MOBILE_SALES_STAFF_CANONICAL_MATCH_END
 
   // MOBILE_SALES_SERVER_AUTHORITATIVE_PRICING_START
-  async function buildAuthoritativeMobileItems(rawItems = []) {
+  async function buildAuthoritativeMobileItems(rawItems = [], pricingContext = {}) {
     const sourceItems = Array.isArray(rawItems) ? rawItems : [];
     if (!sourceItems.length) return { error: 'Đơn mobile chưa có sản phẩm', status: 400 };
 
@@ -66,7 +66,7 @@ function createMobileSalesService(ctx) {
       productByCode.set(productCode, product);
     }
 
-    const promotionResult = await promotionService.calculatePromotions(baseItems);
+    const promotionResult = await promotionService.calculatePromotions(baseItems, pricingContext);
     const promotionByCode = new Map((promotionResult.lines || []).map((line) => [String(line.productCode || '').trim(), line]));
     const items = baseItems.map((item) => {
       const line = promotionByCode.get(String(item.productCode || '').trim()) || {};

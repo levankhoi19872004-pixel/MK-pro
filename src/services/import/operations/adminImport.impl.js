@@ -28,8 +28,11 @@ const {
   pickPromotionProductRulePayload,
   pickPromotionGroupItemPayload,
   pickPromotionGroupRulePayload,
+  pickPromotionQuantityGroupDiscountPayload,
+  pickPromotionCustomerOrderValueDiscountPayload,
   dedupePromotionPayloads,
   preloadPromotionProductsByCode,
+  preloadPromotionCustomersByCode,
   promotionBulkChunks
 } = require('../core/importRow.util');
 const { bulkWriteInBatches } = require('../core/importPersistence.util');
@@ -334,9 +337,76 @@ async function importPromotionGroupRules(rows = []) {
   return { imported, skipped, errors, warnings, message: `Đã import nhanh ${imported} dòng điều kiện nhóm KM bằng bulkWrite${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
 }
 
+async function importPromotionQuantityGroupDiscounts(rows = []) {
+  let skipped = 0;
+  const errors = [];
+  const warnings = [];
+  const rawPayloads = rows.map(pickPromotionQuantityGroupDiscountPayload);
+  const productMap = await preloadPromotionProductsByCode(rawPayloads);
+  const grouped = new Map();
+  for (const payload of rawPayloads) {
+    const rowNo = payload.__rowNumber || payload.rowNumber || '';
+    const programCode = cleanText(payload.programCode);
+    const productCode = cleanText(payload.productCode);
+    const product = productMap.get(productCode);
+    if (!programCode) { skipped += 1; errors.push({ row: rowNo, error: 'Thiếu mã chương trình KM' }); continue; }
+    if (!payload.programName) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Thiếu tên chương trình KM' }); continue; }
+    if (!productCode) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Thiếu mã sản phẩm' }); continue; }
+    if (!product) warnings.push({ row: rowNo, productCode, warning: `Mã sản phẩm ${productCode} chưa có trong danh mục` });
+    if (toNumber(payload.minQty) <= 0) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Số lượng tối thiểu phải lớn hơn 0' }); continue; }
+    if (toNumber(payload.discountPercent) <= 0 || toNumber(payload.discountPercent) > 100) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Chiết khấu % phải trong khoảng 0-100' }); continue; }
+    if (!grouped.has(programCode)) grouped.set(programCode, { ...payload, productCodes: [], productNames: [] });
+    const group = grouped.get(programCode);
+    if (!group.productCodes.includes(productCode)) group.productCodes.push(productCode);
+    if (product?.name) group.productNames.push(cleanText(product.name));
+  }
+  let imported = 0;
+  for (const payload of grouped.values()) {
+    const result = await promotionService.saveQuantityGroupDiscount(payload);
+    if (result.error) { skipped += 1; errors.push({ row: payload.rowNo || '', programCode: payload.programCode, error: result.error }); continue; }
+    imported += 1;
+  }
+  await addImportLog('promotionQuantityGroupDiscounts', { imported, skipped, errors: errors.slice(0, 50), warnings: warnings.slice(0, 50) });
+  return { imported, skipped, errors, warnings, message: `Đã import ${imported} chương trình CK theo số lượng nhóm SP${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
+}
+
+async function importPromotionCustomerOrderValueDiscounts(rows = []) {
+  let skipped = 0;
+  const errors = [];
+  const warnings = [];
+  const rawPayloads = rows.map(pickPromotionCustomerOrderValueDiscountPayload);
+  const customerMap = await preloadPromotionCustomersByCode(rawPayloads);
+  const grouped = new Map();
+  for (const payload of rawPayloads) {
+    const rowNo = payload.__rowNumber || payload.rowNumber || '';
+    const programCode = cleanText(payload.programCode);
+    const customerCode = cleanText(payload.customerCode);
+    const customer = customerMap.get(customerCode);
+    if (!programCode) { skipped += 1; errors.push({ row: rowNo, error: 'Thiếu mã chương trình KM' }); continue; }
+    if (!payload.programName) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Thiếu tên chương trình KM' }); continue; }
+    if (!customerCode) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Thiếu mã khách hàng' }); continue; }
+    if (!customer) { skipped += 1; errors.push({ row: rowNo, customerCode, error: `Mã khách hàng ${customerCode} chưa có trong danh mục` }); continue; }
+    if (toNumber(payload.minOrderAmount) <= 0) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Doanh số đơn tối thiểu phải lớn hơn 0' }); continue; }
+    if (toNumber(payload.discountPercent) <= 0 || toNumber(payload.discountPercent) > 100) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Chiết khấu % phải trong khoảng 0-100' }); continue; }
+    if (!grouped.has(programCode)) grouped.set(programCode, { ...payload, customerCodes: [] });
+    const group = grouped.get(programCode);
+    if (!group.customerCodes.includes(customerCode)) group.customerCodes.push(customerCode);
+  }
+  let imported = 0;
+  for (const payload of grouped.values()) {
+    const result = await promotionService.saveCustomerOrderValueDiscount(payload);
+    if (result.error) { skipped += 1; errors.push({ row: payload.rowNo || '', programCode: payload.programCode, error: result.error }); continue; }
+    imported += 1;
+  }
+  await addImportLog('promotionCustomerOrderValueDiscounts', { imported, skipped, errors: errors.slice(0, 50), warnings: warnings.slice(0, 50) });
+  return { imported, skipped, errors, warnings, message: `Đã import ${imported} chương trình CK thêm theo doanh số KH${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
+}
+
 module.exports = {
   importUsers,
   importPromotionProductRules,
   importPromotionGroupItems,
-  importPromotionGroupRules
+  importPromotionGroupRules,
+  importPromotionQuantityGroupDiscounts,
+  importPromotionCustomerOrderValueDiscounts
 };

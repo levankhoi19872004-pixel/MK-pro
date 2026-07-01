@@ -161,7 +161,7 @@ async function submitDebtCollection({ body = {}, mobileUser = {} } = {}) {
       session
     });
 
-    if (!debtCheck.ok) return fail(debtCheck.status || 409, debtCheck.message || 'Công nợ không hợp lệ');
+    if (!debtCheck.ok) return fail(debtCheck.status || 409, debtCheck.message || 'Công nợ không hợp lệ', { code: debtCheck.code, detail: debtCheck.detail });
 
     const collection = {
       id: makeId('DC'),
@@ -298,7 +298,7 @@ async function confirmDebtCollection(idOrCode, command = {}) {
       excludeCollectionId: collection.id,
       session
     });
-    if (!debtCheck.ok) return fail(debtCheck.status || 409, debtCheck.message || 'Công nợ đã thay đổi, không thể xác nhận phiếu thu');
+    if (!debtCheck.ok) return fail(debtCheck.status || 409, debtCheck.message || 'Công nợ đã thay đổi, không thể xác nhận phiếu thu', { code: debtCheck.code, detail: debtCheck.detail });
 
     const receiptDoc = {
       id: collection.id,

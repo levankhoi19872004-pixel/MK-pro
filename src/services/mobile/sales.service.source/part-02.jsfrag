@@ -77,7 +77,10 @@
         if (!rawItems.length) return fail(400, 'Đơn mobile chưa có sản phẩm');
         perf('load_customer_direct');
 
-        const authoritative = await buildAuthoritativeMobileItems(rawItems);
+        const authoritative = await buildAuthoritativeMobileItems(rawItems, {
+          customerCode: customer.code || customer.customerCode || body.customerCode,
+          date
+        });
         if (authoritative.error) return fail(authoritative.status || 400, authoritative.error);
         const { items, productByCode } = authoritative;
         perf('prepare_items_server_authoritative', { products: productByCode.size });

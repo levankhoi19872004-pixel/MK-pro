@@ -1,5 +1,8 @@
     if (rawItems) {
-      const authoritative = await buildAuthoritativeMobileItems(rawItems);
+      const authoritative = await buildAuthoritativeMobileItems(rawItems, {
+        customerCode: body.customerCode || body.customer?.code || body.customer?.customerCode || order.customerCode,
+        date: body.date || body.orderDate || order.date || order.orderDate
+      });
       if (authoritative.error) {
         return rememberIdempotentResult(idemKey, fail(authoritative.status || 400, authoritative.error));
       }

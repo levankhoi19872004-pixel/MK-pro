@@ -45,6 +45,8 @@
           <button type="button" class="active" data-promotion-program-tab="productRules">CK sản phẩm</button>
           <button type="button" data-promotion-program-tab="groupItems">Nhóm SP KM</button>
           <button type="button" data-promotion-program-tab="groupRules">Điều kiện KM / Ontop</button>
+          <button type="button" data-promotion-program-tab="quantityGroupDiscounts">SL nhóm SP</button>
+          <button type="button" data-promotion-program-tab="customerOrderValueDiscounts">CK thêm theo DS</button>
         </div>
       </section>
       <!-- PROMOTION_MAIN_TAB_WITH_SEPARATE_POPUPS_END -->
@@ -200,6 +202,68 @@
           <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Nhóm áp dụng</th><th>Từ doanh số</th><th>CK%</th><th>Sửa</th><th>Xóa</th></tr></thead><tbody id="promotionGroupRuleProgramDetailTable"><tr><td colspan="6">Chưa chọn chương trình.</td></tr></tbody></table></div>
         </section>
       </main>
+
+      <main id="promotionQuantityGroupDiscountProgramTab" class="promotion-management-layout promotion-program-panel" data-promotion-program-panel="quantityGroupDiscounts">
+        <section class="card promotion-program-list">
+          <div class="toolbar">
+            <div><h2>Danh sách CK theo số lượng nhóm SP</h2><p id="promotionQuantityGroupDiscountProgramCount" class="muted">Đang tải...</p></div>
+            <div class="promotion-program-actions"><button type="button" id="createPromotionQuantityGroupDiscountProgramButton">+ Tạo rule</button><button type="button" id="reloadPromotionQuantityGroupDiscountProgramsButton" class="secondary">Tải lại</button></div>
+          </div>
+          <div class="table-wrap promotion-program-table-wrap">
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Xem</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionQuantityGroupDiscountProgramTable"><tr><td colspan="8">Đang tải...</td></tr></tbody></table>
+          </div>
+        </section>
+        <section class="card promotion-program-detail">
+          <div class="toolbar"><div><h2>Chi tiết CK theo số lượng nhóm SP</h2><p class="muted">Cộng gộp số lượng nhiều sản phẩm trong cùng nhóm; đủ ngưỡng thì giảm % trên các dòng thuộc nhóm.</p></div></div>
+          <form id="promotionQuantityGroupDiscountProgramForm" class="form compact-form promotion-program-form">
+            <label>Mã chương trình<input name="programCode" placeholder="VD: QTY-NXV-202607" /></label>
+            <label>Tên chương trình<input name="programName" placeholder="VD: NXV COMFORT/SURF đủ 12 dây giảm 17%" /></label>
+            <label>Từ ngày<input name="startDate" type="date" /></label>
+            <label>Đến ngày<input name="endDate" type="date" /></label>
+            <label>Mã nhóm SP<input name="productGroupCode" placeholder="VD: NXV_COMFORT_SURF" /></label>
+            <label>Tên nhóm SP<input name="productGroupName" placeholder="VD: NXV COMFORT/SURF" /></label>
+            <label>Số lượng tối thiểu<input name="minQty" type="number" min="0" step="1" placeholder="VD: 12" /></label>
+            <label>Đơn vị tính<input name="qtyUnit" placeholder="VD: dây" /></label>
+            <label>% chiết khấu<input name="discountPercent" type="number" min="0" max="100" step="0.01" placeholder="VD: 17" /></label>
+            <label>Trạng thái<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
+            <label class="full-row">Mã sản phẩm trong nhóm<textarea name="productCodes" rows="4" placeholder="Mỗi dòng một mã sản phẩm hoặc phân tách bằng dấu phẩy"></textarea></label>
+            <label class="full-row">Ghi chú<input name="note" placeholder="Ghi chú nội bộ" /></label>
+            <div class="button-row"><button type="submit">Lưu rule</button><button type="button" id="cancelPromotionQuantityGroupDiscountProgramButton" class="danger">Huỷ rule</button></div>
+          </form>
+          <h3>Sản phẩm trong nhóm và điều kiện</h3>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Mã SP</th><th>SL tối thiểu</th><th>CK%</th><th>Phạm vi</th><th>Trạng thái</th></tr></thead><tbody id="promotionQuantityGroupDiscountProgramDetailTable"><tr><td colspan="6">Chưa chọn chương trình.</td></tr></tbody></table></div>
+        </section>
+      </main>
+
+      <main id="promotionCustomerOrderValueDiscountProgramTab" class="promotion-management-layout promotion-program-panel" data-promotion-program-panel="customerOrderValueDiscounts">
+        <section class="card promotion-program-list">
+          <div class="toolbar">
+            <div><h2>Danh sách CK thêm theo doanh số KH</h2><p id="promotionCustomerOrderValueDiscountProgramCount" class="muted">Đang tải...</p></div>
+            <div class="promotion-program-actions"><button type="button" id="createPromotionCustomerOrderValueDiscountProgramButton">+ Tạo rule</button><button type="button" id="reloadPromotionCustomerOrderValueDiscountProgramsButton" class="secondary">Tải lại</button></div>
+          </div>
+          <div class="table-wrap promotion-program-table-wrap">
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Xem</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionCustomerOrderValueDiscountProgramTable"><tr><td colspan="8">Đang tải...</td></tr></tbody></table>
+          </div>
+        </section>
+        <section class="card promotion-program-detail">
+          <div class="toolbar"><div><h2>Chi tiết CK thêm theo doanh số KH</h2><p class="muted">Chỉ khách hàng trong danh sách đạt doanh số đơn tối thiểu mới được giảm thêm %.</p></div></div>
+          <form id="promotionCustomerOrderValueDiscountProgramForm" class="form compact-form promotion-program-form">
+            <label>Mã chương trình<input name="programCode" placeholder="VD: CUST-DS-202607" /></label>
+            <label>Tên chương trình<input name="programName" placeholder="VD: KH danh sách đạt DS đơn giảm thêm 3%" /></label>
+            <label>Từ ngày<input name="startDate" type="date" /></label>
+            <label>Đến ngày<input name="endDate" type="date" /></label>
+            <label>Doanh số đơn tối thiểu<input name="minOrderAmount" type="number" min="0" step="1000" placeholder="VD: 2000000" /></label>
+            <label>% chiết khấu thêm<input name="discountPercent" type="number" min="0" max="100" step="0.01" placeholder="VD: 3" /></label>
+            <label>Cách tính nền<select name="baseAmountMode"><option value="after_line_promotions">Sau khuyến mãi dòng hàng</option><option value="before_promotions">Trước khuyến mãi</option></select></label>
+            <label>Trạng thái<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
+            <label class="full-row">Mã khách hàng áp dụng<textarea name="customerCodes" rows="4" placeholder="Mỗi dòng một mã khách hàng hoặc phân tách bằng dấu phẩy"></textarea></label>
+            <label class="full-row">Ghi chú<input name="note" placeholder="Ghi chú nội bộ" /></label>
+            <div class="button-row"><button type="submit">Lưu rule</button><button type="button" id="cancelPromotionCustomerOrderValueDiscountProgramButton" class="danger">Huỷ rule</button></div>
+          </form>
+          <h3>Danh sách khách hàng áp dụng</h3>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Mã KH</th><th>DS tối thiểu</th><th>CK%</th><th>Cách tính nền</th><th>Trạng thái</th></tr></thead><tbody id="promotionCustomerOrderValueDiscountProgramDetailTable"><tr><td colspan="6">Chưa chọn chương trình.</td></tr></tbody></table></div>
+        </section>
+      </main>
     </section>
 
     <section id="importDataTab" class="tab-content">
@@ -227,6 +291,8 @@
               <option value="promotionProductRules">Import CK sản phẩm</option>
               <option value="promotionGroupItems">Import nhóm sản phẩm KM</option>
               <option value="promotionGroupRules">Import điều kiện nhóm KM</option>
+              <option value="promotionQuantityGroupDiscounts">Import CK theo số lượng nhóm SP</option>
+              <option value="promotionCustomerOrderValueDiscounts">Import CK thêm theo doanh số KH</option>
             </select>
           </label>
           <label id="importModeLabel">Chế độ import

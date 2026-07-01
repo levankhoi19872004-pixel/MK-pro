@@ -157,6 +157,29 @@ const TEMPLATE_DEFINITIONS = {
     ],
     notes: ['Dùng cho Tab 3: một mã nhóm có nhiều mức doanh số thì nhập nhiều dòng.', 'Doanh số nhóm được tính bằng số lượng bán × Giá bán trong danh mục sản phẩm.', 'Khi đạt nhiều mức, hệ thống lấy mức doanh số cao nhất đã đạt.']
   },
+
+  promotionQuantityGroupDiscounts: {
+    title: 'Mẫu import CK theo số lượng nhóm SP',
+    fileName: 'mau-import-ck-theo-so-luong-nhom-sp.xlsx',
+    columns: ['programCode', 'programName', 'startDate', 'endDate', 'productGroupCode', 'productGroupName', 'productCode', 'productName', 'minQty', 'qtyUnit', 'discountPercent', 'isActive', 'note'],
+    headers: ['Mã chương trình KM', 'Tên chương trình KM', 'Từ ngày', 'Đến ngày', 'Mã nhóm SP', 'Tên nhóm SP', 'Mã sản phẩm', 'Tên sản phẩm', 'Số lượng tối thiểu', 'Đơn vị tính', '% chiết khấu', 'Trạng thái', 'Ghi chú'],
+    sample: [
+      ['QTY-NXV-001', 'NXV COMFORT/SURF đủ 12 dây giảm 17%', '01/07/2026', '31/07/2026', 'NXV_COMFORT_SURF', 'NXV COMFORT/SURF', 'SP001', 'Comfort dây 10 gói', 12, 'dây', 17, 'Hoạt động', 'Cộng gộp toàn bộ SP trong nhóm'],
+      ['QTY-NXV-001', 'NXV COMFORT/SURF đủ 12 dây giảm 17%', '01/07/2026', '31/07/2026', 'NXV_COMFORT_SURF', 'NXV COMFORT/SURF', 'SP002', 'Surf dây 10 gói', 12, 'dây', 17, 'Hoạt động', 'Cùng mã chương trình sẽ gom chung rule']
+    ],
+    notes: ['Cùng Mã chương trình KM sẽ gom nhiều dòng sản phẩm thành một rule.', 'Hệ thống cộng tổng số lượng các sản phẩm trong nhóm; đủ Số lượng tối thiểu thì giảm % trên các dòng sản phẩm thuộc nhóm.', 'Không hardcode tên nhóm; Mã nhóm SP chỉ dùng để quản trị và đối soát.', 'Mã sản phẩm phải tồn tại trong danh mục để hạn chế sai sót.']
+  },
+  promotionCustomerOrderValueDiscounts: {
+    title: 'Mẫu import CK thêm theo doanh số khách hàng',
+    fileName: 'mau-import-ck-them-theo-doanh-so-khach-hang.xlsx',
+    columns: ['programCode', 'programName', 'startDate', 'endDate', 'customerCode', 'customerName', 'minOrderAmount', 'discountPercent', 'baseAmountMode', 'isActive', 'note'],
+    headers: ['Mã chương trình KM', 'Tên chương trình KM', 'Từ ngày', 'Đến ngày', 'Mã khách hàng', 'Tên khách hàng', 'Doanh số đơn tối thiểu', '% chiết khấu thêm', 'Cách tính nền', 'Trạng thái', 'Ghi chú'],
+    sample: [
+      ['CUST-DS-001', 'KH danh sách đạt DS đơn giảm thêm 3%', '01/07/2026', '31/07/2026', 'B0038442', 'Hoa Sơn', 2000000, 3, 'after_line_promotions', 'Hoạt động', 'Tính sau CK dòng hàng'],
+      ['CUST-DS-001', 'KH danh sách đạt DS đơn giảm thêm 3%', '01/07/2026', '31/07/2026', 'B0038423', 'Khách hàng mẫu', 2000000, 3, 'after_line_promotions', 'Hoạt động', 'Cùng mã chương trình sẽ gom danh sách KH']
+    ],
+    notes: ['Chỉ khách hàng trong danh sách mới được hưởng chiết khấu thêm.', 'Cùng Mã chương trình KM sẽ gom nhiều dòng khách hàng thành một rule.', 'Cách tính nền mặc định after_line_promotions nghĩa là tính sau các chiết khấu dòng hàng.', 'Mã khách hàng phải tồn tại trong danh mục khách hàng.']
+  },
   openingDebt: {
     title: 'Mẫu import công nợ ban đầu',
     fileName: 'mau-import-cong-no-ban-dau.xlsx',

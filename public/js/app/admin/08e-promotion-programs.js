@@ -1,6 +1,6 @@
 'use strict';
 
-// V46 Promotion program management: giữ 3 tab, trong từng tab gom theo mã chương trình
+// V47 Promotion program management: 5 tab, trong từng tab gom theo mã chương trình
 (function setupPromotionProgramManagement(){
   const $ = (id)=>document.getElementById(id);
   const msg = $('promotion3Message');
@@ -21,6 +21,14 @@
     groupRules: {
       label: 'Điều kiện nhóm KM / Ontop',
       table: 'promotionGroupRuleProgramTable', count: 'promotionGroupRuleProgramCount', detail: 'promotionGroupRuleProgramDetailTable', form: 'promotionGroupRuleProgramForm', reload: 'reloadPromotionGroupRuleProgramsButton', cancel: 'cancelPromotionGroupRuleProgramButton', create: 'createPromotionGroupRuleProgramButton', colspan: 6, listColspan: 8
+    },
+    quantityGroupDiscounts: {
+      label: 'SL nhóm SP',
+      table: 'promotionQuantityGroupDiscountProgramTable', count: 'promotionQuantityGroupDiscountProgramCount', detail: 'promotionQuantityGroupDiscountProgramDetailTable', form: 'promotionQuantityGroupDiscountProgramForm', reload: 'reloadPromotionQuantityGroupDiscountProgramsButton', cancel: 'cancelPromotionQuantityGroupDiscountProgramButton', create: 'createPromotionQuantityGroupDiscountProgramButton', colspan: 6, listColspan: 8, saveUrl: '/api/promotions/quantity-group-discounts'
+    },
+    customerOrderValueDiscounts: {
+      label: 'CK thêm theo DS',
+      table: 'promotionCustomerOrderValueDiscountProgramTable', count: 'promotionCustomerOrderValueDiscountProgramCount', detail: 'promotionCustomerOrderValueDiscountProgramDetailTable', form: 'promotionCustomerOrderValueDiscountProgramForm', reload: 'reloadPromotionCustomerOrderValueDiscountProgramsButton', cancel: 'cancelPromotionCustomerOrderValueDiscountProgramButton', create: 'createPromotionCustomerOrderValueDiscountProgramButton', colspan: 6, listColspan: 8, saveUrl: '/api/promotions/customer-order-value-discounts'
     }
   };
   const states = Object.fromEntries(Object.keys(TYPE_CONFIG).map(type=>[type,{ programs: [], selectedCode: '', detail: null } ]));
@@ -187,13 +195,24 @@
     const cfg=TYPE_CONFIG[type]; const detailTable=$(cfg.detail);
     if(detailTable)detailTable.innerHTML=`<tr><td colspan="${cfg.colspan}">${esc(text)}</td></tr>`;
   }
+  function setFormValue(form,name,value){ if(form?.elements?.[name]) form.elements[name].value=value??''; }
   function fillForm(type, program={}){
     const form=$(TYPE_CONFIG[type].form); if(!form)return;
-    form.elements.programCode.value=program.programCode||'';
-    form.elements.programName.value=program.programName||program.content||'';
-    form.elements.startDate.value=program.startDate||'';
-    form.elements.endDate.value=program.endDate||'';
-    form.elements.isActive.value=String(program.isActive!==false);
+    setFormValue(form,'programCode',program.programCode||program.code||'');
+    setFormValue(form,'programName',program.programName||program.name||program.content||'');
+    setFormValue(form,'startDate',program.startDate||'');
+    setFormValue(form,'endDate',program.endDate||'');
+    setFormValue(form,'isActive',String(program.isActive!==false && program.active!==false));
+    setFormValue(form,'productGroupCode',program.productGroupCode||program.groupCode||'');
+    setFormValue(form,'productGroupName',program.productGroupName||program.groupName||'');
+    setFormValue(form,'minQty',program.minQty||'');
+    setFormValue(form,'qtyUnit',program.qtyUnit||'dây');
+    setFormValue(form,'minOrderAmount',program.minOrderAmount||'');
+    setFormValue(form,'discountPercent',program.discountPercent||'');
+    setFormValue(form,'baseAmountMode',program.baseAmountMode||'after_line_promotions');
+    setFormValue(form,'productCodes',Array.isArray(program.productCodes)?program.productCodes.join('\\n'):(program.productCodes||''));
+    setFormValue(form,'customerCodes',Array.isArray(program.customerCodes)?program.customerCodes.join('\\n'):(program.customerCodes||''));
+    setFormValue(form,'note',program.note||'');
   }
   function rowKey(row){ return encodeURIComponent(row.rowId || row.id || row._id || ''); }
   function fillTierGroupSelect(detail){
@@ -215,6 +234,22 @@
       const rows=detail?.groupItems||[];
       if(!rows.length){ renderDetailEmpty(type,'Nhóm chưa có sản phẩm.'); return; }
       detailTable.innerHTML=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.productCode)}</td><td>${esc(r.productName)}</td><td><button type="button" class="small" data-promo-program-action="edit-group-product" data-program-code="${esc(p.programCode)}" data-row-id="${rowKey(r)}">Sửa</button></td><td><button type="button" class="small danger" data-promo-program-action="delete-group-product" data-program-code="${esc(p.programCode)}" data-row-id="${rowKey(r)}">Xóa</button></td></tr>`).join('');
+      return;
+    }
+    if(type==='quantityGroupDiscounts'){
+      const rule=detail?.rule||detail?.quantityGroupDiscounts?.[0]||{};
+      fillForm(type,rule);
+      const productCodes=Array.isArray(rule.productCodes)?rule.productCodes:[];
+      if(!productCodes.length){ renderDetailEmpty(type,'Rule chưa có sản phẩm trong nhóm.'); return; }
+      detailTable.innerHTML=productCodes.map((code,i)=>`<tr><td>${i+1}</td><td>${esc(code)}</td><td>${fmtMoney(rule.minQty)} ${esc(rule.qtyUnit||'')}</td><td>${fmtPct(rule.discountPercent)}</td><td>${esc(rule.applyScope||'eligible_lines')}</td><td>${statusBadge(rule)}</td></tr>`).join('');
+      return;
+    }
+    if(type==='customerOrderValueDiscounts'){
+      const rule=detail?.rule||detail?.customerOrderValueDiscounts?.[0]||{};
+      fillForm(type,rule);
+      const customerCodes=Array.isArray(rule.customerCodes)?rule.customerCodes:[];
+      if(!customerCodes.length){ renderDetailEmpty(type,'Rule chưa có khách hàng áp dụng.'); return; }
+      detailTable.innerHTML=customerCodes.map((code,i)=>`<tr><td>${i+1}</td><td>${esc(code)}</td><td>${fmtMoney(rule.minOrderAmount)}</td><td>${fmtPct(rule.discountPercent)}</td><td>${esc(rule.baseAmountMode||'after_line_promotions')}</td><td>${statusBadge(rule)}</td></tr>`).join('');
       return;
     }
     fillTierGroupSelect(detail);
@@ -377,8 +412,15 @@
       const code=body.programCode||states[type].selectedCode;
       if(!code){show('Chưa chọn chương trình cần lưu',true);return;}
       try{
-        await api(`/api/promotions/programs/${encodeURIComponent(code)}?type=${encodeURIComponent(type)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        if(cfg.saveUrl){
+          const method=states[type].selectedCode?'PUT':'POST';
+          const url=method==='PUT'?`${cfg.saveUrl}/${encodeURIComponent(code)}`:cfg.saveUrl;
+          await api(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        }else{
+          await api(`/api/promotions/programs/${encodeURIComponent(code)}?type=${encodeURIComponent(type)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        }
         show(`Đã lưu chương trình ${cfg.label}`);
+        states[type].selectedCode=code;
         await loadPromotionProgramsByType(type);
         await window.selectPromotionProgramByType(type,code);
       }catch(err){ show(err.message,true); }
@@ -388,8 +430,9 @@
     $(cfg.create)?.addEventListener('click',()=>{
       activeType=type;
       activateProgramTab(type);
+      states[type].selectedCode=''; states[type].detail=null;
       fillForm(type,{});
-      renderDetailEmpty(type,'Tạo mới CTKM hiện đi theo quy trình import Excel. Có thể dùng popup này để chọn/sửa chương trình sau khi import.');
+      renderDetailEmpty(type, cfg.saveUrl ? 'Nhập thông tin rule mới rồi bấm Lưu.' : 'Tạo mới CTKM hiện đi theo quy trình import Excel. Có thể dùng popup này để chọn/sửa chương trình sau khi import.');
       openPromotionWorkspace(type,'create');
     });
   });

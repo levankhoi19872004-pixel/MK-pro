@@ -432,7 +432,7 @@ function startImportCommitProgressPolling(sessionId,selectedCount){
 }
 
 async function refreshAfterImport(type){
-  if(['promotionProductRules','promotionGroupItems','promotionGroupRules'].includes(type)){
+  if(['promotionProductRules','promotionGroupItems','promotionGroupRules','promotionQuantityGroupDiscounts','promotionCustomerOrderValueDiscounts'].includes(type)){
     if(typeof window.reloadPromotionRules==='function')await window.reloadPromotionRules();
     return;
   }

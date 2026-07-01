@@ -54,30 +54,30 @@ const t=de(e);return{promotionId:String(t.promotionId||t.id||t._id||t.programId|
 promotionCode:String(t.promotionCode||t.code||t.programCode||t.ruleCode||"").trim(),
 promotionName:String(t.promotionName||t.name||t.programName||t.ruleName||t.description||"").trim()}}function ue(a){r(a)
 ;const{normalizeText:s,toNumber:N,formatCaseLooseQty:v,buildProductLineMeta:D,makeId:q,buildSalesCode:R,buildCashCode:T,updateSalesOrderWithRepost:Q,writeMobileLog:E}=a
-;function K(e={}){return U(e)}function V(e={}){return L(e)}async function te(e=[]){const t=Array.isArray(e)?e:[];if(!t.length)return{error:"Đơn mobile chưa có sản phẩm",status:400}
-;const o=await Z(t),r=G(o),n=[],a=new Map;for(const e of t){const t=j(e),o=r.get(t)||r.get(String(t).toUpperCase())||r.get(String(t).toLowerCase());if(!o)return{
-error:`Không tìm thấy sản phẩm: ${e.productCode||e.code||""}`,status:400};const s=N(e.quantity??e.qty??0);if(s<=0)return{
-error:`Số lượng phải lớn hơn 0: ${o.code||o.productCode||""}`,status:400};const i=N(o.salePrice??o.price??0),d=String(o.code||o.productCode||o.sku||"").trim();n.push({
-productId:o.id||String(o._id||d||""),productCode:d,productName:o.name||o.productName||"",...D(o),quantity:s,grossPrice:i,catalogSalePrice:i,salePrice:i,price:i,
-amount:Math.round(s*i)}),a.set(d,o)}const s=await C.calculatePromotions(n),i=new Map((s.lines||[]).map(e=>[String(e.productCode||"").trim(),e]));return{items:n.map(e=>{
-const t=i.get(String(e.productCode||"").trim())||{},o=N(t.catalogSalePrice??e.grossPrice??e.salePrice),r=Math.round(e.quantity*o),n=N(t.directDiscountAmount||0),a=N(t.groupDiscountAmount||0),s=Math.min(r,n+a),d=Math.max(0,r-s),c=e.quantity>0?Math.round(d/e.quantity):0,u=Array.isArray(t.promotionRows)?t.promotionRows:[],l=ce(u)
+;function K(e={}){return U(e)}function V(e={}){return L(e)}async function te(e=[],t={}){const o=Array.isArray(e)?e:[];if(!o.length)return{error:"Đơn mobile chưa có sản phẩm",
+status:400};const r=await Z(o),n=G(r),a=[],s=new Map;for(const e of o){const t=j(e),o=n.get(t)||n.get(String(t).toUpperCase())||n.get(String(t).toLowerCase());if(!o)return{
+error:`Không tìm thấy sản phẩm: ${e.productCode||e.code||""}`,status:400};const r=N(e.quantity??e.qty??0);if(r<=0)return{
+error:`Số lượng phải lớn hơn 0: ${o.code||o.productCode||""}`,status:400};const i=N(o.salePrice??o.price??0),d=String(o.code||o.productCode||o.sku||"").trim();a.push({
+productId:o.id||String(o._id||d||""),productCode:d,productName:o.name||o.productName||"",...D(o),quantity:r,grossPrice:i,catalogSalePrice:i,salePrice:i,price:i,
+amount:Math.round(r*i)}),s.set(d,o)}const i=await C.calculatePromotions(a,t),d=new Map((i.lines||[]).map(e=>[String(e.productCode||"").trim(),e]));return{items:a.map(e=>{
+const t=d.get(String(e.productCode||"").trim())||{},o=N(t.catalogSalePrice??e.grossPrice??e.salePrice),r=Math.round(e.quantity*o),n=N(t.directDiscountAmount||0),a=N(t.groupDiscountAmount||0),s=Math.min(r,n+a),i=Math.max(0,r-s),c=e.quantity>0?Math.round(i/e.quantity):0,u=Array.isArray(t.promotionRows)?t.promotionRows:[],l=ce(u)
 ;return{...e,originalPrice:o,grossPrice:o,catalogSalePrice:o,grossAmount:r,directDiscountPercent:N(t.directDiscountPercent||0),groupDiscountPercent:N(t.groupDiscountPercent||0),
 discountPercent:r>0?s/r*100:0,directDiscountAmount:n,groupDiscountAmount:a,discountAmount:s,promotionAmount:s,totalDiscountAmount:s,finalPrice:c,unitPrice:c,salePrice:c,price:c,
-preTaxPriceAtOrder:Math.round(o/1.08),vatAmountAtOrder:Math.round((c-c/1.08)*e.quantity),lineAmountAtOrder:d,amount:d,netAmount:d,saleMethod:A,saleMode:A,pricingMode:A,
+preTaxPriceAtOrder:Math.round(o/1.08),vatAmountAtOrder:Math.round((c-c/1.08)*e.quantity),lineAmountAtOrder:i,amount:i,netAmount:i,saleMethod:A,saleMode:A,pricingMode:A,
 priceLocked:!0,lockedPrice:!0,lockedPromotion:!0,promotionCalculated:!0,promotionRows:u,appliedPromotionRows:u,productSnapshot:{...e.productSnapshot||{},salePrice:o,
 conversionRate:e.conversionRateAtOrder||e.conversionRate||1,
 pickingZone:e.pickingZoneAtOrder||e.productSnapshot?.pickingZone||("KHO_PC"===(e.warehouseCodeAtOrder||e.warehouseCode)?"PC":"HC"),
-warehouseCode:e.warehouseCodeAtOrder||e.warehouseCode||"KHO_HC",defaultWarehouse:e.warehouseCodeAtOrder||e.warehouseCode||"KHO_HC"},...l}}),products:o,productByCode:a}}
+warehouseCode:e.warehouseCodeAtOrder||e.warehouseCode||"KHO_HC",defaultWarehouse:e.warehouseCodeAtOrder||e.warehouseCode||"KHO_HC"},...l}}),products:r,productByCode:s}}
 function se(e={}){return[String(e.productCode||e.code||e.productId||"").trim(),String(e.unit||e.baseUnit||"").trim(),String(N(e.salePrice??e.price??e.unitPrice??0))].join("|")}
 return{createSalesOrder:async function({body:r={},mobileUser:a}){
 const s=z(r),i=g(r,["sales-create",a&&(a.id||a.code),r.customerCode||s[0]||"",Array.isArray(r.items)?r.items.length:0]),u=f(i);if(u)return u
 ;const C=a&&(a.staffCode||a.code||a.id||"mobile-sales"),y=O("mobile.sales.create",C,i),S=await I(y);if(S&&"completed"===S.status&&S.response)return h(i,S.response)
 ;if(S&&"processing"===S.status)return ie(409,"Yêu cầu tạo đơn trùng đang được xử lý");const b=p("sales.createOrder");let $,_=null;try{$=await o(async o=>{b("start")
 ;const s=await F(r,a,o),u=Array.isArray(r.items)?r.items:[],p=N(r.paidAmount),g=t.todayVN();if(!s)return ie(403,"Khách hàng không thuộc phạm vi nhân viên bán hàng")
-;if(!u.length)return ie(400,"Đơn mobile chưa có sản phẩm");b("load_customer_direct");const f=await te(u);if(f.error)return ie(f.status||400,f.error)
-;const{items:h,productByCode:y}=f;b("prepare_items_server_authoritative",{products:y.size});const S=await ae(Array.from(y.values()));b("batch_stock_check",{products:y.size})
-;const O=new Map;for(const e of h){const t=String(e.productCode||"").trim();O.set(t,N(O.get(t))+N(e.quantity))}for(const[e,t]of O.entries()){const o=y.get(e),r=S.get(e)||0
-;if(r<t)return ie(400,`Không đủ tồn mở bán: ${e}. Tồn ${v(r,o?.conversionRate||1)}, cần ${v(t,o?.conversionRate||1)}`)}
+;if(!u.length)return ie(400,"Đơn mobile chưa có sản phẩm");b("load_customer_direct");const f=await te(u,{customerCode:s.code||s.customerCode||r.customerCode,date:g})
+;if(f.error)return ie(f.status||400,f.error);const{items:h,productByCode:y}=f;b("prepare_items_server_authoritative",{products:y.size});const S=await ae(Array.from(y.values()))
+;b("batch_stock_check",{products:y.size});const O=new Map;for(const e of h){const t=String(e.productCode||"").trim();O.set(t,N(O.get(t))+N(e.quantity))}
+for(const[e,t]of O.entries()){const o=y.get(e),r=S.get(e)||0;if(r<t)return ie(400,`Không đủ tồn mở bán: ${e}. Tồn ${v(r,o?.conversionRate||1)}, cần ${v(t,o?.conversionRate||1)}`)}
 const I=h.reduce((e,t)=>e+t.quantity,0),$=h.reduce((e,t)=>e+N(t.grossAmount),0),D=h.reduce((e,t)=>e+N(t.discountAmount),0),k=h.reduce((e,t)=>e+t.amount,0),M=Array.from(new Set(h.map(e=>e.promotionCode).filter(Boolean)))
 ;if(p>k)return ie(400,"Tiền thu không được lớn hơn tổng đơn");const R=q("SO"),T={id:R,code:String(r.code||r.orderCode||R).trim(),date:g,customerId:s.id||String(s._id||s.code||""),
 customerCode:s.code||s.customerCode||"",customerName:s.name||s.customerName||"",customerPhone:s.phone||"",customerAddress:s.address||"",salesStaffCode:K(a),salesStaffName:V(a),
@@ -116,8 +116,9 @@ customerId:k.customerId,customerCode:k.customerCode},U=await F(E,a);if(!U)return
 customerName:U.name||U.customerName||k.customerName||"",customerPhone:U.phone||k.customerPhone||"",customerAddress:U.address||k.customerAddress||"",
 note:String(r.note??k.note??"").trim(),salesStaffCode:K(a),salesStaffName:C,salesmanCode:K(a),salesmanName:C,vatInvoiceRequired:!1!==k.vatInvoiceRequired,
 vatInvoiceDecisionSource:k.vatInvoiceDecisionSource||"default",vatInvoiceNote:String(k.vatInvoiceNote||""),vatInvoiceUpdatedAt:String(k.vatInvoiceUpdatedAt||""),
-vatInvoiceUpdatedBy:String(k.vatInvoiceUpdatedBy||""),updatedAt:L};if(Q){const e=await te(Q);if(e.error)return h(s,ie(e.status||400,e.error))
-;const t=e.items,o=t.find(e=>N(e.quantity)<=0||!_(e.productCode||e.code||e.sku||e.productId))
+vatInvoiceUpdatedBy:String(k.vatInvoiceUpdatedBy||""),updatedAt:L};if(Q){const e=await te(Q,{
+customerCode:r.customerCode||r.customer?.code||r.customer?.customerCode||k.customerCode,date:r.date||r.orderDate||k.date||k.orderDate})
+;if(e.error)return h(s,ie(e.status||400,e.error));const t=e.items,o=t.find(e=>N(e.quantity)<=0||!_(e.productCode||e.code||e.sku||e.productId))
 ;if(o)return h(s,ie(400,`Sản phẩm hoặc số lượng không hợp lệ: ${o.productCode||o.code||o.productName||""}`))
 ;const n=t.reduce((e,t)=>e+N(t.quantity),0),a=t.reduce((e,t)=>e+N(t.grossAmount),0),i=t.reduce((e,t)=>e+N(t.discountAmount),0),d=t.reduce((e,t)=>e+N(t.amount),0),c=N(r.paidAmount??k.paidAmount??0)
 ;if(c>d)return h(s,ie(400,"Tiền thu không được lớn hơn tổng đơn"));Object.assign(j,{items:t,totalQuantity:n,grossAmount:a,totalGrossAmount:a,grossAmountBeforePromotion:a,

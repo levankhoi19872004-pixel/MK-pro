@@ -1,6 +1,7 @@
 'use strict';
 
 const Product = require('../../../models/Product');
+const Customer = require('../../../models/Customer');
 const inventoryStockService = require('../../inventoryStock.service');
 const User = require('../../../models/User');
 const { toNumber, makeId, normalizeText, normalizePacking } = require('../../../utils/common.util');
@@ -427,6 +428,14 @@ function summarizeOrderShortages(shortages = []) {
   return { totalMissingQty, totalCutAmount };
 }
 
+
+async function preloadPromotionCustomersByCode(rows = []) {
+  const codes = Array.from(new Set(rows.map((row) => cleanText(row.customerCode || row['Mã khách hàng'] || row['Ma khach hang'] || get(row, ['mã khách hàng', 'ma khach hang', 'customerCode']))).filter(Boolean)));
+  if (!codes.length) return new Map();
+  const customers = await Customer.find({ $or: [{ code: { $in: codes } }, { customerCode: { $in: codes } }, { id: { $in: codes } }] }).lean();
+  return new Map(customers.map((c) => [cleanText(c.code || c.customerCode || c.id), c]));
+}
+
 async function preloadPromotionProductsByCode(rows = []) {
   const codes = Array.from(new Set(rows.map((row) => cleanText(row.productCode || row['Mã sản phẩm'] || row['Ma san pham'] || get(row, ['mã sản phẩm', 'ma san pham', 'productCode']))).filter(Boolean)));
   if (!codes.length) return new Map();
@@ -466,6 +475,46 @@ function pickPromotionGroupRulePayload(row = {}) {
     programName: cleanText(row.programName || row.name || row['Nội dung chương trình KM'] || row['Noi dung chuong trinh KM'] || row['Nội dung chương trình'] || row['Noi dung chuong trinh']),
     minAmount: toNumber(row.minAmount ?? row.requiredAmount ?? row.salesAmount ?? row['Mức doanh số cần lấy'] ?? row['Muc doanh so can lay'] ?? row['Doanh số cần lấy'] ?? row['Doanh so can lay']),
     discountPercent: promotionService.normalizeDiscountPercent(row.discountPercent ?? row.discount ?? row['Chiết khấu'] ?? row['Chiet khau'] ?? row['CK']),
+    source: 'excel-import'
+  };
+}
+
+function pickPromotionQuantityGroupDiscountPayload(row = {}) {
+  const programCode = cleanText(row.programCode || row.code || row['Mã chương trình KM'] || row['Ma chuong trinh KM'] || row['Mã chương trình'] || row['Ma chuong trinh'] || row['Mã CTKM'] || row['Ma CTKM']).toUpperCase();
+  const productCode = cleanText(row.productCode || row['Mã sản phẩm'] || row['Ma san pham']);
+  return {
+    ...rowBase(row),
+    programCode,
+    code: programCode,
+    programName: cleanText(row.programName || row.name || row['Tên chương trình KM'] || row['Ten chuong trinh KM'] || row['Nội dung chương trình KM'] || row['Noi dung chuong trinh KM']),
+    productGroupCode: cleanText(row.productGroupCode || row.groupCode || row['Mã nhóm SP'] || row['Ma nhom SP'] || row['Mã nhóm sản phẩm'] || row['Ma nhom san pham'] || programCode).toUpperCase(),
+    productGroupName: cleanText(row.productGroupName || row.groupName || row['Tên nhóm SP'] || row['Ten nhom SP'] || row['Tên nhóm sản phẩm'] || row['Ten nhom san pham']),
+    productCode,
+    productName: cleanText(row.productName || row['Tên sản phẩm'] || row['Ten san pham']),
+    minQty: toNumber(row.minQty ?? row.requiredQty ?? row.quantityThreshold ?? row['Số lượng tối thiểu'] ?? row['So luong toi thieu'] ?? row['SL tối thiểu'] ?? row['SL toi thieu']),
+    qtyUnit: cleanText(row.qtyUnit || row.unit || row['Đơn vị tính'] || row['Don vi tinh'] || 'dây'),
+    discountPercent: promotionService.normalizeDiscountPercent(row.discountPercent ?? row.discount ?? row['% chiết khấu'] ?? row['% chiet khau'] ?? row['Chiết khấu'] ?? row['Chiet khau'] ?? row['CK']),
+    isActive: normalizeImportActive(row.isActive ?? row.status ?? row['Trạng thái'] ?? row['Trang thai']),
+    note: cleanText(row.note || row['Ghi chú'] || row['Ghi chu']),
+    source: 'excel-import'
+  };
+}
+
+function pickPromotionCustomerOrderValueDiscountPayload(row = {}) {
+  const programCode = cleanText(row.programCode || row.code || row['Mã chương trình KM'] || row['Ma chuong trinh KM'] || row['Mã chương trình'] || row['Ma chuong trinh'] || row['Mã CTKM'] || row['Ma CTKM']).toUpperCase();
+  const customerCode = cleanText(row.customerCode || row['Mã khách hàng'] || row['Ma khach hang'] || row['Mã cửa hàng'] || row['Ma cua hang']);
+  return {
+    ...rowBase(row),
+    programCode,
+    code: programCode,
+    programName: cleanText(row.programName || row.name || row['Tên chương trình KM'] || row['Ten chuong trinh KM'] || row['Nội dung chương trình KM'] || row['Noi dung chuong trinh KM']),
+    customerCode,
+    customerName: cleanText(row.customerName || row['Tên khách hàng'] || row['Ten khach hang'] || row['Tên cửa hàng'] || row['Ten cua hang']),
+    minOrderAmount: toNumber(row.minOrderAmount ?? row.minAmount ?? row.requiredAmount ?? row['Doanh số đơn tối thiểu'] ?? row['Doanh so don toi thieu'] ?? row['Mức doanh số'] ?? row['Muc doanh so']),
+    discountPercent: promotionService.normalizeDiscountPercent(row.discountPercent ?? row.discount ?? row['% chiết khấu thêm'] ?? row['% chiet khau them'] ?? row['Chiết khấu thêm'] ?? row['Chiet khau them'] ?? row['CK']),
+    baseAmountMode: cleanText(row.baseAmountMode || row['Cách tính nền'] || row['Cach tinh nen'] || 'after_line_promotions'),
+    isActive: normalizeImportActive(row.isActive ?? row.status ?? row['Trạng thái'] ?? row['Trang thai']),
+    note: cleanText(row.note || row['Ghi chú'] || row['Ghi chu']),
     source: 'excel-import'
   };
 }
@@ -553,9 +602,12 @@ module.exports = {
   normalizeShortageRows,
   summarizeOrderShortages,
   preloadPromotionProductsByCode,
+  preloadPromotionCustomersByCode,
   pickPromotionProductRulePayload,
   pickPromotionGroupItemPayload,
   pickPromotionGroupRulePayload,
+  pickPromotionQuantityGroupDiscountPayload,
+  pickPromotionCustomerOrderValueDiscountPayload,
   dedupePromotionPayloads,
   promotionBulkChunks,
   normalizeImportRole,

@@ -110,7 +110,9 @@ function hasSearchCriteria(query = {}) {
   const q = text(query.q || query.search || query.keyword || query.orderCode || query.customerCode || query.customerName);
   const delivery = text(query.delivery || query.deliveryStaffCode || query.deliveryStaff || query.nvgh);
   const salesman = text(query.salesman || query.salesStaffCode || query.salesStaff || query.nvbh);
-  return Boolean(q.length >= 2 || delivery || salesman);
+  const deliveryDate = dateOnly(query.date || query.deliveryDate || query.orderDate);
+  const explicitDateSearch = Boolean(deliveryDate) && truthyFlag(query.deliveryDateChangedByUser || query.dateChangedByUser || query.userSelectedDate);
+  return Boolean(q.length >= 2 || delivery || salesman || explicitDateSearch);
 }
 
 function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {

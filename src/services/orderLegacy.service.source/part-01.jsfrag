@@ -167,7 +167,10 @@ async function applyPromotionPricing(items = [], saleMode = DIRECT_PRICE, order 
   const baseItems = calculateItems(items, PROMOTION, { ...order, saleMode: PROMOTION });
   if (!baseItems.length) return baseItems;
   if (shouldSkipPromotionCalculation(baseItems)) return baseItems;
-  const promo = await promotionService.calculatePromotions(baseItems);
+  const promo = await promotionService.calculatePromotions(baseItems, {
+    customerCode: order.customerCode || order.customer?.code || order.customer?.customerCode,
+    date: order.date || order.orderDate || order.saleDate
+  });
   const promoLines = new Map((promo.lines || []).map((line) => [String(line.productCode || '').trim(), line]));
   return baseItems.map((item) => {
     const line = promoLines.get(String(item.productCode || '').trim()) || {};

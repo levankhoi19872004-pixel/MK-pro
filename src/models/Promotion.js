@@ -1,13 +1,35 @@
 const flexModel = require('./_flexModel');
+
 module.exports = flexModel('Promotion', 'promotions', {
   id: String,
   code: String,
+  programCode: String,
   name: String,
+  programName: String,
   type: String,
+  promotionType: String,
+  productGroupCode: String,
+  productGroupName: String,
   productCodes: Array,
+  customerCodes: Array,
   conditions: Array,
   rewards: Array,
+  minQty: Number,
+  qtyUnit: String,
+  minOrderAmount: Number,
+  discountType: String,
+  discountPercent: Number,
+  applyScope: String,
+  baseAmountMode: String,
+  priority: Number,
+  stackPolicy: String,
   startDate: String,
   endDate: String,
-  isActive: Boolean
+  isActive: Boolean,
+  active: Boolean,
+  note: String,
+  createdAt: String,
+  updatedAt: String,
+  createdBy: String,
+  updatedBy: String
 });

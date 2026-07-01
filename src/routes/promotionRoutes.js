@@ -8,6 +8,16 @@ const router = express.Router();
 const managePromotions = requireRole(['admin', 'manager', 'accountant']);
 const viewPromotionAdmin = managePromotions;
 
+router.get('/quantity-group-discounts', viewPromotionAdmin, promotionController.listQuantityGroupDiscounts);
+router.post('/quantity-group-discounts', managePromotions, promotionController.saveQuantityGroupDiscount);
+router.put('/quantity-group-discounts/:id', managePromotions, promotionController.updateQuantityGroupDiscount);
+router.delete('/quantity-group-discounts/:id', managePromotions, promotionController.deleteQuantityGroupDiscount);
+
+router.get('/customer-order-value-discounts', viewPromotionAdmin, promotionController.listCustomerOrderValueDiscounts);
+router.post('/customer-order-value-discounts', managePromotions, promotionController.saveCustomerOrderValueDiscount);
+router.put('/customer-order-value-discounts/:id', managePromotions, promotionController.updateCustomerOrderValueDiscount);
+router.delete('/customer-order-value-discounts/:id', managePromotions, promotionController.deleteCustomerOrderValueDiscount);
+
 router.get('/product-rules', viewPromotionAdmin, promotionController.listProductRules);
 router.post('/product-rules', managePromotions, promotionController.saveProductRule);
 router.delete('/product-rules/:id', managePromotions, promotionController.deleteProductRule);

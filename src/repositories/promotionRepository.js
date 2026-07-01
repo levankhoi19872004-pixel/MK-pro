@@ -16,7 +16,12 @@ function queryFilter(query = {}) {
     $or: [
       { code: { $regex: q, $options: 'i' } },
       { name: { $regex: q, $options: 'i' } },
+      { programName: { $regex: q, $options: 'i' } },
+      { productGroupCode: { $regex: q, $options: 'i' } },
+      { productGroupName: { $regex: q, $options: 'i' } },
+      { customerCodes: { $elemMatch: { $regex: q, $options: 'i' } } },
       { type: { $regex: q, $options: 'i' } },
+      { promotionType: { $regex: q, $options: 'i' } },
       { conditionText: { $regex: q, $options: 'i' } },
       { discountText: { $regex: q, $options: 'i' } },
       { productCodes: { $elemMatch: { $regex: q, $options: 'i' } } }

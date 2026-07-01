@@ -40,7 +40,7 @@
         "src/services/orderLegacy.service.source/part-02.jsfrag",
         "src/services/orderLegacy.service.source/part-03.jsfrag"
       ],
-      "sourceSha256": "823efbe12dbbd155739cfbcfcd6bed759b4564cc3a24cdf5bb1b49a2c41e67fd"
+      "sourceSha256": "42bad792220bb6597cd37960392f9817e075a3120d918fd4e565658034200494"
     },
     {
       "target": "src/services/mobile/sales.service.js",
@@ -51,7 +51,7 @@
         "src/services/mobile/sales.service.source/part-02.jsfrag",
         "src/services/mobile/sales.service.source/part-03.jsfrag"
       ],
-      "sourceSha256": "9c04fb15ef2c43c409fe1dcf55e4cb9741b68d7e10e80c3361922ac88e5cf864"
+      "sourceSha256": "d74e646135670d31cbe086398e5440949f83667ba8c4efea562aed1edb0ad5d8"
     },
     {
       "target": "src/engines/delivery.legacy.engine.js",
@@ -142,7 +142,7 @@
         "public/js/app/admin/08d-import-excel.source/part-02.jsfrag",
         "public/js/app/admin/08d-import-excel.source/part-03.jsfrag"
       ],
-      "sourceSha256": "58f45d7e59d9d3b1ec4a2d4a71919dc7dbc47eaf5753268f7f4b00409a7b6bd0",
+      "sourceSha256": "e935f226b2f4d3662da9eed51538409379777d9cf7901012dc75919c5ce0d412",
       "runtimeFiles": [
         "public/js/app/admin/08d-import-excel.js",
         "public/js/app/admin/08d-import-excel.part02.js",

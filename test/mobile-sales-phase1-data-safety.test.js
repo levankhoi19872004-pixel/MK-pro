@@ -46,9 +46,9 @@ test('online create and update scope customer lookup by authenticated sales user
 test('mobile create and update calculate price from product catalog on server', () => {
   assert.match(salesService, /MOBILE_SALES_SERVER_AUTHORITATIVE_PRICING_START/);
   assert.match(salesService, /const catalogSalePrice = toNumber\(product\.salePrice \?\? product\.price \?\? 0\)/);
-  assert.match(salesService, /buildAuthoritativeMobileItems\(rawItems\)/g);
+  assert.match(salesService, /buildAuthoritativeMobileItems\(rawItems(?:,\s*\{[\s\S]*?\})?\)/);
   assert.doesNotMatch(salesService, /const salePrice = toNumber\(rawItem\.salePrice/);
-  assert.match(salesService, /promotionService\.calculatePromotions\(baseItems\)/);
+  assert.match(salesService, /promotionService\.calculatePromotions\(baseItems,\s*pricingContext\)/);
   assert.match(salesService, /const requiredQtyByProduct = new Map\(\)/);
   assert.match(salesService, /requiredQtyByProduct\.set\(code/);
 });

@@ -30,7 +30,9 @@ const {
   importUsers,
   importPromotionProductRules,
   importPromotionGroupItems,
-  importPromotionGroupRules
+  importPromotionGroupRules,
+  importPromotionQuantityGroupDiscounts,
+  importPromotionCustomerOrderValueDiscounts
 } = require('./operations/adminImport.impl');
 
 async function getImportPreviewJobSnapshot(sessionId) {
@@ -307,7 +309,9 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
         importCashbook,
         importPromotionProductRules,
         importPromotionGroupItems,
-        importPromotionGroupRules
+        importPromotionGroupRules,
+        importPromotionQuantityGroupDiscounts,
+        importPromotionCustomerOrderValueDiscounts
       }
     });
 

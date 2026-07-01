@@ -280,6 +280,10 @@ function main() {
     if (nextContent !== currentContent) {
       console.error('OpenAPI document is stale. Run: npm run docs:generate');
       console.error(`Scanned operations: ${scanned.length}. Missing skeleton operations: ${added.length}.`);
+      if (added.length) {
+        console.error('Missing skeleton operations:');
+        for (const item of added) console.error(`- ${item}`);
+      }
       process.exit(1);
     }
     console.log(`OpenAPI document is up to date. Scanned operations: ${scanned.length}.`);

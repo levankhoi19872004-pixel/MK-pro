@@ -36,10 +36,30 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
     });
   }
-  function num(value) { var n = Number(String(value || 0).replace(/[^0-9.-]/g, '')); return Number.isFinite(n) ? Math.round(n) : 0; }
-  function money(value) { return num(value).toLocaleString('vi-VN'); }
+  function parseVndAmount(value) {
+    var raw = String(value == null ? '' : value);
+    var n = Number(raw.replace(/[^0-9]/g, ''));
+    return Number.isFinite(n) ? Math.round(n) : 0;
+  }
+  function num(value) { return parseVndAmount(value); }
+  function money(value) { return parseVndAmount(value).toLocaleString('vi-VN'); }
   function orderKey(order) { return String((order && (order.orderCode || order.salesOrderCode || order.orderId || order.salesOrderId || order.id)) || ''); }
-  function openDebt(order) { return Math.max(0, num(order && (order.debt ?? order.remainingDebt ?? order.availableDebt ?? order.availableDebtAmount))); }
+  function orderRemainingDebt(order) {
+    return Math.max(0, parseVndAmount(order && (order.remainingDebt ?? order.debt ?? order.debtAmount ?? 0)));
+  }
+  function orderPendingCollectionAmount(order) {
+    return Math.max(0, parseVndAmount(order && (order.pendingCollectionAmount ?? order.pendingCollectedAmount ?? 0)));
+  }
+  function orderAvailableToCollect(order) {
+    if (order && order.availableToCollect != null) return Math.max(0, parseVndAmount(order.availableToCollect));
+    if (order && order.availableDebt != null) return Math.max(0, parseVndAmount(order.availableDebt));
+    if (order && order.availableDebtAmount != null) return Math.max(0, parseVndAmount(order.availableDebtAmount));
+    return Math.max(0, orderRemainingDebt(order) - orderPendingCollectionAmount(order));
+  }
+  function remainingDebtOf(order) { return orderRemainingDebt(order); }
+  function pendingCollectedOf(order) { return orderPendingCollectionAmount(order); }
+  function availableToCollect(order) { return orderAvailableToCollect(order); }
+  function openDebt(order) { return orderAvailableToCollect(order); }
   function statusLabel(status) {
     var value = String(status || 'open').toLowerCase();
     if (value === 'open') return 'Còn nợ';
@@ -664,20 +684,24 @@
     var rows = orders.map(function (order, index) {
       var key = orderKey(order) || String(index);
       var checked = state.selectedOrderKeys[key] ? ' checked' : '';
+      var collectibleAmount = availableToCollect(order);
+      var locked = pendingCollectedOf(order) > 0;
       return '<tr>' +
-        '<td><input class="debt-new-order-check" type="checkbox" data-order-index="' + index + '"' + checked + (readonly ? '' : '') + '></td>' +
+        '<td><input class="debt-new-order-check" type="checkbox" data-order-index="' + index + '"' + checked + (readonly ? '' : '') + (collectibleAmount <= 0 ? ' disabled' : '') + '></td>' +
         '<td><b>' + esc(order.orderCode || order.orderId) + '</b></td>' +
         '<td>' + esc(order.orderDate || order.lastDebtDate || '') + '</td>' +
         '<td class="new-money">' + money(order.debit) + '</td>' +
         '<td class="new-money new-credit">' + money(order.credit) + '</td>' +
-        '<td class="new-money ' + (openDebt(order) > 0 ? 'new-debt-positive' : 'new-credit') + '">' + money(order.debt) + '</td>' +
+        '<td class="new-money ' + (remainingDebtOf(order) > 0 ? 'new-debt-positive' : 'new-credit') + '">' + money(remainingDebtOf(order)) + '</td>' +
+        '<td class="new-money new-credit">' + money(pendingCollectedOf(order)) + (locked ? '<br><small>Chờ xác nhận</small>' : '') + '</td>' +
+        '<td class="new-money ' + (collectibleAmount > 0 ? 'new-debt-positive' : 'new-credit') + '">' + money(collectibleAmount) + '</td>' +
         '<td><span class="debt-new-status ' + esc(order.status || 'open') + '">' + esc(statusLabel(order.status)) + '</span></td>' +
       '</tr>';
     }).join('');
-    return '<div class="debt-new-order-toolbar"><div><b>Đơn nợ</b><div class="muted">Đã chọn ' + selected.length + ' đơn · Tổng nợ chọn: <b>' + money(selectedTotal) + '</b></div></div>' +
+    return '<div class="debt-new-order-toolbar"><div><b>Đơn nợ</b><div class="muted">Đã chọn ' + selected.length + ' đơn · Còn có thể thu đã chọn: <b>' + money(selectedTotal) + '</b></div></div>' +
       '<div class="debt-new-order-toolbar-actions"><button id="debtNewSelectAllDebtOrders" type="button" class="secondary">Chọn tất cả đơn nợ</button><button id="debtNewClearDebtOrders" type="button" class="secondary">Bỏ chọn</button><button type="button" class="primary-action debt-new-go-collection">Lập phiếu thu</button></div></div>' +
-      '<div class="debt-new-modal-table-wrap"><table class="new-table debt-new-modal-table"><thead><tr><th>Chọn thu</th><th>Mã đơn</th><th>Ngày đơn</th><th>Phải thu / Debit</th><th>Đã thu / Credit</th><th>Còn nợ</th><th>Trạng thái</th></tr></thead><tbody>' +
-      (rows || '<tr><td colspan="7">Khách này không có đơn trong read model New.</td></tr>') +
+      '<div class="debt-new-modal-table-wrap"><table class="new-table debt-new-modal-table"><thead><tr><th>Chọn thu</th><th>Mã đơn</th><th>Ngày đơn</th><th>Phải thu / Debit</th><th>Đã thu / Credit</th><th>Còn nợ</th><th>Đã báo thu chờ xác nhận</th><th>Còn có thể thu</th><th>Trạng thái</th></tr></thead><tbody>' +
+      (rows || '<tr><td colspan="9">Khách này không có đơn trong read model New.</td></tr>') +
       '</tbody></table></div>';
   }
 
@@ -743,10 +767,10 @@
   function allocateAmount(amount, orders) {
     var remaining = Math.max(0, num(amount));
     return (orders || []).map(function (order) {
-      var debt = openDebt(order);
+      var debt = orderAvailableToCollect(order);
       var allocated = Math.min(debt, remaining);
       remaining -= allocated;
-      return { order: order, allocatedAmount: allocated, beforeDebt: debt };
+      return { order: order, allocatedAmount: allocated, beforeDebt: orderRemainingDebt(order), pendingCollectionAmount: orderPendingCollectionAmount(order), pendingCollectedAmount: orderPendingCollectionAmount(order), availableToCollect: debt };
     }).filter(function (row) { return row.allocatedAmount > 0; });
   }
 
@@ -754,17 +778,17 @@
     var box = byId('debtNewAllocationPreview');
     if (!box) return;
     var amountEl = byId('debtNewCollectionAmount');
-    var amount = num(amountEl ? amountEl.value : 0);
+    var amount = parseVndAmount(amountEl ? amountEl.value : 0);
     var selected = selectedDebtOrders(customer);
     var maxAmount = selected.reduce(function (sum, order) { return sum + openDebt(order); }, 0);
     var allocations = allocateAmount(amount, selected);
     var allocatedTotal = allocations.reduce(function (sum, row) { return sum + num(row.allocatedAmount); }, 0);
     var rows = allocations.map(function (row) {
-      return '<tr><td>' + esc(row.order.orderCode || row.order.orderId) + '</td><td class="new-money">' + money(row.beforeDebt) + '</td><td class="new-money">' + money(row.allocatedAmount) + '</td></tr>';
+      return '<tr><td>' + esc(row.order.orderCode || row.order.orderId) + '</td><td class="new-money">' + money(row.beforeDebt) + '</td><td class="new-money new-credit">' + money(row.pendingCollectedAmount) + '</td><td class="new-money">' + money(row.availableToCollect) + '</td><td class="new-money">' + money(row.allocatedAmount) + '</td></tr>';
     }).join('');
-    var warning = amount > maxAmount ? '<div class="debt-new-allocation-warning">Số tiền thu vượt tổng nợ đơn đã chọn.</div>' : '';
-    box.innerHTML = warning + '<table class="new-table"><thead><tr><th>Đơn</th><th>Còn nợ</th><th>Phân bổ</th></tr></thead><tbody>' + (rows || '<tr><td colspan="3">Chưa có phân bổ.</td></tr>') + '</tbody></table>' +
-      '<div class="new-safe-note">Tổng chọn: <b>' + money(maxAmount) + '</b> · Tổng phân bổ: <b>' + money(allocatedTotal) + '</b></div>';
+    var warning = amount > maxAmount ? '<div class="debt-new-allocation-warning">Số tiền thu vượt tổng còn được thu của các đơn đã chọn.</div>' : '';
+    box.innerHTML = warning + '<table class="new-table"><thead><tr><th>Đơn</th><th>Còn nợ</th><th>Đã báo thu chờ xác nhận</th><th>Còn có thể thu</th><th>Phân bổ</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5">Chưa có phân bổ.</td></tr>') + '</tbody></table>' +
+      '<div class="new-safe-note">Còn có thể thu đã chọn: <b>' + money(maxAmount) + '</b> · Tổng phân bổ: <b>' + money(allocatedTotal) + '</b></div>';
   }
 
   function renderCollectionForm(customer) {
@@ -793,7 +817,7 @@
   }
 
   function buildCollectionPayload(customer) {
-    var amount = num(byId('debtNewCollectionAmount') ? byId('debtNewCollectionAmount').value : 0);
+    var amount = parseVndAmount(byId('debtNewCollectionAmount') ? byId('debtNewCollectionAmount').value : 0);
     var method = byId('debtNewCollectionMethod') ? byId('debtNewCollectionMethod').value : 'cash';
     var note = byId('debtNewCollectionNote') ? byId('debtNewCollectionNote').value.trim() : '';
     var selected = selectedDebtOrders(customer);
@@ -806,7 +830,12 @@
         salesOrderId: row.order.orderId || row.order.salesOrderId || '',
         salesOrderCode: row.order.orderCode || row.order.salesOrderCode || '',
         orderType: row.order.orderType || 'sales_order',
-        allocatedAmount: row.allocatedAmount
+        allocatedAmount: row.allocatedAmount,
+        beforeDebt: row.beforeDebt,
+        remainingDebt: orderRemainingDebt(row.order),
+        pendingCollectionAmount: orderPendingCollectionAmount(row.order),
+        pendingCollectedAmount: row.pendingCollectedAmount,
+        availableToCollect: row.availableToCollect
       };
     });
     return {

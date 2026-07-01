@@ -11,8 +11,9 @@ const orchestrator = require('../src/services/import/ImportCommitOrchestrator');
 test('import handler registry contains every supported import type', () => {
   assert.deepEqual(orchestrator.supportedTypes().sort(), [
     'cashbook', 'customers', 'debtCollections', 'importOrders', 'openingDebt',
-    'openingStock', 'products', 'promotionGroupItems', 'promotionGroupRules',
-    'promotionProductRules', 'salesOrders', 'users'
+    'openingStock', 'products', 'promotionCustomerOrderValueDiscounts', 'promotionGroupItems',
+    'promotionGroupRules', 'promotionProductRules', 'promotionQuantityGroupDiscounts',
+    'salesOrders', 'users'
   ].sort());
 });
 

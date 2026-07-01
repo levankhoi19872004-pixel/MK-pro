@@ -8,7 +8,7 @@ const searchService = require('../searchService');
 let modelsForDebtNew = null;
 function getDebtNewModels() {
   if (modelsForDebtNew) return modelsForDebtNew;
-  modelsForDebtNew = { ArLedger: require('../../models/ArLedger') };
+  modelsForDebtNew = { ArLedger: require('../../models/ArLedger'), DebtCollection: require('../../models/DebtCollection') };
   return modelsForDebtNew;
 }
 
@@ -18,6 +18,7 @@ const ALLOWED_CATEGORIES = Object.freeze([
   'AR-DEBT-ADJUSTMENT',
   'AR-DEBT-VOID'
 ]);
+const PENDING_COLLECTION_STATUSES = Object.freeze(['submitted', 'under_review']);
 
 function setModelsForTest(nextModels) {
   modelsForDebtNew = nextModels || null;
@@ -160,6 +161,146 @@ function orderKey(row = {}) {
     return text(row.salesOrderId || row.orderId || row.salesOrderCode || row.orderCode || row.originalCloseoutId || row.newCloseoutId || row.sourceId || row.sourceCode || row.code || row.id);
   }
   return text(row.sourceId || row.salesOrderId || row.orderId || row.refId || row.sourceCode || row.salesOrderCode || row.orderCode || row.refCode || row.code || row.id);
+}
+
+function debtNewOrderKeys(row = {}) {
+  return Array.from(new Set([
+    row.orderCode,
+    row.salesOrderCode,
+    row.sourceCode,
+    row.refCode,
+    row.orderId,
+    row.salesOrderId,
+    row.sourceId,
+    row.refId,
+    row.id,
+    row.code,
+    row.orderKey
+  ].map(text).filter(Boolean)));
+}
+
+function pendingAllocationOrderKey(row = {}) {
+  return text(row.salesOrderCode || row.orderCode || row.sourceOrderCode || row.refCode || row.salesOrderId || row.orderId || row.sourceOrderId || row.refId || row.id || row.code);
+}
+
+function pendingAmountByOrder(rows = []) {
+  const byOrder = new Map();
+  const collectionsByOrder = new Map();
+  for (const collection of rows || []) {
+    const allocations = Array.isArray(collection.allocations) ? collection.allocations : [];
+    for (const allocation of allocations) {
+      const key = pendingAllocationOrderKey(allocation);
+      if (!key) continue;
+      const allocatedAmount = money(allocation.allocatedAmount ?? allocation.amount);
+      byOrder.set(key, money((byOrder.get(key) || 0) + allocatedAmount));
+      const current = collectionsByOrder.get(key) || [];
+      current.push({
+        id: text(collection.id || collection.code || collection._id),
+        code: text(collection.code || collection.id || collection._id),
+        status: text(collection.status),
+        amount: money(collection.amount),
+        allocatedAmount,
+        submittedAt: text(collection.submittedAt || collection.createdAt),
+        collectorCode: text(collection.collectorCode || collection.submittedByCode || collection.createdBy)
+      });
+      collectionsByOrder.set(key, current);
+    }
+  }
+  return { byOrder, collectionsByOrder };
+}
+
+function pendingAmountForDebtNewOrder(order = {}, pending = {}) {
+  for (const key of debtNewOrderKeys(order)) {
+    if (pending.byOrder && pending.byOrder.has(key)) return money(pending.byOrder.get(key));
+  }
+  return 0;
+}
+
+function pendingCollectionsForDebtNewOrder(order = {}, pending = {}) {
+  for (const key of debtNewOrderKeys(order)) {
+    const rows = pending.collectionsByOrder && pending.collectionsByOrder.get(key);
+    if (Array.isArray(rows) && rows.length) return rows;
+  }
+  return [];
+}
+
+async function attachCollectibleState(grouped = {}, pending = {}) {
+  const orders = Array.isArray(grouped.orders) ? grouped.orders : [];
+  for (const order of orders) {
+    const remainingDebt = Math.max(0, normalizeDebtAmount(order.remainingDebt ?? order.debt ?? order.debtAmount ?? 0, DEBT_ZERO_TOLERANCE));
+    const pendingCollectedAmount = pendingAmountForDebtNewOrder(order, pending);
+    const availableToCollect = Math.max(0, normalizeDebtAmount(remainingDebt - pendingCollectedAmount, DEBT_ZERO_TOLERANCE));
+    order.remainingDebt = remainingDebt;
+    order.debtAmount = normalizeDebtAmount(order.debtAmount ?? order.debt ?? remainingDebt, DEBT_ZERO_TOLERANCE);
+    order.pendingCollectionAmount = pendingCollectedAmount;
+    order.pendingCollectedAmount = pendingCollectedAmount;
+    order.availableToCollect = availableToCollect;
+    order.availableDebt = availableToCollect;
+    order.availableDebtAmount = availableToCollect;
+    order.collectionLocked = pendingCollectedAmount > 0;
+    order.collectible = availableToCollect > 0;
+    order.pendingCollections = pendingCollectionsForDebtNewOrder(order, pending);
+  }
+  for (const customer of grouped.customers || []) {
+    const customerOrders = Array.isArray(customer.orders) ? customer.orders : [];
+    const pendingCollectedAmount = customerOrders.reduce((sum, row) => sum + money(row.pendingCollectedAmount), 0);
+    const availableToCollect = customerOrders.reduce((sum, row) => sum + money(row.availableToCollect), 0);
+    customer.pendingCollectionAmount = pendingCollectedAmount;
+    customer.pendingCollectedAmount = pendingCollectedAmount;
+    customer.availableToCollect = availableToCollect;
+    customer.availableDebt = availableToCollect;
+    customer.availableDebtAmount = availableToCollect;
+    customer.collectionLocked = pendingCollectedAmount > 0;
+    customer.collectible = availableToCollect > 0;
+  }
+  if (grouped.summary) {
+    grouped.summary.pendingCollectionAmount = orders.reduce((sum, row) => sum + money(row.pendingCollectedAmount), 0);
+    grouped.summary.pendingCollectedAmount = grouped.summary.pendingCollectionAmount;
+    grouped.summary.availableToCollect = orders.reduce((sum, row) => sum + money(row.availableToCollect), 0);
+    grouped.summary.availableDebt = grouped.summary.availableToCollect;
+    grouped.summary.availableDebtAmount = grouped.summary.availableToCollect;
+  }
+  return grouped;
+}
+
+async function loadPendingCollectionsForOrders(orders = [], options = {}) {
+  const keys = Array.from(new Set((orders || []).flatMap(debtNewOrderKeys).filter(Boolean)));
+  if (!keys.length) return [];
+  const { DebtCollection } = getDebtNewModels();
+  if (!DebtCollection || typeof DebtCollection.find !== 'function') return [];
+  const filter = {
+    status: { $in: PENDING_COLLECTION_STATUSES },
+    allocations: {
+      $elemMatch: {
+        $or: [
+          { salesOrderCode: { $in: keys } },
+          { orderCode: { $in: keys } },
+          { sourceOrderCode: { $in: keys } },
+          { refCode: { $in: keys } },
+          { salesOrderId: { $in: keys } },
+          { orderId: { $in: keys } },
+          { sourceOrderId: { $in: keys } },
+          { refId: { $in: keys } }
+        ]
+      }
+    }
+  };
+  let query = DebtCollection.find(filter);
+  if (query && typeof query.limit === 'function') query = query.limit(5000);
+  const scoped = options.session && query && typeof query.session === 'function' ? query.session(options.session) : query;
+  return scoped && typeof scoped.lean === 'function' ? scoped.lean() : scoped;
+}
+
+function pendingForDebtNewOrder(order = {}, pending = {}) {
+  return pendingAmountForDebtNewOrder(order, pending);
+}
+
+function attachPendingCollectionState(grouped = {}, pending = {}) {
+  return attachCollectibleState(grouped, pending);
+}
+
+function loadPendingDebtCollectionsForOrders(orders = [], options = {}) {
+  return loadPendingCollectionsForOrders(orders, options);
 }
 
 function normalizeLedger(row = {}) {
@@ -335,6 +476,8 @@ async function listCustomers(query = {}, options = {}) {
     status: 'all'
   }, options);
   const grouped = groupLedgers(ledgerRows, normalizedQuery);
+  const pendingRows = await loadPendingCollectionsForOrders(grouped.orders || [], options).catch(() => []);
+  await attachCollectibleState(grouped, pendingAmountByOrder(pendingRows));
   return {
     ...grouped,
     diagnostics: {
@@ -377,7 +520,7 @@ async function customerDetail(query = {}, options = {}) {
     customer,
     debtOrders: customer ? (customer.orders || []) : [],
     movements,
-    pendingCollections: [],
+    pendingCollections: customer ? Array.from(new Map((customer.orders || []).flatMap((order) => order.pendingCollections || []).map((row) => [row.id || row.code, row])).values()) : [],
     diagnostics: {
       source: 'debt-new-detail-ar-debt-read-model',
       endpoint: '/api/new/debt/customers/:customerCode/detail',
@@ -613,5 +756,5 @@ module.exports = {
   customerDetail,
   suggestions,
   setModelsForTest,
-  _private: { normalizeLedger, orderKey, hasSearchCriteria, emptyListResult, emptySummary, emptySuggestionResult, suggestionLimit, staffSuggestionLimit, allowEmptySuggestion, findSuggestionLedgers }
+  _private: { normalizeLedger, orderKey, debtNewOrderKeys, pendingAmountByOrder, attachPendingCollectionState, loadPendingDebtCollectionsForOrders, hasSearchCriteria, emptyListResult, emptySummary, emptySuggestionResult, suggestionLimit, staffSuggestionLimit, allowEmptySuggestion, findSuggestionLedgers }
 };

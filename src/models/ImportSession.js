@@ -28,7 +28,9 @@ const ImportSessionSchema = new mongoose.Schema({
       'cashbook',
       'promotionProductRules',
       'promotionGroupItems',
-      'promotionGroupRules'
+      'promotionGroupRules',
+      'promotionQuantityGroupDiscounts',
+      'promotionCustomerOrderValueDiscounts'
     ]
   },
 
