@@ -209,10 +209,10 @@ async function importPromotionProductRules(rows = []) {
     if (!programCode) { skipped += 1; errors.push({ row: rowNo, productCode, error: 'Thiếu mã chương trình' }); continue; }
     if (!programName) { skipped += 1; errors.push({ row: rowNo, productCode, error: 'Thiếu nội dung chương trình' }); continue; }
     if (!productCode) { skipped += 1; errors.push({ row: rowNo, productCode, error: 'Thiếu mã sản phẩm' }); continue; }
+    if (!product) { skipped += 1; errors.push({ row: rowNo, productCode, error: `Mã sản phẩm ${productCode} chưa có trong danh mục` }); continue; }
     if (toNumber(payload.discountPercent) < 0) { skipped += 1; errors.push({ row: rowNo, productCode, error: 'Chiết khấu không được âm' }); continue; }
 
-    const productName = cleanText(product?.name || payload.productName || '');
-    if (!product) warnings.push({ row: rowNo, productCode, warning: `Mã sản phẩm ${productCode} chưa có trong danh mục` });
+    const productName = cleanText(product.name || payload.productName || '');
 
     const id = cleanText(payload.id) || `${programCode}__${productCode}`;
     const doc = {
@@ -238,7 +238,16 @@ async function importPromotionProductRules(rows = []) {
   }
   const imported = ops.length;
   await addImportLog('promotionProductRules', { imported, skipped, errors: errors.slice(0, 50), warnings: warnings.slice(0, 50) });
-  return { imported, skipped, errors, warnings, message: `Đã import nhanh ${imported} dòng CK sản phẩm bằng bulkWrite${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
+  return {
+    imported,
+    skipped,
+    errors,
+    warnings,
+    partialImport: skipped > 0 && imported > 0,
+    message: imported > 0 && skipped > 0
+      ? `Đã import ${imported} dòng CK sản phẩm hợp lệ, bỏ qua ${skipped} dòng lỗi`
+      : `Đã import nhanh ${imported} dòng CK sản phẩm bằng bulkWrite${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}`
+  };
 }
 
 async function importPromotionGroupItems(rows = []) {

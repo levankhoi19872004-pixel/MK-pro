@@ -97,3 +97,48 @@ test('import preview normalizes mojibake uploaded file names before rows reach t
   assert.match(runner, /function normalizePreviewFileName/);
   assert.match(runner, /const currentFileName = normalizePreviewFileName/);
 });
+
+test('promotion product rule preview treats missing catalog products as blocking errors', () => {
+  const source = read('src/services/import/preview/importPreview.impl.js');
+  const branch = source.slice(source.indexOf("type === 'promotionProductRules'"), source.indexOf("type === 'promotionGroupItems'"));
+
+  assert.match(branch, /if \(item\.missingProduct\) item\.errors\.push\(PROMOTION_MISSING_PRODUCT_ERROR\)/);
+  assert.doesNotMatch(branch, /item\.warnings\.push\('Mã sản phẩm chưa có trong danh mục'\)/);
+  assert.match(branch, /item\.productMatched = Boolean\(product\)/);
+  assert.match(branch, /item\.missingProduct = Boolean\(item\.productCode && !product\)/);
+  assert.match(branch, /return finalizePromotionGroupItemPreview\(item\)/);
+});
+
+test('promotion product resolver maps every catalog code alias back to requested Excel code', () => {
+  const rowUtil = read('src/services/import/core/importRow.util.js');
+
+  assert.match(rowUtil, /const PROMOTION_PRODUCT_CODE_FIELDS = \[/);
+  for (const field of ['code', 'productCode', 'sku', 'barcode', 'dmsCode', 'sapCode', 'unileverCode']) {
+    assert.match(rowUtil, new RegExp(`'${field}'`), `${field} must be considered for promotion product lookup`);
+  }
+  assert.match(rowUtil, /function normalizePromotionProductCode/);
+  assert.match(rowUtil, /scientific notation/);
+  assert.match(rowUtil, /function addPromotionProductMapAlias/);
+  assert.match(rowUtil, /for \(const field of PROMOTION_PRODUCT_CODE_FIELDS\)/);
+  assert.match(rowUtil, /addPromotionProductMapAlias\(map, product\[field\], product\)/);
+});
+
+test('promotion product rule commit rejects missing catalog products fail-closed', () => {
+  const source = read('src/services/import/operations/adminImport.impl.js');
+  const branch = source.slice(source.indexOf('async function importPromotionProductRules'), source.indexOf('async function importPromotionGroupItems'));
+
+  assert.match(branch, /if \(!product\) \{ skipped \+= 1; errors\.push\(\{ row: rowNo, productCode, error: `Mã sản phẩm \$\{productCode\} chưa có trong danh mục` \}\); continue; \}/);
+  assert.doesNotMatch(branch, /warnings\.push\(\{ row: rowNo, productCode, warning: `Mã sản phẩm \$\{productCode\} chưa có trong danh mục` \}\)/);
+  assert.match(branch, /partialImport: skipped > 0 && imported > 0/);
+  assert.match(branch, /Đã import \$\{imported\} dòng CK sản phẩm hợp lệ, bỏ qua \$\{skipped\} dòng lỗi/);
+});
+
+test('promotion import preview exposes missing product summary for large CK files', () => {
+  const source = read('src/services/import/preview/importPreview.impl.js');
+
+  assert.match(source, /function aggregateMissingPromotionProducts/);
+  assert.match(source, /missingProducts/);
+  assert.match(source, /rowNos/);
+  assert.match(source, /programCodes/);
+  assert.match(source, /missingProductCount/);
+});

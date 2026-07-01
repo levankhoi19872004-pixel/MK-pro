@@ -436,16 +436,80 @@ async function preloadPromotionCustomersByCode(rows = []) {
   return new Map(customers.map((c) => [cleanText(c.code || c.customerCode || c.id), c]));
 }
 
+const PROMOTION_PRODUCT_CODE_FIELDS = [
+  'code',
+  'productCode',
+  'sku',
+  'barcode',
+  'dmsCode',
+  'sapCode',
+  'unileverCode',
+  'itemCode',
+  'itemNo',
+  'materialCode',
+  'materialNumber'
+];
+
+function normalizePromotionProductCode(value) {
+  let text = cleanText(value);
+  if (!text) return '';
+  text = text.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+  // Excel sometimes serializes long numeric product codes as scientific notation.
+  // Convert only plain integer scientific notation; keep text values such as 00012345 intact.
+  if (/^[+-]?\d+(?:\.\d+)?e[+-]?\d+$/i.test(text)) {
+    const numeric = Number(text);
+    if (Number.isFinite(numeric) && Number.isInteger(numeric) && numeric >= 0) {
+      text = String(numeric);
+    }
+  }
+  return text;
+}
+
+function getPromotionProductCodeFromRow(row = {}) {
+  return normalizePromotionProductCode(
+    row.productCode ||
+    row['Mã sản phẩm'] ||
+    row['Ma san pham'] ||
+    get(row, ['mã sản phẩm', 'ma san pham', 'productCode'])
+  );
+}
+
+function addPromotionProductMapAlias(map, value, product) {
+  const key = normalizePromotionProductCode(value);
+  if (key && product && !map.has(key)) map.set(key, product);
+}
+
+function promotionProductLookupClauses(codes = []) {
+  const textValues = Array.from(new Set((codes || []).map(normalizePromotionProductCode).filter(Boolean)));
+  const numericValues = Array.from(new Set(
+    textValues
+      .filter((value) => /^\d+$/.test(value) && Number.isSafeInteger(Number(value)))
+      .map(Number)
+  ));
+  const clauses = [];
+  for (const field of PROMOTION_PRODUCT_CODE_FIELDS) {
+    if (textValues.length) clauses.push({ [field]: { $in: textValues } });
+    if (numericValues.length) clauses.push({ [field]: { $in: numericValues } });
+  }
+  return clauses;
+}
+
 async function preloadPromotionProductsByCode(rows = []) {
-  const codes = Array.from(new Set(rows.map((row) => cleanText(row.productCode || row['Mã sản phẩm'] || row['Ma san pham'] || get(row, ['mã sản phẩm', 'ma san pham', 'productCode']))).filter(Boolean)));
+  const codes = Array.from(new Set((rows || []).map(getPromotionProductCodeFromRow).filter(Boolean)));
   if (!codes.length) return new Map();
-  const products = await Product.find({ $or: [{ code: { $in: codes } }, { productCode: { $in: codes } }, { sku: { $in: codes } }, { barcode: { $in: codes } }] }).lean();
-  return new Map(products.map((p) => [cleanText(p.code || p.productCode || p.sku || p.barcode), p]));
+  const products = await Product.find({ $or: promotionProductLookupClauses(codes) }).lean();
+  const map = new Map();
+  for (const product of products || []) {
+    for (const field of PROMOTION_PRODUCT_CODE_FIELDS) {
+      addPromotionProductMapAlias(map, product[field], product);
+    }
+  }
+  return map;
 }
 
 function pickPromotionProductRulePayload(row = {}) {
-  const programCode = cleanText(row.programCode || row.code || row['Mã chương trình'] || row['Ma chuong trinh'] || row['Mã CTKM'] || row['Ma CTKM'] || row['Mã chương trình KM'] || row['Ma chuong trinh KM']);
-  const productCode = cleanText(row.productCode || row['Mã sản phẩm'] || row['Ma san pham']);
+  const programCode = cleanText(row.programCode || row.code || row['Mã chương trình'] || row['Ma chuong trinh'] || row['Mã CTKM'] || row['Ma CTKM'] || row['Mã nhóm/CTKM'] || row['Ma nhom/CTKM'] || row['Mã chương trình KM'] || row['Ma chuong trinh KM']);
+  const productCode = getPromotionProductCodeFromRow(row);
   return {
     ...rowBase(row),
     programCode,
@@ -462,8 +526,8 @@ function pickPromotionProductRulePayload(row = {}) {
 function pickPromotionGroupItemPayload(row = {}) {
   return {
     ...rowBase(row),
-    programCode: cleanText(row.programCode || row.groupCode || row.code || row['Mã chương trình KM'] || row['Ma chuong trinh KM'] || row['Mã chương trình'] || row['Ma chuong trinh'] || row['Mã nhóm sản phẩm'] || row['Ma nhom san pham']),
-    productCode: cleanText(row.productCode || row['Mã sản phẩm'] || row['Ma san pham']),
+    programCode: cleanText(row.programCode || row.groupCode || row.code || row['Mã chương trình KM'] || row['Ma chuong trinh KM'] || row['Mã chương trình'] || row['Ma chuong trinh'] || row['Mã nhóm sản phẩm'] || row['Ma nhom san pham'] || row['Mã nhóm/CTKM'] || row['Ma nhom/CTKM']),
+    productCode: getPromotionProductCodeFromRow(row),
     productName: cleanText(row.productName || row['Tên sản phẩm'] || row['Ten san pham'])
   };
 }
@@ -480,8 +544,8 @@ function pickPromotionGroupRulePayload(row = {}) {
 }
 
 function pickPromotionQuantityGroupDiscountPayload(row = {}) {
-  const programCode = cleanText(row.programCode || row.code || row['Mã chương trình KM'] || row['Ma chuong trinh KM'] || row['Mã chương trình'] || row['Ma chuong trinh'] || row['Mã CTKM'] || row['Ma CTKM']).toUpperCase();
-  const productCode = cleanText(row.productCode || row['Mã sản phẩm'] || row['Ma san pham']);
+  const programCode = cleanText(row.programCode || row.code || row['Mã chương trình KM'] || row['Ma chuong trinh KM'] || row['Mã chương trình'] || row['Ma chuong trinh'] || row['Mã CTKM'] || row['Ma CTKM'] || row['Mã nhóm/CTKM'] || row['Ma nhom/CTKM']).toUpperCase();
+  const productCode = getPromotionProductCodeFromRow(row);
   return {
     ...rowBase(row),
     programCode,

@@ -117,11 +117,38 @@ function finalizePromotionGroupItemPreview(item) {
   return item;
 }
 
+function aggregateMissingPromotionProducts(rows = []) {
+  const grouped = new Map();
+  for (const row of rows || []) {
+    if (!row || row.missingProduct !== true) continue;
+    const productCode = cleanText(row.productCode);
+    if (!productCode) continue;
+    if (!grouped.has(productCode)) {
+      grouped.set(productCode, {
+        productCode,
+        productName: cleanText(row.productName),
+        rowNos: [],
+        programCodes: []
+      });
+    }
+    const item = grouped.get(productCode);
+    const rowNo = Number(row.sourceRowNo || row.rowNo || 0);
+    if (rowNo && !item.rowNos.includes(rowNo)) item.rowNos.push(rowNo);
+    const programCode = cleanText(row.programCode || row.groupCode);
+    if (programCode && !item.programCodes.includes(programCode)) item.programCodes.push(programCode);
+    if (!item.productName && row.productName) item.productName = cleanText(row.productName);
+  }
+  return Array.from(grouped.values())
+    .sort((a, b) => a.productCode.localeCompare(b.productCode))
+    .slice(0, 500);
+}
+
 function buildPreviewSummary(type, result = []) {
   const safe = Array.isArray(result) ? result : [];
   const validRows = safe.filter((row) => row && row.valid).length;
   const invalidRows = safe.length - validRows;
   const missingProductCount = safe.filter((row) => row && row.missingProduct === true).length;
+  const missingProducts = aggregateMissingPromotionProducts(safe);
   return {
     type,
     rows: safe,
@@ -138,6 +165,7 @@ function buildPreviewSummary(type, result = []) {
       invalidRows,
       errorRows: invalidRows,
       missingProductCount,
+      missingProducts,
       skippedCount: invalidRows
     }
   };
@@ -531,16 +559,16 @@ async function previewMongoNative(type, rows = [], options = {}) {
       if (!item.programCode) item.errors.push('Thiếu mã chương trình');
       if (!item.programName) item.errors.push('Thiếu nội dung chương trình');
       if (!item.productCode) item.errors.push('Thiếu mã sản phẩm');
-      if (item.productCode && !product) item.warnings.push('Mã sản phẩm chưa có trong danh mục');
       item.productMatched = Boolean(product);
       item.missingProduct = Boolean(item.productCode && !product);
+      if (item.missingProduct) item.errors.push(PROMOTION_MISSING_PRODUCT_ERROR);
       item.source = item.source || 'excel-import';
       if (product) item.productName = cleanText(product.name || item.productName);
       if (toNumber(item.discountPercent) < 0) item.errors.push('Chiết khấu không được âm');
       const key = `${item.programCode}__${item.productCode}`;
       if (seen.has(key)) item.errors.push('Trùng mã chương trình + mã sản phẩm trong file');
       seen.add(key);
-      return { ...item, valid: item.errors.length === 0 };
+      return finalizePromotionGroupItemPreview(item);
     });
   } else if (type === 'promotionGroupItems') {
     const payloads = safeRows.map(pickPromotionGroupItemPayload);
