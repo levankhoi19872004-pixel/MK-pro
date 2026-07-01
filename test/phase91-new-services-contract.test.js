@@ -118,7 +118,7 @@ test('Delivery Today New backend returns guarded empty result only when no searc
 
   const result = await deliveryTodayNewService.listOrders({});
   assert.equal(deliveryTodayNewService.hasSearchCriteria({}), false);
-  assert.equal(deliveryTodayNewService.hasSearchCriteria({ date: '2026-06-30', deliveryDateChangedByUser: '0' }), true);
+  assert.equal(deliveryTodayNewService.hasSearchCriteria({ date: '2026-06-30', deliveryDateChangedByUser: '0' }), false);
   assert.equal(deliveryTodayNewService.hasSearchCriteria({ delivery: 'ghkx' }), true);
   assert.equal(deliveryListCalled, false);
   assert.equal(salesOrderFindCalled, false);
@@ -210,7 +210,7 @@ test('Delivery Today New filter fields are wired with autocomplete suggestion bo
 });
 
 
-test('Delivery Today New UI uses full-width filter layout and treats delivery date as valid criteria', () => {
+test('Delivery Today New UI uses full-width filter layout and does not treat delivery date alone as valid criteria', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const source = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/new/91-delivery-today-new.js'), 'utf8');
@@ -221,8 +221,9 @@ test('Delivery Today New UI uses full-width filter layout and treats delivery da
   assert.match(source, /delivery-new-filter-bar/);
   assert.match(source, /delivery-new-filter-actions/);
   assert.match(source, /delivery-new-filter-search\{min-width:280px/);
-  assert.match(source, /return Boolean\(f\.date \|\| f\.q \|\| f\.delivery \|\| f\.salesman\)/);
-  assert.match(source, /Chưa có đơn giao trong ngày/);
+  assert.match(source, /freeText\.length >= 2/);
+  assert.match(source, /normalizedText\(f\.deliveryStaffCode\)/);
+  assert.doesNotMatch(source, /return Boolean\(f\.date \|\| f\.q \|\| f\.delivery \|\| f\.salesman\)/);
   assert.doesNotMatch(source, /Vui lòng nhập ít nhất một điều kiện tìm kiếm/);
   const initBody = source.slice(source.indexOf('function initWhenTabActive'), source.indexOf('document.addEventListener', source.indexOf('function initWhenTabActive')));
   assert.doesNotMatch(initBody, /load\(\)/);

@@ -110,8 +110,7 @@ function hasSearchCriteria(query = {}) {
   const q = text(query.q || query.search || query.keyword || query.orderCode || query.customerCode || query.customerName);
   const delivery = text(query.delivery || query.deliveryStaffCode || query.deliveryStaff || query.nvgh);
   const salesman = text(query.salesman || query.salesStaffCode || query.salesStaff || query.nvbh);
-  const deliveryDate = dateOnly(query.date || query.deliveryDate || query.orderDate);
-  return Boolean(q || delivery || salesman || deliveryDate);
+  return Boolean(q.length >= 2 || delivery || salesman);
 }
 
 function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {
@@ -119,11 +118,15 @@ function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {
     rows: [],
     orders: [],
     summary: summarizeRows([]),
+    groups: [],
+    requireFilter: true,
+    message: 'Chọn NVGH, NVBH hoặc nhập tìm kiếm để tải đơn.',
     diagnostics: {
       source: 'delivery-today-new-v2-guarded-empty',
       endpoint: '/api/new/delivery-today/orders',
       reason,
       searchCriteriaRequired: true,
+      requireFilter: true,
       hasSearchCriteria: hasSearchCriteria(query),
       writePolicy: 'read-only list; closeout must use POST /api/new/delivery-today/closeout; confirmed orders require DeliveryCloseoutCorrectionService; latest correction comes from deliveryCloseoutVersions',
       debtZeroTolerance: DEBT_ZERO_TOLERANCE,
@@ -653,6 +656,57 @@ function summarizeRows(rows = []) {
   });
 }
 
+
+function salesmanGroupKey(row = {}) {
+  return text(row.salesStaffCode || row.salesmanCode || row.nvbhCode || row.salesStaffName || row.salesmanName || row.nvbhName || 'UNKNOWN_NVBH');
+}
+
+function summarizeGroups(rows = []) {
+  const map = new Map();
+  for (const row of rows) {
+    const key = salesmanGroupKey(row);
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        salesStaffCode: text(row.salesStaffCode || row.salesmanCode || row.nvbhCode),
+        salesStaffName: text(row.salesStaffName || row.salesmanName || row.nvbhName),
+        deliveryStaffCode: text(row.deliveryStaffCode || row.deliveryCode || row.nvghCode),
+        deliveryStaffName: text(row.deliveryStaffName || row.deliveryName || row.nvghName),
+        orderCount: 0,
+        totals: {
+          originalAmount: 0,
+          receivableAmount: 0,
+          cashAmount: 0,
+          bankAmount: 0,
+          transferAmount: 0,
+          rewardAmount: 0,
+          offsetAmount: 0,
+          returnedAmount: 0,
+          returnAmount: 0,
+          finalDebtAmount: 0,
+          debtAmount: 0
+        },
+        orders: []
+      });
+    }
+    const group = map.get(key);
+    group.orderCount += 1;
+    group.totals.originalAmount += money(row.originalAmount);
+    group.totals.receivableAmount += money(row.originalAmount);
+    group.totals.cashAmount += money(row.cashAmount);
+    group.totals.bankAmount += money(row.bankAmount);
+    group.totals.transferAmount += money(row.bankAmount);
+    group.totals.rewardAmount += money(row.rewardAmount);
+    group.totals.offsetAmount += money(row.offsetAmount);
+    group.totals.returnedAmount += money(row.returnedAmount);
+    group.totals.returnAmount += money(row.returnedAmount);
+    group.totals.finalDebtAmount += money(row.finalDebtAmount);
+    group.totals.debtAmount += money(row.finalDebtAmount);
+    group.orders.push(row);
+  }
+  return Array.from(map.values()).sort((a, b) => String(a.salesStaffCode || a.salesStaffName || a.key).localeCompare(String(b.salesStaffCode || b.salesStaffName || b.key), 'vi'));
+}
+
 async function listOrders(query = {}, options = {}) {
   if (!hasSearchCriteria(query)) {
     return emptyListResult(query);
@@ -665,10 +719,15 @@ async function listOrders(query = {}, options = {}) {
   const returnsByKey = await loadReturnsForOrders(orders, options);
   const versionsByKey = await loadLatestVersionsForOrders(orders, options);
   const rows = orders.map((order) => summarizeOrder(order, returnsByKey, versionsByKey));
+  const summary = summarizeRows(rows);
+  const groups = summarizeGroups(rows);
   return {
     rows,
     orders: rows,
-    summary: summarizeRows(rows),
+    summary,
+    totals: summary,
+    groups,
+    requireFilter: false,
     diagnostics: {
       source: deliveryOrders.length || !useSalesOrderFallback
         ? 'delivery-today-new-v2-delivery-operational-list + returnOrders + correction-versions'
@@ -679,6 +738,7 @@ async function listOrders(query = {}, options = {}) {
       deliverySourceApplied: Boolean(deliveryOrders.length || !useSalesOrderFallback),
       fallbackEnabled: useSalesOrderFallback,
       hasSearchCriteria: hasSearchCriteria(query),
+      requireFilter: false,
       matchKeys: Object.keys(buildOrderMatch(query))
     }
   };
@@ -927,6 +987,7 @@ module.exports = {
   buildOrderMatch,
   summarizeOrder,
   summarizeRows,
+  summarizeGroups,
   setModelsForTest,
   setDeliveryListServiceForTest,
   _private: { money, suggestionLimit, staffSuggestionLimit, allowEmptySuggestion, emptySuggestionResult, normalizeDebtAmount, calculateDeliveryDebtAmount, DEBT_ZERO_TOLERANCE, truthyFlag, hasSearchCriteria, emptyListResult, normalizeQty, normalizeOrderItem, compactOrderItems, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }

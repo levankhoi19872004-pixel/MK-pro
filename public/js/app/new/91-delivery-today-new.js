@@ -3,7 +3,7 @@
 
   var rootId = 'deliveryTodayNewRoot';
   var state = {
-    rows: [], selectedIndex: -1, loaded: false, hasSearched: false, userTouchedFilters: false, deliveryDateTouched: false,
+    rows: [], selectedIndex: -1, loaded: false, hasSearched: false, userTouchedFilters: false, deliveryDateTouched: false, loadRequestSeq: 0,
     selectedFilters: { orderCode: '', customerCode: '', salesStaffCode: '', deliveryStaffCode: '' },
     suggest: {
       timers: {},
@@ -93,7 +93,7 @@
         '</div>' +
         '<p id="deliveryTodayNewMessage" class="message delivery-new-filter-message"></p>' +
       '</section>' +
-      '<section id="deliveryTodayNewEmptyState" class="card delivery-new-empty-state"><b>Chưa có dữ liệu hiển thị.</b><span>Bấm Tải đơn để xem đơn giao theo ngày đã chọn.</span></section>' +
+      '<section id="deliveryTodayNewEmptyState" class="card delivery-new-empty-state"><b>Chưa có dữ liệu hiển thị.</b><span>Chọn NVGH, NVBH hoặc nhập mã đơn / khách hàng rồi bấm Tải đơn để xem danh sách.</span></section>' +
       '<section class="delivery-v46-kpis delivery-new-kpis" aria-label="KPI Đơn giao hôm nay New">' +
         '<div class="delivery-v46-kpi kpi-pt"><span>Phải thu</span><b id="deliveryTodayNewOriginal">0</b></div>' +
         '<div class="delivery-v46-kpi kpi-tm"><span>Tiền mặt</span><b id="deliveryTodayNewCash">0</b></div>' +
@@ -135,6 +135,8 @@
         state.deliveryDateTouched = true;
         state.userTouchedFilters = true;
         updateClearButtons();
+        resetResultsState('Ngày giao đã đổi. Chọn NVGH, NVBH hoặc nhập mã đơn / khách hàng rồi bấm Tải đơn.');
+        setMessage('Ngày giao đã đổi. Bấm Tải đơn để cập nhật dữ liệu theo bộ lọc.');
       });
     }
     var loadButton = byId('deliveryTodayNewLoad');
@@ -159,7 +161,7 @@
     document.addEventListener('click', function (event) {
       if (!event.target || !event.target.closest || !event.target.closest('.delivery-v46-filter-suggest')) closeAllSuggestions();
     });
-    resetResultsState('Bấm Tải đơn để xem đơn giao theo ngày đã chọn.');
+    resetResultsState('Chọn NVGH, NVBH hoặc nhập mã đơn / khách hàng rồi bấm Tải đơn để xem danh sách.');
     return root;
   }
 
@@ -171,6 +173,7 @@
       '.delivery-new-header.delivery-v46-header{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:12px;}.delivery-new-header-top{display:flex;align-items:center;justify-content:space-between;gap:12px;}.delivery-new-title-block h2{margin:0;}.delivery-new-flow-help{position:relative;margin-left:auto;}.delivery-new-flow-help summary{list-style:none;width:30px;height:30px;border-radius:999px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-weight:900;cursor:pointer;user-select:none;}.delivery-new-flow-help summary::-webkit-details-marker{display:none;}.delivery-new-flow-help div{position:absolute;right:0;top:38px;z-index:30;width:min(420px,70vw);padding:10px 12px;border:1px solid #bfdbfe;border-radius:12px;background:#fff;box-shadow:0 14px 30px rgba(15,23,42,.14);color:#334155;}.delivery-new-flow-help div b{display:block;margin-bottom:4px;color:#0f172a;}.delivery-new-flow-help div span{display:block;font-size:12px;line-height:1.4;}.delivery-new-filter-bar.delivery-v46-filters{display:grid;width:100%;grid-template-columns:minmax(140px,160px) minmax(200px,240px) minmax(200px,240px) minmax(280px,1fr) minmax(238px,auto);gap:10px;align-items:end;margin-top:0;}.delivery-new-filter-bar label{min-width:0;}.delivery-new-filter-search{min-width:280px;}.delivery-new-filter-actions{display:flex;gap:8px;align-items:end;justify-content:flex-end;min-width:238px;}.delivery-new-filter-actions button{height:38px;white-space:nowrap;}.delivery-new-filter-actions #deliveryTodayNewLoad{min-width:120px;}.delivery-new-filter-actions #deliveryTodayNewReset{min-width:108px;}.delivery-new-filter-message{margin:0;min-height:0;}.delivery-new-filter-message:empty{display:none;}@media(max-width:1280px){.delivery-new-filter-bar.delivery-v46-filters{grid-template-columns:minmax(140px,160px) minmax(200px,1fr) minmax(200px,1fr);}.delivery-new-filter-search{grid-column:1 / 3;}.delivery-new-filter-actions{grid-column:3 / 4;min-width:238px;}}@media(max-width:900px){.delivery-new-filter-bar.delivery-v46-filters{grid-template-columns:1fr 1fr;}.delivery-new-filter-date,.delivery-new-filter-delivery,.delivery-new-filter-salesman,.delivery-new-filter-search,.delivery-new-filter-actions{grid-column:auto;}.delivery-new-filter-search,.delivery-new-filter-actions{grid-column:1 / -1;}.delivery-new-filter-actions{justify-content:flex-end;}}@media(max-width:640px){.delivery-new-filter-bar.delivery-v46-filters{grid-template-columns:1fr;}.delivery-new-filter-date,.delivery-new-filter-delivery,.delivery-new-filter-salesman,.delivery-new-filter-search,.delivery-new-filter-actions{grid-column:1 / -1;}.delivery-new-filter-actions{justify-content:stretch;min-width:0;}.delivery-new-filter-actions button{flex:1;min-width:0;}}' +
       '.delivery-new-main-list{display:block;}.delivery-v46-filters .filter-input-wrap{position:relative;width:100%;}.delivery-v46-filters .filter-input-wrap input,.delivery-v46-filters .filter-input-wrap select{padding-right:34px;box-sizing:border-box;}.delivery-v46-filters .filter-clear-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:22px;height:22px;border:0;border-radius:999px;background:transparent;color:#64748b;cursor:pointer;font-size:17px;line-height:20px;font-weight:900;z-index:3;}.delivery-v46-filters .filter-clear-btn:hover{color:#ef4444;background:#fee2e2;}.delivery-v46-filters .filter-clear-btn[hidden]{display:none!important;}.delivery-new-list-panel-full{width:100%;}.delivery-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.delivery-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.delivery-new-empty-state span{display:block;color:#64748b;font-weight:700;}.delivery-new-results-hidden{display:none!important;}.delivery-new-salesman-panel{margin:12px 0;padding:0;overflow:hidden;}.delivery-new-salesman-empty{padding:14px;color:#64748b;text-align:center;border:1px dashed #cbd5e1;border-radius:12px;}.delivery-new-salesman-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-header h3{margin:0;font-size:15px;}.delivery-new-salesman-header small{display:inline-block;margin-left:8px;color:#475569;}.delivery-new-salesman-row{display:grid;grid-template-columns:minmax(240px,1.4fr) 70px repeat(6,1fr);gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-row:last-child{border-bottom:0;}.delivery-new-salesman-check{display:flex;align-items:center;gap:8px;font-weight:800;}.delivery-new-salesman-check input{width:16px;height:16px;}.delivery-new-salesman-row .muted{font-size:11px;color:#64748b;}.delivery-new-salesman-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-orders-toolbar{align-items:center;gap:12px;}.delivery-new-selection-count{font-weight:800;color:#475569;white-space:nowrap;}.delivery-new-closeout-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.delivery-new-closeout-toolbar .secondary{padding:7px 10px;border-radius:10px;}.delivery-new-closeout-btn[disabled]{opacity:.55;cursor:not-allowed;}.delivery-new-closeout-warning{padding:10px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-weight:800;margin:10px 0;}.delivery-new-orders-table{overflow-x:auto;border-top:1px solid #dbe7f5;}.delivery-new-order-grid{display:grid;grid-template-columns:32px minmax(260px,2fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(132px,.9fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(110px,.8fr) minmax(110px,.8fr);gap:10px;align-items:center;min-width:1320px;}.delivery-new-orders-header{position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:1px solid #dbe7f5;padding:8px 12px;color:#334155;font-size:12px;font-weight:900;letter-spacing:.01em;}.delivery-new-order-row{padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-order-row.selected{background:#eff6ff;}.delivery-new-order-cell{min-width:0;}.delivery-new-order-checkbox-cell{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox-cell input{width:16px;height:16px;accent-color:#2563eb;}.delivery-new-order-customer-cell{text-align:left;min-width:0;}.delivery-new-money-cell{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:900;}.delivery-new-status-cell{text-align:center;display:flex;justify-content:center;align-items:center;}.delivery-new-action-cell{text-align:right;display:flex;justify-content:flex-end;align-items:center;}.delivery-new-row-action button{padding:7px 10px;border-radius:10px;}.delivery-new-order-checkbox{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox input{width:16px;height:16px;accent-color:#2563eb;}' +
       '.delivery-new-row:hover{background:#eff6ff;}' +
+      '.delivery-new-kpi-legend{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid #dbe7f5;border-radius:12px;background:#f8fafc;color:#334155;font-size:12px;font-weight:800;}.delivery-new-kpi-legend b{color:#0f172a;}.delivery-new-kpi-legend span{display:inline-flex;gap:8px;flex-wrap:wrap;}.delivery-new-kpi-legend small{color:#64748b;font-weight:800;}.delivery-new-salesman-order-group{border-bottom:1px solid #dbe7f5;background:#fff;}.delivery-new-salesman-order-group:last-child{border-bottom:0;}.delivery-new-salesman-title-row{display:grid;grid-template-columns:minmax(280px,1.1fr) minmax(520px,1.9fr);gap:10px;align-items:center;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-title-check{display:flex;align-items:center;gap:8px;font-weight:900;color:#0f172a;min-width:0;}.delivery-new-salesman-title-check input{width:16px;height:16px;accent-color:#2563eb;}.delivery-new-salesman-title-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.delivery-new-group-kpis{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;font-size:12px;font-weight:900;font-variant-numeric:tabular-nums;}.delivery-new-group-kpis span{white-space:nowrap;color:#0f172a;}.delivery-new-group-kpis .delivery-new-return{color:#078b20;}.delivery-new-group-kpis .delivery-new-debt{color:#e11d24;}.delivery-new-group-kpis .delivery-new-zero{color:#0f8a35;}.delivery-new-group-hidden{padding:9px 12px;color:#64748b;font-weight:800;background:#fff;}@media(max-width:980px){.delivery-new-salesman-title-row{grid-template-columns:1fr;}.delivery-new-group-kpis{justify-content:flex-start;}}' +
       '.delivery-new-row b{font-weight:800;}.delivery-new-row small{display:block;color:#334155;margin-top:3px;}' +
       '.delivery-new-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}' +
       '.delivery-new-return{color:#078b20;}.delivery-new-debt{color:#e11d24;}.delivery-new-zero{color:#0f8a35;}' +
@@ -366,6 +369,9 @@
     state.userTouchedFilters = true;
     updateClearButtons();
     closeSuggestion(scope);
+    if (state.hasSearched) {
+      resetResultsState('Đã chọn điều kiện mới. Bấm Tải đơn để cập nhật danh sách.');
+    }
     setMessage('Đã chọn gợi ý. Bấm Tải đơn để xem danh sách tương ứng.');
   }
 
@@ -386,6 +392,9 @@
       resetResultsState(missingCriteriaMessage());
       setMessage('');
       return;
+    }
+    if (state.hasSearched) {
+      resetResultsState('Đã xóa điều kiện. Bấm Tải đơn để cập nhật dữ liệu theo bộ lọc mới.');
     }
     setMessage('Đã xóa điều kiện. Bấm Tải đơn để cập nhật dữ liệu theo bộ lọc mới.');
   }
@@ -420,6 +429,9 @@
       resetSelectedFilter(scope);
       state.userTouchedFilters = true;
       updateClearButtons();
+      if (state.hasSearched) {
+        resetResultsState('Bộ lọc đã thay đổi. Bấm Tải đơn để cập nhật dữ liệu.');
+      }
       queueSuggestions(scope, input.value);
     });
     input.addEventListener('focus', function () {
@@ -546,13 +558,13 @@
   }
 
   function missingCriteriaMessage() {
-    return 'Vui lòng chọn ngày giao, NVGH, NVBH hoặc nhập mã đơn/khách hàng để tải dữ liệu.';
+    return 'Vui lòng chọn NVGH, NVBH hoặc nhập mã đơn/khách hàng tối thiểu 2 ký tự rồi bấm Tải đơn.';
   }
 
   function renderEmptyState(message) {
     var empty = byId('deliveryTodayNewEmptyState');
     if (!empty) return;
-    empty.innerHTML = '<b>Chưa có dữ liệu hiển thị.</b><span>' + esc(message || 'Bấm Tải đơn để xem đơn giao theo ngày đã chọn.') + '</span>';
+    empty.innerHTML = '<b>Chưa có dữ liệu hiển thị.</b><span>' + esc(message || 'Chọn NVGH, NVBH hoặc nhập mã đơn / khách hàng rồi bấm Tải đơn để xem danh sách.') + '</span>';
   }
 
   function resetResultsState(message) {
@@ -577,14 +589,25 @@
     resetSelectedFilter();
     closeAllSuggestions();
     state.userTouchedFilters = false;
-    resetResultsState('Bấm Tải đơn để xem đơn giao theo ngày đã chọn.');
+    resetResultsState('Chọn NVGH, NVBH hoặc nhập mã đơn / khách hàng rồi bấm Tải đơn để xem danh sách.');
     setMessage('');
     updateClearButtons();
   }
 
   function hasValidSearchCriteria() {
     var f = filters();
-    return Boolean(f.date || f.q || f.delivery || f.salesman);
+    var freeText = normalizedText(f.q);
+    var staffDelivery = normalizedText(f.deliveryStaffCode) || normalizedText(f.delivery);
+    var staffSalesman = normalizedText(f.salesStaffCode) || normalizedText(f.salesman);
+    return Boolean(
+      normalizedText(f.orderCode) ||
+      normalizedText(f.customerCode) ||
+      freeText.length >= 2 ||
+      normalizedText(f.deliveryStaffCode) ||
+      normalizedText(f.salesStaffCode) ||
+      staffDelivery.length >= 2 ||
+      staffSalesman.length >= 2
+    );
   }
 
   function applySummary(summary) {
@@ -632,7 +655,8 @@
           rewardAmount: 0,
           offsetAmount: 0,
           returnedAmount: 0,
-          finalDebtAmount: 0
+          finalDebtAmount: 0,
+          orders: []
         };
       }
       map[key].orderCount += 1;
@@ -643,6 +667,7 @@
       map[key].offsetAmount += num(row.offsetAmount);
       map[key].returnedAmount += num(row.returnedAmount);
       map[key].finalDebtAmount += num(row.finalDebtAmount);
+      map[key].orders.push(row);
     });
     return Object.keys(map).map(function (key) { return map[key]; }).sort(function (a, b) {
       return String(a.salesStaffCode || a.salesStaffName).localeCompare(String(b.salesStaffCode || b.salesStaffName), 'vi');
@@ -768,33 +793,69 @@
   function renderSalesmanGroupPanel() {
     var box = byId('deliveryTodayNewSalesmanPanel');
     if (!box) return;
-    if (!state.hasSearched) { box.innerHTML = '<div class="delivery-new-salesman-empty">Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải đơn.</div>'; return; }
+    if (!state.hasSearched) {
+      box.innerHTML = '<div class="delivery-new-salesman-empty">Vui lòng chọn NVGH, NVBH hoặc tìm kiếm rồi bấm Tải đơn.</div>';
+      return;
+    }
     var groups = state.salesmanGroups || [];
     if (!groups.length) {
-      box.innerHTML = '<div class="delivery-new-salesman-empty">Chưa có NVBH trong danh sách đơn đang tải.</div>';
+      box.innerHTML = '<div class="delivery-new-salesman-empty">Không có NVBH trong kết quả hiện tại.</div>';
       return;
     }
     var selected = selectedSalesmanSet();
-    var deliveryFilter = (byId('deliveryTodayNewDelivery') && byId('deliveryTodayNewDelivery').value) || '';
-    var title = deliveryFilter ? 'NVBH thuộc NVGH ' + deliveryFilter : 'NVBH trong danh sách đơn đang tải';
-    var rows = groups.map(function (group) {
-      var checked = selected[group.key] ? ' checked' : '';
-      return '<div class="delivery-new-salesman-row">' +
-        '<label class="delivery-new-salesman-check"><input type="checkbox" data-salesman-key="' + esc(group.key) + '"' + checked + '> <span>' + esc((group.salesStaffCode || '') + (group.salesStaffCode && group.salesStaffName ? ' - ' : '') + (group.salesStaffName || 'Chưa rõ NVBH')) + '</span></label>' +
-        '<span class="muted">' + esc(group.orderCount) + ' đơn</span>' +
-        '<span class="delivery-new-salesman-money">Phải thu ' + money(group.originalAmount) + '</span>' +
-        '<span class="delivery-new-salesman-money">Tiền mặt ' + money(group.cashAmount) + '</span>' +
-        '<span class="delivery-new-salesman-money">Chuyển khoản ' + money(group.bankAmount) + '</span>' +
-        '<span class="delivery-new-salesman-money">Trả thưởng ' + money(num(group.rewardAmount) + num(group.offsetAmount)) + '</span>' +
-        '<span class="delivery-new-salesman-money delivery-new-return">Hàng trả ' + money(group.returnedAmount) + '</span>' +
-        '<span class="delivery-new-salesman-money ' + (num(group.finalDebtAmount) > 0 ? 'delivery-new-debt' : 'delivery-new-zero') + '">Còn nợ ' + money(group.finalDebtAmount) + '</span>' +
-      '</div>';
-    }).join('');
-    box.innerHTML = '<div class="delivery-new-salesman-header"><div><h3>' + esc(title) + '</h3></div></div>' +
-      '<div class="delivery-new-salesman-rows">' + rows + '</div>';
-    Array.prototype.forEach.call(box.querySelectorAll('input[type="checkbox"][data-salesman-key]'), function (input) {
-      input.addEventListener('change', function () { toggleSalesmanSelection(input.dataset.salesmanKey, input.checked); });
-    });
+    var selectedCount = groups.filter(function (group) { return selected[group.key]; }).length;
+    box.innerHTML = '<div class="delivery-new-kpi-legend"><b>Chú giải KPI</b><span>PT = Phải thu | TM = Tiền mặt | CK = Chuyển khoản | TT = Trả thưởng | HT = Hàng trả | CN = Còn nợ</span><small>Đang chọn ' + selectedCount + '/' + groups.length + ' NVBH. Tick tại tiêu đề NVBH để tính KPI và hiện/ẩn đơn.</small></div>';
+  }
+
+  function findRowByOrderKey(key) {
+    key = String(key || '').trim();
+    if (!key) return null;
+    for (var i = 0; i < (state.rows || []).length; i += 1) {
+      if (orderSelectionKey(state.rows[i]) === key) return state.rows[i];
+    }
+    return null;
+  }
+
+  function salesmanGroupDisplayName(group) {
+    var code = String((group && group.salesStaffCode) || '').trim();
+    var name = String((group && group.salesStaffName) || '').trim();
+    if (code && name) return code + ' - ' + name;
+    return code || name || 'Chưa rõ NVBH';
+  }
+
+  function renderGroupKpiCompact(group) {
+    var debtClass = num(group.finalDebtAmount) > 0 ? 'delivery-new-debt' : 'delivery-new-zero';
+    return '<div class="delivery-new-group-kpis" aria-label="KPI nhóm NVBH">' +
+      '<span>' + esc(group.orderCount) + ' đơn</span>' +
+      '<span>PT ' + money(group.originalAmount) + '</span>' +
+      '<span>TM ' + money(group.cashAmount) + '</span>' +
+      '<span>CK ' + money(group.bankAmount) + '</span>' +
+      '<span>TT ' + money(num(group.rewardAmount) + num(group.offsetAmount)) + '</span>' +
+      '<span class="delivery-new-return">HT ' + money(group.returnedAmount) + '</span>' +
+      '<span class="' + debtClass + '">CN ' + money(group.finalDebtAmount) + '</span>' +
+    '</div>';
+  }
+
+  function renderOrderRow(row) {
+    var confirmed = isConfirmed(row);
+    var selectable = isOrderSelectable(row);
+    var key = orderSelectionKey(row);
+    var checked = isOrderSelected(row) ? ' checked' : '';
+    var disabled = selectable ? '' : ' disabled';
+    var selectedClass = checked ? ' selected' : '';
+    var debtClass = num(row.finalDebtAmount) > 0 ? 'delivery-new-debt' : 'delivery-new-zero';
+    return '<div data-order-key="' + esc(key) + '" class="delivery-new-row delivery-new-order-row delivery-new-order-grid' + selectedClass + '" role="row">' +
+      '<label class="delivery-new-order-cell delivery-new-order-checkbox delivery-new-order-checkbox-cell" title="' + esc(selectable ? 'Chọn đơn để chốt sổ' : 'Đơn đã chốt hoặc không đủ điều kiện chọn') + '"><input type="checkbox" class="deliveryTodayNewOrderSelect" data-order-key="' + esc(key) + '"' + checked + disabled + '></label>' +
+      '<span class="delivery-new-order-cell delivery-new-order-customer-cell"><b>' + esc(row.orderCode || row.orderId) + '</b><small>' + esc(row.customerName || '') + ' · ' + esc(row.customerCode || '') + '</small></span>' +
+      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + money(row.originalAmount) + '</span>' +
+      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + money(row.cashAmount) + '</span>' +
+      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + money(row.bankAmount) + '</span>' +
+      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + money(num(row.rewardAmount) + num(row.offsetAmount)) + '</span>' +
+      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell delivery-new-return">' + money(row.returnedAmount) + '</span>' +
+      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell ' + debtClass + '">' + money(row.finalDebtAmount) + '</span>' +
+      '<span class="delivery-new-order-cell delivery-new-status-cell"><span class="delivery-new-status ' + (confirmed ? 'confirmed' : '') + '">' + esc(statusLabel(row)) + '</span></span>' +
+      '<span class="delivery-new-order-cell delivery-new-row-action delivery-new-action-cell"><button type="button" class="primary-action deliveryTodayNewAdjustBtn" data-adjust-key="' + esc(key) + '">Điều chỉnh</button></span>' +
+    '</div>';
   }
 
   function updateOrderSelectionToolbar(visibleRows) {
@@ -821,7 +882,7 @@
     var list = byId('deliveryTodayNewTable');
     if (!list) return;
     if (!state.hasSearched) {
-      list.innerHTML = '<div class="empty-state">Bấm Tải đơn để xem đơn giao theo ngày đã chọn.</div>'; 
+      list.innerHTML = '<div class="empty-state">Chọn NVGH, NVBH hoặc nhập mã đơn / khách hàng rồi bấm Tải đơn để xem danh sách.</div>';
       updateOrderSelectionToolbar([]);
       updateCloseoutButton();
       return;
@@ -829,49 +890,44 @@
     var visibleRows = getVisibleRowsBySelectedSalesmen();
     pruneSelectedOrderIds(visibleRows);
     if (!state.rows.length) {
-      list.innerHTML = '<div class="empty-state">' + esc(emptyOrdersMessage()) + '</div>'; 
+      list.innerHTML = '<div class="empty-state">' + esc(emptyOrdersMessage()) + '</div>';
       updateOrderSelectionToolbar([]);
       updateCloseoutButton();
       return;
     }
-    if (!visibleRows.length) {
-      list.innerHTML = '<div class="empty-state">Chưa chọn NVBH nào.</div>';
-      updateOrderSelectionToolbar([]);
-      updateCloseoutButton();
-      return;
-    }
-    list.innerHTML = visibleRows.map(function (row, index) {
-      var confirmed = isConfirmed(row);
-      var selectable = isOrderSelectable(row);
-      var key = orderSelectionKey(row);
-      var checked = isOrderSelected(row) ? ' checked' : '';
-      var disabled = selectable ? '' : ' disabled';
-      var selectedClass = checked ? ' selected' : '';
-      var debtClass = num(row.finalDebtAmount) > 0 ? 'delivery-new-debt' : 'delivery-new-zero';
-      return '<div data-index="' + index + '" data-order-key="' + esc(key) + '" class="delivery-new-row delivery-new-order-row delivery-new-order-grid' + selectedClass + '" role="row">' +
-        '<label class="delivery-new-order-cell delivery-new-order-checkbox delivery-new-order-checkbox-cell" title="' + esc(selectable ? 'Chọn đơn để chốt sổ' : 'Đơn đã chốt hoặc không đủ điều kiện chọn') + '"><input type="checkbox" class="deliveryTodayNewOrderSelect" data-order-key="' + esc(key) + '"' + checked + disabled + '></label>' +
-        '<span class="delivery-new-order-cell delivery-new-order-customer-cell"><b>' + esc(row.orderCode || row.orderId) + '</b><small>' + esc(row.customerName || '') + ' · ' + esc(row.customerCode || '') + '</small></span>' +
-        '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + money(row.originalAmount) + '</span>' +
-        '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + money(row.cashAmount) + '</span>' +
-        '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + money(row.bankAmount) + '</span>' +
-        '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + money(num(row.rewardAmount) + num(row.offsetAmount)) + '</span>' +
-        '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell delivery-new-return">' + money(row.returnedAmount) + '</span>' +
-        '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell ' + debtClass + '">' + money(row.finalDebtAmount) + '</span>' +
-        '<span class="delivery-new-order-cell delivery-new-status-cell"><span class="delivery-new-status ' + (confirmed ? 'confirmed' : '') + '">' + esc(statusLabel(row)) + '</span></span>' +
-        '<span class="delivery-new-order-cell delivery-new-row-action delivery-new-action-cell"><button type="button" class="primary-action deliveryTodayNewAdjustBtn" data-adjust-index="' + index + '">Điều chỉnh</button></span>' +
-      '</div>';
+    var groups = state.salesmanGroups || [];
+    var selected = selectedSalesmanSet();
+    list.innerHTML = groups.map(function (group) {
+      var checked = selected[group.key] ? ' checked' : '';
+      var rows = checked ? (group.orders || []) : [];
+      var groupBody = rows.length
+        ? rows.map(renderOrderRow).join('')
+        : '<div class="delivery-new-group-hidden">Nhóm NVBH này đang bỏ chọn. Tick lại tại tiêu đề để hiện đơn và tính vào KPI tổng.</div>';
+      return '<section class="delivery-new-salesman-order-group" data-salesman-key="' + esc(group.key) + '">' +
+        '<div class="delivery-new-salesman-title-row">' +
+          '<label class="delivery-new-salesman-title-check"><input type="checkbox" data-salesman-key="' + esc(group.key) + '"' + checked + '> <span class="delivery-new-salesman-title-text">NVBH: ' + esc(salesmanGroupDisplayName(group)) + '</span></label>' +
+          renderGroupKpiCompact(group) +
+        '</div>' +
+        groupBody +
+      '</section>';
     }).join('');
+    Array.prototype.forEach.call(list.querySelectorAll('input[type="checkbox"][data-salesman-key]'), function (input) {
+      input.addEventListener('change', function (event) {
+        event.stopPropagation();
+        toggleSalesmanSelection(input.dataset.salesmanKey, input.checked);
+      });
+    });
     Array.prototype.forEach.call(list.querySelectorAll('.deliveryTodayNewOrderSelect'), function (input) {
       input.addEventListener('change', function (event) {
         event.stopPropagation();
         toggleOrderSelection(input.dataset.orderKey, input.checked);
       });
     });
-    Array.prototype.forEach.call(list.querySelectorAll('[data-adjust-index]'), function (btn) {
+    Array.prototype.forEach.call(list.querySelectorAll('[data-adjust-key]'), function (btn) {
       btn.addEventListener('click', function (event) {
         event.preventDefault();
         event.stopPropagation();
-        openAdjustmentPopup(getVisibleRowsBySelectedSalesmen()[Number(btn.dataset.adjustIndex)]);
+        openAdjustmentPopup(findRowByOrderKey(btn.dataset.adjustKey));
       });
     });
     updateOrderSelectionToolbar(visibleRows);
@@ -1544,13 +1600,23 @@
       if (!silent) setMessage(missingCriteriaMessage(), true);
       return;
     }
+    var requestSeq = ++state.loadRequestSeq;
     if (!silent) setMessage('Đang tải đơn giao hôm nay...');
+    renderEmptyState('Đang tải dữ liệu theo bộ lọc...');
+    setResultSectionsVisible(false);
     try {
       var params = new URLSearchParams(filters());
       var res = await fetch('/api/new/delivery-today/orders?' + params.toString());
       var json = await res.json();
+      if (requestSeq !== state.loadRequestSeq) return;
       if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tải được dữ liệu');
       var data = json.data || json;
+      if ((data && data.requireFilter) || (json.diagnostics && json.diagnostics.searchCriteriaRequired && !hasValidSearchCriteria())) {
+        var guardMessage = (data && data.message) || missingCriteriaMessage();
+        resetResultsState(guardMessage);
+        if (!silent) setMessage(guardMessage, true);
+        return;
+      }
       state.rows = data.rows || data.orders || json.rows || [];
       state.salesmanGroups = buildSalesmanGroups(state.rows);
       state.selectedSalesmanKeys = {};
@@ -1565,6 +1631,7 @@
       renderRows();
       if (!silent) setMessage(state.rows.length ? 'Đã tải ' + state.rows.length + ' đơn.' : '');
     } catch (err) {
+      if (requestSeq !== state.loadRequestSeq) return;
       state.rows = [];
       state.salesmanGroups = [];
       state.selectedSalesmanKeys = {};
