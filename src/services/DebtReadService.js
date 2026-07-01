@@ -12,6 +12,7 @@ const {
   loadDebtBalancesForCustomers,
   activeArFilter: buildMobileActiveArFilter
 } = require('./mobile/mobileDebtQuery.service');
+const DebtCollectionPolicy = require('../policies/debtCollection.policy');
 
 const PENDING_STATUSES = ['submitted', 'under_review'];
 const INACTIVE_AR_STATUSES = ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed'];
@@ -342,6 +343,21 @@ function scopeMatches(source = {}, scope = {}) {
   return true;
 }
 
+function debtCollectionAccessForSource(source = {}, input = {}) {
+  const actor = input.actor || input.user || input.currentUser;
+  if (actor) {
+    return DebtCollectionPolicy.canCreateDebtCollection(actor, source, {
+      collector: input.collector || {},
+      scope: input.collectionScope || ''
+    });
+  }
+  const legacyScope = input.scope || input.query || {};
+  if (!scopeMatches(source, legacyScope)) {
+    return { allowed: false, scope: 'own', reason: 'legacy_scope_mismatch' };
+  }
+  return { allowed: true, scope: Object.keys(legacyScope || {}).length ? 'own' : 'all', reason: 'legacy_scope_match' };
+}
+
 async function loadOrderDebtRows(orderKeys = [], options = {}) {
   const keys = [...new Set(orderKeys.map(text).filter(Boolean))];
   if (!keys.length) return [];
@@ -473,8 +489,15 @@ async function checkAvailableDebt(input = {}) {
     if (sourceCustomerCode && sourceCustomerCode !== customerCode) {
       return { ok: false, status: 409, message: `Đơn nợ ${row.key} không thuộc khách ${customerCode}` };
     }
-    if (!scopeMatches(source, input.scope || input.query || {})) {
-      return { ok: false, status: 403, message: `Bạn không được thu công nợ của đơn ${row.key}` };
+    const access = debtCollectionAccessForSource(source, input);
+    if (!access.allowed) {
+      return {
+        ok: false,
+        status: 403,
+        code: 'DEBT_COLLECTION_ORDER_FORBIDDEN',
+        reason: access.reason,
+        message: `Bạn không được thu công nợ của đơn ${row.key}`
+      };
     }
 
     const officialDebt = normalizeDebtAmount(matching.reduce((sum, ledger) => sum + arLedgerUtil.effectiveArDebit(ledger) - arLedgerUtil.effectiveArCredit(ledger), 0));
@@ -544,6 +567,7 @@ module.exports = {
     orderRefCondition,
     assignmentFromRow,
     scopeMatches,
+    debtCollectionAccessForSource,
     pendingForOrder,
     extractSalesOrderCodeFromReturnToken,
     expandOrderKeys,

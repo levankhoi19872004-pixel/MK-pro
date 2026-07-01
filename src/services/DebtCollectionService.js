@@ -9,6 +9,7 @@ const FundPostingService = require('../domain/posting/FundPostingService');
 const dateUtil = require('../utils/date.util');
 const { makeId, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
+const DebtCollectionPolicy = require('../policies/debtCollection.policy');
 
 const ACTIVE_STATUSES = ['submitted', 'accounting_confirmed'];
 
@@ -146,15 +147,17 @@ async function submitDebtCollection({ body = {}, mobileUser = {} } = {}) {
       );
     }
 
-    const debtScope = collector.collectorType === 'delivery'
-      ? { delivery: collector.collectorCode }
-      : { salesman: collector.collectorCode };
+    const access = DebtCollectionPolicy.debtCollectionCreateScopeForUser(mobileUser, body, collector);
+    if (!access.allowed) return fail(403, 'Bạn không có quyền lập phiếu thu công nợ');
 
     const debtCheck = await DebtReadService.checkAvailableDebt({
       customerCode: body.customerCode,
       customerId: body.customerId,
       allocations,
-      scope: debtScope,
+      scope: access.queryScope,
+      actor: mobileUser,
+      collector,
+      collectionScope: access.scope,
       session
     });
 
@@ -450,6 +453,8 @@ module.exports = {
     buildCollectorFields,
     buildListFilter,
     normalizePaymentMethod,
+    canCreateDebtCollection: DebtCollectionPolicy.canCreateDebtCollection,
+    debtCollectionCreateScopeForUser: DebtCollectionPolicy.debtCollectionCreateScopeForUser,
     ensureConfirmPostingContracts,
     receiptIdempotencyKey,
     fundReceiptIdempotencyKey,
