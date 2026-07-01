@@ -1,11 +1,14 @@
 /* GENERATED FILE — edit public/js/app/admin/08d-import-excel.source/part-01.jsfrag, public/js/app/admin/08d-import-excel.source/part-02.jsfrag, public/js/app/admin/08d-import-excel.source/part-03.jsfrag and run npm run build:source-bundles. */
 "use strict";const SELECTIVE_UPDATE_IMPORT_TYPES=new Set(["products","customers","users"]);const IMPORT_SESSION_ROWS_PAGE_SIZE=500;const IMPORT_SESSION_ROWS_MAX=2e4
-;const PROMOTION_CATALOG_IMPORT_TYPES=new Set(["promotionProductRules","promotionGroupItems"]);function isPromotionCatalogImportType(type){
-return PROMOTION_CATALOG_IMPORT_TYPES.has(String(type||importDataType?.value||"").trim())}function getSelectedImportMode(){const type=importDataType?importDataType.value:""
-;if(!SELECTIVE_UPDATE_IMPORT_TYPES.has(type))return"create";return importDataMode&&importDataMode.value==="update"?"update":"create"}function syncImportModeAvailability(){
+;const PROMOTION_CATALOG_IMPORT_TYPES=new Set(["promotionProductRules","promotionGroupItems"]);let importPreviewProgramGroups=[];let importSelectedProgramCodeSet=new Set
+;function isPromotionCatalogImportType(type){return PROMOTION_CATALOG_IMPORT_TYPES.has(String(type||importDataType?.value||"").trim())}
+function isPromotionProductRuleImportType(type){return String(type||importDataType?.value||"").trim()==="promotionProductRules"}function getSelectedImportMode(){
+const type=importDataType?importDataType.value:"";if(!SELECTIVE_UPDATE_IMPORT_TYPES.has(type))return"create"
+;return importDataMode&&importDataMode.value==="update"?"update":"create"}function syncImportModeAvailability(){
 const supported=SELECTIVE_UPDATE_IMPORT_TYPES.has(importDataType?importDataType.value:"");if(importModeLabel)importModeLabel.hidden=!supported
 ;if(importModeHelp)importModeHelp.hidden=!supported;if(importDataMode){importDataMode.disabled=!supported;if(!supported)importDataMode.value="create"}}
-function resetImportPreviewForModeChange(){importPreviewRows=[];importPreviewSessionId="";importSelectedRowKeySet=new Set;window.__importPreviewRows=importPreviewRows
+function resetImportPreviewForModeChange(){importPreviewRows=[];importPreviewSessionId="";importSelectedRowKeySet=new Set;importPreviewProgramGroups=[]
+;importSelectedProgramCodeSet=new Set;window.__importPreviewRows=importPreviewRows;window.__importPreviewProgramGroups=importPreviewProgramGroups
 ;window.__importPreviewSessionId=importPreviewSessionId;if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="5">Chọn file rồi bấm xem trước.</td></tr>'
 ;if(commitImportButton){commitImportButton.disabled=!(importExcelFile&&importExcelFile.files&&importExcelFile.files.length)
 ;commitImportButton.textContent="Xem trước dữ liệu import"}resetImportPreviewMessage()}function formatSelectiveUpdateChanges(row){
@@ -32,8 +35,9 @@ function syncImportInlineSelection(){document.querySelectorAll(".import-row-chec
 if(cb.checked)importSelectedRowKeySet.add(key);else importSelectedRowKeySet.delete(key)});syncImportSelectedCount()}function bindImportInlinePreviewChecks(){
 document.querySelectorAll(".import-row-check").forEach(cb=>{const index=Number(cb.dataset.index);const row=importPreviewRows[index]
 ;cb.checked=isImportRowSelectable(row)&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index));cb.disabled=!isImportRowSelectable(row);cb.onchange=syncImportInlineSelection
-})}function getSelectedImportRows(){return importPreviewRows.filter((row,index)=>isImportRowSelectable(row)&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index)))}
-function escapeImportHtml(value){return String(value??"").replace(/[&<>'\"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[ch]))}function importRowToText(row){
+})}function getSelectedImportRows(){const groupedRows=getSelectedImportProgramRows();if(groupedRows)return groupedRows
+;return importPreviewRows.filter((row,index)=>isImportRowSelectable(row)&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index)))}function escapeImportHtml(value){
+return String(value??"").replace(/[&<>'\"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[ch]))}function importRowToText(row){
 if(row&&row.previewMode==="order"){const customer=row.customerName||row.supplier||"";const total=row.totalAmount!==undefined?money(row.totalAmount):""
 ;const status=row.statusText||(row.valid?"Hợp lệ":"Lỗi")
 ;const shortage=row.hasShortage?` | Vượt tồn: ${displayImportAggregateQty(row.shortageQuantity||0)} | Cắt: ${money(row.shortageAmount||0)}`:""

@@ -1,8 +1,51 @@
 /* GENERATED FILE — edit public/js/app/admin/08d-import-excel.source/part-01.jsfrag, public/js/app/admin/08d-import-excel.source/part-02.jsfrag, public/js/app/admin/08d-import-excel.source/part-03.jsfrag and run npm run build:source-bundles. */
-function syncImportSelectedCount(){const selected=getSelectedImportRows().length;const el=document.getElementById("importPreviewSelectedCount")
-;if(el)el.textContent=formatNumber(selected)}function syncImportChecksFromModal(){document.querySelectorAll(".import-modal-row-check").forEach(cb=>{
-const index=Number(cb.dataset.index);const row=importPreviewRows[index];const key=getImportRowSelectKey(row,index);if(!isImportRowSelectable(row)){
-importSelectedRowKeySet.delete(key);cb.checked=false;cb.disabled=true}else if(cb.checked)importSelectedRowKeySet.add(key);else importSelectedRowKeySet.delete(key)
+function getPromotionProgramCode(row){return String(row?.programCode||row?.promotionCode||row?.groupCode||"(Thiếu mã CTKM)").trim()||"(Thiếu mã CTKM)"}
+function getPromotionProgramName(row){return String(row?.programName||row?.name||"").trim()}function importProgramGroupStatus(group){if(!group||!group.validRows)return{
+label:"Không hợp lệ",type:"inactive"};if(group.invalidRows>0)return{label:"Import partial",type:"warn"};return{label:"Hợp lệ",type:"active"}}
+function buildImportProgramGroups(rows=[]){const map=new Map;const groups=[];rows.forEach((row,index)=>{const programCode=getPromotionProgramCode(row);if(!map.has(programCode)){
+const group={programCode:programCode,programName:getPromotionProgramName(row),totalRows:0,validRows:0,invalidRows:0,missingProductCount:0,duplicateConflictCount:0,canImport:false,
+rows:[],excludedRows:[],selected:false};map.set(programCode,group);groups.push(group)}const group=map.get(programCode)
+;if(!group.programName)group.programName=getPromotionProgramName(row);group.totalRows+=1;if(isImportRowSelectable(row)){group.validRows+=1;group.rows.push({row:row,index:index})
+}else{group.invalidRows+=1;group.excludedRows.push({row:row,index:index});if(importRowHasMissingCatalogProduct(row))group.missingProductCount+=1
+;const errorText=importRowErrorList(row).join(" | ");if(errorText.includes("dữ liệu CK khác nhau"))group.duplicateConflictCount+=1}});groups.forEach(group=>{
+group.canImport=group.validRows>0;group.selected=group.canImport;const state=importProgramGroupStatus(group)
+;group.status=state.type==="warn"?"partial-valid":state.type==="active"?"valid":"invalid";group.statusText=state.label});return groups}
+function initImportProgramGroupSelection(groups=[]){importSelectedProgramCodeSet=new Set;groups.forEach(group=>{
+if(group&&group.canImport)importSelectedProgramCodeSet.add(group.programCode)})}function getSelectedImportProgramCodes(){
+return Array.from(importSelectedProgramCodeSet||[]).filter(Boolean)}function getSelectedImportProgramRows(){if(!isPromotionProductRuleImportType())return null
+;return(importPreviewProgramGroups||[]).filter(group=>group&&group.canImport&&importSelectedProgramCodeSet.has(group.programCode)).flatMap(group=>group.rows||[]).map(item=>item.row).filter(isImportRowSelectable)
+}function syncImportProgramSelection(){document.querySelectorAll(".import-program-check").forEach(cb=>{const code=String(cb.dataset.programCode||"")
+;const group=(importPreviewProgramGroups||[]).find(item=>item.programCode===code);if(!group||!group.canImport){importSelectedProgramCodeSet.delete(code);cb.checked=false
+;cb.disabled=true}else if(cb.checked)importSelectedProgramCodeSet.add(code);else importSelectedProgramCodeSet.delete(code)});syncImportSelectedCount()}
+function applyImportProgramFilter(){const mode=String(document.querySelector(".import-program-filter.active")?.dataset.filter||"all")
+;const search=String(document.getElementById("importProgramSearch")?.value||"").trim().toLowerCase();document.querySelectorAll(".import-program-row").forEach(row=>{
+const status=String(row.dataset.status||"");const haystack=String(row.dataset.search||"").toLowerCase()
+;const matchMode=mode==="all"||mode==="valid"&&status==="valid"||mode==="error"&&status!=="valid"||mode==="missing"&&Number(row.dataset.missing||0)>0
+;const matchSearch=!search||haystack.includes(search);row.style.display=matchMode&&matchSearch?"":"none"})}function bindImportProgramPreviewControls(){
+document.querySelectorAll(".import-program-check").forEach(cb=>{cb.onchange=syncImportProgramSelection});document.querySelectorAll(".import-program-filter").forEach(btn=>{
+btn.onclick=()=>{document.querySelectorAll(".import-program-filter").forEach(item=>item.classList.remove("active"));btn.classList.add("active");applyImportProgramFilter()}})
+;const search=document.getElementById("importProgramSearch");if(search)search.oninput=applyImportProgramFilter;const openAll=document.getElementById("openAllImportProgramGroups")
+;if(openAll)openAll.onclick=()=>document.querySelectorAll(".import-program-details").forEach(item=>{item.open=true})
+;const closeAll=document.getElementById("closeAllImportProgramGroups");if(closeAll)closeAll.onclick=()=>document.querySelectorAll(".import-program-details").forEach(item=>{
+item.open=false});applyImportProgramFilter()}function renderImportProgramGroupDetails(group){
+const validRows=(group.rows||[]).slice(0,30).map(({row:row})=>`<div class="import-program-line valid"><b>${escapeImportHtml(row.productCode||"")}</b> · ${escapeImportHtml(row.productName||"")} · CK: ${escapeImportHtml(row.discountPercent??"")}</div>`).join("")
+;const excludedRows=(group.excludedRows||[]).slice(0,20).map(({row:row})=>`<div class="import-program-line invalid"><b>${escapeImportHtml(row.productCode||"")}</b> · ${escapeImportHtml(row.productName||"")} · ${escapeImportHtml(importRowErrorList(row).join("; ")||row.statusText||"Dòng lỗi đã loại")}</div>`).join("")
+;const validMore=Math.max(0,(group.rows||[]).length-30);const excludedMore=Math.max(0,(group.excludedRows||[]).length-20)
+;return`<details class="import-program-details">\n    <summary>Xem sản phẩm của ${escapeImportHtml(group.programCode)}</summary>\n    <div class="import-program-detail-grid">\n      <div><b>Sản phẩm hợp lệ được import</b>${validRows||'<div class="muted">Không có dòng hợp lệ.</div>'}${validMore?`<div class="muted">Còn ${formatNumber(validMore)} sản phẩm hợp lệ khác.</div>`:""}</div>\n      <div><b>Dòng lỗi đã loại</b>${excludedRows||'<div class="muted">Không có dòng lỗi.</div>'}${excludedMore?`<div class="muted">Còn ${formatNumber(excludedMore)} dòng lỗi khác.</div>`:""}</div>\n    </div>\n  </details>`
+}function renderPromotionProductRuleGroupedPreview(total,valid,invalid){if(!importPreviewTable)return;importPreviewProgramGroups=buildImportProgramGroups(importPreviewRows)
+;initImportProgramGroupSelection(importPreviewProgramGroups);window.__importPreviewProgramGroups=importPreviewProgramGroups;const totalPrograms=importPreviewProgramGroups.length
+;const importablePrograms=importPreviewProgramGroups.filter(group=>group.canImport).length
+;const missingProductCount=importPreviewProgramGroups.reduce((sum,group)=>sum+Number(group.missingProductCount||0),0)
+;if(importPreviewHead)importPreviewHead.innerHTML='<tr><th style="width:54px">Chọn</th><th>Mã CTKM</th><th>Hợp lệ</th><th>Lỗi bị loại</th><th>Trạng thái</th><th>Chi tiết</th></tr>'
+;const toolbar=`<tr><td colspan="6" class="import-program-toolbar-cell">\n    <div class="import-program-toolbar">\n      <b>Gom theo ${formatNumber(totalPrograms)} mã CTKM</b>\n      <button type="button" class="secondary import-program-filter active" data-filter="all">Tất cả</button>\n      <button type="button" class="secondary import-program-filter" data-filter="valid">Chỉ nhóm hợp lệ</button>\n      <button type="button" class="secondary import-program-filter" data-filter="error">Nhóm có lỗi</button>\n      <button type="button" class="secondary import-program-filter" data-filter="missing">Thiếu sản phẩm</button>\n      <button type="button" class="secondary" id="openAllImportProgramGroups">Mở tất cả</button>\n      <button type="button" class="secondary" id="closeAllImportProgramGroups">Thu tất cả</button>\n      <input id="importProgramSearch" type="search" placeholder="Tìm mã CTKM / mã sản phẩm" />\n    </div>\n    <div class="muted">Đã đọc ${formatNumber(total)} dòng thuộc ${formatNumber(totalPrograms)} chương trình: ${formatNumber(valid)} dòng hợp lệ, ${formatNumber(invalid)} dòng lỗi đã loại. ${formatNumber(importablePrograms)} chương trình có dòng hợp lệ đã được chọn sẵn để import.</div>\n    ${missingProductCount?`<div class="muted">Có ${formatNumber(missingProductCount)} dòng thiếu sản phẩm đã bị loại khỏi danh sách import.</div>`:""}\n  </td></tr>`
+;const rowsHtml=importPreviewProgramGroups.map(group=>{const state=importProgramGroupStatus(group)
+;const searchText=[group.programCode,group.programName,...(group.rows||[]).slice(0,100).map(item=>`${item.row.productCode||""} ${item.row.productName||""}`)].join(" ")
+;return`<tr class="import-program-row ${group.canImport?"import-valid":"import-invalid"}" data-program-code="${escapeImportHtml(group.programCode)}" data-status="${escapeImportHtml(group.status)}" data-missing="${Number(group.missingProductCount||0)}" data-search="${escapeImportHtml(searchText)}">\n      <td>${group.canImport?`<input class="import-program-check" data-program-code="${escapeImportHtml(group.programCode)}" type="checkbox" checked />`:`<input class="import-program-check" data-program-code="${escapeImportHtml(group.programCode)}" type="checkbox" disabled title="Chương trình không có dòng hợp lệ" />`}</td>\n      <td><b>${escapeImportHtml(group.programCode)}</b>${group.programName?`<div class="muted">${escapeImportHtml(group.programName)}</div>`:""}</td>\n      <td>${formatNumber(group.validRows)}</td>\n      <td>${formatNumber(group.invalidRows)}</td>\n      <td><span class="badge ${state.type}">${escapeImportHtml(state.label)}</span></td>\n      <td>${renderImportProgramGroupDetails(group)}</td>\n    </tr>`
+}).join("");importPreviewTable.innerHTML=toolbar+rowsHtml;bindImportProgramPreviewControls()}function syncImportSelectedCount(){const selected=getSelectedImportRows().length
+;const el=document.getElementById("importPreviewSelectedCount");if(el)el.textContent=formatNumber(selected)}function syncImportChecksFromModal(){
+document.querySelectorAll(".import-modal-row-check").forEach(cb=>{const index=Number(cb.dataset.index);const row=importPreviewRows[index];const key=getImportRowSelectKey(row,index)
+;if(!isImportRowSelectable(row)){importSelectedRowKeySet.delete(key);cb.checked=false;cb.disabled=true
+}else if(cb.checked)importSelectedRowKeySet.add(key);else importSelectedRowKeySet.delete(key)
 ;const inline=document.querySelector(`.import-preview-wrap .import-row-check[data-index="${cb.dataset.index}"]`);if(inline)inline.checked=cb.checked});syncImportSelectedCount()}
 function bindImportPreviewModalControls(){const closeBtn=document.getElementById("closeImportPreviewModalButton");if(closeBtn)closeBtn.onclick=closeImportPreviewModal
 ;const selectAll=document.getElementById("selectAllImportPreviewButton");if(selectAll)selectAll.onclick=()=>{initImportSelectedRows(importPreviewRows)
@@ -35,7 +78,10 @@ importPreviewRows=normalizeImportPreviewSalesStaffFromAccounts(importPreviewRows
 ;const updateText=getSelectedImportMode()==="update"?`<span>Có thay đổi: <strong>${selectable}</strong></span><span>Giữ nguyên: <strong>${unchanged}</strong></span>`:""
 ;importPreviewSummary.innerHTML=`${fileText}<span>Tổng dòng/đơn: <strong>${total}</strong></span>${updateText}<span>Hợp lệ: <strong>${valid}</strong></span><span>Lỗi: <strong>${invalid}</strong></span>`
 }if(!importPreviewRows.length){if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Không có dữ liệu import.</td></tr>'
-;if(commitImportButton)commitImportButton.disabled=true;return}const orderMode=importPreviewRows.some(r=>r&&r.previewMode==="order");if(importPreviewHead){
+;if(commitImportButton)commitImportButton.disabled=true;return}if(isPromotionProductRuleImportType()){renderPromotionProductRuleGroupedPreview(total,valid,invalid)
+;renderImportShortageActions(importPreviewRows);const selected=getSelectedImportRows().length;if(commitImportButton){commitImportButton.disabled=selected<=0
+;commitImportButton.textContent="Import các mã CTKM đã chọn"}syncImportSelectedCount();return}const orderMode=importPreviewRows.some(r=>r&&r.previewMode==="order")
+;if(importPreviewHead){
 importPreviewHead.innerHTML=orderMode?'<tr><th style="width:54px">Chọn</th><th>Danh sách đơn import</th></tr>':"<tr><th>Chọn</th><th>Dòng</th><th>Trạng thái</th><th>Dữ liệu</th><th>Lỗi</th></tr>"
 }if(importPreviewTable){const indexedRows=importPreviewRows.map((row,index)=>({row:row,index:index}));const removableErrorRows=indexedRows.filter(x=>!isImportRowSelectable(x.row))
 ;const shouldHideInvalidRows=isPromotionCatalogImportType()&&removableErrorRows.length>0
@@ -93,15 +139,18 @@ async function previewImportExcel(){if(!importDataType||!importExcelFile)return;
 ;const fileCount=Array.from(importExcelFile.files||[]).length
 ;const modeText=getSelectedImportMode()==="update"?`${selectableNow} dòng có thay đổi, ${unchangedNow} dòng giữ nguyên`:`${validNow} dòng/đơn hợp lệ`
 ;const hideInvalidRows=isPromotionCatalogImportType()&&invalidNow>0
-;const missingProductText=missingProductNow?hideInvalidRows?` Đã loại ${formatNumber(missingProductNow)} dòng lỗi sản phẩm khỏi danh sách import; chỉ còn ${formatNumber(selectableNow)} dòng hợp lệ được chọn sẵn.`:` Có ${formatNumber(missingProductNow)} mã sản phẩm chưa có trong danh mục. Vui lòng cập nhật danh mục sản phẩm hoặc chỉ import các dòng hợp lệ.`:" Hãy chọn dòng rồi xác nhận."
-;showMessage(importDataMessage,`Đã đọc ${fileCount} file: ${modeText}, ${invalidNow} lỗi.${missingProductText}`)}catch(err){importPreviewRows=[];importPreviewSessionId=""
-;window.__importPreviewRows=importPreviewRows;window.__importPreviewSessionId=importPreviewSessionId;if(commitImportButton)commitImportButton.disabled=true
-;showMessage(importDataMessage,err.message,true)}}async function previewImportExcelSilent(){if(!importDataType||!importExcelFile)throw new Error("Thiếu thông tin import")
-;const files=Array.from(importExcelFile.files||[]);if(!files.length)throw new Error("Bạn chưa chọn file Excel");const type=importDataType.value
-;const importMode=getSelectedImportMode();const formData=new FormData;formData.append("type",importDataType.value);formData.append("importMode",getSelectedImportMode())
-;files.forEach(file=>formData.append("files",file));console.info("[IMPORT_PREVIEW_POST_STARTED]",{type:type,importMode:importMode,fileCount:files.length,
-fileNames:files.map(file=>file&&file.name).filter(Boolean)});const res=await fetch("/api/import/preview",{method:"POST",body:formData});const json=await res.json().catch(()=>({
-ok:false,message:`API preview import không trả JSON hợp lệ (HTTP ${res.status})`}));if(!res.ok||!json.ok){
+;const programGroupText=isPromotionProductRuleImportType()&&Array.isArray(importPreviewProgramGroups)&&importPreviewProgramGroups.length?` thuộc ${formatNumber(importPreviewProgramGroups.length)} mã CTKM`:""
+;const importableProgramText=isPromotionProductRuleImportType()&&Array.isArray(importPreviewProgramGroups)&&importPreviewProgramGroups.length?` ${formatNumber(importPreviewProgramGroups.filter(group=>group.canImport).length)} mã CTKM có dòng hợp lệ đã được chọn sẵn.`:""
+;const missingProductText=missingProductNow?hideInvalidRows?` Đã loại ${formatNumber(missingProductNow)} dòng lỗi sản phẩm khỏi danh sách import; chỉ còn ${formatNumber(selectableNow)} dòng hợp lệ được chọn sẵn.${importableProgramText}`:` Có ${formatNumber(missingProductNow)} mã sản phẩm chưa có trong danh mục. Vui lòng cập nhật danh mục sản phẩm hoặc chỉ import các dòng hợp lệ.`:` Hãy chọn dòng rồi xác nhận.${importableProgramText}`
+;showMessage(importDataMessage,`Đã đọc ${fileCount} file: ${modeText}${programGroupText}, ${invalidNow} lỗi.${missingProductText}`)}catch(err){importPreviewRows=[]
+;importPreviewSessionId="";window.__importPreviewRows=importPreviewRows;window.__importPreviewSessionId=importPreviewSessionId
+;if(commitImportButton)commitImportButton.disabled=true;showMessage(importDataMessage,err.message,true)}}async function previewImportExcelSilent(){
+if(!importDataType||!importExcelFile)throw new Error("Thiếu thông tin import");const files=Array.from(importExcelFile.files||[])
+;if(!files.length)throw new Error("Bạn chưa chọn file Excel");const type=importDataType.value;const importMode=getSelectedImportMode();const formData=new FormData
+;formData.append("type",importDataType.value);formData.append("importMode",getSelectedImportMode());files.forEach(file=>formData.append("files",file))
+;console.info("[IMPORT_PREVIEW_POST_STARTED]",{type:type,importMode:importMode,fileCount:files.length,fileNames:files.map(file=>file&&file.name).filter(Boolean)})
+;const res=await fetch("/api/import/preview",{method:"POST",body:formData});const json=await res.json().catch(()=>({ok:false,
+message:`API preview import không trả JSON hợp lệ (HTTP ${res.status})`}));if(!res.ok||!json.ok){
 throw new Error(json.error||json.message||`Không đọc được file import (HTTP ${res.status})`)}const sessionId=String(json.sessionId||json.importSessionId||"").trim();if(!sessionId){
 throw new Error("Backend preview không trả importSessionId sau khi tạo phiên. Hệ thống đã dừng để tránh poll phiên giả.")}
 if(res.status===202||json.accepted||String(json.status||"").toLowerCase()==="queued"){console.info("[IMPORT_PREVIEW_POST_ACCEPTED]",{sessionId:sessionId,

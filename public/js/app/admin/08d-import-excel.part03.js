@@ -14,7 +14,7 @@ showMessage(importDataMessage,`Đang import ${formatNumber(selectedRows.length)}
 ;const commitUrl=`/api/import/sessions/${encodeURIComponent(importPreviewSessionId)}/commit`;const res=await fetch(commitUrl,{method:"POST",headers:{
 "Content-Type":"application/json"},body:JSON.stringify({type:importDataType.value,importMode:getSelectedImportMode(),importSessionId:importPreviewSessionId,
 selectedOrderCodes:selectedRows.map(r=>String(r.documentCode||r.orderCode||r.code||r.username||"").trim()).filter(Boolean),
-selectedRowNumbers:selectedRows.map((r,index)=>getImportRowSourceNumber(r,index)).filter(Boolean),
+selectedRowNumbers:selectedRows.map((r,index)=>getImportRowSourceNumber(r,index)).filter(Boolean),selectedProgramCodes:getSelectedImportProgramCodes(),
 selectedRowKeys:selectedRows.map((r,index)=>getImportRowSelectKey(r,index)).filter(Boolean),shortageMode:importShortageActionMode||"cut"})});let json=await res.json().catch(()=>({
 ok:false,message:`API import không trả JSON hợp lệ (HTTP ${res.status})`}));if(!json.ok)throw new Error(json.error||json.message||"Import thất bại");if(json.accepted&&json.jobId){
 showMessage(importDataMessage,`Đã tạo job ${json.jobId}. Tác vụ nền đang xử lý...`);json=await waitForAsyncImportCommit(importPreviewSessionId,json.jobId)}
@@ -72,7 +72,9 @@ if(button)button.disabled=false}}function downloadActiveImportShortageReport(){c
 ;if(downloadImportTemplateButton)downloadImportTemplateButton.addEventListener("click",downloadImportTemplate)
 ;if(previewImportButton)previewImportButton.addEventListener("click",previewImportExcel)
 ;if(commitImportButton)commitImportButton.addEventListener("click",typeof handleImportExcelAction==="function"?handleImportExcelAction:previewImportExcel)
-;if(importExcelFile)importExcelFile.addEventListener("change",()=>{importPreviewRows=[];if(commitImportButton){commitImportButton.disabled=!importExcelFile.files.length
+;if(importExcelFile)importExcelFile.addEventListener("change",()=>{importPreviewRows=[];importPreviewProgramGroups=[];importSelectedProgramCodeSet=new Set
+;window.__importPreviewProgramGroups=importPreviewProgramGroups;importPreviewProgramGroups=[];importSelectedProgramCodeSet=new Set
+;window.__importPreviewProgramGroups=importPreviewProgramGroups;if(commitImportButton){commitImportButton.disabled=!importExcelFile.files.length
 ;commitImportButton.textContent="Xem trước đơn import"}if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Chọn file rồi bấm Xem trước đơn import.</td></tr>'
 ;resetImportPreviewMessage()});if(importDataType)importDataType.addEventListener("change",()=>{syncImportModeAvailability();resetImportPreviewForModeChange()})
 ;if(importDataMode)importDataMode.addEventListener("change",resetImportPreviewForModeChange);const importShortageReportTable=document.getElementById("importShortageReportTable")

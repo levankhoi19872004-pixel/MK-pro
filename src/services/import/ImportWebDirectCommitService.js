@@ -17,6 +17,13 @@ function normalizeSelectedOrderCodes(value) {
     : [];
 }
 
+
+function normalizeSelectedProgramCodes(value) {
+  return Array.isArray(value)
+    ? value.map((item) => cleanText(item)).filter(Boolean)
+    : [];
+}
+
 function normalizeSelectedRowNumbers(value) {
   return Array.isArray(value)
     ? value.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
@@ -85,6 +92,7 @@ async function commitSession(payload = {}, user = {}) {
     sessionId: canonicalSessionId,
     selectedOrderCodes: normalizeSelectedOrderCodes(payload.selectedOrderCodes),
     selectedRowNumbers: normalizeSelectedRowNumbers(payload.selectedRowNumbers),
+    selectedProgramCodes: normalizeSelectedProgramCodes(payload.selectedProgramCodes),
     userName: actorName(user)
   });
 
@@ -107,6 +115,7 @@ module.exports = {
   _private: {
     actorName,
     normalizeSelectedOrderCodes,
-    normalizeSelectedRowNumbers
+    normalizeSelectedRowNumbers,
+    normalizeSelectedProgramCodes
   }
 };

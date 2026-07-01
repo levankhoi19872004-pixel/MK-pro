@@ -71,6 +71,10 @@ function getRowDocumentCode(row = {}) {
   );
 }
 
+function getRowProgramCode(row = {}) {
+  return cleanText(row.programCode || row.promotionCode || row.groupCode || '');
+}
+
 function getRowSourceFile(row = {}) {
   return cleanText(
     row.sourceFile ||
@@ -447,7 +451,7 @@ async function markDone(id, result = {}) {
   );
 }
 
-async function selectRows(session, selectedOrderCodes = [], selectedRowNumbers = []) {
+async function selectRows(session, selectedOrderCodes = [], selectedRowNumbers = [], selectedProgramCodes = []) {
   const sessionId = cleanText(session?.sessionId || session?.id);
   if (!sessionId) return [];
 
@@ -460,6 +464,12 @@ async function selectRows(session, selectedOrderCodes = [], selectedRowNumbers =
     (selectedRowNumbers || [])
       .map((v) => Number(v))
       .filter((v) => Number.isFinite(v) && v > 0)
+  );
+
+  const selectedPrograms = new Set(
+    (selectedProgramCodes || [])
+      .map((v) => cleanText(v))
+      .filter(Boolean)
   );
 
   const query = { sessionId };
@@ -484,13 +494,14 @@ async function selectRows(session, selectedOrderCodes = [], selectedRowNumbers =
     .map((doc) => doc.normalizedRow)
     .filter(Boolean);
 
-  if (!selected.size && !selectedRows.size) return rows;
+  if (!selected.size && !selectedRows.size && !selectedPrograms.size) return rows;
 
   return rows.filter((row, index) => {
     const rowNo = Number(row?.rowNo || row?.sourceRowNo || row?.__rowNo || row?.rowNumber || docs[index]?.rowNo || 0);
-    return selected.has(getRowDocumentCode(row)) || selectedRows.has(rowNo);
+    return selected.has(getRowDocumentCode(row)) || selectedRows.has(rowNo) || selectedPrograms.has(getRowProgramCode(row));
   });
 }
+
 
 
 async function recoverStaleImportSessions({ olderThanMs = Number(process.env.IMPORT_STALE_SESSION_MS || 15 * 60 * 1000), limit = 100 } = {}) {

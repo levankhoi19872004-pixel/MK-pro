@@ -194,7 +194,7 @@ async function rebuildSelectedSalesOrderPreviewRows(sourceRows = [], { userName 
   return Array.isArray(rebuilt?.rows) ? rebuilt.rows : [];
 }
 
-async function commit({ type, rows, shortageMode = '', sessionId = '', selectedOrderCodes = [], selectedRowNumbers = [], userName = '' }) {
+async function commit({ type, rows, shortageMode = '', sessionId = '', selectedOrderCodes = [], selectedRowNumbers = [], selectedProgramCodes = [], userName = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (type === 'salesOrdersS3') type = 'salesOrders';
   if (!sessionId) return { error: 'Bắt buộc xác nhận bằng importSessionId từ bước preview', status: 400 };
@@ -224,7 +224,7 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
       };
     }
 
-    sourceRows = await importSessionService.selectRows(session, selectedOrderCodes, selectedRowNumbers);
+    sourceRows = await importSessionService.selectRows(session, selectedOrderCodes, selectedRowNumbers, selectedProgramCodes);
     await importSessionService.updateProgress(currentSessionId, {
       percent: 5,
       step: 'loading_selected_rows'

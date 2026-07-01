@@ -79,7 +79,9 @@ test('promotion group item frontend blocks invalid rows from status, checkbox an
   assert.match(part1, /next\.valid=false/);
   assert.match(part1, /next\.canImport=false/);
   assert.match(part1, /function isImportRowSelectable/);
-  assert.match(part1, /getSelectedImportRows\(\)\{\n  return importPreviewRows\.filter\(\(row,index\)=>isImportRowSelectable\(row\)/);
+  assert.match(part2, /function getSelectedImportProgramRows/);
+  assert.match(part1, /const groupedRows=getSelectedImportProgramRows\(\)/);
+  assert.match(part1, /return importPreviewRows\.filter\(\(row,index\)=>isImportRowSelectable\(row\)/);
 
   assert.match(part2, /\.map\(normalizeImportPreviewRowValidity\)/);
   assert.match(part2, /disabled title="Dòng lỗi không được import"/);
@@ -165,9 +167,50 @@ test('import session commit can honor selected row numbers for non-order Excel r
 
   assert.match(webDirect, /function normalizeSelectedRowNumbers/);
   assert.match(webDirect, /selectedRowNumbers: normalizeSelectedRowNumbers\(payload\.selectedRowNumbers\)/);
+  assert.match(webDirect, /selectedProgramCodes: normalizeSelectedProgramCodes\(payload\.selectedProgramCodes\)/);
   assert.match(commit, /selectedRowNumbers = \[\]/);
-  assert.match(commit, /selectRows\(session, selectedOrderCodes, selectedRowNumbers\)/);
-  assert.match(session, /async function selectRows\(session, selectedOrderCodes = \[\], selectedRowNumbers = \[\]\)/);
+  assert.match(commit, /selectedProgramCodes = \[\]/);
+  assert.match(commit, /selectRows\(session, selectedOrderCodes, selectedRowNumbers, selectedProgramCodes\)/);
+  assert.match(session, /async function selectRows\(session, selectedOrderCodes = \[\], selectedRowNumbers = \[\], selectedProgramCodes = \[\]\)/);
   assert.match(session, /query\.rowNo = \{ \$in: Array\.from\(selectedRows\) \}/);
   assert.match(session, /selectedRows\.has\(rowNo\)/);
+});
+
+
+test('promotion product rule preview builds programCode groups and duplicate governance', () => {
+  const preview = read('src/services/import/preview/importPreview.impl.js');
+  const grouping = read('src/services/import/promotionProductRuleGrouping.js');
+
+  assert.match(preview, /require\('\.\.\/promotionProductRuleGrouping'\)/);
+  assert.match(grouping, /function buildPromotionProductRuleGroups/);
+  assert.match(grouping, /programCode/);
+  assert.match(grouping, /group\.rows\.push\(compactPromotionPreviewRow\(row\)\)/);
+  assert.match(grouping, /group\.excludedRows\.push\(compact\)/);
+  assert.match(grouping, /partial-valid/);
+  assert.match(grouping, /totalProgramCount/);
+  assert.match(grouping, /importableProgramCount/);
+  assert.match(grouping, /blockedProgramCount/);
+  assert.match(grouping, /missingUniqueProductCount/);
+  assert.match(grouping, /function applyPromotionProductRuleDuplicatePolicy/);
+  assert.match(grouping, /duplicateCollapsedCount/);
+  assert.match(grouping, /Trùng mã chương trình \+ mã sản phẩm trong file với dữ liệu CK khác nhau/);
+  assert.match(preview, /groups: groupedPreview\.groups/);
+});
+
+test('promotion product rule frontend renders grouped CTKM preview instead of a flat table', () => {
+  const part1 = read('public/js/app/admin/08d-import-excel.source/part-01.jsfrag');
+  const part2 = read('public/js/app/admin/08d-import-excel.source/part-02.jsfrag');
+  const part3 = read('public/js/app/admin/08d-import-excel.source/part-03.jsfrag');
+
+  assert.match(part1, /let importPreviewProgramGroups=\[\]/);
+  assert.match(part2, /function buildImportProgramGroups/);
+  assert.match(part2, /function renderPromotionProductRuleGroupedPreview/);
+  assert.match(part2, /Gom theo \$\{formatNumber\(totalPrograms\)\} mã CTKM/);
+  assert.match(part2, /data-filter="missing"/);
+  assert.match(part2, /id="importProgramSearch"/);
+  assert.match(part2, /function getSelectedImportProgramRows/);
+  assert.match(part2, /if\(isPromotionProductRuleImportType\(\)\)\{/);
+  assert.match(part2, /renderPromotionProductRuleGroupedPreview\(total,valid,invalid\)/);
+  assert.match(part2, /Import các mã CTKM đã chọn/);
+  assert.match(part3, /selectedProgramCodes:getSelectedImportProgramCodes\(\)/);
 });

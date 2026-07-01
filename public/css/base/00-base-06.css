@@ -669,3 +669,10 @@ body::after{
 /* Phase 68: giải thích phân bổ tồn tuần tự khi import đơn */
 .import-stock-trace-small{display:block;margin-top:2px;color:#64748b;font-size:10px;line-height:1.25;white-space:normal}
 .import-order-shortage-line b{color:#7c2d12}
+.import-program-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:6px}
+.import-program-toolbar input{min-width:220px;max-width:320px}
+.import-program-filter.active{font-weight:800;border-color:#2563eb}
+.import-program-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+.import-program-line{padding:5px 0;border-bottom:1px solid #eef2f7;font-size:12px}
+.import-program-line.invalid{color:#991b1b}
+@media(max-width:900px){.import-program-detail-grid{grid-template-columns:1fr}.import-program-toolbar input{width:100%;max-width:none}}

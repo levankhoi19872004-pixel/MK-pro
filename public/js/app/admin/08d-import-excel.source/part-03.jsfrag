@@ -51,6 +51,7 @@ async function commitImportExcel(){
         importSessionId:importPreviewSessionId,
         selectedOrderCodes:selectedRows.map(r=>String(r.documentCode||r.orderCode||r.code||r.username||'').trim()).filter(Boolean),
         selectedRowNumbers:selectedRows.map((r,index)=>getImportRowSourceNumber(r,index)).filter(Boolean),
+        selectedProgramCodes:getSelectedImportProgramCodes(),
         selectedRowKeys:selectedRows.map((r,index)=>getImportRowSelectKey(r,index)).filter(Boolean),
         shortageMode:importShortageActionMode||'cut'
       })
@@ -239,7 +240,7 @@ resetButton.addEventListener('click',resetForm);
 if(downloadImportTemplateButton)downloadImportTemplateButton.addEventListener('click',downloadImportTemplate);
 if(previewImportButton)previewImportButton.addEventListener('click',previewImportExcel);
 if(commitImportButton)commitImportButton.addEventListener('click',typeof handleImportExcelAction==='function'?handleImportExcelAction:previewImportExcel);
-if(importExcelFile)importExcelFile.addEventListener('change',()=>{importPreviewRows=[];if(commitImportButton){commitImportButton.disabled=!importExcelFile.files.length;commitImportButton.textContent='Xem trước đơn import';}if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Chọn file rồi bấm Xem trước đơn import.</td></tr>';resetImportPreviewMessage();});
+if(importExcelFile)importExcelFile.addEventListener('change',()=>{importPreviewRows=[];importPreviewProgramGroups=[];importSelectedProgramCodeSet=new Set();window.__importPreviewProgramGroups=importPreviewProgramGroups;importPreviewProgramGroups=[];importSelectedProgramCodeSet=new Set();window.__importPreviewProgramGroups=importPreviewProgramGroups;if(commitImportButton){commitImportButton.disabled=!importExcelFile.files.length;commitImportButton.textContent='Xem trước đơn import';}if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Chọn file rồi bấm Xem trước đơn import.</td></tr>';resetImportPreviewMessage();});
 if(importDataType)importDataType.addEventListener('change',()=>{syncImportModeAvailability();resetImportPreviewForModeChange();});
 if(importDataMode)importDataMode.addEventListener('change',resetImportPreviewForModeChange);
 const importShortageReportTable=document.getElementById('importShortageReportTable');

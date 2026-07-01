@@ -5,8 +5,14 @@ const SELECTIVE_UPDATE_IMPORT_TYPES=new Set(['products','customers','users']);
 const IMPORT_SESSION_ROWS_PAGE_SIZE=500;
 const IMPORT_SESSION_ROWS_MAX=20000;
 const PROMOTION_CATALOG_IMPORT_TYPES=new Set(['promotionProductRules','promotionGroupItems']);
+let importPreviewProgramGroups=[];
+let importSelectedProgramCodeSet=new Set();
 function isPromotionCatalogImportType(type){
   return PROMOTION_CATALOG_IMPORT_TYPES.has(String(type||importDataType?.value||'').trim());
+}
+
+function isPromotionProductRuleImportType(type){
+  return String(type||importDataType?.value||'').trim()==='promotionProductRules';
 }
 function getSelectedImportMode(){
   const type=importDataType?importDataType.value:'';
@@ -26,7 +32,10 @@ function resetImportPreviewForModeChange(){
   importPreviewRows=[];
   importPreviewSessionId='';
   importSelectedRowKeySet=new Set();
+  importPreviewProgramGroups=[];
+  importSelectedProgramCodeSet=new Set();
   window.__importPreviewRows=importPreviewRows;
+  window.__importPreviewProgramGroups=importPreviewProgramGroups;
   window.__importPreviewSessionId=importPreviewSessionId;
   if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="5">Chọn file rồi bấm xem trước.</td></tr>';
   if(commitImportButton){
@@ -127,6 +136,8 @@ function bindImportInlinePreviewChecks(){
   });
 }
 function getSelectedImportRows(){
+  const groupedRows=getSelectedImportProgramRows();
+  if(groupedRows)return groupedRows;
   return importPreviewRows.filter((row,index)=>isImportRowSelectable(row)&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index)));
 }
 function escapeImportHtml(value){
