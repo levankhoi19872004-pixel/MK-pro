@@ -40,19 +40,17 @@ const EXPECTED_SELECTORS = [
   '#stockSearchInput', '#dmsInventorySearch', '#masterOrderSearch', '#customerStaffSearch',
   '#importProductSearch', '#salesCustomerSearch', '#salesStaffSearch', '#salesProductSearch',
   '#masterOrderForm [name="deliveryStaffCode"]', '#masterOrderForm [name="deliveryStaffName"]',
-  '#externalDebtCustomerSearch', '#externalDebtSalesStaffSearch', '#externalDebtDeliveryStaffSearch',
   '#unmergedOrderSearch', '#unmergedSalesStaffFilter', '#masterReturnDeliveryStaff',
-  '#unmergedReturnOrderSearchInput', '#debtSearchInput', '#debtSalesmanFilter', '#debtDeliveryFilter',
-  '#receiptSearchInput', '#cashbookSearchInput', '#debtCollectionSearchInput', '#returnOrderSearchInput',
-  '#fundSearchInput', '#fundSummaryPersonSearch', '#deliveryCashSubmissionStaffCode', '#reportCatalogSearch', '#reportSearchInput',
-  '#userSearchInput', '#promotionSearchAllInput', '#importShortageReportSearch', '#deliveryCoreSearch',
-  '#deliveryCoreDeliveryStaff', '#deliveryCoreSalesStaff', '#customerSearch', '#productSearch',
+  '#unmergedReturnOrderSearchInput', '#receiptSearchInput', '#cashbookSearchInput',
+  '#debtCollectionSearchInput', '#returnOrderSearchInput', '#fundSearchInput',
+  '#fundSummaryPersonSearch', '#deliveryCashSubmissionStaffCode', '#reportCatalogSearch', '#reportSearchInput',
+  '#userSearchInput', '#promotionSearchAllInput', '#importShortageReportSearch', '#customerSearch', '#productSearch',
   '#debtCustomerSearch', '#mSearch', '#mDebtCustomerSearch'
 ];
 
-test('registry covers exactly the 44 audited search/autocomplete fields', () => {
+test('registry covers exactly the 35 active search/autocomplete fields after retiring legacy web debt/delivery screens', () => {
   const rules = loadRules();
-  assert.equal(rules.length, 44);
+  assert.equal(rules.length, 35);
   assert.deepEqual(rules.map((rule) => rule.selector).sort(), EXPECTED_SELECTORS.sort());
   assert.equal(new Set(rules.map((rule) => rule.selector)).size, rules.length, 'selector must be unique');
 });
@@ -152,6 +150,6 @@ test('click strategies keep all other filters intact', () => {
 test('realtime debounced fields clear through input so pending timers are replaced, not doubled by apply click', () => {
   const rules = loadRules();
   const bySelector = new Map(rules.map((rule) => [rule.selector, rule]));
-  ['#salesOrderSearchInput', '#salesOrderStaffFilter', '#deliveryCoreSearch', '#deliveryCashSubmissionStaffCode', '#mSearch', '#customerSearch']
+  ['#salesOrderSearchInput', '#salesOrderStaffFilter', '#deliveryCashSubmissionStaffCode', '#mSearch', '#customerSearch']
     .forEach((selector) => assert.equal(bySelector.get(selector)?.action, 'input', selector));
 });

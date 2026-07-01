@@ -236,7 +236,8 @@ function debtCollectionResult(res, result = {}, successStatus = 200) {
       ok: false,
       success: false,
       code: result.code || 'DEBT_COLLECTION_ERROR',
-      message: result.error
+      message: result.error,
+      detail: result.detail || result.details || undefined
     });
   }
   const status = result.statusCode || result.status || successStatus;

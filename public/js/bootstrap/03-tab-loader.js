@@ -71,23 +71,20 @@ async function loadTabDataOnce(tabName, options = {}){
           typeof loadMasterReturnOrders === 'function' ? loadMasterReturnOrders() : null
         ]);
         break;
-      case 'deliveryTodayTab':
+      case 'deliveryTodayNewTab':
         await Promise.allSettled([
           typeof loadUsers === 'function' ? loadUsers() : null,
-          typeof loadDeliveryToday === 'function' ? loadDeliveryToday() : null
+          typeof loadDeliveryTodayNew === 'function' ? loadDeliveryTodayNew() : null
         ]);
         break;
       case 'stockTab':
         if(typeof loadStock === 'function') await loadStock();
         break;
-      case 'debtTab':
+      case 'debtNewTab':
         await Promise.allSettled([
           typeof loadUsers === 'function' ? loadUsers() : null,
-          typeof loadDebts === 'function' ? loadDebts() : null,
-          typeof loadReceipts === 'function' ? loadReceipts() : null,
-          typeof loadCashbook === 'function' ? loadCashbook() : null
+          typeof loadDebtNew === 'function' ? loadDebtNew() : null
         ]);
-        if(typeof renderCollectionCustomerSelect === 'function') renderCollectionCustomerSelect();
         break;
       case 'debtCollectionsTab':
         if(typeof loadDebtCollections === 'function') await loadDebtCollections();

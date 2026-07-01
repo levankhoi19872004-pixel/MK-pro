@@ -25,9 +25,6 @@
     { selector: '#salesProductSearch', action: 'input', group: 'autocomplete', autocomplete: true },
     { selector: '#masterOrderForm [name="deliveryStaffCode"]', action: 'input', group: 'autocomplete', autocomplete: true },
     { selector: '#masterOrderForm [name="deliveryStaffName"]', action: 'input', group: 'autocomplete', autocomplete: true },
-    { selector: '#externalDebtCustomerSearch', action: 'input', group: 'autocomplete', autocomplete: true },
-    { selector: '#externalDebtSalesStaffSearch', action: 'input', group: 'autocomplete', autocomplete: true },
-    { selector: '#externalDebtDeliveryStaffSearch', action: 'input', group: 'autocomplete', autocomplete: true },
 
     // Popup gộp đơn: realtime debounce hiện hữu; dispatch input một lần để hủy timer cũ.
     { selector: '#unmergedOrderSearch', action: 'input', group: 'master-orders' },
@@ -35,10 +32,7 @@
     { selector: '#masterReturnDeliveryStaff', action: 'input', group: 'master-returns', autocomplete: true },
     { selector: '#unmergedReturnOrderSearchInput', action: 'input', group: 'master-returns' },
 
-    // Công nợ, trả hàng và quỹ.
-    { selector: '#debtSearchInput', action: 'click', trigger: '#applyDebtFiltersButton', group: 'debt', autocomplete: true },
-    { selector: '#debtSalesmanFilter', action: 'click', trigger: '#applyDebtFiltersButton', group: 'debt', autocomplete: true },
-    { selector: '#debtDeliveryFilter', action: 'click', trigger: '#applyDebtFiltersButton', group: 'debt', autocomplete: true },
+    // Phiếu thu chờ xác nhận, trả hàng và quỹ.
     { selector: '#receiptSearchInput', action: 'input', group: 'debt' },
     { selector: '#cashbookSearchInput', action: 'input', group: 'debt' },
     { selector: '#debtCollectionSearchInput', action: 'click', trigger: '#applyDebtCollectionFiltersButton', group: 'debt' },
@@ -53,11 +47,6 @@
     { selector: '#userSearchInput', action: 'input', group: 'admin' },
     { selector: '#promotionSearchAllInput', action: 'input', group: 'admin' },
     { selector: '#importShortageReportSearch', action: 'click', trigger: '#reloadImportShortageReportsButton', group: 'admin' },
-
-    // Web giao hàng được render động và toolbar thay control sau khi khởi tạo.
-    { selector: '#deliveryCoreSearch', action: 'input', group: 'delivery' },
-    { selector: '#deliveryCoreDeliveryStaff', action: 'click', trigger: '#deliveryCoreApply', group: 'delivery', autocomplete: true },
-    { selector: '#deliveryCoreSalesStaff', action: 'click', trigger: '#deliveryCoreApply', group: 'delivery', autocomplete: true },
 
     // App bán hàng mobile.
     { selector: '#customerSearch', action: 'input', group: 'mobile-sales' },

@@ -52,7 +52,7 @@ test('full customer/product/promotion/template catalogs are management-only whil
   assert.match(templates, /router\.get\('\/templates', viewImportTemplates/);
 });
 
-test('customer-search and delivery-today aliases cannot bypass management RBAC', () => {
+test('customer-search remains protected and retired delivery-today alias cannot bypass New module policy', () => {
   const search = read('src/routes/searchRoutes.js');
   const catalog = read('src/routes/catalogRoutes.js');
   const routeIndex = read('src/routes/index.js');
@@ -60,5 +60,7 @@ test('customer-search and delivery-today aliases cannot bypass management RBAC',
   assert.match(search, /router\.get\('\/customers', viewOperationalData/);
   assert.doesNotMatch(search, /publicCatalogTypes = new Set\([^\n]*customer/);
   assert.match(catalog, /router\.get\('\/customers\/search', viewCustomers/);
-  assert.match(routeIndex, /app\.get\('\/api\/delivery-today', requireRole\(\['admin', 'manager', 'accountant', 'warehouse'\]\)/);
+  assert.match(routeIndex, /app\.use\('\/api\/delivery-today', retiredRoute\('legacy-web-delivery-today-alias'/);
+  assert.match(routeIndex, /replacement: '\/api\/new\/delivery-today\/orders'/);
+  assert.doesNotMatch(routeIndex, /app\.get\('\/api\/delivery-today'/);
 });

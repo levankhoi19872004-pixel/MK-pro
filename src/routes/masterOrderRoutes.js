@@ -3,19 +3,24 @@
 const express = require('express');
 const masterOrderController = require('../controllers/masterOrderController');
 const { requireRole } = require('../middlewares/auth.middleware');
+const { retiredRoute } = require('../middlewares/retiredRoute.middleware');
 
 const router = express.Router();
 const manageMasterOrders = requireRole(['admin', 'manager', 'accountant']);
 const viewMasterOrders = requireRole(['admin', 'manager', 'accountant', 'warehouse']);
 
 router.get('/unmerged-child-orders', viewMasterOrders, masterOrderController.listUnmergedChildOrders);
-router.get('/delivery-today-summary', viewMasterOrders, masterOrderController.listDeliveryTodaySummary);
-router.get('/delivery-today-summary/:deliveryStaffCode', viewMasterOrders, masterOrderController.listDeliveryTodaySalesSummary);
-router.get('/delivery-today-orders', viewMasterOrders, masterOrderController.listDeliveryTodayOrdersCompact);
-router.get('/delivery-today', viewMasterOrders, masterOrderController.listDeliveryToday);
-router.post('/delivery-today/confirm-accounting', requireRole(['admin', 'accountant']), masterOrderController.confirmDeliveryAccounting);
-router.post('/delivery-today/:id/admin-unlock', requireRole(['admin']), masterOrderController.adminUnlockDeliveryAccounting);
-router.patch('/delivery-today/:id', manageMasterOrders, masterOrderController.updateDeliveryTodayOrder);
+const legacyDeliveryTodayRetired = retiredRoute('legacy-master-order-delivery-today', {
+  replacement: '/api/new/delivery-today/orders',
+  message: 'Module Đơn giao hôm nay cũ đã được thay thế bằng Đơn giao hôm nay (New).'
+});
+router.all('/delivery-today-summary', legacyDeliveryTodayRetired);
+router.all('/delivery-today-summary/:deliveryStaffCode', legacyDeliveryTodayRetired);
+router.all('/delivery-today-orders', legacyDeliveryTodayRetired);
+router.all('/delivery-today/confirm-accounting', legacyDeliveryTodayRetired);
+router.all('/delivery-today/:id/admin-unlock', legacyDeliveryTodayRetired);
+router.all('/delivery-today/:id', legacyDeliveryTodayRetired);
+router.all('/delivery-today', legacyDeliveryTodayRetired);
 router.post('/print-aggregate', viewMasterOrders, masterOrderController.printAggregate);
 router.get('/', viewMasterOrders, masterOrderController.list);
 router.post('/', manageMasterOrders, masterOrderController.create);

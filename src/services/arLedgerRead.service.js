@@ -33,7 +33,8 @@ function clean(value = '') {
 async function queryRows(Model, match, options = {}) {
   const query = Model.find(match);
   if (options.session && typeof query.session === 'function') query.session(options.session);
-  if (typeof query.sort === 'function') query.sort({ customerCode: 1, sourceId: 1, date: 1, createdAt: 1, _id: 1 });
+  if (typeof query.sort === 'function') query.sort(options.sort || { customerCode: 1, sourceId: 1, date: 1, createdAt: 1, _id: 1 });
+  if (options.limit && typeof query.limit === 'function') query.limit(Math.max(1, Math.min(1000, Number(options.limit) || 100)));
   if (typeof query.lean === 'function') query.lean();
   return query;
 }
@@ -70,6 +71,21 @@ function normalizeAndValidateRows(rows = [], filters = {}) {
   }
 
   return { canonicalLedgers: eligibleRows.map(normalizeCanonicalLedgerRow), rejectedLedgers };
+}
+
+
+
+async function findArLedgerRowsByRawMatch(match = {}, options = {}) {
+  const { ArLedger } = getModels();
+  return queryRows(ArLedger, match, options);
+}
+
+async function getCanonicalLedgersByRawMatch(match = {}, options = {}) {
+  const { ArLedger } = getModels();
+  const rows = await queryRows(ArLedger, match, options);
+  const normalized = normalizeArDebtFilters({ ...(options.filters || {}), status: 'all' });
+  const result = normalizeAndValidateRows(rows, normalized);
+  return options.includeRejected ? result : result.canonicalLedgers;
 }
 
 async function getCanonicalArLedgers(filters = {}, options = {}) {
@@ -281,6 +297,8 @@ module.exports = {
   normalizeArDebtFilters,
   getSignedArAmount,
   getCanonicalArLedgers,
+  findArLedgerRowsByRawMatch,
+  getCanonicalLedgersByRawMatch,
   getCanonicalLedgersByCustomer,
   getCanonicalLedgersBySource,
   getCanonicalLedgersByCustomerCodes,

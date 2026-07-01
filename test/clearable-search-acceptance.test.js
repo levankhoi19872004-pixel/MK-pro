@@ -59,7 +59,7 @@ test('13. Response autocomplete cũ không được render sau clear', () => {
 });
 test('14. Trường phân trang dùng lại nút apply/input hiện hữu để reset trang đúng module', () => {
   assert.ok(selectors.has('#deliveryCashSubmissionStaffCode'));
-  const paged = ['#salesOrderSearchInput', '#masterOrderSearch', '#debtSearchInput', '#returnOrderSearchInput', '#fundSearchInput', '#reportSearchInput'];
+  const paged = ['#salesOrderSearchInput', '#masterOrderSearch', '#returnOrderSearchInput', '#fundSearchInput', '#reportSearchInput'];
   paged.forEach((selector) => assert.ok(selectors.has(selector)));
   paged.map((selector) => rules.find((rule) => rule.selector === selector)).forEach((rule) => assert.ok(rule.action));
 });

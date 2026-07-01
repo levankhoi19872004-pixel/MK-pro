@@ -120,7 +120,8 @@ async function confirmDebtCollectionFromWeb(id, amount, triggerButton){
     if(!json.ok)throw new Error(json.message||'Không xác nhận được phiếu thu nợ');
     showMessage(debtCollectionMessage,json.message||'Đã xác nhận phiếu thu nợ');
     await loadDebtCollections();
-    await loadDebts();
+    if(typeof loadDebtNew==='function')await loadDebtNew({silent:true});
+    else if(typeof loadDebts==='function')await loadDebts();
     if(typeof loadFundLedger==='function')await loadFundLedger();
   }catch(err){showMessage(debtCollectionMessage,err.message||'Không xác nhận được phiếu thu nợ',true)}
   finally{debtCollectionActionLocks.delete(id);setDebtCollectionRowLoading(id,false);if(triggerButton)triggerButton.removeAttribute('aria-busy')}
@@ -138,7 +139,8 @@ async function rejectDebtCollectionFromWeb(id, triggerButton){
     if(!json.ok)throw new Error(json.message||'Không từ chối được phiếu thu nợ');
     showMessage(debtCollectionMessage,json.message||'Đã từ chối phiếu thu nợ');
     await loadDebtCollections();
-    await loadDebts();
+    if(typeof loadDebtNew==='function')await loadDebtNew({silent:true});
+    else if(typeof loadDebts==='function')await loadDebts();
   }catch(err){showMessage(debtCollectionMessage,err.message||'Không từ chối được phiếu thu nợ',true)}
   finally{debtCollectionActionLocks.delete(id);setDebtCollectionRowLoading(id,false);if(triggerButton)triggerButton.removeAttribute('aria-busy')}
 }

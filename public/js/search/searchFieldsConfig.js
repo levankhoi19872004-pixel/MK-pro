@@ -90,67 +90,6 @@
       emptyText: 'Không tìm thấy sản phẩm phù hợp. Kiểm tra /api/products hoặc dữ liệu sản phẩm.'
     },
     {
-      key: 'debtCustomerFilter',
-      type: 'debtCustomer',
-      inputId: 'debtSearchInput',
-      boxId: 'debtSearchSuggestions',
-      source: 'debts',
-      searchKeys: ['customerCode','customerName','phone','address'],
-      limit: 20,
-      fill: [
-        { targetId: 'debtSearchInput', value: 'customerIdOrCode' }
-      ],
-      afterSelect: 'loadDebts',
-      emptyText: 'Không tìm thấy khách đang nợ'
-    },
-    {
-      key: 'debtSalesmanFilter',
-      type: 'staff',
-      inputId: 'debtSalesmanFilter',
-      boxId: 'debtSalesmanFilterSuggestions',
-      source: 'users',
-      roles: ['sales','admin'],
-      searchKeys: ['salesStaffCode','salesmanCode','deliveryStaffCode','staffCode','code','employeeCode','salesStaffName','salesmanName','deliveryStaffName','name','fullName','phone','roleLabel','role','position','department'],
-      onlyActive: true,
-      limit: 20,
-      fill: [
-        { targetId: 'debtSalesmanFilter', value: 'businessStaffCode' }
-      ],
-      afterSelect: 'loadDebts',
-      emptyText: 'Không tìm thấy nhân viên bán hàng'
-    },
-    {
-      key: 'debtDeliveryFilter',
-      type: 'staff',
-      inputId: 'debtDeliveryFilter',
-      boxId: 'debtDeliveryFilterSuggestions',
-      source: 'users',
-      roles: ['delivery','admin'],
-      searchKeys: ['salesStaffCode','salesmanCode','deliveryStaffCode','staffCode','code','employeeCode','salesStaffName','salesmanName','deliveryStaffName','name','fullName','phone','roleLabel','role','position','department'],
-      onlyActive: true,
-      limit: 20,
-      fill: [
-        { targetId: 'debtDeliveryFilter', value: 'businessStaffCode' }
-      ],
-      afterSelect: 'loadDebts',
-      emptyText: 'Không tìm thấy nhân viên giao hàng'
-    },
-    {
-      key: 'collectionCustomer',
-      type: 'debtCustomer',
-      inputId: 'collectionCustomerSearch',
-      boxId: 'collectionCustomerSuggestions',
-      source: 'debts',
-      searchKeys: ['customerCode','customerName','phone','address'],
-      limit: 20,
-      fill: [
-        { targetId: 'collectionCustomerSelect', value: 'customerIdOrCode' },
-        { targetId: 'collectionCustomerSearch', value: 'label' }
-      ],
-      afterSelect: 'setCollectionAmount',
-      emptyText: 'Không tìm thấy khách đang nợ'
-    },
-    {
       key: 'deliveryStaffByCode',
       type: 'staff',
       inputSelector: '#masterOrderForm [name="deliveryStaffCode"]',
@@ -196,38 +135,6 @@
       afterSelect: 'loadUnmergedChildOrders',
       emptyText: 'Không tìm thấy nhân viên bán hàng'
     }
-    ,{
-      key: 'deliveryStaffFilter',
-      type: 'staff',
-      inputId: 'deliveryStaffFilter',
-      boxId: 'deliveryStaffFilterSuggestions',
-      source: 'users',
-      roles: ['delivery','admin'],
-      searchKeys: ['salesStaffCode','salesmanCode','deliveryStaffCode','staffCode','code','employeeCode','salesStaffName','salesmanName','deliveryStaffName','name','fullName','phone','roleLabel','role','position','department'],
-      onlyActive: true,
-      limit: 20,
-      fill: [
-        { targetId: 'deliveryStaffFilter', value: 'businessStaffCode' }
-      ],
-      afterSelect: 'loadDeliveryToday',
-      emptyText: 'Không tìm thấy nhân viên giao hàng'
-    }
-    ,{
-      key: 'deliverySalesmanFilter',
-      type: 'staff',
-      inputId: 'deliverySalesmanFilter',
-      boxId: 'deliverySalesmanFilterSuggestions',
-      source: 'users',
-      roles: ['sales','admin'],
-      searchKeys: ['salesStaffCode','salesmanCode','deliveryStaffCode','staffCode','code','employeeCode','salesStaffName','salesmanName','deliveryStaffName','name','fullName','phone','roleLabel','role','position','department'],
-      onlyActive: true,
-      limit: 20,
-      fill: [
-        { targetId: 'deliverySalesmanFilter', value: 'businessStaffCode' }
-      ],
-      afterSelect: 'loadDeliveryToday',
-      emptyText: 'Không tìm thấy nhân viên bán hàng'
-    }
 
     ,{
       key: 'salesOrderStaffFilter',
@@ -260,86 +167,6 @@
         { targetId: 'masterReturnDeliveryStaffName', value: 'businessStaffName' }
       ],
       afterSelect: 'loadUnmergedReturnOrders',
-      emptyText: 'Không tìm thấy nhân viên giao hàng'
-    }
-    ,{
-      key: 'deliveryCoreDeliveryStaff',
-      type: 'staff',
-      inputId: 'deliveryCoreDeliveryStaff',
-      boxId: 'deliveryCoreDeliveryStaffSuggestions',
-      source: 'users',
-      roles: ['delivery'],
-      onlyActive: true,
-      limit: 20,
-      fill: [
-        { targetId: 'deliveryCoreDeliveryStaff', value: 'businessStaffCode' }
-      ],
-      afterSelect: 'loadDeliveryToday',
-      emptyText: 'Không tìm thấy nhân viên giao hàng'
-    }
-    ,{
-      key: 'deliveryCoreSalesStaff',
-      type: 'staff',
-      inputId: 'deliveryCoreSalesStaff',
-      boxId: 'deliveryCoreSalesStaffSuggestions',
-      source: 'users',
-      roles: ['sales'],
-      onlyActive: true,
-      limit: 20,
-      fill: [
-        { targetId: 'deliveryCoreSalesStaff', value: 'businessStaffCode' }
-      ],
-      afterSelect: 'loadDeliveryToday',
-      emptyText: 'Không tìm thấy nhân viên bán hàng'
-    }
-
-    ,{
-      key: 'externalDebtCustomer',
-      type: 'customer',
-      inputId: 'externalDebtCustomerSearch',
-      boxId: 'externalDebtCustomerSuggestions',
-      source: 'customers',
-      onlyActive: true,
-      limit: 20,
-      fill: [
-        { targetId: 'externalDebtCustomerId', value: 'id' },
-        { targetId: 'externalDebtCustomerCode', value: 'customerCode' },
-        { targetId: 'externalDebtCustomerName', value: 'customerName' },
-        { targetId: 'externalDebtCustomerSearch', value: 'label' }
-      ],
-      afterSelect: 'setExternalDebtCustomerDefaults',
-      emptyText: 'Không tìm thấy khách hàng'
-    }
-    ,{
-      key: 'externalDebtSalesStaff',
-      type: 'staff',
-      inputId: 'externalDebtSalesStaffSearch',
-      boxId: 'externalDebtSalesStaffSuggestions',
-      source: 'users',
-      roles: ['sales'],
-      onlyActive: true,
-      limit: 20,
-      fill: [
-        { targetId: 'externalDebtSalesStaffCode', value: 'businessStaffCode' },
-        { targetId: 'externalDebtSalesStaffName', value: 'businessStaffName' },
-        { targetId: 'externalDebtSalesStaffSearch', value: 'label' }
-      ],
-      emptyText: 'Không tìm thấy nhân viên bán hàng'
-    }
-    ,{
-      key: 'externalDebtDeliveryStaff',
-      type: 'staff',
-      inputId: 'externalDebtDeliveryStaffSearch',
-      boxId: 'externalDebtDeliveryStaffSuggestions',
-      source: 'users',
-      roles: ['delivery'],
-      onlyActive: true,
-      limit: 20,
-      fill: [
-        { targetId: 'externalDebtDeliveryStaffCode', value: 'businessStaffCode' },
-        { targetId: 'externalDebtDeliveryStaffName', value: 'businessStaffName' },
-        { targetId: 'externalDebtDeliveryStaffSearch', value: 'label' }
-      ],
       emptyText: 'Không tìm thấy nhân viên giao hàng'
     }
 

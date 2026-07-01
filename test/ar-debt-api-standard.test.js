@@ -34,11 +34,11 @@ test('debt read model API contract returns stable customers/orders/summary/pagin
   assert.equal(data.diagnostics.readModelCollections.debtCustomers, 'arDebtCustomers');
 });
 
-test('frontend debt core consumes data.customers/data.orders and sends status=open default without Vietnamese labels', () => {
-  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public/js/app/debt/07a-debt-core.js'), 'utf8');
-  assert.match(src, /const debtData=json\.data\|\|\{\}/);
-  assert.match(src, /Array\.isArray\(debtData\.orders\)/);
-  assert.match(src, /debtData\.customers\|\|json\.customerSummary/);
-  assert.match(src, /params\.set\('status',criteria\.status\|\|'open'\)/);
+test('frontend Debt New consumes canonical customers and sends status=open default without Vietnamese labels', () => {
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public/js/app/new/92-debt-new.js'), 'utf8');
+  assert.match(src, /var data = json\.data \|\| json/);
+  assert.match(src, /state\.customers = data\.customers \|\| json\.customers \|\| \[\]/);
+  assert.match(src, /var params = new URLSearchParams\(filters\(\)\)/);
+  assert.match(src, /status: byId\('debtNewStatus'\) \? byId\('debtNewStatus'\)\.value : 'open'/);
   assert.doesNotMatch(src, /params\.set\('status','Khách còn nợ'\)/);
 });

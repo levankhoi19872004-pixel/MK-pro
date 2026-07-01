@@ -6,11 +6,11 @@ const arBalanceService = require('../src/services/accounting/arBalanceService');
 
 test('arBalanceService computes official debt from active arLedgers, ignoring SalesOrder cache', () => {
   const rows = [
-    { type: 'ar_sale', amount: 100000, orderCode: 'SO1', customerCode: 'C1', status: 'posted' },
-    { type: 'ar_return', amount: 30000, orderCode: 'SO1', customerCode: 'C1', status: 'posted' },
-    { type: 'ar_receipt', credit: 20000, orderCode: 'SO1', customerCode: 'C1', status: 'posted' },
-    { type: 'ar_return', amount: 999999, orderCode: 'SO1', customerCode: 'C1', status: 'void' },
-    { type: 'ar_sale', amount: 50000, orderCode: 'SO2', customerCode: 'C1', reversed: true }
+    { type: 'ar_sale', amount: 100000, orderCode: 'SO1', customerCode: 'C1', status: 'posted', accountingConfirmed: true },
+    { type: 'ar_return', amount: 30000, orderCode: 'SO1', customerCode: 'C1', status: 'posted', accountingConfirmed: true },
+    { type: 'ar_receipt', credit: 20000, orderCode: 'SO1', customerCode: 'C1', status: 'posted', accountingConfirmed: true },
+    { type: 'ar_return', amount: 999999, orderCode: 'SO1', customerCode: 'C1', status: 'void', accountingConfirmed: true },
+    { type: 'ar_sale', amount: 50000, orderCode: 'SO2', customerCode: 'C1', reversed: true, accountingConfirmed: true }
   ];
   assert.equal(arBalanceService.computeBalanceFromLedgers(rows), 50000);
 });

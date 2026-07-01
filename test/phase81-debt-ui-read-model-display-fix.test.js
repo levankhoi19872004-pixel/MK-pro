@@ -27,12 +27,11 @@ test('canonical debt API exposes debt/order aliases for legacy debt UI display',
   assert.equal(result.orders[0].documentDate, '2026-06-30');
 });
 
-test('debt UI renders cards/details from remainingDebt aliases, not only d.debt', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/debt/07a-debt-core.js'), 'utf8');
-  assert.match(src, /const meta=debtDisplayMeta\(debtAmountForStatus\(d\)\)/);
-  assert.match(src, /const debtMeta=debtDisplayMeta\(debtAmountForStatus\(d\)\)/);
-  assert.match(src, /collectionCustomerSelect\.dataset\.debt=String\(debtAmountForStatus\(d\)\)/);
-  assert.match(src, /filter\(o=>hasOpenDebt\(debtAmountForStatus\(o\)\)\)/);
-  assert.match(src, /money\(debtAmountForStatus\(o\)\)/);
-  assert.doesNotMatch(src, /debtDisplayMeta\(d\.debt\)/);
+test('Debt New UI renders cards/details from remainingDebt aliases, not only d.debt', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/new/92-debt-new.js'), 'utf8');
+  assert.match(src, /function openDebt\(order\)/);
+  assert.match(src, /order\.debt \?\? order\.remainingDebt \?\? order\.availableDebt \?\? order\.availableDebtAmount/);
+  assert.match(src, /money\(row\.debt\)/);
+  assert.match(src, /money\(customer\.debt\)/);
+  assert.match(src, /openDebt\(order\)/);
 });

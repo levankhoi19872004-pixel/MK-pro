@@ -63,20 +63,16 @@ test('reportService.js công nợ runtime lấy NVBH/NVGH từ AR debt read mode
   assert.doesNotMatch(src, /row\.saleDeliveryStaffName \|\| row\.fallbackDeliveryStaffName/);
 });
 
-test('UI công nợ render NVBH/NVGH bằng code mới từ API debts/arLedgers', () => {
-  const src = [read('public/js/app/debt/07a-debt-core.js'),read('public/js/app/debt/07b-return-orders.js'),read('public/js/app/debt/07d-master-return-orders.js')].join('\n');
-  assert.match(src, /DEBT_UI_RENDER_FROM_DEBT_ROWS_START/);
-  assert.match(src, /window\.debtLedgerRowsCache=ledger/);
-  assert.match(src, /mergeDebtCustomerSummaryFromDebtRows\(json\.customerSummary, ledger\)/);
-  assert.match(src, /function renderDebtStaffInfoFromDebt\(customer\)/);
-  const renderFn = src.match(new RegExp('function renderDebtStaffInfoFromDebt[\\s\\S]*?\\n\\}'))?.[0] || '';
-  assert.ok(renderFn, 'renderDebtStaffInfoFromDebt must exist');
-  assert.match(renderFn, /pickDebtDisplayRowFromDebtRows\(customer\)/);
-  assert.match(renderFn, /debtStaffFieldsFromDebtRow\(row\)/);
-  assert.doesNotMatch(renderFn, /staffCode|staffName|userMap|staffMap/);
-  const selectBlock = src.match(/function selectCollectionCustomer[\s\S]*?function renderCollectionCustomerSelect/)?.[0] || '';
-  assert.match(selectBlock, /renderDebtStaffInfoFromDebt\(d\)/);
-  assert.doesNotMatch(selectBlock, /const staffSource=getDebtDisplayStaffSource\(d\)/);
+test('UI Công nợ (New) render NVBH/NVGH từ canonical staff fields của AR debt read model', () => {
+  const src = read('public/js/app/new/92-debt-new.js');
+  assert.match(src, /function renderCustomers\(\)/);
+  assert.match(src, /row\.salesStaffCode \|\| row\.salesmanCode/);
+  assert.match(src, /row\.salesStaffName \|\| row\.salesmanName/);
+  assert.match(src, /row\.deliveryStaffCode/);
+  assert.match(src, /row\.deliveryStaffName/);
+  assert.match(src, /customer\.salesStaffCode \|\| customer\.salesmanCode/);
+  assert.match(src, /customer\.deliveryStaffCode/);
+  assert.doesNotMatch(src, /staffMap|userMap|getDebtDisplayStaffSource|staffCode\s*\|\||staffName\s*\|\|/);
 });
 
 

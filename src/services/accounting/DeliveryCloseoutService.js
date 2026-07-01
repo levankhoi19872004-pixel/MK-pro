@@ -263,8 +263,6 @@ function summarizePayments(order = {}, explicitPayments = []) {
       paymentRows: rows
     };
   }
-  const breakdown = summarizeCloseoutBreakdownPayments(order);
-  if (breakdown.collectedAmount > 0) return breakdown;
   if (order.deliveryCloseout && hasOwnValue(order.deliveryCloseout, 'collectedAmount')) {
     const collectedAmount = requireMoney(order.deliveryCloseout, 'collectedAmount', { label: 'salesOrders.deliveryCloseout', id: orderId(order), code: orderCode(order) }, { nonNegative: true });
     return {
@@ -275,6 +273,8 @@ function summarizePayments(order = {}, explicitPayments = []) {
       paymentRows: []
     };
   }
+  const breakdown = summarizeCloseoutBreakdownPayments(order);
+  if (breakdown.collectedAmount > 0) return breakdown;
   return { cashAmount: 0, bankAmount: 0, collectedAmount: 0, paymentIds: [], paymentRows: [] };
 }
 

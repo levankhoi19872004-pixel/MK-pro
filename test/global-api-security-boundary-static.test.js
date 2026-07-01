@@ -45,8 +45,8 @@ test('high-risk routes have explicit RBAC after global auth', () => {
   assert.match(systemRoutes, /requireRole\(\['admin'\]\).*systemController\.reset/);
   assert.match(userRoutes, /router\.post\('\/users', requireRole\(\['admin'\]\)/);
   assert.match(userRoutes, /router\.delete\('\/users\/:id', requireRole\(\['admin'\]\)/);
-  assert.match(masterOrderRoutes, /confirm-accounting', requireRole\(\['admin', 'accountant'\]\)/);
-  assert.match(masterOrderRoutes, /admin-unlock', requireRole\(\['admin'\]\)/);
+  assert.match(masterOrderRoutes, /legacy-master-order-delivery-today/);
+  assert.match(masterOrderRoutes, /retiredRoute/);
   assert.match(fundRoutes, /router\.post\('\/expenses', requireRole\(\['admin', 'accountant'\]\)/);
   assert.match(fundRoutes, /router\.post\('\/transfers', requireRole\(\['admin', 'accountant'\]\)/);
 });

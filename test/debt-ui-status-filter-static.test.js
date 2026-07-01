@@ -4,29 +4,29 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const read = (file) => require('./helpers/sourceBundle.util').readSource(file);
 
-test('debt UI status filter keeps overpaid customers out of Khách còn nợ', () => {
+test('retired debt compatibility helper keeps overpaid customers out of open debt status', () => {
   const src = read('public/js/app/debt/07a-debt-core.js');
   assert.match(src, /function matchDebtStatus\(row=\{\}, status=''\)/);
   assert.match(src, /return debt>0;/);
   assert.doesNotMatch(src, /return hasOpenDebt\(d\.debt\) \|\| isOverpaidDebt\(d\.debt\);/);
-  assert.match(src, /const rows=debtsCache\.filter\(d=>matchDebtStatus\(d, criteria\.status\)\);/);
+  assert.match(src, /window\.__legacyDebtScreenRetired = true/);
 });
 
-test('debt collection panel clears payment amount and disables submit when no payable order exists', () => {
-  const src = read('public/js/app/debt/07a-debt-core.js');
-  assert.match(src, /function setDebtPaymentControlsEnabled\(enabled\)/);
-  assert.match(src, /debtPaymentAmount\.value='0'/);
-  assert.match(src, /submitButton\.disabled=!allowed/);
-  assert.match(src, /Khách này không còn đơn nợ để thanh toán/);
+test('Debt New collection tab blocks submission until payable debt orders are selected', () => {
+  const src = read('public/js/app/new/92-debt-new.js');
+  assert.match(src, /function selectedDebtOrders\(customer\)/);
+  assert.match(src, /openDebt\(order\) > 0/);
+  assert.match(src, /Tick các đơn còn nợ để lập phiếu thu chờ xác nhận/);
+  assert.match(src, /if \(!selected\.length\) throw new Error\('Cần chọn ít nhất một đơn nợ\.'\)/);
+  assert.match(src, /if \(amount > maxAmount\) throw new Error\('Số tiền thu vượt tổng nợ đơn đã chọn\.'\)/);
 });
 
 
-test('debt UI sends canonical debt API filter params and does not require customer q when NVGH is present', () => {
-  const src = read('public/js/app/debt/07a-debt-core.js');
-  assert.match(src, /return Boolean\(criteria\.q \|\| criteria\.salesman \|\| criteria\.delivery\);/);
-  assert.match(src, /params\.set\('salesStaffCode',criteria\.salesman\)/);
-  assert.match(src, /params\.set\('deliveryStaffCode',criteria\.delivery\)/);
-  assert.match(src, /params\.set\('status',criteria\.status\|\|'open'\)/);
-  assert.doesNotMatch(src, /params\.set\('delivery',criteria\.delivery\)/);
-  assert.doesNotMatch(src, /params\.set\('salesman',criteria\.salesman\)/);
+test('Debt New sends canonical debt API filter params and does not require customer q when NVGH is present', () => {
+  const src = read('public/js/app/new/92-debt-new.js');
+  assert.match(src, /return Boolean\(f\.q \|\| f\.customerCode \|\| f\.orderCode \|\| f\.salesman \|\| f\.salesStaffCode \|\| f\.delivery \|\| f\.deliveryStaffCode\)/);
+  assert.match(src, /salesStaffCode: normalizedText\(state\.selectedFilters\.salesStaffCode\)/);
+  assert.match(src, /deliveryStaffCode: normalizedText\(state\.selectedFilters\.deliveryStaffCode\)/);
+  assert.match(src, /status: byId\('debtNewStatus'\) \? byId\('debtNewStatus'\)\.value : 'open'/);
+  assert.match(src, /var params = new URLSearchParams\(filters\(\)\)/);
 });

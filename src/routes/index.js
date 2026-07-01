@@ -6,7 +6,6 @@ const userRoutes = require('./userRoutes');
 const authRoutes = require('./authRoutes');
 const orderRoutes = require('./orderRoutes');
 const masterOrderRoutes = require('./masterOrderRoutes');
-const masterOrderController = require('../controllers/masterOrderController');
 const importOrderRoutes = require('./importOrderRoutes');
 const returnRoutes = require('./returnRoutes');
 const masterReturnOrderRoutes = require('./masterReturnOrderRoutes');
@@ -31,7 +30,6 @@ const deliveryRoutes = require('./deliveryRoutes');
 const inventoryRoutes = require('./inventoryRoutes');
 const dmsInventoryRoutes = require('./dmsInventoryRoutes');
 const excelInteractionRoutes = require('./excelInteractionRoutes');
-const { requireRole } = require('../middlewares/auth.middleware');
 const { retiredRoute } = require('../middlewares/retiredRoute.middleware');
 const { inventoryMaintenanceGuard } = require('../middlewares/inventoryMaintenance.middleware');
 const purchaseRoutes = require('./purchaseRoutes');
@@ -100,8 +98,11 @@ function registerApiRoutes(app) {
   app.use('/api/sales-orders', orderRoutes);
   app.use('/api/orders', orderRoutes);
   app.use('/api/master-orders', masterOrderRoutes);
-  // Web dashboard alias for delivery operation UI.
-  app.get('/api/delivery-today', requireRole(['admin', 'manager', 'accountant', 'warehouse']), masterOrderController.listDeliveryToday);
+  // Legacy web delivery-today alias retired; New UI uses /api/new/delivery-today/*.
+  app.use('/api/delivery-today', retiredRoute('legacy-web-delivery-today-alias', {
+    replacement: '/api/new/delivery-today/orders',
+    message: 'Module Đơn giao hôm nay cũ đã được thay thế bằng Đơn giao hôm nay (New).'
+  }));
 
   // Step 3: Import Orders / Return Orders
   app.use('/api/import-orders', importOrderRoutes);
