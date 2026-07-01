@@ -150,7 +150,7 @@ function combinedIdentityText(doc = {}) {
 }
 
 function isArSaleLedger(doc = {}) {
-  return ['AR-SALE', 'AR-EXTERNAL-DEBT'].includes(normalizeArCategory(doc));
+  return ['AR-SALE', 'AR-EXTERNAL', 'AR-EXTERNAL-DEBT'].includes(normalizeArCategory(doc));
 }
 
 function isArReturnLedger(doc = {}) {

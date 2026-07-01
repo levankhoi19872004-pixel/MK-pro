@@ -1,6 +1,7 @@
 'use strict';
 
 const arLedgerReadService = require('../arLedgerRead.service');
+const arBalanceService = require('./arBalanceService');
 
 const DEBT_SOURCE = 'AR_DEBT_READ_MODEL_V2';
 
@@ -81,9 +82,8 @@ function exposeOrderDebt(row = {}, fallbackKey = '') {
 async function getCustomerDebt(customerCode, filters = {}, options = {}) {
   const code = clean(customerCode);
   if (!code) return emptyCustomerDebt('', options);
-  const rows = await readService.aggregateDebtByCustomer({ ...filters, customerCode: code, status: filters.status || 'all' }, options);
-  const match = (rows || []).find((row) => clean(row.customerCode).toLowerCase() === code.toLowerCase()) || rows?.[0];
-  return match ? exposeCustomerDebt(match, code) : emptyCustomerDebt(code, options);
+  const map = await getCustomerDebtMap([code], filters, options);
+  return map.get(code) || emptyCustomerDebt(code, options);
 }
 
 async function getCustomerDebtMap(customerCodes = [], filters = {}, options = {}) {
@@ -92,17 +92,20 @@ async function getCustomerDebtMap(customerCodes = [], filters = {}, options = {}
   codes.forEach((code) => result.set(code, emptyCustomerDebt(code)));
   if (!codes.length) return result;
 
-  let rows = [];
-  if (typeof readService.getCanonicalLedgersByCustomerCodes === 'function' && readService._internal?.aggregateRowsByCustomer) {
-    const ledgers = await readService.getCanonicalLedgersByCustomerCodes(codes, { ...filters, status: filters.status || 'all' }, options);
-    rows = readService._internal.aggregateRowsByCustomer(ledgers, { ...filters, status: filters.status || 'all' });
-  } else {
-    rows = await Promise.all(codes.map(async (code) => getCustomerDebt(code, filters, options)));
-  }
-
-  for (const row of rows || []) {
-    const key = clean(row.customerCode);
-    if (key) result.set(key, exposeCustomerDebt(row, key));
+  // Mobile/runtime debt must tolerate both canonical families currently present in
+  // arLedgers: new AR-DEBT-* rows and older complete AR-SALE/AR-RETURN/AR-RECEIPT
+  // rows. arBalanceService reads confirmed active AR ledgers and applies the
+  // shared category-effect amount policy without falling back to Customer or
+  // SalesOrder debt caches.
+  const balanceMap = await arBalanceService.loadCustomerBalances(codes, options);
+  for (const code of codes) {
+    const amount = money(balanceMap.get(code.toLowerCase()) ?? balanceMap.get(code) ?? 0);
+    result.set(code, exposeCustomerDebt({
+      customerCode: code,
+      remainingDebt: amount,
+      currentDebtAmount: amount,
+      readModelVersion: 'mobile-canonical-ar-ledger-v3'
+    }, code));
   }
   return result;
 }

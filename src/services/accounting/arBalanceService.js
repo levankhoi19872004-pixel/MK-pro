@@ -8,7 +8,7 @@ const {
   normalizeArKey
 } = require('../../utils/arLedger.util');
 const { toNumber } = require('../../utils/common.util');
-const { buildConfirmedArLedgerFilter } = require('../../utils/arLedgerStatus.util');
+const { buildConfirmedArLedgerFilter, isConfirmedArLedger } = require('../../utils/arLedgerStatus.util');
 
 
 function getArLedgerModel() {
@@ -28,14 +28,19 @@ function unique(values = []) {
 }
 
 function activeArLedgerQuery(extra = {}) {
-  return buildConfirmedArLedgerFilter(extra, { extraInactiveStatuses: ['duplicate_cancelled', 'draft'] });
+  return buildConfirmedArLedgerFilter(
+    { ...extra, active: { $ne: false } },
+    { extraInactiveStatuses: ['duplicate_cancelled', 'draft'] }
+  );
 }
 
 function orderIdentityValues(order = {}) {
+  if (!order || typeof order !== 'object') return unique([order]);
   return unique(orderKeysFrom(order));
 }
 
 function customerIdentityValues(customer = {}) {
+  if (!customer || typeof customer !== 'object') return unique([customer]);
   return unique([
     customer.customerCode,
     customer.code,
@@ -83,7 +88,9 @@ function withSession(query, options = {}) {
 
 function computeBalanceFromLedgers(rows = []) {
   return normalizeDebtAmount((Array.isArray(rows) ? rows : [])
-    .filter(isActiveArEntry)
+    .filter((row) => row.active !== false
+      && row.accountingConfirmed === true
+      && isConfirmedArLedger(row, { extraInactiveStatuses: ['duplicate_cancelled', 'draft'] }))
     .reduce((sum, row) => sum + arEntryBalanceEffect(row), 0));
 }
 

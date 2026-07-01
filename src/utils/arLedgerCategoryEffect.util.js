@@ -64,7 +64,7 @@ function normalizeArCategory(doc = {}) {
   if (exact === 'AR-RETURN' || type === 'ar_return' || /^AR-RETURN/.test(upper(doc.code || doc.id || doc.idempotencyKey)) || /AR[-_ ]?RETURN|RETURN[_ -]?ORDER/.test(text)) return 'AR-RETURN';
   if (exact === 'AR-RECEIPT' || type === 'ar_receipt' || /AR[-_ ]?RECEIPT|\bRECEIPT\b|\bPAYMENT\b|DEBT[_ -]?COLLECTION|\bCOLLECTION\b/.test(text)) return 'AR-RECEIPT';
   if (exact === 'AR-SALE' || type === 'ar_sale' || /AR[-_ ]?SALE|\bSALE\b|SALES[_ -]?ORDER/.test(text)) return 'AR-SALE';
-  if (exact === 'AR-EXTERNAL-DEBT' || type === 'ar_external_debt' || /AR[-_ ]?EXTERNAL|EXTERNAL[_ -]?DEBT/.test(text)) return 'AR-EXTERNAL-DEBT';
+  if (exact === 'AR-EXTERNAL' || exact === 'AR-EXTERNAL-DEBT' || type === 'ar_external' || type === 'ar_external_debt' || /AR[-_ ]?EXTERNAL|EXTERNAL[_ -]?DEBT/.test(text)) return 'AR-EXTERNAL-DEBT';
   if (/AR[-_ ]?(BONUS|ALLOWANCE|REWARD|DISCOUNT)|\b(BONUS|ALLOWANCE|REWARD|DISCOUNT)\b|TRẢ THƯỞNG|TRA THUONG/.test(text)) return 'AR-BONUS-ALLOWANCE';
   if (/AR[-_ ]?ADJUSTMENT|\bADJUSTMENT\b|\bADJUST\b|WRITE[_ -]?OFF|OFFSET|CẤN TRỪ|CAN TRU/.test(text)) return 'AR-ADJUSTMENT';
   return exact || upper(doc.ledgerType || doc.type || 'UNKNOWN');
@@ -76,7 +76,7 @@ function isBusinessArReturnReversal(doc = {}) {
 
 function getArLedgerCategoryEffect(doc = {}) {
   const category = normalizeArCategory(doc);
-  if (['AR-DEBT-OPEN', 'AR-SALE', 'AR-EXTERNAL-DEBT', 'AR-RETURN-REVERSAL', 'AR-RECEIPT-REVERSAL'].includes(category)) {
+  if (['AR-DEBT-OPEN', 'AR-SALE', 'AR-EXTERNAL', 'AR-EXTERNAL-DEBT', 'AR-RETURN-REVERSAL', 'AR-RECEIPT-REVERSAL'].includes(category)) {
     return { category, defaultSide: 'debit', effect: 'increase_ar' };
   }
   if (['AR-DEBT-PAYMENT', 'AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RECEIPT', 'AR-BONUS-ALLOWANCE'].includes(category)) {

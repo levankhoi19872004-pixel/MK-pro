@@ -3,14 +3,14 @@
 const reportService = require('./reportService');
 const DebtCollection = require('../models/DebtCollection');
 const ArLedger = require('../models/ArLedger');
-const arLedgerReadService = require('./arLedgerRead.service');
 const dateUtil = require('../utils/date.util');
 const { toNumber } = require('../utils/common.util');
 const arLedgerUtil = require('../utils/arLedger.util');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 const {
   getMobileCustomerDebts: getPagedMobileCustomerDebts,
-  loadDebtBalancesForCustomers
+  loadDebtBalancesForCustomers,
+  activeArFilter: buildMobileActiveArFilter
 } = require('./mobile/mobileDebtQuery.service');
 
 const PENDING_STATUSES = ['submitted', 'under_review'];
@@ -286,10 +286,7 @@ async function getCustomerDebts(query = {}) {
 }
 
 function activeArFilter() {
-  return {
-    ...arLedgerReadService.buildCanonicalArLedgerMatch({}),
-    entryType: { $ne: 'reversal' }
-  };
+  return buildMobileActiveArFilter({ entryType: { $ne: 'reversal' } });
 }
 
 function orderRefCondition(keys = []) {
