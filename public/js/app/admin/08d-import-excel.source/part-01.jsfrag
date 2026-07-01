@@ -4,6 +4,10 @@
 const SELECTIVE_UPDATE_IMPORT_TYPES=new Set(['products','customers','users']);
 const IMPORT_SESSION_ROWS_PAGE_SIZE=500;
 const IMPORT_SESSION_ROWS_MAX=20000;
+const PROMOTION_CATALOG_IMPORT_TYPES=new Set(['promotionProductRules','promotionGroupItems']);
+function isPromotionCatalogImportType(type){
+  return PROMOTION_CATALOG_IMPORT_TYPES.has(String(type||importDataType?.value||'').trim());
+}
 function getSelectedImportMode(){
   const type=importDataType?importDataType.value:'';
   if(!SELECTIVE_UPDATE_IMPORT_TYPES.has(type))return 'create';
@@ -43,6 +47,10 @@ function resetImportPreviewMessage(){
 function getImportRowSelectKey(row,index){
   const code=String(row?.documentCode||row?.orderCode||row?.code||row?.username||'').trim();
   return code || `ROW_${index}`;
+}
+function getImportRowSourceNumber(row,index){
+  const value=Number(row?.rowNo||row?.sourceRowNo||row?.__rowNo||row?.rowNumber||index+1);
+  return Number.isFinite(value)&&value>0?value:0;
 }
 function importRowWarningList(row){
   return Array.isArray(row&&row.warnings)?row.warnings.filter(Boolean).map(String):[];

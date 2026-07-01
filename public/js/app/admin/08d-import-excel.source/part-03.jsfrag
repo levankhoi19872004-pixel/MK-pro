@@ -50,6 +50,8 @@ async function commitImportExcel(){
         importMode:getSelectedImportMode(),
         importSessionId:importPreviewSessionId,
         selectedOrderCodes:selectedRows.map(r=>String(r.documentCode||r.orderCode||r.code||r.username||'').trim()).filter(Boolean),
+        selectedRowNumbers:selectedRows.map((r,index)=>getImportRowSourceNumber(r,index)).filter(Boolean),
+        selectedRowKeys:selectedRows.map((r,index)=>getImportRowSelectKey(r,index)).filter(Boolean),
         shortageMode:importShortageActionMode||'cut'
       })
     });

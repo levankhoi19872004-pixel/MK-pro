@@ -17,6 +17,12 @@ function normalizeSelectedOrderCodes(value) {
     : [];
 }
 
+function normalizeSelectedRowNumbers(value) {
+  return Array.isArray(value)
+    ? value.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
+    : [];
+}
+
 function buildDonePayload(session, sessionId) {
   const result = session && session.result && typeof session.result === 'object' && !Array.isArray(session.result)
     ? session.result
@@ -78,6 +84,7 @@ async function commitSession(payload = {}, user = {}) {
     shortageMode: cleanText(payload.shortageMode),
     sessionId: canonicalSessionId,
     selectedOrderCodes: normalizeSelectedOrderCodes(payload.selectedOrderCodes),
+    selectedRowNumbers: normalizeSelectedRowNumbers(payload.selectedRowNumbers),
     userName: actorName(user)
   });
 
@@ -99,6 +106,7 @@ module.exports = {
   commitSession,
   _private: {
     actorName,
-    normalizeSelectedOrderCodes
+    normalizeSelectedOrderCodes,
+    normalizeSelectedRowNumbers
   }
 };

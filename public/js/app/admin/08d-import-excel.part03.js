@@ -13,9 +13,10 @@ showMessage(importDataMessage,`Đang import ${formatNumber(selectedRows.length)}
 ;stopProgressPolling=startImportCommitProgressPolling(importPreviewSessionId,selectedRows.length)
 ;const commitUrl=`/api/import/sessions/${encodeURIComponent(importPreviewSessionId)}/commit`;const res=await fetch(commitUrl,{method:"POST",headers:{
 "Content-Type":"application/json"},body:JSON.stringify({type:importDataType.value,importMode:getSelectedImportMode(),importSessionId:importPreviewSessionId,
-selectedOrderCodes:selectedRows.map(r=>String(r.documentCode||r.orderCode||r.code||r.username||"").trim()).filter(Boolean),shortageMode:importShortageActionMode||"cut"})})
-;let json=await res.json().catch(()=>({ok:false,message:`API import không trả JSON hợp lệ (HTTP ${res.status})`}))
-;if(!json.ok)throw new Error(json.error||json.message||"Import thất bại");if(json.accepted&&json.jobId){
+selectedOrderCodes:selectedRows.map(r=>String(r.documentCode||r.orderCode||r.code||r.username||"").trim()).filter(Boolean),
+selectedRowNumbers:selectedRows.map((r,index)=>getImportRowSourceNumber(r,index)).filter(Boolean),
+selectedRowKeys:selectedRows.map((r,index)=>getImportRowSelectKey(r,index)).filter(Boolean),shortageMode:importShortageActionMode||"cut"})});let json=await res.json().catch(()=>({
+ok:false,message:`API import không trả JSON hợp lệ (HTTP ${res.status})`}));if(!json.ok)throw new Error(json.error||json.message||"Import thất bại");if(json.accepted&&json.jobId){
 showMessage(importDataMessage,`Đã tạo job ${json.jobId}. Tác vụ nền đang xử lý...`);json=await waitForAsyncImportCommit(importPreviewSessionId,json.jobId)}
 const shortageText=json.shortageReport&&json.shortageReport.length?` · Đã tự cắt ${displayImportAggregateQty(json.shortageSummary?.totalMissingQty||0)} sản phẩm thiếu (${money(json.shortageSummary?.totalCutAmount||0)})`:""
 ;const durationMs=Number(json.performance&&json.performance.durationMs||0);const performanceText=durationMs>0?` · ${Math.max(.1,durationMs/1e3).toFixed(1)} giây`:""

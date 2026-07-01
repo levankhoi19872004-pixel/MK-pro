@@ -447,7 +447,7 @@ async function markDone(id, result = {}) {
   );
 }
 
-async function selectRows(session, selectedOrderCodes = []) {
+async function selectRows(session, selectedOrderCodes = [], selectedRowNumbers = []) {
   const sessionId = cleanText(session?.sessionId || session?.id);
   if (!sessionId) return [];
 
@@ -456,11 +456,23 @@ async function selectRows(session, selectedOrderCodes = []) {
       .map((v) => cleanText(v))
       .filter(Boolean)
   );
+  const selectedRows = new Set(
+    (selectedRowNumbers || [])
+      .map((v) => Number(v))
+      .filter((v) => Number.isFinite(v) && v > 0)
+  );
 
   const query = { sessionId };
 
-  if (selected.size) {
+  if (selected.size && selectedRows.size) {
+    query.$or = [
+      { documentCode: { $in: Array.from(selected) } },
+      { rowNo: { $in: Array.from(selectedRows) } }
+    ];
+  } else if (selected.size) {
     query.documentCode = { $in: Array.from(selected) };
+  } else if (selectedRows.size) {
+    query.rowNo = { $in: Array.from(selectedRows) };
   }
 
   const docs = await ImportSessionRow
@@ -472,11 +484,12 @@ async function selectRows(session, selectedOrderCodes = []) {
     .map((doc) => doc.normalizedRow)
     .filter(Boolean);
 
-  if (!selected.size) return rows;
+  if (!selected.size && !selectedRows.size) return rows;
 
-  return rows.filter((row) =>
-    selected.has(getRowDocumentCode(row))
-  );
+  return rows.filter((row, index) => {
+    const rowNo = Number(row?.rowNo || row?.sourceRowNo || row?.__rowNo || row?.rowNumber || docs[index]?.rowNo || 0);
+    return selected.has(getRowDocumentCode(row)) || selectedRows.has(rowNo);
+  });
 }
 
 

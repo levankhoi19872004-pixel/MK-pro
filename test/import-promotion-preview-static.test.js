@@ -142,3 +142,32 @@ test('promotion import preview exposes missing product summary for large CK file
   assert.match(source, /programCodes/);
   assert.match(source, /missingProductCount/);
 });
+
+test('promotion CK/product import UI removes invalid product rows from import list and keeps only valid rows selected', () => {
+  const part1 = read('public/js/app/admin/08d-import-excel.source/part-01.jsfrag');
+  const part2 = read('public/js/app/admin/08d-import-excel.source/part-02.jsfrag');
+  const part3 = read('public/js/app/admin/08d-import-excel.source/part-03.jsfrag');
+
+  assert.match(part1, /const PROMOTION_CATALOG_IMPORT_TYPES=new Set\(\['promotionProductRules','promotionGroupItems'\]\)/);
+  assert.match(part1, /function isPromotionCatalogImportType/);
+  assert.match(part2, /const shouldHideInvalidRows=isPromotionCatalogImportType\(\)&&removableErrorRows\.length>0/);
+  assert.match(part2, /displayRows=shouldHideInvalidRows\?indexedRows\.filter\(x=>isImportRowSelectable\(x\.row\)\):indexedRows/);
+  assert.match(part2, /Đã loại \$\{formatNumber\(removableErrorRows\.length\)\} dòng lỗi sản phẩm khỏi danh sách import/);
+  assert.match(part2, /chỉ còn \$\{formatNumber\(selectableNow\)\} dòng hợp lệ được chọn sẵn/);
+  assert.match(part3, /selectedRowNumbers:selectedRows\.map\(\(r,index\)=>getImportRowSourceNumber\(r,index\)\)\.filter\(Boolean\)/);
+  assert.doesNotMatch(part3, /rows:selectedRows/);
+});
+
+test('import session commit can honor selected row numbers for non-order Excel rows', () => {
+  const webDirect = read('src/services/import/ImportWebDirectCommitService.js');
+  const commit = read('src/services/import/importCommit.impl.js');
+  const session = read('src/services/importSessionService.js');
+
+  assert.match(webDirect, /function normalizeSelectedRowNumbers/);
+  assert.match(webDirect, /selectedRowNumbers: normalizeSelectedRowNumbers\(payload\.selectedRowNumbers\)/);
+  assert.match(commit, /selectedRowNumbers = \[\]/);
+  assert.match(commit, /selectRows\(session, selectedOrderCodes, selectedRowNumbers\)/);
+  assert.match(session, /async function selectRows\(session, selectedOrderCodes = \[\], selectedRowNumbers = \[\]\)/);
+  assert.match(session, /query\.rowNo = \{ \$in: Array\.from\(selectedRows\) \}/);
+  assert.match(session, /selectedRows\.has\(rowNo\)/);
+});

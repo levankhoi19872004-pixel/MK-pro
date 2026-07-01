@@ -1,7 +1,8 @@
 /* GENERATED FILE — edit public/js/app/admin/08d-import-excel.source/part-01.jsfrag, public/js/app/admin/08d-import-excel.source/part-02.jsfrag, public/js/app/admin/08d-import-excel.source/part-03.jsfrag and run npm run build:source-bundles. */
 "use strict";const SELECTIVE_UPDATE_IMPORT_TYPES=new Set(["products","customers","users"]);const IMPORT_SESSION_ROWS_PAGE_SIZE=500;const IMPORT_SESSION_ROWS_MAX=2e4
-;function getSelectedImportMode(){const type=importDataType?importDataType.value:"";if(!SELECTIVE_UPDATE_IMPORT_TYPES.has(type))return"create"
-;return importDataMode&&importDataMode.value==="update"?"update":"create"}function syncImportModeAvailability(){
+;const PROMOTION_CATALOG_IMPORT_TYPES=new Set(["promotionProductRules","promotionGroupItems"]);function isPromotionCatalogImportType(type){
+return PROMOTION_CATALOG_IMPORT_TYPES.has(String(type||importDataType?.value||"").trim())}function getSelectedImportMode(){const type=importDataType?importDataType.value:""
+;if(!SELECTIVE_UPDATE_IMPORT_TYPES.has(type))return"create";return importDataMode&&importDataMode.value==="update"?"update":"create"}function syncImportModeAvailability(){
 const supported=SELECTIVE_UPDATE_IMPORT_TYPES.has(importDataType?importDataType.value:"");if(importModeLabel)importModeLabel.hidden=!supported
 ;if(importModeHelp)importModeHelp.hidden=!supported;if(importDataMode){importDataMode.disabled=!supported;if(!supported)importDataMode.value="create"}}
 function resetImportPreviewForModeChange(){importPreviewRows=[];importPreviewSessionId="";importSelectedRowKeySet=new Set;window.__importPreviewRows=importPreviewRows
@@ -11,7 +12,8 @@ function resetImportPreviewForModeChange(){importPreviewRows=[];importPreviewSes
 const changes=Array.isArray(row&&row.changes)?row.changes:[];if(!changes.length)return""
 ;return changes.map(change=>`${change.label||change.field}: ${change.oldValue??""} → ${change.newValue??""}`).join(" | ")}function resetImportPreviewMessage(){
 if(importDataMessage)showMessage(importDataMessage,"")}function getImportRowSelectKey(row,index){
-const code=String(row?.documentCode||row?.orderCode||row?.code||row?.username||"").trim();return code||`ROW_${index}`}function importRowWarningList(row){
+const code=String(row?.documentCode||row?.orderCode||row?.code||row?.username||"").trim();return code||`ROW_${index}`}function getImportRowSourceNumber(row,index){
+const value=Number(row?.rowNo||row?.sourceRowNo||row?.__rowNo||row?.rowNumber||index+1);return Number.isFinite(value)&&value>0?value:0}function importRowWarningList(row){
 return Array.isArray(row&&row.warnings)?row.warnings.filter(Boolean).map(String):[]}function importRowErrorList(row){
 return Array.isArray(row&&row.errors)?row.errors.filter(Boolean).map(String):[]}function importRowHasMissingCatalogProduct(row){if(!row)return false
 ;const productCode=String(row.productCode||"").trim();const warningText=importRowWarningList(row).join(" | ").toLowerCase()
