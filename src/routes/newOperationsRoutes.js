@@ -68,7 +68,10 @@ router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, 
     const debtLedgerCreated = rows.filter((row) => row.arDebtOpen && row.arDebtOpen.posted).length;
     const idempotentLedgers = rows.filter((row) => row.arDebtOpen && row.arDebtOpen.idempotent).length;
     const skippedZeroDebt = rows.filter((row) => row.arDebtOpen && row.arDebtOpen.skipped && row.arDebtOpen.reason === 'zero_final_debt').length;
-    const overpaymentWarnings = rows.filter((row) => row.arDebtOpen && row.arDebtOpen.exception).map((row) => ({ orderId: row.orderId, reason: row.arDebtOpen.reason, overpaymentAmount: row.arDebtOpen.overpaymentAmount }));
+    const overpaymentWarnings = [
+      ...((result && Array.isArray(result.warnings)) ? result.warnings : []),
+      ...rows.filter((row) => row.arDebtOpen && row.arDebtOpen.exception).map((row) => ({ orderId: row.orderId, reason: row.arDebtOpen.reason, overpaymentAmount: row.arDebtOpen.overpaymentAmount }))
+    ];
     const totalDebtPosted = rows.reduce((sum, row) => {
       const entry = row.arDebtOpen && row.arDebtOpen.entry;
       const amount = entry ? Number(entry.amount || entry.debit || 0) : 0;
@@ -88,7 +91,8 @@ router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, 
       skippedZeroDebt,
       totalDebtPosted,
       warnings: overpaymentWarnings,
-      data: { ...result, closeoutId, debtLedgerCreated, idempotentLedgers, skippedZeroDebt, totalDebtPosted, warnings: overpaymentWarnings },
+      diagnostics: result.diagnostics || [],
+      data: { ...result, closeoutId, debtLedgerCreated, idempotentLedgers, skippedZeroDebt, totalDebtPosted, warnings: overpaymentWarnings, diagnostics: result.diagnostics || [] },
       canonicalRoute: '/api/new/delivery-today/closeout'
     });
   } catch (err) {

@@ -85,6 +85,28 @@ function stripOperationalDetails(closeout = {}) {
   return copy;
 }
 
+
+function buildCloseoutDiagnostic(order = {}, closeout = {}, arResult = null) {
+  const normalizedDebtAmount = DeliveryCloseoutService.normalizeDebtAmount(closeout.finalDebtAmount);
+  const diagnostic = {
+    orderCode: DeliveryCloseoutService.orderCode(order),
+    customerCode: clean(order.customerCode),
+    receivableAmount: DeliveryCloseoutService._internal.money(closeout.originalAmount),
+    cashAmount: DeliveryCloseoutService._internal.money(closeout.cashAmount),
+    bankAmount: DeliveryCloseoutService._internal.money(closeout.bankAmount),
+    rewardAmount: DeliveryCloseoutService._internal.money(closeout.rewardAmount || closeout.offsetAmount),
+    returnAmount: DeliveryCloseoutService._internal.money(closeout.returnedAmount),
+    rawDebtAmount: DeliveryCloseoutService._internal.money(closeout.rawFinalDebtAmount),
+    normalizedDebtAmount,
+    action: normalizedDebtAmount > 0 ? 'posted_ar_debt_open' : (normalizedDebtAmount < 0 ? 'overpaid_or_negative_debt' : 'skipped_zero_debt')
+  };
+  if (arResult && arResult.entry) {
+    diagnostic.ledgerId = arResult.entry.id || arResult.entry._id;
+    diagnostic.idempotencyKey = arResult.entry.idempotencyKey;
+  }
+  return diagnostic;
+}
+
 function buildConfirmedOrderPatch(order = {}, closeout = {}, actor = 'accountant') {
   const finalDebt = DeliveryCloseoutService.positiveMoney(closeout.finalDebtAmount);
   return {
@@ -226,18 +248,18 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     throw err;
   }
 
-  if (computed.finalDebtAmount < 0) {
-    const err = new Error('finalDebtAmount âm: đưa vào exception/overpayment, không sinh công nợ âm.');
-    err.code = 'DELIVERY_CLOSEOUT_OVERPAYMENT_EXCEPTION';
-    err.orderId = DeliveryCloseoutService.orderId(order);
-    err.orderCode = DeliveryCloseoutService.orderCode(order);
-    err.finalDebtAmount = computed.finalDebtAmount;
-    throw err;
-  }
+  // finalDebtAmount âm lớn là overpayment/exception: vẫn khóa closeout nhưng không sinh công nợ âm.
 
   if (existingCloseout.status === 'accounting_confirmed' || order.accountingConfirmed === true) {
     const postResult = await ArDebtOpenPostingService.postDebtOpen(order, existingCloseout, options);
-    return { skipped: true, idempotent: true, orderId: DeliveryCloseoutService.orderId(order), closeout: existingCloseout, arDebtOpen: postResult };
+    return {
+      skipped: true,
+      idempotent: true,
+      orderId: DeliveryCloseoutService.orderId(order),
+      closeout: existingCloseout,
+      arDebtOpen: postResult,
+      diagnostic: buildCloseoutDiagnostic(order, existingCloseout, postResult)
+    };
   }
 
   const confirmedCloseout = DeliveryCloseoutService.confirmCloseout(order, computed, { actor, reason: clean(options.reason || options.closeoutReason || '') });
@@ -251,7 +273,13 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     user: actor,
     note: `Xác nhận kế toán chốt giao hàng: finalDebt=${confirmedCloseout.finalDebtAmount}, AR=${arResult.posted ? 'AR-DEBT-OPEN' : arResult.reason || 'idempotent'}, reason=${clean(options.reason || options.closeoutReason || '')}`
   });
-  return { confirmed: true, orderId: DeliveryCloseoutService.orderId(order), closeout: confirmedCloseout, arDebtOpen: arResult };
+  return {
+    confirmed: true,
+    orderId: DeliveryCloseoutService.orderId(order),
+    closeout: confirmedCloseout,
+    arDebtOpen: arResult,
+    diagnostic: buildCloseoutDiagnostic(order, confirmedCloseout, arResult)
+  };
 }
 
 async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
@@ -278,6 +306,10 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
 
   const confirmedOrders = results.filter((row) => row.confirmed).length;
   const skippedOrders = results.filter((row) => row.skipped).length;
+  const diagnostics = results.map((row) => row.diagnostic).filter(Boolean);
+  const warnings = diagnostics
+    .filter((row) => row.normalizedDebtAmount < 0)
+    .map((row) => ({ code: 'OVERPAID_OR_NEGATIVE_DEBT', orderCode: row.orderCode, customerCode: row.customerCode, normalizedDebtAmount: row.normalizedDebtAmount }));
   return {
     date,
     confirmedOrders,
@@ -286,6 +318,8 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     architecture: 'salesOrders.deliveryCloseout -> single AR-DEBT-OPEN',
     arPolicy: 'no AR-SALE / AR-RETURN / AR-RECEIPT from delivery accounting',
     results,
+    diagnostics,
+    warnings,
     reason,
     message: `Kế toán đã xác nhận ${confirmedOrders} đơn theo deliveryCloseout. Công nợ chỉ sinh AR-DEBT-OPEN nếu finalDebtAmount > 0 sau ngưỡng dung sai ±1.000.`
   };
@@ -332,6 +366,7 @@ module.exports = {
     isCompletedDelivery,
     buildConfirmedOrderPatch,
     guardKey,
-    stripOperationalDetails
+    stripOperationalDetails,
+    buildCloseoutDiagnostic
   }
 };

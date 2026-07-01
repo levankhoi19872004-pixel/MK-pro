@@ -3,7 +3,7 @@
 const crypto = require('node:crypto');
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
-const { normalizeDebtAmount } = require('../../constants/finance.constants');
+const { normalizeDebtAmount, calculateDeliveryDebtAmount } = require('../../constants/finance.constants');
 
 const INACTIVE_RETURN_STATUSES = new Set(['cancelled', 'canceled', 'void', 'voided', 'deleted', 'removed', 'cleared', 'duplicate_cancelled', 'inactive']);
 const CONFIRMED_RETURN_STATUSES = new Set(['confirmed', 'accounting_confirmed', 'warehouse_received', 'received', 'posted']);
@@ -177,64 +177,99 @@ function collectDeliveryPaymentRows(order = {}, explicitPayments = []) {
   return rows;
 }
 
-function firstMoney(source = {}, fields = []) {
+function pickMoneyValue(source = {}, fields = [], contextLabel = 'salesOrders.deliveryCloseout', options = {}) {
+  let fallbackZero = 0;
   for (const field of fields) {
-    if (hasOwnValue(source, field)) return requireMoney(source, field, { label: 'salesOrders.deliveryCloseout', field }, { nonNegative: true });
+    if (!hasOwnValue(source, field)) continue;
+    const value = requireMoney(source, field, { label: contextLabel, field }, { nonNegative: options.nonNegative !== false });
+    if (value !== 0) return value;
+    fallbackZero = 0;
   }
-  return 0;
+  return fallbackZero;
+}
+
+function firstMoney(source = {}, fields = []) {
+  return pickMoneyValue(source, fields);
 }
 
 function closeoutMoney(source = {}, fields = []) {
-  return firstMoney(source, fields);
+  return pickMoneyValue(source, fields, 'salesOrders.deliveryCloseout');
+}
+
+const CASH_FIELDS = ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount', 'paymentCashAmount', 'paidCashAmount', 'paidCash', 'collectedCash', 'deliveryCashAmount', 'collectedCashAmount', 'cashCollected', 'cash'];
+const BANK_FIELDS = ['bankAmount', 'transferAmount', 'bankTransferAmount', 'paymentTransferAmount', 'paymentBankAmount', 'paidBankAmount', 'paidTransferAmount', 'collectedBankAmount', 'deliveryBankAmount', 'bankCollectedAmount', 'collectedTransferAmount', 'collectedTransfer', 'transferCollected', 'bankCollected', 'bank'];
+const REWARD_FIELDS = ['rewardAmount', 'bonusAmount', 'allowanceAmount', 'promotionRewardAmount', 'displayRewardAmount', 'bonusReturnAmount'];
+const RETURN_FIELDS = ['returnAmount', 'returnedAmount', 'returnOrderAmount', 'actualReturnAmount', 'returnAmountFromReturnOrders', 'syncedReturnAmountFromReturnOrders'];
+
+function orderMoneyValue(order = {}, closeout = {}, fields = [], label = 'amount') {
+  const fromCloseout = pickMoneyValue(closeout, fields, `salesOrders.deliveryCloseout.${label}`);
+  if (fromCloseout !== 0) return fromCloseout;
+  return pickMoneyValue(order, fields, `salesOrders.${label}`);
+}
+
+function summarizeInlineDeliveryPayments(order = {}) {
+  const closeout = order.deliveryCloseout && typeof order.deliveryCloseout === 'object' ? order.deliveryCloseout : {};
+  const cashAmount = orderMoneyValue(order, closeout, CASH_FIELDS, 'cashAmount');
+  const bankAmount = orderMoneyValue(order, closeout, BANK_FIELDS, 'bankAmount');
+  const paymentRows = [];
+  if (cashAmount > 0) paymentRows.push({ id: 'delivery-inline-cash', sourceType: 'DELIVERY_CLOSEOUT_BREAKDOWN', status: 'confirmed', method: 'cash', amount: cashAmount });
+  if (bankAmount > 0) paymentRows.push({ id: 'delivery-inline-bank', sourceType: 'DELIVERY_CLOSEOUT_BREAKDOWN', status: 'confirmed', method: 'transfer', amount: bankAmount });
+  return {
+    cashAmount,
+    bankAmount,
+    collectedAmount: money(cashAmount + bankAmount),
+    paymentIds: paymentRows.map((row) => paymentId(row)).filter(Boolean),
+    paymentRows
+  };
 }
 
 function summarizeCloseoutBreakdownPayments(order = {}) {
-  const closeout = order.deliveryCloseout && typeof order.deliveryCloseout === 'object' ? order.deliveryCloseout : null;
-  if (!closeout) return { collectedAmount: 0, paymentIds: [], paymentRows: [] };
-  const cashAmount = closeoutMoney(closeout, ['cashAmount', 'cashCollectedAmount', 'collectedCashAmount', 'collectedCash', 'cashCollected', 'cash']);
-  const transferAmount = closeoutMoney(closeout, ['transferAmount', 'bankAmount', 'bankCollectedAmount', 'collectedTransferAmount', 'collectedTransfer', 'transferCollected', 'bankCollected', 'bank']);
-  const rows = [];
-  if (cashAmount > 0) rows.push({ id: 'delivery-closeout-cash', sourceType: 'DELIVERY_CLOSEOUT_BREAKDOWN', status: 'confirmed', method: 'cash', amount: cashAmount });
-  if (transferAmount > 0) rows.push({ id: 'delivery-closeout-transfer', sourceType: 'DELIVERY_CLOSEOUT_BREAKDOWN', status: 'confirmed', method: 'transfer', amount: transferAmount });
+  const inline = summarizeInlineDeliveryPayments(order);
   return {
-    collectedAmount: rows.reduce((sum, row) => sum + paymentAmount(row), 0),
-    paymentIds: rows.map((row) => paymentId(row)).filter(Boolean),
-    paymentRows: rows
+    collectedAmount: inline.collectedAmount,
+    cashAmount: inline.cashAmount,
+    bankAmount: inline.bankAmount,
+    paymentIds: inline.paymentIds,
+    paymentRows: inline.paymentRows
   };
 }
 
 function summarizeOffsets(order = {}) {
-  const closeout = order.deliveryCloseout && typeof order.deliveryCloseout === 'object' ? order.deliveryCloseout : null;
-  if (!closeout) return { offsetAmount: 0, offsetRows: [] };
-  const explicitOffset = closeoutMoney(closeout, ['offsetAmount', 'debtOffsetAmount', 'deliveryOffsetAmount']);
-  const rewardOffset = closeoutMoney(closeout, ['rewardAmount', 'bonusAmount', 'displayRewardAmount', 'bonusReturnAmount', 'allowanceAmount']);
+  const closeout = order.deliveryCloseout && typeof order.deliveryCloseout === 'object' ? order.deliveryCloseout : {};
+  const explicitOffset = orderMoneyValue(order, closeout, ['offsetAmount', 'debtOffsetAmount', 'deliveryOffsetAmount'], 'offsetAmount');
+  const rewardOffset = orderMoneyValue(order, closeout, REWARD_FIELDS, 'rewardAmount');
   const offsetAmount = money(explicitOffset + rewardOffset);
   const offsetRows = [];
   if (explicitOffset > 0) offsetRows.push({ type: 'offset', amount: explicitOffset });
   if (rewardOffset > 0) offsetRows.push({ type: 'reward', amount: rewardOffset });
-  return { offsetAmount, offsetRows };
+  return { offsetAmount, rewardAmount: rewardOffset, offsetRows };
 }
 
 function summarizePayments(order = {}, explicitPayments = []) {
   const rows = collectDeliveryPaymentRows(order, explicitPayments);
   if (rows.length > 0) {
+    const collectedAmount = rows.reduce((sum, row) => sum + paymentAmount(row), 0);
     return {
-      collectedAmount: rows.reduce((sum, row) => sum + paymentAmount(row), 0),
+      cashAmount: rows.filter((row) => clean(row.method || row.paymentMethod).toLowerCase().includes('cash')).reduce((sum, row) => sum + paymentAmount(row), 0),
+      bankAmount: rows.filter((row) => !clean(row.method || row.paymentMethod).toLowerCase().includes('cash')).reduce((sum, row) => sum + paymentAmount(row), 0),
+      collectedAmount,
       paymentIds: rows.map((row) => paymentId(row)).filter(Boolean),
       paymentRows: rows
     };
   }
+  const breakdown = summarizeCloseoutBreakdownPayments(order);
+  if (breakdown.collectedAmount > 0) return breakdown;
   if (order.deliveryCloseout && hasOwnValue(order.deliveryCloseout, 'collectedAmount')) {
     const collectedAmount = requireMoney(order.deliveryCloseout, 'collectedAmount', { label: 'salesOrders.deliveryCloseout', id: orderId(order), code: orderCode(order) }, { nonNegative: true });
     return {
+      cashAmount: collectedAmount,
+      bankAmount: 0,
       collectedAmount,
       paymentIds: Array.isArray(order.deliveryCloseout.paymentIds) ? order.deliveryCloseout.paymentIds.map(clean).filter(Boolean) : [],
       paymentRows: []
     };
   }
-  const breakdown = summarizeCloseoutBreakdownPayments(order);
-  if (breakdown.collectedAmount > 0) return breakdown;
-  return { collectedAmount: 0, paymentIds: [], paymentRows: [] };
+  return { cashAmount: 0, bankAmount: 0, collectedAmount: 0, paymentIds: [], paymentRows: [] };
 }
 
 function stableHash(payload = {}) {
@@ -256,9 +291,12 @@ function publicCloseoutVersion(closeout = {}) {
     originalAmount: closeout.originalAmount,
     deliveredAmount: closeout.deliveredAmount,
     returnedAmount: closeout.returnedAmount,
+    cashAmount: closeout.cashAmount || 0,
+    bankAmount: closeout.bankAmount || 0,
     collectedAmount: closeout.collectedAmount,
     offsetAmount: closeout.offsetAmount || 0,
     rewardAmount: closeout.rewardAmount || 0,
+    rawFinalDebtAmount: closeout.rawFinalDebtAmount,
     finalDebtAmount: closeout.finalDebtAmount,
     returnOrderIds: closeout.returnOrderIds,
     paymentIds: closeout.paymentIds,
@@ -279,8 +317,18 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
   const paymentSummary = summarizePayments(order, payments);
   const offsetSummary = summarizeOffsets(order);
   const deliveredAmount = money(baseAmount - returnSummary.returnedAmount);
-  const rawFinalDebtAmount = money(baseAmount - returnSummary.returnedAmount - paymentSummary.collectedAmount - offsetSummary.offsetAmount);
-  const finalDebtAmount = normalizeDebtAmount(rawFinalDebtAmount);
+  const rewardAmount = money(offsetSummary.rewardAmount || offsetSummary.offsetRows.filter((row) => row.type === 'reward').reduce((sum, row) => sum + money(row.amount), 0));
+  const cashAmount = money(paymentSummary.cashAmount || 0);
+  const bankAmount = money(paymentSummary.bankAmount || 0);
+  const debtCalculation = calculateDeliveryDebtAmount({
+    receivableAmount: baseAmount,
+    cashAmount,
+    bankAmount,
+    rewardAmount: money(offsetSummary.offsetAmount),
+    returnAmount: returnSummary.returnedAmount
+  });
+  const rawFinalDebtAmount = debtCalculation.rawDebtAmount;
+  const finalDebtAmount = debtCalculation.debtAmount;
   const version = options.version || nextVersion(order);
   const now = options.now || dateUtil.nowIso();
   const status = options.status || 'draft';
@@ -290,9 +338,11 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
     originalAmount: baseAmount,
     deliveredAmount,
     returnedAmount: returnSummary.returnedAmount,
+    cashAmount,
+    bankAmount,
     collectedAmount: paymentSummary.collectedAmount,
     offsetAmount: offsetSummary.offsetAmount,
-    rewardAmount: offsetSummary.offsetRows.filter((row) => row.type === 'reward').reduce((sum, row) => sum + money(row.amount), 0),
+    rewardAmount,
     finalDebtAmount,
     rawFinalDebtAmount,
     returnOrderIds: returnSummary.returnOrderIds,
@@ -303,9 +353,11 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
     originalAmount: baseAmount,
     deliveredAmount,
     returnedAmount: returnSummary.returnedAmount,
+    cashAmount,
+    bankAmount,
     collectedAmount: paymentSummary.collectedAmount,
     offsetAmount: offsetSummary.offsetAmount,
-    rewardAmount: offsetSummary.offsetRows.filter((row) => row.type === 'reward').reduce((sum, row) => sum + money(row.amount), 0),
+    rewardAmount,
     finalDebtAmount,
     rawFinalDebtAmount,
     returnOrderIds: returnSummary.returnOrderIds,
@@ -417,6 +469,7 @@ module.exports = {
   orderCode,
   positiveMoney,
   normalizeDebtAmount,
+  calculateDeliveryDebtAmount,
   hasReturnSignalWithoutReturnOrders,
   validateSalesOrderContract,
   validateReturnOrderContract,
@@ -428,6 +481,8 @@ module.exports = {
     publicCloseoutVersion,
     hasOwnValue,
     summarizeCloseoutBreakdownPayments,
-    contractError
+    contractError,
+    pickMoneyValue,
+    summarizeInlineDeliveryPayments
   }
 };

@@ -2,7 +2,7 @@
 
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
-const { normalizeDebtAmount, DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
+const { normalizeDebtAmount, calculateDeliveryDebtAmount, DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
 
 let models = null;
 let deliveryListService = null;
@@ -215,17 +215,25 @@ function closeoutOf(order = {}) {
 
 function firstMoney(source = {}, keys = []) {
   for (const key of keys) {
-    if (source[key] !== undefined && source[key] !== null && source[key] !== '') return money(source[key]);
+    if (source[key] === undefined || source[key] === null || source[key] === '') continue;
+    const value = money(source[key]);
+    if (value !== 0) return value;
   }
   return 0;
 }
 
+const CASH_FIELDS = ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount', 'paymentCashAmount', 'paidCashAmount', 'paidCash', 'collectedCash', 'deliveryCashAmount', 'cashCollected', 'cash', 'cashInAmount', 'cashPaymentAmount'];
+const BANK_FIELDS = ['bankAmount', 'transferAmount', 'bankTransferAmount', 'paymentTransferAmount', 'paymentBankAmount', 'paidBankAmount', 'paidTransferAmount', 'collectedBankAmount', 'deliveryBankAmount', 'bankCollected', 'bankCollectedAmount', 'transferCollectedAmount', 'bankPaymentAmount'];
+const REWARD_FIELDS = ['rewardAmount', 'bonusAmount', 'allowanceAmount', 'promotionRewardAmount', 'displayRewardAmount', 'bonusReturnAmount', 'rewardOffsetAmount', 'promotionOffsetAmount'];
+const OFFSET_FIELDS = ['offsetAmount', 'debtOffsetAmount', 'otherOffsetAmount', 'deliveryOffsetAmount'];
+const COLLECTED_FIELDS = ['collectedAmount', 'cashCollectedTotal', 'paidAmount', 'paymentAmount', 'deliveryCollectedAmount'];
+
 function closeoutMoneyBreakdown(closeout = {}) {
-  const cashAmount = firstMoney(closeout, ['cashAmount', 'cashCollectedAmount', 'cash', 'cashInAmount', 'cashPaymentAmount']);
-  const bankAmount = firstMoney(closeout, ['bankAmount', 'transferAmount', 'bankCollectedAmount', 'transferCollectedAmount', 'bankPaymentAmount']);
-  const rewardAmount = firstMoney(closeout, ['rewardAmount', 'bonusAmount', 'rewardOffsetAmount', 'promotionOffsetAmount']);
-  const offsetAmount = firstMoney(closeout, ['offsetAmount', 'debtOffsetAmount', 'otherOffsetAmount']);
-  const explicitCollected = firstMoney(closeout, ['collectedAmount', 'cashCollectedTotal', 'paidAmount']);
+  const cashAmount = firstMoney(closeout, CASH_FIELDS);
+  const bankAmount = firstMoney(closeout, BANK_FIELDS);
+  const rewardAmount = firstMoney(closeout, REWARD_FIELDS);
+  const offsetAmount = firstMoney(closeout, OFFSET_FIELDS);
+  const explicitCollected = firstMoney(closeout, COLLECTED_FIELDS);
   const breakdownCollected = cashAmount + bankAmount + rewardAmount + offsetAmount;
   return {
     cashAmount,
@@ -237,24 +245,35 @@ function closeoutMoneyBreakdown(closeout = {}) {
 }
 
 function deliveryOperationalMoneyBreakdown(order = {}) {
-  const cashAmount = firstMoney(order, ['cashAmount', 'cashCollected', 'cashCollectedAmount']);
-  const bankAmount = firstMoney(order, ['bankAmount', 'bankCollected', 'transferAmount', 'transferCollectedAmount']);
-  const rewardAmount = firstMoney(order, ['rewardAmount', 'bonusAmount', 'displayRewardAmount', 'bonusReturnAmount']);
-  const offsetAmount = firstMoney(order, ['offsetAmount', 'debtOffsetAmount', 'otherOffsetAmount']);
+  const cashAmount = firstMoney(order, CASH_FIELDS);
+  const bankAmount = firstMoney(order, BANK_FIELDS);
+  const rewardAmount = firstMoney(order, REWARD_FIELDS);
+  const offsetAmount = firstMoney(order, OFFSET_FIELDS);
+  const explicitCollected = firstMoney(order, COLLECTED_FIELDS);
+  const breakdownCollected = cashAmount + bankAmount + rewardAmount + offsetAmount;
   return {
     cashAmount,
     bankAmount,
     rewardAmount,
     offsetAmount,
-    collectedAmount: cashAmount + bankAmount + rewardAmount + offsetAmount
+    collectedAmount: breakdownCollected || explicitCollected
   };
 }
 
 function moneyBreakdownForOrder(order = {}) {
-  const closeout = closeoutOf(order);
-  const closeoutBreakdown = closeoutMoneyBreakdown(closeout);
-  if (closeoutBreakdown.collectedAmount || !order._deliveryOperationalSource) return closeoutBreakdown;
-  return deliveryOperationalMoneyBreakdown(order);
+  const closeoutBreakdown = closeoutMoneyBreakdown(closeoutOf(order));
+  const orderBreakdown = deliveryOperationalMoneyBreakdown(order);
+  let cashAmount = closeoutBreakdown.cashAmount || orderBreakdown.cashAmount;
+  const bankAmount = closeoutBreakdown.bankAmount || orderBreakdown.bankAmount;
+  const rewardAmount = closeoutBreakdown.rewardAmount || orderBreakdown.rewardAmount;
+  const offsetAmount = closeoutBreakdown.offsetAmount || orderBreakdown.offsetAmount;
+  const explicitCollected = closeoutBreakdown.collectedAmount || orderBreakdown.collectedAmount;
+  let collectedAmount = cashAmount + bankAmount + rewardAmount + offsetAmount || explicitCollected;
+  if (!cashAmount && !bankAmount && !rewardAmount && !offsetAmount && explicitCollected > 0) {
+    cashAmount = explicitCollected;
+    collectedAmount = explicitCollected;
+  }
+  return { cashAmount, bankAmount, rewardAmount, offsetAmount, collectedAmount };
 }
 
 function closeoutStatus(order = {}) {
@@ -519,7 +538,14 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
   const offsetAmount = baseBreakdown.offsetAmount;
   const collected = money((latestVersion && (latestVersion.collectedAmount ?? latestVersion.cashCollectedAmount))
     ?? (baseBreakdown.collectedAmount || collectedAmount(order)));
-  const rawFinalDebtAmount = money((latestVersion && (latestVersion.finalDebtAmount ?? latestVersion.debtAmount)) ?? (originalAmount - returnedAmount - collected));
+  const debtCalculation = calculateDeliveryDebtAmount({
+    receivableAmount: originalAmount,
+    cashAmount: adjustedCashAmount,
+    bankAmount,
+    rewardAmount: money(rewardAmount + offsetAmount),
+    returnAmount: returnedAmount
+  });
+  const rawFinalDebtAmount = money((latestVersion && (latestVersion.finalDebtAmount ?? latestVersion.debtAmount)) ?? debtCalculation.rawDebtAmount);
   const finalDebtAmount = normalizeDebtAmount(rawFinalDebtAmount);
   const closeoutFinalDebt = latestVersion
     ? finalDebtAmount
@@ -653,5 +679,5 @@ module.exports = {
   summarizeRows,
   setModelsForTest,
   setDeliveryListServiceForTest,
-  _private: { money, normalizeDebtAmount, DEBT_ZERO_TOLERANCE, truthyFlag, hasSearchCriteria, emptyListResult, normalizeQty, normalizeOrderItem, compactOrderItems, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
+  _private: { money, normalizeDebtAmount, calculateDeliveryDebtAmount, DEBT_ZERO_TOLERANCE, truthyFlag, hasSearchCriteria, emptyListResult, normalizeQty, normalizeOrderItem, compactOrderItems, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
 };

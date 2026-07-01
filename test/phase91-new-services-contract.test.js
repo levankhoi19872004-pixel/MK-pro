@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const debtNewService = require('../src/services/v2/debtNew.service');
 const deliveryTodayNewService = require('../src/services/v2/deliveryTodayNew.service');
-const { normalizeDebtAmount, DEBT_ZERO_TOLERANCE } = require('../src/constants/finance.constants');
+const { normalizeDebtAmount, calculateDeliveryDebtAmount, DEBT_ZERO_TOLERANCE } = require('../src/constants/finance.constants');
+const DeliveryCloseoutService = require('../src/services/accounting/DeliveryCloseoutService');
 
 test('Debt New read model only counts AR-DEBT-* categories and excludes legacy AR categories', () => {
   const rows = [
@@ -464,4 +465,85 @@ test('Accounting closeout validates selected order scope before posting AR-DEBT'
   assert.match(source, /ORDER_SELECTION_DELIVERY_STAFF_MISMATCH/);
   assert.match(source, /ORDER_SELECTION_SALES_STAFF_MISMATCH/);
   assert.match(source, /validateSelectedOrderScope\(orders, body, selectedOrderIds\)/);
+});
+
+
+test('Delivery debt formula subtracts cash bank reward and returns before tolerance', () => {
+  let result = calculateDeliveryDebtAmount({ receivableAmount: 1562192, cashAmount: 942000, bankAmount: 0, rewardAmount: 0, returnAmount: 619646 });
+  assert.equal(result.rawDebtAmount, 546);
+  assert.equal(result.debtAmount, 0);
+
+  result = calculateDeliveryDebtAmount({ receivableAmount: 1562192, cashAmount: 0, bankAmount: 942000, rewardAmount: 0, returnAmount: 619646 });
+  assert.equal(result.rawDebtAmount, 546);
+  assert.equal(result.debtAmount, 0);
+
+  result = calculateDeliveryDebtAmount({ receivableAmount: 1562192, cashAmount: 500000, bankAmount: 442000, rewardAmount: 0, returnAmount: 619646 });
+  assert.equal(result.rawDebtAmount, 546);
+  assert.equal(result.debtAmount, 0);
+
+  result = calculateDeliveryDebtAmount({ receivableAmount: 1562192, cashAmount: 0, bankAmount: 0, rewardAmount: 0, returnAmount: 619646 });
+  assert.equal(result.rawDebtAmount, 942546);
+  assert.equal(result.debtAmount, 942546);
+});
+
+test('DeliveryCloseoutService maps cash and bank aliases before posting AR-DEBT', () => {
+  const order = {
+    id: 'SO-B0038522',
+    code: 'B0038522',
+    customerCode: '4499944',
+    customerName: 'Vân lý',
+    totalAmount: 1562192,
+    cashAmount: 942000,
+    bankAmount: 0,
+    deliveryStatus: 'delivered'
+  };
+  const closeout = DeliveryCloseoutService.buildCloseout(order, [
+    { id: 'RO-B0038522', sourceOrderId: 'SO-B0038522', status: 'confirmed', inventoryPosted: true, totalReturnAmount: 619646 }
+  ], [], { actor: 'KT' });
+  assert.equal(closeout.originalAmount, 1562192);
+  assert.equal(closeout.cashAmount, 942000);
+  assert.equal(closeout.bankAmount, 0);
+  assert.equal(closeout.returnedAmount, 619646);
+  assert.equal(closeout.rawFinalDebtAmount, 546);
+  assert.equal(closeout.finalDebtAmount, 0);
+  assert.equal(closeout.collectedAmount, 942000);
+  assert.equal(closeout.paymentRows.some((row) => row.method === 'cash' && row.amount === 942000), true);
+  assert.equal(closeout.finalDebtAmount, 0);
+});
+
+test('DeliveryCloseoutService subtracts bank transfer aliases and mixed cash bank payments', () => {
+  const base = { id: 'SO-BANK', code: 'B0038522-BANK', customerCode: '4499944', customerName: 'Vân lý', totalAmount: 1562192, deliveryStatus: 'delivered' };
+  const returns = [{ id: 'RO-BANK', sourceOrderId: 'SO-BANK', status: 'confirmed', inventoryPosted: true, totalReturnAmount: 619646 }];
+  const bankOnly = DeliveryCloseoutService.buildCloseout({ ...base, bankTransferAmount: 942000 }, returns, [], { actor: 'KT' });
+  assert.equal(bankOnly.bankAmount, 942000);
+  assert.equal(bankOnly.rawFinalDebtAmount, 546);
+  assert.equal(bankOnly.finalDebtAmount, 0);
+
+  const mixed = DeliveryCloseoutService.buildCloseout({ ...base, id: 'SO-MIXED', code: 'B0038522-MIXED', paymentCashAmount: 500000, paymentTransferAmount: 442000 }, [
+    { id: 'RO-MIXED', sourceOrderId: 'SO-MIXED', status: 'confirmed', inventoryPosted: true, totalReturnAmount: 619646 }
+  ], [], { actor: 'KT' });
+  assert.equal(mixed.cashAmount, 500000);
+  assert.equal(mixed.bankAmount, 442000);
+  assert.equal(mixed.rawFinalDebtAmount, 546);
+  assert.equal(mixed.finalDebtAmount, 0);
+});
+
+test('Closeout source code blocks PT minus HT debt formula and exposes diagnostics fields', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const closeoutSource = fs.readFileSync(path.join(__dirname, '..', 'src/services/accounting/DeliveryCloseoutService.js'), 'utf8');
+  assert.match(closeoutSource, /calculateDeliveryDebtAmount/);
+  assert.match(closeoutSource, /cashAmount/);
+  assert.match(closeoutSource, /bankAmount/);
+  assert.match(closeoutSource, /rewardAmount/);
+  assert.match(closeoutSource, /returnAmount: returnSummary\.returnedAmount/);
+  assert.doesNotMatch(closeoutSource, /rawFinalDebtAmount\s*=\s*money\(baseAmount\s*-\s*returnSummary\.returnedAmount/);
+
+  const accountingSource = fs.readFileSync(path.join(__dirname, '..', 'src/services/accounting/AccountingCloseoutService.js'), 'utf8');
+  assert.match(accountingSource, /buildCloseoutDiagnostic/);
+  assert.match(accountingSource, /cashAmount/);
+  assert.match(accountingSource, /bankAmount/);
+  assert.match(accountingSource, /rawDebtAmount/);
+  assert.match(accountingSource, /normalizedDebtAmount/);
+  assert.match(accountingSource, /OVERPAID_OR_NEGATIVE_DEBT/);
 });
