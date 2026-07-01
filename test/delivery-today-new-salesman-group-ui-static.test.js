@@ -68,3 +68,29 @@ test('Delivery Today New closeout is based on selected orderIds only', () => {
   const selectedBody = source.slice(selectedStart, source.indexOf('function closeoutSummary', selectedStart));
   assert.match(selectedBody, /getSelectedOrders\(\)/);
 });
+
+test('Delivery Today New order header uses the same grid cells as order rows', () => {
+  assert.match(source, /delivery-new-orders-header delivery-new-order-grid/);
+  assert.match(source, /delivery-new-order-row delivery-new-order-grid/);
+  assert.match(source, /delivery-new-orders-table/);
+  assert.match(source, /delivery-new-order-cell delivery-new-order-checkbox-cell/);
+  assert.match(source, /delivery-new-order-cell delivery-new-order-customer-cell">Đơn \/ Khách hàng/);
+  ['PT', 'TM', 'CK', 'TH', 'HT', 'CN'].forEach((label) => {
+    assert.match(source, new RegExp('delivery-new-money-cell[^>]*>' + label + '<'));
+  });
+  assert.match(source, /delivery-new-status-cell">Trạng thái/);
+  assert.match(source, /delivery-new-action-cell">Thao tác/);
+  assert.match(source, /id="deliveryTodayNewHeaderSelectAllOrders"/);
+});
+
+test('Delivery Today New order header and rows share a CSS grid contract', () => {
+  assert.match(source, /\.delivery-new-order-grid\{display:grid;grid-template-columns:32px minmax\(260px,2fr\)/);
+  assert.match(source, /\.delivery-new-orders-header\{/);
+  assert.match(source, /\.delivery-new-order-row\{/);
+  assert.match(source, /\.delivery-new-money-cell\{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap/);
+  assert.match(source, /\.delivery-new-order-checkbox-cell\{display:flex;justify-content:center;align-items:center;\}/);
+  assert.match(source, /\.delivery-new-status-cell\{text-align:center;display:flex;justify-content:center;align-items:center;\}/);
+  assert.match(source, /\.delivery-new-action-cell\{text-align:right;display:flex;justify-content:flex-end;align-items:center;\}/);
+  assert.doesNotMatch(source, /mk-delivery-list-head/);
+  assert.doesNotMatch(source, /delivery-new-list-grid/);
+});
