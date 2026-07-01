@@ -23,6 +23,22 @@ function sendError(res, err, fallback) {
   });
 }
 
+router.get('/delivery-today/suggestions', requireAuth, readRoles, async (req, res) => {
+  try {
+    const result = await deliveryTodayNewService.suggestions(req.query || {});
+    return res.json({
+      ok: true,
+      success: true,
+      message: 'Đã tải gợi ý Đơn giao hôm nay (New)',
+      items: result.items || [],
+      diagnostics: result.diagnostics,
+      canonicalRoute: '/api/new/delivery-today/suggestions'
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không tải được gợi ý Đơn giao hôm nay (New)');
+  }
+});
+
 router.get('/delivery-today/orders', requireAuth, readRoles, async (req, res) => {
   try {
     const result = await deliveryTodayNewService.listOrders(req.query || {});

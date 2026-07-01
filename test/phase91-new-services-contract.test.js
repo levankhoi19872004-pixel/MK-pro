@@ -199,9 +199,10 @@ test('Delivery Today New filter fields are wired with autocomplete suggestion bo
   assert.match(source, /deliveryTodayNewSalesmanSuggestions/);
   assert.match(source, /deliveryTodayNewSearchSuggestions/);
   assert.match(source, /bindFilterAutocomplete/);
-  assert.match(source, /searchDeliveryStaff/);
-  assert.match(source, /searchSalesStaff/);
-  assert.match(source, /orderSearchSuggestions/);
+  assert.match(source, /\/api\/new\/delivery-today\/suggestions/);
+  assert.match(source, /type:\s*'delivery'/);
+  assert.match(source, /type:\s*'salesman'/);
+  assert.match(source, /type:\s*'orderCustomer'/);
   assert.match(source, /delivery-v46-filter-suggest/);
 });
 

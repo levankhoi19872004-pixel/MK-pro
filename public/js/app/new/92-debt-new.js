@@ -63,10 +63,10 @@
           '<span class="new-badge debt-new-source-badge">AR-DEBT only</span>' +
         '</div>' +
         '<div class="debt-new-filter-grid" role="search" aria-label="Bộ lọc Công nợ New">' +
-          '<label class="debt-new-field debt-new-field-wide debt-new-suggest-wrap">Tìm khách / đơn<input id="debtNewSearch" autocomplete="off" placeholder="Mã KH, tên KH, SĐT hoặc mã đơn"><div id="debtNewSearchSuggestions" class="debt-new-suggest" hidden></div></label>' +
-          '<label class="debt-new-field debt-new-suggest-wrap">NVBH<input id="debtNewSalesman" autocomplete="off" placeholder="Mã/tên NVBH"><div id="debtNewSalesmanSuggestions" class="debt-new-suggest" hidden></div></label>' +
-          '<label class="debt-new-field debt-new-suggest-wrap">NVGH<input id="debtNewDelivery" autocomplete="off" placeholder="Mã/tên NVGH"><div id="debtNewDeliverySuggestions" class="debt-new-suggest" hidden></div></label>' +
-          '<label class="debt-new-field">Trạng thái<select id="debtNewStatus"><option value="open">Còn nợ</option><option value="all">Tất cả</option><option value="paid">Hết nợ</option><option value="overpaid">Dư có</option></select></label>' +
+          '<label class="debt-new-field debt-new-field-wide debt-new-suggest-wrap">Tìm khách / đơn<div class="filter-input-wrap"><input id="debtNewSearch" autocomplete="off" placeholder="Mã KH, tên KH, SĐT hoặc mã đơn"><button id="debtNewSearchClear" type="button" class="filter-clear-btn debt-new-filter-clear" data-debt-clear="search" aria-label="Xóa điều kiện Tìm khách / đơn" title="Xóa điều kiện" hidden>×</button></div><div id="debtNewSearchSuggestions" class="debt-new-suggest" hidden></div></label>' +
+          '<label class="debt-new-field debt-new-suggest-wrap">NVBH<div class="filter-input-wrap"><input id="debtNewSalesman" autocomplete="off" placeholder="Mã/tên NVBH"><button id="debtNewSalesmanClear" type="button" class="filter-clear-btn debt-new-filter-clear" data-debt-clear="salesman" aria-label="Xóa điều kiện NVBH" title="Xóa điều kiện" hidden>×</button></div><div id="debtNewSalesmanSuggestions" class="debt-new-suggest" hidden></div></label>' +
+          '<label class="debt-new-field debt-new-suggest-wrap">NVGH<div class="filter-input-wrap"><input id="debtNewDelivery" autocomplete="off" placeholder="Mã/tên NVGH"><button id="debtNewDeliveryClear" type="button" class="filter-clear-btn debt-new-filter-clear" data-debt-clear="delivery" aria-label="Xóa điều kiện NVGH" title="Xóa điều kiện" hidden>×</button></div><div id="debtNewDeliverySuggestions" class="debt-new-suggest" hidden></div></label>' +
+          '<label class="debt-new-field">Trạng thái<div class="filter-input-wrap"><select id="debtNewStatus"><option value="open">Còn nợ</option><option value="all">Tất cả</option><option value="paid">Hết nợ</option><option value="overpaid">Dư có</option></select><button id="debtNewStatusClear" type="button" class="filter-clear-btn debt-new-filter-clear" data-debt-clear="status" aria-label="Đưa trạng thái về mặc định" title="Đưa về mặc định" hidden>×</button></div></label>' +
           '<button id="debtNewLoad" type="button" class="primary-action debt-new-load-btn">Tải</button>' +
           '<button id="debtNewReset" type="button" class="secondary debt-new-reset-btn">Xóa lọc</button>' +
         '</div>' +
@@ -103,7 +103,7 @@
       if (event.key === 'Escape' && state.modalOpen) closeDebtCustomerModal();
     });
     var status = byId('debtNewStatus');
-    if (status) status.addEventListener('change', function () { state.userTouchedFilters = true; });
+    if (status) status.addEventListener('change', function () { state.userTouchedFilters = true; updateClearButtons(); });
     resetResultsState('Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải.');
     return root;
   }
@@ -113,7 +113,7 @@
     var style = document.createElement('style');
     style.id = 'debtNewScopedStyle';
     style.textContent = '' +
-      '.debt-new-filter-card{padding:14px 16px 12px;margin-bottom:12px;}.debt-new-filter-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}.debt-new-filter-title h2{margin:0 0 4px;font-size:18px;line-height:1.2;}.debt-new-filter-title p{margin:0;font-size:12px;line-height:1.35;}.debt-new-source-badge{white-space:nowrap;padding:5px 10px;font-size:12px;align-self:flex-start;}.debt-new-filter-grid{display:grid;grid-template-columns:minmax(320px,2fr) minmax(170px,1fr) minmax(170px,1fr) minmax(145px,.75fr) auto auto;gap:10px;align-items:end;}.debt-new-field{position:relative;display:flex;flex-direction:column;gap:4px;margin:0;font-weight:800;color:#334155;font-size:12px;line-height:1.2;}.debt-new-field input,.debt-new-field select,.debt-new-load-btn,.debt-new-reset-btn{height:34px;box-sizing:border-box;border-radius:9px;}.debt-new-field input,.debt-new-field select{width:100%;padding:7px 10px;border:1px solid #cbd5e1;background:#fff;font-size:13px;}.debt-new-load-btn,.debt-new-reset-btn{padding:0 14px;white-space:nowrap;align-self:end;}.debt-new-message{min-height:18px;margin:8px 0 0;}.debt-new-modal-message{margin:10px 0 0;border-radius:12px;padding:10px 12px;font-weight:800;border:1px solid #bfdbfe;background:#eff6ff;color:#075985;}.debt-new-modal-message.success{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}.debt-new-modal-message.warning{border-color:#fed7aa;background:#fff7ed;color:#9a3412;}.debt-new-modal-message.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c;}.debt-new-modal-message[hidden]{display:none!important;}.debt-new-modal-loading{display:inline-flex;align-items:center;gap:6px;color:#1d4ed8;}.debt-new-suggest-wrap{position:relative;}.debt-new-suggest{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:1000;background:#fff;border:1px solid #dbe7f5;border-radius:12px;box-shadow:0 18px 36px rgba(15,23,42,.16);padding:6px;max-height:280px;overflow:auto;}.debt-new-suggest[hidden]{display:none!important;}.debt-new-suggest-item{display:block;width:100%;border:0;background:#fff;text-align:left;border-radius:9px;padding:8px 10px;cursor:pointer;color:#14213d;}.debt-new-suggest-item:hover,.debt-new-suggest-item.active{background:#eff6ff;outline:2px solid rgba(37,99,235,.12);}.debt-new-suggest-item b{display:block;font-size:13px;color:#0f3ea9;}.debt-new-suggest-item span{display:block;margin-top:2px;font-size:12px;color:#64748b;}.debt-new-suggest-empty,.debt-new-suggest-loading{padding:9px 10px;color:#64748b;font-weight:700;font-size:12px;}.debt-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.debt-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.debt-new-empty-state span{display:block;color:#64748b;font-weight:700;}.debt-new-results-hidden{display:none!important;}.debt-new-status{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-weight:800;font-size:12px;background:#eef2ff;color:#1d0fb4;}.debt-new-status.open{background:#fee2e2;color:#b91c1c;}.debt-new-status.paid{background:#dcfce7;color:#166534;}.debt-new-status.overpaid{background:#e0f2fe;color:#075985;}.debt-new-allocation-box{border:1px solid #dbe7f5;border-radius:12px;padding:12px;margin-top:12px;background:#f8fafc;}.debt-new-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0;}.debt-new-form-grid label{display:flex;flex-direction:column;gap:4px;font-weight:800;color:#334155;}.debt-new-form-grid input,.debt-new-form-grid select{padding:8px;border:1px solid #cbd5e1;border-radius:10px;}.debt-new-order-check{width:16px;height:16px;}.debt-new-collection-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px;}.debt-new-collection-card{border:1px solid #dbe7f5;border-radius:12px;padding:10px;margin:8px 0;background:#fff;}.debt-new-collection-card h4{margin:0 0 6px;}.debt-new-collection-card small{display:block;color:#64748b;margin-top:2px;}.debt-new-allocation-warning{color:#b91c1c;font-weight:800;}.new-table tbody tr.active{background:#eff6ff;}.debt-new-main-header{margin-bottom:8px;}.debt-new-customer-table-wrap{overflow:auto;}.debt-new-customer-table{min-width:1040px;}.debt-new-customer-table tbody tr{cursor:pointer;}.debt-new-detail-btn{white-space:nowrap;}.debt-new-collections-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px dashed #cbd5e1;border-radius:12px;padding:12px;background:#f8fafc;}.debt-new-modal{position:fixed;inset:0;z-index:3000;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:24px;}.debt-new-modal[hidden]{display:none!important;}.debt-new-modal-card{width:min(1180px,96vw);max-height:90vh;background:#fff;border-radius:18px;box-shadow:0 24px 72px rgba(15,23,42,.32);display:flex;flex-direction:column;overflow:hidden;}.debt-new-modal-header{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid #dbe7f5;padding:16px 18px 12px;}.debt-new-modal-titlebar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;}.debt-new-modal-titlebar h3{margin:0 0 6px;font-size:20px;}.debt-new-modal-meta{display:flex;flex-wrap:wrap;gap:8px 16px;color:#475569;font-weight:700;font-size:12px;}.debt-new-modal-close{border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:800;padding:8px 12px;box-shadow:0 8px 18px rgba(37,99,235,.25);}.debt-new-modal-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.debt-new-modal-tab{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:10px;padding:8px 12px;font-weight:800;}.debt-new-modal-tab.active{background:#2563eb;color:#fff;border-color:#2563eb;}.debt-new-modal-body{padding:16px 18px;overflow:auto;}.debt-new-modal-footer{position:sticky;bottom:0;background:#fff;border-top:1px solid #dbe7f5;padding:10px 18px;display:flex;justify-content:flex-end;gap:10px;}.debt-new-detail-kpis{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:10px;margin-bottom:12px;}.debt-new-detail-kpi{border:1px solid #dbe7f5;border-radius:12px;padding:10px;background:#f8fafc;}.debt-new-detail-kpi span{display:block;color:#64748b;font-size:12px;font-weight:800;}.debt-new-detail-kpi b{display:block;margin-top:4px;font-size:18px;color:#0f172a;}.debt-new-order-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;}.debt-new-order-toolbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.debt-new-modal-table-wrap{overflow:auto;border:1px solid #dbe7f5;border-radius:12px;}.debt-new-modal-table{min-width:860px;}.debt-new-modal-note{margin:0 0 12px;border:1px solid #bae6fd;background:#eff6ff;border-radius:12px;padding:10px 12px;color:#075985;font-weight:800;}.debt-new-movement-empty{border:1px dashed #cbd5e1;border-radius:12px;padding:16px;text-align:center;color:#64748b;font-weight:800;background:#f8fafc;}.debt-new-form-actions{position:sticky;bottom:0;background:#fff;padding-top:10px;}@media (max-width:1100px){.debt-new-filter-grid{grid-template-columns:minmax(280px,1.6fr) minmax(160px,1fr) minmax(160px,1fr) minmax(140px,.8fr);}.debt-new-load-btn,.debt-new-reset-btn{width:100%;}}@media (max-width:900px){.debt-new-filter-grid{grid-template-columns:1fr 1fr;}.debt-new-field-wide{grid-column:1 / -1;}.debt-new-filter-header{align-items:flex-start;}}@media (max-width:640px){.debt-new-filter-grid{grid-template-columns:1fr;}.debt-new-filter-header{flex-direction:column;}.debt-new-source-badge{align-self:flex-start;}}';
+      '.debt-new-filter-card{padding:14px 16px 12px;margin-bottom:12px;}.debt-new-filter-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}.debt-new-filter-title h2{margin:0 0 4px;font-size:18px;line-height:1.2;}.debt-new-filter-title p{margin:0;font-size:12px;line-height:1.35;}.debt-new-source-badge{white-space:nowrap;padding:5px 10px;font-size:12px;align-self:flex-start;}.debt-new-filter-grid{display:grid;grid-template-columns:minmax(320px,2fr) minmax(170px,1fr) minmax(170px,1fr) minmax(145px,.75fr) auto auto;gap:10px;align-items:end;}.debt-new-field{position:relative;display:flex;flex-direction:column;gap:4px;margin:0;font-weight:800;color:#334155;font-size:12px;line-height:1.2;}.debt-new-field input,.debt-new-field select,.debt-new-load-btn,.debt-new-reset-btn{height:34px;box-sizing:border-box;border-radius:9px;}.debt-new-field input,.debt-new-field select{width:100%;padding:7px 10px;border:1px solid #cbd5e1;background:#fff;font-size:13px;}.debt-new-field .filter-input-wrap{position:relative;width:100%;}.debt-new-field .filter-input-wrap input,.debt-new-field .filter-input-wrap select{padding-right:34px;}.debt-new-field .filter-clear-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:22px;height:22px;border:0;border-radius:999px;background:transparent;color:#64748b;cursor:pointer;font-size:17px;line-height:20px;font-weight:900;z-index:3;}.debt-new-field .filter-clear-btn:hover{color:#ef4444;background:#fee2e2;}.debt-new-field .filter-clear-btn[hidden]{display:none!important;}.debt-new-load-btn,.debt-new-reset-btn{padding:0 14px;white-space:nowrap;align-self:end;}.debt-new-message{min-height:18px;margin:8px 0 0;}.debt-new-modal-message{margin:10px 0 0;border-radius:12px;padding:10px 12px;font-weight:800;border:1px solid #bfdbfe;background:#eff6ff;color:#075985;}.debt-new-modal-message.success{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}.debt-new-modal-message.warning{border-color:#fed7aa;background:#fff7ed;color:#9a3412;}.debt-new-modal-message.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c;}.debt-new-modal-message[hidden]{display:none!important;}.debt-new-modal-loading{display:inline-flex;align-items:center;gap:6px;color:#1d4ed8;}.debt-new-suggest-wrap{position:relative;}.debt-new-suggest{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:1000;background:#fff;border:1px solid #dbe7f5;border-radius:12px;box-shadow:0 18px 36px rgba(15,23,42,.16);padding:6px;max-height:280px;overflow:auto;}.debt-new-suggest[hidden]{display:none!important;}.debt-new-suggest-item{display:block;width:100%;border:0;background:#fff;text-align:left;border-radius:9px;padding:8px 10px;cursor:pointer;color:#14213d;}.debt-new-suggest-item:hover,.debt-new-suggest-item.active{background:#eff6ff;outline:2px solid rgba(37,99,235,.12);}.debt-new-suggest-item b{display:block;font-size:13px;color:#0f3ea9;}.debt-new-suggest-item span{display:block;margin-top:2px;font-size:12px;color:#64748b;}.debt-new-suggest-empty,.debt-new-suggest-loading{padding:9px 10px;color:#64748b;font-weight:700;font-size:12px;}.debt-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.debt-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.debt-new-empty-state span{display:block;color:#64748b;font-weight:700;}.debt-new-results-hidden{display:none!important;}.debt-new-status{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-weight:800;font-size:12px;background:#eef2ff;color:#1d0fb4;}.debt-new-status.open{background:#fee2e2;color:#b91c1c;}.debt-new-status.paid{background:#dcfce7;color:#166534;}.debt-new-status.overpaid{background:#e0f2fe;color:#075985;}.debt-new-allocation-box{border:1px solid #dbe7f5;border-radius:12px;padding:12px;margin-top:12px;background:#f8fafc;}.debt-new-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0;}.debt-new-form-grid label{display:flex;flex-direction:column;gap:4px;font-weight:800;color:#334155;}.debt-new-form-grid input,.debt-new-form-grid select{padding:8px;border:1px solid #cbd5e1;border-radius:10px;}.debt-new-order-check{width:16px;height:16px;}.debt-new-collection-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px;}.debt-new-collection-card{border:1px solid #dbe7f5;border-radius:12px;padding:10px;margin:8px 0;background:#fff;}.debt-new-collection-card h4{margin:0 0 6px;}.debt-new-collection-card small{display:block;color:#64748b;margin-top:2px;}.debt-new-allocation-warning{color:#b91c1c;font-weight:800;}.new-table tbody tr.active{background:#eff6ff;}.debt-new-main-header{margin-bottom:8px;}.debt-new-customer-table-wrap{overflow:auto;}.debt-new-customer-table{min-width:1040px;}.debt-new-customer-table tbody tr{cursor:pointer;}.debt-new-detail-btn{white-space:nowrap;}.debt-new-collections-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px dashed #cbd5e1;border-radius:12px;padding:12px;background:#f8fafc;}.debt-new-modal{position:fixed;inset:0;z-index:3000;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:24px;}.debt-new-modal[hidden]{display:none!important;}.debt-new-modal-card{width:min(1180px,96vw);max-height:90vh;background:#fff;border-radius:18px;box-shadow:0 24px 72px rgba(15,23,42,.32);display:flex;flex-direction:column;overflow:hidden;}.debt-new-modal-header{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid #dbe7f5;padding:16px 18px 12px;}.debt-new-modal-titlebar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;}.debt-new-modal-titlebar h3{margin:0 0 6px;font-size:20px;}.debt-new-modal-meta{display:flex;flex-wrap:wrap;gap:8px 16px;color:#475569;font-weight:700;font-size:12px;}.debt-new-modal-close{border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:800;padding:8px 12px;box-shadow:0 8px 18px rgba(37,99,235,.25);}.debt-new-modal-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.debt-new-modal-tab{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:10px;padding:8px 12px;font-weight:800;}.debt-new-modal-tab.active{background:#2563eb;color:#fff;border-color:#2563eb;}.debt-new-modal-body{padding:16px 18px;overflow:auto;}.debt-new-modal-footer{position:sticky;bottom:0;background:#fff;border-top:1px solid #dbe7f5;padding:10px 18px;display:flex;justify-content:flex-end;gap:10px;}.debt-new-detail-kpis{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:10px;margin-bottom:12px;}.debt-new-detail-kpi{border:1px solid #dbe7f5;border-radius:12px;padding:10px;background:#f8fafc;}.debt-new-detail-kpi span{display:block;color:#64748b;font-size:12px;font-weight:800;}.debt-new-detail-kpi b{display:block;margin-top:4px;font-size:18px;color:#0f172a;}.debt-new-order-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;}.debt-new-order-toolbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.debt-new-modal-table-wrap{overflow:auto;border:1px solid #dbe7f5;border-radius:12px;}.debt-new-modal-table{min-width:860px;}.debt-new-modal-note{margin:0 0 12px;border:1px solid #bae6fd;background:#eff6ff;border-radius:12px;padding:10px 12px;color:#075985;font-weight:800;}.debt-new-movement-empty{border:1px dashed #cbd5e1;border-radius:12px;padding:16px;text-align:center;color:#64748b;font-weight:800;background:#f8fafc;}.debt-new-form-actions{position:sticky;bottom:0;background:#fff;padding-top:10px;}@media (max-width:1100px){.debt-new-filter-grid{grid-template-columns:minmax(280px,1.6fr) minmax(160px,1fr) minmax(160px,1fr) minmax(140px,.8fr);}.debt-new-load-btn,.debt-new-reset-btn{width:100%;}}@media (max-width:900px){.debt-new-filter-grid{grid-template-columns:1fr 1fr;}.debt-new-field-wide{grid-column:1 / -1;}.debt-new-filter-header{align-items:flex-start;}}@media (max-width:640px){.debt-new-filter-grid{grid-template-columns:1fr;}.debt-new-filter-header{flex-direction:column;}.debt-new-source-badge{align-self:flex-start;}}';
     document.head.appendChild(style);
   }
 
@@ -125,6 +125,70 @@
     }
     if (!scope || scope === 'salesman') state.selectedFilters.salesStaffCode = '';
     if (!scope || scope === 'delivery') state.selectedFilters.deliveryStaffCode = '';
+  }
+
+  function normalizedText(value) {
+    return String(value == null ? '' : value).trim();
+  }
+
+  function selectedOrTyped(selectedValue, typedValue) {
+    var selected = normalizedText(selectedValue);
+    return selected !== '' ? selected : normalizedText(typedValue);
+  }
+
+  function firstText(values) {
+    for (var i = 0; i < values.length; i += 1) {
+      var value = normalizedText(values[i]);
+      if (value !== '') return value;
+    }
+    return '';
+  }
+
+  function updateClearButtons() {
+    var searchInput = byId('debtNewSearch');
+    var salesmanInput = byId('debtNewSalesman');
+    var deliveryInput = byId('debtNewDelivery');
+    var statusInput = byId('debtNewStatus');
+    var searchClear = byId('debtNewSearchClear');
+    var salesmanClear = byId('debtNewSalesmanClear');
+    var deliveryClear = byId('debtNewDeliveryClear');
+    var statusClear = byId('debtNewStatusClear');
+    if (searchClear) searchClear.hidden = !(normalizedText(searchInput && searchInput.value) || normalizedText(state.selectedFilters.customerCode) || normalizedText(state.selectedFilters.orderCode));
+    if (salesmanClear) salesmanClear.hidden = !(normalizedText(salesmanInput && salesmanInput.value) || normalizedText(state.selectedFilters.salesStaffCode));
+    if (deliveryClear) deliveryClear.hidden = !(normalizedText(deliveryInput && deliveryInput.value) || normalizedText(state.selectedFilters.deliveryStaffCode));
+    if (statusClear) statusClear.hidden = !statusInput || normalizedText(statusInput.value || 'open') === 'open';
+  }
+
+  function afterSingleFilterCleared(scope) {
+    closeSuggestion(scope);
+    updateClearButtons();
+    if (!hasValidSearchCriteria()) {
+      resetResultsState('Đã xóa điều kiện cuối cùng. Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải.');
+      clearMainNotice();
+      return;
+    }
+    setMessage('Đã xóa điều kiện. Bấm Tải để cập nhật dữ liệu theo bộ lọc mới.');
+  }
+
+  function clearDebtFilter(scope) {
+    if (scope === 'search') {
+      var searchInput = byId('debtNewSearch');
+      if (searchInput) searchInput.value = '';
+      resetSelectedFilters('search');
+    } else if (scope === 'salesman') {
+      var salesmanInput = byId('debtNewSalesman');
+      if (salesmanInput) salesmanInput.value = '';
+      resetSelectedFilters('salesman');
+    } else if (scope === 'delivery') {
+      var deliveryInput = byId('debtNewDelivery');
+      if (deliveryInput) deliveryInput.value = '';
+      resetSelectedFilters('delivery');
+    } else if (scope === 'status') {
+      var statusInput = byId('debtNewStatus');
+      if (statusInput) statusInput.value = 'open';
+    }
+    state.userTouchedFilters = true;
+    afterSingleFilterCleared(scope);
   }
 
   function suggestConfig(scope) {
@@ -215,17 +279,18 @@
     if (!item || !input) return;
     if (scope === 'search') {
       resetSelectedFilters('search');
-      input.value = item.label || item.code || item.orderCode || '';
-      if (item.type === 'order') state.selectedFilters.orderCode = item.orderCode || item.code || '';
-      else state.selectedFilters.customerCode = item.customerCode || item.code || '';
+      input.value = firstText([item.label, item.code, item.orderCode]);
+      if (item.type === 'order') state.selectedFilters.orderCode = firstText([item.orderCode, item.code]);
+      else state.selectedFilters.customerCode = firstText([item.customerCode, item.code]);
     } else if (scope === 'salesman') {
-      state.selectedFilters.salesStaffCode = item.code || '';
-      input.value = item.label || [item.code, item.name].filter(Boolean).join(' - ');
+      state.selectedFilters.salesStaffCode = firstText([item.code]);
+      input.value = firstText([item.label, [item.code, item.name].filter(Boolean).join(' - ')]);
     } else {
-      state.selectedFilters.deliveryStaffCode = item.code || '';
-      input.value = item.label || [item.code, item.name].filter(Boolean).join(' - ');
+      state.selectedFilters.deliveryStaffCode = firstText([item.code]);
+      input.value = firstText([item.label, [item.code, item.name].filter(Boolean).join(' - ')]);
     }
     state.userTouchedFilters = true;
+    updateClearButtons();
     closeSuggestion(scope);
   }
 
@@ -246,6 +311,7 @@
     input.addEventListener('input', function () {
       state.userTouchedFilters = true;
       resetSelectedFilters(scope);
+      updateClearButtons();
       queueSuggestions(scope, input.value);
     });
     input.addEventListener('focus', function () {
@@ -271,20 +337,25 @@
     attachAutocomplete('search');
     attachAutocomplete('salesman');
     attachAutocomplete('delivery');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-debt-clear]'), function (button) {
+      button.addEventListener('click', function () { clearDebtFilter(button.dataset.debtClear); });
+    });
+    updateClearButtons();
   }
 
   function filters() {
     var searchText = byId('debtNewSearch') ? byId('debtNewSearch').value.trim() : '';
     var salesmanText = byId('debtNewSalesman') ? byId('debtNewSalesman').value.trim() : '';
     var deliveryText = byId('debtNewDelivery') ? byId('debtNewDelivery').value.trim() : '';
+    var hasSelectedSearch = normalizedText(state.selectedFilters.customerCode) !== '' || normalizedText(state.selectedFilters.orderCode) !== '';
     var result = {
-      q: state.selectedFilters.customerCode || state.selectedFilters.orderCode ? '' : searchText,
-      customerCode: state.selectedFilters.customerCode || '',
-      orderCode: state.selectedFilters.orderCode || '',
-      salesman: state.selectedFilters.salesStaffCode || salesmanText,
-      salesStaffCode: state.selectedFilters.salesStaffCode || '',
-      delivery: state.selectedFilters.deliveryStaffCode || deliveryText,
-      deliveryStaffCode: state.selectedFilters.deliveryStaffCode || '',
+      q: hasSelectedSearch ? '' : searchText,
+      customerCode: normalizedText(state.selectedFilters.customerCode),
+      orderCode: normalizedText(state.selectedFilters.orderCode),
+      salesman: selectedOrTyped(state.selectedFilters.salesStaffCode, salesmanText),
+      salesStaffCode: normalizedText(state.selectedFilters.salesStaffCode),
+      delivery: selectedOrTyped(state.selectedFilters.deliveryStaffCode, deliveryText),
+      deliveryStaffCode: normalizedText(state.selectedFilters.deliveryStaffCode),
       status: byId('debtNewStatus') ? byId('debtNewStatus').value : 'open'
     };
     return result;
@@ -404,6 +475,7 @@
     state.userTouchedFilters = false;
     resetResultsState('Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải.');
     clearMainNotice();
+    updateClearButtons();
   }
 
   function applySummary(summary) {

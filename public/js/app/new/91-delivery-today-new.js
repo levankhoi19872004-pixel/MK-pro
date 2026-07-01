@@ -2,7 +2,18 @@
   'use strict';
 
   var rootId = 'deliveryTodayNewRoot';
-  var state = { rows: [], selectedIndex: -1, loaded: false, hasSearched: false, userTouchedFilters: false, deliveryDateTouched: false, versionCache: {}, correctionReturnItems: [], adjustmentRow: null, activeTab: 'overview', selectedSalesmanKeys: {}, salesmanGroups: [], selectedOrderIds: new Set(), closeoutBusy: false, modalNotice: { closeout: null, adjustment: null }, modalLoading: { closeout: false, adjustment: false } };
+  var state = {
+    rows: [], selectedIndex: -1, loaded: false, hasSearched: false, userTouchedFilters: false, deliveryDateTouched: false,
+    selectedFilters: { orderCode: '', customerCode: '', salesStaffCode: '', deliveryStaffCode: '' },
+    suggest: {
+      timers: {},
+      requestSeq: { search: 0, salesman: 0, delivery: 0 },
+      items: { search: [], salesman: [], delivery: [] },
+      active: { search: -1, salesman: -1, delivery: -1 },
+      loading: { search: false, salesman: false, delivery: false }
+    },
+    versionCache: {}, correctionReturnItems: [], adjustmentRow: null, activeTab: 'overview', selectedSalesmanKeys: {}, salesmanGroups: [], selectedOrderIds: new Set(), closeoutBusy: false, modalNotice: { closeout: null, adjustment: null }, modalLoading: { closeout: false, adjustment: false }
+  };
 
   function byId(id) { return document.getElementById(id); }
   function esc(value) {
@@ -74,10 +85,10 @@
           '<p class="muted">Luồng chuẩn: <b>Giao hàng → Thu tiền → Chốt kế toán</b>. Đơn đã xác nhận chỉ điều chỉnh bằng phiên bản mới, không sửa ngược bản cũ.</p>' +
         '</div>' +
         '<div class="delivery-v46-filters">' +
-          '<label>Ngày giao<input id="deliveryTodayNewDate" type="date"></label>' +
-          '<label class="delivery-v46-filter-suggest">NVGH<input id="deliveryTodayNewDelivery" autocomplete="off" placeholder="Mã/tên NVGH"><div id="deliveryTodayNewDeliverySuggestions" class="delivery-v46-suggest-box"></div></label>' +
-          '<label class="delivery-v46-filter-suggest">NVBH<input id="deliveryTodayNewSalesman" autocomplete="off" placeholder="Mã/tên NVBH"><div id="deliveryTodayNewSalesmanSuggestions" class="delivery-v46-suggest-box"></div></label>' +
-          '<label class="delivery-v46-filter-suggest">Tìm kiếm<input id="deliveryTodayNewSearch" autocomplete="off" placeholder="Mã đơn / khách hàng"><div id="deliveryTodayNewSearchSuggestions" class="delivery-v46-suggest-box"></div></label>' +
+          '<label>Ngày giao<div class="filter-input-wrap"><input id="deliveryTodayNewDate" type="date"><button id="deliveryTodayNewDateClear" type="button" class="filter-clear-btn delivery-new-filter-clear" data-delivery-clear="date" aria-label="Đưa ngày giao về mặc định" title="Đưa về hôm nay" hidden>×</button></div></label>' +
+          '<label class="delivery-v46-filter-suggest">NVGH<div class="filter-input-wrap"><input id="deliveryTodayNewDelivery" autocomplete="off" placeholder="Mã/tên NVGH"><button id="deliveryTodayNewDeliveryClear" type="button" class="filter-clear-btn delivery-new-filter-clear" data-delivery-clear="delivery" aria-label="Xóa điều kiện NVGH" title="Xóa điều kiện" hidden>×</button></div><div id="deliveryTodayNewDeliverySuggestions" class="delivery-v46-suggest-box"></div></label>' +
+          '<label class="delivery-v46-filter-suggest">NVBH<div class="filter-input-wrap"><input id="deliveryTodayNewSalesman" autocomplete="off" placeholder="Mã/tên NVBH"><button id="deliveryTodayNewSalesmanClear" type="button" class="filter-clear-btn delivery-new-filter-clear" data-delivery-clear="salesman" aria-label="Xóa điều kiện NVBH" title="Xóa điều kiện" hidden>×</button></div><div id="deliveryTodayNewSalesmanSuggestions" class="delivery-v46-suggest-box"></div></label>' +
+          '<label class="delivery-v46-filter-suggest">Tìm kiếm<div class="filter-input-wrap"><input id="deliveryTodayNewSearch" autocomplete="off" placeholder="Mã đơn / khách hàng"><button id="deliveryTodayNewSearchClear" type="button" class="filter-clear-btn delivery-new-filter-clear" data-delivery-clear="search" aria-label="Xóa điều kiện tìm kiếm" title="Xóa điều kiện" hidden>×</button></div><div id="deliveryTodayNewSearchSuggestions" class="delivery-v46-suggest-box"></div></label>' +
           '<button id="deliveryTodayNewLoad" type="button">Tải đơn</button>' +
           '<button id="deliveryTodayNewReset" type="button" class="secondary">Xóa lọc</button>' +
         '</div>' +
@@ -124,6 +135,7 @@
       dateInput.addEventListener('change', function () {
         state.deliveryDateTouched = true;
         state.userTouchedFilters = true;
+        updateClearButtons();
       });
     }
     var loadButton = byId('deliveryTodayNewLoad');
@@ -143,16 +155,11 @@
         else clearSelectedOrders();
       });
     }
-    ['deliveryTodayNewSearch', 'deliveryTodayNewDelivery', 'deliveryTodayNewSalesman'].forEach(function (id) {
-      var el = byId(id);
-      if (el) {
-        el.addEventListener('input', function () { state.userTouchedFilters = true; });
-        el.addEventListener('change', function () { state.userTouchedFilters = true; });
-        el.addEventListener('keydown', function (event) { if (event.key === 'Enter') load(); });
-      }
-    });
     ensureScopedStyle();
     bindFilterAutocomplete();
+    document.addEventListener('click', function (event) {
+      if (!event.target || !event.target.closest || !event.target.closest('.delivery-v46-filter-suggest')) closeAllSuggestions();
+    });
     resetResultsState('Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải đơn.');
     return root;
   }
@@ -162,7 +169,7 @@
     var style = document.createElement('style');
     style.id = 'deliveryTodayNewScopedStyle';
     style.textContent = '' +
-      '.delivery-new-main-list{display:block;}.delivery-new-list-panel-full{width:100%;}.delivery-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.delivery-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.delivery-new-empty-state span{display:block;color:#64748b;font-weight:700;}.delivery-new-results-hidden{display:none!important;}.delivery-new-salesman-panel{margin:12px 0;padding:0;overflow:hidden;}.delivery-new-salesman-empty{padding:14px;color:#64748b;text-align:center;border:1px dashed #cbd5e1;border-radius:12px;}.delivery-new-salesman-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-header h3{margin:0;font-size:15px;}.delivery-new-salesman-header small{display:inline-block;margin-left:8px;color:#475569;}.delivery-new-salesman-row{display:grid;grid-template-columns:minmax(240px,1.4fr) 70px repeat(6,1fr);gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-row:last-child{border-bottom:0;}.delivery-new-salesman-check{display:flex;align-items:center;gap:8px;font-weight:800;}.delivery-new-salesman-check input{width:16px;height:16px;}.delivery-new-salesman-row .muted{font-size:11px;color:#64748b;}.delivery-new-salesman-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-orders-toolbar{align-items:center;gap:12px;}.delivery-new-selection-count{font-weight:800;color:#475569;white-space:nowrap;}.delivery-new-closeout-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.delivery-new-closeout-toolbar .secondary{padding:7px 10px;border-radius:10px;}.delivery-new-closeout-btn[disabled]{opacity:.55;cursor:not-allowed;}.delivery-new-closeout-warning{padding:10px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-weight:800;margin:10px 0;}.delivery-new-orders-table{overflow-x:auto;border-top:1px solid #dbe7f5;}.delivery-new-order-grid{display:grid;grid-template-columns:32px minmax(260px,2fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(132px,.9fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(110px,.8fr) minmax(110px,.8fr);gap:10px;align-items:center;min-width:1320px;}.delivery-new-orders-header{position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:1px solid #dbe7f5;padding:8px 12px;color:#334155;font-size:12px;font-weight:900;letter-spacing:.01em;}.delivery-new-order-row{padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-order-row.selected{background:#eff6ff;}.delivery-new-order-cell{min-width:0;}.delivery-new-order-checkbox-cell{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox-cell input{width:16px;height:16px;accent-color:#2563eb;}.delivery-new-order-customer-cell{text-align:left;min-width:0;}.delivery-new-money-cell{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:900;}.delivery-new-status-cell{text-align:center;display:flex;justify-content:center;align-items:center;}.delivery-new-action-cell{text-align:right;display:flex;justify-content:flex-end;align-items:center;}.delivery-new-row-action button{padding:7px 10px;border-radius:10px;}.delivery-new-order-checkbox{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox input{width:16px;height:16px;accent-color:#2563eb;}' +
+      '.delivery-new-main-list{display:block;}.delivery-v46-filters .filter-input-wrap{position:relative;width:100%;}.delivery-v46-filters .filter-input-wrap input,.delivery-v46-filters .filter-input-wrap select{padding-right:34px;box-sizing:border-box;}.delivery-v46-filters .filter-clear-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:22px;height:22px;border:0;border-radius:999px;background:transparent;color:#64748b;cursor:pointer;font-size:17px;line-height:20px;font-weight:900;z-index:3;}.delivery-v46-filters .filter-clear-btn:hover{color:#ef4444;background:#fee2e2;}.delivery-v46-filters .filter-clear-btn[hidden]{display:none!important;}.delivery-new-list-panel-full{width:100%;}.delivery-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.delivery-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.delivery-new-empty-state span{display:block;color:#64748b;font-weight:700;}.delivery-new-results-hidden{display:none!important;}.delivery-new-salesman-panel{margin:12px 0;padding:0;overflow:hidden;}.delivery-new-salesman-empty{padding:14px;color:#64748b;text-align:center;border:1px dashed #cbd5e1;border-radius:12px;}.delivery-new-salesman-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-header h3{margin:0;font-size:15px;}.delivery-new-salesman-header small{display:inline-block;margin-left:8px;color:#475569;}.delivery-new-salesman-row{display:grid;grid-template-columns:minmax(240px,1.4fr) 70px repeat(6,1fr);gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-row:last-child{border-bottom:0;}.delivery-new-salesman-check{display:flex;align-items:center;gap:8px;font-weight:800;}.delivery-new-salesman-check input{width:16px;height:16px;}.delivery-new-salesman-row .muted{font-size:11px;color:#64748b;}.delivery-new-salesman-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-orders-toolbar{align-items:center;gap:12px;}.delivery-new-selection-count{font-weight:800;color:#475569;white-space:nowrap;}.delivery-new-closeout-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.delivery-new-closeout-toolbar .secondary{padding:7px 10px;border-radius:10px;}.delivery-new-closeout-btn[disabled]{opacity:.55;cursor:not-allowed;}.delivery-new-closeout-warning{padding:10px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-weight:800;margin:10px 0;}.delivery-new-orders-table{overflow-x:auto;border-top:1px solid #dbe7f5;}.delivery-new-order-grid{display:grid;grid-template-columns:32px minmax(260px,2fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(132px,.9fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(110px,.8fr) minmax(110px,.8fr);gap:10px;align-items:center;min-width:1320px;}.delivery-new-orders-header{position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:1px solid #dbe7f5;padding:8px 12px;color:#334155;font-size:12px;font-weight:900;letter-spacing:.01em;}.delivery-new-order-row{padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-order-row.selected{background:#eff6ff;}.delivery-new-order-cell{min-width:0;}.delivery-new-order-checkbox-cell{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox-cell input{width:16px;height:16px;accent-color:#2563eb;}.delivery-new-order-customer-cell{text-align:left;min-width:0;}.delivery-new-money-cell{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:900;}.delivery-new-status-cell{text-align:center;display:flex;justify-content:center;align-items:center;}.delivery-new-action-cell{text-align:right;display:flex;justify-content:flex-end;align-items:center;}.delivery-new-row-action button{padding:7px 10px;border-radius:10px;}.delivery-new-order-checkbox{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox input{width:16px;height:16px;accent-color:#2563eb;}' +
       '.delivery-new-row:hover{background:#eff6ff;}' +
       '.delivery-new-row b{font-weight:800;}.delivery-new-row small{display:block;color:#334155;margin-top:3px;}' +
       '.delivery-new-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}' +
@@ -185,184 +192,257 @@
     return String(value == null ? '' : value).trim().toLowerCase();
   }
 
-  function uniqueByKey(rows, keyFn) {
-    var seen = {};
-    return (rows || []).filter(function (row) {
-      var key = keyFn(row);
-      if (!key || seen[key]) return false;
-      seen[key] = true;
-      return true;
-    });
+  function normalizedText(value) {
+    return String(value == null ? '' : value).trim();
   }
 
-  function staffCode(item, type) {
-    return String(
-      item.businessStaffCode ||
-      item.staffCode ||
-      item.code ||
-      (type === 'delivery' ? item.deliveryStaffCode : item.salesStaffCode) ||
-      item.salesmanCode ||
-      item.nvbhCode ||
-      item.nvghCode ||
-      ''
-    ).trim();
+  function selectedOrTyped(selectedValue, typedValue) {
+    var selected = normalizedText(selectedValue);
+    return selected !== '' ? selected : normalizedText(typedValue);
   }
 
-  function staffName(item, type) {
-    return String(
-      item.businessStaffName ||
-      item.fullName ||
-      item.name ||
-      (type === 'delivery' ? item.deliveryStaffName : item.salesStaffName) ||
-      item.salesmanName ||
-      item.nvbhName ||
-      item.nvghName ||
-      ''
-    ).trim();
-  }
-
-  function localStaffSuggestions(type, keyword) {
-    var q = normalizeForSearch(keyword);
-    var rows = uniqueByKey(state.rows.map(function (row) {
-      return type === 'delivery'
-        ? { code: row.deliveryStaffCode, name: row.deliveryStaffName }
-        : { code: row.salesStaffCode, name: row.salesStaffName };
-    }), function (item) { return [item.code, item.name].join('|'); }).filter(function (item) {
-      var textValue = normalizeForSearch([item.code, item.name].join(' '));
-      return (item.code || item.name) && (!q || textValue.indexOf(q) >= 0);
-    });
-    return rows.slice(0, 20);
-  }
-
-  async function staffSuggestions(type, keyword) {
-    try {
-      if (window.UnifiedSearchEngine) {
-        var fn = type === 'delivery' ? window.UnifiedSearchEngine.searchDeliveryStaff : window.UnifiedSearchEngine.searchSalesStaff;
-        if (typeof fn === 'function') {
-          var remote = await fn(keyword || '', { limit: 20, minChars: 0, allowEmpty: '1', showOnFocus: '1' });
-          if (remote && remote.length) return remote;
-        }
-      }
-    } catch (err) {
-      // Fallback to rows already loaded in this module.
+  function firstText(values) {
+    for (var i = 0; i < values.length; i += 1) {
+      var value = normalizedText(values[i]);
+      if (value !== '') return value;
     }
-    return localStaffSuggestions(type, keyword);
+    return '';
   }
 
-  function orderSearchSuggestions(keyword) {
-    var q = normalizeForSearch(keyword);
-    return uniqueByKey(state.rows, function (row) { return row.orderCode || row.orderId || row.customerCode; }).filter(function (row) {
-      var terms = [row.orderCode, row.orderId, row.customerCode, row.customerName, row.deliveryStaffCode, row.salesStaffCode].join(' ');
-      return !q || normalizeForSearch(terms).indexOf(q) >= 0;
-    }).slice(0, 20);
+  function resetSelectedFilter(scope) {
+    if (!scope || scope === 'search') {
+      state.selectedFilters.orderCode = '';
+      state.selectedFilters.customerCode = '';
+    }
+    if (!scope || scope === 'salesman') state.selectedFilters.salesStaffCode = '';
+    if (!scope || scope === 'delivery') state.selectedFilters.deliveryStaffCode = '';
   }
 
-  function hideSuggestBox(box) {
+  function suggestConfig(scope) {
+    if (scope === 'delivery') return { inputId: 'deliveryTodayNewDelivery', boxId: 'deliveryTodayNewDeliverySuggestions', type: 'delivery' };
+    if (scope === 'salesman') return { inputId: 'deliveryTodayNewSalesman', boxId: 'deliveryTodayNewSalesmanSuggestions', type: 'salesman' };
+    return { inputId: 'deliveryTodayNewSearch', boxId: 'deliveryTodayNewSearchSuggestions', type: 'orderCustomer' };
+  }
+
+  function closeSuggestion(scope) {
+    var cfg = suggestConfig(scope);
+    var box = byId(cfg.boxId);
     if (!box) return;
     box.classList.remove('show');
     box.innerHTML = '';
+    state.suggest.active[scope] = -1;
   }
 
-  function renderSuggestBox(box, items, render, select) {
+  function closeAllSuggestions() {
+    ['search', 'salesman', 'delivery'].forEach(closeSuggestion);
+  }
+
+  function renderSuggestionBox(scope) {
+    var cfg = suggestConfig(scope);
+    var box = byId(cfg.boxId);
     if (!box) return;
-    if (!items || !items.length) {
-      box.innerHTML = '<div class="empty">Không có dữ liệu gợi ý. Hãy tải đơn hoặc nhập từ khóa khác.</div>';
+    var items = state.suggest.items[scope] || [];
+    if (state.suggest.loading[scope]) {
+      box.innerHTML = '<div class="empty">Đang tìm gợi ý...</div>';
+      box.classList.add('show');
+      return;
+    }
+    if (!items.length) {
+      box.innerHTML = '<div class="empty">Không tìm thấy gợi ý phù hợp</div>';
       box.classList.add('show');
       return;
     }
     box.innerHTML = items.map(function (item, index) {
-      var html = render(item);
-      return '<button type="button" data-index="' + index + '">' + html + '</button>';
+      return '<button type="button" class="' + (index === state.suggest.active[scope] ? 'active' : '') + '" data-scope="' + esc(scope) + '" data-index="' + index + '"><strong>' + esc(item.label || item.code || item.orderCode || item.name || '') + '</strong><em>' + esc(item.subLabel || '') + '</em></button>';
     }).join('');
     Array.prototype.forEach.call(box.querySelectorAll('button[data-index]'), function (btn) {
       btn.addEventListener('mousedown', function (event) { event.preventDefault(); });
-      btn.addEventListener('click', function () {
-        var item = items[Number(btn.dataset.index)];
-        select(item);
-        hideSuggestBox(box);
-      });
+      btn.addEventListener('click', function () { chooseSuggestion(scope, Number(btn.dataset.index)); });
     });
     box.classList.add('show');
   }
 
-  function wireLocalAutocomplete(inputId, boxId, getItems, render, select) {
-    var input = byId(inputId);
-    var box = byId(boxId);
-    if (!input || !box || input.dataset.deliveryNewSuggestReady === '1') return;
-    input.dataset.deliveryNewSuggestReady = '1';
-    var timer = null;
-    async function show() {
-      clearTimeout(timer);
-      timer = setTimeout(async function () {
-        var items = await getItems(input.value || '');
-        renderSuggestBox(box, items, render, select);
-      }, 120);
+  function updateClearButtons() {
+    var searchInput = byId('deliveryTodayNewSearch');
+    var deliveryInput = byId('deliveryTodayNewDelivery');
+    var salesmanInput = byId('deliveryTodayNewSalesman');
+    var dateInput = byId('deliveryTodayNewDate');
+    var searchClear = byId('deliveryTodayNewSearchClear');
+    var deliveryClear = byId('deliveryTodayNewDeliveryClear');
+    var salesmanClear = byId('deliveryTodayNewSalesmanClear');
+    var dateClear = byId('deliveryTodayNewDateClear');
+    if (searchClear) searchClear.hidden = !(normalizedText(searchInput && searchInput.value) || normalizedText(state.selectedFilters.orderCode) || normalizedText(state.selectedFilters.customerCode));
+    if (deliveryClear) deliveryClear.hidden = !(normalizedText(deliveryInput && deliveryInput.value) || normalizedText(state.selectedFilters.deliveryStaffCode));
+    if (salesmanClear) salesmanClear.hidden = !(normalizedText(salesmanInput && salesmanInput.value) || normalizedText(state.selectedFilters.salesStaffCode));
+    if (dateClear) dateClear.hidden = !dateInput || !state.deliveryDateTouched || normalizedText(dateInput.value) === today();
+  }
+
+  function suggestionParams(scope, value) {
+    var cfg = suggestConfig(scope);
+    var params = new URLSearchParams({ type: cfg.type, q: normalizedText(value), limit: '10' });
+    var dateInput = byId('deliveryTodayNewDate');
+    var deliveryDate = normalizedText(dateInput && dateInput.value);
+    if (deliveryDate !== '') params.set('deliveryDate', deliveryDate);
+    var selectedDelivery = normalizedText(state.selectedFilters.deliveryStaffCode);
+    if (scope === 'salesman' && selectedDelivery !== '') params.set('deliveryStaffCode', selectedDelivery);
+    return params;
+  }
+
+  async function fetchSuggestions(scope, rawValue) {
+    var value = normalizedText(rawValue);
+    state.suggest.requestSeq[scope] += 1;
+    var seq = state.suggest.requestSeq[scope];
+    if (value.length < 2) {
+      state.suggest.items[scope] = [];
+      state.suggest.loading[scope] = false;
+      closeSuggestion(scope);
+      return;
     }
-    input.addEventListener('input', show);
-    input.addEventListener('focus', show);
-    input.addEventListener('keydown', function (event) {
-      if (event.key === 'Escape') hideSuggestBox(box);
+    state.suggest.items[scope] = [];
+    state.suggest.loading[scope] = true;
+    renderSuggestionBox(scope);
+    try {
+      var res = await fetch('/api/new/delivery-today/suggestions?' + suggestionParams(scope, value).toString());
+      var json = await res.json();
+      if (seq !== state.suggest.requestSeq[scope]) return;
+      if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tải được gợi ý');
+      state.suggest.items[scope] = Array.isArray(json.items) ? json.items : [];
+      state.suggest.active[scope] = state.suggest.items[scope].length ? 0 : -1;
+    } catch (err) {
+      if (seq !== state.suggest.requestSeq[scope]) return;
+      state.suggest.items[scope] = [];
+    } finally {
+      if (seq === state.suggest.requestSeq[scope]) {
+        state.suggest.loading[scope] = false;
+        renderSuggestionBox(scope);
+      }
+    }
+  }
+
+  function queueSuggestions(scope, value) {
+    clearTimeout(state.suggest.timers[scope]);
+    state.suggest.timers[scope] = setTimeout(function () { fetchSuggestions(scope, value); }, 320);
+  }
+
+  function chooseSuggestion(scope, index) {
+    var item = (state.suggest.items[scope] || [])[index];
+    var cfg = suggestConfig(scope);
+    var input = byId(cfg.inputId);
+    if (!item || !input) return;
+    if (scope === 'delivery') {
+      state.selectedFilters.deliveryStaffCode = firstText([item.code, item.deliveryStaffCode]);
+      input.value = firstText([item.label, [item.code, item.name].filter(Boolean).join(' - ')]);
+    } else if (scope === 'salesman') {
+      state.selectedFilters.salesStaffCode = firstText([item.code, item.salesStaffCode]);
+      input.value = firstText([item.label, [item.code, item.name].filter(Boolean).join(' - ')]);
+    } else {
+      resetSelectedFilter('search');
+      input.value = firstText([item.label, item.orderCode, item.customerCode, item.code]);
+      if (item.type === 'order') state.selectedFilters.orderCode = firstText([item.orderCode, item.code]);
+      else state.selectedFilters.customerCode = firstText([item.customerCode, item.code]);
+    }
+    state.userTouchedFilters = true;
+    updateClearButtons();
+    closeSuggestion(scope);
+    setMessage('Đã chọn gợi ý. Bấm Tải đơn để xem danh sách tương ứng.');
+  }
+
+  function moveSuggestionActive(scope, delta) {
+    var items = state.suggest.items[scope] || [];
+    if (!items.length) return;
+    var next = state.suggest.active[scope] + delta;
+    if (next < 0) next = items.length - 1;
+    if (next >= items.length) next = 0;
+    state.suggest.active[scope] = next;
+    renderSuggestionBox(scope);
+  }
+
+  function afterSingleFilterCleared(scope) {
+    closeSuggestion(scope);
+    updateClearButtons();
+    if (!hasValidSearchCriteria()) {
+      resetResultsState('Đã xóa điều kiện cuối cùng. Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải đơn.');
+      setMessage('');
+      return;
+    }
+    setMessage('Đã xóa điều kiện. Bấm Tải đơn để cập nhật dữ liệu theo bộ lọc mới.');
+  }
+
+  function clearDeliveryFilter(scope) {
+    if (scope === 'delivery') {
+      var deliveryInput = byId('deliveryTodayNewDelivery');
+      if (deliveryInput) deliveryInput.value = '';
+      resetSelectedFilter('delivery');
+    } else if (scope === 'salesman') {
+      var salesmanInput = byId('deliveryTodayNewSalesman');
+      if (salesmanInput) salesmanInput.value = '';
+      resetSelectedFilter('salesman');
+    } else if (scope === 'search') {
+      var searchInput = byId('deliveryTodayNewSearch');
+      if (searchInput) searchInput.value = '';
+      resetSelectedFilter('search');
+    } else if (scope === 'date') {
+      var dateInput = byId('deliveryTodayNewDate');
+      if (dateInput) dateInput.value = today();
+      state.deliveryDateTouched = false;
+    }
+    state.userTouchedFilters = true;
+    afterSingleFilterCleared(scope);
+  }
+
+  function attachAutocomplete(scope) {
+    var cfg = suggestConfig(scope);
+    var input = byId(cfg.inputId);
+    if (!input) return;
+    input.addEventListener('input', function () {
+      resetSelectedFilter(scope);
+      state.userTouchedFilters = true;
+      updateClearButtons();
+      queueSuggestions(scope, input.value);
     });
-    document.addEventListener('click', function (event) {
-      if (!box.contains(event.target) && event.target !== input) hideSuggestBox(box);
+    input.addEventListener('focus', function () {
+      if (normalizedText(input.value).length >= 2) queueSuggestions(scope, input.value);
+    });
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'ArrowDown') { event.preventDefault(); moveSuggestionActive(scope, 1); return; }
+      if (event.key === 'ArrowUp') { event.preventDefault(); moveSuggestionActive(scope, -1); return; }
+      if (event.key === 'Escape') { closeSuggestion(scope); return; }
+      if (event.key === 'Enter') {
+        var box = byId(cfg.boxId);
+        if (box && box.classList.contains('show') && state.suggest.active[scope] >= 0) {
+          event.preventDefault();
+          chooseSuggestion(scope, state.suggest.active[scope]);
+          return;
+        }
+        load();
+      }
     });
   }
 
   function bindFilterAutocomplete() {
-    wireLocalAutocomplete(
-      'deliveryTodayNewDelivery',
-      'deliveryTodayNewDeliverySuggestions',
-      function (keyword) { return staffSuggestions('delivery', keyword); },
-      function (item) {
-        var code = staffCode(item, 'delivery');
-        var name = staffName(item, 'delivery');
-        return '<strong>' + esc(code || name) + '</strong><em>' + esc(name && code ? name : 'Nhân viên giao hàng') + '</em>';
-      },
-      function (item) {
-        var input = byId('deliveryTodayNewDelivery');
-        if (input) input.value = staffCode(item, 'delivery') || staffName(item, 'delivery');
-        state.userTouchedFilters = true;
-        setMessage('Đã chọn NVGH. Bấm Tải đơn để xem danh sách tương ứng.');
-      }
-    );
-    wireLocalAutocomplete(
-      'deliveryTodayNewSalesman',
-      'deliveryTodayNewSalesmanSuggestions',
-      function (keyword) { return staffSuggestions('sales', keyword); },
-      function (item) {
-        var code = staffCode(item, 'sales');
-        var name = staffName(item, 'sales');
-        return '<strong>' + esc(code || name) + '</strong><em>' + esc(name && code ? name : 'Nhân viên bán hàng') + '</em>';
-      },
-      function (item) {
-        var input = byId('deliveryTodayNewSalesman');
-        if (input) input.value = staffCode(item, 'sales') || staffName(item, 'sales');
-        state.userTouchedFilters = true;
-        setMessage('Đã chọn NVBH. Bấm Tải đơn để xem danh sách tương ứng.');
-      }
-    );
-    wireLocalAutocomplete(
-      'deliveryTodayNewSearch',
-      'deliveryTodayNewSearchSuggestions',
-      function (keyword) { return Promise.resolve(orderSearchSuggestions(keyword)); },
-      function (row) {
-        return '<strong>' + esc(row.orderCode || row.orderId || '') + '</strong><em>' + esc([row.customerCode, row.customerName].filter(Boolean).join(' · ')) + '</em>';
-      },
-      function (row) {
-        var input = byId('deliveryTodayNewSearch');
-        if (input) input.value = row.orderCode || row.orderId || row.customerCode || '';
-        state.userTouchedFilters = true;
-        setMessage('Đã chọn đơn/khách hàng. Bấm Tải đơn để xem danh sách tương ứng.');
-      }
-    );
+    attachAutocomplete('delivery');
+    attachAutocomplete('salesman');
+    attachAutocomplete('search');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-delivery-clear]'), function (button) {
+      button.addEventListener('click', function () { clearDeliveryFilter(button.dataset.deliveryClear); });
+    });
+    updateClearButtons();
   }
 
   function filters() {
+    var searchText = byId('deliveryTodayNewSearch') ? byId('deliveryTodayNewSearch').value.trim() : '';
+    var deliveryText = byId('deliveryTodayNewDelivery') ? byId('deliveryTodayNewDelivery').value.trim() : '';
+    var salesmanText = byId('deliveryTodayNewSalesman') ? byId('deliveryTodayNewSalesman').value.trim() : '';
+    var selectedSearch = firstText([state.selectedFilters.orderCode, state.selectedFilters.customerCode]);
     return {
       date: byId('deliveryTodayNewDate') ? byId('deliveryTodayNewDate').value : '',
-      q: byId('deliveryTodayNewSearch') ? byId('deliveryTodayNewSearch').value.trim() : '',
-      delivery: byId('deliveryTodayNewDelivery') ? byId('deliveryTodayNewDelivery').value.trim() : '',
-      salesman: byId('deliveryTodayNewSalesman') ? byId('deliveryTodayNewSalesman').value.trim() : '',
+      q: selectedSearch !== '' ? selectedSearch : searchText,
+      orderCode: normalizedText(state.selectedFilters.orderCode),
+      customerCode: normalizedText(state.selectedFilters.customerCode),
+      delivery: selectedOrTyped(state.selectedFilters.deliveryStaffCode, deliveryText),
+      deliveryStaffCode: normalizedText(state.selectedFilters.deliveryStaffCode),
+      salesman: selectedOrTyped(state.selectedFilters.salesStaffCode, salesmanText),
+      salesStaffCode: normalizedText(state.selectedFilters.salesStaffCode),
       deliveryDateChangedByUser: state.deliveryDateTouched ? '1' : '0'
     };
   }
@@ -452,9 +532,12 @@
     var dateInput = byId('deliveryTodayNewDate');
     if (dateInput) dateInput.value = today();
     state.deliveryDateTouched = false;
+    resetSelectedFilter();
+    closeAllSuggestions();
     state.userTouchedFilters = false;
     resetResultsState('Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải đơn.');
     setMessage('');
+    updateClearButtons();
   }
 
   function hasValidSearchCriteria() {

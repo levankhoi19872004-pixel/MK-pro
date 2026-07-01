@@ -158,6 +158,9 @@ function buildOrderMatch(query = {}) {
         { salesOrderCode: rx },
         { customerCode: rx },
         { customerName: rx },
+        { phone: rx },
+        { customerPhone: rx },
+        { phoneNumber: rx },
         { deliveryStaffCode: rx },
         { deliveryStaffName: rx },
         { salesStaffCode: rx },
@@ -681,13 +684,177 @@ async function listOrders(query = {}, options = {}) {
   };
 }
 
+
+function suggestionLimit(value) {
+  const n = Number(value || 10);
+  return Math.max(1, Math.min(10, Number.isFinite(n) ? Math.round(n) : 10));
+}
+
+function emptySuggestionResult(type, reason = 'MIN_QUERY_LENGTH') {
+  return {
+    items: [],
+    diagnostics: {
+      source: 'delivery-today-new-suggestions-guarded-empty',
+      endpoint: '/api/new/delivery-today/suggestions',
+      type: text(type || ''),
+      reason,
+      minQueryLength: 2,
+      limit: 10,
+      searchCriteriaRequired: true
+    }
+  };
+}
+
+function suggestionTextMatches(value, q) {
+  return text(value).toUpperCase().includes(text(q).toUpperCase());
+}
+
+function suggestionRank(code, label, q) {
+  const needle = text(q).toUpperCase();
+  if (text(code).toUpperCase().startsWith(needle)) return 0;
+  if (text(label).toUpperCase().startsWith(needle)) return 1;
+  return 2;
+}
+
+function sortSuggestions(items = []) {
+  return items
+    .sort((a, b) => (a._rank - b._rank) || String(a.label || '').localeCompare(String(b.label || ''), 'vi'))
+    .map(({ _rank, ...row }) => row);
+}
+
+async function findSuggestionOrders(match = {}, limit = 80, options = {}) {
+  const { SalesOrder } = getModels();
+  const query = SalesOrder.find(match);
+  if (typeof query.sort === 'function') query.sort({ deliveryDate: -1, orderDate: -1, createdAt: -1 });
+  if (typeof query.limit === 'function') query.limit(Math.max(1, Math.min(120, Number(limit) || 80)));
+  if (typeof query.lean === 'function') query.lean();
+  if (options.session && typeof query.session === 'function') query.session(options.session);
+  return query;
+}
+
+function buildSuggestionQuery(query = {}, q = '') {
+  return {
+    date: query.deliveryDate || query.date || query.orderDate,
+    delivery: query.deliveryStaffCode || query.delivery || query.nvgh,
+    q
+  };
+}
+
+async function orderCustomerSuggestions(query = {}, q = '', limit = 10, options = {}) {
+  const rows = await findSuggestionOrders(buildOrderMatch(buildSuggestionQuery(query, q)), Math.max(50, limit * 10), options);
+  const orderItems = [];
+  const customerItems = [];
+  const seenOrders = new Set();
+  const seenCustomers = new Set();
+  for (const raw of Array.isArray(rows) ? rows : []) {
+    const row = normalizeDeliveryOperationalRow(raw);
+    const code = text(row.orderCode || row.orderId || raw.code || raw.id || raw._id);
+    const customerCode = text(row.customerCode);
+    const customerName = text(row.customerName);
+    const phone = text(raw.phone || raw.customerPhone || raw.phoneNumber);
+    const customerKey = (customerCode || customerName || phone).toUpperCase();
+    const orderKey = (code || row.orderId).toUpperCase();
+    if (orderKey && !seenOrders.has(orderKey) && (suggestionTextMatches(code, q) || suggestionTextMatches(customerCode, q) || suggestionTextMatches(customerName, q) || suggestionTextMatches(phone, q))) {
+      orderItems.push({
+        type: 'order',
+        code,
+        orderCode: code,
+        customerCode,
+        customerName,
+        deliveryDate: row.deliveryDate,
+        label: [code, customerName || customerCode].filter(Boolean).join(' - '),
+        subLabel: [customerCode, row.deliveryDate ? `Ngày giao ${row.deliveryDate}` : '', row.deliveryStaffCode ? `NVGH ${row.deliveryStaffCode}` : ''].filter(Boolean).join(' · '),
+        _rank: suggestionRank(code, [code, customerCode, customerName].filter(Boolean).join(' '), q)
+      });
+      seenOrders.add(orderKey);
+    }
+    if (customerKey && !seenCustomers.has(customerKey) && (suggestionTextMatches(customerCode, q) || suggestionTextMatches(customerName, q) || suggestionTextMatches(phone, q))) {
+      customerItems.push({
+        type: 'customer',
+        code: customerCode,
+        customerCode,
+        name: customerName,
+        phone,
+        label: [customerCode, customerName].filter(Boolean).join(' - '),
+        subLabel: [phone ? `SĐT: ${phone}` : '', row.deliveryDate ? `Ngày giao ${row.deliveryDate}` : ''].filter(Boolean).join(' · '),
+        _rank: suggestionRank(customerCode, [customerCode, customerName, phone].filter(Boolean).join(' '), q)
+      });
+      seenCustomers.add(customerKey);
+    }
+  }
+  return {
+    items: sortSuggestions([...orderItems, ...customerItems]).slice(0, limit),
+    diagnostics: {
+      source: 'delivery-today-new-order-customer-suggestions-sales-orders',
+      endpoint: '/api/new/delivery-today/suggestions',
+      type: 'orderCustomer',
+      limit,
+      searchCriteriaRequired: false
+    }
+  };
+}
+
+async function staffSuggestionItems(query = {}, q = '', role = 'delivery', limit = 10, options = {}) {
+  const isDelivery = ['delivery', 'deliverystaff', 'nvgh'].includes(text(role).toLowerCase());
+  const matchQuery = buildSuggestionQuery({ deliveryDate: query.deliveryDate || query.date }, '');
+  if (isDelivery) matchQuery.delivery = q;
+  else {
+    matchQuery.salesman = q;
+    if (query.deliveryStaffCode || query.delivery || query.nvgh) matchQuery.delivery = query.deliveryStaffCode || query.delivery || query.nvgh;
+  }
+  const rows = await findSuggestionOrders(buildOrderMatch(matchQuery), Math.max(50, limit * 10), options);
+  const map = new Map();
+  for (const raw of Array.isArray(rows) ? rows : []) {
+    const row = normalizeDeliveryOperationalRow(raw);
+    const code = text(isDelivery ? row.deliveryStaffCode : row.salesStaffCode);
+    const name = text(isDelivery ? row.deliveryStaffName : row.salesStaffName);
+    if (!code && !name) continue;
+    if (!suggestionTextMatches(code, q) && !suggestionTextMatches(name, q)) continue;
+    const key = (code || name).toUpperCase();
+    const existing = map.get(key) || { code, name, orderCount: 0, amount: 0 };
+    existing.orderCount += 1;
+    existing.amount += money(row.originalAmount);
+    map.set(key, existing);
+  }
+  const items = Array.from(map.values()).map((row) => ({
+    type: isDelivery ? 'delivery' : 'salesman',
+    code: row.code,
+    name: row.name,
+    label: [row.code, row.name].filter(Boolean).join(' - '),
+    subLabel: `Đơn: ${row.orderCount} · PT: ${money(row.amount).toLocaleString('vi-VN')}`,
+    orderCount: row.orderCount,
+    _rank: suggestionRank(row.code, [row.code, row.name].filter(Boolean).join(' '), q)
+  }));
+  return {
+    items: sortSuggestions(items).slice(0, limit),
+    diagnostics: {
+      source: 'delivery-today-new-staff-suggestions-sales-orders',
+      endpoint: '/api/new/delivery-today/suggestions',
+      type: isDelivery ? 'delivery' : 'salesman',
+      limit,
+      searchCriteriaRequired: false
+    }
+  };
+}
+
+async function suggestions(query = {}, options = {}) {
+  const q = text(query.q || query.search || query.keyword);
+  const type = text(query.type || 'orderCustomer').replace(/[^a-zA-Z]/g, '').toLowerCase();
+  const limit = suggestionLimit(query.limit);
+  if (q.length < 2) return emptySuggestionResult(query.type, 'MIN_QUERY_LENGTH');
+  if (['delivery', 'deliverystaff', 'nvgh'].includes(type)) return staffSuggestionItems(query, q, 'delivery', limit, options);
+  if (['salesman', 'sales', 'salesstaff', 'nvbh'].includes(type)) return staffSuggestionItems(query, q, 'salesman', limit, options);
+  return orderCustomerSuggestions(query, q, limit, options);
+}
+
 module.exports = {
   listOrders,
+  suggestions,
   hasSearchCriteria,
   buildOrderMatch,
   summarizeOrder,
   summarizeRows,
   setModelsForTest,
   setDeliveryListServiceForTest,
-  _private: { money, normalizeDebtAmount, calculateDeliveryDebtAmount, DEBT_ZERO_TOLERANCE, truthyFlag, hasSearchCriteria, emptyListResult, normalizeQty, normalizeOrderItem, compactOrderItems, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
+  _private: { money, suggestionLimit, emptySuggestionResult, normalizeDebtAmount, calculateDeliveryDebtAmount, DEBT_ZERO_TOLERANCE, truthyFlag, hasSearchCriteria, emptyListResult, normalizeQty, normalizeOrderItem, compactOrderItems, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
 };
