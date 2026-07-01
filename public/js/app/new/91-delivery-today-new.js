@@ -88,12 +88,12 @@
           '<label class="delivery-new-filter-date">Ngày giao<div class="filter-input-wrap"><input id="deliveryTodayNewDate" type="date"><button id="deliveryTodayNewDateClear" type="button" class="filter-clear-btn delivery-new-filter-clear" data-delivery-clear="date" aria-label="Đưa ngày giao về mặc định" title="Đưa về hôm nay" hidden>×</button></div></label>' +
           '<label class="delivery-v46-filter-suggest delivery-new-filter-delivery searchable-select-field">NVGH<div class="filter-input-wrap"><input id="deliveryTodayNewDelivery" autocomplete="off" role="combobox" aria-haspopup="listbox" aria-expanded="false" data-searchable-select="delivery" placeholder="Click chọn NVGH"><button id="deliveryTodayNewDeliveryClear" type="button" class="filter-clear-btn delivery-new-filter-clear" data-delivery-clear="delivery" aria-label="Xóa điều kiện NVGH" title="Xóa điều kiện" hidden>×</button></div><div id="deliveryTodayNewDeliverySuggestions" class="delivery-v46-suggest-box"></div></label>' +
           '<label class="delivery-v46-filter-suggest delivery-new-filter-salesman searchable-select-field">NVBH<div class="filter-input-wrap"><input id="deliveryTodayNewSalesman" autocomplete="off" role="combobox" aria-haspopup="listbox" aria-expanded="false" data-searchable-select="salesman" placeholder="Click chọn NVBH"><button id="deliveryTodayNewSalesmanClear" type="button" class="filter-clear-btn delivery-new-filter-clear" data-delivery-clear="salesman" aria-label="Xóa điều kiện NVBH" title="Xóa điều kiện" hidden>×</button></div><div id="deliveryTodayNewSalesmanSuggestions" class="delivery-v46-suggest-box"></div></label>' +
-          '<label class="delivery-v46-filter-suggest delivery-new-filter-search searchable-select-field">Tìm kiếm<div class="filter-input-wrap"><input id="deliveryTodayNewSearch" autocomplete="off" role="combobox" aria-haspopup="listbox" aria-expanded="false" data-searchable-select="orderCustomer" placeholder="Click chọn hoặc nhập mã đơn / khách hàng"><button id="deliveryTodayNewSearchClear" type="button" class="filter-clear-btn delivery-new-filter-clear" data-delivery-clear="search" aria-label="Xóa điều kiện tìm kiếm" title="Xóa điều kiện" hidden>×</button></div><div id="deliveryTodayNewSearchSuggestions" class="delivery-v46-suggest-box"></div></label>' +
+          '<label class="delivery-v46-filter-suggest delivery-new-filter-search searchable-select-field">Tìm kiếm<div class="filter-input-wrap"><input id="deliveryTodayNewSearch" autocomplete="off" role="combobox" aria-haspopup="listbox" aria-expanded="false" data-searchable-select="orderCustomer" placeholder="Mã đơn / khách hàng"><button id="deliveryTodayNewSearchClear" type="button" class="filter-clear-btn delivery-new-filter-clear" data-delivery-clear="search" aria-label="Xóa điều kiện tìm kiếm" title="Xóa điều kiện" hidden>×</button></div><div id="deliveryTodayNewSearchSuggestions" class="delivery-v46-suggest-box"></div></label>' +
           '<div class="delivery-new-filter-actions"><button id="deliveryTodayNewLoad" type="button">Tải đơn</button><button id="deliveryTodayNewReset" type="button" class="secondary">Xóa lọc</button></div>' +
         '</div>' +
         '<p id="deliveryTodayNewMessage" class="message delivery-new-filter-message"></p>' +
       '</section>' +
-      '<section id="deliveryTodayNewEmptyState" class="card delivery-new-empty-state"><b>Chưa có dữ liệu hiển thị.</b><span>Chọn NVGH, NVBH hoặc nhập mã đơn / khách hàng rồi bấm Tải đơn để xem danh sách.</span></section>' +
+      '<section id="deliveryTodayNewEmptyState" class="card delivery-new-empty-state"><b>Chưa có dữ liệu</b><span>Chọn bộ lọc rồi bấm Tải đơn.</span></section>' +
       '<section class="delivery-v46-kpis delivery-new-kpis" aria-label="KPI Đơn giao hôm nay New">' +
         '<div class="delivery-v46-kpi kpi-pt"><span>Phải thu</span><b id="deliveryTodayNewOriginal">0</b></div>' +
         '<div class="delivery-v46-kpi kpi-tm"><span>Tiền mặt</span><b id="deliveryTodayNewCash">0</b></div>' +
@@ -135,8 +135,8 @@
         state.deliveryDateTouched = true;
         state.userTouchedFilters = true;
         updateClearButtons();
-        resetResultsState('Ngày giao đã đổi. Chọn NVGH, NVBH hoặc nhập mã đơn / khách hàng rồi bấm Tải đơn.');
-        setMessage('Ngày giao đã đổi. Bấm Tải đơn để cập nhật dữ liệu theo bộ lọc.');
+        resetResultsState();
+        setMessage('');
       });
     }
     var loadButton = byId('deliveryTodayNewLoad');
@@ -161,7 +161,7 @@
     document.addEventListener('click', function (event) {
       if (!event.target || !event.target.closest || !event.target.closest('.delivery-v46-filter-suggest')) closeAllSuggestions();
     });
-    resetResultsState('Chọn NVGH, NVBH hoặc nhập mã đơn / khách hàng rồi bấm Tải đơn để xem danh sách.');
+    resetResultsState();
     return root;
   }
 
@@ -370,9 +370,9 @@
     updateClearButtons();
     closeSuggestion(scope);
     if (state.hasSearched) {
-      resetResultsState('Đã chọn điều kiện mới. Bấm Tải đơn để cập nhật danh sách.');
+      resetResultsState();
     }
-    setMessage('Đã chọn gợi ý. Bấm Tải đơn để xem danh sách tương ứng.');
+    setMessage('');
   }
 
   function moveSuggestionActive(scope, delta) {
@@ -389,14 +389,14 @@
     closeSuggestion(scope);
     updateClearButtons();
     if (!hasValidSearchCriteria()) {
-      resetResultsState(missingCriteriaMessage());
+      resetResultsState();
       setMessage('');
       return;
     }
     if (state.hasSearched) {
-      resetResultsState('Đã xóa điều kiện. Bấm Tải đơn để cập nhật dữ liệu theo bộ lọc mới.');
+      resetResultsState();
     }
-    setMessage('Đã xóa điều kiện. Bấm Tải đơn để cập nhật dữ liệu theo bộ lọc mới.');
+    setMessage('');
   }
 
   function clearDeliveryFilter(scope) {
@@ -430,8 +430,9 @@
       state.userTouchedFilters = true;
       updateClearButtons();
       if (state.hasSearched) {
-        resetResultsState('Bộ lọc đã thay đổi. Bấm Tải đơn để cập nhật dữ liệu.');
+        resetResultsState();
       }
+      setMessage('');
       queueSuggestions(scope, input.value);
     });
     input.addEventListener('focus', function () {
@@ -549,22 +550,30 @@
   }
 
   function emptyOrdersMessage() {
-    var f = filters();
-    var dateLabel = f.date ? formatDisplayDate(f.date) : '';
-    var hasNarrowFilter = Boolean(f.q || f.delivery || f.salesman);
-    if (dateLabel && hasNarrowFilter) return 'Không có đơn theo bộ lọc trong ngày ' + dateLabel + '.';
-    if (dateLabel) return 'Chưa có đơn giao trong ngày ' + dateLabel + '.';
-    return 'Không có đơn theo bộ lọc.';
+    return 'Không có đơn phù hợp với bộ lọc.';
   }
 
   function missingCriteriaMessage() {
-    return 'Vui lòng chọn NVGH, NVBH hoặc nhập mã đơn/khách hàng tối thiểu 2 ký tự rồi bấm Tải đơn.';
+    return 'Chọn NVGH, NVBH hoặc nhập từ khóa từ 2 ký tự.';
   }
 
-  function renderEmptyState(message) {
+  function loadValidationMessage() {
+    var f = filters();
+    var freeText = normalizedText(f.q);
+    var hasSelectedStaff = Boolean(normalizedText(f.deliveryStaffCode) || normalizedText(f.salesStaffCode));
+    var hasTypedStaff = normalizedText(f.delivery).length >= 2 || normalizedText(f.salesman).length >= 2;
+    if (freeText.length > 0 && freeText.length < 2 && !hasSelectedStaff && !hasTypedStaff) {
+      return 'Từ khóa tìm kiếm cần tối thiểu 2 ký tự.';
+    }
+    return missingCriteriaMessage();
+  }
+
+  function renderEmptyState(message, title) {
     var empty = byId('deliveryTodayNewEmptyState');
     if (!empty) return;
-    empty.innerHTML = '<b>Chưa có dữ liệu hiển thị.</b><span>' + esc(message || 'Chọn NVGH, NVBH hoặc nhập mã đơn / khách hàng rồi bấm Tải đơn để xem danh sách.') + '</span>';
+    var heading = title || 'Chưa có dữ liệu';
+    var body = message == null ? 'Chọn bộ lọc rồi bấm Tải đơn.' : String(message || '');
+    empty.innerHTML = '<b>' + esc(heading) + '</b>' + (body ? '<span>' + esc(body) + '</span>' : '');
   }
 
   function resetResultsState(message) {
@@ -589,7 +598,7 @@
     resetSelectedFilter();
     closeAllSuggestions();
     state.userTouchedFilters = false;
-    resetResultsState('Chọn NVGH, NVBH hoặc nhập mã đơn / khách hàng rồi bấm Tải đơn để xem danh sách.');
+    resetResultsState();
     setMessage('');
     updateClearButtons();
   }
@@ -794,7 +803,7 @@
     var box = byId('deliveryTodayNewSalesmanPanel');
     if (!box) return;
     if (!state.hasSearched) {
-      box.innerHTML = '<div class="delivery-new-salesman-empty">Vui lòng chọn NVGH, NVBH hoặc tìm kiếm rồi bấm Tải đơn.</div>';
+      box.innerHTML = '<div class="delivery-new-salesman-empty">Chưa có nhóm NVBH.</div>';
       return;
     }
     var groups = state.salesmanGroups || [];
@@ -882,7 +891,7 @@
     var list = byId('deliveryTodayNewTable');
     if (!list) return;
     if (!state.hasSearched) {
-      list.innerHTML = '<div class="empty-state">Chọn NVGH, NVBH hoặc nhập mã đơn / khách hàng rồi bấm Tải đơn để xem danh sách.</div>';
+      list.innerHTML = '<div class="empty-state">Chưa tải đơn.</div>';
       updateOrderSelectionToolbar([]);
       updateCloseoutButton();
       return;
@@ -1596,13 +1605,14 @@
     var silent = Boolean(options.silent);
     ensureRoot();
     if (!hasValidSearchCriteria()) {
-      resetResultsState(missingCriteriaMessage());
-      if (!silent) setMessage(missingCriteriaMessage(), true);
+      var validationMessage = loadValidationMessage();
+      resetResultsState('');
+      if (!silent) setMessage(validationMessage, true);
       return;
     }
     var requestSeq = ++state.loadRequestSeq;
-    if (!silent) setMessage('Đang tải đơn giao hôm nay...');
-    renderEmptyState('Đang tải dữ liệu theo bộ lọc...');
+    if (!silent) setMessage('');
+    renderEmptyState('', 'Đang tải đơn...');
     setResultSectionsVisible(false);
     try {
       var params = new URLSearchParams(filters());
@@ -1612,8 +1622,8 @@
       if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tải được dữ liệu');
       var data = json.data || json;
       if ((data && data.requireFilter) || (json.diagnostics && json.diagnostics.searchCriteriaRequired && !hasValidSearchCriteria())) {
-        var guardMessage = (data && data.message) || missingCriteriaMessage();
-        resetResultsState(guardMessage);
+        var guardMessage = (data && data.message) || loadValidationMessage();
+        resetResultsState('');
         if (!silent) setMessage(guardMessage, true);
         return;
       }
@@ -1629,7 +1639,7 @@
       updateTopKpisFromSelectedSalesmen();
       renderSalesmanGroupPanel();
       renderRows();
-      if (!silent) setMessage(state.rows.length ? 'Đã tải ' + state.rows.length + ' đơn.' : '');
+      if (!silent) setMessage('');
     } catch (err) {
       if (requestSeq !== state.loadRequestSeq) return;
       state.rows = [];
