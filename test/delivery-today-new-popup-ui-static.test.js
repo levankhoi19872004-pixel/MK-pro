@@ -87,3 +87,18 @@ test('Delivery Today New adjustment modal close button stays actionable and expl
   assert.match(source, /Đơn đã chốt sổ\. Tab Thu tiền cho phép tạo correction tiền thu/);
   assert.match(source, /Dữ liệu tiền thu hiện tại đang âm/);
 });
+
+
+test('Phase108 payment correction preserves explicit zero final amounts on the frontend', () => {
+  assert.match(source, /function hasMoneyInputValue\(input\)/);
+  assert.match(source, /function readCorrectedMoney\(inputValue, fallbackValue\)/);
+  assert.match(source, /String\(input\)\.trim\(\) !== ''/);
+  assert.match(source, /return parseVietnameseMoney\(inputValue\)/);
+  assert.match(source, /var newCash = readCorrectedMoney\([\s\S]*oldCash\)/);
+  assert.match(source, /var newBank = readCorrectedMoney\([\s\S]*oldBank\)/);
+  assert.match(source, /var newReward = readCorrectedMoney\([\s\S]*oldReward\)/);
+  assert.doesNotMatch(source, /parseVietnameseMoney\([^\n]+\)\s*\|\|\s*oldCash/);
+  assert.doesNotMatch(source, /parseVietnameseMoney\([^\n]+\)\s*\|\|\s*currentCashAmount/);
+  assert.doesNotMatch(source, /correctedCashAmount\s*\|\|\s*currentCashAmount/);
+  assert.match(source, /if \(hasMoneyInputValue\(el\.value\)\) \{\s*el\.value = formatVietnameseMoney\(el\.value\);\s*\}/);
+});

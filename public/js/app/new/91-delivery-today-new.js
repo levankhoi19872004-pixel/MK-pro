@@ -42,6 +42,16 @@
     if (n < 0) return '-' + money(Math.abs(n));
     return '0';
   }
+
+  function hasMoneyInputValue(input) {
+    return input != null && String(input).trim() !== '';
+  }
+  function readCorrectedMoney(inputValue, fallbackValue) {
+    if (!hasMoneyInputValue(inputValue)) {
+      return Number(fallbackValue || 0);
+    }
+    return parseVietnameseMoney(inputValue);
+  }
   function today() { return new Date().toISOString().slice(0, 10); }
   function isConfirmed(row) { return row && (row.accountingConfirmed || row.deliveryCloseoutStatus === 'closed' || row.closeoutStatus === 'accounting_confirmed' || row.closeoutStatus === 'corrected_confirmed'); }
   function statusLabel(row) {
@@ -980,9 +990,9 @@
     var oldCash = parseVietnameseMoney(row.cashAmount);
     var oldBank = parseVietnameseMoney(row.bankAmount);
     var oldReward = parseVietnameseMoney(row.rewardAmount) + parseVietnameseMoney(row.offsetAmount);
-    var newCash = parseVietnameseMoney(byId('deliveryAdjustCashNew') ? byId('deliveryAdjustCashNew').value : oldCash);
-    var newBank = parseVietnameseMoney(byId('deliveryAdjustBankNew') ? byId('deliveryAdjustBankNew').value : oldBank);
-    var newReward = parseVietnameseMoney(byId('deliveryAdjustRewardNew') ? byId('deliveryAdjustRewardNew').value : oldReward);
+    var newCash = readCorrectedMoney(byId('deliveryAdjustCashNew') ? byId('deliveryAdjustCashNew').value : '', oldCash);
+    var newBank = readCorrectedMoney(byId('deliveryAdjustBankNew') ? byId('deliveryAdjustBankNew').value : '', oldBank);
+    var newReward = readCorrectedMoney(byId('deliveryAdjustRewardNew') ? byId('deliveryAdjustRewardNew').value : '', oldReward);
     var currentCashAmount = oldCash;
     var correctedCashAmount = newCash;
     var currentBankAmount = oldBank;
@@ -1182,7 +1192,9 @@
       if (el) {
         el.addEventListener('input', function () { updateAdjustmentPreview(row); });
         el.addEventListener('blur', function () {
-          el.value = formatVietnameseMoney(el.value);
+          if (hasMoneyInputValue(el.value)) {
+            el.value = formatVietnameseMoney(el.value);
+          }
           updateAdjustmentPreview(row);
         });
       }

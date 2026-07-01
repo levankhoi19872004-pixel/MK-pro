@@ -18,6 +18,21 @@ function money(value) {
   return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
+
+function hasOwnValue(obj = {}, key = '') {
+  return Object.prototype.hasOwnProperty.call(obj || {}, key)
+    && obj[key] !== undefined
+    && obj[key] !== null
+    && String(obj[key]).trim() !== '';
+}
+
+function firstExplicitMoneyValue(source = {}, keys = [], fallbackValue = 0) {
+  for (const key of keys) {
+    if (hasOwnValue(source, key)) return money(source[key]);
+  }
+  return money(fallbackValue);
+}
+
 function stableJson(value) {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
   if (value && typeof value === 'object') {
@@ -139,16 +154,16 @@ function normalizeReturnAdjustmentItems(items = []) {
 }
 
 function cashLineAdjustmentAmount(line = {}) {
-  const currentAmount = money(line.oldAmount ?? line.currentAmount ?? line.previousAmount ?? 0);
-  const correctedAmount = money(line.newAmount ?? line.correctedAmount ?? line.finalAmount ?? line.amount ?? currentAmount);
+  const currentAmount = firstExplicitMoneyValue(line, ['oldAmount', 'currentAmount', 'previousAmount'], 0);
+  const correctedAmount = firstExplicitMoneyValue(line, ['newAmount', 'correctedAmount', 'finalAmount', 'amount'], currentAmount);
   return correctedAmount - currentAmount;
 }
 
 function normalizeCashAdjustmentLines(lines = []) {
   return (Array.isArray(lines) ? lines : []).map((line) => {
-    const oldAmount = money(line.oldAmount ?? line.currentAmount ?? line.currentCashAmount ?? line.currentBankAmount ?? line.currentRewardAmount ?? line.previousAmount ?? 0);
-    const newAmount = money(line.newAmount ?? line.correctedAmount ?? line.correctedCashAmount ?? line.correctedBankAmount ?? line.correctedRewardAmount ?? line.finalAmount ?? line.amount ?? oldAmount);
-    const adjustmentAmount = cashLineAdjustmentAmount({ ...line, oldAmount, newAmount });
+    const oldAmount = firstExplicitMoneyValue(line, ['oldAmount', 'currentAmount', 'currentCashAmount', 'currentBankAmount', 'currentRewardAmount', 'previousAmount'], 0);
+    const newAmount = firstExplicitMoneyValue(line, ['newAmount', 'correctedAmount', 'correctedCashAmount', 'correctedBankAmount', 'correctedRewardAmount', 'finalAmount', 'amount'], oldAmount);
+    const adjustmentAmount = newAmount - oldAmount;
     return {
       paymentMethod: text(line.paymentMethod || line.method || 'cash'),
       oldAmount,

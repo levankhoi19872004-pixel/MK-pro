@@ -79,8 +79,8 @@ test('Phase106 payment correction treats corrected amount as final value and all
   const service = read('src/services/deliveryCloseoutCorrection.service.js');
   assert.match(service, /correctionSemantics:\s*'corrected_final_amount'/);
   assert.match(service, /return\s+correctedAmount\s*-\s*currentAmount/);
-  assert.match(service, /const oldAmount = money\(line\.oldAmount[\s\S]*currentAmount[\s\S]*previousAmount/);
-  assert.match(service, /const newAmount = money\(line\.newAmount[\s\S]*correctedAmount[\s\S]*finalAmount/);
+  assert.match(service, /const oldAmount = firstExplicitMoneyValue\(line, \['oldAmount', 'currentAmount'[\s\S]*'previousAmount'\], 0\)/);
+  assert.match(service, /const newAmount = firstExplicitMoneyValue\(line, \['newAmount', 'correctedAmount'[\s\S]*'finalAmount'/);
   assert.doesNotMatch(service, /if \(line\.adjustmentAmount !== undefined\) return money\(line\.adjustmentAmount\)/);
 });
 
@@ -96,4 +96,19 @@ test('Phase106 correction service rejects negative corrected payment but not neg
 
 test('Phase106 read-only audit script exists for negative delivery cash', () => {
   assert.equal(fs.existsSync(path.join(root, 'scripts/audit-delivery-payment-negative-cash.js')), true);
+});
+
+
+test('Phase108 correction service preserves explicit zero corrected payment amounts', () => {
+  const service = read('src/services/deliveryCloseoutCorrection.service.js');
+  assert.match(service, /function hasOwnValue\(obj = \{\}, key = ''\)/);
+  assert.match(service, /function firstExplicitMoneyValue\(source = \{\}, keys = \[\], fallbackValue = 0\)/);
+  assert.match(service, /obj\[key\] !== undefined/);
+  assert.match(service, /obj\[key\] !== null/);
+  assert.match(service, /String\(obj\[key\]\)\.trim\(\) !== ''/);
+  assert.match(service, /const newAmount = firstExplicitMoneyValue\(line, \['newAmount', 'correctedAmount', 'correctedCashAmount', 'correctedBankAmount', 'correctedRewardAmount', 'finalAmount', 'amount'\], oldAmount\)/);
+  assert.match(service, /const adjustmentAmount = newAmount - oldAmount/);
+  assert.doesNotMatch(service, /correctedCashAmount\s*\|\|\s*currentCashAmount/);
+  assert.doesNotMatch(service, /newAmount\s*\|\|\s*oldAmount/);
+  assert.doesNotMatch(service, /line\.newAmount\s*\|\|\s*line\.oldAmount/);
 });
