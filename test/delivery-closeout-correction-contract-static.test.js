@@ -32,7 +32,8 @@ test('Phase92 correction service is immutable and does not call legacy return/re
   assert.match(service, /DeliveryCloseoutCorrection/);
   assert.match(service, /DeliveryCloseoutVersion/);
   assert.match(service, /ArDebtAdjustmentPostingService\.postAdjustment/);
-  assert.match(service, /debtAdjustmentAmount[\s\S]*-[\s\S]*returnAdjustmentAmount[\s\S]*-[\s\S]*cashAdjustmentAmount/);
+  assert.match(service, /debtAdjustmentAmount/);
+  assert.match(service, /newDebtAmount - previousDebt/);
 });
 
 test('Phase92 route exposes correction and version endpoints under /api/new delivery today', () => {
@@ -111,4 +112,32 @@ test('Phase108 correction service preserves explicit zero corrected payment amou
   assert.doesNotMatch(service, /correctedCashAmount\s*\|\|\s*currentCashAmount/);
   assert.doesNotMatch(service, /newAmount\s*\|\|\s*oldAmount/);
   assert.doesNotMatch(service, /line\.newAmount\s*\|\|\s*line\.oldAmount/);
+});
+
+
+test('Phase109 correction versions store final payment state and do not replay deltas as current cash', () => {
+  const service = read('src/services/deliveryCloseoutCorrection.service.js');
+  const list = read('src/services/v2/deliveryTodayNew.service.js');
+  assert.match(service, /correctionSemantics:[\s\S]*'final_state_value'/);
+  assert.match(service, /function previousPaymentState\(snapshot = \{\}, order = \{\}\)/);
+  assert.match(service, /finalPaymentStateFromInput\(input, rawCashLines, currentState\)/);
+  assert.match(service, /cashAmount: nextPaymentState\.cashAmount/);
+  assert.match(service, /bankAmount: nextPaymentState\.bankAmount/);
+  assert.match(service, /rewardAmount: nextPaymentState\.rewardAmount/);
+  assert.match(service, /cashDeltaAmount = money\(nextPaymentState\.cashAmount - previousCash\)/);
+  assert.match(service, /bankDeltaAmount = money\(nextPaymentState\.bankAmount - previousBank\)/);
+  assert.match(service, /rewardDeltaAmount = money\(nextPaymentState\.rewardAmount - previousReward\)/);
+  assert.doesNotMatch(service, /previousCash \+ cashAdjustmentAmount/);
+  assert.doesNotMatch(service, /baseCashAmount \+ latestVersion\.totalCollectedDelta/);
+  assert.doesNotMatch(list, /baseBreakdown\.cashAmount \+ money\(latestVersion\.cashAdjustmentAmount\)/);
+  assert.match(list, /latestVersion\.cashAmount \?\? latestVersion\.newCashAmount/);
+});
+
+test('Phase109 correction versions expose final-state payment fields in models', () => {
+  const versionModel = read('src/models/DeliveryCloseoutVersion.js');
+  const correctionModel = read('src/models/DeliveryCloseoutCorrection.js');
+  for (const token of ['cashAmount', 'bankAmount', 'rewardAmount', 'cashDeltaAmount', 'bankDeltaAmount', 'rewardDeltaAmount', 'totalCollectedDelta']) {
+    assert.match(versionModel, new RegExp(`${token}: Number`));
+    assert.match(correctionModel, new RegExp(`${token}: Number`));
+  }
 });

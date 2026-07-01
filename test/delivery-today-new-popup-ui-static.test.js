@@ -68,7 +68,7 @@ test('Delivery Today New correction modal labels final amounts and keeps disable
   assert.doesNotMatch(source, /Tiền mặt đúng/);
   assert.doesNotMatch(source, /Chuyển khoản đúng/);
   assert.doesNotMatch(source, /Trả thưởng đúng/);
-  assert.match(source, /Nhập số tiền cuối cùng muốn ghi nhận sau điều chỉnh/);
+  assert.match(source, /Nhập số tiền cuối cùng muốn ghi nhận/);
   assert.match(source, /delivery-new-tab:disabled/);
   assert.match(source, /delivery-new-tab\.is-disabled/);
   assert.match(source, /opacity:1/);
@@ -101,4 +101,17 @@ test('Phase108 payment correction preserves explicit zero final amounts on the f
   assert.doesNotMatch(source, /parseVietnameseMoney\([^\n]+\)\s*\|\|\s*currentCashAmount/);
   assert.doesNotMatch(source, /correctedCashAmount\s*\|\|\s*currentCashAmount/);
   assert.match(source, /if \(hasMoneyInputValue\(el\.value\)\) \{\s*el\.value = formatVietnameseMoney\(el\.value\);\s*\}/);
+});
+
+
+test('Phase109 correction UI explains final-state persistence and shows full version state history', () => {
+  assert.match(source, /Hệ thống lưu giá trị này làm trạng thái mới/);
+  assert.match(source, /chỉ dùng để ghi lịch sử/);
+  assert.match(source, /Tiền mặt mới/);
+  assert.match(source, /Chuyển khoản mới/);
+  assert.match(source, /Trả thưởng mới/);
+  assert.match(source, /Công nợ mới/);
+  assert.match(source, /CL tiền mặt/);
+  assert.match(source, /CL chuyển khoản/);
+  assert.match(source, /CL trả thưởng/);
 });

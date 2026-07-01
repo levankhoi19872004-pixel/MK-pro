@@ -531,13 +531,18 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
   const returnedAmount = money((latestVersion && (latestVersion.returnedAmount ?? latestVersion.returnAmount)) ?? legacyReturnedAmount);
   const baseBreakdown = moneyBreakdownForOrder(order);
   const adjustedCashAmount = latestVersion
-    ? money(baseBreakdown.cashAmount + money(latestVersion.cashAdjustmentAmount))
+    ? money(latestVersion.cashAmount ?? latestVersion.newCashAmount ?? latestVersion.cashCollectedAmount ?? baseBreakdown.cashAmount)
     : baseBreakdown.cashAmount;
-  const bankAmount = baseBreakdown.bankAmount;
-  const rewardAmount = baseBreakdown.rewardAmount;
-  const offsetAmount = baseBreakdown.offsetAmount;
-  const collected = money((latestVersion && (latestVersion.collectedAmount ?? latestVersion.cashCollectedAmount))
-    ?? (baseBreakdown.collectedAmount || collectedAmount(order)));
+  const bankAmount = latestVersion
+    ? money(latestVersion.bankAmount ?? latestVersion.newBankAmount ?? baseBreakdown.bankAmount)
+    : baseBreakdown.bankAmount;
+  const rewardAmount = latestVersion
+    ? money(latestVersion.rewardAmount ?? latestVersion.newRewardAmount ?? baseBreakdown.rewardAmount)
+    : baseBreakdown.rewardAmount;
+  const offsetAmount = latestVersion ? 0 : baseBreakdown.offsetAmount;
+  const collected = latestVersion
+    ? money(latestVersion.collectedAmount ?? latestVersion.newCollectedAmount ?? (adjustedCashAmount + bankAmount + rewardAmount + offsetAmount))
+    : money(baseBreakdown.collectedAmount || collectedAmount(order));
   const debtCalculation = calculateDeliveryDebtAmount({
     receivableAmount: originalAmount,
     cashAmount: adjustedCashAmount,
@@ -573,8 +578,11 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     correctionCode: latestVersion ? text(latestVersion.correctionCode) : '',
     closeoutVersionId: latestVersion ? text(latestVersion.id || latestVersion.code) : '',
     returnAdjustmentAmount: latestVersion ? money(latestVersion.returnAdjustmentAmount) : 0,
-    cashAdjustmentAmount: latestVersion ? money(latestVersion.cashAdjustmentAmount) : 0,
-    debtAdjustmentAmount: latestVersion ? money(latestVersion.debtAdjustmentAmount) : 0,
+    cashAdjustmentAmount: latestVersion ? money(latestVersion.totalCollectedDelta ?? latestVersion.cashAdjustmentAmount) : 0,
+    cashDeltaAmount: latestVersion ? money(latestVersion.cashDeltaAmount) : 0,
+    bankDeltaAmount: latestVersion ? money(latestVersion.bankDeltaAmount) : 0,
+    rewardDeltaAmount: latestVersion ? money(latestVersion.rewardDeltaAmount) : 0,
+    debtAdjustmentAmount: latestVersion ? money(latestVersion.debtDeltaAmount ?? latestVersion.debtAdjustmentAmount) : 0,
     originalAmount,
     returnedAmount,
     returnOrderCount: uniqueReturns.length,

@@ -1121,14 +1121,14 @@
       '<label>Trả thưởng hiện tại<input disabled value="' + esc(money(reward)) + '"></label>' +
       '<label>Trả thưởng sau điều chỉnh<input id="deliveryAdjustRewardNew" class="delivery-new-money-input" inputmode="numeric" placeholder="Nhập số tiền cuối cùng" value="' + esc(money(Math.max(0, reward))) + '"></label>' +
       '</div>' +
-      '<div class="delivery-new-safe-note delivery-new-final-amount-note">Nhập số tiền cuối cùng muốn ghi nhận sau điều chỉnh. Hệ thống tự tính chênh lệch = số tiền sau điều chỉnh - số tiền hiện tại.</div>' +
+      '<div class="delivery-new-safe-note delivery-new-final-amount-note">Nhập số tiền cuối cùng muốn ghi nhận. Hệ thống lưu giá trị này làm trạng thái mới; chênh lệch chỉ dùng để ghi lịch sử.</div>' +
       '<div class="delivery-new-preview-cards">' +
         detailCellValueId('Chênh lệch tiền mặt', 'deliveryCashDeltaText', '0') +
         detailCellValueId('Chênh lệch chuyển khoản', 'deliveryBankDeltaText', '0') +
         detailCellValueId('Chênh lệch trả thưởng', 'deliveryRewardDeltaText', '0') +
         detailCellValueId('Tổng chênh lệch tiền thu', 'deliveryCashTotalDeltaText', '0') +
       '</div>' +
-      '<div class="delivery-new-safe-note">Chênh lệch = số tiền sau điều chỉnh - số tiền hiện tại. Sửa tiền thu sau xác nhận kế toán chỉ tạo version điều chỉnh, không sinh AR-RECEIPT trực tiếp.</div>';
+      '<div class="delivery-new-safe-note">Giá trị sau điều chỉnh là trạng thái mới của version kế tiếp. Chênh lệch = số tiền sau điều chỉnh - số tiền hiện tại và chỉ dùng cho lịch sử/audit; không sinh AR-RECEIPT trực tiếp.</div>';
   }
 
   function renderDebtTab(row) {
@@ -1145,11 +1145,21 @@
   function renderHistoryTab(row) {
     var versions = state.versionCache[rowKey(row)] || [];
     var versionRows = versions.map(function (v) {
-      return '<tr><td>v' + esc(v.closeoutVersion || '?') + '</td><td>' + money(v.returnAdjustmentAmount) + '</td><td>' + money(v.cashAdjustmentAmount) + '</td><td>' + money(v.debtAdjustmentAmount) + '</td><td>' + esc(v.reason || v.status || '') + '</td></tr>';
+      return '<tr>' +
+        '<td>v' + esc(v.closeoutVersion || '?') + '</td>' +
+        '<td class="num">' + money(v.cashAmount ?? v.newCashAmount ?? v.cashCollectedAmount) + '</td>' +
+        '<td class="num">' + money(v.bankAmount ?? v.newBankAmount) + '</td>' +
+        '<td class="num">' + money(v.rewardAmount ?? v.newRewardAmount) + '</td>' +
+        '<td class="num">' + money(v.debtAmount ?? v.finalDebtAmount ?? v.newDebtAmount) + '</td>' +
+        '<td class="num">' + deltaMoney(v.cashDeltaAmount ?? 0) + '</td>' +
+        '<td class="num">' + deltaMoney(v.bankDeltaAmount ?? 0) + '</td>' +
+        '<td class="num">' + deltaMoney(v.rewardDeltaAmount ?? 0) + '</td>' +
+        '<td>' + esc(v.reason || v.status || '') + '</td>' +
+      '</tr>';
     }).join('');
     return '<h4>Lịch sử phiếu trả</h4>' + renderReturnOrdersBusiness(row) +
       '<h4>Lịch sử closeout version / điều chỉnh</h4>' +
-      '<table class="delivery-new-business-table"><thead><tr><th>Version</th><th class="num">CL hàng trả</th><th class="num">CL tiền thu</th><th class="num">CL công nợ</th><th>Lý do / trạng thái</th></tr></thead><tbody>' + (versionRows || '<tr><td colspan="5">Chưa có version điều chỉnh.</td></tr>') + '</tbody></table>';
+      '<table class="delivery-new-business-table"><thead><tr><th>Version</th><th class="num">Tiền mặt mới</th><th class="num">Chuyển khoản mới</th><th class="num">Trả thưởng mới</th><th class="num">Công nợ mới</th><th class="num">CL tiền mặt</th><th class="num">CL chuyển khoản</th><th class="num">CL trả thưởng</th><th>Lý do / trạng thái</th></tr></thead><tbody>' + (versionRows || '<tr><td colspan="9">Chưa có version điều chỉnh.</td></tr>') + '</tbody></table>';
   }
 
   function renderAdjustmentTab(row) {

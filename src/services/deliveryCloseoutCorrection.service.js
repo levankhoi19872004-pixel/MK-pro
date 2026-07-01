@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const dateUtil = require('../utils/date.util');
 const { toNumber } = require('../utils/common.util');
+const { calculateDeliveryDebtAmount, normalizeDebtAmount } = require('../constants/finance.constants');
 const { withOptionalMongoTransaction } = require('../utils/transaction.util');
 const SalesOrder = require('../models/SalesOrder');
 const DeliveryCloseoutCorrection = require('../models/DeliveryCloseoutCorrection');
@@ -115,13 +116,77 @@ function previousReturnAmount(snapshot = {}) {
 }
 
 function previousCashAmount(snapshot = {}) {
-  return money(snapshot.cashCollectedAmount ?? snapshot.collectedAmount ?? snapshot.previousCashCollectedAmount ?? 0);
+  return money(snapshot.cashAmount ?? snapshot.newCashAmount ?? snapshot.cashCollectedAmount ?? snapshot.previousCashAmount ?? snapshot.previousCashCollectedAmount ?? 0);
+}
+
+function previousBankAmount(snapshot = {}) {
+  return money(snapshot.bankAmount ?? snapshot.newBankAmount ?? snapshot.transferAmount ?? snapshot.bankTransferAmount ?? snapshot.previousBankAmount ?? 0);
+}
+
+function previousRewardAmount(snapshot = {}) {
+  return money(snapshot.rewardAmount ?? snapshot.newRewardAmount ?? snapshot.bonusAmount ?? snapshot.allowanceAmount ?? snapshot.previousRewardAmount ?? 0);
 }
 
 function previousDebtAmount(snapshot = {}, order = {}) {
   const explicit = snapshot.debtAmount ?? snapshot.finalDebtAmount ?? snapshot.previousDebtAmount;
-  if (explicit !== undefined && explicit !== null && explicit !== '') return money(explicit);
-  return money(saleAmount(order, snapshot) - previousReturnAmount(snapshot) - previousCashAmount(snapshot));
+  if (explicit !== undefined && explicit !== null && explicit !== '') return normalizeDebtAmount(explicit);
+  const calculation = calculateDeliveryDebtAmount({
+    receivableAmount: saleAmount(order, snapshot),
+    cashAmount: previousCashAmount(snapshot),
+    bankAmount: previousBankAmount(snapshot),
+    rewardAmount: previousRewardAmount(snapshot),
+    returnAmount: previousReturnAmount(snapshot)
+  });
+  return money(calculation.debtAmount);
+}
+
+function previousPaymentState(snapshot = {}, order = {}) {
+  const receivableAmount = saleAmount(order, snapshot);
+  const returnAmount = previousReturnAmount(snapshot);
+  const cashAmount = previousCashAmount(snapshot);
+  const bankAmount = previousBankAmount(snapshot);
+  const rewardAmount = previousRewardAmount(snapshot);
+  const debtAmount = previousDebtAmount(snapshot, order);
+  const collectedAmount = money(cashAmount + bankAmount + rewardAmount);
+  return { receivableAmount, returnAmount, cashAmount, bankAmount, rewardAmount, collectedAmount, debtAmount };
+}
+
+function paymentMethodOf(line = {}) {
+  const method = text(line.paymentMethod || line.method || line.type || 'cash').toLowerCase();
+  if (['bank', 'transfer', 'ck', 'wire', 'bank_transfer'].includes(method)) return 'bank';
+  if (['reward', 'bonus', 'allowance', 'promotion', 'offset'].includes(method)) return 'reward';
+  return 'cash';
+}
+
+function finalPaymentStateFromInput(input = {}, rawLines = [], currentState = {}) {
+  const paymentCorrection = input.paymentCorrection && typeof input.paymentCorrection === 'object' ? input.paymentCorrection : {};
+  const next = {
+    cashAmount: firstExplicitMoneyValue(paymentCorrection, ['correctedCashAmount', 'cashAmount', 'newCashAmount', 'finalCashAmount'], currentState.cashAmount),
+    bankAmount: firstExplicitMoneyValue(paymentCorrection, ['correctedBankAmount', 'bankAmount', 'newBankAmount', 'finalBankAmount'], currentState.bankAmount),
+    rewardAmount: firstExplicitMoneyValue(paymentCorrection, ['correctedRewardAmount', 'rewardAmount', 'newRewardAmount', 'finalRewardAmount'], currentState.rewardAmount)
+  };
+
+  for (const line of Array.isArray(rawLines) ? rawLines : []) {
+    const method = paymentMethodOf(line);
+    const key = method === 'bank' ? 'bankAmount' : method === 'reward' ? 'rewardAmount' : 'cashAmount';
+    next[key] = firstExplicitMoneyValue(line, ['newAmount', 'correctedAmount', 'finalAmount', 'amount', 'correctedCashAmount', 'correctedBankAmount', 'correctedRewardAmount'], currentState[key]);
+  }
+
+  next.collectedAmount = money(next.cashAmount + next.bankAmount + next.rewardAmount);
+  return next;
+}
+
+function buildFinalPaymentLines(currentState = {}, nextState = {}) {
+  return [
+    { paymentMethod: 'cash', oldAmount: money(currentState.cashAmount), newAmount: money(nextState.cashAmount) },
+    { paymentMethod: 'bank', oldAmount: money(currentState.bankAmount), newAmount: money(nextState.bankAmount) },
+    { paymentMethod: 'reward', oldAmount: money(currentState.rewardAmount), newAmount: money(nextState.rewardAmount) }
+  ].map((line) => ({
+    ...line,
+    adjustmentAmount: money(line.newAmount - line.oldAmount),
+    note: '',
+    correctionSemantics: 'final_state_value'
+  }));
 }
 
 function itemAdjustmentAmount(item = {}) {
@@ -271,14 +336,28 @@ async function latestVersionForOriginal(originalCloseoutId = '', options = {}) {
 
 function buildVersionSnapshot(order = {}, baseSnapshot = {}, correction = {}, now = dateUtil.nowIso()) {
   const original = originalCloseoutIdentity(order);
-  const previousReturn = previousReturnAmount(baseSnapshot);
-  const previousCash = previousCashAmount(baseSnapshot);
-  const previousDebt = previousDebtAmount(baseSnapshot, order);
-  const sale = saleAmount(order, baseSnapshot);
-  const newReturn = money(previousReturn + correction.returnAdjustmentAmount);
-  const newCash = money(previousCash + correction.cashAdjustmentAmount);
-  const newDebt = money(previousDebt + correction.debtAdjustmentAmount);
+  const previousState = previousPaymentState(baseSnapshot, order);
+  const previousReturn = previousState.returnAmount;
+  const previousDebt = previousState.debtAmount;
+  const sale = previousState.receivableAmount;
+  const newReturn = money(correction.returnAmount ?? correction.newReturnAmount ?? (previousReturn + correction.returnAdjustmentAmount));
+  const newCash = money(correction.cashAmount ?? correction.newCashAmount ?? previousState.cashAmount);
+  const newBank = money(correction.bankAmount ?? correction.newBankAmount ?? previousState.bankAmount);
+  const newReward = money(correction.rewardAmount ?? correction.newRewardAmount ?? previousState.rewardAmount);
+  const debtCalculation = calculateDeliveryDebtAmount({
+    receivableAmount: sale,
+    cashAmount: newCash,
+    bankAmount: newBank,
+    rewardAmount: newReward,
+    returnAmount: newReturn
+  });
+  const newDebt = money(correction.debtAmount ?? correction.newDebtAmount ?? debtCalculation.debtAmount);
   const version = Number(correction.newCloseoutVersion || original.version + 1);
+  const cashDeltaAmount = money(newCash - previousState.cashAmount);
+  const bankDeltaAmount = money(newBank - previousState.bankAmount);
+  const rewardDeltaAmount = money(newReward - previousState.rewardAmount);
+  const totalCollectedDelta = money(cashDeltaAmount + bankDeltaAmount + rewardDeltaAmount);
+  const debtDeltaAmount = money(newDebt - previousDebt);
   return {
     id: text(correction.newCloseoutId || `DCOV-${orderId(order) || orderCode(order)}-v${version}-${shortHash(correction.idempotencyKey)}`),
     code: text(correction.newCloseoutCode || `DCOV-${orderCode(order) || orderId(order)}-v${version}`),
@@ -307,16 +386,31 @@ function buildVersionSnapshot(order = {}, baseSnapshot = {}, correction = {}, no
     originalAmount: sale,
     returnAmount: newReturn,
     returnedAmount: newReturn,
+    cashAmount: newCash,
+    bankAmount: newBank,
+    rewardAmount: newReward,
     cashCollectedAmount: newCash,
-    collectedAmount: newCash,
+    collectedAmount: money(newCash + newBank + newReward),
     debtAmount: newDebt,
     finalDebtAmount: newDebt,
+    rawDebtAmount: debtCalculation.rawDebtAmount,
+    rawFinalDebtAmount: debtCalculation.rawDebtAmount,
     previousReturnAmount: previousReturn,
-    previousCashCollectedAmount: previousCash,
+    previousCashAmount: previousState.cashAmount,
+    previousBankAmount: previousState.bankAmount,
+    previousRewardAmount: previousState.rewardAmount,
+    previousCashCollectedAmount: previousState.cashAmount,
+    previousCollectedAmount: previousState.collectedAmount,
     previousDebtAmount: previousDebt,
-    returnAdjustmentAmount: money(correction.returnAdjustmentAmount),
-    cashAdjustmentAmount: money(correction.cashAdjustmentAmount),
-    debtAdjustmentAmount: money(correction.debtAdjustmentAmount),
+    returnAdjustmentAmount: money(newReturn - previousReturn),
+    cashDeltaAmount,
+    bankDeltaAmount,
+    rewardDeltaAmount,
+    totalCollectedDelta,
+    // Backward-compatible aggregate: total payment delta, not the cash final state.
+    cashAdjustmentAmount: totalCollectedDelta,
+    debtDeltaAmount,
+    debtAdjustmentAmount: debtDeltaAmount,
     status: 'corrected_confirmed',
     immutable: true,
     isLatest: true,
@@ -327,11 +421,10 @@ function buildVersionSnapshot(order = {}, baseSnapshot = {}, correction = {}, no
     createdBy: text(correction.createdBy),
     createdAt: now,
     updatedAt: now,
-    auditTrail: [{ at: now, by: text(correction.createdBy), action: 'CREATE_CLOSEOUT_VERSION_FROM_CORRECTION', originalCloseoutId: original.id }],
-    metadata: { source: 'Phase92A-Phase97', immutableContract: true }
+    auditTrail: [{ at: now, by: text(correction.createdBy), action: 'CREATE_CLOSEOUT_VERSION_FROM_FINAL_STATE_CORRECTION', originalCloseoutId: original.id }],
+    metadata: { source: 'Phase109', immutableContract: true, correctionSemantics: 'final_state_value' }
   };
 }
-
 async function loadIdempotentResult(correction = {}, options = {}) {
   if (!correction) return null;
   let versionQuery = DeliveryCloseoutVersion.findOne({ correctionId: correction.id }).lean();
@@ -365,29 +458,55 @@ async function createCorrection(input = {}, options = {}) {
     if (existing) return loadIdempotentResult(existing, { ...options, session });
 
     const returnAdjustmentItems = normalizeReturnAdjustmentItems(input.correctedReturnItems || input.returnAdjustmentItems || []);
-    const cashAdjustmentLines = normalizeCashAdjustmentLines(input.correctedCashLines || input.cashAdjustmentLines || []);
-    const explicitReturnAdjustment = input.returnAdjustmentAmount !== undefined ? money(input.returnAdjustmentAmount) : null;
-    const explicitCashAdjustment = input.cashAdjustmentAmount !== undefined ? money(input.cashAdjustmentAmount) : null;
-    const returnAdjustmentAmount = money(explicitReturnAdjustment === null ? sumAdjustments(returnAdjustmentItems) : explicitReturnAdjustment);
-    const cashAdjustmentAmount = money(explicitCashAdjustment === null ? sumAdjustments(cashAdjustmentLines) : explicitCashAdjustment);
-    const debtAdjustmentAmount = money(input.debtAdjustmentAmount !== undefined
-      ? input.debtAdjustmentAmount
-      : -returnAdjustmentAmount - cashAdjustmentAmount);
-
-    const calculated = { returnAdjustmentItems, cashAdjustmentLines, returnAdjustmentAmount, cashAdjustmentAmount, debtAdjustmentAmount };
-    validateCorrectionInput(input, calculated);
+    const rawCashLines = input.correctedCashLines || input.cashAdjustmentLines || [];
 
     const latest = await latestVersionForOriginal(original.id, { ...options, session });
     const baseSnapshot = latest || originalCloseout;
+    const currentState = previousPaymentState(baseSnapshot, order);
     const previousVersion = latest ? Number(latest.closeoutVersion || 0) : original.version;
     const newCloseoutVersionNo = previousVersion + 1;
     const correctionId = text(input.id || `DCOC-${orderId(order) || orderCode(order)}-${newCloseoutVersionNo}-${shortHash(idempotencyKey)}`);
     const correctionCode = text(input.correctionCode || input.code || correctionId);
     const newCloseoutId = text(`DCOV-${orderId(order) || orderCode(order)}-v${newCloseoutVersionNo}-${shortHash(correctionId)}`);
     const newCloseoutCode = text(`DCOV-${orderCode(order) || orderId(order)}-v${newCloseoutVersionNo}`);
-    const previousReturn = previousReturnAmount(baseSnapshot);
-    const previousCash = previousCashAmount(baseSnapshot);
-    const previousDebt = previousDebtAmount(baseSnapshot, order);
+
+    const previousReturn = currentState.returnAmount;
+    const previousCash = currentState.cashAmount;
+    const previousBank = currentState.bankAmount;
+    const previousReward = currentState.rewardAmount;
+    const previousDebt = currentState.debtAmount;
+    const sale = currentState.receivableAmount;
+
+    const explicitReturnAdjustment = input.returnAdjustmentAmount !== undefined ? money(input.returnAdjustmentAmount) : null;
+    const returnAdjustmentAmount = money(explicitReturnAdjustment === null ? sumAdjustments(returnAdjustmentItems) : explicitReturnAdjustment);
+    const newReturnAmount = money(previousReturn + returnAdjustmentAmount);
+
+    const nextPaymentState = finalPaymentStateFromInput(input, rawCashLines, currentState);
+    const cashAdjustmentLines = buildFinalPaymentLines(currentState, nextPaymentState);
+    const cashDeltaAmount = money(nextPaymentState.cashAmount - previousCash);
+    const bankDeltaAmount = money(nextPaymentState.bankAmount - previousBank);
+    const rewardDeltaAmount = money(nextPaymentState.rewardAmount - previousReward);
+    const cashAdjustmentAmount = money(cashDeltaAmount + bankDeltaAmount + rewardDeltaAmount);
+    const debtCalculation = calculateDeliveryDebtAmount({
+      receivableAmount: sale,
+      cashAmount: nextPaymentState.cashAmount,
+      bankAmount: nextPaymentState.bankAmount,
+      rewardAmount: nextPaymentState.rewardAmount,
+      returnAmount: newReturnAmount
+    });
+    const newDebtAmount = money(debtCalculation.debtAmount);
+    const debtAdjustmentAmount = money(newDebtAmount - previousDebt);
+
+    const calculated = {
+      returnAdjustmentItems,
+      cashAdjustmentLines,
+      returnAdjustmentAmount,
+      cashAdjustmentAmount,
+      debtAdjustmentAmount,
+      currentState,
+      finalState: { ...nextPaymentState, returnAmount: newReturnAmount, debtAmount: newDebtAmount }
+    };
+    validateCorrectionInput(input, calculated);
 
     const correction = {
       id: correctionId,
@@ -413,13 +532,34 @@ async function createCorrection(input = {}, options = {}) {
       orderId: orderId(order),
       orderCode: orderCode(order),
       previousReturnAmount: previousReturn,
+      previousCashAmount: previousCash,
+      previousBankAmount: previousBank,
+      previousRewardAmount: previousReward,
       previousCashCollectedAmount: previousCash,
+      previousCollectedAmount: currentState.collectedAmount,
       previousDebtAmount: previousDebt,
-      newReturnAmount: money(previousReturn + returnAdjustmentAmount),
-      newCashCollectedAmount: money(previousCash + cashAdjustmentAmount),
-      newDebtAmount: money(previousDebt + debtAdjustmentAmount),
+      newReturnAmount,
+      newCashAmount: nextPaymentState.cashAmount,
+      newBankAmount: nextPaymentState.bankAmount,
+      newRewardAmount: nextPaymentState.rewardAmount,
+      newCashCollectedAmount: nextPaymentState.cashAmount,
+      newCollectedAmount: nextPaymentState.collectedAmount,
+      newDebtAmount,
+      cashAmount: nextPaymentState.cashAmount,
+      bankAmount: nextPaymentState.bankAmount,
+      rewardAmount: nextPaymentState.rewardAmount,
+      returnAmount: newReturnAmount,
+      debtAmount: newDebtAmount,
+      finalDebtAmount: newDebtAmount,
+      rawDebtAmount: debtCalculation.rawDebtAmount,
       returnAdjustmentAmount,
+      cashDeltaAmount,
+      bankDeltaAmount,
+      rewardDeltaAmount,
+      totalCollectedDelta: cashAdjustmentAmount,
+      // Backward-compatible aggregate field: total payment delta, not cash final state.
       cashAdjustmentAmount,
+      debtDeltaAmount: debtAdjustmentAmount,
       debtAdjustmentAmount,
       returnAdjustmentItems,
       cashAdjustmentLines,
@@ -431,8 +571,8 @@ async function createCorrection(input = {}, options = {}) {
       createdBy: actor,
       createdAt: now,
       updatedAt: now,
-      auditTrail: [{ at: now, by: actor, action: 'CREATE_DELIVERY_CLOSEOUT_CORRECTION', originalCloseoutId: original.id }],
-      metadata: { phase: 'Phase92A-Phase97', immutableContract: true }
+      auditTrail: [{ at: now, by: actor, action: 'CREATE_DELIVERY_CLOSEOUT_FINAL_STATE_CORRECTION', originalCloseoutId: original.id }],
+      metadata: { phase: 'Phase109', immutableContract: true, correctionSemantics: 'final_state_value' }
     };
 
     const newCloseoutVersion = buildVersionSnapshot(order, baseSnapshot, correction, now);
