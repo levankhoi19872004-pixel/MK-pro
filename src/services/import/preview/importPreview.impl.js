@@ -59,6 +59,9 @@ const {
   makeSalesOrderGroupKey,
   getUserUpdateInput,
   normalizeImportRole,
+  pickPromotionProductRulePayload,
+  pickPromotionGroupItemPayload,
+  pickPromotionGroupRulePayload,
   pickUserImportPayload,
   preloadPromotionProductsByCode,
   preloadSalesStaffUsersByCode,
@@ -589,7 +592,9 @@ function normalizeImportFiles({ files = [], buffer = null, fileName = '' } = {})
 async function buildPreviewFromRows({ type, rows = [], userName = '', importMode = '' } = {}) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (type === 'salesOrdersS3') type = 'salesOrders';
-  if (!Array.isArray(rows) || !rows.length) return { error: 'File Excel không có dữ liệu', status: 400 };
+  if (!Array.isArray(rows) || !rows.length) {
+    return { error: 'File Excel không có dữ liệu hoặc không tìm thấy sheet Import/header hợp lệ', status: 400 };
+  }
 
   const normalizedImportMode = normalizeImportMode(importMode, type);
   const result = await previewMongoNative(type, rows, { importMode: normalizedImportMode });

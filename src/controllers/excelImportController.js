@@ -4,6 +4,30 @@ const excelImportService = require('../services/excelImportService');
 const ImportWebDirectCommitService = require('../services/import/ImportWebDirectCommitService');
 const importShortageReportService = require('../services/importShortageReportService');
 
+
+function buildSafeImportErrorMessage(err) {
+  const raw = String(err && err.message ? err.message : '').trim();
+  if (!raw) return 'Không đọc được file Excel. Vui lòng tải lại file mẫu và nhập dữ liệu theo mẫu.';
+
+  const knownPatterns = [
+    /^File Excel/i,
+    /^Không đọc được file Excel/i,
+    /^Không tìm thấy sheet/i,
+    /^Không tìm thấy header/i,
+    /^File thiếu cột/i,
+    /^Thiếu loại import/i,
+    /^Loại import/i,
+    /^Chưa chọn file Excel/i,
+    /^Mỗi lần chỉ được dán/i,
+    /^Excel parser stopped unexpectedly/i,
+    /^File Excel quá lớn/i,
+    /^File Excel xử lý quá lâu/i
+  ];
+
+  if (knownPatterns.some((pattern) => pattern.test(raw))) return raw;
+  return 'Không đọc được file Excel. Vui lòng tải lại file mẫu và nhập dữ liệu theo mẫu.';
+}
+
 function normalizeUploadedFiles(req) {
   const files = [];
   if (req.file) files.push(req.file);
@@ -23,7 +47,13 @@ async function preview(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     return res.status(result.accepted ? 202 : 200).json({ ok: true, ...result });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không đọc được file import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
+    const message = buildSafeImportErrorMessage(err);
+    const knownUserError = message !== 'Không đọc được file Excel. Vui lòng tải lại file mẫu và nhập dữ liệu theo mẫu.';
+    res.status(Number(err.status || err.statusCode || (knownUserError ? 400 : 500))).json({
+      ok: false,
+      message,
+      error: process.env.NODE_ENV === 'production' ? undefined : err.message
+    });
   }
 }
 

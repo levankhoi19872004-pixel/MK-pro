@@ -54,6 +54,12 @@ function headerScore(line = []) {
   const keywordScore = [
     'ma kh',
     'ma khach',
+    'ma chuong trinh',
+    'ma nhom',
+    'nhom san pham',
+    'chuong trinh',
+    'ctkm',
+    'km',
     'customer',
     'khach hang',
     'ma sp',
