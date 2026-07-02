@@ -6,6 +6,7 @@ const deliveryTodayNewService = require('../services/v2/deliveryTodayNew.service
 const debtNewService = require('../services/v2/debtNew.service');
 const deliveryCloseoutCorrectionService = require('../services/deliveryCloseoutCorrection.service');
 const DebtCollectionService = require('../services/DebtCollectionService');
+const manualDebtPostingService = require('../services/accounting/manualDebtPostingService');
 const AccountingCloseoutService = require('../services/accounting/AccountingCloseoutService');
 const { buildSourceNote } = require('../services/source-contracts/SourceNoteBuilder');
 
@@ -273,6 +274,28 @@ function actorForDebtCollection(req) {
     code: user.code || user.staffCode || fallbackCode
   };
 }
+
+
+router.post('/debt/manual', requireAuth, writeRoles, async (req, res) => {
+  try {
+    const result = await manualDebtPostingService.createManualDebt(req.body || {}, {
+      actor: actorForDebtCollection(req)
+    });
+    return res.status(result.created ? 201 : 200).json({
+      ok: true,
+      success: true,
+      message: result.message || 'Đã tạo công nợ thủ công.',
+      created: result.created === true,
+      idempotent: result.idempotent === true,
+      ledger: result.ledger,
+      data: result,
+      sourceNote: buildApiSourceNote('debt-manual-create', req),
+      canonicalRoute: '/api/new/debt/manual'
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không tạo được công nợ thủ công');
+  }
+});
 
 router.get('/debt/collections', requireAuth, readRoles, async (req, res) => {
   try {

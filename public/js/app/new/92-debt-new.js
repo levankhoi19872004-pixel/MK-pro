@@ -17,6 +17,19 @@
     popupError: null,
     popupSubmitting: false,
     popupLoading: false,
+    manualDebt: {
+      open: false,
+      submitting: false,
+      notice: null,
+      form: { customerCode: '', customerName: '', salesStaffCode: '', salesStaffName: '', deliveryStaffCode: '', deliveryStaffName: '' },
+      suggest: {
+        timers: {},
+        requestSeq: { customer: 0, salesman: 0, delivery: 0 },
+        items: { customer: [], salesman: [], delivery: [] },
+        active: { customer: -1, salesman: -1, delivery: -1 },
+        loading: { customer: false, salesman: false, delivery: false }
+      }
+    },
     selectedFilters: { customerCode: '', orderCode: '', salesStaffCode: '', deliveryStaffCode: '' },
     modalOpen: false,
     modalTab: 'overview',
@@ -89,6 +102,7 @@
           '<label class="debt-new-field">Trạng thái<div class="filter-input-wrap"><select id="debtNewStatus"><option value="open">Còn nợ</option><option value="all">Tất cả</option><option value="paid">Hết nợ</option><option value="overpaid">Dư có</option></select><button id="debtNewStatusClear" type="button" class="filter-clear-btn debt-new-filter-clear" data-debt-clear="status" aria-label="Đưa trạng thái về mặc định" title="Đưa về mặc định" hidden>×</button></div></label>' +
           '<button id="debtNewLoad" type="button" class="primary-action debt-new-load-btn">Tải</button>' +
           '<button id="debtNewReset" type="button" class="secondary debt-new-reset-btn">Xóa lọc</button>' +
+          '<button id="debtNewManualDebtOpen" type="button" class="secondary debt-new-manual-btn">+ Tạo công nợ</button>' +
         '</div>' +
         '<p id="debtNewMessage" class="message debt-new-message"></p>' +
         '<div id="debtNewSourceNote" class="debt-new-source-note"></div>' +
@@ -107,20 +121,27 @@
         '<div class="new-table-wrap debt-new-customer-table-wrap"><table class="new-table debt-new-customer-table"><thead><tr><th>Mã khách hàng</th><th>Tên khách hàng</th><th>NVBH</th><th>NVGH</th><th>Số đơn nợ</th><th>Còn nợ</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="debtNewCustomerTable"><tr><td colspan="8">Chưa tải dữ liệu.</td></tr></tbody></table></div>' +
       '</section>' +
       '<section class="card debt-new-collections-panel debt-new-results"><div class="ui-page-header"><div><h3>Phiếu thu chờ xác nhận</h3><p class="muted">Phiếu <b>submitted</b> chưa làm giảm công nợ. Chi tiết và thao tác confirm/reject nằm trong popup từng khách.</p></div><button id="debtNewReloadCollections" type="button" class="secondary">Tải phiếu</button></div><div id="debtNewCollectionsList" class="new-detail-list"><div class="empty-state">Chưa tải phiếu thu.</div></div></section>' +
-      '<div id="debtNewCustomerModal" class="debt-new-modal" hidden></div>';
+      '<div id="debtNewCustomerModal" class="debt-new-modal" hidden></div>' +
+      '<div id="debtNewManualDebtModal" class="debt-new-modal" hidden></div>';
 
     ensureScopedStyle();
     var loadButton = byId('debtNewLoad');
     var resetButton = byId('debtNewReset');
+    var manualDebtButton = byId('debtNewManualDebtOpen');
     var reloadCollections = byId('debtNewReloadCollections');
     if (loadButton) loadButton.addEventListener('click', load);
     if (resetButton) resetButton.addEventListener('click', resetFiltersToEmptyState);
+    if (manualDebtButton) manualDebtButton.addEventListener('click', openManualDebtModal);
     if (reloadCollections) reloadCollections.addEventListener('click', loadCollections);
     attachFilterInputs();
     document.addEventListener('click', function (event) {
-      if (!event.target || !event.target.closest || !event.target.closest('.debt-new-suggest-wrap')) closeAllSuggestions();
+      if (!event.target || !event.target.closest || !event.target.closest('.debt-new-suggest-wrap')) {
+        closeAllSuggestions();
+        closeManualDebtSuggestions();
+      }
     });
     document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && state.manualDebt.open) { closeManualDebtModal(); return; }
       if (event.key === 'Escape' && state.modalOpen) closeDebtCustomerModal();
     });
     var status = byId('debtNewStatus');
@@ -134,7 +155,7 @@
     var style = document.createElement('style');
     style.id = 'debtNewScopedStyle';
     style.textContent = '' +
-      '.debt-new-filter-card{padding:14px 16px 12px;margin-bottom:12px;}.debt-new-filter-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}.debt-new-filter-title h2{margin:0 0 4px;font-size:18px;line-height:1.2;}.debt-new-filter-title p{margin:0;font-size:12px;line-height:1.35;}.debt-new-source-badge{white-space:nowrap;padding:5px 10px;font-size:12px;align-self:flex-start;}.debt-new-filter-grid{display:grid;grid-template-columns:minmax(320px,2fr) minmax(170px,1fr) minmax(170px,1fr) minmax(145px,.75fr) auto auto;gap:10px;align-items:end;}.debt-new-field{position:relative;display:flex;flex-direction:column;gap:4px;margin:0;font-weight:800;color:#334155;font-size:12px;line-height:1.2;}.debt-new-field input,.debt-new-field select,.debt-new-load-btn,.debt-new-reset-btn{height:34px;box-sizing:border-box;border-radius:9px;}.debt-new-field input,.debt-new-field select{width:100%;padding:7px 10px;border:1px solid #cbd5e1;background:#fff;font-size:13px;}.debt-new-field input[role="combobox"]{cursor:pointer;}.debt-new-field input[role="combobox"]:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12);}.debt-new-field .filter-input-wrap{position:relative;width:100%;}.debt-new-field .filter-input-wrap input,.debt-new-field .filter-input-wrap select{padding-right:34px;}.debt-new-field .filter-clear-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:22px;height:22px;border:0;border-radius:999px;background:transparent;color:#64748b;cursor:pointer;font-size:17px;line-height:20px;font-weight:900;z-index:3;}.debt-new-field .filter-clear-btn:hover{color:#ef4444;background:#fee2e2;}.debt-new-field .filter-clear-btn[hidden]{display:none!important;}.debt-new-load-btn,.debt-new-reset-btn{padding:0 14px;white-space:nowrap;align-self:end;}.debt-new-message{min-height:18px;margin:8px 0 0;}.debt-new-modal-message{margin:10px 0 0;border-radius:12px;padding:10px 12px;font-weight:800;border:1px solid #bfdbfe;background:#eff6ff;color:#075985;}.debt-new-modal-message.success{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}.debt-new-modal-message.warning{border-color:#fed7aa;background:#fff7ed;color:#9a3412;}.debt-new-modal-message.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c;}.debt-new-modal-message[hidden]{display:none!important;}.debt-new-modal-loading{display:inline-flex;align-items:center;gap:6px;color:#1d4ed8;}.debt-new-suggest-wrap{position:relative;}.debt-new-suggest{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:1000;background:#fff;border:1px solid #dbe7f5;border-radius:12px;box-shadow:0 18px 36px rgba(15,23,42,.16);padding:6px;max-height:280px;overflow:auto;}.debt-new-suggest[hidden]{display:none!important;}.debt-new-suggest-item{display:block;width:100%;border:0;background:#fff;text-align:left;border-radius:9px;padding:8px 10px;cursor:pointer;color:#14213d;}.debt-new-suggest-item:hover,.debt-new-suggest-item.active{background:#eff6ff;outline:2px solid rgba(37,99,235,.12);}.debt-new-suggest-item b{display:block;font-size:13px;color:#0f3ea9;}.debt-new-suggest-item span{display:block;margin-top:2px;font-size:12px;color:#64748b;}.debt-new-suggest-empty,.debt-new-suggest-loading{padding:9px 10px;color:#64748b;font-weight:700;font-size:12px;}.debt-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.debt-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.debt-new-empty-state span{display:block;color:#64748b;font-weight:700;}.debt-new-results-hidden{display:none!important;}.debt-new-status{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-weight:800;font-size:12px;background:#eef2ff;color:#1d0fb4;}.debt-new-status.open{background:#fee2e2;color:#b91c1c;}.debt-new-status.paid{background:#dcfce7;color:#166534;}.debt-new-status.overpaid{background:#e0f2fe;color:#075985;}.debt-new-allocation-box{border:1px solid #dbe7f5;border-radius:12px;padding:12px;margin-top:12px;background:#f8fafc;}.debt-new-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0;}.debt-new-form-grid label{display:flex;flex-direction:column;gap:4px;font-weight:800;color:#334155;}.debt-new-form-grid input,.debt-new-form-grid select{padding:8px;border:1px solid #cbd5e1;border-radius:10px;}.debt-new-order-check{width:16px;height:16px;}.debt-new-collection-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px;}.debt-new-collection-card{border:1px solid #dbe7f5;border-radius:12px;padding:10px;margin:8px 0;background:#fff;}.debt-new-collection-card h4{margin:0 0 6px;}.debt-new-collection-card small{display:block;color:#64748b;margin-top:2px;}.debt-new-allocation-warning{color:#b91c1c;font-weight:800;}.new-table tbody tr.active{background:#eff6ff;}.debt-new-main-header{margin-bottom:8px;}.debt-new-customer-table-wrap{overflow:auto;}.debt-new-customer-table{min-width:1040px;}.debt-new-customer-table tbody tr{cursor:pointer;}.debt-new-detail-btn{white-space:nowrap;}.debt-new-collections-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px dashed #cbd5e1;border-radius:12px;padding:12px;background:#f8fafc;}.debt-new-modal{position:fixed;inset:0;z-index:3000;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:24px;}.debt-new-modal[hidden]{display:none!important;}.debt-new-modal-card{width:min(1180px,96vw);max-height:90vh;background:#fff;border-radius:18px;box-shadow:0 24px 72px rgba(15,23,42,.32);display:flex;flex-direction:column;overflow:hidden;}.debt-new-modal-header{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid #dbe7f5;padding:16px 18px 12px;}.debt-new-modal-titlebar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;}.debt-new-modal-titlebar h3{margin:0 0 6px;font-size:20px;}.debt-new-modal-meta{display:flex;flex-wrap:wrap;gap:8px 16px;color:#475569;font-weight:700;font-size:12px;}.debt-new-modal-close{border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:800;padding:8px 12px;box-shadow:0 8px 18px rgba(37,99,235,.25);}.debt-new-modal-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.debt-new-modal-tab{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:10px;padding:8px 12px;font-weight:800;}.debt-new-modal-tab.active{background:#2563eb;color:#fff;border-color:#2563eb;}.debt-new-modal-body{padding:16px 18px;overflow:auto;}.debt-new-modal-footer{position:sticky;bottom:0;background:#fff;border-top:1px solid #dbe7f5;padding:10px 18px;display:flex;justify-content:flex-end;gap:10px;}.debt-new-detail-kpis{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:10px;margin-bottom:12px;}.debt-new-detail-kpi{border:1px solid #dbe7f5;border-radius:12px;padding:10px;background:#f8fafc;}.debt-new-detail-kpi span{display:block;color:#64748b;font-size:12px;font-weight:800;}.debt-new-detail-kpi b{display:block;margin-top:4px;font-size:18px;color:#0f172a;}.debt-new-order-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;}.debt-new-order-toolbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.debt-new-modal-table-wrap{overflow:auto;border:1px solid #dbe7f5;border-radius:12px;}.debt-new-modal-table{min-width:860px;}.debt-new-modal-note{margin:0 0 12px;border:1px solid #bae6fd;background:#eff6ff;border-radius:12px;padding:10px 12px;color:#075985;font-weight:800;}.debt-new-movement-empty{border:1px dashed #cbd5e1;border-radius:12px;padding:16px;text-align:center;color:#64748b;font-weight:800;background:#f8fafc;}.debt-new-form-actions{position:sticky;bottom:0;background:#fff;padding-top:10px;}@media (max-width:1100px){.debt-new-filter-grid{grid-template-columns:minmax(280px,1.6fr) minmax(160px,1fr) minmax(160px,1fr) minmax(140px,.8fr);}.debt-new-load-btn,.debt-new-reset-btn{width:100%;}}@media (max-width:900px){.debt-new-filter-grid{grid-template-columns:1fr 1fr;}.debt-new-field-wide{grid-column:1 / -1;}.debt-new-filter-header{align-items:flex-start;}}@media (max-width:640px){.debt-new-filter-grid{grid-template-columns:1fr;}.debt-new-filter-header{flex-direction:column;}.debt-new-source-badge{align-self:flex-start;}}';
+      '.debt-new-filter-card{padding:14px 16px 12px;margin-bottom:12px;}.debt-new-filter-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}.debt-new-filter-title h2{margin:0 0 4px;font-size:18px;line-height:1.2;}.debt-new-filter-title p{margin:0;font-size:12px;line-height:1.35;}.debt-new-source-badge{white-space:nowrap;padding:5px 10px;font-size:12px;align-self:flex-start;}.debt-new-filter-grid{display:grid;grid-template-columns:minmax(300px,2fr) minmax(160px,1fr) minmax(160px,1fr) minmax(135px,.75fr) auto auto auto;gap:10px;align-items:end;}.debt-new-field{position:relative;display:flex;flex-direction:column;gap:4px;margin:0;font-weight:800;color:#334155;font-size:12px;line-height:1.2;}.debt-new-field input,.debt-new-field select,.debt-new-load-btn,.debt-new-reset-btn,.debt-new-manual-btn{height:34px;box-sizing:border-box;border-radius:9px;}.debt-new-field input,.debt-new-field select{width:100%;padding:7px 10px;border:1px solid #cbd5e1;background:#fff;font-size:13px;}.debt-new-field input[role="combobox"]{cursor:pointer;}.debt-new-field input[role="combobox"]:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12);}.debt-new-field .filter-input-wrap{position:relative;width:100%;}.debt-new-field .filter-input-wrap input,.debt-new-field .filter-input-wrap select{padding-right:34px;}.debt-new-field .filter-clear-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:22px;height:22px;border:0;border-radius:999px;background:transparent;color:#64748b;cursor:pointer;font-size:17px;line-height:20px;font-weight:900;z-index:3;}.debt-new-field .filter-clear-btn:hover{color:#ef4444;background:#fee2e2;}.debt-new-field .filter-clear-btn[hidden]{display:none!important;}.debt-new-load-btn,.debt-new-reset-btn,.debt-new-manual-btn{padding:0 14px;white-space:nowrap;align-self:end;}.debt-new-message{min-height:18px;margin:8px 0 0;}.debt-new-modal-message{margin:10px 0 0;border-radius:12px;padding:10px 12px;font-weight:800;border:1px solid #bfdbfe;background:#eff6ff;color:#075985;}.debt-new-modal-message.success{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}.debt-new-modal-message.warning{border-color:#fed7aa;background:#fff7ed;color:#9a3412;}.debt-new-modal-message.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c;}.debt-new-modal-message[hidden]{display:none!important;}.debt-new-modal-loading{display:inline-flex;align-items:center;gap:6px;color:#1d4ed8;}.debt-new-suggest-wrap{position:relative;}.debt-new-suggest{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:1000;background:#fff;border:1px solid #dbe7f5;border-radius:12px;box-shadow:0 18px 36px rgba(15,23,42,.16);padding:6px;max-height:280px;overflow:auto;}.debt-new-suggest[hidden]{display:none!important;}.debt-new-suggest-item{display:block;width:100%;border:0;background:#fff;text-align:left;border-radius:9px;padding:8px 10px;cursor:pointer;color:#14213d;}.debt-new-suggest-item:hover,.debt-new-suggest-item.active{background:#eff6ff;outline:2px solid rgba(37,99,235,.12);}.debt-new-suggest-item b{display:block;font-size:13px;color:#0f3ea9;}.debt-new-suggest-item span{display:block;margin-top:2px;font-size:12px;color:#64748b;}.debt-new-suggest-empty,.debt-new-suggest-loading{padding:9px 10px;color:#64748b;font-weight:700;font-size:12px;}.debt-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.debt-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.debt-new-empty-state span{display:block;color:#64748b;font-weight:700;}.debt-new-results-hidden{display:none!important;}.debt-new-status{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-weight:800;font-size:12px;background:#eef2ff;color:#1d0fb4;}.debt-new-status.open{background:#fee2e2;color:#b91c1c;}.debt-new-status.paid{background:#dcfce7;color:#166534;}.debt-new-status.overpaid{background:#e0f2fe;color:#075985;}.debt-new-allocation-box{border:1px solid #dbe7f5;border-radius:12px;padding:12px;margin-top:12px;background:#f8fafc;}.debt-new-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0;}.debt-new-form-grid label{display:flex;flex-direction:column;gap:4px;font-weight:800;color:#334155;}.debt-new-form-grid input,.debt-new-form-grid select{padding:8px;border:1px solid #cbd5e1;border-radius:10px;}.debt-new-order-check{width:16px;height:16px;}.debt-new-collection-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px;}.debt-new-collection-card{border:1px solid #dbe7f5;border-radius:12px;padding:10px;margin:8px 0;background:#fff;}.debt-new-collection-card h4{margin:0 0 6px;}.debt-new-collection-card small{display:block;color:#64748b;margin-top:2px;}.debt-new-allocation-warning{color:#b91c1c;font-weight:800;}.new-table tbody tr.active{background:#eff6ff;}.debt-new-main-header{margin-bottom:8px;}.debt-new-customer-table-wrap{overflow:auto;}.debt-new-customer-table{min-width:1040px;}.debt-new-customer-table tbody tr{cursor:pointer;}.debt-new-detail-btn{white-space:nowrap;}.debt-new-collections-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px dashed #cbd5e1;border-radius:12px;padding:12px;background:#f8fafc;}.debt-new-modal{position:fixed;inset:0;z-index:3000;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:24px;}.debt-new-modal[hidden]{display:none!important;}.debt-new-modal-card{width:min(1180px,96vw);max-height:90vh;background:#fff;border-radius:18px;box-shadow:0 24px 72px rgba(15,23,42,.32);display:flex;flex-direction:column;overflow:hidden;}.debt-new-modal-header{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid #dbe7f5;padding:16px 18px 12px;}.debt-new-modal-titlebar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;}.debt-new-modal-titlebar h3{margin:0 0 6px;font-size:20px;}.debt-new-modal-meta{display:flex;flex-wrap:wrap;gap:8px 16px;color:#475569;font-weight:700;font-size:12px;}.debt-new-modal-close{border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:800;padding:8px 12px;box-shadow:0 8px 18px rgba(37,99,235,.25);}.debt-new-modal-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.debt-new-modal-tab{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:10px;padding:8px 12px;font-weight:800;}.debt-new-modal-tab.active{background:#2563eb;color:#fff;border-color:#2563eb;}.debt-new-modal-body{padding:16px 18px;overflow:auto;}.debt-new-modal-footer{position:sticky;bottom:0;background:#fff;border-top:1px solid #dbe7f5;padding:10px 18px;display:flex;justify-content:flex-end;gap:10px;}.debt-new-detail-kpis{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:10px;margin-bottom:12px;}.debt-new-detail-kpi{border:1px solid #dbe7f5;border-radius:12px;padding:10px;background:#f8fafc;}.debt-new-detail-kpi span{display:block;color:#64748b;font-size:12px;font-weight:800;}.debt-new-detail-kpi b{display:block;margin-top:4px;font-size:18px;color:#0f172a;}.debt-new-order-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;}.debt-new-order-toolbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.debt-new-modal-table-wrap{overflow:auto;border:1px solid #dbe7f5;border-radius:12px;}.debt-new-modal-table{min-width:860px;}.debt-new-modal-note{margin:0 0 12px;border:1px solid #bae6fd;background:#eff6ff;border-radius:12px;padding:10px 12px;color:#075985;font-weight:800;}.debt-new-movement-empty{border:1px dashed #cbd5e1;border-radius:12px;padding:16px;text-align:center;color:#64748b;font-weight:800;background:#f8fafc;}.debt-new-form-actions{position:sticky;bottom:0;background:#fff;padding-top:10px;}.debt-new-manual-btn{white-space:nowrap;border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8;font-weight:900;}.debt-new-manual-card{width:min(860px,94vw);}.debt-new-manual-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;}.debt-new-manual-grid label{display:flex;flex-direction:column;gap:5px;font-weight:900;color:#334155;}.debt-new-manual-grid label.wide{grid-column:1 / -1;}.debt-new-manual-grid input,.debt-new-manual-grid select,.debt-new-manual-grid textarea{border:1px solid #cbd5e1;border-radius:10px;padding:9px 10px;font-weight:700;background:#fff;}.debt-new-manual-grid textarea{min-height:74px;resize:vertical;}.debt-new-modal-message.success{border-color:#86efac;background:#f0fdf4;color:#166534;}.debt-new-modal-message.warning{border-color:#fde68a;background:#fffbeb;color:#92400e;}@media (max-width:1100px){.debt-new-filter-grid{grid-template-columns:minmax(280px,1.6fr) minmax(160px,1fr) minmax(160px,1fr) minmax(140px,.8fr);}.debt-new-load-btn,.debt-new-reset-btn,.debt-new-manual-btn{width:100%;}}@media (max-width:900px){.debt-new-filter-grid{grid-template-columns:1fr 1fr;}.debt-new-field-wide{grid-column:1 / -1;}.debt-new-filter-header{align-items:flex-start;}}@media (max-width:640px){.debt-new-filter-grid{grid-template-columns:1fr;}.debt-new-filter-header{flex-direction:column;}.debt-new-source-badge{align-self:flex-start;}}';
     document.head.appendChild(style);
   }
 
@@ -956,6 +977,344 @@
         renderCollections();
         if (!silent) setMainError(err.message || 'Không tải được phiếu thu công nợ');
       }
+    }
+  }
+
+
+  function todayForInput() {
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  function resetManualDebtState() {
+    state.manualDebt.notice = null;
+    state.manualDebt.submitting = false;
+    state.manualDebt.form = { customerCode: '', customerName: '', salesStaffCode: '', salesStaffName: '', deliveryStaffCode: '', deliveryStaffName: '' };
+    state.manualDebt.suggest.items = { customer: [], salesman: [], delivery: [] };
+    state.manualDebt.suggest.active = { customer: -1, salesman: -1, delivery: -1 };
+    state.manualDebt.suggest.loading = { customer: false, salesman: false, delivery: false };
+  }
+
+  function setManualDebtNotice(text, type) {
+    state.manualDebt.notice = text ? { message: String(text), type: type || 'info' } : null;
+    renderManualDebtNotice();
+  }
+
+  function setManualDebtError(text) {
+    setManualDebtNotice(text, 'error');
+  }
+
+  function manualDebtNoticeHtml() {
+    var notice = state.manualDebt.notice;
+    if (!notice || !notice.message) return '<div id="debtNewManualDebtMessage" class="debt-new-modal-message" hidden></div>';
+    return '<div id="debtNewManualDebtMessage" class="debt-new-modal-message ' + esc(notice.type || 'info') + '" role="status">' + esc(notice.message) + '</div>';
+  }
+
+  function renderManualDebtNotice() {
+    var el = byId('debtNewManualDebtMessage');
+    if (!el) return;
+    var notice = state.manualDebt.notice;
+    if (!notice || !notice.message) {
+      el.hidden = true;
+      el.textContent = '';
+      el.className = 'debt-new-modal-message';
+      return;
+    }
+    el.hidden = false;
+    el.textContent = notice.message;
+    el.className = 'debt-new-modal-message ' + (notice.type || 'info');
+  }
+
+  function openManualDebtModal() {
+    resetManualDebtState();
+    state.manualDebt.open = true;
+    renderManualDebtModal();
+  }
+
+  function closeManualDebtModal() {
+    state.manualDebt.open = false;
+    closeManualDebtSuggestions();
+    renderManualDebtModal();
+  }
+
+  function manualDebtSuggestConfig(scope) {
+    if (scope === 'customer') return { inputId: 'debtNewManualCustomer', boxId: 'debtNewManualCustomerSuggestions', url: '/api/search/customers', limit: '20' };
+    if (scope === 'salesman') return { inputId: 'debtNewManualSalesman', boxId: 'debtNewManualSalesmanSuggestions', url: '/api/search/sales-staff', limit: '50' };
+    return { inputId: 'debtNewManualDelivery', boxId: 'debtNewManualDeliverySuggestions', url: '/api/search/delivery-staff', limit: '50' };
+  }
+
+  function closeManualDebtSuggestion(scope) {
+    var cfg = manualDebtSuggestConfig(scope);
+    var box = byId(cfg.boxId);
+    if (!box) return;
+    box.hidden = true;
+    box.innerHTML = '';
+    state.manualDebt.suggest.active[scope] = -1;
+    var input = byId(cfg.inputId);
+    if (input) input.setAttribute('aria-expanded', 'false');
+  }
+
+  function closeManualDebtSuggestions() {
+    ['customer', 'salesman', 'delivery'].forEach(closeManualDebtSuggestion);
+  }
+
+  function renderManualDebtSuggestionBox(scope) {
+    var cfg = manualDebtSuggestConfig(scope);
+    var box = byId(cfg.boxId);
+    if (!box) return;
+    var items = state.manualDebt.suggest.items[scope] || [];
+    var input = byId(cfg.inputId);
+    if (input) input.setAttribute('aria-expanded', 'true');
+    box.hidden = false;
+    if (state.manualDebt.suggest.loading[scope]) {
+      box.innerHTML = '<div class="debt-new-suggest-loading">Đang tìm gợi ý...</div>';
+      return;
+    }
+    if (!items.length) {
+      box.innerHTML = '<div class="debt-new-suggest-empty">Không tìm thấy gợi ý phù hợp</div>';
+      return;
+    }
+    box.innerHTML = items.map(function (item, index) {
+      return '<button type="button" class="debt-new-suggest-item' + (index === state.manualDebt.suggest.active[scope] ? ' active' : '') + '" data-manual-scope="' + esc(scope) + '" data-index="' + index + '"><b>' + esc(item.label || item.code || item.name || '') + '</b><span>' + esc(item.subLabel || item.phone || item.roleLabel || '') + '</span></button>';
+    }).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('.debt-new-suggest-item'), function (button) {
+      button.addEventListener('mousedown', function (event) { event.preventDefault(); });
+      button.addEventListener('click', function () { chooseManualDebtSuggestion(scope, Number(button.dataset.index)); });
+    });
+  }
+
+  async function fetchManualDebtSuggestions(scope, rawValue) {
+    var cfg = manualDebtSuggestConfig(scope);
+    var value = normalizedText(rawValue);
+    var seq = (state.manualDebt.suggest.requestSeq[scope] || 0) + 1;
+    state.manualDebt.suggest.requestSeq[scope] = seq;
+    state.manualDebt.suggest.loading[scope] = true;
+    renderManualDebtSuggestionBox(scope);
+    try {
+      var params = new URLSearchParams({ q: value, limit: cfg.limit, allowEmpty: '1', showOnFocus: '1' });
+      var res = await fetch(cfg.url + '?' + params.toString());
+      var json = await res.json();
+      if (seq !== state.manualDebt.suggest.requestSeq[scope]) return;
+      if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tải được gợi ý');
+      state.manualDebt.suggest.items[scope] = json.items || json.data || json.customers || json.users || json.staffs || [];
+      state.manualDebt.suggest.active[scope] = -1;
+    } catch (err) {
+      if (seq === state.manualDebt.suggest.requestSeq[scope]) state.manualDebt.suggest.items[scope] = [];
+    } finally {
+      if (seq === state.manualDebt.suggest.requestSeq[scope]) {
+        state.manualDebt.suggest.loading[scope] = false;
+        renderManualDebtSuggestionBox(scope);
+      }
+    }
+  }
+
+  function queueManualDebtSuggestions(scope, value) {
+    clearTimeout(state.manualDebt.suggest.timers[scope]);
+    state.manualDebt.suggest.timers[scope] = setTimeout(function () { fetchManualDebtSuggestions(scope, value); }, 220);
+  }
+
+  function chooseManualDebtSuggestion(scope, index) {
+    var item = (state.manualDebt.suggest.items[scope] || [])[index];
+    if (!item) return;
+    if (scope === 'customer') {
+      state.manualDebt.form.customerCode = normalizedText(item.customerCode || item.code || item.value || item.id);
+      state.manualDebt.form.customerName = normalizedText(item.customerName || item.name);
+      var customerInput = byId('debtNewManualCustomer');
+      if (customerInput) customerInput.value = [state.manualDebt.form.customerCode, state.manualDebt.form.customerName].filter(Boolean).join(' - ');
+      if (!state.manualDebt.form.salesStaffCode && (item.salesStaffCode || item.salesmanCode)) {
+        state.manualDebt.form.salesStaffCode = normalizedText(item.salesStaffCode || item.salesmanCode);
+        state.manualDebt.form.salesStaffName = normalizedText(item.salesStaffName || item.salesmanName);
+        var salesmanInput = byId('debtNewManualSalesman');
+        if (salesmanInput) salesmanInput.value = [state.manualDebt.form.salesStaffCode, state.manualDebt.form.salesStaffName].filter(Boolean).join(' - ');
+      }
+      if (!state.manualDebt.form.deliveryStaffCode && item.deliveryStaffCode) {
+        state.manualDebt.form.deliveryStaffCode = normalizedText(item.deliveryStaffCode);
+        state.manualDebt.form.deliveryStaffName = normalizedText(item.deliveryStaffName);
+        var deliveryInput = byId('debtNewManualDelivery');
+        if (deliveryInput) deliveryInput.value = [state.manualDebt.form.deliveryStaffCode, state.manualDebt.form.deliveryStaffName].filter(Boolean).join(' - ');
+      }
+    } else if (scope === 'salesman') {
+      state.manualDebt.form.salesStaffCode = normalizedText(item.salesStaffCode || item.salesmanCode || item.code || item.staffCode || item.value);
+      state.manualDebt.form.salesStaffName = normalizedText(item.salesStaffName || item.salesmanName || item.name || item.fullName || item.businessStaffName);
+      var salesInput = byId('debtNewManualSalesman');
+      if (salesInput) salesInput.value = [state.manualDebt.form.salesStaffCode, state.manualDebt.form.salesStaffName].filter(Boolean).join(' - ');
+    } else {
+      state.manualDebt.form.deliveryStaffCode = normalizedText(item.deliveryStaffCode || item.deliveryCode || item.shipperCode || item.code || item.staffCode || item.value);
+      state.manualDebt.form.deliveryStaffName = normalizedText(item.deliveryStaffName || item.deliveryName || item.shipperName || item.name || item.fullName || item.businessStaffName);
+      var delInput = byId('debtNewManualDelivery');
+      if (delInput) delInput.value = [state.manualDebt.form.deliveryStaffCode, state.manualDebt.form.deliveryStaffName].filter(Boolean).join(' - ');
+    }
+    closeManualDebtSuggestion(scope);
+  }
+
+  function moveManualDebtSuggestion(scope, delta) {
+    var items = state.manualDebt.suggest.items[scope] || [];
+    if (!items.length) return;
+    var next = state.manualDebt.suggest.active[scope] + delta;
+    if (next < 0) next = items.length - 1;
+    if (next >= items.length) next = 0;
+    state.manualDebt.suggest.active[scope] = next;
+    renderManualDebtSuggestionBox(scope);
+  }
+
+  function inferCodeFromManualInput(value) {
+    var raw = normalizedText(value);
+    if (!raw) return '';
+    return raw.split(/\s+-\s+|\s+\/\s+|\s+/)[0] || raw;
+  }
+
+  function clearManualSelected(scope) {
+    if (scope === 'customer') {
+      state.manualDebt.form.customerCode = '';
+      state.manualDebt.form.customerName = '';
+    } else if (scope === 'salesman') {
+      state.manualDebt.form.salesStaffCode = '';
+      state.manualDebt.form.salesStaffName = '';
+    } else if (scope === 'delivery') {
+      state.manualDebt.form.deliveryStaffCode = '';
+      state.manualDebt.form.deliveryStaffName = '';
+    }
+  }
+
+  function attachManualDebtAutocomplete(scope) {
+    var cfg = manualDebtSuggestConfig(scope);
+    var input = byId(cfg.inputId);
+    if (!input) return;
+    input.addEventListener('input', function () {
+      clearManualSelected(scope);
+      queueManualDebtSuggestions(scope, input.value);
+    });
+    input.addEventListener('focus', function () { queueManualDebtSuggestions(scope, input.value); });
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'ArrowDown') { event.preventDefault(); moveManualDebtSuggestion(scope, 1); return; }
+      if (event.key === 'ArrowUp') { event.preventDefault(); moveManualDebtSuggestion(scope, -1); return; }
+      if (event.key === 'Escape') { closeManualDebtSuggestion(scope); return; }
+      if (event.key === 'Enter') {
+        var box = byId(cfg.boxId);
+        if (box && !box.hidden && state.manualDebt.suggest.active[scope] >= 0) {
+          event.preventDefault();
+          chooseManualDebtSuggestion(scope, state.manualDebt.suggest.active[scope]);
+        }
+      }
+    });
+  }
+
+  function renderManualDebtModal() {
+    var modal = byId('debtNewManualDebtModal');
+    if (!modal) return;
+    if (!state.manualDebt.open) {
+      modal.hidden = true;
+      modal.innerHTML = '';
+      return;
+    }
+    modal.hidden = false;
+    var today = todayForInput();
+    modal.innerHTML = '<div class="debt-new-modal-card debt-new-manual-card" role="dialog" aria-modal="true" aria-label="Tạo công nợ thủ công">' +
+      '<div class="debt-new-modal-header">' +
+        '<div class="debt-new-modal-titlebar"><div><h3>Tạo công nợ thủ công</h3><p class="muted">Dùng cho công nợ ban đầu hoặc công nợ ngoài bán hàng. Backend sinh AR-DEBT-ADJUSTMENT canonical, không tạo đơn bán/trả hàng giả.</p></div><button type="button" class="debt-new-modal-close debt-new-manual-close" aria-label="Đóng popup tạo công nợ">Đóng</button></div>' +
+        manualDebtNoticeHtml() +
+      '</div>' +
+      '<div class="debt-new-modal-body">' +
+        '<div class="debt-new-manual-grid">' +
+          '<label class="wide debt-new-suggest-wrap searchable-select-field">Khách hàng *<div class="filter-input-wrap"><input id="debtNewManualCustomer" autocomplete="off" role="combobox" aria-haspopup="listbox" aria-expanded="false" placeholder="Click chọn khách hàng hoặc nhập mã/tên"></div><div id="debtNewManualCustomerSuggestions" class="debt-new-suggest" hidden></div></label>' +
+          '<label>Loại công nợ *<select id="debtNewManualDebtType"><option value="OPENING_DEBT">Công nợ ban đầu</option><option value="MANUAL_DEBT">Công nợ ngoài bán hàng</option><option value="DEBT_ADJUSTMENT_INCREASE">Điều chỉnh tăng công nợ</option></select></label>' +
+          '<label>Số tiền công nợ *<input id="debtNewManualAmount" inputmode="numeric" placeholder="VD: 1.000.000"></label>' +
+          '<label>Ngày ghi nhận *<input id="debtNewManualPostingDate" type="date" value="' + esc(today) + '"></label>' +
+          '<label>Mã tham chiếu<input id="debtNewManualReferenceNo" placeholder="Số biên bản/phiếu/file Excel"></label>' +
+          '<label class="debt-new-suggest-wrap searchable-select-field">NVBH phụ trách<div class="filter-input-wrap"><input id="debtNewManualSalesman" autocomplete="off" role="combobox" aria-haspopup="listbox" aria-expanded="false" placeholder="Click chọn NVBH nếu có"></div><div id="debtNewManualSalesmanSuggestions" class="debt-new-suggest" hidden></div></label>' +
+          '<label class="debt-new-suggest-wrap searchable-select-field">NVGH phụ trách<div class="filter-input-wrap"><input id="debtNewManualDelivery" autocomplete="off" role="combobox" aria-haspopup="listbox" aria-expanded="false" placeholder="Click chọn NVGH nếu có"></div><div id="debtNewManualDeliverySuggestions" class="debt-new-suggest" hidden></div></label>' +
+          '<label class="wide">Diễn giải / lý do *<textarea id="debtNewManualNote" placeholder="VD: Công nợ đầu kỳ tháng 07/2026"></textarea></label>' +
+        '</div>' +
+        '<div class="new-safe-note">Luồng này chỉ ghi AR ledger canonical. Không tạo salesOrder, returnOrder hoặc dữ liệu giao hàng giả.</div>' +
+      '</div>' +
+      '<div class="debt-new-modal-footer"><button type="button" class="secondary debt-new-manual-close">Hủy</button><button id="debtNewManualSubmit" type="button" class="primary-action">Tạo công nợ</button></div>' +
+    '</div>';
+    modal.addEventListener('click', function (event) { if (event.target === modal) closeManualDebtModal(); }, { once: true });
+    var card = modal.querySelector('.debt-new-modal-card');
+    if (card) card.addEventListener('click', function (event) { event.stopPropagation(); });
+    Array.prototype.forEach.call(modal.querySelectorAll('.debt-new-manual-close'), function (button) {
+      button.addEventListener('click', closeManualDebtModal);
+    });
+    attachManualDebtAutocomplete('customer');
+    attachManualDebtAutocomplete('salesman');
+    attachManualDebtAutocomplete('delivery');
+    var amountEl = byId('debtNewManualAmount');
+    if (amountEl) amountEl.addEventListener('input', function () { amountEl.value = money(parseVndAmount(amountEl.value)); });
+    var submit = byId('debtNewManualSubmit');
+    if (submit) submit.addEventListener('click', submitManualDebt);
+  }
+
+  function buildManualDebtPayload() {
+    var customerInput = byId('debtNewManualCustomer');
+    var salesmanInput = byId('debtNewManualSalesman');
+    var deliveryInput = byId('debtNewManualDelivery');
+    var customerCode = normalizedText(state.manualDebt.form.customerCode) || inferCodeFromManualInput(customerInput && customerInput.value);
+    var salesStaffCode = normalizedText(state.manualDebt.form.salesStaffCode) || inferCodeFromManualInput(salesmanInput && salesmanInput.value);
+    var deliveryStaffCode = normalizedText(state.manualDebt.form.deliveryStaffCode) || inferCodeFromManualInput(deliveryInput && deliveryInput.value);
+    var amount = parseVndAmount(byId('debtNewManualAmount') && byId('debtNewManualAmount').value);
+    var debtType = byId('debtNewManualDebtType') ? byId('debtNewManualDebtType').value : 'MANUAL_DEBT';
+    var postingDate = normalizedText(byId('debtNewManualPostingDate') && byId('debtNewManualPostingDate').value);
+    var referenceNo = normalizedText(byId('debtNewManualReferenceNo') && byId('debtNewManualReferenceNo').value);
+    var note = normalizedText(byId('debtNewManualNote') && byId('debtNewManualNote').value);
+    if (!customerCode) throw new Error('Vui lòng chọn khách hàng.');
+    if (!debtType) throw new Error('Vui lòng chọn loại công nợ.');
+    if (amount <= 0) throw new Error('Số tiền công nợ phải lớn hơn 0.');
+    if (!postingDate) throw new Error('Vui lòng chọn ngày ghi nhận.');
+    if (!note) throw new Error('Vui lòng nhập diễn giải/lý do tạo công nợ.');
+    return {
+      customerCode: customerCode,
+      customerName: normalizedText(state.manualDebt.form.customerName),
+      debtType: debtType,
+      amount: amount,
+      postingDate: postingDate,
+      salesStaffCode: salesStaffCode,
+      salesStaffName: normalizedText(state.manualDebt.form.salesStaffName),
+      deliveryStaffCode: deliveryStaffCode,
+      deliveryStaffName: normalizedText(state.manualDebt.form.deliveryStaffName),
+      referenceNo: referenceNo,
+      note: note,
+      idempotencyKey: referenceNo ? '' : 'DEBT-NEW-MANUAL-WEB:' + customerCode + ':' + Date.now()
+    };
+  }
+
+  async function submitManualDebt() {
+    var submit = byId('debtNewManualSubmit');
+    try {
+      var payload = buildManualDebtPayload();
+      state.manualDebt.submitting = true;
+      if (submit) { submit.disabled = true; submit.textContent = 'Đang tạo...'; }
+      setManualDebtNotice('Đang tạo công nợ thủ công...', 'info');
+      var res = await fetch('/api/new/debt/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      var json = await res.json();
+      if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tạo được công nợ thủ công');
+      setManualDebtNotice(json.message || 'Đã tạo công nợ thủ công.', 'success');
+      setMainNotice(json.message || 'Đã tạo công nợ thủ công.', 'success');
+      var currentFilters = filters();
+      var sameCustomerFilter = normalizedText(currentFilters.customerCode).toLowerCase() === normalizedText(payload.customerCode).toLowerCase();
+      var shouldLoadCreatedCustomer = !hasValidSearchCriteria() || sameCustomerFilter;
+      if (shouldLoadCreatedCustomer) {
+        state.selectedFilters.customerCode = payload.customerCode;
+        state.selectedFilters.orderCode = '';
+        var searchInput = byId('debtNewSearch');
+        if (searchInput) searchInput.value = [payload.customerCode, payload.customerName].filter(Boolean).join(' - ');
+        var statusInput = byId('debtNewStatus');
+        if (statusInput) statusInput.value = 'open';
+        updateClearButtons();
+      }
+      closeManualDebtModal();
+      if (shouldLoadCreatedCustomer || hasValidSearchCriteria()) await load();
+    } catch (err) {
+      setManualDebtError(err.message || 'Không tạo được công nợ thủ công');
+    } finally {
+      state.manualDebt.submitting = false;
+      if (submit) { submit.disabled = false; submit.textContent = 'Tạo công nợ'; }
     }
   }
 

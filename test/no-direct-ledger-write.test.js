@@ -19,6 +19,7 @@ const ALLOWED_FILES = new Set([
   path.normalize('src/domain/posting/FundPostingService.js'),
   path.normalize('src/services/accounting/arAdjustmentService.js'),
   path.normalize('src/services/accounting/externalDebtArPostingService.js'),
+  path.normalize('src/services/accounting/manualDebtPostingService.js'),
   path.normalize('src/services/accounting/returnArPostingService.js'),
   path.normalize('src/services/accounting/ArDebtOpenPostingService.js'),
   path.normalize('src/services/accounting/ArDebtAdjustmentPostingService.js'),

@@ -63,6 +63,7 @@ const PROFILES = {
       'src/domain/ar',
       'src/utils/assertArLedgerContract.util.js',
       /^src\/services\/accounting\/.*ArPostingService\.js$/,
+      'src/services/accounting/manualDebtPostingService.js',
       /^src\/services\/accounting\/ar.*service\.js$/i,
       'src/services/accounting/arCustomerDebtReadModel.service.js',
       'src/services/DebtReadService.js',
