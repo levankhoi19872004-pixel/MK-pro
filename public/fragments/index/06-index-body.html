@@ -102,6 +102,41 @@
           </footer>
         </section>
       </div>
+
+
+      <div id="promotionQuantityGroupDiscountPopup" class="promotion-workspace-overlay promotion-type-popup" data-promotion-popup="quantityGroupDiscounts" hidden>
+        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionQuantityGroupDiscountPopupTitle">
+          <header class="promotion-workspace-header">
+            <div>
+              <h2 id="promotionQuantityGroupDiscountPopupTitle">Tạo rule SL nhóm SP</h2>
+              <p id="promotionQuantityGroupDiscountPopupSubtitle" class="muted">Popup riêng cho rule chiết khấu theo số lượng nhóm sản phẩm.</p>
+            </div>
+            <button type="button" class="secondary promotion-workspace-close" data-promotion-popup-close="quantityGroupDiscounts">Đóng</button>
+          </header>
+          <div id="promotionQuantityGroupDiscountPopupBody" class="promotion-workspace-body"><p class="muted">Chưa chọn rule SL nhóm SP.</p></div>
+          <footer class="promotion-workspace-footer">
+            <span class="muted">Chỉ xử lý rule SL nhóm SP trong popup này.</span>
+            <button type="button" class="secondary" data-promotion-popup-close="quantityGroupDiscounts">Đóng</button>
+          </footer>
+        </section>
+      </div>
+
+      <div id="promotionCustomerOrderValueDiscountPopup" class="promotion-workspace-overlay promotion-type-popup" data-promotion-popup="customerOrderValueDiscounts" hidden>
+        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionCustomerOrderValueDiscountPopupTitle">
+          <header class="promotion-workspace-header">
+            <div>
+              <h2 id="promotionCustomerOrderValueDiscountPopupTitle">Tạo rule CK thêm theo DS</h2>
+              <p id="promotionCustomerOrderValueDiscountPopupSubtitle" class="muted">Popup riêng cho rule chiết khấu thêm theo doanh số khách hàng.</p>
+            </div>
+            <button type="button" class="secondary promotion-workspace-close" data-promotion-popup-close="customerOrderValueDiscounts">Đóng</button>
+          </header>
+          <div id="promotionCustomerOrderValueDiscountPopupBody" class="promotion-workspace-body"><p class="muted">Chưa chọn rule CK thêm theo DS.</p></div>
+          <footer class="promotion-workspace-footer">
+            <span class="muted">Chỉ xử lý rule CK thêm theo DS trong popup này.</span>
+            <button type="button" class="secondary" data-promotion-popup-close="customerOrderValueDiscounts">Đóng</button>
+          </footer>
+        </section>
+      </div>
       <!-- PROMOTION_SEPARATE_POPUPS_END -->
 
       <main id="promotionProductProgramTab" class="promotion-management-layout promotion-program-panel active" data-promotion-program-panel="productRules">
@@ -216,17 +251,17 @@
         <section class="card promotion-program-detail">
           <div class="toolbar"><div><h2>Chi tiết CK theo số lượng nhóm SP</h2><p class="muted">Cộng gộp số lượng nhiều sản phẩm trong cùng nhóm; đủ ngưỡng thì giảm % trên các dòng thuộc nhóm.</p></div></div>
           <form id="promotionQuantityGroupDiscountProgramForm" class="form compact-form promotion-program-form">
-            <label>Mã chương trình<input name="programCode" placeholder="VD: QTY-NXV-202607" /></label>
-            <label>Tên chương trình<input name="programName" placeholder="VD: NXV COMFORT/SURF đủ 12 dây giảm 17%" /></label>
+            <label>Mã chương trình<input name="programCode" required placeholder="VD: QTY-NXV-202607" /></label>
+            <label>Tên chương trình<input name="programName" required placeholder="VD: NXV COMFORT/SURF đủ 12 dây giảm 17%" /></label>
             <label>Từ ngày<input name="startDate" type="date" /></label>
             <label>Đến ngày<input name="endDate" type="date" /></label>
-            <label>Mã nhóm SP<input name="productGroupCode" placeholder="VD: NXV_COMFORT_SURF" /></label>
+            <label>Mã nhóm SP<input name="productGroupCode" required placeholder="VD: NXV_COMFORT_SURF" /></label>
             <label>Tên nhóm SP<input name="productGroupName" placeholder="VD: NXV COMFORT/SURF" /></label>
-            <label>Số lượng tối thiểu<input name="minQty" type="number" min="0" step="1" placeholder="VD: 12" /></label>
+            <label>Số lượng tối thiểu<input name="minQty" type="number" min="1" step="1" required placeholder="VD: 12" /></label>
             <label>Đơn vị tính<input name="qtyUnit" placeholder="VD: dây" /></label>
-            <label>% chiết khấu<input name="discountPercent" type="number" min="0" max="100" step="0.01" placeholder="VD: 17" /></label>
+            <label>% chiết khấu<input name="discountPercent" type="number" min="0.01" max="100" step="0.01" required placeholder="VD: 17" /></label>
             <label>Trạng thái<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
-            <label class="full-row">Mã sản phẩm trong nhóm<textarea name="productCodes" rows="4" placeholder="Mỗi dòng một mã sản phẩm hoặc phân tách bằng dấu phẩy"></textarea></label>
+            <label class="full-row">Mã sản phẩm trong nhóm<textarea name="productCodes" rows="4" required placeholder="Mỗi dòng một mã sản phẩm hoặc phân tách bằng dấu phẩy"></textarea></label>
             <label class="full-row">Ghi chú<input name="note" placeholder="Ghi chú nội bộ" /></label>
             <div class="button-row"><button type="submit">Lưu rule</button><button type="button" id="cancelPromotionQuantityGroupDiscountProgramButton" class="danger">Huỷ rule</button></div>
           </form>
@@ -248,15 +283,15 @@
         <section class="card promotion-program-detail">
           <div class="toolbar"><div><h2>Chi tiết CK thêm theo doanh số KH</h2><p class="muted">Chỉ khách hàng trong danh sách đạt doanh số đơn tối thiểu mới được giảm thêm %.</p></div></div>
           <form id="promotionCustomerOrderValueDiscountProgramForm" class="form compact-form promotion-program-form">
-            <label>Mã chương trình<input name="programCode" placeholder="VD: CUST-DS-202607" /></label>
-            <label>Tên chương trình<input name="programName" placeholder="VD: KH danh sách đạt DS đơn giảm thêm 3%" /></label>
+            <label>Mã chương trình<input name="programCode" required placeholder="VD: CUST-DS-202607" /></label>
+            <label>Tên chương trình<input name="programName" required placeholder="VD: KH danh sách đạt DS đơn giảm thêm 3%" /></label>
             <label>Từ ngày<input name="startDate" type="date" /></label>
             <label>Đến ngày<input name="endDate" type="date" /></label>
-            <label>Doanh số đơn tối thiểu<input name="minOrderAmount" type="number" min="0" step="1000" placeholder="VD: 2000000" /></label>
-            <label>% chiết khấu thêm<input name="discountPercent" type="number" min="0" max="100" step="0.01" placeholder="VD: 3" /></label>
+            <label>Doanh số đơn tối thiểu<input name="minOrderAmount" type="number" min="1000" step="1000" required placeholder="VD: 2000000" /></label>
+            <label>% chiết khấu thêm<input name="discountPercent" type="number" min="0.01" max="100" step="0.01" required placeholder="VD: 3" /></label>
             <label>Cách tính nền<select name="baseAmountMode"><option value="after_line_promotions">Sau khuyến mãi dòng hàng</option><option value="before_promotions">Trước khuyến mãi</option></select></label>
             <label>Trạng thái<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
-            <label class="full-row">Mã khách hàng áp dụng<textarea name="customerCodes" rows="4" placeholder="Mỗi dòng một mã khách hàng hoặc phân tách bằng dấu phẩy"></textarea></label>
+            <label class="full-row">Mã khách hàng áp dụng<textarea name="customerCodes" rows="4" required placeholder="Mỗi dòng một mã khách hàng hoặc phân tách bằng dấu phẩy"></textarea></label>
             <label class="full-row">Ghi chú<input name="note" placeholder="Ghi chú nội bộ" /></label>
             <div class="button-row"><button type="submit">Lưu rule</button><button type="button" id="cancelPromotionCustomerOrderValueDiscountProgramButton" class="danger">Huỷ rule</button></div>
           </form>

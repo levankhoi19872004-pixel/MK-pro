@@ -57,6 +57,20 @@
       title: 'promotionConditionPopupTitle',
       subtitle: 'promotionConditionPopupSubtitle',
       empty: 'Chưa chọn điều kiện KM / Ontop.'
+    },
+    quantityGroupDiscounts: {
+      overlay: 'promotionQuantityGroupDiscountPopup',
+      body: 'promotionQuantityGroupDiscountPopupBody',
+      title: 'promotionQuantityGroupDiscountPopupTitle',
+      subtitle: 'promotionQuantityGroupDiscountPopupSubtitle',
+      empty: 'Chưa chọn rule SL nhóm SP.'
+    },
+    customerOrderValueDiscounts: {
+      overlay: 'promotionCustomerOrderValueDiscountPopup',
+      body: 'promotionCustomerOrderValueDiscountPopupBody',
+      title: 'promotionCustomerOrderValueDiscountPopupTitle',
+      subtitle: 'promotionCustomerOrderValueDiscountPopupSubtitle',
+      empty: 'Chưa chọn rule CK thêm theo DS.'
     }
   };
   const detailPlaceholders = {};
@@ -100,7 +114,17 @@
     const section = detailSectionByType(type);
     const { overlay, body, title, subtitle } = popupParts(type);
     if(!overlay || !body) return;
-    if(title) title.textContent = `${mode==='create'?'+ Tạo':'Chi tiết'} ${cfg.label}`;
+    if(title){
+      if(mode === 'create'){
+        title.textContent = type === 'quantityGroupDiscounts'
+          ? 'Tạo rule SL nhóm SP'
+          : type === 'customerOrderValueDiscounts'
+            ? 'Tạo rule CK thêm theo DS'
+            : `+ Tạo ${cfg.label}`;
+      }else{
+        title.textContent = `Chi tiết ${cfg.label}`;
+      }
+    }
     if(subtitle){
       const selectedCode = states[type]?.selectedCode || '';
       subtitle.textContent = selectedCode
