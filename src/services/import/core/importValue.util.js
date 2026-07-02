@@ -4,7 +4,7 @@ const { normalizeSearchText } = require('../../../utils/search.util');
 const dateUtil = require('../../../utils/date.util');
 const Product = require('../../../models/Product');
 const Customer = require('../../../models/Customer');
-const ImportLog = require('../../../models/ImportLog');
+const { addImportLog } = require('./importLogging.util');
 const { toNumber, makeId, normalizeText, normalizePacking } = require('../../../utils/common.util');
 const { extractCustomerTaxProfile } = require('../../../utils/customerTaxProfile.util');
 const { extractCustomerBusinessProfile } = require('../../../utils/customerBusinessProfile.util');
@@ -346,15 +346,6 @@ async function buildRunningCode(Model, prefix, field = 'code') {
     return Math.max(result, match ? Number(match[1]) : 0);
   }, 0);
   return `${prefix}${String(max + 1).padStart(5, '0')}`;
-}
-
-async function addImportLog(type, summary) {
-  await ImportLog.create({
-    id: makeId('IL'),
-    type,
-    summary,
-    createdAt: dateUtil.nowIso()
-  }).catch(() => null);
 }
 
 async function findProductByAny(value) {

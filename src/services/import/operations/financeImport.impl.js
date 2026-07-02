@@ -6,9 +6,9 @@ const ArLedger = require('../../../models/ArLedger');
 const { toNumber, makeId, normalizeText, normalizePacking } = require('../../../utils/common.util');
 const financialService = require('../../financialService');
 const IMPORT_BATCH_SIZE = Number(process.env.IMPORT_BATCH_SIZE || 1000);
+const { addImportLog } = require('../core/importLogging.util');
 
 const {
-  addImportLog,
   cleanText,
   dateOnly,
   findCustomerByAny,

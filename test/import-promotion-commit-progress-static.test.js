@@ -52,16 +52,17 @@ test('async import commit preserves selected row and promotion program scope', (
   assert.match(submission, /stringArray\(payload\.selectedRowKeys\)/);
 });
 
-test('import controllers can accept async commit requests safely', () => {
+test('import controllers detach promotionProductRules commit without making all import commits background-job mandatory', () => {
   const exportController = read('src/controllers/importExportController.js');
   const runtimeController = read('src/controllers/importRuntimeController.js');
 
   for (const source of [exportController, runtimeController]) {
-    assert.match(source, /shouldRunImportCommitAsync/);
-    assert.match(source, /AsyncJobHttpAdapter\.prefersAsync\(req\)/);
-    assert.match(source, /IMPORT_COMMIT_PROMOTION_ASYNC_THRESHOLD/);
-    assert.match(source, /AsyncJobHttpAdapter\.submitImportCommit\(req\)/);
-    assert.match(source, /res\.status\(202\)\.json\(AsyncJobHttpAdapter\.acceptedPayload/);
+    assert.match(source, /ImportWebDetachedCommitService/);
+    assert.match(source, /shouldRunWebDetachedImportCommit/);
+    assert.match(source, /type === 'promotionProductRules'/);
+    assert.match(source, /ImportWebDetachedCommitService\.submit/);
+    assert.match(source, /ImportWebDirectCommitService\.commitSession/);
+    assert.doesNotMatch(source, /AsyncJobHttpAdapter\.submitImportCommit\(req\)/);
   }
 });
 
@@ -86,15 +87,17 @@ test('frontend commit progress label supports generic batched data writes', () =
   assert.match(part2, /Đang ghi dữ liệu theo lô/);
 });
 
-test('promotion admin import uses cleanText from importValue util to avoid runtime undefined helper', () => {
+test('promotion admin import uses cleanText and addImportLog from the correct util boundaries', () => {
   const source = read('src/services/import/operations/adminImport.impl.js');
 
   assert.match(source, /const \{ cleanText \} = require\('\.\.\/core\/importValue\.util'\)/);
+  assert.match(source, /const \{ addImportLog \} = require\('\.\.\/core\/importLogging\.util'\)/);
   const rowUtilRequireIndex = source.indexOf("require('../core/importRow.util')");
   assert.notEqual(rowUtilRequireIndex, -1, 'admin import must import row helpers from importRow.util');
   const rowUtilBlockStart = source.lastIndexOf('const {', rowUtilRequireIndex);
   const rowUtilDestructuring = source.slice(rowUtilBlockStart, rowUtilRequireIndex);
   assert.doesNotMatch(rowUtilDestructuring, /\bcleanText\b/);
+  assert.doesNotMatch(rowUtilDestructuring, /\baddImportLog\b/);
 });
 
 test('promotion CK commit is detached from the HTTP request to avoid web/proxy timeout', () => {

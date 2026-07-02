@@ -15,6 +15,7 @@ const { runAtomicChunks } = require('../importTransaction.service');
 const InventoryPostingService = require('../../../domain/posting/InventoryPostingService');
 const { normalizePickingZone, pickingZoneFrom, legacyPrintGroupCode, pickingZoneLabel, PICKING_ZONES } = require('../../../utils/pickingZone.util');
 const IMPORT_BATCH_SIZE = Number(process.env.IMPORT_BATCH_SIZE || 1000);
+const { addImportLog } = require('../core/importLogging.util');
 const AUTO_CREATED_CUSTOMER_ADDRESS = 'NEW';
 
 const values = require('../core/importValue.util');
@@ -23,7 +24,6 @@ const rows = require('../core/importRow.util');
 const {
   makeReturnDraftItemFromImportItem,
   buildReturnDraftFromImportedOrder,
-  addImportLog,
   allocateStockForSaleAndPromo,
   cleanText,
   dateOnly,

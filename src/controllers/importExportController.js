@@ -9,33 +9,12 @@ const ImportWebDirectCommitService = require('../services/import/ImportWebDirect
 const ImportWebDetachedCommitService = require('../services/import/ImportWebDetachedCommitService');
 
 
-function importCommitAsyncThreshold() {
-  const value = Number(process.env.IMPORT_COMMIT_PROMOTION_ASYNC_THRESHOLD || 1000);
-  return Number.isFinite(value) && value > 0 ? value : Infinity;
-}
-
-function selectedImportCommitCount(body = {}) {
-  return Math.max(
-    Array.isArray(body.selectedRowNumbers) ? body.selectedRowNumbers.length : 0,
-    Array.isArray(body.selectedRowKeys) ? body.selectedRowKeys.length : 0,
-    Array.isArray(body.selectedOrderCodes) ? body.selectedOrderCodes.length : 0,
-    Array.isArray(body.selectedProgramCodes) ? body.selectedProgramCodes.length : 0
-  );
-}
-
-
 function shouldRunWebDetachedImportCommit(req = {}) {
   const body = req.body || {};
   const type = String(body.type || '').trim();
   return type === 'promotionProductRules';
 }
 
-function shouldRunImportCommitAsync(req = {}) {
-  if (AsyncJobHttpAdapter.prefersAsync(req)) return true;
-  const body = req.body || {};
-  const type = String(body.type || '').trim();
-  return type === 'promotionProductRules' && selectedImportCommitCount(body) > importCommitAsyncThreshold();
-}
 
 function normalizeUploadedFiles(req) {
   const files = [];
@@ -116,14 +95,6 @@ async function commitImport(req, res) {
         return res.status(submitted.status || 400).json({ ok: false, message: submitted.error, ...submitted });
       }
       return res.status(submitted.accepted ? 202 : 200).json({ ok: true, ...submitted });
-    }
-
-    if (shouldRunImportCommitAsync(req)) {
-      const submitted = await AsyncJobHttpAdapter.submitImportCommit(req);
-      if (submitted.error) {
-        return res.status(submitted.status || 400).json({ ok: false, message: submitted.error, ...submitted });
-      }
-      return res.status(202).json(AsyncJobHttpAdapter.acceptedPayload(submitted, { source: 'import-export-route' }));
     }
 
     const result = await ImportWebDirectCommitService.commitSession({

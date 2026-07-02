@@ -14,9 +14,9 @@ const {
   omitUnchanged
 } = require('../selectiveUpdate.util');
 const IMPORT_BATCH_SIZE = Number(process.env.IMPORT_BATCH_SIZE || 1000);
+const { addImportLog } = require('../core/importLogging.util');
 
 const {
-  addImportLog,
   buildProductSelectiveUpdate,
   buildCustomerSelectiveUpdate,
   cleanText,

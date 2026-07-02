@@ -19,8 +19,8 @@ const promotionService = require('../../promotionService');
 const { isBcryptHash, hashPasswordSync } = require('../../../security/passwordPolicy');
 
 const { cleanText } = require('../core/importValue.util');
+const { addImportLog } = require('../core/importLogging.util');
 const {
-  addImportLog,
   buildUserSelectiveUpdate,
   getUserUpdateInput,
   normalizeImportRole,
