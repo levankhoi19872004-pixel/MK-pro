@@ -6,6 +6,7 @@ const Staff = require('../../models/Staff');
 const User = require('../../models/User');
 const SalesOrder = require('../../models/SalesOrder');
 const arLedgerReadService = require('../arLedgerRead.service');
+const SalesReportService = require('./SalesReportService');
 // Phase32 legacy static compatibility marker only; runtime AR debt source remains arLedgerReadService. ArLedger.aggregate([
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
@@ -156,12 +157,24 @@ async function customerDebtMap(codes = []) {
 async function customerMonthlySalesMap(codes = [], query = {}) {
   const uniqueCodes = [...new Set(codes.map(text).filter(Boolean))];
   if (!uniqueCodes.length) return new Map();
+  const codeSet = new Set(uniqueCodes);
   const { start, end } = monthRange(query);
-  const rows = await SalesOrder.aggregate([
-    { $match: { customerCode: { $in: uniqueCodes }, status: { $nin: INACTIVE_ORDER_STATUSES }, orderDate: { $gte: start, $lte: end } } },
-    { $group: { _id: '$customerCode', amount: { $sum: { $ifNull: ['$actualAmount', { $ifNull: ['$totalAmount', 0] }] } }, lastOrderDate: { $max: '$orderDate' } } }
-  ]).allowDiskUse(true);
-  return new Map(rows.map((row) => [text(row._id), { amount: toNumber(row.amount), lastOrderDate: text(row.lastOrderDate) }]));
+  const sales = await SalesReportService.salesReport({
+    dateFrom: start,
+    dateTo: end,
+    full: '1',
+    export: '1'
+  });
+  const map = new Map();
+  for (const row of sales.sales || []) {
+    const code = text(row.customerCode);
+    if (!codeSet.has(code)) continue;
+    const current = map.get(code) || { amount: 0, lastOrderDate: '' };
+    current.amount += toNumber(row.actualAmount);
+    if (!current.lastOrderDate || text(row.date) > current.lastOrderDate) current.lastOrderDate = text(row.date);
+    map.set(code, current);
+  }
+  return map;
 }
 
 async function productInformationReport(query = {}) {

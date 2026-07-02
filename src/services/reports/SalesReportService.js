@@ -17,6 +17,7 @@ const {
   hasRootActualAmount,
   actualUnitPriceOf,
   isPromoLine,
+  isAccountingConfirmed,
   ledgerOrderIdentityValues,
   orderIdentityValues,
   paginate,
@@ -226,8 +227,11 @@ async function salesReport(query = {}) {
     const ar = arByOrder.get(orderCanonicalKey(order)) || {};
     const salesStaff = staffIdentity(order, 'sales');
     const deliveryStaff = staffIdentity(order, 'delivery');
-    const arDebit = toNumber(ar.debit) || valuation.actualAmount;
+    const hasArLedger = ar && (toNumber(ar.debit) > 0 || toNumber(ar.credit) > 0);
+    const arDebit = toNumber(ar.debit);
     const arCredit = toNumber(ar.credit);
+    const missingArLedger = !hasArLedger && isAccountingConfirmed(order);
+    const debtAmount = hasArLedger ? Math.max(0, arDebit - arCredit) : 0;
     return {
       id: text(order.id || order._id),
       code: firstText(order, ['code', 'orderCode', 'salesOrderCode', 'documentCode']),
@@ -249,12 +253,16 @@ async function salesReport(query = {}) {
       receiptAmount: toNumber(ar.receiptAmount),
       returnAmount: toNumber(ar.returnAmount),
       adjustmentAmount: toNumber(ar.adjustmentAmount) + toNumber(ar.otherCredit),
-      debtAmount: Math.max(0, arDebit - arCredit),
+      debtAmount,
       deliveryStatus: order.deliveryStatus || '',
       accountingStatus: order.accountingStatus || '',
       status: order.status || '',
       items: valuation.saleLines,
-      dataQuality: valuation.dataQuality
+      dataQuality: {
+        ...valuation.dataQuality,
+        missingArLedger,
+        missingArDebitAmount: missingArLedger ? valuation.actualAmount : 0
+      }
     };
   });
 
@@ -273,6 +281,10 @@ async function salesReport(query = {}) {
     acc.debtAmount += toNumber(row.debtAmount);
     acc.currentCatalogFallbackCount += toNumber(row.dataQuality?.currentCatalogFallbackCount);
     acc.missingValueCount += toNumber(row.dataQuality?.missingValueCount);
+    if (row.dataQuality?.missingArLedger) {
+      acc.missingArLedgerCount += 1;
+      acc.missingArDebitAmount += toNumber(row.dataQuality?.missingArDebitAmount);
+    }
     return acc;
   }, {
     orderCount: 0,
@@ -288,7 +300,9 @@ async function salesReport(query = {}) {
     debtAmount: 0,
     duplicateOrderCount: duplicateCount,
     currentCatalogFallbackCount: 0,
-    missingValueCount: 0
+    missingValueCount: 0,
+    missingArLedgerCount: 0,
+    missingArDebitAmount: 0
   });
 
   const bySalesmanMap = new Map();

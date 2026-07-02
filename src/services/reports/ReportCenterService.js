@@ -10,6 +10,8 @@ const RewardReportService = require('./RewardReportService');
 const DashboardReportService = require('./DashboardReportService');
 const HomeDashboardService = require('../dashboard/HomeDashboardService');
 const InformationReportService = require('./InformationReportService');
+const arLedgerReadService = require('../arLedgerRead.service');
+const { getReportSourceContract } = require('./ReportSourceRegistry');
 const { paginate, text, toNumber } = require('./ReportDomainUtils');
 
 const REPORT_CATEGORIES = Object.freeze([
@@ -138,6 +140,19 @@ const REPORT_DEFINITIONS = Object.freeze([
       ['inQty', 'Nhập', 'number'], ['outQty', 'Xuất', 'number'], ['balanceQty', 'Cuối', 'number'], ['note', 'Ghi chú']
     ]
   },
+  {
+    code: 'debt-current', category: 'debt', title: 'Công nợ hiện tại',
+    description: 'Số dư công nợ hiện tại/as-of từ arLedgers canonical, không bị cắt bởi dateFrom.',
+    roles: BUSINESS_ROLES, dateMode: 'none', exportType: '',
+    columns: [
+      ['customerCode', 'Mã KH'], ['customerName', 'Khách hàng'], ['salesStaffName', 'NVBH'],
+      ['deliveryStaffName', 'NVGH'], ['debit', 'Tổng phát sinh nợ', 'money'],
+      ['credit', 'Tổng phát sinh có', 'money'], ['remainingDebt', 'Công nợ hiện tại', 'money'],
+      ['orderCount', 'Đơn còn nợ', 'number'], ['ledgerCount', 'Số bút toán', 'number'], ['lastDebtDate', 'Ngày phát sinh cuối', 'date']
+    ],
+    chart: { labelKey: 'customerName', valueKey: 'remainingDebt', valueType: 'money' }
+  },
+
   {
     code: 'debt-period', category: 'debt', title: 'Công nợ khách hàng theo kỳ',
     description: 'Đầu kỳ, phát sinh bán, thu tiền, trả hàng, điều chỉnh và cuối kỳ từ arLedgers.',
@@ -314,7 +329,9 @@ function publicDefinition(definition) {
     title: definition.title,
     description: definition.description,
     dateMode: definition.dateMode,
-    exportType: definition.exportType,
+    exportMode: 'report-center',
+    canonicalExportCode: definition.code,
+    sourceContract: getReportSourceContract(definition.code),
     filters: definition.filters || [],
     columns: definition.columns,
     chart: definition.chart || null
@@ -383,6 +400,7 @@ function reportResult(definition, rows, summary, query, extra = {}) {
     const allRows = (Array.isArray(rows) ? rows : []).slice(0, maxRows);
     return {
       definition: publicDefinition(definition),
+      sourceContract: getReportSourceContract(definition.code),
       rows: allRows,
       items: allRows,
       meta: {
@@ -401,6 +419,7 @@ function reportResult(definition, rows, summary, query, extra = {}) {
   const paged = pageResult(rows, query, { defaultLimit: 50, maxLimit: 200 });
   return {
     definition: publicDefinition(definition),
+    sourceContract: getReportSourceContract(definition.code),
     rows: paged.rows,
     items: paged.rows,
     meta: paged.meta,
@@ -545,6 +564,18 @@ function normalizeDeliveryTripRows(rows = []) {
 
 function dataQualityRows({ sales, inventory, delivery, returns }) {
   const rows = [];
+  if (toNumber(sales.summary?.missingArLedgerCount) > 0) {
+    rows.push({
+      severity: 'critical',
+      domain: 'Bán hàng',
+      date: sales.dateTo || '',
+      code: 'AR-SALE',
+      name: 'AR Ledger',
+      issue: 'Đơn xác nhận kế toán thiếu AR-SALE',
+      difference: sales.summary.missingArLedgerCount,
+      amount: sales.summary.missingArDebitAmount
+    });
+  }
   for (const order of sales.sales || []) {
     const quality = order.dataQuality || {};
     if (toNumber(quality.missingValueCount) > 0) {
@@ -629,6 +660,11 @@ async function run(code, query = {}, user = {}) {
       const card = await InventoryReportService.stockCardReport({ ...baseQuery, full: '1', export: '1' });
       return reportResult(definition, card.transactions || [], card.summary || {}, query, { dateFrom: card.dateFrom, dateTo: card.dateTo, source: card.source });
     }
+    case 'debt-current': {
+      const rows = await arLedgerReadService.aggregateDebtByCustomer({ status: 'all', dateTo: baseQuery.dateTo });
+      const filteredRows = rows.filter((row) => matchesSearch(row, baseQuery, ['customerCode', 'customerName', 'salesStaffName', 'deliveryStaffName']));
+      return reportResult(definition, filteredRows, summaryForRows(filteredRows, ['debit', 'credit', 'remainingDebt', 'orderCount', 'ledgerCount']), query, { dateTo: baseQuery.dateTo || '', source: 'arLedgers_current' });
+    }
     case 'debt-period': {
       const debt = await DebtReportService.periodDebtReport({ ...baseQuery, full: '1', export: '1' });
       return reportResult(definition, debt.debts || [], debt.summary || {}, query, { dateFrom: debt.dateFrom, dateTo: debt.dateTo, source: debt.source });
@@ -641,13 +677,15 @@ async function run(code, query = {}, user = {}) {
       const rewards = await RewardReportService.rewardByCustomerReport({ ...baseQuery, full: '1', export: '1' });
       return reportResult(definition, rewards.rewards || [], rewards.summary || {}, query, { dateFrom: rewards.dateFrom, dateTo: rewards.dateTo, source: rewards.source });
     }
-    case 'delivery-by-staff':
+    case 'delivery-by-staff': {
+      const delivery = await DeliveryReportService.deliveryByStaffReport({ ...baseQuery, full: '1', export: '1' });
+      const rows = normalizeDeliveryStaffRows(delivery.byStaff || delivery.delivery || []);
+      return reportResult(definition, rows, delivery.summary || summaryForRows(rows, ['tripCount', 'orderCount', 'totalAmount', 'accountingConfirmedAmount', 'collectedAmount', 'unmasteredOrderCount']), query, { dateFrom: delivery.dateFrom, dateTo: delivery.dateTo, source: delivery.source });
+    }
     case 'delivery-trips': {
-      const delivery = await DeliveryReportService.deliveryReport({ ...baseQuery, full: '1', export: '1' });
-      const rows = definition.code === 'delivery-by-staff'
-        ? normalizeDeliveryStaffRows(delivery.byStaff || [])
-        : normalizeDeliveryTripRows(delivery.delivery || []);
-      return reportResult(definition, rows, definition.code === 'delivery-by-staff' ? summaryForRows(rows, ['tripCount', 'orderCount', 'totalAmount', 'accountingConfirmedAmount', 'collectedAmount']) : delivery.summary, query, { dateFrom: delivery.dateFrom, dateTo: delivery.dateTo, source: delivery.source });
+      const delivery = await DeliveryReportService.deliveryTripsReport({ ...baseQuery, full: '1', export: '1' });
+      const rows = normalizeDeliveryTripRows(delivery.delivery || []);
+      return reportResult(definition, rows, delivery.summary, query, { dateFrom: delivery.dateFrom, dateTo: delivery.dateTo, source: delivery.source });
     }
     case 'finance-ledger':
     case 'finance-accounts': {
@@ -678,7 +716,7 @@ async function run(code, query = {}, user = {}) {
       const [sales, inventory, delivery, returns] = await Promise.all([
         SalesReportService.salesReport({ ...baseQuery, full: '1', export: '1' }),
         InventoryReportService.inventoryMovementReport({ ...baseQuery, full: '1', export: '1' }),
-        DeliveryReportService.deliveryReport({ ...baseQuery, full: '1', export: '1' }),
+        DeliveryReportService.deliveryTripsReport({ ...baseQuery, full: '1', export: '1' }),
         ReturnReportService.returnReport({ ...baseQuery, full: '1', export: '1' })
       ]);
       const rows = dataQualityRows({ sales, inventory, delivery, returns }).filter((row) => matchesSearch(row, baseQuery));
@@ -721,7 +759,7 @@ async function overview(query = {}, user = {}) {
       { code: 'actualSales', label: 'Doanh số xác nhận', value: actualSales, type: 'money', reportCode: 'sales-detail' },
       { code: 'netSales', label: 'Doanh số ròng', value: actualSales - returnAmount, type: 'money', reportCode: 'sales-by-day' },
       { code: 'collected', label: 'Tiền đã thu', value: toNumber(data.sales?.receiptAmount), type: 'money', reportCode: 'finance-ledger' },
-      { code: 'debt', label: 'Công nợ hiện tại', value: debtAmount, type: 'money', reportCode: 'debt-period' },
+      { code: 'debt', label: 'Công nợ hiện tại', value: debtAmount, type: 'money', reportCode: 'debt-current' },
       { code: 'cash', label: 'Tồn quỹ tiền mặt', value: toNumber(finance.cashBalance), type: 'money', reportCode: 'finance-accounts' },
       { code: 'stock', label: 'Mặt hàng có tồn', value: toNumber(stockSummary.productCount || stockSummary.totalProducts || stockSummary.totalRows), type: 'number', reportCode: 'inventory-current' },
       { code: 'delivery', label: 'Đơn đã giao', value: toNumber(delivery.orderCount), type: 'number', reportCode: 'delivery-trips' },

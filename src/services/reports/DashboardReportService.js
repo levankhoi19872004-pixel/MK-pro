@@ -22,12 +22,13 @@ async function dashboardReport(query = {}) {
     return legacy.dashboardReport(query);
   }
   const { dateFrom, dateTo } = dateRange(query);
-  const [sales, stock, finance, delivery, returns, debtRows, importRows] = await Promise.all([
+  const [sales, stock, finance, delivery, returns, currentDebtRows, periodDebtRows, importRows] = await Promise.all([
     SalesReportService.salesReport({ ...query, full: '1', export: '1' }),
     InventoryReportService.currentStockReport({ full: '1' }),
     FinanceReportService.financeReport({ ...query, full: '1', export: '1' }),
-    DeliveryReportService.deliveryReport({ ...query, full: '1', export: '1' }),
+    DeliveryReportService.deliveryTripsReport({ ...query, full: '1', export: '1' }),
     ReturnReportService.returnReport({ ...query, full: '1', export: '1' }),
+    arLedgerReadService.aggregateDebtByCustomer({ status: 'all', dateTo }),
     arLedgerReadService.aggregateDebtByCustomer({ status: 'all', dateFrom, dateTo }),
     ImportOrder.aggregate([
       { $match: activeDocumentFilter() },
@@ -42,9 +43,12 @@ async function dashboardReport(query = {}) {
     ])
   ]);
 
-  const debt = Array.isArray(debtRows) ? debtRows.reduce((acc, row) => { acc.debit += toNumber(row.debit); acc.credit += toNumber(row.credit); return acc; }, { debit: 0, credit: 0 }) : {};
+  const currentDebt = Array.isArray(currentDebtRows)
+    ? currentDebtRows.reduce((sum, row) => sum + toNumber(row.remainingDebt ?? (toNumber(row.debit) - toNumber(row.credit))), 0)
+    : 0;
+  const periodDebt = Array.isArray(periodDebtRows) ? periodDebtRows.reduce((acc, row) => { acc.debit += toNumber(row.debit); acc.credit += toNumber(row.credit); return acc; }, { debit: 0, credit: 0 }) : {};
   const imports = importRows?.[0] || {};
-  const totalDebt = toNumber(debt.debit) - toNumber(debt.credit);
+  const periodNetMovement = toNumber(periodDebt.debit) - toNumber(periodDebt.credit);
   return {
     source: 'domain_report_services',
     dateFrom,
@@ -61,9 +65,13 @@ async function dashboardReport(query = {}) {
       },
       returns: returns.summary || {},
       debts: {
-        totalDebit: toNumber(debt.debit),
-        totalCredit: toNumber(debt.credit),
-        totalDebt
+        currentDebt,
+        periodDebit: toNumber(periodDebt.debit),
+        periodCredit: toNumber(periodDebt.credit),
+        periodNetMovement,
+        totalDebit: toNumber(periodDebt.debit),
+        totalCredit: toNumber(periodDebt.credit),
+        totalDebt: currentDebt
       },
       stock: stock.summary || {},
       finance: finance.summary || {},

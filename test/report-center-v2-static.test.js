@@ -12,7 +12,7 @@ const client = require('./helpers/sourceBundle.util').readSource('public/js/app/
 
 const expectedReports = [
   'sales-kpi', 'sales-by-day', 'sales-by-staff', 'sales-by-customer', 'sales-by-product', 'sales-detail',
-  'inventory-current', 'inventory-movement', 'stock-card', 'debt-period', 'debt-ledger', 'rewards-by-customer',
+  'inventory-current', 'inventory-movement', 'stock-card', 'debt-current', 'debt-period', 'debt-ledger', 'rewards-by-customer',
   'delivery-by-staff', 'delivery-trips', 'finance-ledger', 'finance-accounts', 'returns-detail', 'data-quality'
 ];
 
@@ -45,9 +45,11 @@ test('Report Center UI renders data instead of resetting KPI values to zero', ()
   assert.doesNotMatch(client, /Không render bảng chi tiết trên web/);
 });
 
-test('Excel compatibility exports remain available after the redesign', () => {
-  for (const exportType of ['sales-report', 'debt-report', 'stock-report', 'inventory-movement-report', 'fund-report']) {
-    assert.match(html, new RegExp(`data-report-type="${exportType}"`));
+test('Excel compatibility exports bridge legacy buttons to Report Center reportCode', () => {
+  for (const reportCode of ['sales-detail', 'debt-period', 'inventory-current', 'inventory-movement', 'finance-ledger']) {
+    assert.match(html, new RegExp(`data-report-code="${reportCode}"`));
   }
-  assert.match(client, /\/api\/export\//);
+  assert.doesNotMatch(html, /data-report-type=/);
+  assert.doesNotMatch(client, /\/api\/export\//);
+  assert.match(client, /ExcelInteraction\.downloadWorkbook\(\{type:\s*'REPORT'[\s\S]*reportCode/);
 });

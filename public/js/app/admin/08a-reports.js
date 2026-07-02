@@ -191,19 +191,23 @@ function reportDateParams(definition){
   return params;
 }
 
-function exportReportExcel(type){
-  const cleanType=String(type||'').trim();
-  if(!cleanType)return;
+async function exportReportCodeExcel(reportCode){
+  const code=String(reportCode||'').trim();
+  if(!code)return;
   setReportDefaults();
-  const params=new URLSearchParams();
-  const from=reportFromDate?.value||'';
-  const to=reportToDate?.value||'';
-  if(cleanType!=='stock-report'){
-    if(from)params.set('dateFrom',from);
-    if(to)params.set('dateTo',to);
+  const definition=reportDefinition(code)||{};
+  const filters=collectReportDynamicFilters();
+  const search=String(reportSearchInput?.value||'').trim();
+  if(search)filters.q=search;
+  if(definition.dateMode==='month')filters.month=String(reportFromDate?.value||reportToday()).slice(0,7);
+  else if(definition.dateMode!=='none'){
+    if(reportFromDate?.value)filters.dateFrom=reportFromDate.value;
+    if(reportToDate?.value)filters.dateTo=reportToDate.value;
   }
-  params.set('limit','100000');
-  window.location.href=`/api/export/${encodeURIComponent(cleanType)}.xlsx?${params.toString()}`;
+  try{
+    if(!window.ExcelInteraction||typeof window.ExcelInteraction.downloadWorkbook!=='function')throw new Error('Chức năng Excel chưa sẵn sàng');
+    await window.ExcelInteraction.downloadWorkbook({type:'REPORT',scope:'FILTERED',reportCode:code,filters});
+  }catch(error){alert(error.message||'Không xuất được báo cáo Excel');}
 }
 
 async function exportActiveReportExcel(){
@@ -768,10 +772,10 @@ function goToReportPage(page){
 }
 
 function initReportExportButtons(){
-  document.querySelectorAll('.report-export-btn[data-report-type]').forEach(btn=>{
+  document.querySelectorAll('.report-export-btn[data-report-code]').forEach(btn=>{
     if(btn.dataset.boundReportExport==='1')return;
     btn.dataset.boundReportExport='1';
-    btn.addEventListener('click',()=>exportReportExcel(btn.dataset.reportType));
+    btn.addEventListener('click',()=>exportReportCodeExcel(btn.dataset.reportCode));
   });
 }
 

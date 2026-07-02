@@ -369,25 +369,6 @@ async function buildUserInfoReportWorkbook(query = {}) {
   return reportWorkbook('user-info-report', 'ThongTinTaiKhoan', headers, rows, query);
 }
 
-const BUSINESS_REPORT_BUILDERS = {
-  'sales-report': buildSalesReportWorkbook,
-  'delivery-report': buildDeliveryReportWorkbook,
-  'return-report': buildReturnReportWorkbook,
-  'debt-report': buildDebtReportWorkbook,
-  'ar-ledger-detail': buildArLedgerDetailWorkbook,
-  'stock-report': buildStockReportWorkbook,
-  'inventory-movement-report': buildInventoryMovementReportWorkbook,
-  'stock-card-report': buildStockCardReportWorkbook,
-  'fund-report': buildFundReportWorkbook,
-  'salesman-report': buildSalesmanReportWorkbook,
-  'deliveryman-report': buildDeliverymanReportWorkbook,
-  'customer-sales-report': buildCustomerSalesReportWorkbook,
-  'product-sales-report': buildProductSalesReportWorkbook,
-  'product-info-report': buildProductInfoReportWorkbook,
-  'customer-info-report': buildCustomerInfoReportWorkbook,
-  'user-info-report': buildUserInfoReportWorkbook
-};
-
 async function previewImport(params) {
   return excelImportService.preview(params);
 }
@@ -428,8 +409,29 @@ async function buildCustomTemplateFile(id) {
   return importTemplateService.buildCustomTemplateFile(id);
 }
 
+
+function reportCenterColumnDescriptors(payload = {}) {
+  return (payload.definition?.columns || []).map((column) => {
+    if (Array.isArray(column)) return { key: column[0], label: column[1] || column[0] };
+    return { key: column.key, label: column.label || column.key };
+  }).filter((column) => cleanText(column.key));
+}
+
+async function buildReportCenterWorkbook(reportCode, query = {}, currentUser = {}) {
+  const payload = await ReportCenterService.run(reportCode, { ...query, __exportAll: true }, currentUser);
+  const columns = reportCenterColumnDescriptors(payload);
+  const headers = columns.map((column) => column.label);
+  const rows = (payload.rows || []).map((row, idx) => {
+    const output = { STT: idx + 1 };
+    for (const column of columns) output[column.label] = row[column.key] ?? '';
+    return output;
+  });
+  const sheetName = cleanText(payload.definition?.title || reportCode).slice(0, 31) || 'BaoCao';
+  return reportWorkbook(reportCode, sheetName, ['STT', ...headers], rows, query);
+}
+
 function getExportTypes() {
-  return [...new Set([...exportRepository.getExportTypes(), 'invoice-orders', 'vatInvoiceTT78', 'vat-non-invoice-orders', 'sse-invoice-orders', 'sse-invoice-errors', ...BUSINESS_REPORT_TYPES])].sort();
+  return [...new Set([...exportRepository.getExportTypes(), 'invoice-orders', 'vatInvoiceTT78', 'vat-non-invoice-orders', 'sse-invoice-orders', 'sse-invoice-errors', ...Object.keys(LEGACY_EXPORT_TYPE_TO_REPORT_CODE)])].sort();
 }
 
 async function exportToExcel(type, query = {}, currentUser = {}) {
@@ -453,8 +455,9 @@ async function exportToExcel(type, query = {}, currentUser = {}) {
   if (['vat-non-invoice-orders', 'vatNonInvoiceOrders'].includes(normalizedType)) {
     return buildVatNonInvoiceOrdersWorkbook(query, currentUser);
   }
-  if (BUSINESS_REPORT_BUILDERS[normalizedType]) {
-    return BUSINESS_REPORT_BUILDERS[normalizedType](query);
+  const reportCode = reportCodeForLegacyExport(normalizedType);
+  if (reportCode) {
+    return buildReportCenterWorkbook(reportCode, query, currentUser);
   }
   const rows = await exportRepository.findForExport(type, query);
   if (!rows) return { error: 'Loại dữ liệu export không hợp lệ', status: 400 };

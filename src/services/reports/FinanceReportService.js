@@ -36,10 +36,30 @@ function accountKeyOf(row = {}) {
   return `${fundType}:${account}`;
 }
 
+
+function fundLedgerCanonicalFilter(extra = {}) {
+  return {
+    ...activeDocumentFilter(),
+    active: { $ne: false },
+    isDeleted: { $ne: true },
+    deletedAt: { $in: [null, ''] },
+    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'] },
+    reversed: { $ne: true },
+    isReversal: { $ne: true },
+    reversalOf: { $in: [null, ''] },
+    $or: [
+      { accountingConfirmed: true },
+      { accountingStatus: { $in: ['confirmed', 'posted', 'locked'] } },
+      { posted: true }
+    ],
+    ...extra
+  };
+}
+
 async function loadFundLedgersUntil(query = {}) {
   const { dateFrom, dateTo } = dateRange(query);
   const rows = await FundLedger.aggregate([
-    { $match: activeDocumentFilter() },
+    { $match: fundLedgerCanonicalFilter() },
     ...businessDateStages('0000-01-01', dateTo, ['date'], '_reportBusinessDate'),
     { $sort: { fundType: 1, account: 1, _reportBusinessDate: 1, createdAt: 1, _id: 1 } }
   ]).allowDiskUse(true).exec();
@@ -175,6 +195,7 @@ module.exports = {
   fundTypeOf,
   directionOf,
   accountKeyOf,
+  fundLedgerCanonicalFilter,
   loadFundLedgersUntil,
   financeReport
 };

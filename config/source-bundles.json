@@ -20,7 +20,7 @@
         "src/services/importExportLegacy.service.source/part-02.jsfrag",
         "src/services/importExportLegacy.service.source/part-03.jsfrag"
       ],
-      "sourceSha256": "9b511e970d1d9c3077f85220a881e120e22b2d161659f06e8889121a4e644395"
+      "sourceSha256": "df581c41b0c1dd61d063f1511c2d6772c48283e3f0e5cfc704e59320a477bfc2"
     },
     {
       "target": "src/services/reportLegacy.service.js",

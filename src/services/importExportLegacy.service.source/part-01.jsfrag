@@ -18,6 +18,8 @@ const {
 } = require('./invoiceExportClassifier');
 const models = require('../models');
 const reportService = require('./reportService');
+const ReportCenterService = require('./reports/ReportCenterService');
+const { LEGACY_EXPORT_TYPE_TO_REPORT_CODE, reportCodeForLegacyExport } = require('./reports/ReportLegacyExportMap');
 const {
   pickSalesStaffCode,
   pickSalesStaffName,

@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const service = require('../src/services/reports/ReportCenterService');
 
 test('report catalog is role-scoped and management receives all report definitions', () => {
-  assert.equal(service.catalog({ role: 'admin' }).reports.length, 18);
+  assert.equal(service.catalog({ role: 'admin' }).reports.length, 19);
   assert.deepEqual(
     service.catalog({ role: 'warehouse' }).reports.map((row) => row.code),
     ['inventory-current', 'inventory-movement', 'stock-card']
