@@ -18,10 +18,10 @@ const {
 const promotionService = require('../../promotionService');
 const { isBcryptHash, hashPasswordSync } = require('../../../security/passwordPolicy');
 
+const { cleanText } = require('../core/importValue.util');
 const {
   addImportLog,
   buildUserSelectiveUpdate,
-  cleanText,
   getUserUpdateInput,
   normalizeImportRole,
   pickUserImportPayload,

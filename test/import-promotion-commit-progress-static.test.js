@@ -85,3 +85,14 @@ test('frontend commit progress label supports generic batched data writes', () =
   assert.match(part2, /const chunkMatch=step\.match\(\/\^committing:\(\\d\+\)\\\/\(\\d\+\)\$\//);
   assert.match(part2, /Đang ghi dữ liệu theo lô/);
 });
+
+test('promotion admin import uses cleanText from importValue util to avoid runtime undefined helper', () => {
+  const source = read('src/services/import/operations/adminImport.impl.js');
+
+  assert.match(source, /const \{ cleanText \} = require\('\.\.\/core\/importValue\.util'\)/);
+  const rowUtilRequireIndex = source.indexOf("require('../core/importRow.util')");
+  assert.notEqual(rowUtilRequireIndex, -1, 'admin import must import row helpers from importRow.util');
+  const rowUtilBlockStart = source.lastIndexOf('const {', rowUtilRequireIndex);
+  const rowUtilDestructuring = source.slice(rowUtilBlockStart, rowUtilRequireIndex);
+  assert.doesNotMatch(rowUtilDestructuring, /\bcleanText\b/);
+});
