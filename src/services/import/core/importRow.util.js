@@ -533,12 +533,18 @@ function pickPromotionGroupItemPayload(row = {}) {
 }
 
 function pickPromotionGroupRulePayload(row = {}) {
+  const programCode = cleanText(row.programCode || row.code || row['Mã CTKM'] || row['Ma CTKM'] || row['Mã chương trình KM'] || row['Ma chuong trinh KM'] || row['Mã chương trình'] || row['Ma chuong trinh'] || row.groupCode || row['Mã nhóm sản phẩm'] || row['Ma nhom san pham']);
+  const groupCode = cleanText(row.groupCode || row.productGroupCode || row.applyGroupCode || row['Nhóm áp dụng'] || row['Nhom ap dung'] || row['Mã nhóm sản phẩm'] || row['Ma nhom san pham'] || programCode);
+  const basis = promotionService.normalizeGroupRuleBasis(row.basis || row.calculationBasis || row['Tính theo'] || row['Tinh theo'] || row['Cách tính'] || row['Cach tinh']);
   return {
     ...rowBase(row),
-    programCode: cleanText(row.programCode || row.groupCode || row.code || row['Mã nhóm sản phẩm'] || row['Ma nhom san pham'] || row['Mã chương trình KM'] || row['Ma chuong trinh KM'] || row['Mã chương trình'] || row['Ma chuong trinh']),
+    programCode,
     programName: cleanText(row.programName || row.name || row['Nội dung chương trình KM'] || row['Noi dung chuong trinh KM'] || row['Nội dung chương trình'] || row['Noi dung chuong trinh']),
-    minAmount: toNumber(row.minAmount ?? row.requiredAmount ?? row.salesAmount ?? row['Mức doanh số cần lấy'] ?? row['Muc doanh so can lay'] ?? row['Doanh số cần lấy'] ?? row['Doanh so can lay']),
-    discountPercent: promotionService.normalizeDiscountPercent(row.discountPercent ?? row.discount ?? row['Chiết khấu'] ?? row['Chiet khau'] ?? row['CK']),
+    groupCode,
+    basis: basis || promotionService.GROUP_RULE_BASIS.ORDER_VALUE,
+    calculationBasis: basis || promotionService.GROUP_RULE_BASIS.ORDER_VALUE,
+    minAmount: toNumber(row.minAmount ?? row.threshold ?? row.requiredAmount ?? row.salesAmount ?? row.minQty ?? row.quantityThreshold ?? row['Ngưỡng từ'] ?? row['Nguong tu'] ?? row['Mức doanh số cần lấy'] ?? row['Muc doanh so can lay'] ?? row['Doanh số cần lấy'] ?? row['Doanh so can lay'] ?? row['Số lượng từ'] ?? row['So luong tu'] ?? row['Số lượng tối thiểu'] ?? row['So luong toi thieu']),
+    discountPercent: promotionService.normalizeDiscountPercent(row.discountPercent ?? row.discount ?? row['Chiết khấu %'] ?? row['Chiet khau %'] ?? row['Chiết khấu'] ?? row['Chiet khau'] ?? row['CK']),
     source: 'excel-import'
   };
 }

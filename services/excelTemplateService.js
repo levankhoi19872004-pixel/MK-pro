@@ -147,27 +147,15 @@ const TEMPLATE_DEFINITIONS = {
     notes: ['Dùng cho Tab 2: chỉ cần 2 cột để gán sản phẩm vào nhóm.', 'Các sản phẩm cùng Mã chương trình KM sẽ tự động được hiểu là một nhóm sản phẩm.', 'Mã sản phẩm phải tồn tại trong danh mục sản phẩm.']
   },
   promotionGroupRules: {
-    title: 'Mẫu import điều kiện nhóm KM',
-    fileName: 'mau-import-dieu-kien-nhom-km.xlsx',
-    columns: ['programCode', 'programName', 'minAmount', 'discountPercent'],
-    headers: ['Mã nhóm sản phẩm', 'Nội dung chương trình KM', 'Mức doanh số cần lấy', 'Chiết khấu'],
+    title: 'Mẫu import điều kiện KM / Ontop',
+    fileName: 'mau-import-dieu-kien-km-ontop.xlsx',
+    columns: ['programCode', 'programName', 'startDate', 'endDate', 'isActive', 'groupCode', 'basis', 'minAmount', 'discountPercent', 'note'],
+    headers: ['Mã CTKM', 'Nội dung chương trình', 'Từ ngày', 'Đến ngày', 'Tình trạng', 'Nhóm áp dụng', 'Tính theo', 'Ngưỡng từ', 'Chiết khấu %', 'Ghi chú'],
     sample: [
-      ['KM-NHOM-001', 'Nhóm giặt tẩy tháng 6', 5000000, 2],
-      ['KM-NHOM-001', 'Nhóm giặt tẩy tháng 6', 10000000, 4]
+      ['KM-ONTOP-001', 'Nhóm giặt tẩy đạt doanh số giảm 2%', '01/07/2026', '31/07/2026', 'Hoạt động', 'KM-NHOM-001', 'Doanh số', 5000000, 2, 'Ngưỡng từ là doanh số'],
+      ['KM-ONTOP-001', 'Nhóm giặt tẩy đạt số lượng giảm 4%', '01/07/2026', '31/07/2026', 'Hoạt động', 'KM-NHOM-001', 'Số lượng', 12, 4, 'Ngưỡng từ là số lượng lẻ']
     ],
-    notes: ['Dùng cho Tab 3: một mã nhóm có nhiều mức doanh số thì nhập nhiều dòng.', 'Doanh số nhóm được tính bằng số lượng bán × Giá bán trong danh mục sản phẩm.', 'Khi đạt nhiều mức, hệ thống lấy mức doanh số cao nhất đã đạt.']
-  },
-
-  promotionQuantityGroupDiscounts: {
-    title: 'Mẫu import CK theo số lượng nhóm SP',
-    fileName: 'mau-import-ck-theo-so-luong-nhom-sp.xlsx',
-    columns: ['programCode', 'programName', 'startDate', 'endDate', 'productGroupCode', 'productGroupName', 'productCode', 'productName', 'minQty', 'qtyUnit', 'discountPercent', 'isActive', 'note'],
-    headers: ['Mã chương trình KM', 'Tên chương trình KM', 'Từ ngày', 'Đến ngày', 'Mã nhóm SP', 'Tên nhóm SP', 'Mã sản phẩm', 'Tên sản phẩm', 'Số lượng tối thiểu', 'Đơn vị tính', '% chiết khấu', 'Trạng thái', 'Ghi chú'],
-    sample: [
-      ['QTY-NXV-001', 'NXV COMFORT/SURF đủ 12 dây giảm 17%', '01/07/2026', '31/07/2026', 'NXV_COMFORT_SURF', 'NXV COMFORT/SURF', 'SP001', 'Comfort dây 10 gói', 12, 'dây', 17, 'Hoạt động', 'Cộng gộp toàn bộ SP trong nhóm'],
-      ['QTY-NXV-001', 'NXV COMFORT/SURF đủ 12 dây giảm 17%', '01/07/2026', '31/07/2026', 'NXV_COMFORT_SURF', 'NXV COMFORT/SURF', 'SP002', 'Surf dây 10 gói', 12, 'dây', 17, 'Hoạt động', 'Cùng mã chương trình sẽ gom chung rule']
-    ],
-    notes: ['Cùng Mã chương trình KM sẽ gom nhiều dòng sản phẩm thành một rule.', 'Hệ thống cộng tổng số lượng các sản phẩm trong nhóm; đủ Số lượng tối thiểu thì giảm % trên các dòng sản phẩm thuộc nhóm.', 'Không hardcode tên nhóm; Mã nhóm SP chỉ dùng để quản trị và đối soát.', 'Mã sản phẩm phải tồn tại trong danh mục để hạn chế sai sót.']
+    notes: ['Dùng cho Tab Điều kiện KM / Ontop: một mã CTKM có thể có nhiều nhóm áp dụng, nhiều cách tính và nhiều ngưỡng.', 'Cột Tính theo nhận: Doanh số, doanh so, ds, ORDER_VALUE hoặc Số lượng, so luong, sl, QUANTITY.', 'Nếu bỏ trống Tính theo, hệ thống mặc định là Doanh số để tương thích file cũ.', 'Nếu Tính theo = Doanh số thì Ngưỡng từ là doanh số nhóm.', 'Nếu Tính theo = Số lượng thì Ngưỡng từ là tổng số lượng lẻ của nhóm sản phẩm.', 'Chiết khấu % phải lớn hơn 0.']
   },
   promotionCustomerOrderValueDiscounts: {
     title: 'Mẫu import CK thêm theo doanh số khách hàng',

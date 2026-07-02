@@ -32,7 +32,7 @@
         <div class="toolbar">
           <div>
             <h2>Quản lý khuyến mại</h2>
-            <p class="muted">Giữ nguyên 3 loại khuyến mại theo file import Excel. Trong từng tab, phần mềm gom các dòng cùng mã CTKM thành 1 chương trình để dễ sửa, hủy và quản lý thời hạn.</p>
+            <p class="muted">Quản lý các loại khuyến mại theo file import Excel. Trong từng tab, phần mềm gom các dòng cùng mã CTKM thành 1 chương trình để dễ sửa, hủy và quản lý thời hạn.</p>
           </div>
           <input id="promotionSearchAllInput" placeholder="Tìm mã CTKM, nội dung, mã SP..." />
         </div>
@@ -45,7 +45,6 @@
           <button type="button" class="active" data-promotion-program-tab="productRules">CK sản phẩm</button>
           <button type="button" data-promotion-program-tab="groupItems">Nhóm SP KM</button>
           <button type="button" data-promotion-program-tab="groupRules">Điều kiện KM / Ontop</button>
-          <button type="button" data-promotion-program-tab="quantityGroupDiscounts">SL nhóm SP</button>
           <button type="button" data-promotion-program-tab="customerOrderValueDiscounts">CK thêm theo DS</button>
         </div>
       </section>
@@ -103,23 +102,6 @@
         </section>
       </div>
 
-
-      <div id="promotionQuantityGroupDiscountPopup" class="promotion-workspace-overlay promotion-type-popup" data-promotion-popup="quantityGroupDiscounts" hidden>
-        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionQuantityGroupDiscountPopupTitle">
-          <header class="promotion-workspace-header">
-            <div>
-              <h2 id="promotionQuantityGroupDiscountPopupTitle">Tạo rule SL nhóm SP</h2>
-              <p id="promotionQuantityGroupDiscountPopupSubtitle" class="muted">Popup riêng cho rule chiết khấu theo số lượng nhóm sản phẩm.</p>
-            </div>
-            <button type="button" class="secondary promotion-workspace-close" data-promotion-popup-close="quantityGroupDiscounts">Đóng</button>
-          </header>
-          <div id="promotionQuantityGroupDiscountPopupBody" class="promotion-workspace-body"><p class="muted">Chưa chọn rule SL nhóm SP.</p></div>
-          <footer class="promotion-workspace-footer">
-            <span class="muted">Chỉ xử lý rule SL nhóm SP trong popup này.</span>
-            <button type="button" class="secondary" data-promotion-popup-close="quantityGroupDiscounts">Đóng</button>
-          </footer>
-        </section>
-      </div>
 
       <div id="promotionCustomerOrderValueDiscountPopup" class="promotion-workspace-overlay promotion-type-popup" data-promotion-popup="customerOrderValueDiscounts" hidden>
         <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionCustomerOrderValueDiscountPopupTitle">
@@ -227,46 +209,15 @@
           <section class="promotion-inline-editor">
             <h3>Thêm điều kiện khuyến mại</h3>
             <form id="promotionTierLineForm" class="form compact-form promotion-line-form">
-              <label>Nhóm sản phẩm áp dụng<select name="groupCode" id="promotionTierGroupSelect"><option value="">Chọn nhóm sản phẩm</option></select></label>
-              <label>Doanh số từ<input name="minAmount" type="number" min="0" step="1000" placeholder="VD: 1000000" /></label>
+              <label>Nhóm áp dụng<select name="groupCode" id="promotionTierGroupSelect"><option value="">Chọn nhóm sản phẩm</option></select></label>
+              <label>Tính theo<select name="basis" id="promotionTierBasisSelect"><option value="ORDER_VALUE">Tính theo doanh số</option><option value="QUANTITY">Tính theo số lượng</option></select></label>
+              <label id="promotionTierThresholdLabel">Doanh số từ<input name="minAmount" id="promotionTierThresholdInput" type="number" min="0" step="1000" placeholder="VD: 1000000" /></label>
               <label>Chiết khấu %<input name="discountPercent" type="number" min="0" step="0.01" placeholder="VD: 2" /></label>
               <button type="submit">Thêm điều kiện</button>
             </form>
           </section>
           <h3>Danh sách điều kiện và chiết khấu đi kèm</h3>
-          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Nhóm áp dụng</th><th>Từ doanh số</th><th>CK%</th><th>Sửa</th><th>Xóa</th></tr></thead><tbody id="promotionGroupRuleProgramDetailTable"><tr><td colspan="6">Chưa chọn chương trình.</td></tr></tbody></table></div>
-        </section>
-      </main>
-
-      <main id="promotionQuantityGroupDiscountProgramTab" class="promotion-management-layout promotion-program-panel" data-promotion-program-panel="quantityGroupDiscounts">
-        <section class="card promotion-program-list">
-          <div class="toolbar">
-            <div><h2>Danh sách CK theo số lượng nhóm SP</h2><p id="promotionQuantityGroupDiscountProgramCount" class="muted">Đang tải...</p></div>
-            <div class="promotion-program-actions"><button type="button" id="createPromotionQuantityGroupDiscountProgramButton">+ Tạo rule</button><button type="button" id="reloadPromotionQuantityGroupDiscountProgramsButton" class="secondary">Tải lại</button></div>
-          </div>
-          <div class="table-wrap promotion-program-table-wrap">
-            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Xem</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionQuantityGroupDiscountProgramTable"><tr><td colspan="8">Đang tải...</td></tr></tbody></table>
-          </div>
-        </section>
-        <section class="card promotion-program-detail">
-          <div class="toolbar"><div><h2>Chi tiết CK theo số lượng nhóm SP</h2><p class="muted">Cộng gộp số lượng nhiều sản phẩm trong cùng nhóm; đủ ngưỡng thì giảm % trên các dòng thuộc nhóm.</p></div></div>
-          <form id="promotionQuantityGroupDiscountProgramForm" class="form compact-form promotion-program-form">
-            <label>Mã chương trình<input name="programCode" required placeholder="VD: QTY-NXV-202607" /></label>
-            <label>Tên chương trình<input name="programName" required placeholder="VD: NXV COMFORT/SURF đủ 12 dây giảm 17%" /></label>
-            <label>Từ ngày<input name="startDate" type="date" /></label>
-            <label>Đến ngày<input name="endDate" type="date" /></label>
-            <label>Mã nhóm SP<input name="productGroupCode" required placeholder="VD: NXV_COMFORT_SURF" /></label>
-            <label>Tên nhóm SP<input name="productGroupName" placeholder="VD: NXV COMFORT/SURF" /></label>
-            <label>Số lượng tối thiểu<input name="minQty" type="number" min="1" step="1" required placeholder="VD: 12" /></label>
-            <label>Đơn vị tính<input name="qtyUnit" placeholder="VD: dây" /></label>
-            <label>% chiết khấu<input name="discountPercent" type="number" min="0.01" max="100" step="0.01" required placeholder="VD: 17" /></label>
-            <label>Trạng thái<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
-            <label class="full-row">Mã sản phẩm trong nhóm<textarea name="productCodes" rows="4" required placeholder="Mỗi dòng một mã sản phẩm hoặc phân tách bằng dấu phẩy"></textarea></label>
-            <label class="full-row">Ghi chú<input name="note" placeholder="Ghi chú nội bộ" /></label>
-            <div class="button-row"><button type="submit">Lưu rule</button><button type="button" id="cancelPromotionQuantityGroupDiscountProgramButton" class="danger">Huỷ rule</button></div>
-          </form>
-          <h3>Sản phẩm trong nhóm và điều kiện</h3>
-          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Mã SP</th><th>SL tối thiểu</th><th>CK%</th><th>Phạm vi</th><th>Trạng thái</th></tr></thead><tbody id="promotionQuantityGroupDiscountProgramDetailTable"><tr><td colspan="6">Chưa chọn chương trình.</td></tr></tbody></table></div>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Nhóm áp dụng</th><th>Tính theo</th><th>Ngưỡng từ</th><th>CK%</th><th>Sửa</th><th>Xóa</th></tr></thead><tbody id="promotionGroupRuleProgramDetailTable"><tr><td colspan="7">Chưa chọn chương trình.</td></tr></tbody></table></div>
         </section>
       </main>
 
@@ -326,7 +277,6 @@
               <option value="promotionProductRules">Import CK sản phẩm</option>
               <option value="promotionGroupItems">Import nhóm sản phẩm KM</option>
               <option value="promotionGroupRules">Import điều kiện nhóm KM</option>
-              <option value="promotionQuantityGroupDiscounts">Import CK theo số lượng nhóm SP</option>
               <option value="promotionCustomerOrderValueDiscounts">Import CK thêm theo doanh số KH</option>
             </select>
           </label>

@@ -15,12 +15,31 @@ const PROMOTION_PROGRAM_CACHE_TTL_MS = Math.max(0, Number(process.env.PROMOTION_
 const promotionProgramCache = new Map();
 const PROMOTION_PRODUCT_RULE_PROJECTION = 'id code programCode programName productCode productName discountPercent startDate endDate isActive source updatedAt';
 const PROMOTION_GROUP_ITEM_PROJECTION = 'id code programCode groupCode programName productCode productName startDate endDate isActive source updatedAt';
-const PROMOTION_GROUP_RULE_PROJECTION = 'id code programCode groupCode programName minAmount discountPercent startDate endDate isActive source updatedAt';
+const PROMOTION_GROUP_RULE_PROJECTION = 'id code programCode groupCode programName basis calculationBasis minAmount discountPercent startDate endDate isActive source updatedAt';
 const PROMOTION_PROGRAM_LIST_PROJECTION = 'id code programCode groupCode programName name content programContent description productCode productCodes customerCodes productGroupCode productGroupName startDate endDate isActive active source promotionType type minQty minOrderAmount discountPercent';
 
 function clearPromotionProgramCache() { promotionProgramCache.clear(); }
 
 function clean(value) { return String(value ?? '').trim(); }
+const GROUP_RULE_BASIS = Object.freeze({ ORDER_VALUE: 'ORDER_VALUE', QUANTITY: 'QUANTITY' });
+function stripVietnamese(value) {
+  return clean(value).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
+}
+function normalizeGroupRuleBasis(value) {
+  const raw = clean(value || '').toUpperCase();
+  const ascii = stripVietnamese(value || '').toUpperCase().replace(/[\s_\-]+/g, '');
+  if (!raw) return GROUP_RULE_BASIS.ORDER_VALUE;
+  if (raw === GROUP_RULE_BASIS.QUANTITY || ['SOLUONG', 'SL', 'QTY', 'QUANTITY'].includes(ascii)) return GROUP_RULE_BASIS.QUANTITY;
+  if (raw === GROUP_RULE_BASIS.ORDER_VALUE || raw === 'REVENUE' || ['DOANHSO', 'DS', 'ORDERVALUE', 'REVENUE'].includes(ascii)) return GROUP_RULE_BASIS.ORDER_VALUE;
+  return '';
+}
+function normalizeGroupRule(row = {}) {
+  const basis = normalizeGroupRuleBasis(row.basis || row.calculationBasis || row.conditionBasis);
+  return { ...row, basis: basis || GROUP_RULE_BASIS.ORDER_VALUE, calculationBasis: basis || GROUP_RULE_BASIS.ORDER_VALUE };
+}
+function groupRuleBasisLabel(basis) {
+  return normalizeGroupRuleBasis(basis) === GROUP_RULE_BASIS.QUANTITY ? 'số lượng' : 'doanh số';
+}
 function rx(q) { return new RegExp(String(q || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); }
 
 function normalizeDiscountPercent(value) {
@@ -282,26 +301,28 @@ async function deleteGroupItem(id) {
 async function listGroupRules(query = {}) {
   const q = clean(query.q);
   const filter = q ? { $or: [{ programCode: rx(q) }, { programName: rx(q) }] } : {};
-  return PromotionGroupRule.find(filter).select(PROMOTION_GROUP_RULE_PROJECTION).sort({ programCode: 1, minAmount: 1 }).lean();
+  return (await PromotionGroupRule.find(filter).select(PROMOTION_GROUP_RULE_PROJECTION).sort({ programCode: 1, basis: 1, minAmount: 1 }).lean()).map(normalizeGroupRule);
 }
 
 async function saveGroupRule(body = {}) {
   clearPromotionProgramCache();
-  const programCode = normalizeProgramCode(body.programCode || body.groupCode || body.code);
+  const programCode = normalizeProgramCode(body.programCode || body.code || body.maCTKM || body['Mã CTKM']);
   const programName = clean(body.programName || body.name || body.content || body.programContent);
-  const groupCode = normalizeProgramCode(body.groupCode || body.applyGroupCode || body.selectedGroupCode || programCode);
-  const minAmount = toNumber(body.minAmount ?? body.requiredAmount ?? body.salesAmount);
+  const groupCode = normalizeProgramCode(body.groupCode || body.applyGroupCode || body.selectedGroupCode || body.productGroupCode || body['Nhóm áp dụng'] || programCode);
+  const basis = normalizeGroupRuleBasis(body.basis || body.calculationBasis || body.conditionBasis || body['Tính theo'] || body['Tinh theo']);
+  const minAmount = toNumber(body.minAmount ?? body.threshold ?? body.requiredAmount ?? body.salesAmount ?? body.minQty ?? body.quantityThreshold);
   const discountPercent = normalizeDiscountPercent(body.discountPercent ?? body.discount ?? body.ck ?? body['Chiết khấu'] ?? body['Chiet khau'] ?? body['CK']);
   if (!programCode) return { error: 'Thiếu mã chương trình', status: 400 };
   if (!programName) return { error: 'Thiếu nội dung chương trình KM', status: 400 };
   if (!groupCode) return { error: 'Thiếu nhóm sản phẩm áp dụng', status: 400 };
-  if (minAmount <= 0) return { error: 'Mức doanh số cần lấy phải lớn hơn 0', status: 400 };
-  if (discountPercent < 0) return { error: 'Chiết khấu không được âm', status: 400 };
+  if (!basis) return { error: 'Cách tính điều kiện không hợp lệ', status: 400 };
+  if (minAmount <= 0) return { error: basis === GROUP_RULE_BASIS.QUANTITY ? 'Số lượng từ phải lớn hơn 0' : 'Doanh số từ phải lớn hơn 0', status: 400 };
+  if (discountPercent <= 0) return { error: 'Chiết khấu % phải lớn hơn 0', status: 400 };
   const now = dateUtil.nowIso();
   const { startDate, endDate } = normalizeProgramDates(body);
-  const id = clean(body.id) || `${programCode}__${groupCode}__${minAmount}`;
-  const existing = await PromotionGroupRule.findOne({ $or: [{ id }, { programCode, groupCode, minAmount }, { programCode, minAmount }] });
-  const payload = { id, programCode, programName, groupCode, minAmount, discountPercent, startDate, endDate, isActive: normalizeActive(body.isActive), updatedAt: now };
+  const id = clean(body.id) || `${programCode}__${groupCode}__${basis}__${minAmount}`;
+  const existing = await PromotionGroupRule.findOne({ $or: [{ id }, { programCode, groupCode, basis, minAmount }] });
+  const payload = { id, programCode, programName, groupCode, basis, calculationBasis: basis, minAmount, discountPercent, startDate, endDate, source: clean(body.source || 'manual-ui'), isActive: normalizeActive(body.isActive), updatedAt: now };
   if (existing) { Object.assign(existing, payload); return { rule: await existing.save() }; }
   return { rule: await PromotionGroupRule.create({ ...payload, createdAt: now }) };
 }
@@ -463,7 +484,7 @@ function promotionTypeConfig(typeValue) {
       type,
       source: 'promotionGroupRules',
       Model: PromotionGroupRule,
-      sort: { programCode: 1, minAmount: 1 },
+      sort: { programCode: 1, basis: 1, minAmount: 1 },
       searchFields: ['programCode', 'programName']
     };
   }
@@ -619,7 +640,7 @@ async function listPromotionProgramsByType(query = {}) {
   const cacheKey = JSON.stringify({ type: 'all', q });
   const cached = promotionProgramCache.get(cacheKey);
   if (PROMOTION_PROGRAM_CACHE_TTL_MS > 0 && cached && cached.expiresAt > Date.now()) return cached.value;
-  const types = ['productRules', 'groupItems', 'groupRules', 'quantityGroupDiscounts', 'customerOrderValueDiscounts'];
+  const types = ['productRules', 'groupItems', 'groupRules', 'customerOrderValueDiscounts'];
   const entries = await Promise.all(types.map(async (type) => [type, await listPromotionPrograms({ ...query, type })]));
   const result = Object.fromEntries(entries);
   if (PROMOTION_PROGRAM_CACHE_TTL_MS > 0) promotionProgramCache.set(cacheKey, { expiresAt: Date.now() + PROMOTION_PROGRAM_CACHE_TTL_MS, value: result });
@@ -632,7 +653,8 @@ async function getPromotionProgramDetail(programCodeValue, query = {}) {
   const cfg = promotionTypeConfig(query.type);
   const identityFilter = exactProgramCodeFilter(programCode);
   const detailFilter = cfg.promotionType ? { $and: [identityFilter, { $or: [{ promotionType: cfg.promotionType }, { type: cfg.promotionType }] }] } : identityFilter;
-  const rows = await cfg.Model.find(detailFilter).sort(cfg.sort).lean();
+  let rows = await cfg.Model.find(detailFilter).sort(cfg.sort).lean();
+  if (cfg.type === 'groupRules') rows = rows.map(normalizeGroupRule);
   if (!rows.length) return { error: 'Không tìm thấy chương trình khuyến mại', status: 404 };
   if (isPromotionModelType(cfg.type)) {
     const row = rows[0] || {};
@@ -675,7 +697,7 @@ async function getPromotionProgramDetail(programCodeValue, query = {}) {
     groupRules: cfg.type === 'groupRules' ? normalizedRows : [],
     products: cfg.type === 'productRules' ? normalizedRows.map((row) => ({ rowId: row.rowId, source: 'CK sản phẩm', productCode: row.productCode, productName: row.productName, minAmount: '', discountPercent: row.discountPercent, isActive: row.isActive !== false }))
       : cfg.type === 'groupItems' ? normalizedRows.map((row) => ({ rowId: row.rowId, source: 'Nhóm sản phẩm', productCode: row.productCode, productName: row.productName, minAmount: '', discountPercent: '', isActive: row.isActive !== false }))
-      : normalizedRows.map((row) => ({ rowId: row.rowId, source: 'Điều kiện nhóm', groupCode: row.groupCode || row.programCode, productCode: '', productName: '', minAmount: row.minAmount, discountPercent: row.discountPercent, isActive: row.isActive !== false }))
+      : normalizedRows.map((row) => ({ rowId: row.rowId, source: 'Điều kiện nhóm', groupCode: row.groupCode || row.programCode, productCode: '', productName: '', basis: normalizeGroupRuleBasis(row.basis || row.calculationBasis) || GROUP_RULE_BASIS.ORDER_VALUE, minAmount: row.minAmount, discountPercent: row.discountPercent, isActive: row.isActive !== false }))
   };
 }
 
@@ -824,8 +846,19 @@ async function updatePromotionTier(programCodeValue, rowId, body = {}) {
   if (!current) return { error: 'Không tìm thấy điều kiện khuyến mại', status: 404 };
   if (body.programName !== undefined || body.content !== undefined || body.name !== undefined) current.programName = clean(body.programName || body.content || body.name);
   if (body.groupCode !== undefined) current.groupCode = normalizeProgramCode(body.groupCode);
-  if (body.minAmount !== undefined || body.requiredAmount !== undefined || body.salesAmount !== undefined) current.minAmount = toNumber(body.minAmount ?? body.requiredAmount ?? body.salesAmount);
+  if (body.basis !== undefined || body.calculationBasis !== undefined || body.conditionBasis !== undefined) {
+    const basis = normalizeGroupRuleBasis(body.basis || body.calculationBasis || body.conditionBasis);
+    if (!basis) return { error: 'Cách tính điều kiện không hợp lệ', status: 400 };
+    current.basis = basis;
+    current.calculationBasis = basis;
+  } else if (!current.basis) {
+    current.basis = GROUP_RULE_BASIS.ORDER_VALUE;
+    current.calculationBasis = GROUP_RULE_BASIS.ORDER_VALUE;
+  }
+  if (body.minAmount !== undefined || body.threshold !== undefined || body.requiredAmount !== undefined || body.salesAmount !== undefined || body.minQty !== undefined || body.quantityThreshold !== undefined) current.minAmount = toNumber(body.minAmount ?? body.threshold ?? body.requiredAmount ?? body.salesAmount ?? body.minQty ?? body.quantityThreshold);
+  if (toNumber(current.minAmount) <= 0) return { error: current.basis === GROUP_RULE_BASIS.QUANTITY ? 'Số lượng từ phải lớn hơn 0' : 'Doanh số từ phải lớn hơn 0', status: 400 };
   if (body.discountPercent !== undefined || body.discount !== undefined || body.ck !== undefined) current.discountPercent = normalizeDiscountPercent(body.discountPercent ?? body.discount ?? body.ck);
+  if (toNumber(current.discountPercent) <= 0) return { error: 'Chiết khấu % phải lớn hơn 0', status: 400 };
   if (body.startDate !== undefined || body.fromDate !== undefined) current.startDate = normalizeProgramDates(body).startDate;
   if (body.endDate !== undefined || body.toDate !== undefined) current.endDate = normalizeProgramDates(body).endDate;
   if (body.isActive !== undefined) current.isActive = normalizeActive(body.isActive);
@@ -864,9 +897,10 @@ async function calculatePromotions(items = [], options = {}) {
   const productRuleMap = new Map(productRules.map((r) => [clean(r.productCode), r]));
   const groupItems = (await PromotionGroupItem.find({ isActive: { $ne: false }, productCode: { $in: productCodes } }).lean()).filter((rule) => isRuleActiveByDate(rule, targetDate));
   const groupCodes = Array.from(new Set(groupItems.map((i) => clean(i.programCode)).filter(Boolean)));
-  const groupRules = groupCodes.length ? (await PromotionGroupRule.find({ isActive: { $ne: false }, $or: [{ programCode: { $in: groupCodes } }, { groupCode: { $in: groupCodes } }] }).sort({ minAmount: 1 }).lean()).filter((rule) => isRuleActiveByDate(rule, targetDate)) : [];
+  const groupRules = groupCodes.length ? (await PromotionGroupRule.find({ isActive: { $ne: false }, $or: [{ programCode: { $in: groupCodes } }, { groupCode: { $in: groupCodes } }] }).sort({ basis: 1, minAmount: 1 }).lean()).map(normalizeGroupRule).filter((rule) => isRuleActiveByDate(rule, targetDate)) : [];
   const groupByProduct = new Map(groupItems.map((item) => [clean(item.productCode), clean(item.programCode)]));
   const groupTotals = new Map();
+  const groupQtyTotals = new Map();
 
   const lines = (items || []).map((item) => {
     const productCode = clean(item.productCode || item.code);
@@ -876,7 +910,10 @@ async function calculatePromotions(items = [], options = {}) {
     const catalogSalePrice = toNumber(product.salePrice ?? product.price ?? item.catalogSalePrice ?? item.salePrice ?? item.price);
     const promotionBaseAmount = Math.round(quantity * catalogSalePrice);
     const groupCode = groupByProduct.get(productCode) || '';
-    if (groupCode) groupTotals.set(groupCode, toNumber(groupTotals.get(groupCode)) + promotionBaseAmount);
+    if (groupCode) {
+      groupTotals.set(groupCode, toNumber(groupTotals.get(groupCode)) + promotionBaseAmount);
+      groupQtyTotals.set(groupCode, toNumber(groupQtyTotals.get(groupCode)) + toNumber(item.baseQty ?? quantity));
+    }
     const directRule = productRuleMap.get(productCode);
     const directPromotionRule = directRule ? {
       programCode: clean(directRule.programCode || directRule.code),
@@ -901,8 +938,16 @@ async function calculatePromotions(items = [], options = {}) {
 
   const bestGroupRule = new Map();
   for (const groupCode of groupCodes) {
-    const total = toNumber(groupTotals.get(groupCode));
-    const matched = groupRules.filter((rule) => clean(rule.groupCode || rule.programCode) === groupCode && total >= toNumber(rule.minAmount)).sort((a, b) => toNumber(b.minAmount) - toNumber(a.minAmount))[0];
+    const totalAmount = toNumber(groupTotals.get(groupCode));
+    const totalQty = toNumber(groupQtyTotals.get(groupCode));
+    const matched = groupRules
+      .filter((rule) => {
+        if (clean(rule.groupCode || rule.programCode) !== groupCode) return false;
+        const basis = normalizeGroupRuleBasis(rule.basis || rule.calculationBasis) || GROUP_RULE_BASIS.ORDER_VALUE;
+        const threshold = toNumber(rule.minAmount);
+        return basis === GROUP_RULE_BASIS.QUANTITY ? totalQty >= threshold : totalAmount >= threshold;
+      })
+      .sort((a, b) => toNumber(b.minAmount) - toNumber(a.minAmount))[0];
     if (matched) bestGroupRule.set(groupCode, matched);
   }
 
@@ -936,6 +981,9 @@ async function calculatePromotions(items = [], options = {}) {
         code: clean(groupRule.programCode || groupRule.code),
         description: clean(groupRule.programName || groupRule.name || groupRule.description || groupRule.content),
         qualifiedAmount: toNumber(groupTotals.get(line.groupCode)),
+        qualifiedQuantity: toNumber(groupQtyTotals.get(line.groupCode)),
+        calculationBasis: normalizeGroupRuleBasis(groupRule.basis || groupRule.calculationBasis) || GROUP_RULE_BASIS.ORDER_VALUE,
+        basis: normalizeGroupRuleBasis(groupRule.basis || groupRule.calculationBasis) || GROUP_RULE_BASIS.ORDER_VALUE,
         discountPercent: groupDiscountPercent,
         discountBeforeTax: Math.round(legacyGroupDiscountAmount / 1.08),
         discountAfterTax: legacyGroupDiscountAmount,
@@ -1004,6 +1052,7 @@ async function calculatePromotions(items = [], options = {}) {
   return {
     lines: resultLines,
     groupTotals: Object.fromEntries(groupTotals.entries()),
+    groupQtyTotals: Object.fromEntries(groupQtyTotals.entries()),
     orderDiscounts: engineResult.orderDiscounts || [],
     appliedPromotions: engineResult.appliedPromotions || [],
     summary: {
@@ -1022,7 +1071,7 @@ async function calculatePromotions(items = [], options = {}) {
 
 
 module.exports = {
-  normalizeDiscountPercent, PROMOTION_TYPES,
+  normalizeDiscountPercent, normalizeGroupRuleBasis, GROUP_RULE_BASIS, PROMOTION_TYPES,
   listPromotions, savePromotion, deletePromotion,
   listAdvancedPromotionRules, saveQuantityGroupDiscount, saveCustomerOrderValueDiscount, deleteAdvancedPromotionRule,
   listPromotionPrograms, listPromotionProgramsByType, getPromotionProgramDetail, updatePromotionProgram, cancelPromotionProgram,

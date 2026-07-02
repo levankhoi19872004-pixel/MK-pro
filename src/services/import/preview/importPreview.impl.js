@@ -599,12 +599,17 @@ async function previewMongoNative(type, rows = [], options = {}) {
     const seen = new Set();
     result = payloads.map((item) => {
       item.errors = [];
-      if (!item.programCode) item.errors.push('Thiếu mã nhóm sản phẩm / mã chương trình');
+      const basis = promotionService.normalizeGroupRuleBasis(item.basis || item.calculationBasis);
+      if (!item.programCode) item.errors.push('Thiếu mã CTKM / mã chương trình');
       if (!item.programName) item.errors.push('Thiếu nội dung chương trình KM');
-      if (toNumber(item.minAmount) <= 0) item.errors.push('Mức doanh số cần lấy phải lớn hơn 0');
-      if (toNumber(item.discountPercent) < 0) item.errors.push('Chiết khấu không được âm');
-      const key = `${item.programCode}__${toNumber(item.minAmount)}`;
-      if (seen.has(key)) item.errors.push('Trùng mã chương trình + mức doanh số trong file');
+      if (!item.groupCode) item.errors.push('Thiếu nhóm áp dụng');
+      if (!basis) item.errors.push('Tính theo không hợp lệ');
+      item.basis = basis || item.basis;
+      item.calculationBasis = basis || item.calculationBasis;
+      if (toNumber(item.minAmount) <= 0) item.errors.push(basis === 'QUANTITY' ? 'Số lượng từ phải lớn hơn 0' : 'Doanh số từ phải lớn hơn 0');
+      if (toNumber(item.discountPercent) <= 0) item.errors.push('Chiết khấu % phải lớn hơn 0');
+      const key = `${item.programCode}__${item.groupCode}__${basis || 'INVALID'}__${toNumber(item.minAmount)}`;
+      if (seen.has(key)) item.errors.push('Trùng mã chương trình + nhóm áp dụng + cách tính + ngưỡng trong file');
       seen.add(key);
       return { ...item, valid: item.errors.length === 0 };
     });

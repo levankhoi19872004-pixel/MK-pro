@@ -448,28 +448,35 @@ async function importPromotionGroupRules(rows = []) {
   const now = dateUtil.nowIso();
 
   const rawPayloads = rows.map(pickPromotionGroupRulePayload);
-  const { rows: payloads, duplicateCount } = dedupePromotionPayloads(rawPayloads, (p) => `${cleanText(p.programCode)}__${toNumber(p.minAmount)}`);
-  const warnings = duplicateCount ? [{ row: '', programCode: '', warning: `Có ${duplicateCount} dòng trùng mã chương trình + mức doanh số trong file. Hệ thống lấy dòng cuối cùng để import nhanh.` }] : [];
+  const { rows: payloads, duplicateCount } = dedupePromotionPayloads(rawPayloads, (p) => `${cleanText(p.programCode)}__${cleanText(p.groupCode)}__${cleanText(p.basis || 'ORDER_VALUE')}__${toNumber(p.minAmount)}`);
+  const warnings = duplicateCount ? [{ row: '', programCode: '', warning: `Có ${duplicateCount} dòng trùng mã chương trình + nhóm áp dụng + cách tính + ngưỡng trong file. Hệ thống lấy dòng cuối cùng để import nhanh.` }] : [];
 
   const ops = [];
   for (const payload of payloads) {
     const rowNo = payload.__rowNumber || payload.rowNumber || '';
     const programCode = cleanText(payload.programCode);
     const programName = cleanText(payload.programName);
+    const groupCode = cleanText(payload.groupCode || programCode);
+    const basis = promotionService.normalizeGroupRuleBasis(payload.basis || payload.calculationBasis);
     const minAmount = toNumber(payload.minAmount);
     const discountPercent = promotionService.normalizeDiscountPercent(payload.discountPercent);
 
-    if (!programCode) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Thiếu mã nhóm sản phẩm / mã chương trình' }); continue; }
+    if (!programCode) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Thiếu mã CTKM / mã chương trình' }); continue; }
     if (!programName) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Thiếu nội dung chương trình KM' }); continue; }
-    if (minAmount <= 0) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Mức doanh số cần lấy phải lớn hơn 0' }); continue; }
-    if (discountPercent < 0) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Chiết khấu không được âm' }); continue; }
+    if (!groupCode) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Thiếu nhóm áp dụng' }); continue; }
+    if (!basis) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Tính theo không hợp lệ' }); continue; }
+    if (minAmount <= 0) { skipped += 1; errors.push({ row: rowNo, programCode, error: basis === 'QUANTITY' ? 'Số lượng từ phải lớn hơn 0' : 'Doanh số từ phải lớn hơn 0' }); continue; }
+    if (discountPercent <= 0) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Chiết khấu % phải lớn hơn 0' }); continue; }
 
-    const id = cleanText(payload.id) || `${programCode}__${minAmount}`;
+    const id = cleanText(payload.id) || `${programCode}__${groupCode}__${basis}__${minAmount}`;
     const doc = {
       ...payload,
       id,
       programCode,
       programName,
+      groupCode,
+      basis,
+      calculationBasis: basis,
       minAmount,
       discountPercent,
       source: cleanText(payload.source || 'excel-import'),
@@ -477,7 +484,7 @@ async function importPromotionGroupRules(rows = []) {
       updatedAt: now
     };
     delete doc.errors; delete doc.warnings; delete doc.valid;
-    ops.push({ updateOne: { filter: { programCode, minAmount }, update: { $set: doc, $setOnInsert: { createdAt: now } }, upsert: true } });
+    ops.push({ updateOne: { filter: { programCode, groupCode, basis, minAmount }, update: { $set: doc, $setOnInsert: { createdAt: now } }, upsert: true } });
   }
 
   for (const chunk of promotionBulkChunks(ops)) {
@@ -485,7 +492,7 @@ async function importPromotionGroupRules(rows = []) {
   }
   const imported = ops.length;
   await addImportLog('promotionGroupRules', { imported, skipped, errors: errors.slice(0, 50), warnings: warnings.slice(0, 50) });
-  return { imported, skipped, errors, warnings, message: `Đã import nhanh ${imported} dòng điều kiện nhóm KM bằng bulkWrite${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
+  return { imported, skipped, errors, warnings, message: `Đã import nhanh ${imported} dòng điều kiện nhóm KM/Ontop bằng bulkWrite${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
 }
 
 async function importPromotionQuantityGroupDiscounts(rows = []) {

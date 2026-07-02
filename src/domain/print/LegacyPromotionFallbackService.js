@@ -39,9 +39,14 @@ function addToMapList(map, key, value) {
   map.get(normalized).push(value);
 }
 
-function bestGroupRule(rules = [], totalAmount = 0) {
+function normalizeBasis(rule = {}) {
+  const raw = cleanText(rule.basis || rule.calculationBasis || 'ORDER_VALUE').toUpperCase();
+  return raw === 'QUANTITY' ? 'QUANTITY' : 'ORDER_VALUE';
+}
+
+function bestGroupRule(rules = [], totalAmount = 0, totalQty = 0) {
   return rules
-    .filter((rule) => totalAmount >= toNumber(rule.minAmount))
+    .filter((rule) => (normalizeBasis(rule) === 'QUANTITY' ? totalQty : totalAmount) >= toNumber(rule.minAmount))
     .sort((a, b) => toNumber(b.minAmount) - toNumber(a.minAmount))[0] || null;
 }
 
@@ -138,7 +143,21 @@ function buildOrderGroupTotals(order = {}, productMap = new Map(), context = {})
   return totals;
 }
 
-function buildLegacyRows(item = {}, order = {}, productMap = new Map(), context = {}, groupTotals = new Map()) {
+function buildOrderGroupQtyTotals(order = {}, context = {}) {
+  const totals = new Map();
+  for (const item of asArray(order.items)) {
+    const productCode = productCodeOf(item);
+    const { line } = lineAmounts(item, order, {});
+    for (const groupItem of asArray(context.groupItemMap?.get(productCode))) {
+      const programCode = codeOf(groupItem);
+      if (!programCode) continue;
+      totals.set(programCode, toNumber(totals.get(programCode)) + toNumber(line.quantity));
+    }
+  }
+  return totals;
+}
+
+function buildLegacyRows(item = {}, order = {}, productMap = new Map(), context = {}, groupTotals = new Map(), groupQtyTotals = new Map()) {
   if (promotionRowsOf(item).length) return promotionRowsOf(item);
 
   const productCode = productCodeOf(item);
@@ -171,7 +190,8 @@ function buildLegacyRows(item = {}, order = {}, productMap = new Map(), context 
   for (const groupItem of asArray(context.groupItemMap?.get(productCode))) {
     const programCode = codeOf(groupItem);
     const groupTotal = toNumber(groupTotals.get(programCode));
-    const rule = bestGroupRule(context.groupRuleMap?.get(programCode), groupTotal);
+    const groupQty = toNumber(groupQtyTotals.get(programCode));
+    const rule = bestGroupRule(context.groupRuleMap?.get(programCode), groupTotal, groupQty);
     const percent = toNumber(rule?.discountPercent || rule?.percent || rule?.rate);
     if (!programCode || !rule || percent <= 0 || groupTotal <= 0) continue;
     const discountAfterTax = Math.round(grossAfterTax * percent / 100);
@@ -182,6 +202,9 @@ function buildLegacyRows(item = {}, order = {}, productMap = new Map(), context 
       description: nameOf(rule) || nameOf(groupItem),
       qualifiedAmount: beforeTax,
       groupQualifiedAmount: groupTotal,
+      groupQualifiedQuantity: groupQty,
+      basis: normalizeBasis(rule),
+      calculationBasis: normalizeBasis(rule),
       discountPercent: percent,
       discountBeforeTax: Math.round(discountAfterTax / 1.08),
       discountAfterTax,
@@ -214,10 +237,11 @@ async function enrichSalesOrders(orders = [], productMap = new Map()) {
     if (!PrintPromotionPolicy.shouldApplyLegacyPromotionFallback(order)) return order;
 
     const groupTotals = buildOrderGroupTotals(order, productMap, context);
+    const groupQtyTotals = buildOrderGroupQtyTotals(order, context);
     let fallbackApplied = false;
     const items = asArray(order.items).map((item) => {
       if (promotionRowsOf(item).length) return item;
-      const promotionRows = buildLegacyRows(item, order, productMap, context, groupTotals);
+      const promotionRows = buildLegacyRows(item, order, productMap, context, groupTotals, groupQtyTotals);
       if (!promotionRows.length) return item;
       fallbackApplied = true;
       return { ...item, promotionRows, legacyPromotionFallback: true };

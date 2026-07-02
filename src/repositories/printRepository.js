@@ -149,9 +149,13 @@ function addToMapList(map, key, value) {
   map.get(normalizedKey).push(value);
 }
 
-function getBestGroupRule(rules = [], totalAmount = 0) {
+function normalizePromotionBasis(rule = {}) {
+  return cleanText(rule.basis || rule.calculationBasis || 'ORDER_VALUE').toUpperCase() === 'QUANTITY' ? 'QUANTITY' : 'ORDER_VALUE';
+}
+
+function getBestGroupRule(rules = [], totalAmount = 0, totalQty = 0) {
   return rules
-    .filter((rule) => totalAmount >= toNumber(rule.minAmount))
+    .filter((rule) => (normalizePromotionBasis(rule) === 'QUANTITY' ? totalQty : totalAmount) >= toNumber(rule.minAmount))
     .sort((a, b) => toNumber(b.minAmount) - toNumber(a.minAmount))[0] || null;
 }
 
@@ -192,7 +196,8 @@ function buildPrintPromotionRowsFromRules(item = {}, product = {}, context = {})
     if (!programCode) continue;
 
     const groupTotal = toNumber(context.groupTotals?.get(programCode));
-    const groupRule = getBestGroupRule(context.groupRuleMap?.get(programCode), groupTotal);
+    const groupQty = toNumber(context.groupQtyTotals?.get(programCode));
+    const groupRule = getBestGroupRule(context.groupRuleMap?.get(programCode), groupTotal, groupQty);
     const discountPercent = toNumber(groupRule?.discountPercent || groupRule?.percent || groupRule?.rate);
     if (!groupRule || !discountPercent || lineBaseAmount <= 0 || lineGrossAmount <= 0 || groupTotal <= 0 || qty <= 0) continue;
 
@@ -205,6 +210,9 @@ function buildPrintPromotionRowsFromRules(item = {}, product = {}, context = {})
       description: getRuleProgramName(groupRule) || getRuleProgramName(groupItem),
       qualifiedAmount: lineBaseAmount,
       groupQualifiedAmount: groupTotal,
+      groupQualifiedQuantity: groupQty,
+      basis: normalizePromotionBasis(groupRule),
+      calculationBasis: normalizePromotionBasis(groupRule),
       discountPercent,
       discountBeforeTax: Math.round(discountAfterTax / 1.08),
       discountAfterTax,
@@ -337,14 +345,17 @@ async function enrichSalesOrderForPrint(order = {}) {
   for (const rule of groupRules) addToMapList(groupRuleMap, getRuleProgramCode(rule), rule);
 
   const groupTotals = new Map();
+  const groupQtyTotals = new Map();
   for (const item of items) {
     const code = getItemProductCode(item);
     const product = productMap.get(code) || {};
     const lineBaseAmount = getLinePromotionBaseAmount(item, product);
+    const qty = getItemQty(item);
     for (const groupItem of asArray(groupItemMap.get(code))) {
       const programCode = getRuleProgramCode(groupItem);
       if (!programCode) continue;
       groupTotals.set(programCode, toNumber(groupTotals.get(programCode)) + lineBaseAmount);
+      groupQtyTotals.set(programCode, toNumber(groupQtyTotals.get(programCode)) + qty);
     }
   }
 
@@ -352,7 +363,8 @@ async function enrichSalesOrderForPrint(order = {}) {
     productRuleMap,
     groupItemMap,
     groupRuleMap,
-    groupTotals
+    groupTotals,
+    groupQtyTotals
   };
 
   const enrichedItems = items.map((item) => {

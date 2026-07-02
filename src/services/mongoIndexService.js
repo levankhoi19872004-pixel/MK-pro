@@ -308,8 +308,8 @@ const INDEX_DEFINITIONS = {
     [{ missingProduct: 1, programCode: 1 }, { name: 'idx_promotion_group_items_missing_program' }]
   ],
   promotionGroupRules: [
-    [{ programCode: 1, minAmount: 1 }, { name: 'idx_promotion_group_rules_program_min_amount' }],
-    [{ groupCode: 1, minAmount: 1 }, { name: 'idx_promotion_group_rules_group_min_amount' }],
+    [{ programCode: 1, groupCode: 1, basis: 1, minAmount: 1 }, { name: 'idx_promotion_group_rules_program_group_basis_min_amount' }],
+    [{ groupCode: 1, basis: 1, minAmount: 1 }, { name: 'idx_promotion_group_rules_group_basis_min_amount' }],
     [{ programCode: 1, isActive: 1 }, { name: 'idx_promotion_group_rules_program_active' }]
   ],
   importTemplates: [[{ type: 1, name: 1 }, { name: 'idx_import_templates_type_name' }]],
