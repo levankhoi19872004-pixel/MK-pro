@@ -1,71 +1,123 @@
 'use strict';
 
-const ArLedger = require('../../models/ArLedger');
-const arLedgerReadService = require('../arLedgerRead.service');
+const orderRepository = require('../../repositories/orderRepository');
+const {
+  activeDocumentFilter,
+  accountingConfirmedFilter
+} = require('../dashboard/DashboardMongoExpressions');
 const {
   businessDate,
   firstText,
+  firstNumber,
+  inDateRange,
   paginate,
   staffIdentity,
   text,
   toNumber
 } = require('./ReportDomainUtils');
 
-const REWARD_LEDGER_PATTERN = /(^|[^a-z])(ar[_\s-]*bonus|bonus[_\s-]*allowance|bonus|reward|allowance|tra[_\s-]*thuong)([^a-z]|$)/i;
+const REWARD_AMOUNT_FIELDS = Object.freeze([
+  'deliveryCloseout.rewardAmount',
+  'rewardAmount',
+  'bonusAmount',
+  'allowanceAmount',
+  'promotionRewardAmount',
+  'displayRewardAmount',
+  'bonusReturnAmount',
+  'rewardOffsetAmount',
+  'promotionOffsetAmount',
+  // Fallback cho dữ liệu closeout cũ chỉ lưu TH/cấn trừ ở offsetAmount.
+  'deliveryCloseout.offsetAmount',
+  'offsetAmount',
+  'debtOffsetAmount',
+  'deliveryOffsetAmount',
+  'otherOffsetAmount'
+]);
 
-function ledgerDescriptor(row = {}) {
-  return [row.type, row.refType, row.sourceType, row.source, row.code, row.note]
-    .map(text)
-    .join(' ');
+const REWARD_DATE_FIELDS = Object.freeze([
+  'deliveryCloseout.confirmedAt',
+  'accountingConfirmedAt',
+  'deliveryDate',
+  'date',
+  'orderDate',
+  'documentDate',
+  'createdAt'
+]);
+
+const REWARD_SOURCE_PROJECTION = [
+  'id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderId', 'salesOrderCode',
+  'date', 'orderDate', 'documentDate', 'deliveryDate', 'createdAt', 'updatedAt',
+  'customerId', 'customerCode', 'customerName',
+  'salesStaffCode', 'salesStaffName', 'salesmanCode', 'salesmanName', 'nvbhCode', 'nvbhName',
+  'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'nvghCode', 'nvghName',
+  'status', 'deliveryStatus', 'accountingStatus', 'accountingConfirmed', 'accountingConfirmedAt', 'accountingConfirmedBy',
+  'rewardAmount', 'bonusAmount', 'allowanceAmount', 'promotionRewardAmount', 'displayRewardAmount',
+  'bonusReturnAmount', 'rewardOffsetAmount', 'promotionOffsetAmount',
+  'offsetAmount', 'debtOffsetAmount', 'deliveryOffsetAmount', 'otherOffsetAmount',
+  'deliveryCloseout', 'masterOrderId', 'masterOrderCode', 'deliveryMasterId', 'deliveryMasterCode',
+  'note', 'deliveryNote'
+].join(' ');
+
+function hasOwnNestedValue(source = {}, field = '') {
+  const raw = field.split('.').reduce((current, key) => current?.[key], source);
+  return raw !== undefined && raw !== null && text(raw) !== '';
 }
 
-function isRewardLedger(row = {}) {
-  return REWARD_LEDGER_PATTERN.test(ledgerDescriptor(row));
+function rewardAmountOf(order = {}) {
+  return Math.max(0, firstNumber(order, REWARD_AMOUNT_FIELDS, { positiveOnly: true }));
 }
 
-function rewardAmountOf(row = {}) {
-  const credit = Math.max(0, toNumber(row.credit), toNumber(row.arCredit));
-  if (credit > 0) return credit;
-  return Math.max(0, toNumber(row.amount));
+function rewardDateOf(order = {}) {
+  return order._reportBusinessDate || businessDate(order, REWARD_DATE_FIELDS);
 }
 
-function matchesRewardQuery(row = {}, query = {}) {
+function rewardSourceFieldOf(order = {}) {
+  for (const field of REWARD_AMOUNT_FIELDS) {
+    if (hasOwnNestedValue(order, field) && toNumber(field.split('.').reduce((current, key) => current?.[key], order)) > 0) return field;
+  }
+  return '';
+}
+
+function orderCodeOf(order = {}) {
+  return firstText(order, ['code', 'orderCode', 'salesOrderCode', 'documentCode', 'invoiceCode', 'id']);
+}
+
+function matchesRewardQuery(order = {}, query = {}) {
   const customerCode = text(query.customerCode || query.customerId);
-  if (customerCode && ![row.customerCode, row.customerId].map(text).includes(customerCode)) return false;
+  if (customerCode && ![order.customerCode, order.customerId].map(text).includes(customerCode)) return false;
 
   const salesStaffCode = text(query.salesStaffCode || query.salesmanCode || query.nvbhCode);
-  if (salesStaffCode && ![row.salesStaffCode, row.salesmanCode, row.nvbhCode].map(text).includes(salesStaffCode)) return false;
+  if (salesStaffCode && ![order.salesStaffCode, order.salesmanCode, order.nvbhCode].map(text).includes(salesStaffCode)) return false;
 
   const deliveryStaffCode = text(query.deliveryStaffCode || query.deliveryCode || query.nvghCode);
-  if (deliveryStaffCode && ![row.deliveryStaffCode, row.deliveryCode, row.nvghCode].map(text).includes(deliveryStaffCode)) return false;
+  if (deliveryStaffCode && ![order.deliveryStaffCode, order.deliveryCode, order.nvghCode].map(text).includes(deliveryStaffCode)) return false;
 
   const needle = text(query.q || query.search || query.keyword).toLowerCase();
   if (!needle) return true;
   return [
-    row.customerCode, row.customerId, row.customerName,
-    row.salesStaffCode, row.salesmanCode, row.salesStaffName, row.salesmanName,
-    row.deliveryStaffCode, row.deliveryStaffName,
-    row.orderCode, row.salesOrderCode, row.refCode, row.code, row.note
+    order.customerCode, order.customerId, order.customerName,
+    order.salesStaffCode, order.salesmanCode, order.salesStaffName, order.salesmanName,
+    order.deliveryStaffCode, order.deliveryStaffName,
+    orderCodeOf(order), order.masterOrderCode, order.deliveryMasterCode, order.note, order.deliveryNote
   ].some((value) => text(value).toLowerCase().includes(needle));
 }
 
-function aggregateRewardCustomers(ledgers = []) {
+function aggregateRewardCustomers(orders = []) {
   const grouped = new Map();
 
-  for (const ledger of Array.isArray(ledgers) ? ledgers : []) {
-    if (!isRewardLedger(ledger)) continue;
-    const rewardAmount = rewardAmountOf(ledger);
+  for (const order of Array.isArray(orders) ? orders : []) {
+    const rewardAmount = rewardAmountOf(order);
     if (rewardAmount <= 0) continue;
 
-    const customerCode = firstText(ledger, ['customerCode', 'customerId']);
-    const customerName = firstText(ledger, ['customerName']);
+    const customerCode = firstText(order, ['customerCode', 'customerId']);
+    const customerName = firstText(order, ['customerName']);
     const customerKey = customerCode || customerName;
     if (!customerKey) continue;
 
-    const date = ledger._reportBusinessDate || businessDate(ledger, ['date']);
-    const salesStaff = staffIdentity(ledger, 'sales');
-    const deliveryStaff = staffIdentity(ledger, 'delivery');
-    const orderCode = firstText(ledger, ['orderCode', 'salesOrderCode', 'sourceOrderCode', 'refCode']);
+    const date = rewardDateOf(order);
+    const salesStaff = staffIdentity(order, 'sales');
+    const deliveryStaff = staffIdentity(order, 'delivery');
+    const orderCode = orderCodeOf(order);
 
     if (!grouped.has(customerKey)) {
       grouped.set(customerKey, {
@@ -80,7 +132,8 @@ function aggregateRewardCustomers(ledgers = []) {
         totalRewardAmount: 0,
         firstRewardDate: date,
         lastRewardDate: date,
-        latestOrderCode: orderCode
+        latestOrderCode: orderCode,
+        latestRewardSourceField: rewardSourceFieldOf(order)
       });
     }
 
@@ -92,6 +145,7 @@ function aggregateRewardCustomers(ledgers = []) {
     if (date && (!target.lastRewardDate || date >= target.lastRewardDate)) {
       target.lastRewardDate = date;
       target.latestOrderCode = orderCode || target.latestOrderCode;
+      target.latestRewardSourceField = rewardSourceFieldOf(order) || target.latestRewardSourceField;
     }
     if (!target.customerCode && customerCode) target.customerCode = customerCode;
     if (!target.customerName && customerName) target.customerName = customerName;
@@ -113,39 +167,32 @@ function aggregateRewardCustomers(ledgers = []) {
       || text(a.customerName).localeCompare(text(b.customerName), 'vi'));
 }
 
-async function loadRewardLedgerRows(query = {}, dateFrom, dateTo) {
-  const canonicalRows = await arLedgerReadService.getCanonicalArLedgers({ status: 'all', dateFrom, dateTo });
-  if (Array.isArray(canonicalRows) && canonicalRows.length) return canonicalRows;
+function rewardOrderFilter() {
+  return {
+    ...activeDocumentFilter(),
+    ...accountingConfirmedFilter(),
+    $or: REWARD_AMOUNT_FIELDS.map((field) => ({ [field]: { $gt: 0 } }))
+  };
+}
 
-  // Phase81 availability: keep production runtime on arLedgerReadService.
-  // Some legacy report-center unit tests monkey-patch the model aggregate method instead of
-  // the read service; this test-only compatibility branch lets those fixtures exercise
-  // the report aggregation contract without reintroducing raw AR reads in production.
-  if (process.env.NODE_ENV !== 'production' && ArLedger && typeof ArLedger.aggregate === 'function') {
-    const aggregate = ArLedger['aggregate'];
-    const aggregateQuery = aggregate.call(ArLedger, [
-      { $match: { account: 'AR' } },
-      { $limit: 5000 }
-    ]);
-    const executable = aggregateQuery && typeof aggregateQuery.allowDiskUse === 'function' ? aggregateQuery.allowDiskUse(true) : aggregateQuery;
-    if (executable && typeof executable.exec === 'function') {
-      const legacyRows = await executable.exec();
-      return Array.isArray(legacyRows) ? legacyRows : [];
-    }
-    const legacyRows = await executable;
-    return Array.isArray(legacyRows) ? legacyRows : [];
-  }
-
-  return Array.isArray(canonicalRows) ? canonicalRows : [];
+async function loadRewardOrderRows(query = {}, dateFrom, dateTo) {
+  const rows = await orderRepository.findAll(rewardOrderFilter(), {
+    limit: Math.min(Math.max(Number(query.maxScanRows || query.__exportMaxRows || 50000), 1), 50000),
+    projection: REWARD_SOURCE_PROJECTION,
+    sort: { deliveryDate: -1, date: -1, updatedAt: -1 }
+  });
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({ ...row, _reportBusinessDate: rewardDateOf(row) }))
+    .filter((row) => inDateRange(row._reportBusinessDate, { dateFrom, dateTo }));
 }
 
 async function rewardByCustomerReport(query = {}) {
   const dateFrom = String(query.dateFrom || query.from || query.fromDate || '0000-01-01');
   const dateTo = String(query.dateTo || query.to || query.toDate || '9999-12-31');
-  const rows = await loadRewardLedgerRows(query, dateFrom, dateTo);
+  const rows = await loadRewardOrderRows(query, dateFrom, dateTo);
 
   const filtered = rows
-    .filter((row) => isRewardLedger(row))
+    .filter((row) => rewardAmountOf(row) > 0)
     .filter((row) => matchesRewardQuery(row, query));
   const customers = aggregateRewardCustomers(filtered);
   const summary = customers.reduce((acc, row) => {
@@ -160,7 +207,8 @@ async function rewardByCustomerReport(query = {}) {
     orderCount: 0,
     totalRewardAmount: 0,
     averageRewardPerCustomer: 0,
-    averageRewardPerTransaction: 0
+    averageRewardPerTransaction: 0,
+    sourceOrderCount: filtered.length
   });
   summary.averageRewardPerCustomer = summary.customerCount > 0
     ? summary.totalRewardAmount / summary.customerCount
@@ -171,8 +219,14 @@ async function rewardByCustomerReport(query = {}) {
 
   const paged = paginate(customers, query, { defaultLimit: 50, maxLimit: 200 });
   return {
-    source: 'mongo_ar_ledgers_bonus',
-    ledgerCollection: 'arLedgers',
+    source: 'orders_delivery_closeout_reward',
+    rewardCollection: 'orders',
+    sourceContract: {
+      primaryCollection: 'orders',
+      amountFields: REWARD_AMOUNT_FIELDS,
+      dateFields: REWARD_DATE_FIELDS,
+      accountingScope: 'accounting_confirmed_delivery_closeout'
+    },
     dateFrom: String(query.dateFrom || query.from || query.fromDate || ''),
     dateTo: String(query.dateTo || query.to || query.toDate || ''),
     rewards: paged.rows,
@@ -183,10 +237,13 @@ async function rewardByCustomerReport(query = {}) {
 }
 
 module.exports = {
-  REWARD_LEDGER_PATTERN,
-  loadRewardLedgerRows,
-  isRewardLedger,
+  REWARD_AMOUNT_FIELDS,
+  REWARD_DATE_FIELDS,
+  rewardOrderFilter,
+  loadRewardOrderRows,
   rewardAmountOf,
+  rewardDateOf,
+  rewardSourceFieldOf,
   aggregateRewardCustomers,
   rewardByCustomerReport
 };

@@ -178,7 +178,7 @@ const REPORT_DEFINITIONS = Object.freeze([
   },
   {
     code: 'rewards-by-customer', category: 'debt', title: 'Khách hàng đã trả thưởng',
-    description: 'Lọc các nhà đã được trả thưởng/cấn trừ công nợ trong kỳ từ bút toán AR-BONUS.',
+    description: 'Lọc các khách hàng có trả thưởng/cấn trừ trên salesOrders.deliveryCloseout trong kỳ đã xác nhận kế toán.',
     roles: BUSINESS_ROLES, dateMode: 'range', exportType: '',
     columns: [
       ['customerCode', 'Mã KH'], ['customerName', 'Khách hàng'],

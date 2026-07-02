@@ -101,12 +101,19 @@ const RAW_REPORT_SOURCE_REGISTRY = {
     forbiddenCollections: ['ArDebtCustomer', 'ArDebtOrder', 'salesOrders.debtAmount', 'salesOrders.remainingDebt', REPORTING_SNAPSHOT_COLLECTION]
   },
   'rewards-by-customer': {
-    primaryCollections: ['arLedgers', 'orders'],
+    primaryCollections: ['orders'],
+    secondaryCollections: ['deliveryCloseoutVersions', 'deliveryCloseoutCorrections'],
     service: 'RewardReportService.rewardByCustomerReport',
     exportService: 'ReportCenterService.run',
-    sourceLabel: 'Trả thưởng/cấn trừ từ AR Ledger',
+    sourceLabel: 'Trả thưởng/cấn trừ từ salesOrders.deliveryCloseout và các field reward/offset trên đơn đã xác nhận kế toán',
+    ssotRule: 'Trả thưởng vận hành giao hàng = orders/salesOrders.deliveryCloseout.rewardAmount hoặc reward/offset fields trên đơn đã accounting_confirmed; arLedgers chỉ dùng cho công nợ AR, không là nguồn chính của trả thưởng.',
+    amountSource: 'orders.deliveryCloseout.rewardAmount | orders.rewardAmount | orders.offsetAmount fallback legacy',
+    debtSource: null,
+    inventorySource: null,
+    fundSource: null,
+    deliverySource: 'orders.deliveryCloseout',
     allowedLegacyExportTypes: [],
-    forbiddenCollections: [REPORTING_SNAPSHOT_COLLECTION, 'salesOrders.debtAmount']
+    forbiddenCollections: ['arLedgers', REPORTING_SNAPSHOT_COLLECTION, 'salesOrders.debtAmount', 'salesOrders.remainingDebt']
   },
   'delivery-by-staff': {
     primaryCollections: ['orders', 'fundLedgers'],

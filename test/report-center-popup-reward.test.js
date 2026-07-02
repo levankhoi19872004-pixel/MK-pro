@@ -2,9 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const RewardReportService = require('../src/services/reports/RewardReportService');
-const arLedgerReadService = require('../src/services/arLedgerRead.service');
+const orderRepository = require('../src/repositories/orderRepository');
 const ReportCenterService = require('../src/services/reports/ReportCenterService');
 
 test('Report directory stays on the main screen and each report opens in a popup', () => {
@@ -25,26 +24,24 @@ test('Report directory stays on the main screen and each report opens in a popup
   assert.match(css, /#reportCenterModal \.report-center-dialog/);
 });
 
-test('reward customer report aggregates only positive AR bonus credits', () => {
+test('reward customer report aggregates positive reward fields from accounting-confirmed orders', () => {
   const rows = RewardReportService.aggregateRewardCustomers([
     {
-      type: 'ar_bonus', refType: 'BONUS_ALLOWANCE', code: 'AR-BONUS-SO1',
-      customerCode: 'KH01', customerName: 'Nhà A', salesStaffCode: 'NV01', salesStaffName: 'An',
-      deliveryStaffCode: 'GH01', deliveryStaffName: 'Giao 1', orderCode: 'SO1',
-      date: '2026-06-02', credit: 100000
+      code: 'SO1', customerCode: 'KH01', customerName: 'Nhà A', salesStaffCode: 'NV01', salesStaffName: 'An',
+      deliveryStaffCode: 'GH01', deliveryStaffName: 'Giao 1', deliveryDate: '2026-06-02', accountingConfirmed: true,
+      deliveryCloseout: { rewardAmount: 100000, confirmedAt: '2026-06-02' }
     },
     {
-      type: 'ar_bonus', refType: 'BONUS_ALLOWANCE', code: 'AR-BONUS-SO2',
-      customerCode: 'KH01', customerName: 'Nhà A', salesStaffCode: 'NV01', salesStaffName: 'An',
-      orderCode: 'SO2', date: '2026-06-05', amount: 50000
+      code: 'SO2', customerCode: 'KH01', customerName: 'Nhà A', salesStaffCode: 'NV01', salesStaffName: 'An',
+      deliveryDate: '2026-06-05', accountingStatus: 'confirmed', rewardAmount: 50000
     },
     {
-      type: 'ar_receipt', refType: 'RECEIPT', code: 'AR-RECEIPT-SO3',
-      customerCode: 'KH02', customerName: 'Nhà B', date: '2026-06-06', credit: 90000
+      code: 'SO3', customerCode: 'KH02', customerName: 'Nhà B', deliveryDate: '2026-06-06', accountingConfirmed: true,
+      cashAmount: 90000
     },
     {
-      type: 'ar_bonus', refType: 'BONUS_ALLOWANCE', code: 'AR-BONUS-SO4',
-      customerCode: 'KH03', customerName: 'Nhà C', date: '2026-06-07', credit: 0, amount: 0
+      code: 'SO4', customerCode: 'KH03', customerName: 'Nhà C', deliveryDate: '2026-06-07', accountingConfirmed: true,
+      deliveryCloseout: { rewardAmount: 0 }
     }
   ]);
 
@@ -59,21 +56,21 @@ test('reward customer report aggregates only positive AR bonus credits', () => {
   assert.equal(rows[0].latestOrderCode, 'SO2');
 });
 
-test('reward report is visible only to business roles and sourced from AR bonus ledger', () => {
+test('reward report is visible only to business roles and sourced from order delivery closeout', () => {
   const adminCodes = ReportCenterService.catalog({ role: 'admin' }).reports.map((row) => row.code);
   assert.ok(adminCodes.includes('rewards-by-customer'));
   assert.throws(() => ReportCenterService.assertAccess('rewards-by-customer', { role: 'warehouse' }), /không có quyền/i);
-  assert.equal(RewardReportService.isRewardLedger({ type: 'ar_bonus', refType: 'BONUS_ALLOWANCE' }), true);
-  assert.equal(RewardReportService.isRewardLedger({ type: 'ar_receipt', refType: 'RECEIPT' }), false);
+  assert.equal(RewardReportService.rewardAmountOf({ deliveryCloseout: { rewardAmount: 1000 } }), 1000);
+  assert.equal(RewardReportService.rewardAmountOf({ rewardAmount: 0, cashAmount: 9000 }), 0);
 });
 
 
 test('reward report returns only rewarded customers with summary and pagination metadata', async () => {
-  const originalGetCanonicalArLedgers = arLedgerReadService.getCanonicalArLedgers;
-  arLedgerReadService.getCanonicalArLedgers = async () => [
-    { type: 'ar_bonus', refType: 'BONUS_ALLOWANCE', customerCode: 'KH01', customerName: 'Nhà A', date: '2026-06-03', _reportBusinessDate: '2026-06-03', orderCode: 'SO1', credit: 120000 },
-    { type: 'ar_bonus', refType: 'BONUS_ALLOWANCE', customerCode: 'KH02', customerName: 'Nhà B', date: '2026-06-04', _reportBusinessDate: '2026-06-04', orderCode: 'SO2', credit: 80000 },
-    { type: 'ar_receipt', refType: 'RECEIPT', customerCode: 'KH03', customerName: 'Nhà C', date: '2026-06-04', _reportBusinessDate: '2026-06-04', credit: 90000 }
+  const originalFindAll = orderRepository.findAll;
+  orderRepository.findAll = async () => [
+    { code: 'SO1', customerCode: 'KH01', customerName: 'Nhà A', deliveryDate: '2026-06-03', accountingConfirmed: true, rewardAmount: 120000 },
+    { code: 'SO2', customerCode: 'KH02', customerName: 'Nhà B', deliveryDate: '2026-06-04', accountingStatus: 'confirmed', deliveryCloseout: { rewardAmount: 80000 } },
+    { code: 'SO3', customerCode: 'KH03', customerName: 'Nhà C', deliveryDate: '2026-06-04', accountingConfirmed: true, cashAmount: 90000 }
   ];
 
   try {
@@ -84,7 +81,8 @@ test('reward report returns only rewarded customers with summary and pagination 
       page: 1,
       limit: 1
     });
-    assert.equal(result.source, 'mongo_ar_ledgers_bonus');
+    assert.equal(result.source, 'orders_delivery_closeout_reward');
+    assert.equal(result.rewardCollection, 'orders');
     assert.equal(result.summary.customerCount, 2);
     assert.equal(result.summary.totalRewardAmount, 200000);
     assert.equal(result.meta.total, 2);
@@ -92,6 +90,6 @@ test('reward report returns only rewarded customers with summary and pagination 
     assert.equal(result.rewards.length, 1);
     assert.equal(result.rewards[0].customerCode, 'KH01');
   } finally {
-    arLedgerReadService.getCanonicalArLedgers = originalGetCanonicalArLedgers;
+    orderRepository.findAll = originalFindAll;
   }
 });
