@@ -261,7 +261,10 @@
       const json=await response.json();
       if(!response.ok||!json.ok)throw new Error(json.message||json.error||'Không tạo được bản xem trước');
       if(typeof global.renderImportPreviewFromExcel!=='function')throw new Error('Màn import chưa sẵn sàng nhận bản xem trước');
-      global.renderImportPreviewFromExcel(json);
+      global.renderImportPreviewFromExcel({...json,source:'clipboard-paste'});
+      const valid=Number(json.valid||json.validRows||0);
+      const total=Number(json.total||json.totalRows||json.rows?.length||0);
+      if(typeof global.showMessage==='function')global.showMessage(byId('importDataMessage'),`Đã tạo bản xem trước từ dữ liệu dán: ${valid}/${total} dòng hợp lệ. Hãy chọn dòng rồi bấm Import các dòng đã chọn.`);
       closeModal(pasteImportModal);
       setStatus(pasteImportStatus,'Đã tạo bản xem trước','success');
       byId('importPreviewTable')?.scrollIntoView({behavior:'smooth',block:'start'});

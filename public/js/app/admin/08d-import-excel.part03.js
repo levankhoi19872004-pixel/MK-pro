@@ -4,19 +4,21 @@ const response=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)
 ...payload.result||{},sessionId:sessionId,importSessionId:sessionId}
 ;if(payload.status==="failed"||!response.ok&&!["importing","processing"].includes(String(payload.status||"").toLowerCase())){
 throw new Error(payload.errorMessage||payload.message||`Import nền thất bại${jobId?` (${jobId})`:""}`)}await new Promise(resolve=>setTimeout(resolve,600))}
-throw new Error(`Import quá thời gian chờ${jobId?` (${jobId})`:""}. Vui lòng kiểm tra lại trạng thái phiên import.`)}async function commitImportExcel(){
-if(!importDataType||!importExcelFile)return;let stopProgressPolling=()=>{};try{const files=Array.from(importExcelFile.files||[]);if(!files.length){
-showMessage(importDataMessage,"Bạn chưa chọn file Excel",true);return}if(!importPreviewRows.length){await previewImportExcel();return}const selectedRows=getSelectedImportRows()
-;if(!selectedRows.length){showMessage(importDataMessage,"Bạn chưa chọn đơn/dòng nào để import",true);return}if(commitImportButton){commitImportButton.disabled=true
-;commitImportButton.dataset.originalText=commitImportButton.textContent||"Import các đơn đã chọn";commitImportButton.textContent="Đang import..."}
+throw new Error(`Import quá thời gian chờ${jobId?` (${jobId})`:""}. Vui lòng kiểm tra lại trạng thái phiên import.`)}async function commitImportExcel(){if(!importDataType)return
+;let stopProgressPolling=()=>{};try{const hasFile=Boolean(importExcelFile&&importExcelFile.files&&importExcelFile.files.length);if(!importPreviewRows.length){if(hasFile){
+await previewImportExcel();return}showMessage(importDataMessage,"Chưa có dữ liệu preview. Vui lòng chọn file Excel hoặc dán dữ liệu từ Excel rồi bấm Đọc dữ liệu.",true);return}
+if(!importPreviewSessionId){showMessage(importDataMessage,"Bản xem trước chưa có mã phiên import. Vui lòng tạo lại preview từ file Excel hoặc dữ liệu dán.",true);return}
+const selectedRows=getSelectedImportRows();if(!selectedRows.length){showMessage(importDataMessage,"Bạn chưa chọn đơn/dòng nào để import",true);return}if(commitImportButton){
+commitImportButton.disabled=true;commitImportButton.dataset.originalText=commitImportButton.textContent||"Import các đơn đã chọn";commitImportButton.textContent="Đang import..."}
 showMessage(importDataMessage,`Đang import ${formatNumber(selectedRows.length)} đơn/dòng đã chọn...`)
 ;stopProgressPolling=startImportCommitProgressPolling(importPreviewSessionId,selectedRows.length)
 ;const commitUrl=`/api/import/sessions/${encodeURIComponent(importPreviewSessionId)}/commit`;const res=await fetch(commitUrl,{method:"POST",headers:{
 "Content-Type":"application/json"},body:JSON.stringify({type:importDataType.value,importMode:getSelectedImportMode(),importSessionId:importPreviewSessionId,
 selectedOrderCodes:selectedRows.map(r=>String(r.documentCode||r.orderCode||r.code||r.username||"").trim()).filter(Boolean),
 selectedRowNumbers:selectedRows.map((r,index)=>getImportRowSourceNumber(r,index)).filter(Boolean),selectedProgramCodes:getSelectedImportProgramCodes(),
-selectedRowKeys:selectedRows.map((r,index)=>getImportRowSelectKey(r,index)).filter(Boolean),shortageMode:importShortageActionMode||"cut"})});let json=await res.json().catch(()=>({
-ok:false,message:`API import không trả JSON hợp lệ (HTTP ${res.status})`}));if(!json.ok)throw new Error(json.error||json.message||"Import thất bại");if(json.accepted&&json.jobId){
+selectedRowKeys:selectedRows.map((r,index)=>getImportRowSelectKey(r,index)).filter(Boolean),importSource:currentImportSource==="paste"?"paste":"file",
+shortageMode:importShortageActionMode||"cut"})});let json=await res.json().catch(()=>({ok:false,message:`API import không trả JSON hợp lệ (HTTP ${res.status})`}))
+;if(!json.ok)throw new Error(json.error||json.message||"Import thất bại");if(json.accepted&&json.jobId){
 showMessage(importDataMessage,`Đã tạo job ${json.jobId}. Tác vụ nền đang xử lý...`);json=await waitForAsyncImportCommit(importPreviewSessionId,json.jobId)}
 const shortageText=json.shortageReport&&json.shortageReport.length?` · Đã tự cắt ${displayImportAggregateQty(json.shortageSummary?.totalMissingQty||0)} sản phẩm thiếu (${money(json.shortageSummary?.totalCutAmount||0)})`:""
 ;const durationMs=Number(json.performance&&json.performance.durationMs||0);const performanceText=durationMs>0?` · ${Math.max(.1,durationMs/1e3).toFixed(1)} giây`:""
@@ -26,11 +28,13 @@ const shortageText=json.shortageReport&&json.shortageReport.length?` · Đã t�
 importPreviewTable.innerHTML=reportRows.map(r=>`\n          <tr>\n            <td>${escapeImportHtml(r.documentCode||"")}</td>\n            <td>${escapeImportHtml(r.customerName||r.customerCode||"")}</td>\n            <td>${escapeImportHtml(r.productCode||"")}</td>\n            <td>${escapeImportHtml(r.productName||"")}</td>\n            <td>${displayImportQtyTL(r.missingQuantity||0,r)}</td>\n            <td>${money(r.cutAmount||0)}</td>\n          </tr>\n        `).join("")
 ;if(importPreviewHead)importPreviewHead.innerHTML="<tr><th>Mã đơn</th><th>Khách hàng</th><th>Mã SP</th><th>Tên SP</th><th>SL thiếu</th><th>Giá trị cắt</th></tr>"}else{
 importPreviewTable.innerHTML=`<tr><td colspan="6">Import thành công. Không có hàng vượt tồn.</td></tr>`
-;if(importPreviewHead)importPreviewHead.innerHTML='<tr><th colspan="6">Báo cáo import</th></tr>'}}importPreviewRows=[];if(commitImportButton){commitImportButton.disabled=true
-;commitImportButton.textContent="Import ngay"}if(importDataType.value==="salesOrders"){if(salesOrderSourceFilter)salesOrderSourceFilter.value="DMS"}
-await refreshAfterImport(importDataType.value);if(importDataType.value==="salesOrders")await loadImportShortageReports()}catch(err){if(commitImportButton){
-commitImportButton.disabled=false;if(commitImportButton.dataset.originalText)commitImportButton.textContent=commitImportButton.dataset.originalText}
-showMessage(importDataMessage,err.message,true)}finally{stopProgressPolling()}}let activeImportShortageReport=null;function importShortageStatusLabel(status){
+;if(importPreviewHead)importPreviewHead.innerHTML='<tr><th colspan="6">Báo cáo import</th></tr>'}}importPreviewRows=[];importPreviewSessionId=""
+;window.__importPreviewRows=importPreviewRows;window.__importPreviewSessionId=importPreviewSessionId;setCurrentImportSource("none","");if(commitImportButton){
+commitImportButton.disabled=true;commitImportButton.textContent="Import các dòng đã chọn"}if(importDataType.value==="salesOrders"){
+if(salesOrderSourceFilter)salesOrderSourceFilter.value="DMS"}await refreshAfterImport(importDataType.value)
+;if(importDataType.value==="salesOrders")await loadImportShortageReports()}catch(err){if(commitImportButton){commitImportButton.disabled=false
+;if(commitImportButton.dataset.originalText)commitImportButton.textContent=commitImportButton.dataset.originalText}showMessage(importDataMessage,err.message,true)}finally{
+stopProgressPolling()}}let activeImportShortageReport=null;function importShortageStatusLabel(status){
 return status==="resolved"?"Đã xử lý":status==="in_review"?"Đang đối soát":"Chưa đối soát"}function importShortageItemStatusLabel(status){
 return status==="resolved"?"Đã xử lý":status==="verified"?"Đã kiểm tra":"Chưa kiểm tra"}function formatImportReportDate(value){if(!value)return"";const d=new Date(value)
 ;if(Number.isNaN(d.getTime()))return String(value)
@@ -72,11 +76,10 @@ if(button)button.disabled=false}}function downloadActiveImportShortageReport(){c
 ;if(downloadImportTemplateButton)downloadImportTemplateButton.addEventListener("click",downloadImportTemplate)
 ;if(previewImportButton)previewImportButton.addEventListener("click",previewImportExcel)
 ;if(commitImportButton)commitImportButton.addEventListener("click",typeof handleImportExcelAction==="function"?handleImportExcelAction:previewImportExcel)
-;if(importExcelFile)importExcelFile.addEventListener("change",()=>{importPreviewRows=[];importPreviewProgramGroups=[];importSelectedProgramCodeSet=new Set
-;window.__importPreviewProgramGroups=importPreviewProgramGroups;importPreviewProgramGroups=[];importSelectedProgramCodeSet=new Set
-;window.__importPreviewProgramGroups=importPreviewProgramGroups;if(commitImportButton){commitImportButton.disabled=!importExcelFile.files.length
-;commitImportButton.textContent="Xem trước đơn import"}if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Chọn file rồi bấm Xem trước đơn import.</td></tr>'
-;resetImportPreviewMessage()});if(importDataType)importDataType.addEventListener("change",()=>{syncImportModeAvailability();resetImportPreviewForModeChange()})
+;if(importExcelFile)importExcelFile.addEventListener("change",()=>{const hasFile=Boolean(importExcelFile.files&&importExcelFile.files.length);clearImportPreviewState({
+message:hasFile?"Chọn file rồi bấm Xem trước dữ liệu import.":"Vui lòng chọn file Excel hoặc dán trực tiếp dữ liệu từ Excel."});if(commitImportButton){
+commitImportButton.disabled=!hasFile;commitImportButton.textContent=hasFile?"Xem trước dữ liệu import":"Import các dòng đã chọn"}})
+;if(importDataType)importDataType.addEventListener("change",()=>{syncImportModeAvailability();resetImportPreviewForModeChange()})
 ;if(importDataMode)importDataMode.addEventListener("change",resetImportPreviewForModeChange);const importShortageReportTable=document.getElementById("importShortageReportTable")
 ;if(importShortageReportTable)importShortageReportTable.addEventListener("click",event=>{const button=event.target.closest(".view-import-shortage-report")
 ;if(button)openImportShortageReport(button.dataset.id)});const reloadImportShortageReportsButton=document.getElementById("reloadImportShortageReportsButton")

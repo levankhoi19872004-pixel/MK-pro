@@ -293,18 +293,19 @@
             <button type="button" id="downloadImportTemplateButton" class="secondary">Tải mẫu Excel</button>
             <button type="button" id="openExcelPasteImportButton" class="secondary">Dán trực tiếp từ Excel</button>
             <button type="button" id="previewImportButton" class="secondary" style="display:none">Xem trước</button>
-            <button type="button" id="commitImportButton" class="success" disabled>Xem trước đơn import</button>
+            <button type="button" id="commitImportButton" class="success" disabled>Import các dòng đã chọn</button>
           </div>
         </div>
 
         <div class="note-box import-guide">
           <strong>Mẫu Excel chuẩn:</strong>
-          <p>Bấm <b>Tải mẫu Excel</b> theo đúng loại import đang chọn. Sau đó chọn file và bấm <b>Import ngay</b>.</p>
+          <p>Bấm <b>Tải mẫu Excel</b> theo đúng loại import đang chọn. Sau đó chọn file Excel hoặc bấm <b>Dán trực tiếp từ Excel</b> để tạo bản xem trước.</p>
           <p>Sản phẩm/khách hàng nên import trước, sau đó mới import tồn kho, phiếu nhập, đơn bán, công nợ và quỹ tiền.</p>
           <p id="importModeHelp"><b>Cập nhật an toàn</b> chỉ áp dụng cho Sản phẩm, Khách hàng và Tài khoản: ô trống/cột thiếu giữ nguyên dữ liệu cũ; chỉ field có giá trị mới và khác dữ liệu Mongo mới được cập nhật.</p>
         </div>
 
         <p id="importDataMessage" class="message"></p>
+        <p id="importPreviewSourceNotice" class="message import-source-notice">Vui lòng chọn file Excel hoặc dán trực tiếp dữ liệu từ Excel.</p>
         <div id="importPreviewSummary" class="summary-box import-preview-summary">
           <span>Tổng dòng: <strong>0</strong></span>
           <span>Hợp lệ: <strong>0</strong></span>
@@ -313,7 +314,7 @@
         <div class="table-wrap import-preview-wrap">
           <table>
             <thead id="importPreviewHead"><tr><th>Trạng thái</th><th>Dữ liệu</th><th>Lỗi</th></tr></thead>
-            <tbody id="importPreviewTable"><tr><td colspan="3">Chọn file rồi bấm Import ngay.</td></tr></tbody>
+            <tbody id="importPreviewTable"><tr><td colspan="3">Chọn file Excel hoặc dán trực tiếp dữ liệu từ Excel để tạo preview.</td></tr></tbody>
           </table>
         </div>
 

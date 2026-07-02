@@ -7,6 +7,71 @@ const IMPORT_SESSION_ROWS_MAX=20000;
 const PROMOTION_CATALOG_IMPORT_TYPES=new Set(['promotionProductRules','promotionGroupItems']);
 let importPreviewProgramGroups=[];
 let importSelectedProgramCodeSet=new Set();
+let currentImportSource='none';
+let currentImportSourceLabel='';
+function normalizeImportSourceName(source){
+  const value=String(source||'').trim().toLowerCase();
+  if(value==='paste'||value==='clipboard-paste'||value==='excel-paste')return 'paste';
+  if(value==='file'||value==='excel-file'||value==='import-session-status')return 'file';
+  return value||'none';
+}
+function inferImportPreviewSource(result={}){
+  const explicit=normalizeImportSourceName(result.source||result.importSource||result.sourceType);
+  if(explicit==='paste')return 'paste';
+  const names=[...(Array.isArray(result.fileNames)?result.fileNames:[]),result.fileName].filter(Boolean).map(v=>String(v).toLowerCase());
+  if(names.some(name=>name.includes('clipboard-paste')||name.includes('dán trực tiếp')))return 'paste';
+  if(names.length)return 'file';
+  if(currentImportSource==='paste')return 'paste';
+  return 'file';
+}
+function getImportSourceLabel(source,result={}){
+  if(source==='paste')return 'Dán trực tiếp từ Excel';
+  const names=Array.isArray(result.fileNames)&&result.fileNames.length
+    ? result.fileNames
+    : Array.from(importExcelFile&&importExcelFile.files||[]).map(file=>file&&file.name).filter(Boolean);
+  return names.length?`File Excel: ${names.join(', ')}`:'File Excel';
+}
+function renderImportSourceNotice(message='',isError=false){
+  let target=document.getElementById('importPreviewSourceNotice');
+  if(!target&&importDataMessage&&importDataMessage.parentNode){
+    target=document.createElement('p');
+    target.id='importPreviewSourceNotice';
+    target.className='message import-source-notice';
+    importDataMessage.parentNode.insertBefore(target,importDataMessage.nextSibling);
+  }
+  if(!target)return;
+  target.textContent=message||'Vui lòng chọn file Excel hoặc dán trực tiếp dữ liệu từ Excel.';
+  target.classList.toggle('error',Boolean(isError));
+}
+function setCurrentImportSource(source,label=''){
+  currentImportSource=normalizeImportSourceName(source);
+  currentImportSourceLabel=label||'';
+  window.__currentImportSource=currentImportSource;
+  window.__currentImportSourceLabel=currentImportSourceLabel;
+  if(currentImportSource==='file'||currentImportSource==='paste')renderImportSourceNotice(`Nguồn dữ liệu: ${currentImportSourceLabel||getImportSourceLabel(currentImportSource,{})}`);
+  else renderImportSourceNotice('Vui lòng chọn file Excel hoặc dán trực tiếp dữ liệu từ Excel.');
+}
+function hasImportPreviewReady(){
+  return Boolean(importPreviewSessionId&&Array.isArray(importPreviewRows)&&importPreviewRows.length);
+}
+function clearImportPreviewState({message='Vui lòng chọn file Excel hoặc dán trực tiếp dữ liệu từ Excel.'}={}){
+  importPreviewRows=[];
+  importPreviewSessionId='';
+  importSelectedRowKeySet=new Set();
+  importPreviewProgramGroups=[];
+  importSelectedProgramCodeSet=new Set();
+  window.__importPreviewRows=importPreviewRows;
+  window.__importPreviewProgramGroups=importPreviewProgramGroups;
+  window.__importPreviewSessionId=importPreviewSessionId;
+  setCurrentImportSource('none','');
+  if(importPreviewTable)importPreviewTable.innerHTML=`<tr><td colspan="5">${escapeImportHtml(message)}</td></tr>`;
+  if(commitImportButton){
+    const hasFile=Boolean(importExcelFile&&importExcelFile.files&&importExcelFile.files.length);
+    commitImportButton.disabled=!hasFile;
+    commitImportButton.textContent=hasFile?'Xem trước dữ liệu import':'Import các dòng đã chọn';
+  }
+  resetImportPreviewMessage();
+}
 function isPromotionCatalogImportType(type){
   return PROMOTION_CATALOG_IMPORT_TYPES.has(String(type||importDataType?.value||'').trim());
 }
@@ -29,20 +94,7 @@ function syncImportModeAvailability(){
   }
 }
 function resetImportPreviewForModeChange(){
-  importPreviewRows=[];
-  importPreviewSessionId='';
-  importSelectedRowKeySet=new Set();
-  importPreviewProgramGroups=[];
-  importSelectedProgramCodeSet=new Set();
-  window.__importPreviewRows=importPreviewRows;
-  window.__importPreviewProgramGroups=importPreviewProgramGroups;
-  window.__importPreviewSessionId=importPreviewSessionId;
-  if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="5">Chọn file rồi bấm xem trước.</td></tr>';
-  if(commitImportButton){
-    commitImportButton.disabled=!(importExcelFile&&importExcelFile.files&&importExcelFile.files.length);
-    commitImportButton.textContent='Xem trước dữ liệu import';
-  }
-  resetImportPreviewMessage();
+  clearImportPreviewState({message:'Vui lòng chọn file Excel hoặc dán trực tiếp dữ liệu từ Excel rồi bấm xem trước.'});
 }
 function formatSelectiveUpdateChanges(row){
   const changes=Array.isArray(row&&row.changes)?row.changes:[];

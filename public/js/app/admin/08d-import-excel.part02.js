@@ -62,13 +62,14 @@ function renderImportShortageActions(rows=[]){const box=ensureImportShortageActi
 const shortageQty=shortageRows.reduce((sum,row)=>sum+Number(row.shortageQuantity||0),0);const shortageAmount=shortageRows.reduce((sum,row)=>sum+Number(row.shortageAmount||0),0)
 ;box.style.display="flex";importShortageActionMode="cut";if(commitImportButton)commitImportButton.disabled=false
 ;box.innerHTML=`\n    <div class="import-shortage-actions-text">\n      <b>Có ${formatNumber(shortageRows.length)} đơn vượt tồn</b>\n      <span>Hệ thống sẽ tự cắt theo tồn thực tế khi import. SL bị cắt: ${displayImportAggregateQty(shortageQty)} · Giá trị bị cắt: ${money(shortageAmount)}</span>\n    </div>`
-}function renderImportPreview(result){importShortageActionMode="";importPreviewSessionId=result.sessionId||result.importSessionId||"";importPreviewRows=result.rows||[]
-;window.__importPreviewSessionId=importPreviewSessionId;window.__importPreviewRows=importPreviewRows;if(Array.isArray(result.shortageReport)&&result.shortageReport.length){
-const byDoc=new Map;result.shortageReport.forEach(item=>{const key=String(item.documentCode||item.refCode||item.orderCode||item.code||"").trim();if(!key)return
-;if(!byDoc.has(key))byDoc.set(key,[]);byDoc.get(key).push(item)});importPreviewRows=importPreviewRows.map(row=>{const key=String(row.documentCode||row.code||"").trim()
-;const list=byDoc.get(key);if(!list||!list.length)return row;const q=list.reduce((sum,it)=>sum+Number(it.missingQuantity||it.shortageQuantity||0),0)
-;const a=list.reduce((sum,it)=>sum+Number(it.cutAmount||it.shortageAmount||0),0);return{...row,hasShortage:true,statusText:row.statusText==="Hợp lệ"?"Vượt tồn":row.statusText,
-shortageReport:list,shortageCount:list.length,shortageQuantity:q,shortageAmount:a}})}
+}function renderImportPreview(result){importShortageActionMode="";const previewSource=inferImportPreviewSource(result||{})
+;setCurrentImportSource(previewSource,getImportSourceLabel(previewSource,result||{}));importPreviewSessionId=result.sessionId||result.importSessionId||""
+;importPreviewRows=result.rows||[];window.__importPreviewSessionId=importPreviewSessionId;window.__importPreviewRows=importPreviewRows
+;if(Array.isArray(result.shortageReport)&&result.shortageReport.length){const byDoc=new Map;result.shortageReport.forEach(item=>{
+const key=String(item.documentCode||item.refCode||item.orderCode||item.code||"").trim();if(!key)return;if(!byDoc.has(key))byDoc.set(key,[]);byDoc.get(key).push(item)})
+;importPreviewRows=importPreviewRows.map(row=>{const key=String(row.documentCode||row.code||"").trim();const list=byDoc.get(key);if(!list||!list.length)return row
+;const q=list.reduce((sum,it)=>sum+Number(it.missingQuantity||it.shortageQuantity||0),0);const a=list.reduce((sum,it)=>sum+Number(it.cutAmount||it.shortageAmount||0),0);return{
+...row,hasShortage:true,statusText:row.statusText==="Hợp lệ"?"Vượt tồn":row.statusText,shortageReport:list,shortageCount:list.length,shortageQuantity:q,shortageAmount:a}})}
 importPreviewRows=normalizeImportPreviewSalesStaffFromAccounts(importPreviewRows).map(normalizeImportPreviewRowValidity);window.__importPreviewRows=importPreviewRows
 ;initImportSelectedRows(importPreviewRows);const total=Math.max(importPreviewRows.length,Number(result.total||result.totalRows||0))
 ;const valid=importPreviewRows.length===total?importPreviewRows.filter(r=>r&&r.valid).length:Number(result.valid||result.validRows||0)
@@ -77,11 +78,11 @@ importPreviewRows=normalizeImportPreviewSalesStaffFromAccounts(importPreviewRows
 ;const fileText=fileCount>1?`<span>Số file: <strong>${fileCount}</strong></span>`:""
 ;const updateText=getSelectedImportMode()==="update"?`<span>Có thay đổi: <strong>${selectable}</strong></span><span>Giữ nguyên: <strong>${unchanged}</strong></span>`:""
 ;importPreviewSummary.innerHTML=`${fileText}<span>Tổng dòng/đơn: <strong>${total}</strong></span>${updateText}<span>Hợp lệ: <strong>${valid}</strong></span><span>Lỗi: <strong>${invalid}</strong></span>`
-}if(!importPreviewRows.length){if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Không có dữ liệu import.</td></tr>'
-;if(commitImportButton)commitImportButton.disabled=true;return}if(isPromotionProductRuleImportType()){renderPromotionProductRuleGroupedPreview(total,valid,invalid)
-;renderImportShortageActions(importPreviewRows);const selected=getSelectedImportRows().length;if(commitImportButton){commitImportButton.disabled=selected<=0
-;commitImportButton.textContent="Import các mã CTKM đã chọn"}syncImportSelectedCount();return}const orderMode=importPreviewRows.some(r=>r&&r.previewMode==="order")
-;if(importPreviewHead){
+}if(!importPreviewRows.length){if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Không có dữ liệu import.</td></tr>';if(commitImportButton){
+commitImportButton.disabled=true;commitImportButton.textContent="Import các dòng đã chọn"}return}if(isPromotionProductRuleImportType()){
+renderPromotionProductRuleGroupedPreview(total,valid,invalid);renderImportShortageActions(importPreviewRows);const selected=getSelectedImportRows().length;if(commitImportButton){
+commitImportButton.disabled=selected<=0;commitImportButton.textContent="Import các mã CTKM đã chọn"}syncImportSelectedCount();return}
+const orderMode=importPreviewRows.some(r=>r&&r.previewMode==="order");if(importPreviewHead){
 importPreviewHead.innerHTML=orderMode?'<tr><th style="width:54px">Chọn</th><th>Danh sách đơn import</th></tr>':"<tr><th>Chọn</th><th>Dòng</th><th>Trạng thái</th><th>Dữ liệu</th><th>Lỗi</th></tr>"
 }if(importPreviewTable){const indexedRows=importPreviewRows.map((row,index)=>({row:row,index:index}));const removableErrorRows=indexedRows.filter(x=>!isImportRowSelectable(x.row))
 ;const shouldHideInvalidRows=isPromotionCatalogImportType()&&removableErrorRows.length>0
@@ -152,16 +153,17 @@ async function previewImportExcel(){if(!importDataType||!importExcelFile)return;
 ;importPreviewSessionId="";window.__importPreviewRows=importPreviewRows;window.__importPreviewSessionId=importPreviewSessionId
 ;if(commitImportButton)commitImportButton.disabled=true;showMessage(importDataMessage,err.message,true)}}async function previewImportExcelSilent(){
 if(!importDataType||!importExcelFile)throw new Error("Thiếu thông tin import");const files=Array.from(importExcelFile.files||[])
-;if(!files.length)throw new Error("Bạn chưa chọn file Excel");const type=importDataType.value;const importMode=getSelectedImportMode();const formData=new FormData
-;formData.append("type",importDataType.value);formData.append("importMode",getSelectedImportMode());files.forEach(file=>formData.append("files",file))
-;console.info("[IMPORT_PREVIEW_POST_STARTED]",{type:type,importMode:importMode,fileCount:files.length,fileNames:files.map(file=>file&&file.name).filter(Boolean)})
-;const res=await fetch("/api/import/preview",{method:"POST",body:formData});const json=await res.json().catch(()=>({ok:false,
-message:`API preview import không trả JSON hợp lệ (HTTP ${res.status})`}));if(!res.ok||!json.ok){
+;if(!files.length)throw new Error("Chưa có dữ liệu preview. Vui lòng chọn file Excel hoặc dán dữ liệu từ Excel rồi bấm Đọc dữ liệu.");const type=importDataType.value
+;const importMode=getSelectedImportMode();const formData=new FormData;formData.append("type",importDataType.value);formData.append("importMode",getSelectedImportMode())
+;files.forEach(file=>formData.append("files",file));console.info("[IMPORT_PREVIEW_POST_STARTED]",{type:type,importMode:importMode,fileCount:files.length,
+fileNames:files.map(file=>file&&file.name).filter(Boolean)});const res=await fetch("/api/import/preview",{method:"POST",body:formData});const json=await res.json().catch(()=>({
+ok:false,message:`API preview import không trả JSON hợp lệ (HTTP ${res.status})`}));if(!res.ok||!json.ok){
 throw new Error(json.error||json.message||`Không đọc được file import (HTTP ${res.status})`)}const sessionId=String(json.sessionId||json.importSessionId||"").trim();if(!sessionId){
 throw new Error("Backend preview không trả importSessionId sau khi tạo phiên. Hệ thống đã dừng để tránh poll phiên giả.")}
 if(res.status===202||json.accepted||String(json.status||"").toLowerCase()==="queued"){console.info("[IMPORT_PREVIEW_POST_ACCEPTED]",{sessionId:sessionId,
 status:json.status||"queued"});return await waitImportPreviewSession(sessionId)}return{...json,sessionId:sessionId,importSessionId:json.importSessionId||sessionId}}
-async function handleImportExcelAction(){if(!importPreviewRows.length){await previewImportExcel();return}await commitImportExcel()}
+async function handleImportExcelAction(){if(!importPreviewRows.length){if(importExcelFile&&importExcelFile.files&&importExcelFile.files.length){await previewImportExcel();return}
+showMessage(importDataMessage,"Chưa có dữ liệu preview. Vui lòng chọn file Excel hoặc dán dữ liệu từ Excel rồi bấm Đọc dữ liệu.",true);return}await commitImportExcel()}
 function describeImportCommitProgress(progress={},selectedCount=0){const percent=Math.max(0,Math.min(100,Number(progress.percent||0)));const step=String(progress.step||"").trim()
 ;const chunkMatch=step.match(/^committing:(\d+)\/(\d+)$/);if(chunkMatch){
 return`Đang ghi dữ liệu theo lô ${chunkMatch[1]}/${chunkMatch[2]} · ${percent}% · ${formatNumber(selectedCount)} đơn/dòng đã chọn`}const labels={
