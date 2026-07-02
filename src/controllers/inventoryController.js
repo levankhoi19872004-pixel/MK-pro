@@ -3,6 +3,7 @@
 const inventoryStockService = require('../services/inventoryStock.service');
 const asyncHandler = require('../middlewares/asyncHandler');
 const { toNumber, formatCaseLooseQty } = require('../utils/common.util');
+const { buildSourceNote } = require('../services/source-contracts/SourceNoteBuilder');
 
 function toInventoryItem(row = {}) {
   const availableQty = toNumber(row.availableQty ?? row.quantity ?? row.qty ?? row.onHand);
@@ -35,6 +36,7 @@ const current = asyncHandler(async (req, res) => {
     ok: true,
     inventorySource: 'inventories',
     source: 'inventoryStock.service',
+    sourceNote: buildSourceNote('inventory-current', { filters: req.query || {}, user: req.user || {} }),
     items,
     summary: result.summary || {
       totalRows: items.length,
@@ -55,7 +57,8 @@ const check = asyncHandler(async (req, res) => {
     shortages: result.shortages,
     rows: result.rows,
     inventorySource: 'inventories',
-    source: 'inventoryStock.service'
+    source: 'inventoryStock.service',
+    sourceNote: buildSourceNote('inventory-current', { filters: req.body || {}, user: req.user || {}, sourceWarnings: result.enough ? [] : ['Có shortage khi check tồn'] })
   });
 });
 

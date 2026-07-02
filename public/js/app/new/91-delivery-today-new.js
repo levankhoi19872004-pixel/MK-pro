@@ -92,6 +92,7 @@
           '<div class="delivery-new-filter-actions"><button id="deliveryTodayNewLoad" type="button">Tải đơn</button><button id="deliveryTodayNewReset" type="button" class="secondary">Xóa lọc</button></div>' +
         '</div>' +
         '<p id="deliveryTodayNewMessage" class="message delivery-new-filter-message"></p>' +
+        '<div id="deliveryTodayNewSourceNote" class="delivery-new-source-note"></div>' +
       '</section>' +
       '<section id="deliveryTodayNewEmptyState" class="card delivery-new-empty-state"><b>Chưa có dữ liệu</b><span>Chọn bộ lọc rồi bấm Tải đơn.</span></section>' +
       '<section class="delivery-v46-kpis delivery-new-kpis" aria-label="KPI Đơn giao hôm nay New">' +
@@ -480,6 +481,19 @@
       salesStaffCode: normalizedText(state.selectedFilters.salesStaffCode),
       deliveryDateChangedByUser: (byId('deliveryTodayNewDate') && byId('deliveryTodayNewDate').value) ? '1' : '0'
     };
+  }
+
+
+  function renderDeliverySourceNote(sourceNote) {
+    var target = byId('deliveryTodayNewSourceNote');
+    if (!target) return;
+    if (window.SourceNoteUi && typeof window.SourceNoteUi.renderSourceNote === 'function') {
+      target.innerHTML = window.SourceNoteUi.renderSourceNote(sourceNote, { compact: true, collapsible: true, defaultOpen: false });
+    } else if (sourceNote && sourceNote.primaryCollections) {
+      target.textContent = 'Nguồn số liệu: ' + sourceNote.primaryCollections.join(', ') + ' · Service: ' + (sourceNote.service || '');
+    } else {
+      target.textContent = '';
+    }
   }
 
   function setMessage(text, isError) {
@@ -1636,6 +1650,7 @@
       state.loaded = true;
       state.hasSearched = true;
       setResultSectionsVisible(true);
+      renderDeliverySourceNote(data.sourceNote || json.sourceNote || (data.sourceNotes && data.sourceNotes.orders) || null);
       updateTopKpisFromSelectedSalesmen();
       renderSalesmanGroupPanel();
       renderRows();

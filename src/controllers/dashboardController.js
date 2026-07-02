@@ -4,6 +4,29 @@ const asyncHandler = require('../middlewares/asyncHandler');
 const HomeDashboardService = require('../services/dashboard/HomeDashboardService');
 const DashboardOverviewService = require('../services/dashboard/DashboardOverviewService');
 const SalesTargetService = require('../services/dashboard/SalesTargetService');
+const { buildSourceNote } = require('../services/source-contracts/SourceNoteBuilder');
+
+
+function buildDashboardSourceNotes(req = {}) {
+  const filters = req.query || {};
+  const user = req.user || {};
+  return {
+    sales: buildSourceNote('dashboard-sales-today', { filters, user }),
+    debt: buildSourceNote('dashboard-current-debt', { filters, user }),
+    fund: buildSourceNote('dashboard-fund-balance', { filters, user }),
+    inventory: buildSourceNote('dashboard-inventory-summary', { filters, user }),
+    delivery: buildSourceNote('dashboard-delivery-today', { filters, user })
+  };
+}
+
+function withDashboardSourceNotes(result = {}, req = {}) {
+  const sourceNotes = buildDashboardSourceNotes(req);
+  return {
+    ...result,
+    sourceNote: sourceNotes.sales,
+    sourceNotes
+  };
+}
 
 function truthy(value) {
   return ['1', 'true', 'yes'].includes(String(value || '').trim().toLowerCase());
@@ -49,7 +72,7 @@ const home = asyncHandler(async (req, res) => {
 
   return res.json({
     ok: true,
-    data: result,
+    data: withDashboardSourceNotes(result, req),
     meta: {
       durationMs,
       cacheHit: result.cacheHit === true,
@@ -70,7 +93,7 @@ const overview = asyncHandler(async (req, res) => {
   });
   return res.json({
     ok: true,
-    data: result,
+    data: withDashboardSourceNotes(result, req),
     meta: {
       durationMs: Date.now() - startedAt,
       cacheHit: result.cacheHit === true,
@@ -88,7 +111,7 @@ const salesStaff = asyncHandler(async (req, res) => {
   });
   return res.json({
     ok: true,
-    data: result,
+    data: withDashboardSourceNotes(result, req),
     meta: {
       durationMs: Date.now() - startedAt,
       cacheHit: result.cacheHit === true,
@@ -106,7 +129,7 @@ const deliverySummary = asyncHandler(async (req, res) => {
   });
   return res.json({
     ok: true,
-    data: result,
+    data: withDashboardSourceNotes(result, req),
     meta: {
       durationMs: Date.now() - startedAt,
       cacheHit: result.cacheHit === true,

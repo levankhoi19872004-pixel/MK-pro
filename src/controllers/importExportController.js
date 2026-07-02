@@ -7,7 +7,28 @@ const JobSubmissionService = require('../services/background-jobs/JobSubmissionS
 const AsyncJobHttpAdapter = require('../services/background-jobs/AsyncJobHttpAdapter');
 const ImportWebDirectCommitService = require('../services/import/ImportWebDirectCommitService');
 const ImportWebDetachedCommitService = require('../services/import/ImportWebDetachedCommitService');
+const { buildSourceNote } = require('../services/source-contracts/SourceNoteBuilder');
 
+
+
+function importSourceContractCode(type = '') {
+  const normalized = String(type || '').trim();
+  if (['salesOrders', 'sales-order', 'sales_orders', 'orders', 'order'].includes(normalized)) return 'import-sales-orders';
+  if (['promotionGroups', 'promotionGroupRules', 'promotion-group-rules', 'promotionGroupItems'].includes(normalized)) return 'import-promotion-groups';
+  if (['promotionProductRules', 'promotionProducts', 'promotion-product-rules', 'promotionProduct'].includes(normalized)) return 'import-promotion-product-rules';
+  if (['products', 'product'].includes(normalized)) return 'import-products';
+  if (['customers', 'customer'].includes(normalized)) return 'import-customers';
+  return 'import-excel-preview';
+}
+
+function buildImportSourceNote(type, req = {}, files = [], extra = {}) {
+  return buildSourceNote(importSourceContractCode(type), {
+    filters: { ...(req.query || {}), ...(req.body || {}), fileNames: files.map((file) => file.originalname || file.fileName || '').filter(Boolean) },
+    user: req.user || {},
+    fileSource: files.length ? files.map((file) => file.originalname || file.fileName || 'Excel upload').join(', ') : 'Excel upload',
+    ...extra
+  });
+}
 
 function shouldRunWebDetachedImportCommit(req = {}) {
   const body = req.body || {};
@@ -73,7 +94,7 @@ async function previewImport(req, res) {
       importMode: String(req.body?.importMode || req.query?.importMode || '').trim()
     });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
-    return res.status(result.accepted ? 202 : 200).json({ ok: true, source: 'import-export-route', ...result });
+    return res.status(result.accepted ? 202 : 200).json({ ok: true, source: 'import-export-route', ...result, sourceNote: result.sourceNote || buildImportSourceNote(req.body?.type || req.query?.type, req, files) });
   } catch (err) {
     return sendSafeInternalError(
       res,
@@ -94,7 +115,7 @@ async function commitImport(req, res) {
       if (submitted.error) {
         return res.status(submitted.status || 400).json({ ok: false, message: submitted.error, ...submitted });
       }
-      return res.status(submitted.accepted ? 202 : 200).json({ ok: true, ...submitted });
+      return res.status(submitted.accepted ? 202 : 200).json({ ok: true, ...submitted, sourceNote: submitted.sourceNote || buildImportSourceNote(req.body?.type || submitted.type, req, []) });
     }
 
     const result = await ImportWebDirectCommitService.commitSession({
@@ -113,7 +134,8 @@ async function commitImport(req, res) {
     return res.json({
       ok: true,
       source: 'import-export-route',
-      ...result
+      ...result,
+      sourceNote: result.sourceNote || buildImportSourceNote(req.body?.type || result.type, req, [])
     });
   } catch (err) {
     return sendSafeInternalError(res, '[IMPORT_COMMIT_ERROR]', 'Không ghi được dữ liệu import', err);
@@ -179,7 +201,8 @@ async function sessionStatus(req, res) {
     return res.json({
       ok: true,
       source: 'import-export-route',
-      ...result
+      ...result,
+      sourceNote: result.sourceNote || buildImportSourceNote(req.body?.type || result.type, req, [])
     });
   } catch (err) {
     res.status(500).json({ ok: false, message: 'Không lấy được trạng thái import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });

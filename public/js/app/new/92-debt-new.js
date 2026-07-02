@@ -91,6 +91,7 @@
           '<button id="debtNewReset" type="button" class="secondary debt-new-reset-btn">Xóa lọc</button>' +
         '</div>' +
         '<p id="debtNewMessage" class="message debt-new-message"></p>' +
+        '<div id="debtNewSourceNote" class="debt-new-source-note"></div>' +
       '</section>' +
       '<section id="debtNewEmptyState" class="card debt-new-empty-state"><b>Chưa có dữ liệu hiển thị.</b><span>Vui lòng chọn điều kiện tìm kiếm rồi bấm Tải.</span></section>' +
       '<section class="new-kpi-grid debt-new-kpis" aria-label="KPI Công nợ New">' +
@@ -420,6 +421,19 @@
 
   function clearMainNotice() {
     setMainNotice('', 'info');
+  }
+
+
+  function renderDebtSourceNote(sourceNote) {
+    var target = byId('debtNewSourceNote');
+    if (!target) return;
+    if (window.SourceNoteUi && typeof window.SourceNoteUi.renderSourceNote === 'function') {
+      target.innerHTML = window.SourceNoteUi.renderSourceNote(sourceNote, { compact: true, collapsible: true, defaultOpen: false });
+    } else if (sourceNote && sourceNote.primaryCollections) {
+      target.textContent = 'Nguồn số liệu: ' + sourceNote.primaryCollections.join(', ') + ' · Service: ' + (sourceNote.service || '');
+    } else {
+      target.textContent = '';
+    }
   }
 
   function setMessage(text, isError) {
@@ -1007,6 +1021,7 @@
       state.hasSearched = true;
       setResultSectionsVisible(true);
       applySummary(data.summary || json.summary || {});
+      renderDebtSourceNote(data.sourceNote || json.sourceNote || null);
       renderCustomers();
       renderEmptyState(state.customers.length ? '' : 'Không tìm thấy dữ liệu phù hợp với điều kiện tìm kiếm.');
       await loadCollections({ scope: 'main', silent: true });

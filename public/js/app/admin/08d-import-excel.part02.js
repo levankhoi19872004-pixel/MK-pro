@@ -73,7 +73,7 @@ importPreviewRows=normalizeImportPreviewSalesStaffFromAccounts(importPreviewRows
 ;initImportSelectedRows(importPreviewRows);const total=Math.max(importPreviewRows.length,Number(result.total||result.totalRows||0))
 ;const valid=importPreviewRows.length===total?importPreviewRows.filter(r=>r&&r.valid).length:Number(result.valid||result.validRows||0)
 ;const selectable=importPreviewRows.filter(isImportRowSelectable).length;const unchanged=importPreviewRows.filter(r=>r&&r.action==="no_change").length
-;const invalid=Math.max(0,total-valid);if(importPreviewSummary){const fileCount=Number(result.totalFiles||0)
+;const invalid=Math.max(0,total-valid);renderImportSourceNote(result);if(importPreviewSummary){const fileCount=Number(result.totalFiles||0)
 ;const fileText=fileCount>1?`<span>Số file: <strong>${fileCount}</strong></span>`:""
 ;const updateText=getSelectedImportMode()==="update"?`<span>Có thay đổi: <strong>${selectable}</strong></span><span>Giữ nguyên: <strong>${unchanged}</strong></span>`:""
 ;importPreviewSummary.innerHTML=`${fileText}<span>Tổng dòng/đơn: <strong>${total}</strong></span>${updateText}<span>Hợp lệ: <strong>${valid}</strong></span><span>Lỗi: <strong>${invalid}</strong></span>`
@@ -96,8 +96,14 @@ inline:true})}</td>\n        </tr>`).join("")+hiddenNote}else{
 importPreviewTable.innerHTML=removedNote+visibleRows.map(({row:row,index:index})=>`\n        <tr data-import-row-number="${Number(row.rowNo||row.__rowNo||index+1)}" class="${row.valid?"import-valid":"import-invalid"}">\n          <td>${isImportRowSelectable(row)?`<input class="import-row-check" data-index="${index}" type="checkbox" />`:`<input class="import-row-check" data-index="${index}" type="checkbox" disabled title="Dòng lỗi không được import" />`}</td>\n          <td>${row.rowNo||""}</td>\n          <td><span class="badge ${row.valid?row.hasShortage?"warn":"active":"inactive"}">${escapeImportHtml(row.statusText||(row.valid?"Hợp lệ":"Lỗi"))}</span></td>\n          <td>${escapeImportHtml(importRowToText(row))}</td>\n          <td>${escapeImportHtml([(row.errors||[]).join("; "),(row.warnings||[]).join("; ")].filter(Boolean).join(" | "))}</td>\n        </tr>`).join("")+hiddenNote
 }bindImportInlinePreviewChecks()}renderImportShortageActions(importPreviewRows);if(commitImportButton){commitImportButton.disabled=selectable<=0
 ;commitImportButton.textContent=getSelectedImportMode()==="update"?"Cập nhật các dòng đã chọn":"Import các dòng đã chọn"}}window.renderImportPreviewFromExcel=renderImportPreview
-;function sleepImportPreview(ms){return new Promise(resolve=>setTimeout(resolve,ms))}async function loadAllImportSessionRows(sessionId,totalRows){
-const expected=Math.max(0,Number(totalRows||0));if(!expected)return[];if(expected>IMPORT_SESSION_ROWS_MAX){
+;function renderImportSourceNote(result={}){const target=document.getElementById("importPreviewModalReport")||document.querySelector(".import-preview-report")||importPreviewSummary
+;const sourceNote=result.sourceNote||null;if(!target||!sourceNote)return
+;const html=window.SourceNoteUi&&typeof window.SourceNoteUi.renderSourceNote==="function"?window.SourceNoteUi.renderSourceNote(sourceNote,{compact:true,collapsible:true,
+defaultOpen:false
+}):`<div class="source-note"><b>Nguồn import:</b> ${escapeImportHtml((sourceNote.primaryCollections||[]).join(", "))} · ${escapeImportHtml(sourceNote.service||"")}</div>`
+;if(target===importPreviewSummary){importPreviewSummary.insertAdjacentHTML("afterend",html)}else{target.innerHTML=html}}function sleepImportPreview(ms){
+return new Promise(resolve=>setTimeout(resolve,ms))}async function loadAllImportSessionRows(sessionId,totalRows){const expected=Math.max(0,Number(totalRows||0))
+;if(!expected)return[];if(expected>IMPORT_SESSION_ROWS_MAX){
 throw new Error(`File có ${formatNumber(expected)} dòng, vượt giới hạn xem trước ${formatNumber(IMPORT_SESSION_ROWS_MAX)} dòng. Vui lòng tách file để kiểm tra an toàn trước khi cập nhật.`)
 }const rows=[];let offset=0;while(offset<expected){
 const res=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}/rows?offset=${offset}&limit=${IMPORT_SESSION_ROWS_PAGE_SIZE}`);const json=await res.json()

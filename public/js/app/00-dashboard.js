@@ -9,6 +9,7 @@
     targetUploadButton: document.getElementById('dashboardTargetUploadButton'),
     targetUploadInput: document.getElementById('dashboardTargetUploadInput'),
     state: document.getElementById('dashboardLoadState'),
+    sourceNote: document.getElementById('dashboardSourceNote'),
     salesTable: document.getElementById('dashboardSalesTable'),
     deliveryMonthTable: document.getElementById('dashboardDeliveryMonthTable'),
     deliveryTodayTable: document.getElementById('dashboardDeliveryTodayTable'),
@@ -101,6 +102,17 @@
     return `<div class="dashboard-progress"><span>${escapeHtml(formatPercent(rate))}</span><span class="dashboard-progress-track"><span class="dashboard-progress-bar" style="width:${safeRate}%"></span></span></div>`;
   }
 
+
+  function renderDashboardSourceNote(data={}){
+    if(!elements.sourceNote) return;
+    const note=(data.sourceNotes&&data.sourceNotes.debt)||data.sourceNote||null;
+    if(window.SourceNoteUi&&typeof window.SourceNoteUi.renderSourceNote==='function'){
+      elements.sourceNote.innerHTML=window.SourceNoteUi.renderSourceNote(note,{compact:true,collapsible:true,defaultOpen:false});
+    }else{
+      elements.sourceNote.textContent=note&&note.primaryCollections?`Nguồn: ${note.primaryCollections.join(', ')} · Service: ${note.service||''}`:'';
+    }
+  }
+
   function renderSummary(summary={}){
     elements.targetTotal.textContent=formatMoney(summary.targetAmount);
     elements.salesTotal.textContent=formatMoney(summary.salesAmount);
@@ -183,6 +195,7 @@
 
   function renderDashboard(data={},options={}){
     currentDashboard={...(currentDashboard||{}),...data};
+    renderDashboardSourceNote(currentDashboard);
     renderSummary(data.summary||currentDashboard.summary||{});
     if(Array.isArray(data.salesByStaff)){
       renderSalesRows(data.salesByStaff);

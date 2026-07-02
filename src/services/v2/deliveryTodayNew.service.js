@@ -4,6 +4,17 @@ const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
 const { normalizeDebtAmount, calculateDeliveryDebtAmount, DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
 const searchService = require('../searchService');
+const { buildSourceNote } = require('../source-contracts/SourceNoteBuilder');
+
+
+function buildDeliveryTodaySourceNotes(query = {}) {
+  return {
+    orders: buildSourceNote('delivery-today-orders', { filters: query }),
+    byStaff: buildSourceNote('delivery-today-by-staff', { filters: query }),
+    collections: buildSourceNote('delivery-today-collections', { filters: query }),
+    returns: buildSourceNote('delivery-today-returns', { filters: query })
+  };
+}
 
 let models = null;
 let deliveryListService = null;
@@ -123,6 +134,8 @@ function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {
     groups: [],
     requireFilter: true,
     message: 'Chọn NVGH, NVBH hoặc nhập tìm kiếm để tải đơn.',
+    sourceNote: buildSourceNote('delivery-today-orders', { filters: query, sourceWarnings: ['Cần chọn bộ lọc trước khi đọc dữ liệu'] }),
+    sourceNotes: buildDeliveryTodaySourceNotes(query),
     diagnostics: {
       source: 'delivery-today-new-v2-guarded-empty',
       endpoint: '/api/new/delivery-today/orders',
@@ -730,6 +743,8 @@ async function listOrders(query = {}, options = {}) {
     totals: summary,
     groups,
     requireFilter: false,
+    sourceNote: buildSourceNote('delivery-today-orders', { filters: query }),
+    sourceNotes: buildDeliveryTodaySourceNotes(query),
     diagnostics: {
       source: deliveryOrders.length || !useSalesOrderFallback
         ? 'delivery-today-new-v2-delivery-operational-list + returnOrders + correction-versions'

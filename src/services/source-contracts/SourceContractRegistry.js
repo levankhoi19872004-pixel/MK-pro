@@ -1,0 +1,603 @@
+'use strict';
+
+const REPORTING_SNAPSHOT_COLLECTION = ['reporting', 'snapshots'].join('_');
+const INVENTORY_SNAPSHOT_COLLECTION = ['inventory', 'Snapshots'].join('');
+
+const RAW_SOURCE_CONTRACTS = Object.freeze({
+  'dashboard-sales-today': {
+    module: 'dashboard',
+    title: 'Dashboard - Doanh số hôm nay/tháng',
+    primaryCollections: ['orders'],
+    secondaryCollections: ['returnOrders', 'arLedgers', 'salesTargets'],
+    forbiddenCollections: [REPORTING_SNAPSHOT_COLLECTION, 'salesOrders.debtAmount', 'salesOrders.remainingDebt'],
+    service: 'HomeDashboardService.getHomeDashboard',
+    endpoint: '/api/dashboard/overview',
+    exportEndpoint: null,
+    sourceLabel: 'Doanh số Dashboard từ orders/salesOrders đã xác nhận kế toán; target từ salesTargets',
+    ssotRule: 'Sales KPI = orders/salesOrders accounting_confirmed; return impact = returnOrders; debt KPI = arLedgers canonical.',
+    amountSource: 'orders_accounting_confirmed',
+    debtSource: 'arLedgers',
+    inventorySource: null,
+    fundSource: null,
+    deliverySource: null,
+    importSource: null,
+    visibleOnUi: true,
+    visibleInExcel: false,
+    visibleForRoles: ['admin', 'manager', 'accountant'],
+    defaultCollapsed: true
+  },
+  'dashboard-current-debt': {
+    module: 'dashboard',
+    title: 'Dashboard - Công nợ hiện tại',
+    primaryCollections: ['arLedgers'],
+    secondaryCollections: [],
+    forbiddenCollections: ['arDebtCustomers', 'arDebtOrders', 'salesOrders.debtAmount', 'salesOrders.remainingDebt', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'HomeDashboardService.getHomeDashboard',
+    endpoint: '/api/dashboard/overview',
+    exportEndpoint: null,
+    sourceLabel: 'Công nợ hiện tại trên Dashboard từ arLedgers canonical',
+    ssotRule: 'Current debt/as-of = arLedgers canonical; không bị dateFrom cắt và không đọc debt cache trên salesOrders làm nguồn chính.',
+    amountSource: null,
+    debtSource: 'arLedgers',
+    visibleOnUi: true,
+    visibleInExcel: false,
+    visibleForRoles: ['admin', 'manager', 'accountant'],
+    defaultCollapsed: true
+  },
+  'dashboard-fund-balance': {
+    module: 'dashboard',
+    title: 'Dashboard - Số dư quỹ',
+    primaryCollections: ['fundLedgers'],
+    secondaryCollections: [],
+    forbiddenCollections: ['cashbooks', 'bankbooks', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'HomeDashboardService.getHomeDashboard',
+    endpoint: '/api/dashboard/overview',
+    exportEndpoint: null,
+    sourceLabel: 'Số dư quỹ Dashboard từ fundLedgers canonical',
+    ssotRule: 'Fund balance = fundLedgers canonical; loại cancelled/deleted/reversed/unconfirmed.',
+    fundSource: 'fundLedgers',
+    visibleOnUi: true,
+    visibleInExcel: false,
+    visibleForRoles: ['admin', 'manager', 'accountant'],
+    defaultCollapsed: true
+  },
+  'dashboard-inventory-summary': {
+    module: 'dashboard',
+    title: 'Dashboard - Tổng quan tồn kho',
+    primaryCollections: ['inventories'],
+    secondaryCollections: ['stockTransactions'],
+    forbiddenCollections: ['products.stock', INVENTORY_SNAPSHOT_COLLECTION, REPORTING_SNAPSHOT_COLLECTION],
+    service: 'inventoryStockService.getInventorySummary',
+    endpoint: '/api/dashboard/overview',
+    exportEndpoint: null,
+    sourceLabel: 'Tồn kho Dashboard từ inventories canonical',
+    ssotRule: 'Inventory current = inventories canonical; movement/stock-card = stockTransactions; không dùng products.stock hoặc legacy inventory snapshot.',
+    inventorySource: 'inventories',
+    visibleOnUi: true,
+    visibleInExcel: false,
+    visibleForRoles: ['admin', 'manager', 'accountant', 'warehouse'],
+    defaultCollapsed: true
+  },
+  'dashboard-delivery-today': {
+    module: 'dashboard',
+    title: 'Dashboard - Giao hàng hôm nay',
+    primaryCollections: ['orders'],
+    secondaryCollections: ['fundLedgers', 'returnOrders'],
+    forbiddenCollections: ['master_orders.totalAmount', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'HomeDashboardService.getDeliveryDashboard',
+    endpoint: '/api/dashboard/delivery-summary',
+    exportEndpoint: null,
+    sourceLabel: 'KPI giao hàng từ orders/salesOrders, fundLedgers và returnOrders',
+    ssotRule: 'Delivery KPI = orders/salesOrders; collection = fundLedgers canonical; returns = returnOrders; master_orders chỉ metadata chuyến nếu cần.',
+    amountSource: 'orders_recomputed',
+    fundSource: 'fundLedgers',
+    deliverySource: 'orders',
+    visibleOnUi: true,
+    visibleInExcel: false,
+    visibleForRoles: ['admin', 'manager', 'accountant', 'warehouse'],
+    defaultCollapsed: true
+  },
+
+  'debt-current': {
+    module: 'debt',
+    title: 'Công nợ hiện tại',
+    primaryCollections: ['arLedgers'],
+    secondaryCollections: [],
+    forbiddenCollections: ['arDebtCustomers', 'arDebtOrders', 'salesOrders.debtAmount', 'salesOrders.remainingDebt', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'DebtNewService.listCustomers',
+    endpoint: '/api/new/debt/customers',
+    exportEndpoint: null,
+    sourceLabel: 'Công nợ hiện tại từ arLedgers canonical',
+    ssotRule: 'AR debt = arLedgers canonical; read model chỉ được xem là derived/cache, không là SSoT.',
+    debtSource: 'arLedgers',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant'],
+    defaultCollapsed: true
+  },
+  'debt-by-customer': {
+    module: 'debt',
+    title: 'Công nợ theo khách hàng',
+    primaryCollections: ['arLedgers'],
+    secondaryCollections: ['debtCollections'],
+    forbiddenCollections: ['arDebtCustomers', 'arDebtOrders', 'salesOrders.debtAmount', 'salesOrders.remainingDebt', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'DebtNewService.listCustomers',
+    endpoint: '/api/new/debt/customers',
+    exportEndpoint: null,
+    sourceLabel: 'Khách công nợ từ arLedgers canonical, phiếu thu submitted chỉ là trạng thái chờ',
+    ssotRule: 'Customer debt = arLedgers canonical; debtCollections submitted không làm giảm nợ chính thức trước khi kế toán xác nhận.',
+    debtSource: 'arLedgers',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant'],
+    defaultCollapsed: true
+  },
+  'debt-ledger': {
+    module: 'debt',
+    title: 'Sổ chi tiết công nợ',
+    primaryCollections: ['arLedgers'],
+    secondaryCollections: [],
+    forbiddenCollections: ['arDebtCustomers', 'arDebtOrders', 'salesOrders.debtAmount', 'salesOrders.remainingDebt', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'DebtNewService.customerDetail',
+    endpoint: '/api/new/debt/customers/:customerCode/detail',
+    exportEndpoint: null,
+    sourceLabel: 'Sổ chi tiết công nợ từ arLedgers canonical',
+    ssotRule: 'Debt ledger detail = arLedgers canonical; không đọc remainingDebt/debtAmount trên salesOrders làm nguồn chính.',
+    debtSource: 'arLedgers',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant'],
+    defaultCollapsed: true
+  },
+  'debt-receipts': {
+    module: 'debt',
+    title: 'Phiếu thu công nợ',
+    primaryCollections: ['debtCollections'],
+    secondaryCollections: ['arLedgers', 'fundLedgers'],
+    forbiddenCollections: ['salesOrders.debtAmount', 'salesOrders.remainingDebt', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'DebtCollectionService.listDebtCollections',
+    endpoint: '/api/new/debt/collections',
+    exportEndpoint: null,
+    sourceLabel: 'Phiếu thu công nợ từ debtCollections; khi confirmed mới sinh AR/Fund canonical',
+    ssotRule: 'Debt receipt workflow = debtCollections submitted/confirmed; official AR impact = arLedgers; cash impact = fundLedgers.',
+    debtSource: 'arLedgers',
+    fundSource: 'fundLedgers',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant'],
+    defaultCollapsed: true
+  },
+  'debt-aging': {
+    module: 'debt',
+    title: 'Tuổi nợ',
+    primaryCollections: ['arLedgers'],
+    secondaryCollections: [],
+    forbiddenCollections: ['arDebtCustomers', 'arDebtOrders', 'salesOrders.debtAmount', 'salesOrders.remainingDebt', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'DebtReportService.agingReport',
+    endpoint: '/api/reports/run/debt-aging',
+    exportEndpoint: '/api/excel/export',
+    sourceLabel: 'Tuổi nợ từ arLedgers canonical',
+    ssotRule: 'Aging = arLedgers canonical theo ngày phát sinh/as-of.',
+    debtSource: 'arLedgers',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant'],
+    defaultCollapsed: true
+  },
+
+  'fund-ledger': {
+    module: 'fund',
+    title: 'Sổ quỹ',
+    primaryCollections: ['fundLedgers'],
+    secondaryCollections: [],
+    forbiddenCollections: ['cashbooks', 'bankbooks', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'FinanceReportService.financeReport',
+    endpoint: '/api/reports/run/finance-ledger',
+    exportEndpoint: '/api/excel/export',
+    sourceLabel: 'Sổ quỹ từ fundLedgers canonical',
+    ssotRule: 'Fund ledger = fundLedgers canonical, loại cancelled/deleted/reversed/unconfirmed.',
+    fundSource: 'fundLedgers',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant'],
+    defaultCollapsed: true
+  },
+  'fund-balance': {
+    module: 'fund',
+    title: 'Số dư quỹ',
+    primaryCollections: ['fundLedgers'],
+    secondaryCollections: [],
+    forbiddenCollections: ['cashbooks', 'bankbooks', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'FinanceReportService.financeReport',
+    endpoint: '/api/reports/run/finance-accounts',
+    exportEndpoint: '/api/excel/export',
+    sourceLabel: 'Số dư quỹ/tài khoản từ fundLedgers canonical',
+    ssotRule: 'Fund balance = cumulative fundLedgers canonical; không dùng cashbooks/bankbooks làm nguồn chính.',
+    fundSource: 'fundLedgers',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant'],
+    defaultCollapsed: true
+  },
+  'receipt-list': {
+    module: 'fund',
+    title: 'Danh sách phiếu thu/chi',
+    primaryCollections: ['fundLedgers'],
+    secondaryCollections: ['debtCollections'],
+    forbiddenCollections: ['cashbooks', 'bankbooks', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'FinanceReportService.financeReport',
+    endpoint: '/api/reports/run/finance-ledger',
+    exportEndpoint: '/api/excel/export',
+    sourceLabel: 'Phiếu thu/chi từ fundLedgers canonical',
+    ssotRule: 'Receipt/list = fundLedgers canonical; phiếu thu công nợ liên kết debtCollections nếu có.',
+    fundSource: 'fundLedgers',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant'],
+    defaultCollapsed: true
+  },
+  'cash-daily-closing': {
+    module: 'fund',
+    title: 'Chốt tiền hằng ngày',
+    primaryCollections: ['fundLedgers'],
+    secondaryCollections: ['cashierSessions'],
+    forbiddenCollections: ['cashbooks', 'bankbooks', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'FinanceReportService.financeReport',
+    endpoint: '/api/reports/run/finance-ledger',
+    exportEndpoint: '/api/excel/export',
+    sourceLabel: 'Chốt tiền ngày từ fundLedgers canonical và phiên quỹ nếu có',
+    ssotRule: 'Cash daily closing = fundLedgers canonical; over/short exception đối chiếu phiên quỹ.',
+    fundSource: 'fundLedgers',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'accountant'],
+    defaultCollapsed: true
+  },
+
+  'inventory-current': {
+    module: 'inventory',
+    title: 'Tồn kho hiện tại',
+    primaryCollections: ['inventories'],
+    secondaryCollections: ['stockTransactions'],
+    forbiddenCollections: ['products.stock', INVENTORY_SNAPSHOT_COLLECTION, REPORTING_SNAPSHOT_COLLECTION],
+    service: 'inventoryStockService.getInventorySummary',
+    endpoint: '/api/inventory/current',
+    exportEndpoint: '/api/excel/export',
+    sourceLabel: 'Tồn hiện tại từ inventories canonical',
+    ssotRule: 'Current stock = inventories canonical; movement/stock-card = stockTransactions.',
+    inventorySource: 'inventories',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant', 'warehouse'],
+    defaultCollapsed: true
+  },
+  'inventory-movement': {
+    module: 'inventory',
+    title: 'Nhập - xuất - tồn',
+    primaryCollections: ['stockTransactions'],
+    secondaryCollections: ['inventories'],
+    forbiddenCollections: ['products.stock', INVENTORY_SNAPSHOT_COLLECTION, REPORTING_SNAPSHOT_COLLECTION],
+    service: 'InventoryReportService.inventoryMovementReport',
+    endpoint: '/api/reports/run/inventory-movement',
+    exportEndpoint: '/api/excel/export',
+    sourceLabel: 'Chuyển động kho từ stockTransactions canonical',
+    ssotRule: 'Inventory movement = stockTransactions; current balance reconcile to inventories.',
+    inventorySource: 'stockTransactions',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant', 'warehouse'],
+    defaultCollapsed: true
+  },
+  'stock-card': {
+    module: 'inventory',
+    title: 'Thẻ kho',
+    primaryCollections: ['stockTransactions'],
+    secondaryCollections: ['inventories'],
+    forbiddenCollections: ['products.stock', INVENTORY_SNAPSHOT_COLLECTION, REPORTING_SNAPSHOT_COLLECTION],
+    service: 'InventoryReportService.stockCardReport',
+    endpoint: '/api/reports/run/stock-card',
+    exportEndpoint: '/api/excel/export',
+    sourceLabel: 'Thẻ kho từ stockTransactions canonical',
+    ssotRule: 'Stock card = stockTransactions canonical; không dùng products.stock hoặc legacy inventory snapshot.',
+    inventorySource: 'stockTransactions',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant', 'warehouse'],
+    defaultCollapsed: true
+  },
+
+  'delivery-today-orders': {
+    module: 'delivery',
+    title: 'Đơn giao hôm nay',
+    primaryCollections: ['orders'],
+    secondaryCollections: ['returnOrders', 'deliveryCloseoutVersions'],
+    forbiddenCollections: ['master_orders.totalAmount', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'DeliveryTodayNewService.listOrders',
+    endpoint: '/api/new/delivery-today/orders',
+    exportEndpoint: null,
+    sourceLabel: 'Đơn giao hôm nay từ orders/salesOrders và trạng thái closeout',
+    ssotRule: 'Delivery today orders = orders/salesOrders; closeout corrections = deliveryCloseoutVersions; master_orders chỉ metadata nếu có.',
+    amountSource: 'orders_recomputed',
+    deliverySource: 'orders',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant', 'warehouse'],
+    defaultCollapsed: true
+  },
+  'delivery-today-by-staff': {
+    module: 'delivery',
+    title: 'Giao hàng hôm nay theo NVGH/NVBH',
+    primaryCollections: ['orders'],
+    secondaryCollections: ['fundLedgers', 'returnOrders'],
+    forbiddenCollections: ['master_orders.totalAmount', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'DeliveryTodayNewService.listOrders',
+    endpoint: '/api/new/delivery-today/orders',
+    exportEndpoint: null,
+    sourceLabel: 'KPI giao hàng theo nhân viên từ orders, fundLedgers và returnOrders',
+    ssotRule: 'Delivery staff KPI = orders; collection = fundLedgers canonical; returns = returnOrders.',
+    amountSource: 'orders_recomputed',
+    fundSource: 'fundLedgers',
+    deliverySource: 'orders',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant', 'warehouse'],
+    defaultCollapsed: true
+  },
+  'delivery-today-collections': {
+    module: 'delivery',
+    title: 'Tiền thu giao hàng hôm nay',
+    primaryCollections: ['fundLedgers'],
+    secondaryCollections: ['orders'],
+    forbiddenCollections: ['master_orders.totalAmount', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'DeliveryTodayNewService.listOrders',
+    endpoint: '/api/new/delivery-today/orders',
+    exportEndpoint: null,
+    sourceLabel: 'Tiền thu giao hàng từ fundLedgers canonical, đối chiếu đơn trong orders',
+    ssotRule: 'Delivery collections = fundLedgers canonical; order amount only for reconciliation.',
+    fundSource: 'fundLedgers',
+    deliverySource: 'orders',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant'],
+    defaultCollapsed: true
+  },
+  'delivery-today-returns': {
+    module: 'delivery',
+    title: 'Hàng trả giao hàng hôm nay',
+    primaryCollections: ['returnOrders'],
+    secondaryCollections: ['orders'],
+    forbiddenCollections: [REPORTING_SNAPSHOT_COLLECTION],
+    service: 'DeliveryTodayNewService.listOrders',
+    endpoint: '/api/new/delivery-today/orders',
+    exportEndpoint: null,
+    sourceLabel: 'Hàng trả giao hàng từ returnOrders, liên kết orders theo mã đơn',
+    ssotRule: 'Delivery returns = returnOrders; orders chỉ enrich metadata khách/NV.',
+    inventorySource: 'returnOrders_to_inventory',
+    deliverySource: 'orders',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'manager', 'accountant', 'warehouse'],
+    defaultCollapsed: true
+  },
+
+  'import-excel-preview': {
+    module: 'import',
+    title: 'Preview import Excel',
+    primaryCollections: ['import_sessions'],
+    secondaryCollections: [],
+    forbiddenCollections: [REPORTING_SNAPSHOT_COLLECTION],
+    service: 'excelImportService.preview',
+    endpoint: '/api/excel-import/preview',
+    exportEndpoint: null,
+    sourceLabel: 'Nguồn import từ file Excel upload, parser và validation rule theo loại import',
+    ssotRule: 'Import preview = file Excel + parser/mapper/validator; chưa ghi vào collection đích cho tới commit.',
+    importSource: 'excel_upload',
+    fileSource: 'Excel upload',
+    parserService: 'excelImportService.preview',
+    mapperService: 'ImportHandlerRegistry',
+    validationRule: 'handler.validate/preview contract',
+    targetCollections: [],
+    skipErrorPolicy: 'valid rows can commit; invalid rows stay in preview result',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'accountant', 'warehouse'],
+    defaultCollapsed: true
+  },
+  'import-sales-orders': {
+    module: 'import',
+    title: 'Import đơn bán Excel',
+    primaryCollections: ['import_sessions'],
+    secondaryCollections: ['orders', 'products', 'customers', 'users'],
+    forbiddenCollections: [REPORTING_SNAPSHOT_COLLECTION],
+    service: 'SalesOrderImportHandler',
+    endpoint: '/api/excel-import/preview',
+    exportEndpoint: null,
+    sourceLabel: 'Import đơn bán từ Excel vào orders/salesOrders sau commit',
+    ssotRule: 'File Excel là source nhập; commit tạo/ghi orders theo validation rule và staff/product/customer mapping.',
+    importSource: 'excel_upload',
+    targetCollections: ['orders'],
+    parserService: 'excelImportService.preview',
+    mapperService: 'SalesOrderImportHandler',
+    validationRule: 'sales order import validation',
+    skipErrorPolicy: 'skip invalid/zero-qty rows according to import preview contract',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'accountant'],
+    defaultCollapsed: true
+  },
+  'import-promotion-groups': {
+    module: 'import',
+    title: 'Import nhóm sản phẩm khuyến mại',
+    primaryCollections: ['import_sessions'],
+    secondaryCollections: ['promotions', 'promotionProductGroups', 'products'],
+    forbiddenCollections: [REPORTING_SNAPSHOT_COLLECTION],
+    service: 'PromotionGroupRuleImportHandler',
+    endpoint: '/api/excel-import/preview',
+    exportEndpoint: null,
+    sourceLabel: 'Import nhóm sản phẩm khuyến mại từ Excel vào promotion group rules',
+    ssotRule: 'Promotion group import = Excel upload + handler validation; commit ghi rule/group canonical.',
+    importSource: 'excel_upload',
+    targetCollections: ['promotions', 'promotionProductGroups'],
+    parserService: 'excelImportService.preview',
+    mapperService: 'PromotionGroupRuleImportHandler',
+    validationRule: 'promotion group import validation',
+    skipErrorPolicy: 'valid rows only; invalid rows reported in preview',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'accountant'],
+    defaultCollapsed: true
+  },
+  'import-promotion-product-rules': {
+    module: 'import',
+    title: 'Import CK sản phẩm / quy tắc khuyến mại',
+    primaryCollections: ['import_sessions'],
+    secondaryCollections: ['promotionProductRules', 'promotions', 'products'],
+    forbiddenCollections: [REPORTING_SNAPSHOT_COLLECTION],
+    service: 'PromotionProductImportHandler',
+    endpoint: '/api/excel-import/preview',
+    exportEndpoint: null,
+    sourceLabel: 'Import quy tắc khuyến mại sản phẩm từ Excel vào promotionProductRules',
+    ssotRule: 'Promotion product rules import = Excel upload + PromotionProductImportHandler validation; commit ghi promotionProductRules canonical.',
+    importSource: 'excel_upload',
+    targetCollections: ['promotionProductRules'],
+    parserService: 'excelImportService.preview',
+    mapperService: 'PromotionProductImportHandler',
+    validationRule: 'promotion product rule import validation',
+    skipErrorPolicy: 'valid rows only; invalid rows remain in preview errors',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'accountant'],
+    defaultCollapsed: true
+  },
+  'import-products': {
+    module: 'import',
+    title: 'Import sản phẩm',
+    primaryCollections: ['import_sessions'],
+    secondaryCollections: ['products'],
+    forbiddenCollections: [REPORTING_SNAPSHOT_COLLECTION, 'products.stock'],
+    service: 'ProductImportHandler',
+    endpoint: '/api/excel-import/preview',
+    exportEndpoint: null,
+    sourceLabel: 'Import danh mục sản phẩm từ Excel vào products; tồn kho không lấy từ products.stock',
+    ssotRule: 'Product import = Excel upload + ProductImportHandler; stock remains inventories/stockTransactions, not products.stock.',
+    importSource: 'excel_upload',
+    targetCollections: ['products'],
+    parserService: 'excelImportService.preview',
+    mapperService: 'ProductImportHandler',
+    validationRule: 'product import validation',
+    skipErrorPolicy: 'invalid product rows rejected in preview',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'accountant', 'warehouse'],
+    defaultCollapsed: true
+  },
+  'import-customers': {
+    module: 'import',
+    title: 'Import khách hàng',
+    primaryCollections: ['import_sessions'],
+    secondaryCollections: ['customers'],
+    forbiddenCollections: [REPORTING_SNAPSHOT_COLLECTION],
+    service: 'CustomerImportHandler',
+    endpoint: '/api/excel-import/preview',
+    exportEndpoint: null,
+    sourceLabel: 'Import danh mục khách hàng từ Excel vào customers',
+    ssotRule: 'Customer import = Excel upload + CustomerImportHandler; commit ghi customers canonical.',
+    importSource: 'excel_upload',
+    targetCollections: ['customers'],
+    parserService: 'excelImportService.preview',
+    mapperService: 'CustomerImportHandler',
+    validationRule: 'customer import validation',
+    skipErrorPolicy: 'invalid customer rows rejected in preview',
+    visibleOnUi: true,
+    visibleInExcel: true,
+    visibleForRoles: ['admin', 'accountant'],
+    defaultCollapsed: true
+  }
+});
+
+function arrayOf(value) {
+  return Object.freeze(Array.isArray(value) ? [...value] : (value ? [value] : []));
+}
+
+function normalizeContract(code, contract = {}) {
+  return Object.freeze({
+    code,
+    module: contract.module || 'general',
+    title: contract.title || code,
+    primaryCollections: arrayOf(contract.primaryCollections),
+    secondaryCollections: arrayOf(contract.secondaryCollections),
+    forbiddenCollections: arrayOf(contract.forbiddenCollections),
+    service: contract.service || '',
+    endpoint: contract.endpoint || null,
+    exportEndpoint: contract.exportEndpoint || null,
+    sourceLabel: contract.sourceLabel || '',
+    ssotRule: contract.ssotRule || '',
+    amountSource: contract.amountSource ?? null,
+    debtSource: contract.debtSource ?? null,
+    inventorySource: contract.inventorySource ?? null,
+    fundSource: contract.fundSource ?? null,
+    deliverySource: contract.deliverySource ?? null,
+    importSource: contract.importSource ?? null,
+    fileSource: contract.fileSource || null,
+    parserService: contract.parserService || null,
+    mapperService: contract.mapperService || null,
+    validationRule: contract.validationRule || null,
+    targetCollections: arrayOf(contract.targetCollections),
+    skipErrorPolicy: contract.skipErrorPolicy || null,
+    visibleOnUi: contract.visibleOnUi !== false,
+    visibleInExcel: contract.visibleInExcel === true,
+    visibleForRoles: arrayOf(contract.visibleForRoles),
+    defaultCollapsed: contract.defaultCollapsed !== false,
+    sourceStatus: contract.sourceStatus || 'OK'
+  });
+}
+
+const SOURCE_CONTRACT_REGISTRY = Object.freeze(Object.fromEntries(
+  Object.entries(RAW_SOURCE_CONTRACTS).map(([code, contract]) => [code, normalizeContract(code, contract)])
+));
+
+function getSourceContract(code) {
+  const normalized = String(code || '').trim();
+  const contract = SOURCE_CONTRACT_REGISTRY[normalized];
+  if (!contract) {
+    const error = new Error(`Thiếu source contract ${normalized}`);
+    error.status = 500;
+    error.code = 'SOURCE_CONTRACT_MISSING';
+    throw error;
+  }
+  return contract;
+}
+
+function validateSourceContract(contractCode, runtimeInfo = {}) {
+  const contract = getSourceContract(contractCode);
+  const warnings = [];
+  if (!contract.primaryCollections.length) warnings.push('Thiếu primaryCollections');
+  if (!contract.service) warnings.push('Thiếu service');
+  if (!contract.sourceLabel) warnings.push('Thiếu sourceLabel');
+  if (!contract.ssotRule) warnings.push('Thiếu ssotRule');
+  if (runtimeInfo.requireSourceNote && !runtimeInfo.sourceNote) warnings.push('Runtime thiếu sourceNote');
+  if (contract.visibleInExcel && runtimeInfo.requireExcelSourceNote && !runtimeInfo.exportSourceNote) warnings.push('Excel export thiếu sourceNote');
+  if (String(runtimeInfo.sourceStatus || contract.sourceStatus || 'OK').toUpperCase() === 'OK') {
+    const runtimeWarnings = [runtimeInfo.sourceWarnings, runtimeInfo.dataQualityWarnings].flat().filter(Boolean);
+    if (runtimeWarnings.length) warnings.push('Không được giữ sourceStatus OK khi có warning');
+  }
+  return {
+    contractCode: contract.code,
+    ok: warnings.length === 0,
+    sourceStatus: warnings.length ? 'WARNING' : 'OK',
+    warnings,
+    contract
+  };
+}
+
+function listSourceContracts() {
+  return Object.values(SOURCE_CONTRACT_REGISTRY);
+}
+
+module.exports = {
+  RAW_SOURCE_CONTRACTS,
+  SOURCE_CONTRACT_REGISTRY,
+  getSourceContract,
+  validateSourceContract,
+  listSourceContracts
+};

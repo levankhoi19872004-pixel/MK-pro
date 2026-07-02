@@ -4,6 +4,15 @@ const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../..
 const { normalizeAccountingAmount } = require('../../domain/ar/arLedgerValidator');
 const arLedgerReadService = require('../arLedgerRead.service');
 const searchService = require('../searchService');
+const { buildSourceNote } = require('../source-contracts/SourceNoteBuilder');
+
+
+function buildDebtSourceNote(code, query = {}, warnings = []) {
+  return buildSourceNote(code, {
+    filters: query,
+    sourceWarnings: warnings
+  });
+}
 
 let modelsForDebtNew = null;
 function getDebtNewModels() {
@@ -58,6 +67,7 @@ function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {
     orders: [],
     customers: [],
     summary: emptySummary(),
+    sourceNote: buildDebtSourceNote('debt-by-customer', query, ['Cần điều kiện tìm kiếm trước khi đọc công nợ']),
     diagnostics: {
       source: 'debt-new-v2-guarded-empty',
       endpoint: '/api/new/debt/customers',
@@ -480,6 +490,7 @@ async function listCustomers(query = {}, options = {}) {
   await attachCollectibleState(grouped, pendingAmountByOrder(pendingRows));
   return {
     ...grouped,
+    sourceNote: buildDebtSourceNote('debt-by-customer', normalizedQuery),
     diagnostics: {
       source: 'debt-new-v2-ar-debt-read-model',
       endpoint: '/api/new/debt/customers',
@@ -504,6 +515,7 @@ async function customerDetail(query = {}, options = {}) {
       debtOrders: [],
       movements: [],
       pendingCollections: [],
+      sourceNote: buildDebtSourceNote('debt-ledger', query, ['Thiếu mã khách hàng']),
       diagnostics: {
         source: 'debt-new-detail-guarded-empty',
         endpoint: '/api/new/debt/customers/:customerCode/detail',
@@ -521,6 +533,7 @@ async function customerDetail(query = {}, options = {}) {
     debtOrders: customer ? (customer.orders || []) : [],
     movements,
     pendingCollections: customer ? Array.from(new Map((customer.orders || []).flatMap((order) => order.pendingCollections || []).map((row) => [row.id || row.code, row])).values()) : [],
+    sourceNote: buildDebtSourceNote('debt-ledger', query),
     diagnostics: {
       source: 'debt-new-detail-ar-debt-read-model',
       endpoint: '/api/new/debt/customers/:customerCode/detail',

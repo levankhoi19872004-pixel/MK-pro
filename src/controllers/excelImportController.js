@@ -3,7 +3,28 @@
 const excelImportService = require('../services/excelImportService');
 const ImportWebDirectCommitService = require('../services/import/ImportWebDirectCommitService');
 const importShortageReportService = require('../services/importShortageReportService');
+const { buildSourceNote } = require('../services/source-contracts/SourceNoteBuilder');
 
+
+
+function importSourceContractCode(type = '') {
+  const normalized = String(type || '').trim();
+  if (['salesOrders', 'sales-order', 'sales_orders', 'orders', 'order'].includes(normalized)) return 'import-sales-orders';
+  if (['promotionGroups', 'promotionGroupRules', 'promotion-group-rules', 'promotionGroupItems'].includes(normalized)) return 'import-promotion-groups';
+  if (['promotionProductRules', 'promotionProducts', 'promotion-product-rules', 'promotionProduct'].includes(normalized)) return 'import-promotion-product-rules';
+  if (['products', 'product'].includes(normalized)) return 'import-products';
+  if (['customers', 'customer'].includes(normalized)) return 'import-customers';
+  return 'import-excel-preview';
+}
+
+function buildImportSourceNote(type, req = {}, files = [], extra = {}) {
+  return buildSourceNote(importSourceContractCode(type), {
+    filters: { ...(req.query || {}), ...(req.body || {}), fileNames: files.map((file) => file.originalname || file.fileName || '').filter(Boolean) },
+    user: req.user || {},
+    fileSource: files.length ? files.map((file) => file.originalname || file.fileName || 'Excel upload').join(', ') : 'Excel upload',
+    ...extra
+  });
+}
 
 function buildSafeImportErrorMessage(err) {
   const raw = String(err && err.message ? err.message : '').trim();
@@ -45,7 +66,7 @@ async function preview(req, res) {
     const files = req.importFiles || normalizeUploadedFiles(req);
     const result = await excelImportService.preview({ type: String(req.body?.type || '').trim(), files, buffer: files[0]?.buffer, fileName: files[0]?.originalname || '', userName: req.user?.username || req.user?.fullName || '', importMode: String(req.body?.importMode || req.query?.importMode || '').trim() });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
-    return res.status(result.accepted ? 202 : 200).json({ ok: true, ...result });
+    return res.status(result.accepted ? 202 : 200).json({ ok: true, ...result, sourceNote: result.sourceNote || buildImportSourceNote(req.body?.type || req.query?.type, req, files) });
   } catch (err) {
     const message = buildSafeImportErrorMessage(err);
     const knownUserError = message !== 'Không đọc được file Excel. Vui lòng tải lại file mẫu và nhập dữ liệu theo mẫu.';
@@ -72,7 +93,7 @@ async function commit(req, res) {
       });
     }
 
-    return res.json({ ok: true, source: 'mongo-route', ...result });
+    return res.json({ ok: true, source: 'mongo-route', ...result, sourceNote: result.sourceNote || buildImportSourceNote(req.body?.type || result.type, req, []) });
   } catch (err) {
     return res.status(500).json({ ok: false, message: 'Không ghi được dữ liệu import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
@@ -98,7 +119,7 @@ async function sessionRows(req, res) {
       });
     }
 
-    return res.json({ ok: true, ...result });
+    return res.json({ ok: true, ...result, sourceNote: result.sourceNote || buildImportSourceNote(result.type || req.query?.type, req, []) });
   } catch (err) {
     return res.status(500).json({
       ok: false,
@@ -125,7 +146,8 @@ async function sessionStatus(req, res) {
 
     return res.json({
       ok: true,
-      ...result
+      ...result,
+      sourceNote: result.sourceNote || buildImportSourceNote(result.type || req.query?.type, req, [])
     });
   } catch (err) {
     return res.status(500).json({

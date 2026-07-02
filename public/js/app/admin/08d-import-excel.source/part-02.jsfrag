@@ -268,6 +268,7 @@ function renderImportPreview(result){
   const selectable=importPreviewRows.filter(isImportRowSelectable).length;
   const unchanged=importPreviewRows.filter(r=>r&&r.action==='no_change').length;
   const invalid=Math.max(0,total-valid);
+  renderImportSourceNote(result);
   if(importPreviewSummary){
     const fileCount=Number(result.totalFiles||0);
     const fileText=fileCount>1?`<span>Số file: <strong>${fileCount}</strong></span>`:'';
@@ -326,6 +327,21 @@ function renderImportPreview(result){
   if(commitImportButton){commitImportButton.disabled=selectable<=0;commitImportButton.textContent=getSelectedImportMode()==='update'?'Cập nhật các dòng đã chọn':'Import các dòng đã chọn';}
 }
 window.renderImportPreviewFromExcel=renderImportPreview;
+
+function renderImportSourceNote(result={}){
+  const target=document.getElementById('importPreviewModalReport')||document.querySelector('.import-preview-report')||importPreviewSummary;
+  const sourceNote=result.sourceNote||null;
+  if(!target||!sourceNote)return;
+  const html=window.SourceNoteUi&&typeof window.SourceNoteUi.renderSourceNote==='function'
+    ? window.SourceNoteUi.renderSourceNote(sourceNote,{compact:true,collapsible:true,defaultOpen:false})
+    : `<div class="source-note"><b>Nguồn import:</b> ${escapeImportHtml((sourceNote.primaryCollections||[]).join(', '))} · ${escapeImportHtml(sourceNote.service||'')}</div>`;
+  if(target===importPreviewSummary){
+    importPreviewSummary.insertAdjacentHTML('afterend',html);
+  }else{
+    target.innerHTML=html;
+  }
+}
+
 function sleepImportPreview(ms){
   return new Promise(resolve=>setTimeout(resolve,ms));
 }

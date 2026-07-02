@@ -7,11 +7,25 @@ const debtNewService = require('../services/v2/debtNew.service');
 const deliveryCloseoutCorrectionService = require('../services/deliveryCloseoutCorrection.service');
 const DebtCollectionService = require('../services/DebtCollectionService');
 const AccountingCloseoutService = require('../services/accounting/AccountingCloseoutService');
+const { buildSourceNote } = require('../services/source-contracts/SourceNoteBuilder');
 
 const router = express.Router();
 const readRoles = requireRole(['admin', 'manager', 'accountant', 'warehouse']);
 const writeRoles = requireRole(['admin', 'manager', 'accountant']);
 const closeoutRoles = requireRole(['admin', 'accountant']);
+
+
+function sourceUser(req = {}) {
+  return req.user || {};
+}
+
+function buildApiSourceNote(code, req = {}, warnings = []) {
+  return buildSourceNote(code, {
+    filters: req.query || req.body || {},
+    user: sourceUser(req),
+    sourceWarnings: warnings
+  });
+}
 
 function sendError(res, err, fallback) {
   const status = Number(err && err.status) || 500;
@@ -51,6 +65,8 @@ router.get('/delivery-today/orders', requireAuth, readRoles, async (req, res) =>
       orders: result.orders,
       summary: result.summary,
       diagnostics: result.diagnostics,
+      sourceNote: result.sourceNote || buildApiSourceNote('delivery-today-orders', req),
+      sourceNotes: result.sourceNotes || { orders: buildApiSourceNote('delivery-today-orders', req), byStaff: buildApiSourceNote('delivery-today-by-staff', req), collections: buildApiSourceNote('delivery-today-collections', req), returns: buildApiSourceNote('delivery-today-returns', req) },
       canonicalRoute: '/api/new/delivery-today/orders'
     });
   } catch (err) {
@@ -180,6 +196,7 @@ router.get('/debt/suggestions', requireAuth, readRoles, async (req, res) => {
       message: 'Đã tải gợi ý Công nợ (New)',
       items: result.items || [],
       diagnostics: result.diagnostics,
+      sourceNote: result.sourceNote || buildApiSourceNote('debt-current', req),
       canonicalRoute: '/api/new/debt/suggestions'
     });
   } catch (err) {
@@ -199,6 +216,7 @@ router.get('/debt/customers', requireAuth, readRoles, async (req, res) => {
       orders: result.orders,
       summary: result.summary,
       diagnostics: result.diagnostics,
+      sourceNote: result.sourceNote || buildApiSourceNote('debt-by-customer', req),
       canonicalRoute: '/api/new/debt/customers'
     });
   } catch (err) {
@@ -223,6 +241,7 @@ router.get('/debt/customers/:customerCode/detail', requireAuth, readRoles, async
       movements: result.movements,
       pendingCollections: result.pendingCollections,
       diagnostics: result.diagnostics,
+      sourceNote: result.sourceNote || buildApiSourceNote('debt-ledger', req),
       canonicalRoute: '/api/new/debt/customers/:customerCode/detail'
     });
   } catch (err) {
@@ -265,6 +284,7 @@ router.get('/debt/collections', requireAuth, readRoles, async (req, res) => {
       items: result.items || [],
       collections: result.items || [],
       summary: result.summary || {},
+      sourceNote: buildApiSourceNote('debt-receipts', req),
       canonicalRoute: '/api/new/debt/collections'
     });
   } catch (err) {
