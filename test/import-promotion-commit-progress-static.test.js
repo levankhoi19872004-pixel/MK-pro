@@ -19,7 +19,7 @@ test('promotion CK commit writes in progress-aware batches instead of a silent b
   assert.match(source, /buildPromotionBulkWriteError/);
   assert.match(branch, /const batches = promotionBulkChunks\(ops, batchSize\)/);
   assert.match(branch, /for \(const \[batchIndex, chunk\] of batches\.entries\(\)\)/);
-  assert.match(branch, /PromotionProductRule\.bulkWrite\(chunk, \{ ordered: false \}\)/);
+  assert.match(branch, /PromotionProductRule\.bulkWrite\(chunk, \{ ordered: false, writeConcern: \{ w: 1 \}, maxTimeMS: timeoutMs \|\| undefined \}\)/);
   assert.match(branch, /step: `committing:\$\{batchIndex \+ 1\}\/\$\{batches\.length\}`/);
   assert.match(branch, /await notifyPromotionProductRuleProgress\(options, progress\)/);
   assert.match(branch, /completedRows: writtenOps/);
@@ -95,4 +95,40 @@ test('promotion admin import uses cleanText from importValue util to avoid runti
   const rowUtilBlockStart = source.lastIndexOf('const {', rowUtilRequireIndex);
   const rowUtilDestructuring = source.slice(rowUtilBlockStart, rowUtilRequireIndex);
   assert.doesNotMatch(rowUtilDestructuring, /\bcleanText\b/);
+});
+
+test('promotion CK commit is detached from the HTTP request to avoid web/proxy timeout', () => {
+  const exportController = read('src/controllers/importExportController.js');
+  const runtimeController = read('src/controllers/importRuntimeController.js');
+  const detached = read('src/services/import/ImportWebDetachedCommitService.js');
+
+  for (const source of [exportController, runtimeController]) {
+    assert.match(source, /ImportWebDetachedCommitService/);
+    assert.match(source, /shouldRunWebDetachedImportCommit/);
+    assert.match(source, /type === 'promotionProductRules'/);
+    assert.match(source, /ImportWebDetachedCommitService\.submit/);
+    assert.match(source, /res\.status\(submitted\.accepted \? 202 : 200\)/);
+  }
+
+  assert.match(detached, /setImmediate|runDetached|activeCommits/);
+  assert.match(detached, /web-import-commit:\$\{sessionId\}/);
+  assert.match(detached, /ImportWebDirectCommitService\.commitSession/);
+  assert.match(detached, /importSessionService\.markFailed/);
+});
+
+test('promotion CK bulkWrite stores only normalized business fields, not raw Excel payload', () => {
+  const source = read('src/services/import/operations/adminImport.impl.js');
+  const branch = source.slice(source.indexOf('async function importPromotionProductRules'), source.indexOf('async function importPromotionGroupItems'));
+
+  assert.match(source, /PROMOTION_IMPORT_BULK_TIMEOUT_MS \|\| 30 \* 1000/);
+  assert.match(source, /PROMOTION_IMPORT_BATCH_SIZE \|\| 50/);
+  assert.match(branch, /writeConcern: \{ w: 1 \}/);
+  assert.match(branch, /maxTimeMS: timeoutMs \|\| undefined/);
+  assert.match(branch, /Không lưu nguyên raw Excel vào promotionProductRules/);
+  const docBlock = branch.slice(branch.indexOf('const doc = {'), branch.indexOf('ops.push({ updateOne'));
+  assert.doesNotMatch(docBlock, /\.\.\.payload/);
+  assert.doesNotMatch(docBlock, /raw:/);
+  assert.match(docBlock, /programCode/);
+  assert.match(docBlock, /productCode/);
+  assert.match(docBlock, /discountPercent/);
 });

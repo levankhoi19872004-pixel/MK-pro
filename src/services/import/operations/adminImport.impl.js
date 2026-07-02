@@ -187,13 +187,13 @@ async function importUsers(rows = [], options = {}) {
 }
 
 function clampPromotionImportBatchSize(value) {
-  const size = Number(value || process.env.PROMOTION_IMPORT_BATCH_SIZE || 200);
-  if (!Number.isFinite(size) || size <= 0) return 200;
+  const size = Number(value || process.env.PROMOTION_IMPORT_BATCH_SIZE || 50);
+  if (!Number.isFinite(size) || size <= 0) return 50;
   return Math.max(1, Math.min(1000, Math.floor(size)));
 }
 
 function promotionBulkWriteTimeoutMs(options = {}) {
-  const value = Number(options.bulkWriteTimeoutMs || process.env.PROMOTION_IMPORT_BULK_TIMEOUT_MS || 2 * 60 * 1000);
+  const value = Number(options.bulkWriteTimeoutMs || process.env.PROMOTION_IMPORT_BULK_TIMEOUT_MS || 30 * 1000);
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
@@ -283,8 +283,10 @@ async function importPromotionProductRules(rows = [], options = {}) {
     const productName = cleanText(product.name || payload.productName || '');
 
     const id = cleanText(payload.id) || `${programCode}__${productCode}`;
+    // Không lưu nguyên raw Excel vào promotionProductRules. Raw có thể rất lớn hoặc chứa
+    // key Excel không an toàn, làm bulkWrite chậm/treo ở các batch cuối. Collection này
+    // chỉ cần contract nghiệp vụ đã chuẩn hóa để runtime promotion tra cứu nhanh.
     const doc = {
-      ...payload,
       id,
       programCode,
       programName,
@@ -292,12 +294,14 @@ async function importPromotionProductRules(rows = [], options = {}) {
       productName,
       discountPercent: promotionService.normalizeDiscountPercent(payload.discountPercent),
       productMatched: Boolean(product),
-      missingProduct: !product,
+      missingProduct: false,
       source: cleanText(payload.source || 'excel-import'),
+      sourceRowNo: rowNo,
+      rowNo,
+      sourceFile: cleanText(payload.sourceFile || payload.fileName || ''),
       isActive: payload.isActive !== false && payload.isActive !== 'false',
       updatedAt: now
     };
-    delete doc.errors; delete doc.warnings; delete doc.valid;
     ops.push({ updateOne: { filter: { programCode, productCode }, update: { $set: doc, $setOnInsert: { createdAt: now } }, upsert: true } });
   }
 
@@ -307,7 +311,7 @@ async function importPromotionProductRules(rows = [], options = {}) {
     if (!chunk.length) continue;
     try {
       await withPromotionBulkTimeout(
-        PromotionProductRule.bulkWrite(chunk, { ordered: false }),
+        PromotionProductRule.bulkWrite(chunk, { ordered: false, writeConcern: { w: 1 }, maxTimeMS: timeoutMs || undefined }),
         timeoutMs,
         { sessionId, batchIndex, totalBatches: batches.length, totalOps: ops.length, writtenOps }
       );

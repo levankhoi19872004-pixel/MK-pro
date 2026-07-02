@@ -6,6 +6,7 @@ const excelImportService = require('../services/excelImportService');
 const JobSubmissionService = require('../services/background-jobs/JobSubmissionService');
 const AsyncJobHttpAdapter = require('../services/background-jobs/AsyncJobHttpAdapter');
 const ImportWebDirectCommitService = require('../services/import/ImportWebDirectCommitService');
+const ImportWebDetachedCommitService = require('../services/import/ImportWebDetachedCommitService');
 
 
 function importCommitAsyncThreshold() {
@@ -20,6 +21,13 @@ function selectedImportCommitCount(body = {}) {
     Array.isArray(body.selectedOrderCodes) ? body.selectedOrderCodes.length : 0,
     Array.isArray(body.selectedProgramCodes) ? body.selectedProgramCodes.length : 0
   );
+}
+
+
+function shouldRunWebDetachedImportCommit(req = {}) {
+  const body = req.body || {};
+  const type = String(body.type || '').trim();
+  return type === 'promotionProductRules';
 }
 
 function shouldRunImportCommitAsync(req = {}) {
@@ -99,6 +107,17 @@ async function previewImport(req, res) {
 
 async function commitImport(req, res) {
   try {
+    if (shouldRunWebDetachedImportCommit(req)) {
+      const submitted = await ImportWebDetachedCommitService.submit({
+        ...(req.body || {}),
+        sessionId: req.params?.sessionId || req.body?.sessionId || req.body?.importSessionId
+      }, req.user || {});
+      if (submitted.error) {
+        return res.status(submitted.status || 400).json({ ok: false, message: submitted.error, ...submitted });
+      }
+      return res.status(submitted.accepted ? 202 : 200).json({ ok: true, ...submitted });
+    }
+
     if (shouldRunImportCommitAsync(req)) {
       const submitted = await AsyncJobHttpAdapter.submitImportCommit(req);
       if (submitted.error) {
