@@ -81,7 +81,8 @@
       source: 'unifiedProducts',
       searchKeys: ['code','name','barcode','category','brand','sku','productCode','packing','unit','baseUnit'],
       onlyActive: true,
-      limit: 50,
+      onlyInStock: true,
+      limit: 20,
       fill: [
         { targetId: 'salesProductSelect', value: 'idOrCode' },
         { targetId: 'salesProductSearch', value: 'label' }

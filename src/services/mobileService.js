@@ -9,6 +9,7 @@ const { readRefreshToken } = require('../security/refreshTokenCookie');
 const User = require('../models/User');
 const { MongoStore } = require('./mongoSyncService');
 const arDebtRuntimeView = require('./accounting/arDebtRuntimeView.service');
+const { escapeRegex } = require('../utils/query.util');
 
 
 function inventoryRowOpenSaleQty(row = {}) {
@@ -192,17 +193,35 @@ function createMobileService(ctx) {
   }
 
   async function products({ query = {} }) {
-    const q = normalizeText(query.q);
+    const rawQ = String(query.q || query.search || '').trim();
+    const q = normalizeText(rawQ);
     // MOBILE_PRODUCT_GROUP_FILTER_BACKEND_START: lọc catalog/gợi ý sản phẩm theo Nhóm hàng của danh mục sản phẩm.
     const groupKeyword = normalizeText(query.group || query.groupName || query.category || query.categoryName || query.productGroup || query.productGroupName);
-    const requestedLimit = Math.min(Math.max(toNumber(query.limit || (q ? 1000 : 5000)), 1), 10000);
+    const requestedLimit = Math.min(Math.max(toNumber(query.limit || 20), 1), 50);
+    const candidateLimit = Math.min(Math.max(requestedLimit * 5, requestedLimit), 250);
     const filter = { isActive: { $ne: false } };
+    if (rawQ.length < 2) {
+      return { body: { ok: true, source: 'mobile-users-route-min-keyword-guard', items: [], total: 0, cachedCatalog: false, message: 'Nhập ít nhất 2 ký tự để tìm sản phẩm' } };
+    }
+    const rawRegex = { $regex: escapeRegex(rawQ), $options: 'i' };
+    filter.$or = [
+      { code: rawRegex },
+      { sku: rawRegex },
+      { productCode: rawRegex },
+      { name: rawRegex },
+      { productName: rawRegex },
+      { barcode: rawRegex },
+      { category: rawRegex },
+      { categoryName: rawRegex },
+      { groupName: rawRegex },
+      { productGroup: rawRegex },
+      { productGroupName: rawRegex },
+      { searchText: { $regex: escapeRegex(q), $options: 'i' } }
+    ];
     // MOBILE_PRODUCT_GROUP_FILTER_BACKEND_END
 
-    // App bán hàng cần tìm nhanh bằng cache phía trình duyệt.
-    // Vì vậy API này trả catalog sản phẩm active, KHÔNG lọc mất sản phẩm hết tồn.
-    // Tồn mở bán chỉ dùng để hiển thị và chỉ chặn khi thêm vào đơn.
-    const rows = await Product.find(filter).sort({ code: 1 }).limit(requestedLimit).lean();
+    // App bán hàng chỉ nhận sản phẩm còn tồn mở bán; không trả toàn bộ catalog khi ô tìm kiếm rỗng.
+    const rows = await Product.find(filter).sort({ code: 1 }).limit(candidateLimit).lean();
     const data = await getPrimaryDataSnapshot();
     let items = await Promise.all(rows.map(productMongoToClient).map(async (product) => {
       const availableQty = await getInventoryQtyForProduct(product);
@@ -266,9 +285,9 @@ function createMobileService(ctx) {
 
     const onlyInStock = String(query.inStockOnly ?? '1') !== '0';
     if (onlyInStock) items = items.filter((item) => Number(item.availableQty || 0) > 0);
-    items = items.slice(0, q ? 80 : requestedLimit);
+    items = items.slice(0, requestedLimit);
 
-    return { body: { ok: true, source: 'mobile-users-route', items, total: items.length, cachedCatalog: !q } };
+    return { body: { ok: true, source: 'mobile-users-route', items, total: items.length, cachedCatalog: false } };
   }
 
   async function stock({ query = {} }) {

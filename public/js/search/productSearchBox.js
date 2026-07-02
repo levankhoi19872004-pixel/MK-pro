@@ -119,9 +119,9 @@ function numericDigits(value){ return String(value ?? '').replace(/\D/g,''); }
   }
   function searchLocal(keyword='', options={}){
     const q=normalizeText(keyword);
-    const limit=Math.max(1, Number(options.limit||50));
+    const limit=Math.min(50, Math.max(1, Number(options.limit||20)));
     return getCatalog()
-      .filter(p=>p.isActive!==false)
+      .filter(p=>p.isActive!==false && availableQty(p) > 0)
       .map(product=>({product,score:scoreProduct(product,q)}))
       .filter(row=>!q || row.score>=0)
       .sort((a,b)=>(b.score-a.score)||String(a.product.code||'').localeCompare(String(b.product.code||'')))
@@ -129,23 +129,23 @@ function numericDigits(value){ return String(value ?? '').replace(/\D/g,''); }
       .map(row=>row.product);
   }
   async function search(keyword='', options={}){
-    const limit=Math.min(50, Math.max(1, Number(options.limit||50)));
+    const limit=Math.min(50, Math.max(1, Number(options.limit||20)));
     const q=String(keyword||'').trim();
     if(q.length < 2) return [];
     const cache=catalogCache();
     if(cache && typeof cache.searchProducts === 'function'){
       const rows = await cache.searchProducts(q, { limit, mode: options.mode || 'sales' });
       sync(rows || []);
-      return (rows || []).filter(p => p.isActive !== false).slice(0, limit);
+      return (rows || []).filter(p => p.isActive !== false && availableQty(p) > 0).slice(0, limit);
     }
     // Fallback nếu CatalogCache chưa nhúng.
     if(q || !getCatalog().length){
-      const res = await fetch(`/api/catalog/products/search?q=${encodeURIComponent(q)}&limit=${limit}&includeStock=1&activeOnly=1&_t=${Date.now()}`);
+      const res = await fetch(`/api/catalog/products/search?q=${encodeURIComponent(q)}&limit=${limit}&includeStock=1&activeOnly=1&inStockOnly=1&_t=${Date.now()}`);
       const json = await res.json();
       if(json.ok === false || json.success === false) throw new Error(json.message || 'Không tìm được sản phẩm');
       const rows = json.products || json.items || json.data || [];
       sync(rows);
-      return rows.slice(0, limit);
+      return rows.filter(p => availableQty(p) > 0).slice(0, limit);
     }
     return searchLocal(q, { limit });
   }

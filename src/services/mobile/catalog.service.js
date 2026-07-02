@@ -186,6 +186,17 @@ async function enrichProductsWithInventory(products = []) {
   });
 }
 
+
+function clampSalesProductLimit(value, fallback = 20, max = 50) {
+  const parsed = Number.parseInt(value, 10);
+  const requested = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  return Math.max(1, Math.min(requested, max));
+}
+
+function mobileProductSearchTooShort(q = '') {
+  return String(q || '').trim().length < 2;
+}
+
 function productGroupFilter(rawGroup = '') {
   const group = String(rawGroup || '').trim();
   if (!group) return {};
@@ -322,27 +333,47 @@ function createMobileCatalogService(ctx = {}) {
     const q = String(query.q || query.search || '').trim();
     const rawGroup = String(query.group || query.category || query.productGroup || '').trim();
     const normalizedGroup = normalizeText(rawGroup);
-    const all = truthyFlag(query.all);
-    const paginationInput = all
-      ? { page: 1, limit: Math.min(Math.max(toNumber(query.limit || 1000), 1), 2000), skip: 0 }
-      : parseMobilePagination(query, { defaultLimit: q ? 50 : 40, maxLimit: 100 });
-    const { page, limit, skip } = paginationInput;
-    const inStockFlag = truthyFlag(query.inStockOnly || query.onlyInStock);
+    const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
+    const limit = clampSalesProductLimit(query.limit, 20, 50);
+    const skip = (page - 1) * limit;
+
+    // App bán hàng không được trả catalog sản phẩm khi ô tìm kiếm rỗng/quá ngắn.
+    // Người dùng phải gõ tối thiểu 2 ký tự, sau đó backend mới tìm và lọc tồn mở bán.
+    if (mobileProductSearchTooShort(q)) {
+      const pagination = buildPagination({ page: 1, limit, totalRows: 0 });
+      return {
+        body: {
+          ok: true,
+          success: true,
+          source: 'mobile-catalog-min-keyword-guard',
+          inventorySource: 'inventories',
+          products: [],
+          items: [],
+          total: 0,
+          pagination,
+          message: 'Nhập ít nhất 2 ký tự để tìm sản phẩm'
+        }
+      };
+    }
+
+    const inStockFlag = String(query.inStockOnly ?? query.onlyInStock ?? '1') !== '0';
+    const candidateLimit = inStockFlag ? Math.min(Math.max(limit * 5, limit), 250) : limit;
     const filter = combineFilters(
       regexFilter(q, ['code', 'productCode', 'sku', 'name', 'productName', 'barcode', 'brand', 'category', 'groupName', 'productGroup', 'searchText']),
       productGroupFilter(rawGroup)
     );
-    const cacheKey = JSON.stringify({ q, group: normalizedGroup, page, limit });
+    const cacheKey = JSON.stringify({ q, group: normalizedGroup, page, candidateLimit });
     let metadata = cacheGet(mobileCatalogProductMetadataCache, cacheKey);
     const metadataCacheHit = Boolean(metadata);
     if (!metadata) {
-      metadata = await loadProductMetadataPage({ filter, page, limit, skip });
+      metadata = await loadProductMetadataPage({ filter, page, limit: candidateLimit, skip });
       cacheSet(mobileCatalogProductMetadataCache, cacheKey, metadata, MOBILE_CATALOG_METADATA_CACHE_TTL_MS);
     }
 
     let products = await enrichProductsWithInventory(metadata.rows);
     if (inStockFlag) products = products.filter((product) => toNumber(product.availableQty) > 0);
-    const pagination = buildPagination({ page, limit, totalRows: metadata.totalRows });
+    products = products.slice(0, limit);
+    const pagination = buildPagination({ page, limit, totalRows: products.length });
 
     return {
       body: {
@@ -355,7 +386,7 @@ function createMobileCatalogService(ctx = {}) {
         stockCached: false,
         products,
         items: products,
-        total: metadata.totalRows,
+        total: products.length,
         pagination
       }
     };

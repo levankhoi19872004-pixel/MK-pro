@@ -112,7 +112,7 @@
         "public/js/app/05-sales-orders.source/part-03.jsfrag",
         "public/js/app/05-sales-orders.source/part-04.jsfrag"
       ],
-      "sourceSha256": "06505084ffca38409c842436129f45894f629c9ce297253da021c5b729f83f97",
+      "sourceSha256": "9c879d877021135f878acd587f92eb6b0d198971fe5b7a78bad0393211b30723",
       "runtimeFiles": [
         "public/js/app/05-sales-orders.js",
         "public/js/app/05-sales-orders.part02.js",
@@ -132,7 +132,7 @@
         "public/mobile/js/sales.source/part-03.jsfrag",
         "public/mobile/js/sales.source/part-03b.jsfrag"
       ],
-      "sourceSha256": "ff766ef12603df60a66483fa3d0307b7144f6198d883480f31a9d0157566f693"
+      "sourceSha256": "0b077c2133b85d748143d11ca068c0feba820e4f600cdf947f1c122f748db409"
     },
     {
       "target": "public/js/app/admin/08d-import-excel.js",

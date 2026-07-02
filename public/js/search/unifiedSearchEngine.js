@@ -146,15 +146,17 @@
   }
 
   function searchProduct(keyword = '', options = {}) {
+    const salesMode = String(options.mode || '').toLowerCase() === 'sales';
+    const inStockOnly = options.inStockOnly !== undefined ? Boolean(options.inStockOnly) : salesMode;
     return requestSearch('products', keyword, {
       type: 'product',
       ...options,
       limit: normalizeLimit(options.limit, 20),
       includeStock: options.includeStock ?? '1',
-      inStockOnly: options.inStockOnly ? '1' : ''
+      inStockOnly: inStockOnly ? '1' : ''
     }).then(function (rows) {
       let result = rows || [];
-      if (options.inStockOnly) {
+      if (inStockOnly) {
         result = result.filter(function (p) {
           return toNumber(p.availableQty || p.availableStock || p.stockQuantity || p.stock || p.quantity || p.openSaleQty) > 0;
         });

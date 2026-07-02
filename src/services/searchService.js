@@ -176,21 +176,34 @@ function toProductSuggestion(product = {}, inventoryMap = new Map(), options = {
   return row;
 }
 
+function allowsOutOfStockProductSearch(query = {}) {
+  return ['1', 'true', 'yes'].includes(String(query.includeOutOfStock ?? query.allowOutOfStock ?? '').toLowerCase());
+}
+
+function productSuggestionQty(row = {}) {
+  return toNumber(row.availableQty ?? row.availableStock ?? row.openSaleQty ?? row.stockQuantity ?? row.stock ?? row.quantity);
+}
+
 async function searchProducts(query = {}) {
   if (!queryGuard.ensureSearchKeyword(query, 2).ok) return [];
-  const products = await searchRepository.findProducts({ ...(query || {}), limit: queryGuard.clampLimit(query.limit, 20, 50) });
+
+  const safeLimit = queryGuard.clampLimit(query.limit, 20, 50);
+  const inStockOnly = !allowsOutOfStockProductSearch(query);
+  const candidateLimit = inStockOnly ? Math.min(Math.max(safeLimit * 5, safeLimit), 250) : safeLimit;
+  const products = await searchRepository.findProducts({
+    ...(query || {}),
+    limit: safeLimit,
+    candidateLimit
+  });
 
   // Tồn mở bán là thông tin bắt buộc của gợi ý bán hàng.
-  // Trước đây web từng lấy tồn từ field legacy trên product nên có thể hiện 0,
-  // trong khi app mobile lấy inventories nên hiện đúng. Từ đây search chung luôn
-  // đọc inventories giống app, trừ khi client cố tình truyền includeStock=0.
-  const includeStock = String(query.includeStock ?? '1') !== '0';
-  const inventories = includeStock ? await searchRepository.findInventoriesForProducts(products) : [];
-  const inventoryMap = includeStock ? buildInventoryMap(products, inventories) : new Map();
+  // Search sản phẩm phục vụ bán hàng phải đọc inventories/inventoryStock.service
+  // và mặc định loại sản phẩm không xác định tồn hoặc tồn <= 0 ngay tại backend.
+  const inventories = await searchRepository.findInventoriesForProducts(products);
+  const inventoryMap = buildInventoryMap(products, inventories);
   let suggestions = products.map((product) => toProductSuggestion(product, inventoryMap, { compact: query.compact === '1' }));
-  const inStockOnly = ['1', 'true', 'yes'].includes(String(query.inStockOnly ?? query.onlyInStock ?? '').toLowerCase());
-  if (inStockOnly) suggestions = suggestions.filter((row) => toNumber(row.availableQty || row.availableStock || row.stockQuantity || row.stock || row.quantity) > 0);
-  return suggestions;
+  if (inStockOnly) suggestions = suggestions.filter((row) => productSuggestionQty(row) > 0);
+  return suggestions.slice(0, safeLimit);
 }
 
 function toCustomerSuggestion(customer = {}, revenueByCustomer = new Map(), debtMap = new Map()) {

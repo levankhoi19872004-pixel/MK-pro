@@ -52,6 +52,14 @@ function parseLimit(query = {}, fallback = SEARCH_RETURN_MAX, max = SEARCH_RETUR
   return Math.max(1, Math.min(requested, max));
 }
 
+function parseCandidateLimit(query = {}, outputLimit = SEARCH_RETURN_MAX) {
+  const requested = Number.parseInt(query.candidateLimit || query.scanLimit, 10);
+  if (Number.isFinite(requested) && requested > 0) {
+    return Math.max(outputLimit, Math.min(requested, 250));
+  }
+  return outputLimit;
+}
+
 function activeFilter(query = {}) {
   const activeOnly = String(query.activeOnly ?? query.onlyActive ?? '1') !== '0';
   return activeOnly ? { isActive: { $ne: false } } : {};
@@ -218,6 +226,7 @@ async function findProducts(query = {}) {
   const q = String(query.q || query.search || query.keyword || '').trim();
   const nq = normalizeText(q);
   const limit = parseLimit(query);
+  const candidateLimit = parseCandidateLimit(query, limit);
   const baseFilter = activeFilter(query);
   const select = 'id code sku productCode name productName unit baseUnit conversionRate packing barcode category categoryName group groupName productGroup productGroupName brand salePrice price minStock maxStock isActive searchText';
   // MOBILE_PRODUCT_GROUP_FILTER_REPOSITORY_START: lọc sản phẩm theo Nhóm hàng mà không phá $or tìm kiếm hiện có.
@@ -240,7 +249,7 @@ async function findProducts(query = {}) {
     return Product.find(withGroupFilter(baseFilter))
       .select(select)
       .sort({ code: 1 })
-      .limit(limit)
+      .limit(candidateLimit)
       .lean();
   }
 
@@ -249,10 +258,10 @@ async function findProducts(query = {}) {
     const indexedRows = await Product.find(withGroupFilter(indexedFilter))
       .select(select)
       .sort({ code: 1 })
-      .limit(Math.min(limit * 4, 120))
+      .limit(Math.min(candidateLimit * 4, 250))
       .lean();
     const indexedMatches = uniqueBy(
-      sortScoredRows(indexedRows, productSearchScore, nq, limit, ['code', 'productCode', 'sku']),
+      sortScoredRows(indexedRows, productSearchScore, nq, candidateLimit, ['code', 'productCode', 'sku']),
       ['code', 'productCode', 'sku']
     );
 
@@ -263,7 +272,7 @@ async function findProducts(query = {}) {
     // empty numeric result here; fall through to the bounded regex scan below so
     // edit-order autocomplete can still find matching products without converting
     // "0864" to "864".
-    if (indexedMatches.length >= limit) return indexedMatches.slice(0, limit);
+    if (indexedMatches.length >= candidateLimit) return indexedMatches.slice(0, candidateLimit);
   }
 
   const rawRegex = { $regex: escapeRegex(q), $options: 'i' };
@@ -293,13 +302,13 @@ async function findProducts(query = {}) {
   const scanned = await Product.find(withGroupFilter(filter))
     .select(select)
     .sort({ code: 1 })
-    .limit(Math.min(limit * 3, 150))
+    .limit(Math.min(candidateLimit * 3, 250))
     .lean();
 
   return uniqueBy(
-    sortScoredRows(scanned, productSearchScore, nq, limit, ['code', 'productCode', 'sku']),
+    sortScoredRows(scanned, productSearchScore, nq, candidateLimit, ['code', 'productCode', 'sku']),
     ['code', 'productCode', 'sku']
-  ).slice(0, limit);
+  ).slice(0, candidateLimit);
 }
 
 async function findInventoriesForProducts(products = []) {
@@ -326,6 +335,7 @@ async function findCustomers(query = {}) {
   const q = String(query.q || query.search || query.keyword || '').trim();
   const nq = normalizeText(q);
   const limit = parseLimit(query);
+  const candidateLimit = parseCandidateLimit(query, limit);
   const baseFilter = activeFilter(query);
   const ownershipFilter = (query.ownerSalesStaffCode || query.ownerSalesStaffName)
     ? customerOwnershipFilter({

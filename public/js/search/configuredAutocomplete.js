@@ -74,7 +74,7 @@
       const limit = Number(config.limit || 50);
       if (config.type === 'product') {
         const mode = config.key === 'importProduct' ? 'import' : 'sales';
-        return window.UnifiedSearchEngine.searchProduct(q, { limit, mode, inStockOnly: !!config.onlyInStock });
+        return window.UnifiedSearchEngine.searchProduct(q, { limit, mode, inStockOnly: config.onlyInStock || mode === 'sales' });
       }
       if (config.type === 'customer') {
         return window.UnifiedSearchEngine.searchCustomer(q, { limit, minChars: 0, allowEmpty: '1', showOnFocus: '1' });

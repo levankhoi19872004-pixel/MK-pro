@@ -158,7 +158,7 @@ async function listProducts(query = {}) {
 async function searchProducts(query = {}) {
   const checked = queryGuard.ensureSearchKeyword(query, 2);
   if (!checked.ok) return [];
-  return searchService.searchProducts({ ...(query || {}), limit: queryGuard.clampLimit(query?.limit, 20, 50) });
+  return searchService.searchProducts({ ...(query || {}), limit: queryGuard.clampLimit(query?.limit, 20, 50), inStockOnly: '1' });
 }
 
 async function createProduct(body) {

@@ -113,9 +113,9 @@ async function searchMobileProducts(keyword = '') {
   // trong khi API mới trả data.items, làm có request 200 nhưng không render gợi ý.
   try {
     // MOBILE_PRODUCT_GROUP_FILTER_SEARCH_START: tìm sản phẩm trong nhóm hàng đang chọn.
-    const data = await mobileApi.getProducts(q, { limit: 50, group: currentProductGroupFilter() });
+    const data = await mobileApi.getProducts(q, { limit: 20, group: currentProductGroupFilter(), inStockOnly: '1' });
     // MOBILE_PRODUCT_GROUP_FILTER_SEARCH_END
-    const rows = normalizeProductSearchResponse(data).map(toMobileProduct);
+    const rows = normalizeProductSearchResponse(data).map(toMobileProduct).filter((product) => Number(product.availableQty || product.availableStock || product.stockQuantity || 0) > 0);
     if (window.UnifiedProductSearch && typeof window.UnifiedProductSearch.sync === 'function') {
       window.UnifiedProductSearch.sync(rows);
     }
@@ -125,13 +125,13 @@ async function searchMobileProducts(keyword = '') {
   }
 
   if (window.UnifiedSearchEngine && typeof window.UnifiedSearchEngine.searchProduct === 'function') {
-    const rows = await window.UnifiedSearchEngine.searchProduct(q, { limit: 50, mode: 'sales', includeStock: 1, group: currentProductGroupFilter() });
-    return normalizeProductSearchResponse(rows).map(toMobileProduct);
+    const rows = await window.UnifiedSearchEngine.searchProduct(q, { limit: 20, mode: 'sales', includeStock: 1, inStockOnly: 1, group: currentProductGroupFilter() });
+    return normalizeProductSearchResponse(rows).map(toMobileProduct).filter((product) => Number(product.availableQty || product.availableStock || product.stockQuantity || 0) > 0);
   }
 
   if (window.UnifiedProductSearch && typeof window.UnifiedProductSearch.search === 'function') {
-    const rows = await window.UnifiedProductSearch.search(q, { limit: 50, mode: 'sales', group: currentProductGroupFilter() });
-    return normalizeProductSearchResponse(rows).map(toMobileProduct);
+    const rows = await window.UnifiedProductSearch.search(q, { limit: 20, mode: 'sales', group: currentProductGroupFilter() });
+    return normalizeProductSearchResponse(rows).map(toMobileProduct).filter((product) => Number(product.availableQty || product.availableStock || product.stockQuantity || 0) > 0);
   }
 
   return [];

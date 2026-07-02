@@ -1137,12 +1137,12 @@
         if (deliveryInput) deliveryInput.value = [state.manualDebt.form.deliveryStaffCode, state.manualDebt.form.deliveryStaffName].filter(Boolean).join(' - ');
       }
     } else if (scope === 'salesman') {
-      state.manualDebt.form.salesStaffCode = normalizedText(item.salesStaffCode || item.salesmanCode || item.code || item.staffCode || item.value);
+      state.manualDebt.form.salesStaffCode = normalizedText(item.salesStaffCode || item.salesmanCode || item.businessStaffCode || item.code || item.value);
       state.manualDebt.form.salesStaffName = normalizedText(item.salesStaffName || item.salesmanName || item.name || item.fullName || item.businessStaffName);
       var salesInput = byId('debtNewManualSalesman');
       if (salesInput) salesInput.value = [state.manualDebt.form.salesStaffCode, state.manualDebt.form.salesStaffName].filter(Boolean).join(' - ');
     } else {
-      state.manualDebt.form.deliveryStaffCode = normalizedText(item.deliveryStaffCode || item.deliveryCode || item.shipperCode || item.code || item.staffCode || item.value);
+      state.manualDebt.form.deliveryStaffCode = normalizedText(item.deliveryStaffCode || item.deliveryCode || item.shipperCode || item.businessStaffCode || item.code || item.value);
       state.manualDebt.form.deliveryStaffName = normalizedText(item.deliveryStaffName || item.deliveryName || item.shipperName || item.name || item.fullName || item.businessStaffName);
       var delInput = byId('debtNewManualDelivery');
       if (delInput) delInput.value = [state.manualDebt.form.deliveryStaffCode, state.manualDebt.form.deliveryStaffName].filter(Boolean).join(' - ');

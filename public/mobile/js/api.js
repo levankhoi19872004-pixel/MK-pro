@@ -310,7 +310,7 @@ export const mobileApi = {
     if (options.all) query.set('all', '1');
     const groupValue = options.group || options.groupName || options.category || options.categoryName || options.productGroup || options.productGroupName || '';
     if (groupValue) query.set('group', String(groupValue));
-    if (options.inStockOnly !== undefined) query.set('inStockOnly', String(options.inStockOnly));
+    query.set('inStockOnly', String(options.inStockOnly ?? '1'));
     const suffix = query.toString() ? `?${query.toString()}` : '';
     return apiRequest(`${MOBILE_ROUTES.products}${suffix}`, {
       requestKey: options.requestKey || 'mobile-products',

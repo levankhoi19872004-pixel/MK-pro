@@ -14,7 +14,7 @@ const explicitMode=getExplicitPricingModeForEdit(order);if(explicitMode)return e
 if(window.UnifiedProductSearch)return window.UnifiedProductSearch.getCatalog()
 ;const catalog=Array.isArray(salesProductsCache)&&salesProductsCache.length?salesProductsCache:productsCache;return Array.isArray(catalog)?catalog:[]}
 async function loadSalesProductCatalog(){try{if(window.UnifiedProductSearch){salesProductsCache=await window.UnifiedProductSearch.preload({force:false});renderSalesProductSelect()
-;return salesProductsCache}const res=await fetch(`/api/catalog/products/search?q=&limit=50&includeStock=1&activeOnly=1&_t=${Date.now()}`);const json=await res.json()
+;return salesProductsCache}const res=await fetch(`/api/catalog/products/search?q=&limit=20&includeStock=1&activeOnly=1&inStockOnly=1&_t=${Date.now()}`);const json=await res.json()
 ;if(!json.ok)throw new Error(json.message||"Không tải được danh mục sản phẩm bán hàng");salesProductsCache=(json.products||json.items||[]).map(p=>({...p}))
 ;renderSalesProductSelect();return salesProductsCache}catch(err){console.warn("Không tải được catalog sản phẩm bán hàng:",err.message||err)
 ;salesProductsCache=Array.isArray(productsCache)?productsCache:[];renderSalesProductSelect();return salesProductsCache}}function getSalesCustomerMatches(){

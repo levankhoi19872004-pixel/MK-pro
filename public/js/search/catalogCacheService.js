@@ -11,6 +11,7 @@
 
   const TTL = 5 * 60 * 1000;
   const MAX_LIMIT = 50;
+  const DEFAULT_PRODUCT_SEARCH_LIMIT = 20;
   const state = {
     products: [],
     customers: [],
@@ -104,7 +105,7 @@
   }
 
   async function searchProducts(keyword = '', options = {}){
-    const limit = Math.min(MAX_LIMIT, Math.max(1, Number(options.limit || MAX_LIMIT)));
+    const limit = Math.min(MAX_LIMIT, Math.max(1, Number(options.limit || DEFAULT_PRODUCT_SEARCH_LIMIT)));
     const q = String(keyword || '').trim();
     if(q.length < 2) return [];
     const key = cacheKey(q, { limit });
@@ -113,9 +114,11 @@
     const pendingKey = `products:${key}`;
     if(state.pending.has(pendingKey)) return state.pending.get(pendingKey);
 
-    const url = `${endpoint('products')}?q=${encodeURIComponent(q)}&limit=${limit}&includeStock=1&activeOnly=1`;
+    const url = `${endpoint('products')}?q=${encodeURIComponent(q)}&limit=${limit}&includeStock=1&activeOnly=1&inStockOnly=1`;
     const promise = fetchJson(url).then(json => {
-      const rows = dedupe(json.products || json.items || json.data || [], ['code','productCode','sku','id']);
+      const rows = dedupe(json.products || json.items || json.data || [], ['code','productCode','sku','id'])
+        .filter(row => Number(row.availableQty ?? row.availableStock ?? row.stockQuantity ?? row.stock ?? row.quantity ?? 0) > 0)
+        .slice(0, limit);
       setCached(state.productSearchCache, key, rows);
       syncGlobals('products', rows);
       return rows;
