@@ -50,7 +50,10 @@ const ImportSessionSchema = new mongoose.Schema({
 
   progress: {
     percent: { type: Number, default: 0 },
-    step: { type: String, default: '' }
+    step: { type: String, default: '' },
+    completedRows: { type: Number, default: 0 },
+    totalRows: { type: Number, default: 0 },
+    message: { type: String, default: '', trim: true }
   },
 
   totalRows: { type: Number, default: 0 },

@@ -72,7 +72,7 @@ async function runImportPreview(job) {
 
 async function runImportCommit(job) {
   await BackgroundJobService.updateProgress(job.id, { percent: 2, step: 'validating_import_session' });
-  const result = await excelImportService.commit(job.payload || {});
+  const result = await excelImportService.commit({ ...(job.payload || {}), backgroundJobId: job.id });
   if (result?.error) throw jobError(result, 'Không commit được import');
   return {
     result: {

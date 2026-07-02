@@ -6,6 +6,17 @@ const importSessionService = require('../importSessionService');
 const { getRuntimeConfig } = require('../../config/app.config');
 
 function actorName(user = {}) { return String(user.username || user.fullName || user.name || user.code || 'system').trim(); }
+function text(value) { return String(value ?? '').trim(); }
+
+function stringArray(value) {
+  return Array.isArray(value) ? value.map((item) => text(item)).filter(Boolean) : [];
+}
+
+function positiveNumberArray(value) {
+  return Array.isArray(value)
+    ? value.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
+    : [];
+}
 function stableJson(value) {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
   if (value && typeof value === 'object') {
@@ -85,7 +96,16 @@ async function submitImportCommit(payload = {}, user = {}) {
   if (session.status === 'done') {
     const existing = await BackgroundJobService.enqueue({
       type: 'import_commit',
-      payload: { ...payload, sessionId },
+      payload: {
+        ...payload,
+        sessionId,
+        selectedOrderCodes: stringArray(payload.selectedOrderCodes),
+        selectedRowNumbers: positiveNumberArray(payload.selectedRowNumbers),
+        selectedProgramCodes: stringArray(payload.selectedProgramCodes),
+        selectedRowKeys: stringArray(payload.selectedRowKeys),
+        importMode: text(payload.importMode || session.importMode),
+        userName: text(payload.userName || actorName(user))
+      },
       idempotencyKey: `import-commit:${sessionId}`,
       actor: user,
       timeoutMs: importConfig.commitJobTimeoutMs,
@@ -100,8 +120,12 @@ async function submitImportCommit(payload = {}, user = {}) {
       type: String(payload.type || session.type || '').trim(),
       shortageMode: String(payload.shortageMode || '').trim(),
       sessionId,
-      selectedOrderCodes: Array.isArray(payload.selectedOrderCodes) ? payload.selectedOrderCodes : [],
-      userName: actorName(user)
+      selectedOrderCodes: stringArray(payload.selectedOrderCodes),
+      selectedRowNumbers: positiveNumberArray(payload.selectedRowNumbers),
+      selectedProgramCodes: stringArray(payload.selectedProgramCodes),
+      selectedRowKeys: stringArray(payload.selectedRowKeys),
+      importMode: text(payload.importMode || session.importMode),
+      userName: text(payload.userName || actorName(user))
     },
     idempotencyKey: `import-commit:${sessionId}`,
     actor: user,

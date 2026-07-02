@@ -194,7 +194,7 @@ async function rebuildSelectedSalesOrderPreviewRows(sourceRows = [], { userName 
   return Array.isArray(rebuilt?.rows) ? rebuilt.rows : [];
 }
 
-async function commit({ type, rows, shortageMode = '', sessionId = '', selectedOrderCodes = [], selectedRowNumbers = [], selectedProgramCodes = [], userName = '' }) {
+async function commit({ type, rows, shortageMode = '', sessionId = '', selectedOrderCodes = [], selectedRowNumbers = [], selectedProgramCodes = [], selectedRowKeys = [], importMode: requestedImportMode = '', userName = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (type === 'salesOrdersS3') type = 'salesOrders';
   if (!sessionId) return { error: 'Bắt buộc xác nhận bằng importSessionId từ bước preview', status: 400 };
@@ -205,7 +205,7 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
   }
 
   const currentSessionId = session.sessionId || session.id;
-  const importMode = normalizeImportMode(session.importMode, type);
+  const importMode = normalizeImportMode(requestedImportMode || session.importMode, type);
 
   let sourceRows = [];
   let validRows = [];
@@ -224,7 +224,7 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
       };
     }
 
-    sourceRows = await importSessionService.selectRows(session, selectedOrderCodes, selectedRowNumbers, selectedProgramCodes);
+    sourceRows = await importSessionService.selectRows(session, selectedOrderCodes, selectedRowNumbers, selectedProgramCodes, selectedRowKeys);
     await importSessionService.updateProgress(currentSessionId, {
       percent: 5,
       step: 'loading_selected_rows'
@@ -286,16 +286,37 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
       };
     }
 
+    console.info('[IMPORT_COMMIT_STARTED]', {
+      sessionId: currentSessionId,
+      type,
+      totalRows: sourceRows.length,
+      totalCommitRows: commitRows.length,
+      importMode
+    });
+
     await importSessionService.updateProgress(currentSessionId, {
       percent: 18,
-      step: 'committing'
+      step: 'committing',
+      completedRows: 0,
+      totalRows: commitRows.length
     });
 
     result = await importCommitOrchestrator.commit(type, commitRows, {
       options: {
         importSessionId: currentSessionId,
         sessionId: currentSessionId,
-        importMode
+        importMode,
+        onProgress: async (progress = {}) => {
+          await importSessionService.updateProgress(currentSessionId, progress);
+          console.info('[IMPORT_COMMIT_PROGRESS]', {
+            sessionId: currentSessionId,
+            type,
+            percent: progress.percent,
+            step: progress.step,
+            completedRows: progress.completedRows,
+            totalRows: progress.totalRows
+          });
+        }
       },
       operations: {
         upsertProducts,
@@ -321,10 +342,20 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
 
     await importSessionService.updateProgress(currentSessionId, {
       percent: 95,
-      step: 'finalizing'
+      step: 'finalizing',
+      completedRows: commitRows.length,
+      totalRows: commitRows.length
     });
   } catch (err) {
     const message = await safeMarkImportFailed(currentSessionId, err, 'Import thất bại');
+    console.error('[IMPORT_COMMIT_FAILED]', {
+      sessionId: currentSessionId,
+      type,
+      totalRows: sourceRows.length,
+      totalCommitRows: commitRows.length,
+      code: err && err.code,
+      message
+    });
 
     return {
       error: 'Import thất bại',
@@ -343,6 +374,14 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
       err,
       'Import đã ghi dữ liệu nhưng không cập nhật được trạng thái hoàn tất'
     );
+    console.error('[IMPORT_COMMIT_FAILED]', {
+      sessionId: currentSessionId,
+      type,
+      totalRows: sourceRows.length,
+      totalCommitRows: commitRows.length,
+      code: err && err.code,
+      message
+    });
 
     return {
       error: 'Import đã ghi dữ liệu nhưng không cập nhật được trạng thái hoàn tất',
@@ -352,6 +391,15 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
       importSessionId: currentSessionId
     };
   }
+
+  console.info('[IMPORT_COMMIT_DONE]', {
+    sessionId: currentSessionId,
+    type,
+    totalRows: sourceRows.length,
+    totalCommitRows: commitRows.length,
+    imported: result.imported || 0,
+    skipped: result.skipped || 0
+  });
 
   try {
     await auditService.log('IMPORT_COMMIT', {

@@ -2,6 +2,29 @@
 
 const excelImportService = require('../services/excelImportService');
 const ImportWebDirectCommitService = require('../services/import/ImportWebDirectCommitService');
+const AsyncJobHttpAdapter = require('../services/background-jobs/AsyncJobHttpAdapter');
+
+
+function importCommitAsyncThreshold() {
+  const value = Number(process.env.IMPORT_COMMIT_PROMOTION_ASYNC_THRESHOLD || 1000);
+  return Number.isFinite(value) && value > 0 ? value : Infinity;
+}
+
+function selectedImportCommitCount(body = {}) {
+  return Math.max(
+    Array.isArray(body.selectedRowNumbers) ? body.selectedRowNumbers.length : 0,
+    Array.isArray(body.selectedRowKeys) ? body.selectedRowKeys.length : 0,
+    Array.isArray(body.selectedOrderCodes) ? body.selectedOrderCodes.length : 0,
+    Array.isArray(body.selectedProgramCodes) ? body.selectedProgramCodes.length : 0
+  );
+}
+
+function shouldRunImportCommitAsync(req = {}) {
+  if (AsyncJobHttpAdapter.prefersAsync(req)) return true;
+  const body = req.body || {};
+  const type = String(body.type || '').trim();
+  return type === 'promotionProductRules' && selectedImportCommitCount(body) > importCommitAsyncThreshold();
+}
 
 async function preview(req, res) {
   try {
@@ -17,6 +40,14 @@ async function preview(req, res) {
 
 async function commit(req, res) {
   try {
+    if (shouldRunImportCommitAsync(req)) {
+      const submitted = await AsyncJobHttpAdapter.submitImportCommit(req);
+      if (submitted.error) {
+        return res.status(submitted.status || 400).json({ ok: false, message: submitted.error, ...submitted });
+      }
+      return res.status(202).json(AsyncJobHttpAdapter.acceptedPayload(submitted, { source: 'mongo-native-import-controller' }));
+    }
+
     const result = await ImportWebDirectCommitService.commitSession({
       ...(req.body || {}),
       sessionId: req.params?.sessionId || req.body?.sessionId || req.body?.importSessionId

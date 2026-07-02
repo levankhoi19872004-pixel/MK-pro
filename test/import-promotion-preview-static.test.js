@@ -170,9 +170,9 @@ test('import session commit can honor selected row numbers for non-order Excel r
   assert.match(webDirect, /selectedProgramCodes: normalizeSelectedProgramCodes\(payload\.selectedProgramCodes\)/);
   assert.match(commit, /selectedRowNumbers = \[\]/);
   assert.match(commit, /selectedProgramCodes = \[\]/);
-  assert.match(commit, /selectRows\(session, selectedOrderCodes, selectedRowNumbers, selectedProgramCodes\)/);
-  assert.match(session, /async function selectRows\(session, selectedOrderCodes = \[\], selectedRowNumbers = \[\], selectedProgramCodes = \[\]\)/);
-  assert.match(session, /query\.rowNo = \{ \$in: Array\.from\(selectedRows\) \}/);
+  assert.match(commit, /selectRows\(session, selectedOrderCodes, selectedRowNumbers, selectedProgramCodes, selectedRowKeys\)/);
+  assert.match(session, /async function selectRows\(session, selectedOrderCodes = \[\], selectedRowNumbers = \[\], selectedProgramCodes = \[\], selectedRowKeys = \[\]\)/);
+  assert.match(session, /conditions\.push\(\{ rowNo: \{ \$in: Array\.from\(selectedRows\) \} \}\)/);
   assert.match(session, /selectedRows\.has\(rowNo\)/);
 });
 

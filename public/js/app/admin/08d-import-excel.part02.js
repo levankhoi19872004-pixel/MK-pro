@@ -158,7 +158,7 @@ status:json.status||"queued"});return await waitImportPreviewSession(sessionId)}
 async function handleImportExcelAction(){if(!importPreviewRows.length){await previewImportExcel();return}await commitImportExcel()}
 function describeImportCommitProgress(progress={},selectedCount=0){const percent=Math.max(0,Math.min(100,Number(progress.percent||0)));const step=String(progress.step||"").trim()
 ;const chunkMatch=step.match(/^committing:(\d+)\/(\d+)$/);if(chunkMatch){
-return`Đang ghi đơn và trừ tồn theo lô ${chunkMatch[1]}/${chunkMatch[2]} · ${percent}% · ${formatNumber(selectedCount)} đơn/dòng đã chọn`}const labels={
+return`Đang ghi dữ liệu theo lô ${chunkMatch[1]}/${chunkMatch[2]} · ${percent}% · ${formatNumber(selectedCount)} đơn/dòng đã chọn`}const labels={
 preparing_commit:"Đang chuẩn bị phiên import",loading_selected_rows:"Đang tải các dòng đã chọn từ MongoDB",
 revalidating_orders:"Đang kiểm tra lại mã đơn, khách hàng, sản phẩm và NVBH",committing:"Đang ghi dữ liệu",finalizing:"Đang hoàn tất và ghi nhật ký",done:"Đã hoàn tất"}
 ;return`${labels[step]||"Đang import"} · ${percent}% · ${formatNumber(selectedCount)} đơn/dòng đã chọn`}function startImportCommitProgressPolling(sessionId,selectedCount){

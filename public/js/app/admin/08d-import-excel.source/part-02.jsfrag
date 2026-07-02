@@ -581,7 +581,7 @@ function describeImportCommitProgress(progress={},selectedCount=0){
   const step=String(progress.step||'').trim();
   const chunkMatch=step.match(/^committing:(\d+)\/(\d+)$/);
   if(chunkMatch){
-    return `Đang ghi đơn và trừ tồn theo lô ${chunkMatch[1]}/${chunkMatch[2]} · ${percent}% · ${formatNumber(selectedCount)} đơn/dòng đã chọn`;
+    return `Đang ghi dữ liệu theo lô ${chunkMatch[1]}/${chunkMatch[2]} · ${percent}% · ${formatNumber(selectedCount)} đơn/dòng đã chọn`;
   }
   const labels={
     preparing_commit:'Đang chuẩn bị phiên import',

@@ -30,6 +30,12 @@ function normalizeSelectedRowNumbers(value) {
     : [];
 }
 
+function normalizeSelectedRowKeys(value) {
+  return Array.isArray(value)
+    ? value.map((item) => cleanText(item)).filter(Boolean)
+    : [];
+}
+
 function buildDonePayload(session, sessionId) {
   const result = session && session.result && typeof session.result === 'object' && !Array.isArray(session.result)
     ? session.result
@@ -93,6 +99,8 @@ async function commitSession(payload = {}, user = {}) {
     selectedOrderCodes: normalizeSelectedOrderCodes(payload.selectedOrderCodes),
     selectedRowNumbers: normalizeSelectedRowNumbers(payload.selectedRowNumbers),
     selectedProgramCodes: normalizeSelectedProgramCodes(payload.selectedProgramCodes),
+    selectedRowKeys: normalizeSelectedRowKeys(payload.selectedRowKeys),
+    importMode: cleanText(payload.importMode || session.importMode),
     userName: actorName(user)
   });
 
@@ -116,6 +124,7 @@ module.exports = {
     actorName,
     normalizeSelectedOrderCodes,
     normalizeSelectedRowNumbers,
-    normalizeSelectedProgramCodes
+    normalizeSelectedProgramCodes,
+    normalizeSelectedRowKeys
   }
 };

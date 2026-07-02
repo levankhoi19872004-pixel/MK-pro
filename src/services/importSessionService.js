@@ -213,18 +213,23 @@ async function markQueued(id, { files = [] } = {}) {
   );
 }
 
-async function updateProgress(id, { percent = 0, step = '' } = {}) {
+async function updateProgress(id, { percent = 0, step = '', completedRows = undefined, totalRows = undefined, message = '' } = {}) {
   const value = cleanText(id);
   if (!value) return null;
+
+  const progress = {
+    percent: Math.max(0, Math.min(100, Number(percent) || 0)),
+    step: cleanText(step)
+  };
+  if (completedRows !== undefined) progress.completedRows = Math.max(0, Number(completedRows) || 0);
+  if (totalRows !== undefined) progress.totalRows = Math.max(0, Number(totalRows) || 0);
+  if (message) progress.message = cleanText(message).slice(0, 500);
 
   return ImportSession.findOneAndUpdate(
     { $or: [{ id: value }, { sessionId: value }] },
     {
       $set: {
-        progress: {
-          percent: Math.max(0, Math.min(100, Number(percent) || 0)),
-          step: cleanText(step)
-        },
+        progress,
         updatedAt: new Date()
       }
     },
@@ -451,7 +456,7 @@ async function markDone(id, result = {}) {
   );
 }
 
-async function selectRows(session, selectedOrderCodes = [], selectedRowNumbers = [], selectedProgramCodes = []) {
+async function selectRows(session, selectedOrderCodes = [], selectedRowNumbers = [], selectedProgramCodes = [], selectedRowKeys = []) {
   const sessionId = cleanText(session?.sessionId || session?.id);
   if (!sessionId) return [];
 
@@ -471,19 +476,20 @@ async function selectRows(session, selectedOrderCodes = [], selectedRowNumbers =
       .map((v) => cleanText(v))
       .filter(Boolean)
   );
+  const selectedKeys = new Set(
+    (selectedRowKeys || [])
+      .map((v) => cleanText(v))
+      .filter(Boolean)
+  );
 
   const query = { sessionId };
+  const conditions = [];
+  if (selected.size) conditions.push({ documentCode: { $in: Array.from(selected) } });
+  if (selectedRows.size) conditions.push({ rowNo: { $in: Array.from(selectedRows) } });
+  if (selectedKeys.size) conditions.push({ rowKey: { $in: Array.from(selectedKeys) } });
 
-  if (selected.size && selectedRows.size) {
-    query.$or = [
-      { documentCode: { $in: Array.from(selected) } },
-      { rowNo: { $in: Array.from(selectedRows) } }
-    ];
-  } else if (selected.size) {
-    query.documentCode = { $in: Array.from(selected) };
-  } else if (selectedRows.size) {
-    query.rowNo = { $in: Array.from(selectedRows) };
-  }
+  if (conditions.length === 1) Object.assign(query, conditions[0]);
+  else if (conditions.length > 1) query.$or = conditions;
 
   const docs = await ImportSessionRow
     .find(query)
@@ -494,49 +500,84 @@ async function selectRows(session, selectedOrderCodes = [], selectedRowNumbers =
     .map((doc) => doc.normalizedRow)
     .filter(Boolean);
 
-  if (!selected.size && !selectedRows.size && !selectedPrograms.size) return rows;
+  if (!selected.size && !selectedRows.size && !selectedPrograms.size && !selectedKeys.size) return rows;
 
   return rows.filter((row, index) => {
     const rowNo = Number(row?.rowNo || row?.sourceRowNo || row?.__rowNo || row?.rowNumber || docs[index]?.rowNo || 0);
-    return selected.has(getRowDocumentCode(row)) || selectedRows.has(rowNo) || selectedPrograms.has(getRowProgramCode(row));
+    const rowKey = cleanText(docs[index]?.rowKey);
+    const fallbackKey = getRowDocumentCode(row) || `ROW_${index}`;
+    return selected.has(getRowDocumentCode(row)) || selectedRows.has(rowNo) || selectedPrograms.has(getRowProgramCode(row)) || selectedKeys.has(rowKey) || selectedKeys.has(fallbackKey);
   });
 }
 
 
 
-async function recoverStaleImportSessions({ olderThanMs = Number(process.env.IMPORT_STALE_SESSION_MS || 15 * 60 * 1000), limit = 100 } = {}) {
-  const cutoff = new Date(Date.now() - Math.max(60_000, Number(olderThanMs) || 15 * 60 * 1000));
-  const stale = await ImportSession.find({
-    status: { $in: ['queued', 'parsing'] },
-    updatedAt: { $lt: cutoff }
-  }).sort({ updatedAt: 1 }).limit(Math.max(1, Math.min(500, Number(limit) || 100))).lean();
+async function recoverStaleImportSessions({
+  olderThanMs = Number(process.env.IMPORT_STALE_SESSION_MS || 15 * 60 * 1000),
+  importingOlderThanMs = Number(process.env.IMPORT_STALE_IMPORTING_SESSION_MS || 15 * 60 * 1000),
+  limit = 100
+} = {}) {
+  const safeLimit = Math.max(1, Math.min(500, Number(limit) || 100));
+  const previewCutoff = new Date(Date.now() - Math.max(60_000, Number(olderThanMs) || 15 * 60 * 1000));
+  const importingCutoff = new Date(Date.now() - Math.max(60_000, Number(importingOlderThanMs) || 15 * 60 * 1000));
 
+  const [previewStale, importingStale] = await Promise.all([
+    ImportSession.find({
+      status: { $in: ['queued', 'parsing'] },
+      updatedAt: { $lt: previewCutoff }
+    }).sort({ updatedAt: 1 }).limit(safeLimit).lean(),
+    ImportSession.find({
+      status: 'importing',
+      updatedAt: { $lt: importingCutoff }
+    }).sort({ updatedAt: 1 }).limit(safeLimit).lean()
+  ]);
+
+  const stale = [...previewStale, ...importingStale];
   const sessionIds = stale.map((session) => cleanText(session.sessionId || session.id)).filter(Boolean);
   const activeJobs = sessionIds.length ? await BackgroundJob.find({
-    type: 'import_preview',
-    idempotencyKey: { $in: sessionIds.map((id) => `import-preview:${id}`) },
-    status: { $in: ['pending', 'running', 'cancel_requested'] }
+    $or: [
+      {
+        type: 'import_preview',
+        idempotencyKey: { $in: sessionIds.map((id) => `import-preview:${id}`) },
+        status: { $in: ['pending', 'running', 'cancel_requested'] }
+      },
+      {
+        type: 'import_commit',
+        idempotencyKey: { $in: sessionIds.map((id) => `import-commit:${id}`) },
+        status: { $in: ['pending', 'running', 'cancel_requested'] }
+      }
+    ]
   }).select({ idempotencyKey: 1 }).lean() : [];
-  const protectedSessions = new Set(activeJobs.map((job) => cleanText(job.idempotencyKey).replace(/^import-preview:/, '')));
+  const protectedSessions = new Set(activeJobs.map((job) => cleanText(job.idempotencyKey).replace(/^import-(preview|commit):/, '')));
 
   let recovered = 0;
+  let recoveredPreview = 0;
+  let recoveredImporting = 0;
   let preserved = 0;
   for (const session of stale) {
     const sessionId = cleanText(session.sessionId || session.id);
     // Persistent jobs survive web/worker restarts through their Mongo lease. Do not
-    // fail a queued session merely because the web process has not updated it recently.
+    // fail a queued/importing session merely because the web process has not updated it recently.
     if (protectedSessions.has(sessionId)) {
       preserved += 1;
       continue;
     }
-    await markFailed(sessionId, 'Import bị gián đoạn và không còn background job có thể tiếp tục. Vui lòng tải lại file.');
-    const files = Array.isArray(session.tempFiles) ? session.tempFiles : [];
-    if (files.length) await cleanupImportFiles(files).catch(() => {});
-    await cleanupImportSession(sessionId).catch(() => {});
+
+    const status = cleanText(session.status).toLowerCase();
+    if (status === 'importing') {
+      await markFailed(sessionId, 'Import bị gián đoạn ở bước ghi dữ liệu. Vui lòng kiểm tra số dòng đã ghi và import lại.');
+      recoveredImporting += 1;
+    } else {
+      await markFailed(sessionId, 'Import bị gián đoạn và không còn background job có thể tiếp tục. Vui lòng tải lại file.');
+      const files = Array.isArray(session.tempFiles) ? session.tempFiles : [];
+      if (files.length) await cleanupImportFiles(files).catch(() => {});
+      await cleanupImportSession(sessionId).catch(() => {});
+      recoveredPreview += 1;
+    }
     recovered += 1;
   }
 
-  return { recovered, preserved, cutoff };
+  return { recovered, recoveredPreview, recoveredImporting, preserved, cutoff: previewCutoff, importingCutoff };
 }
 
 module.exports = {

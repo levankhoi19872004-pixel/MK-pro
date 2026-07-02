@@ -186,11 +186,79 @@ async function importUsers(rows = [], options = {}) {
   };
 }
 
-async function importPromotionProductRules(rows = []) {
+function clampPromotionImportBatchSize(value) {
+  const size = Number(value || process.env.PROMOTION_IMPORT_BATCH_SIZE || 200);
+  if (!Number.isFinite(size) || size <= 0) return 200;
+  return Math.max(1, Math.min(1000, Math.floor(size)));
+}
+
+function promotionBulkWriteTimeoutMs(options = {}) {
+  const value = Number(options.bulkWriteTimeoutMs || process.env.PROMOTION_IMPORT_BULK_TIMEOUT_MS || 2 * 60 * 1000);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function withPromotionBulkTimeout(promise, timeoutMs, context = {}) {
+  if (!timeoutMs) return promise;
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(`MongoDB bulkWrite CK sản phẩm quá thời gian chờ tại lô ${context.batchIndex + 1}/${context.totalBatches}`);
+      error.code = 'PROMOTION_PRODUCT_RULE_BULK_TIMEOUT';
+      error.retryable = true;
+      error.context = context;
+      reject(error);
+    }, timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+function extractPromotionBulkWriteErrors(error) {
+  const writeErrors = Array.isArray(error?.writeErrors) ? error.writeErrors : [];
+  return writeErrors.slice(0, 20).map((item) => ({
+    index: Number(item.index ?? item.err?.index ?? -1),
+    code: item.code || item.err?.code || error?.code || '',
+    message: cleanText(item.errmsg || item.message || item.err?.errmsg || item.err?.message || error?.message || item)
+  })).filter((item) => item.message);
+}
+
+function buildPromotionBulkWriteError(error, context = {}) {
+  const writeErrors = extractPromotionBulkWriteErrors(error);
+  const firstMessage = writeErrors[0]?.message || error?.message || String(error || 'MongoDB bulkWrite CK sản phẩm thất bại');
+  const wrapped = new Error(`Không ghi được CK sản phẩm tại lô ${Number(context.batchIndex || 0) + 1}/${context.totalBatches || 1}: ${firstMessage}`);
+  wrapped.code = error?.code || 'PROMOTION_PRODUCT_RULE_BULK_WRITE_FAILED';
+  wrapped.kind = 'system';
+  wrapped.retryable = error?.retryable !== false;
+  wrapped.details = {
+    ...context,
+    writeErrors,
+    originalCode: error?.code || '',
+    originalName: error?.name || ''
+  };
+  return wrapped;
+}
+
+async function notifyPromotionProductRuleProgress(options = {}, progress = {}) {
+  if (typeof options.onProgress !== 'function') return;
+  await options.onProgress(progress);
+}
+
+async function importPromotionProductRules(rows = [], options = {}) {
   let skipped = 0;
   const errors = [];
   const warnings = [];
   const now = dateUtil.nowIso();
+  const sessionId = cleanText(options.importSessionId || options.sessionId);
+  const batchSize = clampPromotionImportBatchSize(options.batchSize);
+  const timeoutMs = promotionBulkWriteTimeoutMs(options);
+
+  console.info('[IMPORT_COMMIT_STARTED]', {
+    sessionId,
+    type: 'promotionProductRules',
+    totalRows: rows.length,
+    batchSize
+  });
 
   const rawPayloads = rows.map(pickPromotionProductRulePayload);
   const productMap = await preloadPromotionProductsByCode(rawPayloads);
@@ -233,11 +301,76 @@ async function importPromotionProductRules(rows = []) {
     ops.push({ updateOne: { filter: { programCode, productCode }, update: { $set: doc, $setOnInsert: { createdAt: now } }, upsert: true } });
   }
 
-  for (const chunk of promotionBulkChunks(ops)) {
-    if (chunk.length) await PromotionProductRule.bulkWrite(chunk, { ordered: false });
+  const batches = promotionBulkChunks(ops, batchSize);
+  let writtenOps = 0;
+  for (const [batchIndex, chunk] of batches.entries()) {
+    if (!chunk.length) continue;
+    try {
+      await withPromotionBulkTimeout(
+        PromotionProductRule.bulkWrite(chunk, { ordered: false }),
+        timeoutMs,
+        { sessionId, batchIndex, totalBatches: batches.length, totalOps: ops.length, writtenOps }
+      );
+      writtenOps += chunk.length;
+    } catch (error) {
+      const wrapped = buildPromotionBulkWriteError(error, {
+        sessionId,
+        batchIndex,
+        totalBatches: batches.length,
+        writtenOps,
+        totalOps: ops.length,
+        batchSize: chunk.length
+      });
+      console.error('[IMPORT_COMMIT_BULK_ERROR]', {
+        sessionId,
+        type: 'promotionProductRules',
+        batchIndex: batchIndex + 1,
+        totalBatches: batches.length,
+        writtenOps,
+        totalOps: ops.length,
+        code: wrapped.code,
+        message: wrapped.message
+      });
+      throw wrapped;
+    }
+
+    const progress = {
+      percent: 18 + Math.floor(((batchIndex + 1) / Math.max(1, batches.length)) * 72),
+      step: `committing:${batchIndex + 1}/${batches.length}`,
+      completedRows: writtenOps,
+      totalRows: ops.length,
+      message: `Đang ghi CK sản phẩm theo lô ${batchIndex + 1}/${batches.length}`
+    };
+    await notifyPromotionProductRuleProgress(options, progress);
+    console.info('[IMPORT_COMMIT_PROGRESS]', {
+      sessionId,
+      type: 'promotionProductRules',
+      batchIndex: batchIndex + 1,
+      totalBatches: batches.length,
+      imported: writtenOps,
+      skipped,
+      totalCommitRows: ops.length,
+      percent: progress.percent
+    });
   }
+
+  await notifyPromotionProductRuleProgress(options, {
+    percent: 95,
+    step: 'finalizing',
+    completedRows: writtenOps,
+    totalRows: ops.length,
+    message: 'Đang hoàn tất import CK sản phẩm'
+  });
+
   const imported = ops.length;
   await addImportLog('promotionProductRules', { imported, skipped, errors: errors.slice(0, 50), warnings: warnings.slice(0, 50) });
+  console.info('[IMPORT_COMMIT_DONE]', {
+    sessionId,
+    type: 'promotionProductRules',
+    imported,
+    skipped,
+    totalCommitRows: ops.length
+  });
   return {
     imported,
     skipped,
@@ -246,7 +379,7 @@ async function importPromotionProductRules(rows = []) {
     partialImport: skipped > 0 && imported > 0,
     message: imported > 0 && skipped > 0
       ? `Đã import ${imported} dòng CK sản phẩm hợp lệ, bỏ qua ${skipped} dòng lỗi`
-      : `Đã import nhanh ${imported} dòng CK sản phẩm bằng bulkWrite${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}`
+      : `Đã import ${imported} dòng CK sản phẩm hợp lệ${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}`
   };
 }
 

@@ -27,7 +27,12 @@ async function submitImportCommit(req) {
     rows: req.body?.rows,
     shortageMode: String(req.body?.shortageMode || '').trim(),
     sessionId: String(req.body?.sessionId || req.body?.importSessionId || '').trim(),
-    selectedOrderCodes: req.body?.selectedOrderCodes || []
+    selectedOrderCodes: req.body?.selectedOrderCodes || [],
+    selectedRowNumbers: req.body?.selectedRowNumbers || [],
+    selectedProgramCodes: req.body?.selectedProgramCodes || [],
+    selectedRowKeys: req.body?.selectedRowKeys || [],
+    importMode: String(req.body?.importMode || '').trim(),
+    userName: String(req.body?.userName || '').trim()
   }, req.user || {});
 }
 
