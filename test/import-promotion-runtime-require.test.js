@@ -7,6 +7,7 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 
 const PROMOTION_IMPORT_MODULES = [
+  'src/services/import/preview/importPreview.impl.js',
   'src/services/import/operations/adminImport.impl.js',
   'src/services/import/handlers/PromotionProductImportHandler.js',
   'src/services/import/handlers/PromotionGroupItemImportHandler.js',

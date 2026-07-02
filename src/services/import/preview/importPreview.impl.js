@@ -10,6 +10,7 @@ const importRules = require('../../../rules/importRules');
 const importSessionService = require('../../importSessionService');
 const auditService = require('../../auditService');
 const JobSubmissionService = require('../../background-jobs/JobSubmissionService');
+const promotionService = require('../../promotionService');
 const { runImportPreviewPipeline } = require('../../../jobs/importPreviewRunner');
 const {
   IMPORT_MODE_CREATE,
