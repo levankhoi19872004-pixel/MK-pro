@@ -47,6 +47,10 @@
   }
   function num(value) { return parseVietnameseMoney(value); }
   function money(value) { return formatVietnameseMoney(value); }
+  function moneyDash(value) {
+    var n = num(value);
+    return n === 0 ? '-' : money(n);
+  }
   function deltaMoney(value) {
     var n = parseVietnameseMoney(value);
     if (n > 0) return '+' + money(n);
@@ -104,7 +108,7 @@
         '<div class="delivery-v46-kpi kpi-cn"><span>Còn nợ</span><b id="deliveryTodayNewDebt">0</b></div>' +
       '</section>' +
       '<section id="deliveryTodayNewSalesmanPanel" class="card delivery-new-salesman-panel">' +
-        '<div class="delivery-new-salesman-empty">Tải đơn để xem nhóm NVBH thuộc NVGH.</div>' +
+        '<div class="delivery-new-salesman-empty">Tải đơn để xem NVBH thuộc NVGH đang chọn.</div>' +
       '</section>' +
       '<main class="delivery-new-main-list">' +
         '<section class="card delivery-v46-list-panel delivery-new-list-panel-full">' +
@@ -113,6 +117,7 @@
             '<div class="delivery-new-orders-header delivery-new-order-grid" role="row">' +
               '<div class="delivery-new-order-cell delivery-new-order-checkbox-cell"><input id="deliveryTodayNewHeaderSelectAllOrders" type="checkbox" aria-label="Chọn tất cả đơn có thể chốt"></div>' +
               '<div class="delivery-new-order-cell delivery-new-order-customer-cell">Đơn / Khách hàng</div>' +
+              '<div class="delivery-new-order-cell delivery-new-staff-cell">NVBH</div>' +
               '<div class="delivery-new-order-cell delivery-new-money-cell">Phải thu</div>' +
               '<div class="delivery-new-order-cell delivery-new-money-cell">Tiền mặt</div>' +
               '<div class="delivery-new-order-cell delivery-new-money-cell">Chuyển khoản</div>' +
@@ -172,9 +177,9 @@
     style.id = 'deliveryTodayNewScopedStyle';
     style.textContent = '' +
       '.delivery-new-header.delivery-v46-header{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:12px;}.delivery-new-header-top{display:flex;align-items:center;justify-content:space-between;gap:12px;}.delivery-new-title-block h2{margin:0;}.delivery-new-flow-help{position:relative;margin-left:auto;}.delivery-new-flow-help summary{list-style:none;width:30px;height:30px;border-radius:999px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-weight:900;cursor:pointer;user-select:none;}.delivery-new-flow-help summary::-webkit-details-marker{display:none;}.delivery-new-flow-help div{position:absolute;right:0;top:38px;z-index:30;width:min(420px,70vw);padding:10px 12px;border:1px solid #bfdbfe;border-radius:12px;background:#fff;box-shadow:0 14px 30px rgba(15,23,42,.14);color:#334155;}.delivery-new-flow-help div b{display:block;margin-bottom:4px;color:#0f172a;}.delivery-new-flow-help div span{display:block;font-size:12px;line-height:1.4;}.delivery-new-filter-bar.delivery-v46-filters{display:grid;width:100%;grid-template-columns:minmax(140px,160px) minmax(200px,240px) minmax(200px,240px) minmax(280px,1fr) minmax(238px,auto);gap:10px;align-items:end;margin-top:0;}.delivery-new-filter-bar label{min-width:0;}.delivery-new-filter-search{min-width:280px;}.delivery-new-filter-actions{display:flex;gap:8px;align-items:end;justify-content:flex-end;min-width:238px;}.delivery-new-filter-actions button{height:38px;white-space:nowrap;}.delivery-new-filter-actions #deliveryTodayNewLoad{min-width:120px;}.delivery-new-filter-actions #deliveryTodayNewReset{min-width:108px;}.delivery-new-filter-message{margin:0;min-height:0;}.delivery-new-filter-message:empty{display:none;}@media(max-width:1280px){.delivery-new-filter-bar.delivery-v46-filters{grid-template-columns:minmax(140px,160px) minmax(200px,1fr) minmax(200px,1fr);}.delivery-new-filter-search{grid-column:1 / 3;}.delivery-new-filter-actions{grid-column:3 / 4;min-width:238px;}}@media(max-width:900px){.delivery-new-filter-bar.delivery-v46-filters{grid-template-columns:1fr 1fr;}.delivery-new-filter-date,.delivery-new-filter-delivery,.delivery-new-filter-salesman,.delivery-new-filter-search,.delivery-new-filter-actions{grid-column:auto;}.delivery-new-filter-search,.delivery-new-filter-actions{grid-column:1 / -1;}.delivery-new-filter-actions{justify-content:flex-end;}}@media(max-width:640px){.delivery-new-filter-bar.delivery-v46-filters{grid-template-columns:1fr;}.delivery-new-filter-date,.delivery-new-filter-delivery,.delivery-new-filter-salesman,.delivery-new-filter-search,.delivery-new-filter-actions{grid-column:1 / -1;}.delivery-new-filter-actions{justify-content:stretch;min-width:0;}.delivery-new-filter-actions button{flex:1;min-width:0;}}' +
-      '.delivery-new-main-list{display:block;}.delivery-v46-filters .filter-input-wrap{position:relative;width:100%;}.delivery-v46-filters .filter-input-wrap input,.delivery-v46-filters .filter-input-wrap select{padding-right:34px;box-sizing:border-box;}.delivery-v46-filters .filter-clear-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:22px;height:22px;border:0;border-radius:999px;background:transparent;color:#64748b;cursor:pointer;font-size:17px;line-height:20px;font-weight:900;z-index:3;}.delivery-v46-filters .filter-clear-btn:hover{color:#ef4444;background:#fee2e2;}.delivery-v46-filters .filter-clear-btn[hidden]{display:none!important;}.delivery-new-list-panel-full{width:100%;}.delivery-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.delivery-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.delivery-new-empty-state span{display:block;color:#64748b;font-weight:700;}.delivery-new-results-hidden{display:none!important;}.delivery-new-salesman-panel{margin:12px 0;padding:0;overflow:hidden;}.delivery-new-salesman-empty{padding:14px;color:#64748b;text-align:center;border:1px dashed #cbd5e1;border-radius:12px;}.delivery-new-salesman-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-header h3{margin:0;font-size:15px;}.delivery-new-salesman-header small{display:inline-block;margin-left:8px;color:#475569;}.delivery-new-salesman-row{display:grid;grid-template-columns:minmax(240px,1.4fr) 70px repeat(6,1fr);gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-row:last-child{border-bottom:0;}.delivery-new-salesman-check{display:flex;align-items:center;gap:8px;font-weight:800;}.delivery-new-salesman-check input{width:16px;height:16px;}.delivery-new-salesman-row .muted{font-size:11px;color:#64748b;}.delivery-new-salesman-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-orders-toolbar{align-items:center;gap:12px;}.delivery-new-selection-count{font-weight:800;color:#475569;white-space:nowrap;}.delivery-new-closeout-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.delivery-new-closeout-toolbar .secondary{padding:7px 10px;border-radius:10px;}.delivery-new-closeout-btn[disabled]{opacity:.55;cursor:not-allowed;}.delivery-new-closeout-warning{padding:10px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-weight:800;margin:10px 0;}.delivery-new-orders-table{overflow-x:auto;border-top:1px solid #dbe7f5;}.delivery-new-order-grid{display:grid;grid-template-columns:32px minmax(260px,2fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(132px,.9fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(118px,.85fr) minmax(110px,.8fr) minmax(110px,.8fr);gap:10px;align-items:center;min-width:1320px;}.delivery-new-orders-header{position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:1px solid #dbe7f5;padding:8px 12px;color:#334155;font-size:12px;font-weight:900;letter-spacing:.01em;}.delivery-new-order-row{padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-order-row.selected{background:#eff6ff;}.delivery-new-order-cell{min-width:0;}.delivery-new-order-checkbox-cell{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox-cell input{width:16px;height:16px;accent-color:#2563eb;}.delivery-new-order-customer-cell{text-align:left;min-width:0;}.delivery-new-money-cell{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:900;}.delivery-new-status-cell{text-align:center;display:flex;justify-content:center;align-items:center;}.delivery-new-action-cell{text-align:right;display:flex;justify-content:flex-end;align-items:center;}.delivery-new-row-action button{padding:7px 10px;border-radius:10px;}.delivery-new-order-checkbox{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox input{width:16px;height:16px;accent-color:#2563eb;}' +
+      '.delivery-new-main-list{display:block;}.delivery-v46-filters .filter-input-wrap{position:relative;width:100%;}.delivery-v46-filters .filter-input-wrap input,.delivery-v46-filters .filter-input-wrap select{padding-right:34px;box-sizing:border-box;}.delivery-v46-filters .filter-clear-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:22px;height:22px;border:0;border-radius:999px;background:transparent;color:#64748b;cursor:pointer;font-size:17px;line-height:20px;font-weight:900;z-index:3;}.delivery-v46-filters .filter-clear-btn:hover{color:#ef4444;background:#fee2e2;}.delivery-v46-filters .filter-clear-btn[hidden]{display:none!important;}.delivery-new-list-panel-full{width:100%;}.delivery-new-empty-state{margin:12px 0;padding:20px;text-align:center;border:1px dashed #cbd5e1;background:#f8fafc;color:#334155;}.delivery-new-empty-state b{display:block;font-size:16px;margin-bottom:6px;color:#0f172a;}.delivery-new-empty-state span{display:block;color:#64748b;font-weight:700;}.delivery-new-results-hidden{display:none!important;}.delivery-new-salesman-panel{margin:12px 0;padding:0;overflow:hidden;}.delivery-new-salesman-empty{padding:14px;color:#64748b;text-align:center;border:1px dashed #cbd5e1;border-radius:12px;}.delivery-new-salesman-compact-header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px 12px;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-compact-header h3{margin:0;font-size:15px;}.delivery-new-salesman-compact-header small{display:block;color:#64748b;font-weight:800;margin-top:2px;}.delivery-new-salesman-grid-wrap{max-height:220px;overflow:auto;}.delivery-new-salesman-grid{display:grid;grid-template-columns:42px minmax(220px,1.6fr) 70px repeat(6,minmax(92px,1fr));min-width:980px;align-items:center;}.delivery-new-salesman-grid-head{position:sticky;top:0;z-index:2;background:#f8fafc;color:#334155;font-size:12px;font-weight:900;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-grid-row{display:contents;}.delivery-new-salesman-grid-cell{padding:8px 10px;border-bottom:1px solid #e2e8f0;min-width:0;}.delivery-new-salesman-grid-row.is-selected .delivery-new-salesman-grid-cell{background:#eff6ff;}.delivery-new-salesman-grid-row.is-unselected .delivery-new-salesman-grid-cell{background:#f8fafc;color:#94a3b8;}.delivery-new-salesman-check-cell{display:flex;justify-content:center;align-items:center;}.delivery-new-salesman-check-cell input{width:16px;height:16px;accent-color:#2563eb;}.delivery-new-salesman-name{font-weight:900;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.delivery-new-salesman-grid-row.is-unselected .delivery-new-salesman-name{color:#64748b;}.delivery-new-salesman-num,.delivery-new-salesman-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:850;white-space:nowrap;}.delivery-new-money-dash{color:#94a3b8;font-weight:700;}.delivery-new-salesman-money.reward-positive{color:#c05621;}.delivery-new-salesman-money.bank-positive{color:#047857;}.delivery-new-orders-toolbar{align-items:center;gap:12px;}.delivery-new-selection-count{font-weight:800;color:#475569;white-space:nowrap;}.delivery-new-closeout-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.delivery-new-closeout-toolbar .secondary{padding:7px 10px;border-radius:10px;}.delivery-new-closeout-btn[disabled]{opacity:.55;cursor:not-allowed;}.delivery-new-closeout-warning{padding:10px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-weight:800;margin:10px 0;}.delivery-new-orders-table{overflow-x:auto;border-top:1px solid #dbe7f5;}.delivery-new-order-grid{display:grid;grid-template-columns:32px minmax(240px,1.7fr) minmax(120px,.75fr) minmax(110px,.8fr) minmax(110px,.8fr) minmax(124px,.85fr) minmax(110px,.8fr) minmax(110px,.8fr) minmax(110px,.8fr) minmax(104px,.72fr) minmax(96px,.68fr);gap:9px;align-items:center;min-width:1360px;}.delivery-new-orders-header{position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:1px solid #dbe7f5;padding:8px 12px;color:#334155;font-size:12px;font-weight:900;letter-spacing:.01em;}.delivery-new-order-row{padding:8px 12px;border-bottom:1px solid #dbe7f5;background:#fff;}.delivery-new-order-row.selected{background:#eff6ff;}.delivery-new-order-cell{min-width:0;}.delivery-new-order-checkbox-cell{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox-cell input{width:16px;height:16px;accent-color:#2563eb;}.delivery-new-order-customer-cell{text-align:left;min-width:0;}.delivery-new-money-cell{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:850;}.delivery-new-staff-cell{font-size:12px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.delivery-new-status-cell{text-align:center;display:flex;justify-content:center;align-items:center;}.delivery-new-action-cell{text-align:right;display:flex;justify-content:flex-end;align-items:center;}.delivery-new-row-action button{padding:5px 8px;border-radius:9px;font-size:12px;}.delivery-new-order-checkbox{display:flex;justify-content:center;align-items:center;}.delivery-new-order-checkbox input{width:16px;height:16px;accent-color:#2563eb;}' +
       '.delivery-new-row:hover{background:#eff6ff;}' +
-      '.delivery-new-kpi-legend{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid #dbe7f5;border-radius:12px;background:#f8fafc;color:#334155;font-size:12px;font-weight:800;}.delivery-new-kpi-legend b{color:#0f172a;}.delivery-new-kpi-legend span{display:inline-flex;gap:8px;flex-wrap:wrap;}.delivery-new-kpi-legend small{color:#64748b;font-weight:800;}.delivery-new-salesman-order-group{border-bottom:1px solid #dbe7f5;background:#fff;}.delivery-new-salesman-order-group:last-child{border-bottom:0;}.delivery-new-salesman-title-row{display:grid;grid-template-columns:minmax(280px,1.1fr) minmax(520px,1.9fr);gap:10px;align-items:center;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}.delivery-new-salesman-title-check{display:flex;align-items:center;gap:8px;font-weight:900;color:#0f172a;min-width:0;}.delivery-new-salesman-title-check input{width:16px;height:16px;accent-color:#2563eb;}.delivery-new-salesman-title-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.delivery-new-group-kpis{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;font-size:12px;font-weight:900;font-variant-numeric:tabular-nums;}.delivery-new-group-kpis span{white-space:nowrap;color:#0f172a;}.delivery-new-group-kpis .delivery-new-return{color:#078b20;}.delivery-new-group-kpis .delivery-new-debt{color:#e11d24;}.delivery-new-group-kpis .delivery-new-zero{color:#0f8a35;}.delivery-new-group-hidden{padding:9px 12px;color:#64748b;font-weight:800;background:#fff;}@media(max-width:980px){.delivery-new-salesman-title-row{grid-template-columns:1fr;}.delivery-new-group-kpis{justify-content:flex-start;}}' +
+      '.delivery-new-kpi-legend{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 12px;border:1px solid #dbe7f5;border-radius:12px;background:#f8fafc;color:#334155;font-size:12px;font-weight:800;margin-top:10px;}.delivery-new-kpi-legend b{color:#0f172a;}.delivery-new-kpi-legend span{display:inline-flex;gap:8px;flex-wrap:wrap;}.delivery-new-kpi-legend small{color:#64748b;font-weight:800;}.delivery-new-no-salesman-selected{padding:18px;text-align:center;color:#64748b;font-weight:850;background:#f8fafc;}' +
       '.delivery-new-row b{font-weight:800;}.delivery-new-row small{display:block;color:#334155;margin-top:3px;}' +
       '.delivery-new-money{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}' +
       '.delivery-new-return{color:#078b20;}.delivery-new-debt{color:#e11d24;}.delivery-new-zero{color:#0f8a35;}' +
@@ -187,8 +192,8 @@
       '.delivery-new-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}.delivery-new-version-list{margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:8px;color:#334155;}.delivery-new-returnorders{margin:12px 0;border:1px solid #dbe7f5;border-radius:12px;background:#fff;overflow:hidden;}.delivery-new-returnorders-header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}.delivery-new-returnorders-header h4{margin:0;font-size:14px;}.delivery-new-returnorders-header small{display:block;color:#64748b;margin-top:3px;}.delivery-new-returnorder-card{padding:10px 12px;border-bottom:1px dashed #dbe7f5;}.delivery-new-returnorder-card:last-child{border-bottom:0;}.delivery-new-returnorder-meta{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:space-between;color:#475569;font-size:12px;}.delivery-new-returnorder-meta b{color:#0f172a;}.delivery-new-return-items{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}.delivery-new-return-items th,.delivery-new-return-items td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-return-items th{color:#64748b;font-weight:800;background:#f8fafc;}.delivery-new-return-items .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}.delivery-new-returnorder-note{margin-top:8px;}.delivery-new-adjust-table{width:100%;border-collapse:collapse;margin:8px 0 10px;font-size:12px;}.delivery-new-adjust-table th,.delivery-new-adjust-table td{border-top:1px solid #e2e8f0;padding:6px 5px;text-align:left;}.delivery-new-adjust-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-adjust-table .num{text-align:right;font-variant-numeric:tabular-nums;}.delivery-new-adjust-table input{width:88px;text-align:right;}.delivery-v46-filter-suggest input[role="combobox"]{cursor:pointer;}.delivery-v46-filter-suggest input[role="combobox"]:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12);}.delivery-v46-suggest-box .empty{padding:8px 10px;color:#64748b;font-size:12px;}.delivery-v46-suggest-box button strong{font-size:12px;color:#0b4dbb;}.delivery-v46-suggest-box button em{font-style:normal;font-size:11px;color:#64748b;}' +
       '.delivery-new-modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.36);padding:28px;overflow:auto;}.delivery-new-adjustment-dialog{width:min(1280px,96vw);margin:0 auto;background:#fff;border-radius:18px;box-shadow:0 18px 50px rgba(15,23,42,.35);padding:18px;}.delivery-new-modal-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid #dbe7f5;padding-bottom:12px;margin-bottom:12px;}.delivery-new-modal-header h3{margin:0;font-size:20px;}.delivery-new-modal-header small{display:block;color:#475569;margin-top:4px;}.delivery-new-modal-close{border:0;background:#2563eb;color:#fff;border-radius:999px;padding:8px 12px;font-weight:900;cursor:pointer;opacity:1!important;pointer-events:auto!important;box-shadow:0 8px 18px rgba(37,99,235,.24);}.delivery-new-modal-close:focus{outline:2px solid #93c5fd;outline-offset:2px;}.delivery-new-modal-message{margin:10px 0;border-radius:12px;padding:10px 12px;border:1px solid #bfdbfe;background:#eff6ff;color:#075985;font-weight:800;}.delivery-new-modal-message.success{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}.delivery-new-modal-message.warning{border-color:#fed7aa;background:#fff7ed;color:#9a3412;}.delivery-new-modal-message.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c;}.delivery-new-modal-message[hidden]{display:none!important;}.delivery-new-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px;}.delivery-new-tab{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:999px;padding:8px 12px;font-weight:800;cursor:pointer;opacity:1;}.delivery-new-tab.active{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:900;box-shadow:0 8px 18px rgba(37,99,235,.18);}.delivery-new-tab:disabled,.delivery-new-tab.is-disabled{background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;opacity:1;cursor:not-allowed;box-shadow:none;}.delivery-new-tab-panel{border:1px solid #dbe7f5;border-radius:14px;padding:12px;background:#fff;min-height:260px;}.delivery-new-modal-footer{display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:end;border-top:1px solid #dbe7f5;margin-top:12px;padding-top:12px;}.delivery-new-modal-footer label{font-weight:800;}.delivery-new-modal-footer input{width:100%;}.delivery-new-modal-footer .wide{grid-column:span 1;}.delivery-new-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:10px;}.delivery-new-business-table{width:100%;border-collapse:collapse;font-size:12px;}.delivery-new-business-table th,.delivery-new-business-table td{border-top:1px solid #e2e8f0;padding:7px 6px;text-align:left;}.delivery-new-business-table th{background:#f8fafc;color:#64748b;font-weight:800;}.delivery-new-business-table .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}.delivery-new-business-table input{width:92px;text-align:right;}.delivery-new-preview-cards{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-top:10px;}.delivery-new-history-block{margin:10px 0;border:1px solid #dbe7f5;border-radius:12px;overflow:hidden;}.delivery-new-history-block h4{margin:0;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #dbe7f5;}' +
       '.delivery-new-form-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;}.delivery-new-form-grid label{font-weight:700;color:#0f172a;}.delivery-new-form-grid input{width:100%;}.delivery-new-form-grid .wide{grid-column:span 2;}' +
-      '@media(max-width:1100px){.delivery-v46-list-panel{overflow-x:auto;}.delivery-new-order-grid{grid-template-columns:32px minmax(220px,1.7fr) 110px 110px 120px 110px 110px 110px 108px 110px;min-width:1220px;}.delivery-new-summary-grid,.delivery-new-preview-cards{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row{grid-template-columns:minmax(200px,1fr) 70px repeat(3,1fr);}.delivery-new-salesman-row span:nth-child(n+6){display:none;}}' +
-      '@media(max-width:760px){.delivery-new-order-grid{min-width:1220px;grid-template-columns:32px minmax(220px,1.7fr) 110px 110px 120px 110px 110px 110px 108px 110px;}.delivery-new-form-grid,.delivery-new-summary-grid,.delivery-new-preview-cards,.delivery-new-modal-footer{grid-template-columns:1fr;}.delivery-new-salesman-row{grid-template-columns:1fr 1fr;}.delivery-new-salesman-row span:nth-child(n+5){display:none;}.delivery-new-form-grid .wide{grid-column:span 1;}.delivery-new-modal-backdrop{padding:10px;}.delivery-new-adjustment-dialog{width:100%;}}';
+      '@media(max-width:1100px){.delivery-v46-list-panel{overflow-x:auto;}.delivery-new-order-grid{grid-template-columns:32px minmax(220px,1.6fr) 112px 108px 108px 118px 108px 108px 108px 104px 96px;min-width:1280px;}.delivery-new-summary-grid,.delivery-new-preview-cards{grid-template-columns:1fr 1fr;}.delivery-new-salesman-grid{min-width:980px;}}' +
+      '@media(max-width:760px){.delivery-new-order-grid{min-width:1280px;grid-template-columns:32px minmax(220px,1.6fr) 112px 108px 108px 118px 108px 108px 108px 104px 96px;}.delivery-new-form-grid,.delivery-new-summary-grid,.delivery-new-preview-cards,.delivery-new-modal-footer{grid-template-columns:1fr;}.delivery-new-form-grid .wide{grid-column:span 1;}.delivery-new-modal-backdrop{padding:10px;}.delivery-new-adjustment-dialog{width:100%;}}';
     document.head.appendChild(style);
   }
 
@@ -724,7 +729,7 @@
 
   function updateTopKpisFromSelectedSalesmen() {
     if (!state.hasSearched) { applySummary({ orderCount: 0 }); return; }
-    applySummary(summarizeVisibleRows(getVisibleRowsBySelectedSalesmen()));
+    applySummary(summarizeVisibleRows(getSelectedOrders()));
   }
 
   function ensureSelectedOrderSet() {
@@ -747,6 +752,44 @@
     return getVisibleRowsBySelectedSalesmen().filter(isOrderSelectable);
   }
 
+  function groupSelectableRows(group) {
+    return ((group && group.orders) || []).filter(isOrderSelectable);
+  }
+
+  function groupSelectedCount(group) {
+    var selected = ensureSelectedOrderSet();
+    return groupSelectableRows(group).filter(function (row) { return selected.has(orderSelectionKey(row)); }).length;
+  }
+
+  function groupSelectionState(group) {
+    var selectable = groupSelectableRows(group);
+    var count = groupSelectedCount(group);
+    var groupVisible = Boolean(state.selectedSalesmanKeys && state.selectedSalesmanKeys[group.key]);
+    return {
+      selectableCount: selectable.length,
+      selectedCount: count,
+      checked: Boolean(groupVisible && selectable.length && count === selectable.length),
+      indeterminate: Boolean(groupVisible && count > 0 && count < selectable.length)
+    };
+  }
+
+  function selectGroupOrders(group, checked) {
+    var selected = ensureSelectedOrderSet();
+    groupSelectableRows(group).forEach(function (row) {
+      var key = orderSelectionKey(row);
+      if (!key) return;
+      if (checked) selected.add(key);
+      else selected.delete(key);
+    });
+  }
+
+  function selectDefaultOrdersForSelectedSalesmen() {
+    state.selectedOrderIds = new Set();
+    (state.salesmanGroups || []).forEach(function (group) {
+      if (state.selectedSalesmanKeys && state.selectedSalesmanKeys[group.key]) selectGroupOrders(group, true);
+    });
+  }
+
   function pruneSelectedOrderIds(visibleRows) {
     var allowed = new Set((visibleRows || getVisibleRowsBySelectedSalesmen()).filter(isOrderSelectable).map(orderSelectionKey));
     var selected = ensureSelectedOrderSet();
@@ -759,17 +802,33 @@
     var selected = ensureSelectedOrderSet();
     if (checked) selected.add(key);
     else selected.delete(key);
+    var row = findRowByOrderKey(key);
+    var groupKey = row ? salesmanKey(row) : '';
+    if (groupKey && state.selectedSalesmanKeys) {
+      var group = (state.salesmanGroups || []).filter(function (item) { return item.key === groupKey; })[0];
+      if (group) state.selectedSalesmanKeys[groupKey] = groupSelectedCount(group) > 0;
+    }
+    updateTopKpisFromSelectedSalesmen();
+    renderSalesmanGroupPanel();
     renderRows();
   }
 
   function selectAllVisibleOrders() {
     var selected = ensureSelectedOrderSet();
     getSelectableVisibleRows().forEach(function (row) { selected.add(orderSelectionKey(row)); });
+    (state.salesmanGroups || []).forEach(function (group) {
+      if (state.selectedSalesmanKeys && state.selectedSalesmanKeys[group.key]) state.selectedSalesmanKeys[group.key] = groupSelectedCount(group) > 0;
+    });
+    updateTopKpisFromSelectedSalesmen();
+    renderSalesmanGroupPanel();
     renderRows();
   }
 
   function clearSelectedOrders() {
     ensureSelectedOrderSet().clear();
+    (state.salesmanGroups || []).forEach(function (group) { if (state.selectedSalesmanKeys) state.selectedSalesmanKeys[group.key] = false; });
+    updateTopKpisFromSelectedSalesmen();
+    renderSalesmanGroupPanel();
     renderRows();
   }
 
@@ -797,27 +856,16 @@
   function toggleSalesmanSelection(key, checked) {
     state.selectedSalesmanKeys = state.selectedSalesmanKeys || {};
     state.selectedSalesmanKeys[key] = Boolean(checked);
+    var group = (state.salesmanGroups || []).filter(function (item) { return item.key === key; })[0];
+    if (group) selectGroupOrders(group, Boolean(checked));
     applySelectedSalesmanFilter();
   }
-
-  function selectAllSalesmen() {
-    state.selectedSalesmanKeys = {};
-    (state.salesmanGroups || []).forEach(function (group) { state.selectedSalesmanKeys[group.key] = true; });
-    applySelectedSalesmanFilter();
-  }
-
-  function clearAllSalesmen() {
-    state.selectedSalesmanKeys = {};
-    (state.salesmanGroups || []).forEach(function (group) { state.selectedSalesmanKeys[group.key] = false; });
-    applySelectedSalesmanFilter();
-  }
-
 
   function renderSalesmanGroupPanel() {
     var box = byId('deliveryTodayNewSalesmanPanel');
     if (!box) return;
     if (!state.hasSearched) {
-      box.innerHTML = '<div class="delivery-new-salesman-empty">Chưa có nhóm NVBH.</div>';
+      box.innerHTML = '<div class="delivery-new-salesman-empty">Tải đơn để xem NVBH thuộc NVGH đang chọn.</div>';
       return;
     }
     var groups = state.salesmanGroups || [];
@@ -827,7 +875,48 @@
     }
     var selected = selectedSalesmanSet();
     var selectedCount = groups.filter(function (group) { return selected[group.key]; }).length;
-    box.innerHTML = '<div class="delivery-new-kpi-legend"><b>Chú giải KPI</b><span>PT = Phải thu | TM = Tiền mặt | CK = Chuyển khoản | TT = Trả thưởng | HT = Hàng trả | CN = Còn nợ</span><small>Đang chọn ' + selectedCount + '/' + groups.length + ' NVBH. Tick tại tiêu đề NVBH để tính KPI và hiện/ẩn đơn.</small></div>';
+    var header = '<div class="delivery-new-salesman-compact-header"><div><h3>NVBH thuộc NVGH đang chọn</h3><small>Tick trực tiếp từng NVBH. KPI tổng và danh sách đơn tính theo các đơn đang được chọn để chốt.</small></div><small>Đang chọn ' + selectedCount + '/' + groups.length + ' NVBH</small></div>';
+    var head = '<div class="delivery-new-salesman-grid delivery-new-salesman-grid-head" role="row">' +
+      '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-check-cell">Chọn</div>' +
+      '<div class="delivery-new-salesman-grid-cell">NVBH</div>' +
+      '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-num">Đơn</div>' +
+      '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money">PT</div>' +
+      '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money">TM</div>' +
+      '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money">CK</div>' +
+      '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money">TT</div>' +
+      '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money">HT</div>' +
+      '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money">CN</div>' +
+    '</div>';
+    var rows = groups.map(function (group) {
+      var stateInfo = groupSelectionState(group);
+      var checked = stateInfo.checked ? ' checked' : '';
+      var selectedClass = selected[group.key] ? ' is-selected' : ' is-unselected';
+      var debtClass = num(group.finalDebtAmount) > 0 ? 'delivery-new-debt' : 'delivery-new-money-dash';
+      var rewardClass = num(group.rewardAmount) + num(group.offsetAmount) > 0 ? ' reward-positive' : '';
+      var bankClass = num(group.bankAmount) > 0 ? ' bank-positive' : '';
+      return '<div class="delivery-new-salesman-grid delivery-new-salesman-grid-row' + selectedClass + '" data-salesman-key="' + esc(group.key) + '" role="row">' +
+        '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-check-cell"><input type="checkbox" data-salesman-key="' + esc(group.key) + '" aria-label="Chọn NVBH ' + esc(salesmanGroupDisplayName(group)) + '"' + checked + '></div>' +
+        '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-name" title="' + esc(salesmanGroupDisplayName(group)) + '">' + esc(salesmanGroupDisplayName(group)) + '</div>' +
+        '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-num">' + esc(group.orderCount) + '</div>' +
+        '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money">' + moneyDash(group.originalAmount) + '</div>' +
+        '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money">' + moneyDash(group.cashAmount) + '</div>' +
+        '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money' + bankClass + '">' + moneyDash(group.bankAmount) + '</div>' +
+        '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money' + rewardClass + '">' + moneyDash(num(group.rewardAmount) + num(group.offsetAmount)) + '</div>' +
+        '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money delivery-new-return">' + moneyDash(group.returnedAmount) + '</div>' +
+        '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money ' + debtClass + '">' + moneyDash(group.finalDebtAmount) + '</div>' +
+      '</div>';
+    }).join('');
+    var legend = '<div class="delivery-new-kpi-legend"><b>Chú giải KPI</b><span>PT = Phải thu | TM = Tiền mặt | CK = Chuyển khoản | TT = Trả thưởng | HT = Hàng trả | CN = Còn nợ</span><small>Tick tay từng NVBH để tránh thao tác nhầm.</small></div>';
+    box.innerHTML = header + '<div class="delivery-new-salesman-grid-wrap">' + head + rows + '</div>' + legend;
+    Array.prototype.forEach.call(box.querySelectorAll('input[type="checkbox"][data-salesman-key]'), function (input) {
+      var group = groups.filter(function (item) { return item.key === input.dataset.salesmanKey; })[0];
+      var stateInfo = group ? groupSelectionState(group) : { indeterminate: false };
+      input.indeterminate = stateInfo.indeterminate;
+      input.addEventListener('change', function (event) {
+        event.stopPropagation();
+        toggleSalesmanSelection(input.dataset.salesmanKey, input.checked);
+      });
+    });
   }
 
   function findRowByOrderKey(key) {
@@ -846,19 +935,6 @@
     return code || name || 'Chưa rõ NVBH';
   }
 
-  function renderGroupKpiCompact(group) {
-    var debtClass = num(group.finalDebtAmount) > 0 ? 'delivery-new-debt' : 'delivery-new-zero';
-    return '<div class="delivery-new-group-kpis" aria-label="KPI nhóm NVBH">' +
-      '<span>' + esc(group.orderCount) + ' đơn</span>' +
-      '<span>PT ' + money(group.originalAmount) + '</span>' +
-      '<span>TM ' + money(group.cashAmount) + '</span>' +
-      '<span>CK ' + money(group.bankAmount) + '</span>' +
-      '<span>TT ' + money(num(group.rewardAmount) + num(group.offsetAmount)) + '</span>' +
-      '<span class="delivery-new-return">HT ' + money(group.returnedAmount) + '</span>' +
-      '<span class="' + debtClass + '">CN ' + money(group.finalDebtAmount) + '</span>' +
-    '</div>';
-  }
-
   function renderOrderRow(row) {
     var confirmed = isConfirmed(row);
     var selectable = isOrderSelectable(row);
@@ -870,12 +946,13 @@
     return '<div data-order-key="' + esc(key) + '" class="delivery-new-row delivery-new-order-row delivery-new-order-grid' + selectedClass + '" role="row">' +
       '<label class="delivery-new-order-cell delivery-new-order-checkbox delivery-new-order-checkbox-cell" title="' + esc(selectable ? 'Chọn đơn để chốt sổ' : 'Đơn đã chốt hoặc không đủ điều kiện chọn') + '"><input type="checkbox" class="deliveryTodayNewOrderSelect" data-order-key="' + esc(key) + '"' + checked + disabled + '></label>' +
       '<span class="delivery-new-order-cell delivery-new-order-customer-cell"><b>' + esc(row.orderCode || row.orderId) + '</b><small>' + esc(row.customerName || '') + ' · ' + esc(row.customerCode || '') + '</small></span>' +
-      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + money(row.originalAmount) + '</span>' +
-      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + money(row.cashAmount) + '</span>' +
-      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + money(row.bankAmount) + '</span>' +
-      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + money(num(row.rewardAmount) + num(row.offsetAmount)) + '</span>' +
-      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell delivery-new-return">' + money(row.returnedAmount) + '</span>' +
-      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell ' + debtClass + '">' + money(row.finalDebtAmount) + '</span>' +
+      '<span class="delivery-new-order-cell delivery-new-staff-cell" title="' + esc(salesmanLabel(row)) + '">' + esc(salesmanLabel(row)) + '</span>' +
+      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + moneyDash(row.originalAmount) + '</span>' +
+      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + moneyDash(row.cashAmount) + '</span>' +
+      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + moneyDash(row.bankAmount) + '</span>' +
+      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + moneyDash(num(row.rewardAmount) + num(row.offsetAmount)) + '</span>' +
+      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell delivery-new-return">' + moneyDash(row.returnedAmount) + '</span>' +
+      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell ' + debtClass + '">' + moneyDash(row.finalDebtAmount) + '</span>' +
       '<span class="delivery-new-order-cell delivery-new-status-cell"><span class="delivery-new-status ' + (confirmed ? 'confirmed' : '') + '">' + esc(statusLabel(row)) + '</span></span>' +
       '<span class="delivery-new-order-cell delivery-new-row-action delivery-new-action-cell"><button type="button" class="primary-action deliveryTodayNewAdjustBtn" data-adjust-key="' + esc(key) + '">Điều chỉnh</button></span>' +
     '</div>';
@@ -918,28 +995,13 @@
       updateCloseoutButton();
       return;
     }
-    var groups = state.salesmanGroups || [];
-    var selected = selectedSalesmanSet();
-    list.innerHTML = groups.map(function (group) {
-      var checked = selected[group.key] ? ' checked' : '';
-      var rows = checked ? (group.orders || []) : [];
-      var groupBody = rows.length
-        ? rows.map(renderOrderRow).join('')
-        : '<div class="delivery-new-group-hidden">Nhóm NVBH này đang bỏ chọn. Tick lại tại tiêu đề để hiện đơn và tính vào KPI tổng.</div>';
-      return '<section class="delivery-new-salesman-order-group" data-salesman-key="' + esc(group.key) + '">' +
-        '<div class="delivery-new-salesman-title-row">' +
-          '<label class="delivery-new-salesman-title-check"><input type="checkbox" data-salesman-key="' + esc(group.key) + '"' + checked + '> <span class="delivery-new-salesman-title-text">NVBH: ' + esc(salesmanGroupDisplayName(group)) + '</span></label>' +
-          renderGroupKpiCompact(group) +
-        '</div>' +
-        groupBody +
-      '</section>';
-    }).join('');
-    Array.prototype.forEach.call(list.querySelectorAll('input[type="checkbox"][data-salesman-key]'), function (input) {
-      input.addEventListener('change', function (event) {
-        event.stopPropagation();
-        toggleSalesmanSelection(input.dataset.salesmanKey, input.checked);
-      });
-    });
+    if (!visibleRows.length) {
+      list.innerHTML = '<div class="delivery-new-no-salesman-selected">Chưa chọn NVBH nào.</div>';
+      updateOrderSelectionToolbar([]);
+      updateCloseoutButton();
+      return;
+    }
+    list.innerHTML = visibleRows.map(renderOrderRow).join('');
     Array.prototype.forEach.call(list.querySelectorAll('.deliveryTodayNewOrderSelect'), function (input) {
       input.addEventListener('change', function (event) {
         event.stopPropagation();
@@ -1646,6 +1708,7 @@
       state.selectedSalesmanKeys = {};
       state.selectedOrderIds = new Set();
       state.salesmanGroups.forEach(function (group) { state.selectedSalesmanKeys[group.key] = true; });
+      selectDefaultOrdersForSelectedSalesmen();
       state.selectedIndex = state.rows.length ? 0 : -1;
       state.loaded = true;
       state.hasSearched = true;
