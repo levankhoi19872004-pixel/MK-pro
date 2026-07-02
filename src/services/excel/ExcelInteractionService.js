@@ -167,6 +167,45 @@ function appendFilterSheet(workbook, title, filters = {}, extra = {}) {
   appendAoaSheet(workbook, 'ThongTin', rows, { widths: [28, 55] });
 }
 
+
+function sourceNoteText(value) {
+  if (Array.isArray(value)) return value.join(', ');
+  if (value && typeof value === 'object') return JSON.stringify(value);
+  return sanitizeExcelValue(value ?? '');
+}
+
+function appendReportSourceNoteSheet(workbook, sourceNote = {}) {
+  const rows = [
+    ['Trường', 'Giá trị'],
+    ['Mã báo cáo', sourceNote.reportCode || ''],
+    ['Tên báo cáo', sourceNote.reportTitle || ''],
+    ['Service', [sourceNote.service, sourceNote.serviceMethod].filter(Boolean).join('.')],
+    ['Endpoint xem', sourceNote.runEndpoint || ''],
+    ['Endpoint export', sourceNote.exportEndpoint || '/api/excel/export'],
+    ['Export mode', sourceNote.exportMode || 'report-center'],
+    ['Xem và xuất cùng nguồn', sourceNote.viewAndExportSameSource ? 'Có' : 'Không'],
+    ['Nguồn chính', sourceNoteText(sourceNote.primaryCollections)],
+    ['Nguồn phụ', sourceNoteText(sourceNote.secondaryCollections)],
+    ['Nguồn bị cấm', sourceNoteText(sourceNote.forbiddenCollections)],
+    ['Quy tắc SSoT', sourceNote.ssotRule || sourceNote.sourceLabel || ''],
+    ['Nguồn amount', sourceNote.amountSource || ''],
+    ['Nguồn công nợ', sourceNote.debtSource || ''],
+    ['Nguồn tồn kho', sourceNote.inventorySource || ''],
+    ['Nguồn quỹ', sourceNote.fundSource || ''],
+    ['Nguồn giao hàng', sourceNote.deliverySource || ''],
+    ['Bộ lọc', sourceNoteText(sourceNote.filters || {})],
+    ['Từ ngày', sourceNote.dateFrom || ''],
+    ['Đến ngày', sourceNote.dateTo || ''],
+    ['Ngày as-of', sourceNote.asOfDate || ''],
+    ['Sinh lúc', sourceNote.generatedAt || new Date().toISOString()],
+    ['Người xuất', sourceNote.generatedBy || 'system'],
+    ['Trạng thái nguồn', sourceNote.sourceStatus || 'OK'],
+    ['Cảnh báo nguồn', sourceNoteText(sourceNote.sourceWarnings)],
+    ['Cảnh báo dữ liệu', sourceNoteText(sourceNote.dataQualityWarnings)]
+  ];
+  appendAoaSheet(workbook, 'THÔNG TIN NGUỒN', rows, { widths: [28, 90] });
+}
+
 const SALES_COLUMNS = [
   { label: 'Mã đơn', value: (row) => firstValue(row, ['code', 'id', 'orderCode', 'documentCode']), width: 20 },
   { label: 'Ngày bán', value: (row) => firstValue(row, ['orderDate', 'date', 'documentDate', 'createdAt']), type: 'date', width: 14 },
@@ -633,9 +672,15 @@ async function exportReport(params = {}, user = {}) {
     width: column.type === 'money' ? 18 : 22
   })), productEnrichment.hasProducts);
   const workbook = createWorkbook();
+  const sourceNote = payload.sourceNote || {};
+  appendReportSourceNoteSheet(workbook, sourceNote);
   appendFilterSheet(workbook, definition.title || code, filters, {
     'Phạm vi': scope,
     'Nguồn': payload.source || '',
+    'Mã báo cáo': sourceNote.reportCode || code,
+    'Service': [sourceNote.service, sourceNote.serviceMethod].filter(Boolean).join('.'),
+    'Trạng thái nguồn': sourceNote.sourceStatus || 'OK',
+    'Xem và xuất cùng nguồn': sourceNote.viewAndExportSameSource ? 'Có' : 'Không',
     'Số dòng': (payload.rows || []).length
   });
   appendObjectSheet(workbook, 'BaoCao', columns, productEnrichment.rows);

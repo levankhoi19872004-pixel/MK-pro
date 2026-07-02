@@ -23,13 +23,17 @@ test('every Report Center definition has a source registry contract', () => {
     assert.ok(contract.service, `${code} missing service`);
     assert.equal(contract.exportService, 'ReportCenterService.run', `${code} must export via ReportCenterService.run`);
     assert.ok(contract.sourceLabel, `${code} missing sourceLabel`);
+    assert.ok(contract.ssotRule, `${code} missing ssotRule`);
+    assert.ok(Array.isArray(contract.secondaryCollections), `${code} missing secondaryCollections array`);
+    assert.ok(Array.isArray(contract.forbiddenCollections), `${code} missing forbiddenCollections array`);
   }
 });
 
 test('report result exposes sourceContract and catalog no longer publics legacy exportType', () => {
   const source = read('src/services/reports/ReportCenterService.js');
   const reportResultBlock = source.slice(source.indexOf('function reportResult'), source.indexOf('function aggregateSalesByDay'));
-  assert.match(reportResultBlock, /sourceContract:\s*getReportSourceContract\(definition\.code\)/);
+  assert.match(reportResultBlock, /sourceContract/);
+  assert.match(reportResultBlock, /sourceNote/);
   const publicDefinitionBlock = source.slice(source.indexOf('function publicDefinition'), source.indexOf('function visibleDefinitions'));
   assert.equal(/exportType\s*:/.test(publicDefinitionBlock), false);
   assert.match(publicDefinitionBlock, /exportMode:\s*'report-center'/);

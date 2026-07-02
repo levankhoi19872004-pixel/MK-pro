@@ -418,7 +418,12 @@ function reportCenterColumnDescriptors(payload = {}) {
 }
 
 async function buildReportCenterWorkbook(reportCode, query = {}, currentUser = {}) {
-  const payload = await ReportCenterService.run(reportCode, { ...query, __exportAll: true }, currentUser);
+  const legacyExportType = cleanText(query.__legacyExportType || '');
+  const payload = await ReportCenterService.run(reportCode, {
+    ...query,
+    __exportAll: true,
+    __legacyBridge: legacyExportType ? { legacyExportType, mappedReportCode: reportCode, bridgedToReportCenter: true } : null
+  }, currentUser);
   const columns = reportCenterColumnDescriptors(payload);
   const headers = columns.map((column) => column.label);
   const rows = (payload.rows || []).map((row, idx) => {
@@ -427,8 +432,9 @@ async function buildReportCenterWorkbook(reportCode, query = {}, currentUser = {
     return output;
   });
   const sheetName = cleanText(payload.definition?.title || reportCode).slice(0, 31) || 'BaoCao';
-  return reportWorkbook(reportCode, sheetName, ['STT', ...headers], rows, query);
+  return reportWorkbook(reportCode, sheetName, ['STT', ...headers], rows, query, payload.sourceNote);
 }
+
 
 function getExportTypes() {
   return [...new Set([...exportRepository.getExportTypes(), 'invoice-orders', 'vatInvoiceTT78', 'vat-non-invoice-orders', 'sse-invoice-orders', 'sse-invoice-errors', ...Object.keys(LEGACY_EXPORT_TYPE_TO_REPORT_CODE)])].sort();
@@ -457,7 +463,7 @@ async function exportToExcel(type, query = {}, currentUser = {}) {
   }
   const reportCode = reportCodeForLegacyExport(normalizedType);
   if (reportCode) {
-    return buildReportCenterWorkbook(reportCode, query, currentUser);
+    return buildReportCenterWorkbook(reportCode, { ...query, __legacyExportType: normalizedType }, currentUser);
   }
   const rows = await exportRepository.findForExport(type, query);
   if (!rows) return { error: 'Loại dữ liệu export không hợp lệ', status: 400 };

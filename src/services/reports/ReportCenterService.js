@@ -11,7 +11,7 @@ const DashboardReportService = require('./DashboardReportService');
 const HomeDashboardService = require('../dashboard/HomeDashboardService');
 const InformationReportService = require('./InformationReportService');
 const arLedgerReadService = require('../arLedgerRead.service');
-const { getReportSourceContract } = require('./ReportSourceRegistry');
+const { getReportSourceContract, validateReportSourceContract } = require('./ReportSourceRegistry');
 const { paginate, text, toNumber } = require('./ReportDomainUtils');
 
 const REPORT_CATEGORIES = Object.freeze([
@@ -392,7 +392,97 @@ function sumRows(rows = [], fields = []) {
   }, {});
 }
 
-function reportResult(definition, rows, summary, query, extra = {}) {
+
+function sanitizeSourceFilters(query = {}) {
+  const output = {};
+  for (const [key, value] of Object.entries(query || {})) {
+    if (String(key).startsWith('__')) continue;
+    if (value === undefined || value === null || value === '') continue;
+    output[key] = value;
+  }
+  return output;
+}
+
+function userDisplayName(user = {}) {
+  return text(user.fullName || user.name || user.username || user.email || user.code || user.staffCode || user._id || 'system');
+}
+
+function splitServiceName(service = '') {
+  const raw = text(service);
+  const parts = raw.split('.').filter(Boolean);
+  return {
+    service: parts.length > 1 ? parts.slice(0, -1).join('.') : raw,
+    serviceMethod: parts.length > 1 ? parts[parts.length - 1] : ''
+  };
+}
+
+function normalizeWarnings(...groups) {
+  return groups.flatMap((group) => {
+    if (!group) return [];
+    if (Array.isArray(group)) return group;
+    if (typeof group === 'object') return Object.values(group).flatMap((value) => Array.isArray(value) ? value : (value ? [value] : []));
+    return [group];
+  }).map((value) => text(value)).filter(Boolean);
+}
+
+function buildSourceNote(definition, query = {}, extra = {}, user = {}) {
+  const contract = getReportSourceContract(definition.code);
+  const parsed = splitServiceName(contract.service);
+  const dataQualityWarnings = normalizeWarnings(extra.dataQualityWarnings, extra.dataQuality?.warnings);
+  if (toNumber(extra.summary?.missingArLedgerCount) > 0) {
+    dataQualityWarnings.push(`Đơn xác nhận kế toán thiếu AR-SALE: ${extra.summary.missingArLedgerCount}`);
+  }
+  const sourceWarnings = normalizeWarnings(extra.sourceWarnings);
+  if (extra.legacyBridge || query.__legacyBridge) sourceWarnings.push('Legacy export đã được bridge sang Report Center');
+  const validation = validateReportSourceContract(definition.code, { requireSourceNote: false });
+  sourceWarnings.push(...(validation.warnings || []));
+  const sourceStatus = extra.sourceStatus || (sourceWarnings.length || dataQualityWarnings.length ? 'WARNING' : 'OK');
+  return {
+    reportCode: definition.code,
+    reportTitle: definition.title,
+    category: definition.category,
+    runEndpoint: `/api/reports/run/${definition.code}`,
+    exportEndpoint: '/api/excel/export',
+    exportMode: 'report-center',
+    viewAndExportSameSource: true,
+
+    service: parsed.service || contract.service,
+    serviceMethod: parsed.serviceMethod,
+    sourceLabel: contract.sourceLabel,
+
+    primaryCollections: contract.primaryCollections || [],
+    secondaryCollections: contract.secondaryCollections || [],
+    forbiddenCollections: contract.forbiddenCollections || [],
+
+    ssotRule: contract.ssotRule,
+    amountSource: contract.amountSource ?? null,
+    debtSource: contract.debtSource ?? null,
+    inventorySource: contract.inventorySource ?? null,
+    fundSource: contract.fundSource ?? null,
+    deliverySource: contract.deliverySource ?? null,
+    tripSource: contract.tripSource ?? (definition.code === 'delivery-trips' ? 'master_orders' : null),
+    snapshotUsedForAmount: contract.snapshotUsedForAmount ?? (definition.code === 'delivery-trips' ? false : null),
+
+    filters: sanitizeSourceFilters(query),
+    dateMode: definition.dateMode,
+    dateFrom: extra.dateFrom || query.dateFrom || '',
+    dateTo: extra.dateTo || query.dateTo || '',
+    asOfDate: extra.asOfDate || query.asOfDate || query.dateTo || '',
+
+    generatedAt: new Date().toISOString(),
+    generatedBy: userDisplayName(user),
+
+    sourceStatus,
+    sourceWarnings: [...new Set(sourceWarnings)],
+    dataQualityWarnings: [...new Set(dataQualityWarnings)],
+    legacyBridge: extra.legacyBridge || query.__legacyBridge || null
+  };
+}
+
+function reportResult(definition, rows, summary, query, extra = {}, user = {}) {
+  const reportUser = user && Object.keys(user).length ? user : (query && query.__reportUser) || {};
+  const sourceNote = buildSourceNote(definition, query, { ...extra, summary: summary || {} }, reportUser);
+  const sourceContract = getReportSourceContract(definition.code);
   // Chỉ service nội bộ được truyền boolean true. Query string "true" từ HTTP
   // không thể kích hoạt nhánh này, tránh trả hàng chục nghìn dòng ra trình duyệt.
   if (query && query.__exportAll === true) {
@@ -400,7 +490,8 @@ function reportResult(definition, rows, summary, query, extra = {}) {
     const allRows = (Array.isArray(rows) ? rows : []).slice(0, maxRows);
     return {
       definition: publicDefinition(definition),
-      sourceContract: getReportSourceContract(definition.code),
+      sourceContract,
+      sourceNote,
       rows: allRows,
       items: allRows,
       meta: {
@@ -419,7 +510,8 @@ function reportResult(definition, rows, summary, query, extra = {}) {
   const paged = pageResult(rows, query, { defaultLimit: 50, maxLimit: 200 });
   return {
     definition: publicDefinition(definition),
-    sourceContract: getReportSourceContract(definition.code),
+    sourceContract,
+    sourceNote,
     rows: paged.rows,
     items: paged.rows,
     meta: paged.meta,
@@ -622,13 +714,14 @@ function summaryForRows(rows = [], fields = []) {
 async function run(code, query = {}, user = {}) {
   const definition = assertAccess(code, user);
   const baseQuery = { ...query, q: query.q || query.search || query.keyword || '' };
+  const resultQuery = { ...query, __reportUser: user };
 
   switch (definition.code) {
     case 'sales-kpi': {
       const month = String(query.month || query.dateFrom || '').slice(0, 7);
       const dashboard = await HomeDashboardService.getHomeDashboard({ month, force: String(query.force || '') === '1' });
       const rows = (dashboard.salesByStaff || []).filter((row) => matchesSearch(row, baseQuery, ['salesStaffCode', 'salesStaffName', 'status']));
-      return reportResult(definition, rows, dashboard.summary || summaryForRows(rows, ['targetAmount', 'salesAmount', 'returnAmount', 'netSalesAmount', 'debtAmount']), query, { period: dashboard.period, dataQuality: dashboard.dataQuality });
+      return reportResult(definition, rows, dashboard.summary || summaryForRows(rows, ['targetAmount', 'salesAmount', 'returnAmount', 'netSalesAmount', 'debtAmount']), resultQuery, { period: dashboard.period, dataQuality: dashboard.dataQuality });
     }
     case 'sales-by-day':
     case 'sales-by-staff':
@@ -646,71 +739,71 @@ async function run(code, query = {}, user = {}) {
       if (definition.code !== 'sales-detail') {
         summary = summaryForRows(rows, ['orderCount', 'customerCount', 'quantity', 'beforePromoAmount', 'actualAmount', 'promotionValue', 'promotionDiscountAmount', 'receiptAmount', 'returnAmount', 'netSalesAmount', 'debtAmount']);
       }
-      return reportResult(definition, rows, summary, query, { dateFrom: sales.dateFrom, dateTo: sales.dateTo, source: sales.source });
+      return reportResult(definition, rows, summary, resultQuery, { dateFrom: sales.dateFrom, dateTo: sales.dateTo, source: sales.source });
     }
     case 'inventory-current': {
       const stock = await InventoryReportService.currentStockReport({ ...baseQuery, full: '1', export: '1' });
-      return reportResult(definition, stock.stock || [], stock.summary || {}, query, { source: stock.source, negativeStockCount: stock.negativeStockCount });
+      return reportResult(definition, stock.stock || [], stock.summary || {}, resultQuery, { source: stock.source, negativeStockCount: stock.negativeStockCount });
     }
     case 'inventory-movement': {
       const movement = await InventoryReportService.inventoryMovementReport({ ...baseQuery, full: '1', export: '1' });
-      return reportResult(definition, movement.stock || [], movement.summary || {}, query, { dateFrom: movement.dateFrom, dateTo: movement.dateTo, source: movement.source });
+      return reportResult(definition, movement.stock || [], movement.summary || {}, resultQuery, { dateFrom: movement.dateFrom, dateTo: movement.dateTo, source: movement.source });
     }
     case 'stock-card': {
       const card = await InventoryReportService.stockCardReport({ ...baseQuery, full: '1', export: '1' });
-      return reportResult(definition, card.transactions || [], card.summary || {}, query, { dateFrom: card.dateFrom, dateTo: card.dateTo, source: card.source });
+      return reportResult(definition, card.transactions || [], card.summary || {}, resultQuery, { dateFrom: card.dateFrom, dateTo: card.dateTo, source: card.source });
     }
     case 'debt-current': {
       const rows = await arLedgerReadService.aggregateDebtByCustomer({ status: 'all', dateTo: baseQuery.dateTo });
       const filteredRows = rows.filter((row) => matchesSearch(row, baseQuery, ['customerCode', 'customerName', 'salesStaffName', 'deliveryStaffName']));
-      return reportResult(definition, filteredRows, summaryForRows(filteredRows, ['debit', 'credit', 'remainingDebt', 'orderCount', 'ledgerCount']), query, { dateTo: baseQuery.dateTo || '', source: 'arLedgers_current' });
+      return reportResult(definition, filteredRows, summaryForRows(filteredRows, ['debit', 'credit', 'remainingDebt', 'orderCount', 'ledgerCount']), resultQuery, { dateTo: baseQuery.dateTo || '', source: 'arLedgers_current' });
     }
     case 'debt-period': {
       const debt = await DebtReportService.periodDebtReport({ ...baseQuery, full: '1', export: '1' });
-      return reportResult(definition, debt.debts || [], debt.summary || {}, query, { dateFrom: debt.dateFrom, dateTo: debt.dateTo, source: debt.source });
+      return reportResult(definition, debt.debts || [], debt.summary || {}, resultQuery, { dateFrom: debt.dateFrom, dateTo: debt.dateTo, source: debt.source });
     }
     case 'debt-ledger': {
       const debt = await DebtReportService.arLedgerDetailReport({ ...baseQuery, full: '1', export: '1' });
-      return reportResult(definition, debt.ledger || [], debt.summary || {}, query, { dateFrom: debt.dateFrom, dateTo: debt.dateTo, source: debt.source });
+      return reportResult(definition, debt.ledger || [], debt.summary || {}, resultQuery, { dateFrom: debt.dateFrom, dateTo: debt.dateTo, source: debt.source });
     }
     case 'rewards-by-customer': {
       const rewards = await RewardReportService.rewardByCustomerReport({ ...baseQuery, full: '1', export: '1' });
-      return reportResult(definition, rewards.rewards || [], rewards.summary || {}, query, { dateFrom: rewards.dateFrom, dateTo: rewards.dateTo, source: rewards.source });
+      return reportResult(definition, rewards.rewards || [], rewards.summary || {}, resultQuery, { dateFrom: rewards.dateFrom, dateTo: rewards.dateTo, source: rewards.source });
     }
     case 'delivery-by-staff': {
       const delivery = await DeliveryReportService.deliveryByStaffReport({ ...baseQuery, full: '1', export: '1' });
       const rows = normalizeDeliveryStaffRows(delivery.byStaff || delivery.delivery || []);
-      return reportResult(definition, rows, delivery.summary || summaryForRows(rows, ['tripCount', 'orderCount', 'totalAmount', 'accountingConfirmedAmount', 'collectedAmount', 'unmasteredOrderCount']), query, { dateFrom: delivery.dateFrom, dateTo: delivery.dateTo, source: delivery.source });
+      return reportResult(definition, rows, delivery.summary || summaryForRows(rows, ['tripCount', 'orderCount', 'totalAmount', 'accountingConfirmedAmount', 'collectedAmount', 'unmasteredOrderCount']), resultQuery, { dateFrom: delivery.dateFrom, dateTo: delivery.dateTo, source: delivery.source });
     }
     case 'delivery-trips': {
       const delivery = await DeliveryReportService.deliveryTripsReport({ ...baseQuery, full: '1', export: '1' });
       const rows = normalizeDeliveryTripRows(delivery.delivery || []);
-      return reportResult(definition, rows, delivery.summary, query, { dateFrom: delivery.dateFrom, dateTo: delivery.dateTo, source: delivery.source });
+      return reportResult(definition, rows, delivery.summary, resultQuery, { dateFrom: delivery.dateFrom, dateTo: delivery.dateTo, source: delivery.source });
     }
     case 'finance-ledger':
     case 'finance-accounts': {
       const finance = await FinanceReportService.financeReport({ ...baseQuery, full: '1', export: '1' });
       const rows = definition.code === 'finance-accounts' ? finance.accounts || [] : finance.fundLedger || [];
-      return reportResult(definition, rows, finance.summary || {}, query, { dateFrom: finance.dateFrom, dateTo: finance.dateTo, source: finance.source });
+      return reportResult(definition, rows, finance.summary || {}, resultQuery, { dateFrom: finance.dateFrom, dateTo: finance.dateTo, source: finance.source });
     }
     case 'returns-detail': {
       const returns = await ReturnReportService.returnReport({ ...baseQuery, full: '1', export: '1' });
-      return reportResult(definition, returns.returns || [], returns.summary || {}, query, { dateFrom: returns.dateFrom, dateTo: returns.dateTo, source: returns.source });
+      return reportResult(definition, returns.returns || [], returns.summary || {}, resultQuery, { dateFrom: returns.dateFrom, dateTo: returns.dateTo, source: returns.source });
     }
     case 'info-products': {
       const info = await InformationReportService.productInformationReport(baseQuery);
       const rows = (info.products || []).filter((row) => matchesSearch(row, baseQuery));
-      return reportResult(definition, rows, info.summary || summaryForRows(rows, []), query, { source: info.source });
+      return reportResult(definition, rows, info.summary || summaryForRows(rows, []), resultQuery, { source: info.source });
     }
     case 'info-customers': {
       const info = await InformationReportService.customerInformationReport(baseQuery);
       const rows = (info.customers || []).filter((row) => matchesSearch(row, baseQuery));
-      return reportResult(definition, rows, summaryForRows(rows, ['currentDebt', 'monthlySalesAmount']), query, { source: info.source });
+      return reportResult(definition, rows, summaryForRows(rows, ['currentDebt', 'monthlySalesAmount']), resultQuery, { source: info.source });
     }
     case 'info-staffs': {
       const info = await InformationReportService.staffInformationReport(baseQuery);
       const rows = (info.staffs || []).filter((row) => matchesSearch(row, baseQuery));
-      return reportResult(definition, rows, info.summary || summaryForRows(rows, []), query, { source: info.source });
+      return reportResult(definition, rows, info.summary || summaryForRows(rows, []), resultQuery, { source: info.source });
     }
     case 'data-quality': {
       const [sales, inventory, delivery, returns] = await Promise.all([
@@ -727,7 +820,7 @@ async function run(code, query = {}, user = {}) {
         warningCount: rows.filter((row) => row.severity === 'warning').length,
         affectedAmount: rows.reduce((sum, row) => sum + Math.abs(toNumber(row.amount)), 0)
       };
-      return reportResult(definition, rows, summary, query, { dateFrom: sales.dateFrom, dateTo: sales.dateTo, source: 'report_domain_quality_checks' });
+      return reportResult(definition, rows, summary, resultQuery, { dateFrom: sales.dateFrom, dateTo: sales.dateTo, source: 'report_domain_quality_checks' });
     }
     default: {
       const error = new Error('Mẫu báo cáo chưa được triển khai');
@@ -790,6 +883,7 @@ module.exports = {
   aggregateSalesByCustomer,
   aggregateSalesByProduct,
   dataQualityRows,
+  buildSourceNote,
   run,
   overview
 };

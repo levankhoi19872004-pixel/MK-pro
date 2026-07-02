@@ -550,6 +550,56 @@ function renderReportSummary(summary={}){
   }).join('');
 }
 
+
+function sourceNoteJoin(value){
+  if(Array.isArray(value))return value.filter(Boolean).join(', ');
+  if(value&&typeof value==='object')return JSON.stringify(value);
+  return String(value||'');
+}
+
+function renderReportSourceNote(sourceNote={}){
+  if(!reportSalesSummary)return;
+  let box=document.getElementById('reportSourceNote');
+  if(!box){
+    box=document.createElement('div');
+    box.id='reportSourceNote';
+    box.className='report-source-note';
+    reportSalesSummary.insertAdjacentElement('afterend',box);
+  }
+  if(!sourceNote||!sourceNote.reportCode){
+    box.innerHTML='';
+    box.hidden=true;
+    return;
+  }
+  const status=String(sourceNote.sourceStatus||'OK').toUpperCase();
+  const service=[sourceNote.service,sourceNote.serviceMethod].filter(Boolean).join('.');
+  const primary=sourceNoteJoin(sourceNote.primaryCollections)||'—';
+  const warnings=[...(sourceNote.sourceWarnings||[]),...(sourceNote.dataQualityWarnings||[])].filter(Boolean);
+  box.hidden=false;
+  box.dataset.sourceStatus=status;
+  box.innerHTML=`
+    <div class="report-source-note__summary">
+      <strong>Nguồn dữ liệu:</strong> ${reportEscape(primary)} · Service: ${reportEscape(service||'—')} · Xuất Excel: ${sourceNote.viewAndExportSameSource?'cùng nguồn':'khác nguồn'} · Trạng thái nguồn: <span class="report-source-note__status">${reportEscape(status)}</span>
+    </div>
+    <details>
+      <summary>Chi tiết nguồn</summary>
+      <dl class="report-source-note__grid">
+        <dt>Mã báo cáo</dt><dd>${reportEscape(sourceNote.reportCode)}</dd>
+        <dt>Service</dt><dd>${reportEscape(service||'—')}</dd>
+        <dt>Endpoint xem</dt><dd>${reportEscape(sourceNote.runEndpoint||'')}</dd>
+        <dt>Endpoint export</dt><dd>${reportEscape(sourceNote.exportEndpoint||'/api/excel/export')}</dd>
+        <dt>Nguồn chính</dt><dd>${reportEscape(primary)}</dd>
+        <dt>Nguồn phụ</dt><dd>${reportEscape(sourceNoteJoin(sourceNote.secondaryCollections)||'—')}</dd>
+        <dt>Nguồn bị cấm</dt><dd>${reportEscape(sourceNoteJoin(sourceNote.forbiddenCollections)||'—')}</dd>
+        <dt>Quy tắc SSoT</dt><dd>${reportEscape(sourceNote.ssotRule||sourceNote.sourceLabel||'')}</dd>
+        <dt>Bộ lọc</dt><dd>${reportEscape(sourceNoteJoin(sourceNote.filters||{}))}</dd>
+        <dt>Sinh lúc</dt><dd>${reportEscape(sourceNote.generatedAt||'')}</dd>
+        <dt>Người chạy</dt><dd>${reportEscape(sourceNote.generatedBy||'')}</dd>
+        <dt>Cảnh báo</dt><dd>${warnings.length?reportEscape(warnings.join(' | ')):'Không có'}</dd>
+      </dl>
+    </details>`;
+}
+
 function statusLabel(value){
   const raw=String(value||'').trim();
   const normalized=raw.toLowerCase();
@@ -637,6 +687,7 @@ function renderActiveReport(payload){
     reportExportCurrentButton.title=definition?.code?'Xuất toàn bộ báo cáo theo bộ lọc hiện tại':'Chưa chọn báo cáo';
   }
   renderReportSummary(payload.summary||{});
+  renderReportSourceNote(payload.sourceNote||{});
   renderReportTable(payload);
   renderReportChart(payload);
   markActiveReportCard();
@@ -730,6 +781,7 @@ async function openReport(code,trigger=null){
   if(reportActiveTitle)reportActiveTitle.textContent=definition.title||'Báo cáo';
   if(reportActiveCategory)reportActiveCategory.textContent=reportCategoryMap().get(definition.category)?.title||definition.category||'Báo cáo';
   if(reportSalesSummary)reportSalesSummary.textContent=definition.description||'';
+  renderReportSourceNote(null);
   openReportCenterModal({load:false});
   if(trigger)trigger.disabled=true;
   try{

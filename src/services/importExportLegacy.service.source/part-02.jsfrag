@@ -212,7 +212,7 @@ function reportBusinessRule(type = '') {
   return rules[type] || 'Báo cáo sử dụng nguồn dữ liệu nghiệp vụ chuẩn của hệ thống.';
 }
 
-async function reportWorkbook(type, sheetName, headers, rows, query = {}) {
+async function reportWorkbook(type, sheetName, headers, rows, query = {}, sourceNote = null) {
   const enriched = await ProductExcelEnrichmentService.enrichRows(rows, {
     packingKey: 'Quy cách',
     salePriceKey: 'Giá bán'
@@ -223,6 +223,10 @@ async function reportWorkbook(type, sheetName, headers, rows, query = {}) {
     if (!exportHeaders.includes('Giá bán')) exportHeaders.push('Giá bán');
   }
   const workbook = createWorkbook();
+  if (sourceNote) {
+    const service = [sourceNote.service, sourceNote.serviceMethod].filter(Boolean).join('.');
+    appendAoaSheetToWorkbook(workbook, 'THÔNG TIN NGUỒN', [['Trường', 'Giá trị'], ['Mã báo cáo', sourceNote.reportCode || ''], ['Service', service], ['Nguồn chính', (sourceNote.primaryCollections || []).join(', ')], ['Quy tắc SSoT', sourceNote.ssotRule || sourceNote.sourceLabel || ''], ['Xem và xuất cùng nguồn', sourceNote.viewAndExportSameSource ? 'Có' : 'Không'], ['Trạng thái nguồn', sourceNote.sourceStatus || 'OK']]);
+  }
   appendAoaSheet(workbook, sheetName, exportHeaders, enriched.rows);
   const { from, to } = reportDateRange(query);
   appendAoaSheetToWorkbook(workbook, 'ThongTin', [

@@ -3,7 +3,7 @@
 const REPORTING_SNAPSHOT_COLLECTION = ['reporting', 'snapshots'].join('_');
 const INVENTORY_SNAPSHOT_COLLECTION = ['inventory', 'Snapshots'].join('');
 
-const REPORT_SOURCE_REGISTRY = Object.freeze({
+const RAW_REPORT_SOURCE_REGISTRY = {
   'sales-kpi': {
     primaryCollections: ['orders', 'returnOrders', 'arLedgers', 'salesTargets'],
     service: 'HomeDashboardService.getHomeDashboard',
@@ -180,7 +180,144 @@ const REPORT_SOURCE_REGISTRY = Object.freeze({
     allowedLegacyExportTypes: [],
     forbiddenCollections: [REPORTING_SNAPSHOT_COLLECTION, INVENTORY_SNAPSHOT_COLLECTION, 'products.stock', 'salesOrders.debtAmount']
   }
-});
+};
+
+function groupDefaults(code) {
+  if (/^sales-/.test(code)) {
+    return {
+      ssotRule: 'Sales = orders/salesOrders đã xác nhận kế toán; công nợ/thu/trả liên quan = arLedgers canonical',
+      amountSource: 'orders_accounting_confirmed',
+      debtSource: 'arLedgers',
+      inventorySource: null,
+      fundSource: null,
+      deliverySource: null
+    };
+  }
+  if (/^debt-/.test(code)) {
+    return {
+      ssotRule: 'Debt = arLedgers canonical; không dùng arDebtCustomers/arDebtOrders/salesOrders.debtAmount làm nguồn chính',
+      amountSource: null,
+      debtSource: 'arLedgers',
+      inventorySource: null,
+      fundSource: null,
+      deliverySource: null
+    };
+  }
+  if (/^inventory-/.test(code) || code === 'stock-card') {
+    return {
+      ssotRule: code === 'inventory-current' ? 'Inventory current = inventories canonical qua inventoryStockService' : 'Inventory movement/stock card = stockTransactions canonical; không dùng products.stock hoặc inventory snapshots',
+      amountSource: null,
+      debtSource: null,
+      inventorySource: code === 'inventory-current' ? 'inventories' : 'stockTransactions',
+      fundSource: null,
+      deliverySource: null
+    };
+  }
+  if (/^finance-/.test(code)) {
+    return {
+      ssotRule: 'Finance/fund = fundLedgers canonical qua fundLedgerCanonicalFilter(); không dùng cashbooks/bankbooks làm nguồn chính',
+      amountSource: 'fundLedgers_canonical',
+      debtSource: null,
+      inventorySource: null,
+      fundSource: 'fundLedgers',
+      deliverySource: null
+    };
+  }
+  if (/^delivery-/.test(code)) {
+    return {
+      ssotRule: code === 'delivery-trips'
+        ? 'Delivery trips = master_orders chỉ làm metadata chuyến; amount recompute từ orders; thu tiền từ fundLedgers canonical'
+        : 'Delivery by staff = orders/salesOrders đã giao + fundLedgers canonical; không phụ thuộc bắt buộc master_orders',
+      amountSource: code === 'delivery-trips' ? 'orders_recomputed' : 'orders_delivered',
+      debtSource: null,
+      inventorySource: null,
+      fundSource: 'fundLedgers',
+      deliverySource: code === 'delivery-trips' ? 'master_orders_metadata' : 'orders/salesOrders',
+      tripSource: code === 'delivery-trips' ? 'master_orders' : null,
+      snapshotUsedForAmount: code === 'delivery-trips' ? false : null
+    };
+  }
+  if (/^returns-/.test(code)) {
+    return {
+      ssotRule: 'Returns = returnOrders là chứng từ gốc; AR impact nếu có đọc arLedgers canonical',
+      amountSource: 'returnOrders',
+      debtSource: 'arLedgers',
+      inventorySource: 'returnOrders_to_inventory',
+      fundSource: null,
+      deliverySource: null
+    };
+  }
+  if (/^info-/.test(code)) {
+    return {
+      ssotRule: 'Information = master data; chỉ số tài chính đi kèm phải đọc từ SSoT tương ứng',
+      amountSource: code === 'info-customers' ? 'salesReport_accounting_confirmed' : null,
+      debtSource: code === 'info-customers' ? 'arLedgers' : null,
+      inventorySource: code === 'info-products' ? 'inventories' : null,
+      fundSource: null,
+      deliverySource: null
+    };
+  }
+  if (code === 'data-quality') {
+    return {
+      ssotRule: 'Diagnostics = đối chiếu nguồn canonical và cảnh báo thiếu/lệch dữ liệu',
+      amountSource: 'canonical_cross_checks',
+      debtSource: 'arLedgers',
+      inventorySource: 'inventories/stockTransactions',
+      fundSource: 'fundLedgers',
+      deliverySource: 'orders/master_orders'
+    };
+  }
+  return {
+    ssotRule: 'Báo cáo phải đọc từ nguồn canonical đã khai báo trong registry',
+    amountSource: null,
+    debtSource: null,
+    inventorySource: null,
+    fundSource: null,
+    deliverySource: null
+  };
+}
+
+function normalizeSourceContract(code, contract = {}) {
+  const defaults = groupDefaults(code);
+  const normalized = {
+    secondaryCollections: [],
+    forbiddenCollections: [],
+    allowedLegacyExportTypes: [],
+    exportService: 'ReportCenterService.run',
+    ...defaults,
+    ...contract
+  };
+  return Object.freeze({
+    ...normalized,
+    primaryCollections: Object.freeze([...(normalized.primaryCollections || [])]),
+    secondaryCollections: Object.freeze([...(normalized.secondaryCollections || [])]),
+    forbiddenCollections: Object.freeze([...(normalized.forbiddenCollections || [])]),
+    allowedLegacyExportTypes: Object.freeze([...(normalized.allowedLegacyExportTypes || [])])
+  });
+}
+
+const REPORT_SOURCE_REGISTRY = Object.freeze(Object.fromEntries(
+  Object.entries(RAW_REPORT_SOURCE_REGISTRY).map(([code, contract]) => [code, normalizeSourceContract(code, contract)])
+));
+
+function validateReportSourceContract(reportCode, runtimeInfo = {}) {
+  const contract = getReportSourceContract(reportCode);
+  const warnings = [];
+  if (!contract.service) warnings.push('Thiếu service trong source contract');
+  if (!contract.exportService) warnings.push('Thiếu exportService trong source contract');
+  if (!contract.sourceLabel) warnings.push('Thiếu sourceLabel trong source contract');
+  if (!contract.ssotRule) warnings.push('Thiếu ssotRule trong source contract');
+  if (!Array.isArray(contract.primaryCollections) || !contract.primaryCollections.length) warnings.push('Thiếu primaryCollections trong source contract');
+  if (runtimeInfo.requireSourceNote && !runtimeInfo.sourceNote) warnings.push('Report result thiếu sourceNote');
+  if (runtimeInfo.requireExportSourceNote && !runtimeInfo.exportSourceNote) warnings.push('Excel export thiếu sourceNote');
+  return {
+    reportCode: contract.reportCode,
+    ok: warnings.length === 0,
+    sourceStatus: warnings.length ? 'WARNING' : 'OK',
+    warnings,
+    contract
+  };
+}
 
 function getReportSourceContract(code) {
   const normalized = String(code || '').trim();
@@ -195,6 +332,8 @@ function getReportSourceContract(code) {
 }
 
 module.exports = {
+  RAW_REPORT_SOURCE_REGISTRY,
   REPORT_SOURCE_REGISTRY,
-  getReportSourceContract
+  getReportSourceContract,
+  validateReportSourceContract
 };
