@@ -23,10 +23,10 @@ orderTab:"#ban-hang",cartTab:"#gio-hang",debtTab:"#cong-no",reportTab:"#don-hang
 className:t.baseClass||"order-list"})}function yt(){return re(Re)}function vt(e={}){return te(e,yt())}function Ct(e={}){return ne(e,Ke?.value||"")}function wt(){
 return ue.draft.isDirty(Ne?.value||0)}function kt(){ue.draft.persist(Ne?.value||"")}function St(){
 if(!ue.draft.customer)return Ce.textContent="Chưa chọn khách hàng. Hãy sang tab Khách hàng để chọn.",Ce.classList.add("muted"),
-void(Ee&&(Ee.textContent="Chưa chọn khách hàng cho đơn này.",Ee.classList.add("muted")));const e=ue.draft.customer,t=A(e),n=D(e),r={heading:`${t||""}${t&&n?" - ":""}${n||""}`,
-lines:[`SĐT: ${M(e)||""}`,`ĐC: ${L(e)||""}`,`Nợ: ${g(x(e))} · DS tháng: ${g(O(e))}`]};window.SafeDom.renderSummary(Ce,r),Ce.classList.remove("muted"),
-Ee&&(window.SafeDom.renderSummary(Ee,{...r,prefix:"Đơn đang lập cho"}),Ee.classList.remove("muted"))}function Nt(e={}){return de(e,{customerName:D,customerCode:A})}
-async function Pt(){try{const e=await c({statuses:["pending","failed","conflict","needs_attention"],limit:100})
+void(Ee&&(Ee.textContent="Chưa chọn khách hàng cho đơn này.",Ee.classList.add("muted")));const e=ue.draft.customer,t=A(e),n=D(e),r=L(e),a={
+heading:`${t||""}${t&&n?" · ":""}${n||""}`,lines:[`${/^chưa có/i.test(r)?"":`${r} · `}Nợ ${g(x(e))} · DS tháng ${g(O(e))}`]};window.SafeDom.renderSummary(Ce,a),
+Ce.classList.remove("muted"),Ee&&(window.SafeDom.renderSummary(Ee,{...a,prefix:"Đơn đang lập cho"}),Ee.classList.remove("muted"))}function Nt(e={}){return de(e,{customerName:D,
+customerCode:A})}async function Pt(){try{const e=await c({statuses:["pending","failed","conflict","needs_attention"],limit:100})
 ;ue.sync.pendingOrders=e.filter(e=>"sales_order_create"===e.type).map(Nt),Fe&&(Fe.textContent=String(ue.sync.pendingOrders.length),Fe.hidden=0===ue.sync.pendingOrders.length),
 jt(ue.orders.rows)}catch(e){ue.sync.pendingOrders=[],Fe&&(Fe.hidden=!0)}}async function Et(e="",t={}){const n=!0===t.append;if(ue.customer.loading)return
 ;if(n&&!ue.customer.hasMore)return;const a=++ue.customer.requestSeq,o=n?ue.customer.page+1:1;ue.customer.loading=!0,ue.customer.query=e,f(be,!0,"Đang tải...");try{n||ft(pe,{

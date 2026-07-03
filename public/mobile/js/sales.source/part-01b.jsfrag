@@ -23,13 +23,10 @@ function renderSelectedCustomerContext() {
   const customer = state.draft.customer;
   const code = customerCodeValue(customer);
   const name = customerNameValue(customer);
+  const address = customerAddressValue(customer);
   const summary = {
-    heading: `${code || ''}${code && name ? ' - ' : ''}${name || ''}`,
-    lines: [
-      `SĐT: ${customerPhoneValue(customer) || ''}`,
-      `ĐC: ${customerAddressValue(customer) || ''}`,
-      `Nợ: ${money(customerDebtValue(customer))} · DS tháng: ${money(customerSalesValue(customer))}`
-    ]
+    heading: `${code || ''}${code && name ? ' · ' : ''}${name || ''}`,
+    lines: [`${/^chưa có/i.test(address) ? '' : `${address} · `}Nợ ${money(customerDebtValue(customer))} · DS tháng ${money(customerSalesValue(customer))}`]
   };
   window.SafeDom.renderSummary(selectedCustomerBox, summary);
   selectedCustomerBox.classList.remove('muted');

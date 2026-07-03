@@ -132,7 +132,7 @@
         "public/mobile/js/sales.source/part-03.jsfrag",
         "public/mobile/js/sales.source/part-03b.jsfrag"
       ],
-      "sourceSha256": "1b39eb62863c2929c8bc9b746cbd707c4feba602c022731fdafd509aa999f380"
+      "sourceSha256": "ae18421d141c7ac92b93aa382affb18e534b551497e36a2a47fca251f230de7f"
     },
     {
       "target": "public/js/app/admin/08d-import-excel.js",
@@ -192,7 +192,7 @@
         "public/mobile/mobile.source/mobile-03.css",
         "public/mobile/mobile.source/mobile-04.css"
       ],
-      "sourceSha256": "6eebd44bfed2d5f57c1165b9a989f4033a1372f0aaae95d1056cae17b8aca1e8"
+      "sourceSha256": "34b4deb0bd6a2993022541d4799d5d8ed7972819d0da2b9d91bffea8baef8216"
     },
     {
       "target": "public/print.css",

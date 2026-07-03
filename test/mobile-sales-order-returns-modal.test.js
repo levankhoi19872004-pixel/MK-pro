@@ -96,5 +96,5 @@ test('mobile sales order card has Xem hàng trả button and in-app returns moda
   assert.doesNotMatch(ux, /data-view-returns[\s\S]{0,250}target="_blank"/);
   assert.doesNotMatch(ux, /window\.open/);
   assert.match(generatedSalesSource, /sales-ux\.js\?v=phase155-returns-modal-v1/);
-  assert.match(html, /sales\.js\?v=phase155-returns-modal-v1/);
+  assert.match(html, /sales\.js\?v=(phase155-returns-modal-v1|phase158-customer-compact-v1)/);
 });
