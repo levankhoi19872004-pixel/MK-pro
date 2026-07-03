@@ -57,6 +57,68 @@ function resetSelectedProduct() {
   selectedProductBox.textContent = '';
   selectedProductBox.hidden = true;
   selectedProductBox.classList.add('muted');
+  selectedProductBox.classList.remove('mobile-selected-product-compact-meta');
+}
+
+function mobileProductPrice(product = {}) {
+  return Number(product.finalPrice || product.unitPrice || product.salePrice || product.price || 0);
+}
+
+function mobileProductOriginalPrice(product = {}) {
+  return Number(product.originalPrice || product.grossPrice || product.catalogSalePrice || product.salePrice || product.price || 0);
+}
+
+function mobileProductQuotaDate(product = {}) {
+  const value = product.internalSaleQuota?.snapshotDate || product.internalSaleQuota?.date || product.internalSaleQuota?.importDate || '';
+  return value ? formatDisplayDate(value) : 'chưa cập nhật';
+}
+
+function mobileProductMetaLine(product = {}) {
+  const price = mobileProductPrice(product);
+  const originalPrice = mobileProductOriginalPrice(product);
+  const priceLabel = originalPrice > price && price > 0
+    ? `Giá KM ${money(price)} · Gốc ${money(originalPrice)}`
+    : `Giá ${money(price)}`;
+  return [
+    `Tồn ${product.stockDisplay || formatStockTL(product.availableQty, product.conversionRate)}`,
+    `App ${formatStockTL(product.maxOrderQty, product.conversionRate)}`,
+    priceLabel,
+    `DMS ${mobileProductQuotaDate(product)}`
+  ].join(' · ');
+}
+
+function renderSelectedProductCompact(product = {}) {
+  if (!selectedProductBox) return;
+  selectedProductBox.textContent = mobileProductMetaLine(product);
+  selectedProductBox.hidden = false;
+  selectedProductBox.classList.remove('muted');
+  selectedProductBox.classList.add('mobile-selected-product-compact-meta');
+}
+
+function placeMobileProductSuggestions() {
+  if (!productSearch || !productSuggestions) return;
+  const searchWrapper = productSearch.closest('.clearable-search-control');
+  const card = document.querySelector('#orderTab .mobile-product-search-first-card');
+  if (searchWrapper && card && productSuggestions.parentElement === searchWrapper) {
+    searchWrapper.insertAdjacentElement('afterend', productSuggestions);
+  }
+  if (card && productSuggestions.parentElement !== card && searchWrapper?.parentElement === card) {
+    searchWrapper.insertAdjacentElement('afterend', productSuggestions);
+  }
+}
+
+function installMobileSalesProductLabel() {
+  if (!window.UnifiedProductSearch || window.UnifiedProductSearch.__mobileSalesCompactLabel === true) return;
+  const originalLabelHtml = window.UnifiedProductSearch.labelHtml;
+  const compactLabelHtml = (product = {}, mode = 'sales') => {
+    if (mode !== 'sales') return typeof originalLabelHtml === 'function' ? originalLabelHtml(product, mode) : escapeHtml(String(product.label || ''));
+    const p = toMobileProduct(product);
+    const title = [p.code, p.name].filter(Boolean).join(' · ');
+    return `<div class="mobile-product-suggest-title">${escapeHtml(title)}</div>`
+      + `<div class="mobile-product-suggest-meta">${escapeHtml(mobileProductMetaLine(p))}</div>`;
+  };
+  window.UnifiedProductSearch.labelHtml = compactLabelHtml;
+  window.UnifiedProductSearch.__mobileSalesCompactLabel = true;
 }
 
 function pickProduct(product) {
@@ -69,33 +131,16 @@ function pickProduct(product) {
   productSearch.dataset.code = p.code || '';
   productSearch.dataset.name = p.name || '';
   productSearch.dataset.type = 'product';
-  productSearch.value = p.label || [p.code, p.name].filter(Boolean).join(' - ');
+  productSearch.value = [p.code, p.name].filter(Boolean).join(' · ');
 
-  // MOBILE_SELECTED_PRODUCT_CARD_RENDER_START: dữ liệu sản phẩm đi qua DOM API dùng chung.
-  const selectedProductPrice = Number(p.finalPrice || p.unitPrice || p.salePrice || p.price || 0);
-  const selectedProductOriginalPrice = Number(p.originalPrice || p.grossPrice || p.catalogSalePrice || p.salePrice || p.price || 0);
-  const metrics = [
-    { label: 'Tồn thực tế', value: p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate) },
-    { label: 'Được bán App', value: formatStockTL(p.maxOrderQty, p.conversionRate), className: 'mobile-app-quota-meta' }
-  ];
-  if (selectedProductOriginalPrice > selectedProductPrice) {
-    metrics.push({ label: 'Giá KM', value: money(selectedProductPrice) }, { label: 'Giá gốc', value: money(selectedProductOriginalPrice) });
-  } else metrics.push({ label: 'Giá bán', value: money(selectedProductPrice) });
-  window.SafeDom.renderMetricCard(selectedProductBox, {
-    title: `${p.code || ''} - ${p.name || ''}`,
-    titleClass: 'mobile-selected-product-name',
-    metaClass: 'mobile-selected-product-meta',
-    metrics,
-    note: `Hạn mức theo file DMS: ${p.internalSaleQuota?.snapshotDate || 'chưa cập nhật'}`,
-    noteClass: 'mobile-selected-product-quota-note'
-  });
-  // MOBILE_SELECTED_PRODUCT_CARD_RENDER_END
-  selectedProductBox.hidden = false;
-  selectedProductBox.classList.remove('muted');
+  // MOBILE_SELECTED_PRODUCT_COMPACT_RENDER_START: không lặp tên sản phẩm; chỉ giữ 1 dòng tồn/app/giá/DMS.
+  renderSelectedProductCompact(p);
+  // MOBILE_SELECTED_PRODUCT_COMPACT_RENDER_END
   productSuggestions.innerHTML = '';
   productSuggestions.classList.remove('has-many');
   productSuggestions.hidden = true;
   productSuggestions.style.display = 'none';
+  placeMobileProductSuggestions();
   looseQtyInput.focus();
 }
 
@@ -153,6 +198,8 @@ function initProductAutocomplete() {
     return;
   }
 
+  installMobileSalesProductLabel();
+
   window.SearchAutocomplete.wire({
     input: productSearch,
     box: productSuggestions,
@@ -163,8 +210,12 @@ function initProductAutocomplete() {
     select: pickProduct,
     emptyText: 'Không tìm thấy sản phẩm phù hợp'
   });
+  placeMobileProductSuggestions();
 
-  productSearch.addEventListener('input', resetSelectedProduct);
+  productSearch.addEventListener('input', () => {
+    resetSelectedProduct();
+    placeMobileProductSuggestions();
+  });
   // MOBILE_PRODUCT_GROUP_FILTER_CHANGE_START: đổi nhóm hàng thì xóa SP đang chọn để tránh thêm nhầm.
   productGroupFilter?.addEventListener('change', () => {
     resetSelectedProduct();
@@ -179,6 +230,7 @@ function initProductAutocomplete() {
   loadProductGroupOptions();
   // MOBILE_PRODUCT_GROUP_FILTER_CHANGE_END
   productSearch.addEventListener('focus', () => {
+    placeMobileProductSuggestions();
     productSearch.dispatchEvent(new Event('input', { bubbles: true }));
   });
   productSearch.addEventListener('keydown', (event) => {
