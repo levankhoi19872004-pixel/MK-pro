@@ -2,7 +2,6 @@
 
 const ReturnOrder = require('../../models/ReturnOrder');
 const DeliveryCloseoutVersion = require('../../models/DeliveryCloseoutVersion');
-const arBalanceService = require('../accounting/arBalanceService');
 const { toNumber } = require('../../utils/common.util');
 const { normalizeDebtAmount, calculateDeliveryDebtAmount } = require('../../constants/finance.constants');
 
@@ -199,6 +198,22 @@ function latestVersionMoney(latestVersion = null, fallback = {}) {
   };
 }
 
+function latestVersionReturnAmount(latestVersion = null, fallback = 0) {
+  if (!latestVersion) return money(fallback);
+  return firstNumber(latestVersion, ['returnAmount', 'returnedAmount', 'newReturnAmount', 'newReturnedAmount']) || money(fallback);
+}
+
+function calculateDailyDebtFromCloseout(input = {}) {
+  const result = calculateDeliveryDebtAmount({
+    receivableAmount: money(input.payableAmount ?? input.receivableAmount ?? input.totalAmount ?? input.originalAmount ?? input.saleAmount ?? 0),
+    cashAmount: money(input.cashAmount ?? input.cashCollectedAmount ?? input.cashCollected ?? 0),
+    bankAmount: money(input.bankAmount ?? input.transferAmount ?? input.bankCollectedAmount ?? 0),
+    rewardAmount: money(input.bonusAmount ?? input.rewardAmount ?? input.allowanceAmount ?? 0),
+    returnAmount: money(input.returnAmount ?? input.returnedAmount ?? 0)
+  });
+  return Math.max(0, normalizeDebtAmount(result.rawDebtAmount));
+}
+
 async function loadReturnsByOrderKey(orders = [], options = {}) {
   const allKeys = unique(orders.flatMap(orderIdentityValues));
   if (!allKeys.length) return new Map();
@@ -316,14 +331,6 @@ function firstByOrderKeys(order = {}, byKey = new Map()) {
   }
   return null;
 }
-
-function arBalanceForOrder(order = {}, arBalanceMap = new Map()) {
-  for (const key of orderIdentityValues(order)) {
-    if (arBalanceMap.has(key)) return Math.max(0, normalizeDebtAmount(arBalanceMap.get(key)));
-  }
-  return null;
-}
-
 function hasDeliveryOperationalState(order = {}, summary = {}) {
   const deliveryStatus = lower(order.deliveryStatus || order.lifecycleStatus || order.status || '');
   if (['assigned', 'delivering', 'delivered', 'completed', 'done', 'accounting_confirmed'].includes(deliveryStatus)) return true;
@@ -341,27 +348,25 @@ function buildMobileSalesOrderTrackingSummary(order = {}, context = {}) {
   const totalAmount = orderTotalAmount(order) || money(latestVersion?.originalAmount ?? latestVersion?.saleAmount ?? 0);
   const moneySource = latestVersionMoney(latestVersion, orderMoneyBreakdown(order));
   const returnFromRows = returnRows.reduce((sum, row) => sum + returnOrderAmount(row), 0);
-  const returnAmount = returnRows.length
-    ? money(returnFromRows)
-    : money(latestVersion?.returnedAmount ?? latestVersion?.returnAmount ?? order.returnAmount ?? order.returnedAmount ?? 0);
+  const returnAmount = latestVersion
+    ? latestVersionReturnAmount(latestVersion, returnFromRows || order.returnAmount || order.returnedAmount || 0)
+    : (returnRows.length
+      ? money(returnFromRows)
+      : money(order.returnAmount ?? order.returnedAmount ?? 0));
 
-  const calculatedDebt = calculateDeliveryDebtAmount({
-    receivableAmount: totalAmount,
+  const dailyDebtAmount = calculateDailyDebtFromCloseout({
+    payableAmount: totalAmount,
     cashAmount: moneySource.cashAmount,
     bankAmount: moneySource.bankAmount,
-    rewardAmount: moneySource.bonusAmount,
+    bonusAmount: moneySource.bonusAmount,
     returnAmount
-  }).debtAmount;
-  const arDebt = confirmed ? arBalanceForOrder(order, context.arBalanceMap) : null;
-  const remainingDebt = arDebt !== null
-    ? arDebt
-    : Math.max(0, normalizeDebtAmount(calculatedDebt));
+  });
+  const remainingDebt = dailyDebtAmount;
 
   const closeout = deliveryCloseout(order);
-  const source = confirmed && arDebt !== null
-    ? 'accounting_confirmed_ar_ledger'
-    : (latestVersion ? (confirmed ? 'delivery_closeout_accounting_confirmed' : 'delivery_pending_accounting')
-      : (hasDeliveryOperationalState(order, { ...moneySource, returnAmount }) ? 'delivery_pending_accounting' : 'sales_order_snapshot'));
+  const source = latestVersion
+    ? 'deliveryCloseoutVersions'
+    : (hasDeliveryOperationalState(order, { ...moneySource, returnAmount }) ? 'order_delivery_fields' : 'no_daily_closeout');
 
   return {
     masterOrderCode: orderMasterCode(order) || text(latestVersion?.masterOrderCode || latestVersion?.masterOrderNo || ''),
@@ -373,13 +378,16 @@ function buildMobileSalesOrderTrackingSummary(order = {}, context = {}) {
     accountingStatus: confirmed ? 'accounting_confirmed' : text(latestVersion?.accountingStatus || order.accountingStatus || closeout.status || 'pending'),
     accountingConfirmed: confirmed,
     totalAmount,
+    payableAmount: totalAmount,
     collectedAmount: money(moneySource.collectedAmount),
     cashAmount: money(moneySource.cashAmount),
     bankAmount: money(moneySource.bankAmount),
     bonusAmount: money(moneySource.bonusAmount),
     rewardAmount: money(moneySource.bonusAmount),
     returnAmount,
+    dailyDebtAmount: remainingDebt,
     remainingDebt,
+    closeoutSource: latestVersion ? 'deliveryCloseoutVersions' : source,
     deliveredAt: text(latestVersion?.deliveredAt || order.deliveredAt || closeout.deliveredAt || closeout.closedAt || ''),
     accountingConfirmedAt: text(latestVersion?.accountingConfirmedAt || order.accountingConfirmedAt || closeout.accountingConfirmedAt || ''),
     returnOrderCount: returnRows.length,
@@ -391,17 +399,15 @@ function buildMobileSalesOrderTrackingSummary(order = {}, context = {}) {
 async function buildMobileSalesOrderTrackingSummaries(orders = [], options = {}) {
   const rows = Array.isArray(orders) ? orders : [];
   if (!rows.length) return new Map();
-  const [returnsByKey, versionsByKey, arBalanceMap] = await Promise.all([
+  const [returnsByKey, versionsByKey] = await Promise.all([
     loadReturnsByOrderKey(rows, options),
-    loadLatestVersionsByOrderKey(rows, options),
-    arBalanceService.loadOrderBalances(rows, options)
+    loadLatestVersionsByOrderKey(rows, options)
   ]);
   const map = new Map();
   for (const order of rows) {
     const summary = buildMobileSalesOrderTrackingSummary(order, {
       returnsByKey,
-      versionsByKey,
-      arBalanceMap
+      versionsByKey
     });
     for (const key of orderIdentityValues(order)) map.set(key, summary);
   }
@@ -433,8 +439,10 @@ function decorateMobileSalesOrderForTracking(order = {}, tracking = null) {
     bonusAmount: summary.bonusAmount,
     rewardAmount: summary.rewardAmount,
     returnAmount: summary.returnAmount,
+    dailyDebtAmount: summary.dailyDebtAmount,
     remainingDebt: summary.remainingDebt,
-    orderRemainingDebt: summary.remainingDebt
+    orderRemainingDebt: summary.remainingDebt,
+    closeoutSource: summary.closeoutSource
   };
 }
 
@@ -450,6 +458,8 @@ module.exports = {
     orderTotalAmount,
     orderMoneyBreakdown,
     returnOrderAmount,
+    latestVersionReturnAmount,
+    calculateDailyDebtFromCloseout,
     deliveryCloseoutVersionKeys,
     isInactiveDeliveryCloseoutVersion,
     isBetterDeliveryCloseoutVersion,

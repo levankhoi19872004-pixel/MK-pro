@@ -186,7 +186,6 @@ export function buildOrderCardsHtml(orders = [], helpers = {}) {
     const orderKey = String(order.id || order.orderId || order.code || '').trim();
     const printUrl = String(order.printUrl || (orderKey ? `/api/mobile/sales/orders/${encodeURIComponent(orderKey)}/print.pdf` : '')).trim();
     const totalAmount = numberValue(tracking.totalAmount ?? order.totalAmount);
-    const collectedAmount = numberValue(tracking.collectedAmount ?? order.collectedAmount ?? order.paidAmount);
     const cashAmount = numberValue(tracking.cashAmount ?? order.cashAmount);
     const bankAmount = numberValue(tracking.bankAmount ?? order.bankAmount);
     const bonusAmount = numberValue(tracking.bonusAmount ?? tracking.rewardAmount ?? order.bonusAmount ?? order.rewardAmount);
@@ -209,23 +208,24 @@ export function buildOrderCardsHtml(orders = [], helpers = {}) {
 
     return `
       <article class="order-item mobile-order-card ${pending ? 'pending-sync-order' : ''}">
-        <div class="mobile-order-heading">
-          <div><strong>${escapeHtml(orderCode)}</strong><span>${escapeHtml(order.customerCode || '')}${order.customerCode && order.customerName ? ' · ' : ''}${escapeHtml(order.customerName || '')}</span></div>
+        <div class="mobile-order-heading mobile-order-heading-compact">
+          <div class="mobile-order-title-block">
+            <strong>${escapeHtml(orderCode)}</strong>
+            <span>${escapeHtml(order.customerCode || '')}${order.customerCode && order.customerName ? ' · ' : ''}${escapeHtml(order.customerName || '')}</span>
+            <div class="mobile-order-status-badges" aria-label="Trạng thái đơn ${escapeHtml(orderCode)}">
+              <span class="mobile-order-status-badge delivery">Giao: ${escapeHtml(deliveryStatus)}</span>
+              <span class="mobile-order-status-badge accounting">Kế toán: ${escapeHtml(accountingStatus)}</span>
+            </div>
+          </div>
           <div class="mobile-sales-order-lock-pills">${lockPills}</div>
         </div>
-        <div class="mobile-order-metrics mobile-order-tracking-metrics">
-          <span><small>Ngày</small><strong>${escapeHtml(formatDate(order.date || order.orderDate))}</strong></span>
-          <span><small>Tổng đơn</small><strong>${money(totalAmount)}</strong></span>
-          <span><small>Đã thu</small><strong>${money(collectedAmount)}</strong></span>
-          <span><small>Còn nợ</small><strong>${money(remainingDebt)}</strong></span>
+        <div class="mobile-order-metrics mobile-order-tracking-metrics mobile-order-tracking-metrics-compact">
+          <span><small>PT</small><strong>${money(totalAmount)}</strong></span>
           <span><small>TM</small><strong>${money(cashAmount)}</strong></span>
           <span><small>CK</small><strong>${money(bankAmount)}</strong></span>
-          <span><small>Trả thưởng</small><strong>${money(bonusAmount)}</strong></span>
-          <span><small>Hàng trả</small><strong>${money(returnAmount)}</strong></span>
-        </div>
-        <div class="mobile-order-status-line">
-          <span>Giao: <strong>${escapeHtml(deliveryStatus)}</strong></span>
-          <span>Kế toán: <strong>${escapeHtml(accountingStatus)}</strong></span>
+          <span><small>TT</small><strong>${money(bonusAmount)}</strong></span>
+          <span><small>HT</small><strong>${money(returnAmount)}</strong></span>
+          <span><small>CN</small><strong>${money(remainingDebt)}</strong></span>
         </div>
         ${error}
         <div class="row-actions mobile-order-actions">
@@ -255,15 +255,45 @@ function ensureMobileOrderPrintStyles() {
     .mobile-order-print-sheet{position:relative;z-index:1;display:grid;grid-template-rows:auto minmax(0,1fr);width:min(96vw,860px);height:min(90vh,980px);max-height:calc(100vh - 24px - env(safe-area-inset-bottom));overflow:hidden;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.32)}
     .mobile-order-print-header{position:sticky;top:0;z-index:2;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid #dbe4f0;background:#fff}
     .mobile-order-print-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#0f172a;font-size:15px;font-weight:900}
-    .mobile-order-print-close{min-height:40px;border:0;border-radius:12px;background:#e2e8f0;color:#0f172a;font-weight:900;padding:8px 12px}
-    .mobile-order-print-body{position:relative;min-height:0;background:#f8fafc}
-    .mobile-order-print-frame{width:100%;height:100%;border:0;background:#fff}
+    .mobile-order-print-toolbar{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+    .mobile-order-print-zoom,.mobile-order-print-close{min-height:38px;border:0;border-radius:12px;background:#e2e8f0;color:#0f172a;font-weight:900;padding:7px 10px}
+    .mobile-order-print-zoom-value{min-width:50px;text-align:center;color:#334155;font-size:12px;font-weight:900}
+    .mobile-order-print-body{position:relative;min-height:0;overflow:auto;background:#f8fafc}
+    .mobile-order-print-frame{width:100%;height:100%;min-height:100%;border:0;background:#fff;transform-origin:top left;transition:transform .12s ease}
     .mobile-order-print-loading,.mobile-order-print-error{position:absolute;inset:0;display:grid;place-items:center;padding:18px;text-align:center;color:#475569;font-weight:800;background:#f8fafc}
     .mobile-order-print-error{color:#b42318;background:#fff7f7}
     .mobile-order-print-error[hidden],.mobile-order-print-loading[hidden],.mobile-order-print-frame[hidden]{display:none!important}
-    @media (max-width:380px){.mobile-order-heading{grid-template-columns:1fr}.mobile-sales-order-lock-pills{justify-content:flex-start;max-width:none}.mobile-order-print-modal{padding:8px}.mobile-order-print-sheet{width:96vw;height:88vh;border-radius:16px}}
+    @media (max-width:420px){.mobile-order-print-header{grid-template-columns:1fr;gap:8px}.mobile-order-print-toolbar{justify-content:space-between}.mobile-order-print-title{white-space:normal}.mobile-order-heading{grid-template-columns:1fr}.mobile-sales-order-lock-pills{justify-content:flex-start;max-width:none}.mobile-order-print-modal{padding:8px}.mobile-order-print-sheet{width:96vw;height:88vh;border-radius:16px}}
   `;
   document.head.appendChild(style);
+}
+
+
+const MOBILE_ORDER_PRINT_ZOOM_MIN = 0.8;
+const MOBILE_ORDER_PRINT_ZOOM_MAX = 2;
+const MOBILE_ORDER_PRINT_ZOOM_STEP = 0.1;
+let mobileOrderPrintZoom = 1;
+
+function applyMobileOrderPrintZoom(modal) {
+  const frame = modal?.querySelector?.('.mobile-order-print-frame');
+  const value = modal?.querySelector?.('[data-mobile-order-print-zoom-value]');
+  const body = modal?.querySelector?.('.mobile-order-print-body');
+  const zoom = Math.max(MOBILE_ORDER_PRINT_ZOOM_MIN, Math.min(MOBILE_ORDER_PRINT_ZOOM_MAX, Number(mobileOrderPrintZoom || 1)));
+  mobileOrderPrintZoom = zoom;
+  if (frame) {
+    frame.style.transform = `scale(${zoom})`;
+    frame.style.width = `${100 / zoom}%`;
+    frame.style.height = `${100 / zoom}%`;
+  }
+  if (body) body.dataset.zoom = String(Math.round(zoom * 100));
+  if (value) value.textContent = `${Math.round(zoom * 100)}%`;
+}
+
+function setMobileOrderPrintZoom(delta = 0) {
+  const modal = typeof document === 'undefined' ? null : document.getElementById('mobileOrderPrintModal');
+  if (!modal) return;
+  mobileOrderPrintZoom = Math.max(MOBILE_ORDER_PRINT_ZOOM_MIN, Math.min(MOBILE_ORDER_PRINT_ZOOM_MAX, mobileOrderPrintZoom + delta));
+  applyMobileOrderPrintZoom(modal);
 }
 
 function ensureMobileOrderPrintModal() {
@@ -279,7 +309,12 @@ function ensureMobileOrderPrintModal() {
     <div class="mobile-order-print-sheet" role="dialog" aria-modal="true" aria-labelledby="mobileOrderPrintTitle">
       <div class="mobile-order-print-header">
         <div id="mobileOrderPrintTitle" class="mobile-order-print-title">Xem đơn</div>
-        <button type="button" class="mobile-order-print-close" data-mobile-order-print-close>Đóng</button>
+        <div class="mobile-order-print-toolbar" aria-label="Điều khiển xem đơn">
+          <button type="button" class="mobile-order-print-zoom" data-mobile-order-print-zoom="out" aria-label="Thu nhỏ đơn">−</button>
+          <span class="mobile-order-print-zoom-value" data-mobile-order-print-zoom-value>100%</span>
+          <button type="button" class="mobile-order-print-zoom" data-mobile-order-print-zoom="in" aria-label="Phóng to đơn">+</button>
+          <button type="button" class="mobile-order-print-close" data-mobile-order-print-close>Đóng</button>
+        </div>
       </div>
       <div class="mobile-order-print-body">
         <div class="mobile-order-print-loading">Đang tải đơn...</div>
@@ -289,6 +324,12 @@ function ensureMobileOrderPrintModal() {
     </div>`;
   document.body.appendChild(modal);
   modal.addEventListener('click', (event) => {
+    const zoomButton = event.target.closest('[data-mobile-order-print-zoom]');
+    if (zoomButton) {
+      event.preventDefault();
+      setMobileOrderPrintZoom(zoomButton.dataset.mobileOrderPrintZoom === 'in' ? MOBILE_ORDER_PRINT_ZOOM_STEP : -MOBILE_ORDER_PRINT_ZOOM_STEP);
+      return;
+    }
     if (event.target === modal || event.target.closest('[data-mobile-order-print-close]')) closeMobileOrderPrintModal();
   });
   return modal;
@@ -313,6 +354,8 @@ export function openMobileOrderPrintModal(options = {}) {
   const loading = modal.querySelector('.mobile-order-print-loading');
   const error = modal.querySelector('.mobile-order-print-error');
   if (title) title.textContent = `Xem đơn ${String(options.orderCode || options.orderKey || '').trim()}`.trim();
+  mobileOrderPrintZoom = 1;
+  applyMobileOrderPrintZoom(modal);
   if (loading) loading.hidden = false;
   if (error) {
     error.hidden = true;
