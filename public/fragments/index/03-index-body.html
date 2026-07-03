@@ -95,7 +95,7 @@
 
 
 
-    <section id="masterReturnOrdersTab" class="tab-content">
+    <section id="masterReturnOrdersTab" class="tab-content" hidden aria-hidden="true" data-deprecated-module="master-return-orders">
       <main class="grid master-return-grid master-return-list-only-grid">
         <section class="card">
           <div class="ui-list-toolbar">
@@ -105,7 +105,7 @@
                 <p id="masterReturnOrderCount" class="muted ui-page-meta">Đang tải...</p>
               </div>
               <div class="ui-page-actions">
-                <button id="openMasterReturnOrderModalButton" class="primary ui-action-primary" type="button">Tạo đơn tổng trả</button>
+                <button id="openMasterReturnOrderModalButton" class="primary ui-action-primary" type="button" hidden aria-hidden="true" disabled data-deprecated-module="master-return-orders">Tạo đơn tổng trả</button>
               </div>
             </div>
             <p id="masterReturnOrderMessage" class="message"></p>
@@ -128,7 +128,7 @@
           <div class="master-return-batch-actions">
             <button id="selectAllMasterReturnOrdersButton" class="secondary" type="button">Chọn tất cả</button>
             <button id="printSelectedMasterReturnOrdersButton" class="secondary" type="button">In</button>
-            <button id="receiveSelectedMasterReturnOrdersButton" class="secondary ui-action-sensitive" type="button">Nhập kho</button>
+            <button id="receiveSelectedMasterReturnOrdersButton" class="secondary ui-action-sensitive" type="button" hidden aria-hidden="true" disabled data-deprecated-module="master-return-orders">Nhập kho</button>
           </div>
           <div id="masterReturnOrderTable" class="order-list master-return-fixed-list">Đang tải đơn tổng trả hàng...</div>
         </section>

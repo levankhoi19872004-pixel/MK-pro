@@ -9,6 +9,7 @@ const auditService = require('../auditService');
 
 const ACTIVE_RETURN_STATUSES = new Set([
   '', 'draft', 'pending', 'active', 'waiting_receive', 'pending_warehouse_receive',
+  'pending_warehouse_check', 'ready_to_stock_in', 'warehouse_matched', 'warehouse_discrepancy',
   'merged', 'delivered', 'completed', 'received', 'posted', 'has_return'
 ]);
 const INACTIVE_RETURN_STATUSES = new Set(['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled', 'cleared']);
@@ -185,7 +186,7 @@ function buildReturnOrderFilter({ date, deliveryStaffCode = '', tenantId = '' } 
 
 async function loadReturnOrders({ date, deliveryStaffCode = '', tenantId = '' } = {}) {
   const rows = await ReturnOrder.find(buildReturnOrderFilter({ date, deliveryStaffCode, tenantId }))
-    .select('id code tenantId date documentDate returnDate deliveryDate createdAt updatedAt customerCode customerName salesOrderId salesOrderCode orderId orderCode sourceOrderCode deliveryOrderCode deliveryStaffCode deliveryStaffName deliveryCode deliveryName nvghCode nvghName shipperCode shipperName staffCode staffName status returnStatus returnState warehouseStatus warehouseReceiveStatus stockReceiveStatus accountingStatus returnMergeStatus items totalQuantity quantity qty totalAmount totalReturnAmount amount debtReduction note')
+    .select('id code tenantId date documentDate returnDate deliveryDate createdAt updatedAt customerCode customerName salesOrderId salesOrderCode orderId orderCode sourceOrderCode deliveryOrderCode deliveryStaffCode deliveryStaffName deliveryCode deliveryName nvghCode nvghName shipperCode shipperName staffCode staffName status returnStatus returnState warehouseStatus warehouseReceiveStatus stockReceiveStatus warehouseCheckStatus warehouseCheckId warehouseCheckedAt warehouseCheckedBy warehouseCheckedByName warehouseCheckNote stockInStatus stockPosted stockPostedAt stockPostedBy stockPostedByName stockTransactionIds accountingStatus returnMergeStatus items totalQuantity quantity qty totalAmount totalReturnAmount amount debtReduction note')
     .lean()
     .catch(() => []);
   return (rows || []).filter(isActiveReturnOrder).filter((row) => returnBusinessDate(row) === dateOnly(date, dateUtil.todayVN()));
@@ -399,6 +400,89 @@ function summarizeDiff(items = []) {
     .join('; ');
 }
 
+function buildSourceReturnOrderFilter(sourceReturnOrderIds = [], tenantId = '') {
+  const keys = [...new Set((Array.isArray(sourceReturnOrderIds) ? sourceReturnOrderIds : []).map(clean).filter(Boolean))];
+  if (!keys.length) return null;
+  const filter = {
+    $or: [
+      { id: { $in: keys } },
+      { code: { $in: keys } },
+      { returnOrderId: { $in: keys } },
+      { returnOrderCode: { $in: keys } }
+    ],
+    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled', 'cleared'] }
+  };
+  if (tenantId) filter.$and = [{ $or: [{ tenantId }, { tenantId: { $exists: false } }, { tenantId: '' }] }];
+  return filter;
+}
+
+async function applyReturnOrdersCheckResult({ doc = {}, discrepancyCount = 0, actor = {}, note = '', beforeRows = [] } = {}) {
+  const sourceReturnOrderIds = Array.isArray(doc.sourceReturnOrderIds) ? doc.sourceReturnOrderIds : [];
+  const filter = buildSourceReturnOrderFilter(sourceReturnOrderIds, doc.tenantId || actorTenantId(actor));
+  if (!filter) return { matchedCount: 0, modifiedCount: 0 };
+
+  const now = dateUtil.nowIso();
+  const matched = discrepancyCount <= 0;
+  const checkStatus = matched ? 'matched' : 'discrepancy';
+  const stockInStatus = matched ? 'ready' : 'blocked';
+  const displayStatus = matched ? 'ready_to_stock_in' : 'warehouse_discrepancy';
+  const warehouseStatus = matched ? 'warehouse_matched' : 'warehouse_discrepancy';
+
+  const update = {
+    $set: {
+      warehouseCheckStatus: checkStatus,
+      warehouseStatus,
+      warehouseCheckId: doc.id || '',
+      warehouseCheckedAt: doc.checkedAt || now,
+      warehouseCheckedBy: actorCode(actor),
+      warehouseCheckedByName: actorName(actor),
+      warehouseCheckNote: clean(note || doc.note || ''),
+      stockInStatus,
+      status: displayStatus,
+      returnStatus: displayStatus,
+      updatedAt: now
+    }
+  };
+
+  const result = await ReturnOrder.updateMany(
+    {
+      ...filter,
+      stockPosted: { $ne: true },
+      stockInStatus: { $ne: 'posted' }
+    },
+    update
+  );
+
+  await auditService.log(matched ? 'warehouse_return_check_confirmed' : 'warehouse_return_check_discrepancy', {
+    tenantId: doc.tenantId || actorTenantId(actor),
+    actor,
+    refType: 'returnOrder',
+    refId: sourceReturnOrderIds.join(','),
+    refCode: `${doc.date || ''}:${doc.deliveryStaffCode || ''}`,
+    before: {
+      returnOrderIds: sourceReturnOrderIds,
+      rows: (Array.isArray(beforeRows) ? beforeRows : []).map((row) => ({
+        id: returnOrderId(row),
+        code: returnOrderCode(row),
+        warehouseCheckStatus: row.warehouseCheckStatus || '',
+        stockInStatus: row.stockInStatus || '',
+        stockPosted: Boolean(row.stockPosted)
+      }))
+    },
+    after: {
+      warehouseCheckStatus: checkStatus,
+      stockInStatus,
+      warehouseCheckId: doc.id || '',
+      matchedCount: result.matchedCount || result.n || 0,
+      modifiedCount: result.modifiedCount || result.nModified || 0,
+      totalDiscrepancyItems: discrepancyCount
+    },
+    note: clean(note || doc.note || '')
+  });
+
+  return result;
+}
+
 async function persistCheck({ date, deliveryStaffCode, bodyItems = [], note = '', confirm = false, actor = {} } = {}) {
   const tenantId = actorTenantId(actor);
   const targetDate = dateOnly(date, dateUtil.todayVN());
@@ -444,6 +528,16 @@ async function persistCheck({ date, deliveryStaffCode, bodyItems = [], note = ''
     { $set: doc },
     { upsert: true, new: true, lean: true }
   );
+
+  if (confirm) {
+    await applyReturnOrdersCheckResult({
+      doc,
+      discrepancyCount,
+      actor,
+      note,
+      beforeRows: await loadReturnOrders({ date: targetDate, deliveryStaffCode: deliveryCode, tenantId })
+    });
+  }
 
   await auditService.log(confirm
     ? (discrepancyCount ? 'warehouse_return_check_discrepancy' : 'warehouse_return_check_confirmed')
@@ -579,7 +673,9 @@ async function hasBlockingWarehouseReturnCheckForReturnOrder(returnOrder = {}) {
   const currentReturnOrderId = returnOrderId(returnOrder);
   const checkedSources = (Array.isArray(check.sourceReturnOrderIds) ? check.sourceReturnOrderIds : []).map(compact).filter(Boolean);
   if (currentReturnOrderId && !checkedSources.includes(compact(currentReturnOrderId))) return true;
-  return !TERMINAL_CHECK_STATUSES.has(clean(check.status).toLowerCase());
+  if (clean(check.status).toLowerCase() !== 'confirmed') return true;
+  if (toNumber(check.totalDiscrepancyItems || 0) > 0) return true;
+  return false;
 }
 
 module.exports = {

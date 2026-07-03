@@ -10,7 +10,7 @@
         "src/services/returnOrderLegacy.service.source/part-03.jsfrag",
         "src/services/returnOrderLegacy.service.source/part-04.jsfrag"
       ],
-      "sourceSha256": "28bfb8b07a7649cad1d49e7225b9ebf44e70cb2bc574e63ce41b8b52a1fa8b6f"
+      "sourceSha256": "982a8d88ed1456faa6b791ab25e4fb779e7f4e6981431cada8d0abdae52dad48"
     },
     {
       "target": "src/services/importExportLegacy.service.js",

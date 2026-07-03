@@ -83,6 +83,42 @@ async function updateItemsBySalesOrder(req, res) {
   }
 }
 
+async function stockIn(req, res) {
+  try {
+    const result = await returnOrderService.stockInReturnOrder(
+      req.params.id || req.params.code,
+      req.body || {},
+      { user: req.user || {} }
+    );
+
+    if (result.error) {
+      return res.status(result.status || 400).json({
+        ok: false,
+        success: false,
+        message: result.error,
+        code: result.code
+      });
+    }
+
+    res.json({
+      ok: true,
+      success: true,
+      message: result.message || (result.alreadyStockedIn ? 'Phiếu trả đã nhập kho.' : 'Đã nhập kho phiếu trả hàng'),
+      data: result.returnOrder,
+      returnOrder: result.returnOrder,
+      stockTransactions: result.stockTransactions || []
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({
+      ok: false,
+      success: false,
+      message: err.message || 'Không nhập kho được phiếu trả hàng',
+      code: err.code,
+      error: process.env.NODE_ENV === 'production' ? undefined : err.message
+    });
+  }
+}
+
 async function confirmAccounting(req, res) {
   try {
     const result = await returnOrderService.confirmAccountingReturnOrder(
@@ -139,4 +175,4 @@ async function updateItems(req, res) {
   }
 }
 
-module.exports = { list, create, getBySalesOrder, updateItemsBySalesOrder, updateItems, confirmAccounting, cancel };
+module.exports = { list, create, getBySalesOrder, updateItemsBySalesOrder, updateItems, stockIn, confirmAccounting, cancel };

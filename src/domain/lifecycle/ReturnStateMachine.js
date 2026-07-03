@@ -12,6 +12,10 @@ const RETURN_STATES = Object.freeze({
 const LEGACY_STATE_MAP = Object.freeze({
   pending: RETURN_STATES.WAITING_RECEIVE,
   pending_warehouse_receive: RETURN_STATES.WAITING_RECEIVE,
+  pending_warehouse_check: RETURN_STATES.WAITING_RECEIVE,
+  ready_to_stock_in: RETURN_STATES.WAITING_RECEIVE,
+  warehouse_matched: RETURN_STATES.WAITING_RECEIVE,
+  warehouse_discrepancy: RETURN_STATES.WAITING_RECEIVE,
   active: RETURN_STATES.WAITING_RECEIVE,
   has_return: RETURN_STATES.WAITING_RECEIVE,
   merged: RETURN_STATES.WAITING_RECEIVE,
@@ -19,6 +23,8 @@ const LEGACY_STATE_MAP = Object.freeze({
   delivered: RETURN_STATES.WAITING_RECEIVE,
 
   warehouse_received: RETURN_STATES.RECEIVED,
+  stocked_in: RETURN_STATES.RECEIVED,
+  stock_in_posted: RETURN_STATES.RECEIVED,
 
   confirmed: RETURN_STATES.ACCOUNTING_CONFIRMED,
 

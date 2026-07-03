@@ -39,14 +39,33 @@ function renderReturnOrderDeliveryStaff(order={}){
     ${staff.name?`<span class="return-order-delivery-name">${escapeHtml(staff.name)}</span>`:''}
   </div>`;
 }
-function returnOrderStatusLabel(status){
-  const s=String(status||'posted');
-  const map={posted:'Đã ghi',waiting_receive:'Chờ kho nhận',pending_warehouse_receive:'Chờ kho nhận',received:'Kho đã nhận',void:'Đã hủy',cancelled:'Đã hủy',canceled:'Đã hủy'};
-  return map[s] || s;
+function returnOrderStatusLabel(statusOrOrder){
+  const order=(statusOrOrder&&typeof statusOrOrder==='object')?statusOrOrder:null;
+  if(order&&order.statusLabel)return String(order.statusLabel);
+  const s=String(order?(order.status||order.returnStatus||''):statusOrOrder||'').toLowerCase();
+  const map={posted:'Đã ghi',waiting_receive:'Chờ thủ kho kiểm',pending_warehouse_receive:'Chờ thủ kho kiểm',pending_warehouse_check:'Chờ thủ kho kiểm',ready_to_stock_in:'Đã kiểm khớp - Chờ nhập kho',warehouse_matched:'Đã kiểm khớp - Chờ nhập kho',warehouse_discrepancy:'Có lệch kho',received:'Đã nhập kho',stocked_in:'Đã nhập kho',void:'Đã hủy',cancelled:'Đã hủy',canceled:'Đã hủy'};
+  return map[s] || s || 'Chờ thủ kho kiểm';
 }
-function returnOrderStatusBadgeClass(status){
-  const s=String(status||'').toLowerCase();
-  return ['void','cancelled','canceled','deleted'].includes(s)?'out':'in';
+function returnOrderStatusBadgeClass(statusOrOrder){
+  const order=(statusOrOrder&&typeof statusOrOrder==='object')?statusOrOrder:null;
+  const s=String(order?(order.warehouseCheckStatus||order.stockInStatus||order.status||''):statusOrOrder||'').toLowerCase();
+  if(['void','cancelled','canceled','deleted','discrepancy','blocked','warehouse_discrepancy'].includes(s))return 'out';
+  return 'in';
+}
+function isReturnOrderStockPosted(order){
+  const status=String(order?.status||order?.returnStatus||order?.returnState||'').toLowerCase();
+  const wh=String(order?.warehouseReceiveStatus||order?.stockReceiveStatus||'').toLowerCase();
+  return Boolean(order?.stockPosted) || String(order?.stockInStatus||'').toLowerCase()==='posted' || ['received','accounting_confirmed','posted_to_ar','stocked_in'].includes(status) || ['received','warehouse_received'].includes(wh);
+}
+function canStockInReturnOrder(order){
+  return Boolean(order?.canStockIn) || (String(order?.warehouseCheckStatus||'').toLowerCase()==='matched' && String(order?.stockInStatus||'').toLowerCase()==='ready' && !isReturnOrderStockPosted(order));
+}
+function renderReturnOrderStockAction(order){
+  const key=returnOrderRowKey(order);
+  if(canStockInReturnOrder(order))return `<button type="button" class="primary small" data-return-action="stock-in" data-return-key="${escapeHtml(key)}">Nhập kho</button>`;
+  if(isReturnOrderStockPosted(order))return '<span class="badge in">Đã nhập kho</span>';
+  if(String(order?.warehouseCheckStatus||'').toLowerCase()==='discrepancy')return '<span class="badge out">Có lệch kho</span>';
+  return '';
 }
 function canCancelReturnOrder(order){
   const status=String(order?.status||order?.returnStatus||'').toLowerCase();
@@ -110,7 +129,8 @@ function renderReturnOrderDetail(order){
         <div class="return-detail-code">${escapeHtml(order.code||order.id||'')}</div>
       </div>
       <div class="return-detail-actions">
-        <span class="badge ${returnOrderStatusBadgeClass(status)}">${escapeHtml(returnOrderStatusLabel(status))}</span>
+        <span class="badge ${returnOrderStatusBadgeClass(order)}">${escapeHtml(returnOrderStatusLabel(order))}</span>
+        ${renderReturnOrderStockAction(order)}
         ${canCancelReturnOrder(order)?`<button type="button" class="secondary small danger" data-return-action="cancel" data-return-key="${escapeHtml(returnOrderRowKey(order))}">Huỷ trả hàng</button>`:''}
       </div>
     </div>
@@ -120,7 +140,7 @@ function renderReturnOrderDetail(order){
       <div><span>Khách hàng</span><strong>${escapeHtml((order.customerCode||'')+' '+(order.customerName||''))}</strong></div>
       <div><span>NVGH phụ trách</span><strong>${escapeHtml(staff)}</strong></div>
       <div><span>Nguồn</span><strong>${escapeHtml(source)}</strong></div>
-      <div><span>Thao tác</span><strong>${canCancelReturnOrder(order)?'Có thể hủy':'Readonly'}</strong></div>
+      <div><span>Thao tác</span><strong>${canStockInReturnOrder(order)?'Chờ kế toán nhập kho':(isReturnOrderStockPosted(order)?'Đã nhập kho':'Readonly')}</strong></div>
     </div>
     <div class="return-detail-summary">
       <div><span>Tổng SL trả</span><strong>${money(totalQty)}</strong></div>
@@ -168,6 +188,31 @@ async function cancelReturnOrder(key){
   }catch(err){alert(err.message||'Không hủy được phiếu trả hàng')}
 }
 window.cancelReturnOrder=cancelReturnOrder;
+
+async function stockInReturnOrder(key){
+  const order=returnOrdersCache.find(r=>returnOrderRowKey(r)===String(key||''));
+  if(!order)return;
+  if(!canStockInReturnOrder(order)){alert(order.statusLabel||'Phiếu trả chưa đủ điều kiện nhập kho.');return;}
+  const code=order.code||order.id||key;
+  if(!confirm(`Xác nhận nhập kho phiếu trả ${code}? Hệ thống sẽ cộng hàng trả vào tồn kho MAIN.`))return;
+  try{
+    const res=await fetch(`/api/return-orders/${encodeURIComponent(order.id||order.code||key)}/stock-in`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({confirmedBy:'accounting'})
+    });
+    const json=await res.json();
+    if(!res.ok||!json.ok)throw new Error(json.message||'Không nhập kho được phiếu trả hàng');
+    if(returnOrderCount)returnOrderCount.textContent=json.message||'Đã nhập kho phiếu trả hàng';
+    const updated=json.returnOrder||json.data;
+    if(updated){
+      returnOrdersCache=returnOrdersCache.map(row=>returnOrderRowKey(row)===returnOrderRowKey(updated)?updated:row);
+      if(selectedReturnOrderKey===returnOrderRowKey(updated))renderReturnOrderDetail(updated);
+    }
+    await loadReturnOrders();
+  }catch(err){alert(err.message||'Không nhập kho được phiếu trả hàng')}
+}
+window.stockInReturnOrder=stockInReturnOrder;
 
 let returnOrderRequestSeq=0;
 
@@ -232,8 +277,8 @@ async function loadReturnOrders(){
         <td class="return-order-delivery-cell">${renderReturnOrderDeliveryStaff(r)}</td>
         <td class="price">${money(totalQty)}</td>
         <td class="price cash-in">${money(totalAmount)}</td>
-        <td><span class="badge ${returnOrderStatusBadgeClass(status)}">${escapeHtml(returnOrderStatusLabel(status))}</span></td>
-        <td><button type="button" class="secondary small return-order-view-button" data-return-action="view">Xem chi tiết</button></td>
+        <td><span class="badge ${returnOrderStatusBadgeClass(r)}">${escapeHtml(returnOrderStatusLabel(r))}</span></td>
+        <td><button type="button" class="secondary small return-order-view-button" data-return-action="view">Xem chi tiết</button> ${renderReturnOrderStockAction(r)}</td>
       </tr>`;
     }).join('');
     if(isReturnOrderDetailModalOpen()&&selectedReturnOrderKey)selectReturnOrderByKey(selectedReturnOrderKey,{open:false});
@@ -271,7 +316,11 @@ if(returnOrderTable){
     const action=event.target.closest('[data-return-action]');
     if(action&&returnOrderTable.contains(action)){
       event.stopPropagation();
-      if(action.dataset.returnAction==='cancel')cancelReturnOrder(action.dataset.returnKey);
+      const actionRow=action.closest('tr[data-return-key]');
+      const actionKey=action.dataset.returnKey||actionRow?.dataset?.returnKey||'';
+      if(action.dataset.returnAction==='cancel')cancelReturnOrder(actionKey);
+      else if(action.dataset.returnAction==='stock-in')stockInReturnOrder(actionKey);
+      else if(action.dataset.returnAction==='view'&&actionRow)selectReturnOrderByKey(actionRow.dataset.returnKey);
       return;
     }
     const tr=event.target.closest('tr[data-return-key]');

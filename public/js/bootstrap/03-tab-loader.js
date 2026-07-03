@@ -66,10 +66,8 @@ async function loadTabDataOnce(tabName, options = {}){
         if(typeof loadReturnOrders === 'function') await loadReturnOrders();
         break;
       case 'masterReturnOrdersTab':
-        await Promise.allSettled([
-          typeof loadUnmergedReturnOrders === 'function' ? loadUnmergedReturnOrders() : null,
-          typeof loadMasterReturnOrders === 'function' ? loadMasterReturnOrders() : null
-        ]);
+        // Đơn tổng trả hàng đã deprecated: không tải luồng cũ, điều hướng về Đơn trả hàng.
+        document.querySelector('.tab-button[data-tab="returnOrdersTab"]')?.click();
         break;
       case 'deliveryTodayNewTab':
         await Promise.allSettled([

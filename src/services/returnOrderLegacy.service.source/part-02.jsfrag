@@ -68,6 +68,20 @@ async function buildReturnOrderDocument(body = {}) {
     status: body.status || existing?.status || RETURN_STATES.WAITING_RECEIVE,
     returnMergeStatus: body.returnMergeStatus || existing?.returnMergeStatus || 'unmerged',
     warehouseReceiveStatus: body.warehouseReceiveStatus || existing?.warehouseReceiveStatus || (isPostedReturnStatus(body.status) ? RETURN_STATES.RECEIVED : RETURN_STATES.WAITING_RECEIVE),
+    warehouseCheckStatus: body.warehouseCheckStatus || existing?.warehouseCheckStatus || (existing && isStockPostedByLifecycle(existing) ? 'matched' : 'pending'),
+    warehouseCheckId: body.warehouseCheckId || existing?.warehouseCheckId || '',
+    warehouseCheckedAt: body.warehouseCheckedAt || existing?.warehouseCheckedAt || '',
+    warehouseCheckedBy: body.warehouseCheckedBy || existing?.warehouseCheckedBy || '',
+    warehouseCheckedByName: body.warehouseCheckedByName || existing?.warehouseCheckedByName || '',
+    warehouseCheckNote: body.warehouseCheckNote || existing?.warehouseCheckNote || '',
+    stockInStatus: body.stockInStatus || existing?.stockInStatus || (existing && isStockPostedByLifecycle(existing) ? 'posted' : 'pending'),
+    stockPosted: Boolean(body.stockPosted ?? existing?.stockPosted ?? false),
+    stockPostedAt: body.stockPostedAt || existing?.stockPostedAt || '',
+    stockPostedBy: body.stockPostedBy || existing?.stockPostedBy || '',
+    stockPostedByName: body.stockPostedByName || existing?.stockPostedByName || '',
+    stockTransactionId: body.stockTransactionId || existing?.stockTransactionId || '',
+    stockTransactionIds: Array.isArray(body.stockTransactionIds) ? body.stockTransactionIds : (Array.isArray(existing?.stockTransactionIds) ? existing.stockTransactionIds : []),
+    stockPostError: body.stockPostError || existing?.stockPostError || '',
     source: body.source || existing?.source || 'returnOrders',
     accountingStatus: body.accountingStatus || existing?.accountingStatus || '',
     accountingConfirmed: Boolean(body.accountingConfirmed ?? existing?.accountingConfirmed ?? false),
@@ -81,51 +95,44 @@ async function createReturnOrder(body = {}) {
   const built = await buildReturnOrderDocument({
     ...body,
     status: body.status || RETURN_STATES.WAITING_RECEIVE,
-    warehouseReceiveStatus: body.warehouseReceiveStatus || RETURN_STATES.WAITING_RECEIVE
+    returnState: body.returnState || RETURN_STATES.WAITING_RECEIVE,
+    warehouseReceiveStatus: body.warehouseReceiveStatus || RETURN_STATES.WAITING_RECEIVE,
+    warehouseCheckStatus: body.warehouseCheckStatus || 'pending',
+    stockInStatus: body.stockInStatus || 'pending',
+    stockPosted: false
   });
   if (built.error) return built;
   const { returnOrder, existing } = built;
 
-  let finalReturnOrder = null;
-  await withMongoTransaction(async (session) => {
-    // Legacy createReturnOrder vẫn giữ hành vi cũ: tạo phiếu, nhập kho và ghi AR ngay.
-    // Nhưng lifecycle nội bộ chạy đúng: received -> accounting_confirmed -> posted_to_ar.
-    if (existing && isPostedReturnStatus(existing.status)) {
-      await InventoryPostingService.reverseMovement(existing, {
-        type: 'RETURN',
-        reverseType: 'RETURN_UPDATE_REVERSAL',
-        direction: 'IN',
-        refType: 'RETURN_ORDER',
-        refId: existing.id || existing.code,
-        refCode: existing.code || existing.id,
-        date: existing.date,
-        note: 'Đảo nhập kho phiếu trả hàng trước khi cập nhật'
-      }, { session });
-      await postingEngine.reverseReturnOrderAR(existing, { session });
-    }
+  const editGuard = guardReturnOrderEdit(existing, returnOrder);
+  if (editGuard) return editGuard;
 
-    const receivedReturnOrder = {
-      ...returnOrder,
-      ...ReturnStateMachine.patchForState(returnOrder, RETURN_STATES.RECEIVED),
-      returnState: RETURN_STATES.RECEIVED
-    };
+  const pendingReturnOrder = {
+    ...returnOrder,
+    ...ReturnStateMachine.patchForState(returnOrder, RETURN_STATES.WAITING_RECEIVE),
+    returnState: RETURN_STATES.WAITING_RECEIVE,
+    warehouseReceiveStatus: RETURN_STATES.WAITING_RECEIVE,
+    warehouseCheckStatus: 'pending',
+    warehouseCheckId: '',
+    warehouseCheckedAt: '',
+    warehouseCheckedBy: '',
+    warehouseCheckedByName: '',
+    warehouseCheckNote: returnOrder.warehouseCheckNote || '',
+    stockInStatus: 'pending',
+    stockPosted: false,
+    stockPostedAt: '',
+    stockPostedBy: '',
+    stockPostedByName: '',
+    stockTransactionId: '',
+    stockTransactionIds: [],
+    stockPostError: '',
+    updatedAt: dateUtil.nowIso()
+  };
 
-    const accountingConfirmedReturnOrder = {
-      ...receivedReturnOrder,
-      ...ReturnStateMachine.patchForState(receivedReturnOrder, RETURN_STATES.ACCOUNTING_CONFIRMED),
-      returnState: RETURN_STATES.ACCOUNTING_CONFIRMED,
-      accountingConfirmedBy: body.confirmedBy || body.user || 'system',
-      accountingNote: body.note || returnOrder.accountingNote || ''
-    };
+  await returnOrderRepository.upsert(pendingReturnOrder);
+  await auditReturnOrder('return_order_created_pending_warehouse_check', existing || null, pendingReturnOrder, 'Tạo phiếu trả hàng chờ thủ kho kiểm, chưa cộng tồn kho');
 
-    await returnOrderRepository.upsert(accountingConfirmedReturnOrder, { session });
-    await InventoryPostingService.postReturnIn(receivedReturnOrder, { session });
-
-    const posted = await postReturnOrderArIfNeeded(accountingConfirmedReturnOrder, { session });
-    finalReturnOrder = posted.returnOrder || accountingConfirmedReturnOrder;
-  });
-
-  return { returnOrder: toClient(finalReturnOrder || { ...returnOrder, ...ReturnStateMachine.patchForState(returnOrder, RETURN_STATES.POSTED_TO_AR) }), updatedExisting: Boolean(existing) };
+  return { returnOrder: toClient(pendingReturnOrder), updatedExisting: Boolean(existing) };
 }
 
 function normalizeDeliveryReturnItems(rawItems = [], salesOrder = null) {
@@ -224,6 +231,20 @@ async function upsertDeliveryReturnOrder(body = {}, options = {}) {
     returnState: totalQuantity > 0 ? RETURN_STATES.WAITING_RECEIVE : RETURN_STATES.CANCELLED,
     returnMergeStatus: existing?.returnMergeStatus || body.returnMergeStatus || 'unmerged',
     warehouseReceiveStatus: totalQuantity > 0 ? RETURN_STATES.WAITING_RECEIVE : RETURN_STATES.CANCELLED,
+    warehouseCheckStatus: totalQuantity > 0 ? 'pending' : 'cancelled',
+    warehouseCheckId: '',
+    warehouseCheckedAt: '',
+    warehouseCheckedBy: '',
+    warehouseCheckedByName: '',
+    warehouseCheckNote: '',
+    stockInStatus: totalQuantity > 0 ? 'pending' : RETURN_STATES.CANCELLED,
+    stockPosted: false,
+    stockPostedAt: '',
+    stockPostedBy: '',
+    stockPostedByName: '',
+    stockTransactionId: '',
+    stockTransactionIds: [],
+    stockPostError: '',
     source: body.source || existing?.source || 'mobile_delivery',
     accountingStatus: totalQuantity > 0 ? 'pending' : RETURN_STATES.CANCELLED,
     accountingConfirmed: false,
@@ -286,6 +307,20 @@ async function createPendingReturnOrder(body = {}, options = {}) {
     ...ReturnStateMachine.patchForState(returnOrder, RETURN_STATES.WAITING_RECEIVE),
     returnState: RETURN_STATES.WAITING_RECEIVE,
     returnMergeStatus: 'unmerged',
+    warehouseCheckStatus: 'pending',
+    warehouseCheckId: '',
+    warehouseCheckedAt: '',
+    warehouseCheckedBy: '',
+    warehouseCheckedByName: '',
+    warehouseCheckNote: '',
+    stockInStatus: 'pending',
+    stockPosted: false,
+    stockPostedAt: '',
+    stockPostedBy: '',
+    stockPostedByName: '',
+    stockTransactionId: '',
+    stockTransactionIds: [],
+    stockPostError: '',
     postedAt: '',
     receivedAt: ''
   };
@@ -323,8 +358,23 @@ async function confirmReceiveReturnOrderInSession(idOrCode, options = {}) {
   };
 
   await returnOrderRepository.upsert(received, { session });
-  await InventoryPostingService.postReturnIn(received, { session });
-  return { returnOrder: toClient(received), alreadyReceived: false };
+  const transactions = await InventoryPostingService.postReturnIn(received, { session });
+  const now = dateUtil.nowIso();
+  const txIds = stockTransactionIds(transactions);
+  const stocked = {
+    ...received,
+    warehouseCheckStatus: normalizeWarehouseCheckStatus(received) === 'pending' ? 'matched' : normalizeWarehouseCheckStatus(received),
+    stockInStatus: 'posted',
+    stockPosted: true,
+    stockPostedAt: received.stockPostedAt || now,
+    stockPostedBy: String(options.receivedBy || current.receivedBy || '').trim(),
+    stockTransactionId: txIds[0] || received.stockTransactionId || '',
+    stockTransactionIds: txIds.length ? txIds : (Array.isArray(received.stockTransactionIds) ? received.stockTransactionIds : []),
+    stockPostError: '',
+    updatedAt: now
+  };
+  await returnOrderRepository.upsert(stocked, { session });
+  return { returnOrder: toClient(stocked), alreadyReceived: false };
 }
 
 async function confirmReceiveReturnOrder(idOrCode, options = {}) {
@@ -336,9 +386,198 @@ async function confirmReceiveReturnOrder(idOrCode, options = {}) {
   );
 }
 
+async function auditStockInBlocked(action, current = {}, reason = '', actor = {}, extra = {}) {
+  await auditService.log(action, {
+    actor,
+    refType: 'returnOrder',
+    refId: current.id || current._id || current.code || '',
+    refCode: current.code || current.id || '',
+    before: {
+      status: current.status,
+      returnState: current.returnState,
+      warehouseCheckStatus: current.warehouseCheckStatus,
+      stockInStatus: current.stockInStatus,
+      stockPosted: current.stockPosted
+    },
+    after: {
+      reason,
+      ...extra
+    },
+    note: reason
+  });
+}
+
+async function stockInReturnOrder(idOrCode, body = {}, options = {}) {
+  const actor = options.user || body.user || {};
+  const current = await returnOrderRepository.findByIdOrCode(idOrCode);
+  if (!current) return { error: 'Không tìm thấy phiếu trả hàng', status: 404 };
+
+  const existingTransactions = await findExistingReturnStockTransactions(current);
+  const currentStockPosted = isStockPostedByLifecycle(current) || existingTransactions.length > 0;
+  if (currentStockPosted) {
+    const now = dateUtil.nowIso();
+    const txIds = stockTransactionIds(existingTransactions);
+    const already = {
+      ...current,
+      warehouseCheckStatus: normalizeWarehouseCheckStatus(current) === 'pending' ? 'matched' : normalizeWarehouseCheckStatus(current),
+      stockInStatus: 'posted',
+      stockPosted: true,
+      stockPostedAt: current.stockPostedAt || current.receivedAt || now,
+      stockPostedBy: current.stockPostedBy || userDisplayCode(actor),
+      stockPostedByName: current.stockPostedByName || userDisplayName(actor),
+      stockTransactionId: current.stockTransactionId || txIds[0] || '',
+      stockTransactionIds: Array.isArray(current.stockTransactionIds) && current.stockTransactionIds.length ? current.stockTransactionIds : txIds,
+      stockPostError: '',
+      updatedAt: now
+    };
+    await returnOrderRepository.upsert(already);
+    await auditStockInBlocked('return_order_stock_in_duplicate_attempt', already, 'Phiếu trả đã nhập kho.', actor, { stockTransactionIds: txIds });
+    return { returnOrder: toClient(already), alreadyStockedIn: true, message: 'Phiếu trả đã nhập kho.' };
+  }
+
+  if (isCancelledReturnOrder(current)) {
+    await auditStockInBlocked('return_order_stock_in_blocked', current, 'Phiếu trả đã hủy, không thể nhập kho.', actor);
+    return { error: 'Phiếu trả đã hủy, không thể nhập kho.', code: 'RETURN_ORDER_CANCELLED', status: 400 };
+  }
+
+  if (normalizeWarehouseCheckStatus(current) !== 'matched') {
+    await auditStockInBlocked('return_order_stock_in_blocked', current, 'Phiếu trả chưa được thủ kho xác nhận khớp, chưa thể nhập kho.', actor);
+    return { error: 'Phiếu trả chưa được thủ kho xác nhận khớp, chưa thể nhập kho.', code: 'WAREHOUSE_CHECK_NOT_MATCHED', status: 409 };
+  }
+
+  if (normalizeStockInStatus(current) !== 'ready') {
+    await auditStockInBlocked('return_order_stock_in_blocked', current, 'Phiếu trả chưa ở trạng thái sẵn sàng nhập kho.', actor);
+    return { error: 'Phiếu trả chưa ở trạng thái sẵn sàng nhập kho.', code: 'RETURN_ORDER_STOCK_IN_NOT_READY', status: 409 };
+  }
+
+  let finalReturnOrder = null;
+  let postedTransactions = [];
+  await withMongoTransaction(async (session) => {
+    const fresh = await returnOrderRepository.findByIdOrCode(idOrCode, { session });
+    if (!fresh) {
+      const err = new Error('Không tìm thấy phiếu trả hàng');
+      err.status = 404;
+      throw err;
+    }
+
+    const freshExistingTransactions = await findExistingReturnStockTransactions(fresh, { session });
+    if (isStockPostedByLifecycle(fresh) || freshExistingTransactions.length > 0) {
+      const txIds = stockTransactionIds(freshExistingTransactions);
+      finalReturnOrder = {
+        ...fresh,
+        warehouseCheckStatus: normalizeWarehouseCheckStatus(fresh) === 'pending' ? 'matched' : normalizeWarehouseCheckStatus(fresh),
+        stockInStatus: 'posted',
+        stockPosted: true,
+        stockPostedAt: fresh.stockPostedAt || fresh.receivedAt || dateUtil.nowIso(),
+        stockPostedBy: fresh.stockPostedBy || userDisplayCode(actor),
+        stockPostedByName: fresh.stockPostedByName || userDisplayName(actor),
+        stockTransactionId: fresh.stockTransactionId || txIds[0] || '',
+        stockTransactionIds: Array.isArray(fresh.stockTransactionIds) && fresh.stockTransactionIds.length ? fresh.stockTransactionIds : txIds,
+        stockPostError: '',
+        updatedAt: dateUtil.nowIso()
+      };
+      await returnOrderRepository.upsert(finalReturnOrder, { session });
+      postedTransactions = freshExistingTransactions;
+      return;
+    }
+
+    if (normalizeWarehouseCheckStatus(fresh) !== 'matched' || normalizeStockInStatus(fresh) !== 'ready') {
+      const err = new Error('Phiếu trả chưa được thủ kho xác nhận khớp, chưa thể nhập kho.');
+      err.code = 'WAREHOUSE_CHECK_NOT_MATCHED';
+      err.status = 409;
+      throw err;
+    }
+
+    ReturnStateMachine.assertTransition(fresh, RETURN_STATES.RECEIVED, 'return_order_stock_in');
+    const now = dateUtil.nowIso();
+    const received = {
+      ...fresh,
+      ...ReturnStateMachine.patchForState(fresh, RETURN_STATES.RECEIVED),
+      returnState: RETURN_STATES.RECEIVED,
+      warehouseCheckStatus: 'matched',
+      stockInStatus: 'ready',
+      stockPosted: false,
+      receivedBy: userDisplayCode(actor),
+      stateChangedAt: now,
+      updatedAt: now
+    };
+
+    await returnOrderRepository.upsert(received, { session });
+    postedTransactions = await InventoryPostingService.postReturnIn(received, { session });
+    const txIds = stockTransactionIds(postedTransactions);
+    finalReturnOrder = {
+      ...received,
+      stockInStatus: 'posted',
+      stockPosted: true,
+      stockPostedAt: now,
+      stockPostedBy: userDisplayCode(actor),
+      stockPostedByName: userDisplayName(actor),
+      stockTransactionId: txIds[0] || '',
+      stockTransactionIds: txIds,
+      stockPostError: '',
+      updatedAt: now
+    };
+    await returnOrderRepository.upsert(finalReturnOrder, { session });
+    await auditService.record({
+      action: 'return_order_stock_in_posted',
+      actor,
+      refType: 'returnOrder',
+      refId: finalReturnOrder.id || finalReturnOrder._id || finalReturnOrder.code || '',
+      refCode: finalReturnOrder.code || finalReturnOrder.id || '',
+      before: {
+        status: fresh.status,
+        returnState: fresh.returnState,
+        warehouseCheckStatus: fresh.warehouseCheckStatus,
+        stockInStatus: fresh.stockInStatus,
+        stockPosted: fresh.stockPosted
+      },
+      after: {
+        status: finalReturnOrder.status,
+        returnState: finalReturnOrder.returnState,
+        warehouseCheckStatus: finalReturnOrder.warehouseCheckStatus,
+        stockInStatus: finalReturnOrder.stockInStatus,
+        stockPosted: finalReturnOrder.stockPosted,
+        warehouseCheckId: finalReturnOrder.warehouseCheckId || '',
+        stockTransactionIds: txIds
+      },
+      note: `Nhập kho phiếu trả ${finalReturnOrder.code || finalReturnOrder.id || ''}`.trim()
+    }, { session });
+  });
+
+  return {
+    returnOrder: toClient(finalReturnOrder),
+    stockTransactions: postedTransactions,
+    alreadyStockedIn: Boolean(postedTransactions.length && postedTransactions.every((tx) => tx && tx.skipped))
+  };
+}
+
 async function confirmAccountingReturnOrder(idOrCode, body = {}, options = {}) {
   const current = await returnOrderRepository.findByIdOrCode(idOrCode);
   if (!current) return { error: 'Không tìm thấy phiếu trả hàng', status: 404 };
+
+  if (normalizeWarehouseCheckStatus(current) === 'discrepancy') {
+    return {
+      error: `Phiếu trả ${current.code || current.id || ''} có lệch kho, chưa thể chốt kế toán.`,
+      code: 'WAREHOUSE_RETURN_DISCREPANCY_BLOCKED',
+      status: 409
+    };
+  }
+
+  if (normalizeWarehouseCheckStatus(current) !== 'matched') {
+    return {
+      error: `Phiếu trả ${current.code || current.id || ''} chưa được thủ kho xác nhận khớp, chưa thể chốt kế toán.`,
+      code: 'WAREHOUSE_RETURN_CHECK_REQUIRED',
+      status: 409
+    };
+  }
+
+  if (normalizeStockInStatus(current) !== 'posted') {
+    return {
+      error: `Phiếu trả ${current.code || current.id || ''} chưa nhập kho, chưa thể chốt kế toán.`,
+      code: 'RETURN_ORDER_STOCK_IN_REQUIRED',
+      status: 409
+    };
+  }
 
   try {
     ReturnStateMachine.assertCanConfirmAccounting(current);

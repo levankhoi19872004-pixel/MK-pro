@@ -14,6 +14,7 @@ const financialService = require('./financialService');
 const auditService = require('./auditService');
 const warehouseReturnCheckService = require('./mobile/warehouseReturnCheck.service');
 const ReturnOrder = require('../models/ReturnOrder');
+const StockTransaction = require('../models/StockTransaction');
 const ReturnStateMachine = require('../domain/lifecycle/ReturnStateMachine');
 const { RETURN_STATES } = ReturnStateMachine;
 
@@ -30,6 +31,10 @@ const ACTIVE_RETURN_ORDER_STATUSES = [
   'active',
   'waiting_receive',
   'pending_warehouse_receive',
+  'pending_warehouse_check',
+  'ready_to_stock_in',
+  'warehouse_matched',
+  'warehouse_discrepancy',
   'merged',
   'delivered',
   'completed',
@@ -54,8 +59,84 @@ function resolveReturnOrderBusinessDate(order = {}) {
   return '';
 }
 
-function toClient(order) {
+function cleanText(value = '') {
+  return String(value ?? '').trim();
+}
+
+function normalizeLower(value = '') {
+  return cleanText(value).toLowerCase();
+}
+
+function userDisplayName(actor = {}) {
+  return cleanText(actor.fullName || actor.name || actor.username || actor.code || actor.staffCode || actor.id || 'system');
+}
+
+function userDisplayCode(actor = {}) {
+  return cleanText(actor.code || actor.staffCode || actor.username || actor.id || actor._id || 'system');
+}
+
+function returnOrderIdentityKeys(row = {}) {
+  return uniqueStrings([row.id, row._id, row.code, row.returnOrderId, row.returnOrderCode]);
+}
+
+function stockTransactionIds(transactions = []) {
+  return uniqueStrings((Array.isArray(transactions) ? transactions : []).map((tx) => tx && (tx.id || tx._id || tx.code || tx.idempotencyKey)));
+}
+
+function isStockPostedByLifecycle(row = {}) {
+  const state = ReturnStateMachine.getReturnState(row);
+  const warehouseReceiveStatus = ReturnStateMachine.normalizeReturnState(row.warehouseReceiveStatus || row.stockReceiveStatus || '');
+  return Boolean(row.stockPosted)
+    || normalizeLower(row.stockInStatus) === 'posted'
+    || state === RETURN_STATES.RECEIVED
+    || state === RETURN_STATES.ACCOUNTING_CONFIRMED
+    || state === RETURN_STATES.POSTED_TO_AR
+    || warehouseReceiveStatus === RETURN_STATES.RECEIVED;
+}
+
+function normalizeWarehouseCheckStatus(row = {}) {
+  const raw = normalizeLower(row.warehouseCheckStatus || row.warehouseStatus || '');
+  if (['matched', 'match', 'confirmed', 'warehouse_matched'].includes(raw)) return 'matched';
+  if (['discrepancy', 'mismatch', 'blocked', 'warehouse_discrepancy'].includes(raw)) return 'discrepancy';
+  if (isStockPostedByLifecycle(row)) return 'matched';
+  return 'pending';
+}
+
+function normalizeStockInStatus(row = {}) {
+  const raw = normalizeLower(row.stockInStatus || row.stockReceiveStatus || '');
+  if (isStockPostedByLifecycle(row) || ['posted', 'stocked_in', 'received'].includes(raw)) return 'posted';
+  const checkStatus = normalizeWarehouseCheckStatus(row);
+  if (checkStatus === 'discrepancy') return raw === 'blocked' ? 'blocked' : 'blocked';
+  if (checkStatus === 'matched') return raw === 'blocked' ? 'blocked' : 'ready';
+  return raw || 'pending';
+}
+
+function isCancelledReturnOrder(row = {}) {
+  return isInactiveStatus(row) || ReturnStateMachine.getReturnState(row) === RETURN_STATES.CANCELLED;
+}
+
+function canStockInReturnOrder(row = {}) {
+  return !isCancelledReturnOrder(row)
+    && normalizeWarehouseCheckStatus(row) === 'matched'
+    && normalizeStockInStatus(row) === 'ready'
+    && !isStockPostedByLifecycle(row);
+}
+
+function returnOrderStatusLabel(row = {}) {
+  const checkStatus = normalizeWarehouseCheckStatus(row);
+  const stockInStatus = normalizeStockInStatus(row);
+  if (isCancelledReturnOrder(row)) return 'Đã hủy';
+  if (stockInStatus === 'posted') return 'Đã nhập kho';
+  if (checkStatus === 'discrepancy') return 'Có lệch kho';
+  if (checkStatus === 'matched' && stockInStatus === 'ready') return 'Đã kiểm khớp - Chờ nhập kho';
+  return 'Chờ thủ kho kiểm';
+}
+
+function toClient(order = {}) {
   const businessDate = resolveReturnOrderBusinessDate(order);
+  const warehouseCheckStatus = normalizeWarehouseCheckStatus(order);
+  const stockInStatus = normalizeStockInStatus(order);
+  const stockPosted = stockInStatus === 'posted';
   return {
     ...order,
     id: order.id || order.code,
@@ -63,7 +144,12 @@ function toClient(order) {
     returnDate: businessDate || order.returnDate || '',
     items: Array.isArray(order.items) ? order.items : [],
     totalQuantity: toNumber(order.totalQuantity),
-    totalAmount: toNumber(order.totalAmount)
+    totalAmount: toNumber(order.totalAmount),
+    warehouseCheckStatus,
+    stockInStatus,
+    stockPosted,
+    canStockIn: canStockInReturnOrder({ ...order, warehouseCheckStatus, stockInStatus, stockPosted }),
+    statusLabel: returnOrderStatusLabel({ ...order, warehouseCheckStatus, stockInStatus, stockPosted })
   };
 }
 
@@ -78,6 +164,22 @@ function getReturnOrderValue(row = {}) {
 
 function hasPositiveReturnValue(row = {}) {
   return getReturnOrderValue(row) > 0;
+}
+
+async function findExistingReturnStockTransactions(returnOrder = {}, options = {}) {
+  const keys = returnOrderIdentityKeys(returnOrder);
+  if (!keys.length) return [];
+  const filter = {
+    direction: 'IN',
+    $or: [
+      { sourceType: { $in: ['RETURN_ORDER', 'RETURN_ORDER_STOCK_IN'] }, sourceId: { $in: keys } },
+      { refType: { $in: ['RETURN_ORDER', 'RETURN_ORDER_STOCK_IN'] }, refId: { $in: keys } }
+    ]
+  };
+  const query = StockTransaction.find(filter).select('id _id code idempotencyKey sourceType sourceId sourceCode refType refId refCode productCode quantity qty inQty direction type createdAt updatedAt');
+  const withSession = options.session && typeof query.session === 'function' ? query.session(options.session) : query;
+  const rows = typeof withSession.lean === 'function' ? await withSession.lean() : await withSession;
+  return rows || [];
 }
 
 // ===== SCOPED FIX: RETURN_ORDER_POST_AR_DIRECT_START =====
@@ -519,6 +621,14 @@ function isEditableReturnOrder(row = {}) {
 }
 
 function guardReturnOrderEdit(row = {}, messagePrefix = '') {
+  if (['matched', 'discrepancy'].includes(normalizeWarehouseCheckStatus(row)) || ['ready', 'blocked', 'posted'].includes(normalizeStockInStatus(row))) {
+    return {
+      error: messagePrefix || 'Phiếu trả đã được thủ kho kiểm, không được sửa từ NVGH/app giao hàng.',
+      message: 'Phiếu trả đã được thủ kho kiểm, không được sửa từ NVGH/app giao hàng.',
+      code: 'RETURN_ORDER_WAREHOUSE_CHECKED_LOCKED',
+      status: 400
+    };
+  }
   try {
     ReturnStateMachine.assertCanEdit(row);
     return null;
@@ -546,6 +656,9 @@ function guardReturnOrderCancel(row = {}) {
 }
 
 function isReturnOrderLockedForCancel(row = {}) {
+  if (['matched', 'discrepancy'].includes(normalizeWarehouseCheckStatus(row)) || ['ready', 'blocked', 'posted'].includes(normalizeStockInStatus(row))) {
+    return true;
+  }
   try {
     ReturnStateMachine.assertCanCancel(row);
     return false;

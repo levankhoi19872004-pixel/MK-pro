@@ -14634,6 +14634,46 @@
         ]
       }
     },
+    "/api/return-orders/{id}/stock-in": {
+      "post": {
+        "tags": [
+          "Return Orders"
+        ],
+        "summary": "POST /api/return-orders/{id}/stock-in",
+        "operationId": "postReturnOrdersIdStockIn",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/return-orders/by-sales-order/{salesOrderId}": {
       "get": {
         "tags": [
@@ -14925,6 +14965,46 @@
         "operationId": "putReturnsIdItems",
         "responses": {
           "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/returns/{id}/stock-in": {
+      "post": {
+        "tags": [
+          "Returns"
+        ],
+        "summary": "POST /api/returns/{id}/stock-in",
+        "operationId": "postReturnsIdStockIn",
+        "responses": {
+          "201": {
             "description": "Success response",
             "content": {
               "application/json": {

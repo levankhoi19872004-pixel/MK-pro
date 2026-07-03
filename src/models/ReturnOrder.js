@@ -55,8 +55,22 @@ module.exports = flexModel('ReturnOrder', 'returnOrders', {
   warehouseStatus: String,
   warehouseReceiveStatus: String,
   stockReceiveStatus: String,
+
+  // Warehouse physical check -> accounting stock-in workflow
+  warehouseCheckStatus: String, // pending | matched | discrepancy
+  warehouseCheckId: String,
+  warehouseCheckedAt: String,
+  warehouseCheckedBy: String,
+  warehouseCheckedByName: String,
+  warehouseCheckNote: String,
+  stockInStatus: String, // pending | ready | blocked | posted
   stockPosted: Boolean,
   stockPostedAt: String,
+  stockPostedBy: String,
+  stockPostedByName: String,
+  stockTransactionId: String,
+  stockTransactionIds: Array,
+  stockPostError: String,
   receivedAt: String,
   receivedBy: String,
 
