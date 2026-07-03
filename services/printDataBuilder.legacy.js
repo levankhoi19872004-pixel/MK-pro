@@ -9,7 +9,7 @@ return String(o||"").trim().toUpperCase()}function h(o){return Math.round(s(o))}
 const t=String(o.name||o.productName||"").localeCompare(String(e.name||e.productName||""),"vi",{sensitivity:"base",numeric:!0});if(0!==t)return t
 ;const r=C(o.code||o.productCode).localeCompare(C(e.code||e.productCode),"vi",{numeric:!0});return 0!==r?r:h(o.price)-h(e.price)}function N(o){
 return s(f(o.catalogSalePriceAtOrder,o.priceAfterTaxBeforePromotion,o.catalogSalePrice,o.product?.salePrice,o.productSnapshot?.salePrice,o.salePrice,o.giaBan,o.price,o.unitPrice,0))
-}function S(o){return N(o)}function v(o){return s(f(o.discountPercent,o.promotionDiscountPercent,o.ckPercent,o.percent,o.rate,o.promotion?.discountPercent,0))}function O(o){
+}function S(o){return N(o)}function O(o){return s(f(o.discountPercent,o.promotionDiscountPercent,o.ckPercent,o.percent,o.rate,o.promotion?.discountPercent,0))}function v(o){
 return s(f(o.discount,o.discountAmount,o.ck,o.ckAmount,0))}function b(o){
 return null==o?"":Array.isArray(o)?o.map(b).filter(Boolean).join("; "):"object"==typeof o?f(o.description,o.name,o.title,o.content,o.note,o.ruleName,o.programName,o.promotionName,o.dienGiai,o.noiDung):String(o||"").trim()
 }function D(o={}){
@@ -18,7 +18,7 @@ const e=[],t=[o.promotions,o.promotionRows,o.promotionDetails,o.appliedPromotion
 ;const r=[o.promotion,o.promotionInfo,o.promotionDetail,o.appliedPromotion,o.discountInfo,o.productSnapshot?.promotion,o.product?.promotion];for(const o of r)o&&e.push(o)
 ;const n=f(o.promotionDescription,o.promotionName,o.promotionText,o.promotionContent,o.promotionNote,o.promoDescription,o.promoName,o.dienGiaiKhuyenMai,o.noiDungKhuyenMai,o.productSnapshot?.promotionDescription,o.productSnapshot?.promotionName,o.productSnapshot?.promotionText,o.product?.promotionDescription,o.product?.promotionName,o.product?.promotionText),a=f(o.promotionCode,o.promoCode,o.ctkmCode,o.maCTKM,o.productSnapshot?.promotionCode,o.product?.promotionCode)
 ;return e.length||!n&&!a||e.push({code:a,promotionCode:a,description:n,name:n,discountPercent:o.discountPercent,percent:o.discountPercent,discountBeforeTax:o.discountBeforeTax,
-beforeTax:o.discountBeforeTax,discountAfterTax:o.discountAfterTax||o.discount||o.discountAmount,afterTax:o.discountAfterTax||o.discount||o.discountAmount}),e}function B(o={},e={}){
+beforeTax:o.discountBeforeTax,discountAfterTax:o.discountAfterTax||o.discount||o.discountAmount,afterTax:o.discountAfterTax||o.discount||o.discountAmount}),e}function R(o={},e={}){
 const t=D(o),r=f(e.productCode,e.code,o.productCode,o.code,o.sku,o.maHang),n=f(e.productName,e.name,o.productName,o.name,o.tenHang),a=e.isPromo?"KM":"Bán",i=s(f(e.qty,e.quantity,o.qty,o.quantity,o.totalQty)),u=s(f(e.gsvAmount,e.lineAmount,e.amount,o.gsvAmount,o.amount)),m=Math.round(u/1.08),d=s(f(e.discountPercent,o.discountPercent,o.percent,o.rate)),c=s(f(o.discountAfterTax,o.afterTax,o.discountAmount,o.discount,e.discount,0)),p=s(f(o.discountBeforeTax,o.beforeTax,c?Math.round(c/1.08):0))
 ;!t.length&&(d>0||c>0||e.isPromo)&&t.push({code:f(o.promotionCode,o.promoCode,o.ctkmCode,o.maCTKM),
 description:e.isPromo?`Hàng khuyến mại theo dòng ${r} - ${n}`:`Chiết khấu/khuyến mại theo dòng ${r} - ${n}`,discountPercent:d,discountBeforeTax:p,discountAfterTax:c})
@@ -30,7 +30,7 @@ discountBeforeTax:s(f(o.discountBeforeTax,o.beforeTax,o.amountBeforeTax,o.tienCK
 discountAfterTax:s(f(o.discountAfterTax,o.afterTax,o.amountAfterTax,o.tienCKSauThue,o.discountAmount,c)),
 afterTax:s(f(o.discountAfterTax,o.afterTax,o.amountAfterTax,o.tienCKSauThue,o.discountAmount,c))}}),y=new Set;return l.filter(o=>{
 const e=[o.productCode,o.lineType,o.promotionCode,o.description,o.discountAfterTax,o.discountPercent].join("|");return!y.has(e)&&(y.add(e),
-o.description||o.promotionCode||o.discountAfterTax||o.discountPercent)})}function R(o=[]){const e=[];for(const t of o){const o=Array.isArray(t.promotionRows)?t.promotionRows:[]
+o.description||o.promotionCode||o.discountAfterTax||o.discountPercent)})}function B(o=[]){const e=[];for(const t of o){const o=Array.isArray(t.promotionRows)?t.promotionRows:[]
 ;for(const r of o)e.push({productCode:t.productCode||r.productCode,productName:t.productName||r.productName,lineType:t.isPromotionGift||t.isPromo?"KM":r.lineType||"Bán",
 quantity:t.quantity||r.quantity,promotionCode:r.promotionCode||r.code||t.promotionCode||"",code:r.promotionCode||r.code||t.promotionCode||"",description:r.description||r.name||"",
 qualifiedAmount:s(r.qualifiedAmount||r.basisAmount),basisAmount:s(r.qualifiedAmount||r.basisAmount),discountPercent:s(r.discountPercent||r.percent),
@@ -39,26 +39,26 @@ discountAfterTax:s(r.discountAfterTax||r.afterTax),afterTax:s(r.discountAfterTax
 const o=[t.productCode||"",t.lineType||"",t.promotionCode||t.code||"",t.description||t.name||"",t.discountPercent||0].join("|"),r=e.get(o)
 ;r?(r.qualifiedAmount=s(r.qualifiedAmount)+s(t.qualifiedAmount),r.basisAmount=r.qualifiedAmount,r.discountBeforeTax=s(r.discountBeforeTax)+s(t.discountBeforeTax),
 r.beforeTax=r.discountBeforeTax,r.discountAfterTax=s(r.discountAfterTax)+s(t.discountAfterTax),r.afterTax=r.discountAfterTax,r.quantity=s(r.quantity)+s(t.quantity)):e.set(o,{...t})
-}return Array.from(e.values())}function q(o){return s(f(o.tax,o.vat,o.taxAmount,o.vatAmount,0))}function H(o,e,u=null){
-const m=t(r(o),i.HC),d=n(m),c=a(m),l=y(o),C=A(o),T=N(o),P=s(f(o.preTaxPriceAtOrder,o.priceBeforeTaxBeforePromotion,o.listPriceBeforeVat,o.priceBeforeTax,o.priceBeforeVat,Math.round(T/1.08))),h=v(o),g=s(f(o.priceAfterTaxAfterPromotion,o.priceAfterPromotion,o.priceAfterVatAfterDiscount,o.netPrice,o.priceAfterDiscount,o.finalPrice,o.orderPrice,o.manualPrice,0)),x=h>0?Math.floor(T*(1-h/100)):g||T,S=O(o),b=String(f(o.lineType,o.type,o.kind,o.itemType,o.isPromo?"PROMO":"SALE")||"SALE").toUpperCase(),D="PROMO"===b||"PROMOTION"===b||"KM"===b||!0===o.isPromo,R=D?"PROMO":"RETURN"===b?"RETURN":"IMPORT"===b?"IMPORT":"SALE",M="PROMO"===R?"Xuất khuyến mại":"RETURN"===R?"Hàng trả nhập kho":"IMPORT"===R?"Hàng nhập kho":"Hàng bán",q=D?0:Math.round((x-x/1.08)*l),H=D?0:s(f(o.vatAmountAtOrder,o.vatAmount,o.taxAmount,o.tax,q)),k=D?0:Math.round(x*l),w=D?0:s(f(o.lineAmountAtOrder,o.lineAmount,o.amount,k)),I=p(l,C),Q=B(o,{
+}return Array.from(e.values())}function q(o){return s(f(o.tax,o.vat,o.taxAmount,o.vatAmount,0))}function I(o,e,u=null){
+const m=t(r(o),i.HC),d=n(m),c=a(m),l=y(o),C=A(o),T=String(f(o.lineType,o.type,o.kind,o.itemType,o.isPromo?"PROMO":"SALE")||"SALE").toUpperCase(),P="PROMO"===T||"PROMOTION"===T||"KM"===T||!0===o.isPromo||!0===o.isPromotionItem,h=P?0:N(o),g=P?0:s(f(o.preTaxPriceAtOrder,o.priceBeforeTaxBeforePromotion,o.listPriceBeforeVat,o.priceBeforeTax,o.priceBeforeVat,Math.round(h/1.08))),x=P?0:O(o),S=P?0:s(f(o.priceAfterTaxAfterPromotion,o.priceAfterPromotion,o.priceAfterVatAfterDiscount,o.netPrice,o.priceAfterDiscount,o.finalPrice,o.orderPrice,o.manualPrice,0)),b=P?0:x>0?Math.floor(h*(1-x/100)):S||h,D=P?0:v(o),B=P?"PROMO":"RETURN"===T?"RETURN":"IMPORT"===T?"IMPORT":"SALE",M="PROMO"===B?"Xuất khuyến mại":"RETURN"===B?"Hàng trả nhập kho":"IMPORT"===B?"Hàng nhập kho":"Hàng bán",q=P?0:Math.round((b-b/1.08)*l),I=P?0:s(f(o.vatAmountAtOrder,o.vatAmount,o.taxAmount,o.tax,q)),H=P?0:Math.round(b*l),k=P?0:s(f(o.lineAmountAtOrder,o.lineAmount,o.amount,H)),w=p(l,C),Q=R(o,{
 code:f(o.code,o.productCode,o.sku,o.maHang),productCode:f(o.productCode,o.code,o.sku,o.maHang),name:f(o.name,o.productName,o.tenHang,o.productSnapshot?.name,o.product?.name),
-productName:f(o.productName,o.name,o.tenHang,o.productSnapshot?.name,o.product?.name),qty:l,quantity:l,gsvAmount:Math.round(l*T),amount:w,discount:S,discountPercent:h,isPromo:D})
+productName:f(o.productName,o.name,o.tenHang,o.productSnapshot?.name,o.product?.name),qty:l,quantity:l,gsvAmount:Math.round(l*h),amount:k,discount:D,discountPercent:x,isPromo:P})
 ;return{stt:e+1,code:f(o.code,o.productCode,o.sku,o.maHang),productCode:f(o.productCode,o.code,o.sku,o.maHang),
 name:f(o.name,o.productName,o.tenHang,o.productSnapshot?.name,o.product?.name),productName:f(o.productName,o.name,o.tenHang,o.productSnapshot?.name,o.product?.name),
-unit:f(o.unit,o.dvt,o.uom,o.productSnapshot?.unit,o.product?.unit,"Cái"),pack:C,conversionRate:C,qty:l,quantity:l,cartonQty:I.cases,caseQty:I.cases,unitQty:I.units,
-caseDisplay:`${I.cases}/${I.units}`,price:T,salePrice:T,catalogSalePrice:T,priceBeforeTax:P,priceBeforeVat:P,listPriceBeforeVat:P,priceAfterTaxBeforePromotion:T,
-priceAfterVatBeforeDiscount:T,listPriceAfterVat:T,discountPercent:h,priceAfterPromotion:x,priceAfterDiscount:x,priceAfterVatAfterDiscount:x,gsvAmount:Math.round(l*T),nivAmount:w,
-discount:S,tax:H,vatAmount:H,amount:w,lineAmount:w,lineType:R,isPromo:D,lineTypeName:M,note:o.note||"",sourceOrderCode:u?f(u.code,u.orderCode,u.id):"",pickingZone:m,
-warehouseCode:d,warehouseName:c,sourceOrderCodes:Array.isArray(o.sourceOrderCodes)?o.sourceOrderCodes:[],
+unit:f(o.unit,o.dvt,o.uom,o.productSnapshot?.unit,o.product?.unit,"Cái"),pack:C,conversionRate:C,qty:l,quantity:l,cartonQty:w.cases,caseQty:w.cases,unitQty:w.units,
+caseDisplay:`${w.cases}/${w.units}`,price:h,salePrice:h,catalogSalePrice:h,priceBeforeTax:g,priceBeforeVat:g,listPriceBeforeVat:g,priceAfterTaxBeforePromotion:h,
+priceAfterVatBeforeDiscount:h,listPriceAfterVat:h,discountPercent:x,priceAfterPromotion:b,priceAfterDiscount:b,priceAfterVatAfterDiscount:b,gsvAmount:Math.round(l*h),nivAmount:k,
+discount:D,tax:I,vatAmount:I,amount:k,lineAmount:k,lineType:B,isPromo:P,isPromotionItem:P,lineTypeName:M,note:o.note||"",sourceOrderCode:u?f(u.code,u.orderCode,u.id):"",
+pickingZone:m,warehouseCode:d,warehouseName:c,sourceOrderCodes:Array.isArray(o.sourceOrderCodes)?o.sourceOrderCodes:[],
 promotionCode:f(o.promotionCode,o.promoCode,o.ctkmCode,o.maCTKM,Q[0]?.promotionCode),
-promotionDescription:f(o.promotionDescription,o.promotionName,o.promotionText,Q[0]?.description),promotionRows:Q}}function k(o){
-const e=Array.isArray(o.items)?o.items:[],t=Array.isArray(o.lines)?o.lines:[],r=e.length?e:t;if(r.length)return r.map((o,e)=>H(o,e))
+promotionDescription:f(o.promotionDescription,o.promotionName,o.promotionText,Q[0]?.description),promotionRows:Q}}function H(o){
+const e=Array.isArray(o.items)?o.items:[],t=Array.isArray(o.lines)?o.lines:[],r=e.length?e:t;if(r.length)return r.map((o,e)=>I(o,e))
 ;const n=Array.isArray(o.children)?o.children:[],a=[];return n.forEach(o=>{(Array.isArray(o.items)?o.items:[]).forEach(e=>a.push({item:e,child:o}))}),
-a.map((o,e)=>H(o.item,e,o.child))}function w(o){
+a.map((o,e)=>I(o.item,e,o.child))}function k(o){
 return(Array.isArray(o.promotions)?o.promotions:Array.isArray(o.promotionRows)?o.promotionRows:Array.isArray(o.discounts)?o.discounts:[]).map((o,e)=>{
 const t=f(o.code,o.promotionCode,o.ctkmCode,o.maCTKM),r=f(o.description,o.name,o.title,o.promotionName,o.tenCTKM),n=s(f(o.qualifiedAmount,o.basisAmount,o.baseAmount,o.giaTriHangHoa,o.amount)),a=s(f(o.discountPercent,o.percent,o.tyLe,o.rate)),i=s(f(o.discountBeforeTax,o.beforeTax,o.amountBeforeTax,o.tienCKTruocThue)),u=s(f(o.discountAfterTax,o.afterTax,o.amountAfterTax,o.tienCKSauThue,o.discountAmount))
 ;return{stt:e+1,code:t,promotionCode:t,name:r,description:r,basisAmount:n,qualifiedAmount:n,percent:a,discountPercent:a,beforeTax:i,discountBeforeTax:i,afterTax:u,
-discountAfterTax:u,type:f(o.type,o.kind,o.loai)}})}function I(o){
+discountAfterTax:u,type:f(o.type,o.kind,o.loai)}})}function w(o){
 return(Array.isArray(o.offsets)?o.offsets:Array.isArray(o.displayRewards)?o.displayRewards:Array.isArray(o.rewardRows)?o.rewardRows:Array.isArray(o.displayRewardRows)?o.displayRewardRows:Array.isArray(o.deductions)?o.deductions:Array.isArray(o.offsetRows)?o.offsetRows:[]).map((o,e)=>{
 const t=f(o.programCode,o.code,o.rewardCode,o.displayCode,o.cttbCode,o.maCTTrungBay,o.maCT),r=f(o.description,o.name,o.title,o.programName,o.noiDung,o.content),n=f(o.month,o.displayMonth,o.thangTrungBay),a=s(f(o.offsetAmount,o.cashAmount,o.debtOffsetAmount,o.canTruNo,o.amount))
 ;return{stt:e+1,code:t,programCode:t,name:r,description:r,month:n,goodsAmount:s(f(o.goodsAmount,o.goodsRewardAmount,o.hangHoa,o.chiTraHangHoa)),
@@ -77,22 +77,20 @@ a.totalAmount+=s(e.amount)}const n=e.sortByProductName?x:g;for(const o of t.valu
 o.items=[...o.saleItems,...o.promoItems,...o.returnItems,...o.importItems],o.items.forEach((o,e)=>{o.stt=e+1,delete o.__mergeKey});const a=["KHO_HC","KHO_PC"]
 ;return Array.from(t.values()).sort((o,e)=>{const t=a.indexOf(o.code),r=a.indexOf(e.code);return-1!==t||-1!==r?(-1===t?99:t)-(-1===r?99:r):o.name.localeCompare(e.name,"vi")})}
 function K(o){const[e,t]=String(o||"0/0").split("/");return{cartonQty:s(e),csSuUnitQty:s(t)}}function V(o,e){
-const t=K(o.csSu||o.quantityCsSu||o.caseDisplay),r=s(f(o.quantity,o.qty,o.totalQty,o.csSuUnitQty,o.unitQty)),n=Math.max(1,s(f(o.conversionRate,o.pack,o.packingQty,o.unitsPerCase,o.qtyPerCase,1))||1),a=l(o.priceAfterTaxBeforePromotion,o.priceAfterVatBeforeDiscount,o.listPriceAfterVat,o.catalogSalePriceAtOrder,o.salePrice,o.price,o.unitPrice),i=l(o.preTaxPriceAtOrder,o.priceBeforeTaxBeforePromotion,o.priceBeforeTax,o.priceBeforeVat,o.listPriceBeforeVat,Math.round(a/1.08)),u=s(o.discountPercent),m=l(o.priceAfterTaxAfterPromotion,o.finalPriceAtOrder,o.finalPrice,o.priceAfterPromotion,o.priceAfterVatAfterDiscount,o.priceAfterDiscount,u>0?Math.round(a*(1-u/100)):a),d=l(o.lineAmountAtOrder,o.lineAmount,o.amount,Math.round(r*m)),c=Boolean(o.isPromotionGift||o.isPromo||"PROMO"===o.lineType)?0:l(o.vatAmountAtOrder,o.vatAmount,o.tax,o.taxAmount,d>0?Math.round(d-d/1.08):0,Math.round((m-m/1.08)*r))
+const t=K(o.csSu||o.quantityCsSu||o.caseDisplay),r=s(f(o.quantity,o.qty,o.totalQty,o.csSuUnitQty,o.unitQty)),n=Math.max(1,s(f(o.conversionRate,o.pack,o.packingQty,o.unitsPerCase,o.qtyPerCase,1))||1),a=String(f(o.lineType,o.type,o.kind,o.itemType,o.isPromo?"PROMO":"")||"").toUpperCase(),i=Boolean(o.isPromotionGift||o.isPromotionItem||o.isPromo||"PROMO"===a||"PROMOTION"===a||"KM"===a),u=i?0:l(o.priceAfterTaxBeforePromotion,o.priceAfterVatBeforeDiscount,o.listPriceAfterVat,o.catalogSalePriceAtOrder,o.salePrice,o.price,o.unitPrice),m=i?0:l(o.preTaxPriceAtOrder,o.priceBeforeTaxBeforePromotion,o.priceBeforeTax,o.priceBeforeVat,o.listPriceBeforeVat,Math.round(u/1.08)),d=i?0:s(o.discountPercent),c=i?0:l(o.priceAfterTaxAfterPromotion,o.finalPriceAtOrder,o.finalPrice,o.priceAfterPromotion,o.priceAfterVatAfterDiscount,o.priceAfterDiscount,d>0?Math.round(u*(1-d/100)):u),p=i?0:l(o.lineAmountAtOrder,o.lineAmount,o.amount,Math.round(r*c)),y=i?0:l(o.vatAmountAtOrder,o.vatAmount,o.tax,o.taxAmount,p>0?Math.round(p-p/1.08):0,Math.round((c-c/1.08)*r))
 ;return{lineNo:o.lineNo||o.stt||e+1,productCode:String(f(o.productCode,o.code,o.sku,o.maHang)).trim(),productName:String(f(o.productName,o.name,o.tenHang)).trim(),conversionRate:n,
 quantityCsSu:o.csSu||o.quantityCsSu||o.caseDisplay||`${t.cartonQty}/${t.csSuUnitQty}`,cartonQty:s(f(o.cartonQty,o.caseQty,t.cartonQty)),
 unitQtyFromCsSu:s(f(o.unitQtyFromCsSu,o.unitQty,t.csSuUnitQty)),unitQty:s(f(o.unitQty,t.csSuUnitQty)),csSuUnitQty:s(f(o.csSuUnitQty,o.unitQty,t.csSuUnitQty)),quantity:r,
-priceBeforeTaxBeforePromotion:i,priceBeforeTax:i,priceAfterTaxBeforePromotion:a,catalogSalePrice:a,priceAfterTaxAfterPromotion:m,priceAfterPromotion:m,discountPercent:u,
-vatAmount:c,lineAmount:d,isPromotionGift:Boolean(o.isPromotionGift||o.isPromo||"PROMO"===o.lineType),promotionCode:o.promotionCode||"",
-promotionRows:Array.isArray(o.promotionRows)?o.promotionRows:B(o,{productCode:String(f(o.productCode,o.code,o.sku,o.maHang)).trim(),
-productName:String(f(o.productName,o.name,o.tenHang)).trim(),quantity:r,qty:r,gsvAmount:r*a,lineAmount:d,discountPercent:u,
-isPromo:Boolean(o.isPromotionGift||o.isPromo||"PROMO"===o.lineType)})}}function U(o={}){return{productCode:String(o.productCode||o.maHang||"").trim(),
-productName:String(o.productName||o.tenHang||"").trim(),lineType:o.lineType||o.type||"",quantity:s(o.quantity||o.qty),promotionCode:String(o.promotionCode||o.code||"").trim(),
-code:String(o.promotionCode||o.code||"").trim(),description:String(o.description||o.name||"").trim(),qualifiedAmount:s(o.qualifiedAmount||o.basisAmount),
-basisAmount:s(o.qualifiedAmount||o.basisAmount),discountPercent:s(o.discountPercent||o.percent),percent:s(o.discountPercent||o.percent),
-discountBeforeTax:s(o.discountBeforeTax||o.beforeTax),beforeTax:s(o.discountBeforeTax||o.beforeTax),discountAfterTax:s(o.discountAfterTax||o.afterTax),
-afterTax:s(o.discountAfterTax||o.afterTax)}}function E(o={}){return{programCode:String(o.programCode||o.code||"").trim(),description:String(o.description||o.name||"").trim(),
-displayMonth:o.displayMonth||o.month||"",month:o.month||o.displayMonth||"",goodsAmount:s(o.goodsAmount),quantityText:o.quantityText||o.quantity||"",offsetAmount:s(o.offsetAmount)}}
-function _(o={}){
+priceBeforeTaxBeforePromotion:m,priceBeforeTax:m,priceAfterTaxBeforePromotion:u,catalogSalePrice:u,priceAfterTaxAfterPromotion:c,priceAfterPromotion:c,discountPercent:d,
+vatAmount:y,lineAmount:p,isPromotionGift:i,isPromotionItem:i,promotionCode:o.promotionCode||"",promotionRows:Array.isArray(o.promotionRows)?o.promotionRows:R(o,{
+productCode:String(f(o.productCode,o.code,o.sku,o.maHang)).trim(),productName:String(f(o.productName,o.name,o.tenHang)).trim(),quantity:r,qty:r,gsvAmount:r*u,lineAmount:p,
+discountPercent:d,isPromo:i})}}function U(o={}){return{productCode:String(o.productCode||o.maHang||"").trim(),productName:String(o.productName||o.tenHang||"").trim(),
+lineType:o.lineType||o.type||"",quantity:s(o.quantity||o.qty),promotionCode:String(o.promotionCode||o.code||"").trim(),code:String(o.promotionCode||o.code||"").trim(),
+description:String(o.description||o.name||"").trim(),qualifiedAmount:s(o.qualifiedAmount||o.basisAmount),basisAmount:s(o.qualifiedAmount||o.basisAmount),
+discountPercent:s(o.discountPercent||o.percent),percent:s(o.discountPercent||o.percent),discountBeforeTax:s(o.discountBeforeTax||o.beforeTax),
+beforeTax:s(o.discountBeforeTax||o.beforeTax),discountAfterTax:s(o.discountAfterTax||o.afterTax),afterTax:s(o.discountAfterTax||o.afterTax)}}function E(o={}){return{
+programCode:String(o.programCode||o.code||"").trim(),description:String(o.description||o.name||"").trim(),displayMonth:o.displayMonth||o.month||"",
+month:o.month||o.displayMonth||"",goodsAmount:s(o.goodsAmount),quantityText:o.quantityText||o.quantity||"",offsetAmount:s(o.offsetAmount)}}function _(o={}){
 const e=Array.isArray(o.items)?o.items:[],t=Array.isArray(o.promotions)?o.promotions:[],r=Array.isArray(o.offsets)?o.offsets:[],n=e.reduce((o,e)=>o+s(e.quantity),0),a=e.reduce((o,e)=>o+s(e.lineAmount),0),i=e.reduce((o,e)=>o+s(e.quantity)*s(e.priceAfterTaxBeforePromotion),0),u=e.reduce((o,e)=>o+s(e.vatAmount),0),m=void 0!==o.totalPromotionAmount?s(o.totalPromotionAmount):t.reduce((o,e)=>o+s(e.discountAfterTax),0),d=void 0!==o.totalOffsetAmount?s(o.totalOffsetAmount):r.reduce((o,e)=>o+s(e.offsetAmount),0),c=s(o.nppDiscountAmount||o.summary?.nppDiscountAmount)
 ;return{totalQty:n,totalVatAmount:u,goodsAmountAfterPromotion:a,grossAmountBeforePromotion:i,totalPromotionAmount:m,promotionAmount:m,totalOffsetAmount:d,displayRewardOffset:d,
 nppDiscountAmount:c,payableAmount:void 0!==o.payableAmount?s(o.payableAmount):a-d-c,promotionRate:i>0?Number(((m+c)/i*100).toFixed(2)):0}}function L(o={}){
@@ -103,7 +101,7 @@ const e=[],t=[["header.invoiceCode",o.header?.invoiceCode],["header.orderCode",o
 ;for(const[o,r]of t)r||e.push(`Thiếu ${o}`)
 ;const r=_(o),n=o.summary||{},a=[["totalQty",n.totalQty,r.totalQty],["goodsAmountAfterPromotion",n.goodsAmountAfterPromotion,r.goodsAmountAfterPromotion],["grossAmountBeforePromotion",n.grossAmountBeforePromotion,r.grossAmountBeforePromotion],["payableAmount",n.payableAmount,r.payableAmount]]
 ;for(const[o,t,r]of a)Math.abs(s(t)-s(r))>1&&e.push(`${o} lệch: ${t} != ${r}`);return{ok:0===e.length,errors:e}}function G(o={}){
-const e=Array.isArray(o.items)?o.items.map(V):[],t=Array.isArray(o.promotions)?o.promotions.map(U):[],r=R(e),n=r.length?r:t,a=Array.isArray(o.offsets)?o.offsets.map(E):[],i={
+const e=Array.isArray(o.items)?o.items.map(V):[],t=Array.isArray(o.promotions)?o.promotions.map(U):[],r=B(e),n=r.length?r:t,a=Array.isArray(o.offsets)?o.offsets.map(E):[],i={
 documentType:"DELIVERY_PAYMENT_INVOICE",title:"PHIẾU GIAO NHẬN VÀ THANH TOÁN",header:{invoiceCode:o.invoiceCode||o.header?.invoiceCode||"",
 orderCode:o.orderCode||o.header?.orderCode||"",orderDateTime:o.orderDateTime||o.header?.orderDateTime||"",invoiceType:o.invoiceType||o.header?.invoiceType||"Từ NVTT",
 paymentTerm:o.paymentTerm||o.header?.paymentTerm||"đáo hạn trong 7 ngày",truckNo:o.truckNo||o.header?.truckNo||"",taxCode:o.taxCode||o.header?.taxCode||""},distributor:{
@@ -114,8 +112,8 @@ deliveryAddress:o.deliveryAddress||o.customer?.deliveryAddress||o.customer?.addr
 staffName:o.salesStaffName||o.salesStaff?.staffName||o.salesStaff?.name||"",phone:o.salesStaffPhone||o.salesStaff?.phone||""},items:e,promotions:n,offsets:a,summary:{
 amountInWords:o.amountInWords||o.summary?.amountInWords||"",nppDiscountAmount:s(o.nppDiscountAmount||o.summary?.nppDiscountAmount)}};return i.summary={...i.summary,..._({...i,
 totalPromotionAmount:o.totalPromotionAmount,totalOffsetAmount:o.totalOffsetAmount,nppDiscountAmount:o.nppDiscountAmount,payableAmount:o.payableAmount})},i.pagination=L(i),
-i.validation=$(i),i}function W(o={},t={}){const r=e(),n=k(o),a=w(o),i=I(o),p=Q(n,{sortByProductName:"PRODUCT_NAME_ASC"===o.itemSort||String(o.printMode||"").startsWith("MASTER_")
-}),l=s(f(o.totalQuantity,o.totalQty,o.summary?.totalQty,n.reduce((o,e)=>o+e.qty,0))),y=s(f(o.grossAmountBeforePromotion,o.totalGrossAmount,o.grossAmount,o.summary?.grossAmountBeforePromotion,o.goodsAmount,o.subTotal,o.subtotal,n.reduce((o,e)=>o+e.gsvAmount,0))),A=s(f(o.goodsAmountAfterPromotion,o.netAmount,o.summary?.goodsAmountAfterPromotion,o.totalAmount,o.grandTotal,n.reduce((o,e)=>o+e.amount,0))),C=s(f(o.promotionValue,o.totalPromotionValue,o.totalPromotionAmount,o.totalDiscountAmount,o.promotionAmount,o.discountAmount,o.summary?.promotionAmount,a.reduce((o,e)=>o+(e.afterTax||e.beforeTax||0),0))),T=s(f(o.displayRewardTotal,o.totalDisplayReward,o.rewardAmount,o.offsetAmount,o.summary?.displayRewardOffset,i.reduce((o,e)=>o+e.offsetAmount,0))),P=s(f(o.nppDiscountAmount,o.summary?.nppDiscountAmount,0)),h=s(f(o.discount,o.discountAmount,o.totalDiscount,C)),g=s(f(o.tax,o.vat,o.taxAmount,n.reduce((o,e)=>o+e.tax,0))),x=A,N=y,S=s(f(o.paidAmount,o.paid,o.collectedAmount,o.cashReceived)),v=s(f(o.payableAmount,o.mustPay,o.summary?.payableAmount,x-T)),O=s(f(o.debtAmount,o.debt,Math.max(v-S,0))),b=s(f(o.promotionRate,o.summary?.promotionRate,N?(C+P)/N*100:0)),D=G({
+i.validation=$(i),i}function W(o={},t={}){const r=e(),n=H(o),a=k(o),i=w(o),p=Q(n,{sortByProductName:"PRODUCT_NAME_ASC"===o.itemSort||String(o.printMode||"").startsWith("MASTER_")
+}),l=s(f(o.totalQuantity,o.totalQty,o.summary?.totalQty,n.reduce((o,e)=>o+e.qty,0))),y=s(f(o.grossAmountBeforePromotion,o.totalGrossAmount,o.grossAmount,o.summary?.grossAmountBeforePromotion,o.goodsAmount,o.subTotal,o.subtotal,n.reduce((o,e)=>o+e.gsvAmount,0))),A=s(f(o.goodsAmountAfterPromotion,o.netAmount,o.summary?.goodsAmountAfterPromotion,o.totalAmount,o.grandTotal,n.reduce((o,e)=>o+e.amount,0))),C=s(f(o.promotionValue,o.totalPromotionValue,o.totalPromotionAmount,o.totalDiscountAmount,o.promotionAmount,o.discountAmount,o.summary?.promotionAmount,a.reduce((o,e)=>o+(e.afterTax||e.beforeTax||0),0))),T=s(f(o.displayRewardTotal,o.totalDisplayReward,o.rewardAmount,o.offsetAmount,o.summary?.displayRewardOffset,i.reduce((o,e)=>o+e.offsetAmount,0))),P=s(f(o.nppDiscountAmount,o.summary?.nppDiscountAmount,0)),h=s(f(o.discount,o.discountAmount,o.totalDiscount,C)),g=s(f(o.tax,o.vat,o.taxAmount,n.reduce((o,e)=>o+e.tax,0))),x=A,N=y,S=s(f(o.paidAmount,o.paid,o.collectedAmount,o.cashReceived)),O=s(f(o.payableAmount,o.mustPay,o.summary?.payableAmount,x-T)),v=s(f(o.debtAmount,o.debt,Math.max(O-S,0))),b=s(f(o.promotionRate,o.summary?.promotionRate,N?(C+P)/N*100:0)),D=G({
 ...o,invoiceCode:f(o.invoiceCode,o.invoiceNo,o.soHoaDon,o.documentCode,o.code),orderCode:f(o.customerOrderCode,o.soDonHang,o.orderCode,o.documentCode,o.code),
 orderDateTime:d(f(o.orderDateTime,o.orderDate,o.documentDate,o.date,o.createdAt)),invoiceType:f(o.invoiceType,o.invoiceTypeName,o.orderSourceName,"Từ NVTT"),
 paymentTerm:f(o.terms,o.paymentTerms,o.paymentTerm,"đáo hạn trong 7 ngày"),truckNo:f(o.vehicleNo,o.truckNo,o.soXeTai),taxCode:f(o.customerTaxCode,o.customer?.taxCode,o.mst),
@@ -125,8 +123,8 @@ customerName:f(o.customerName,o.customer?.name,o.supplier,o.supplierName),delive
 phone:f(o.customerPhone,o.customer?.phone,o.phone),taxCode:f(o.customerTaxCode,o.customer?.taxCode,o.mst)},salesStaff:{
 staffCode:f(o.salesStaffCode,o.salesPersonCode,o.salesmanCode,o.nvbhCode,o.maNVBH,o.salesCode,o.salesStaffId),
 staffName:f(o.salesStaffName,o.salesPersonName,o.salesmanName,o.nvbhName,o.maNVBHName,o.salesName,o.createdBy),phone:f(o.staffPhone,o.salesStaffPhone,o.salesPhone)},items:n,
-promotions:a,offsets:i,totalPromotionAmount:C,totalOffsetAmount:T,nppDiscountAmount:P,payableAmount:v,
-amountInWords:f(o.amountInWords,o.summary?.amountInWords,o.totalAmountText)||c(v||x)});return{company:{code:f(o.distributor?.code,t.companyCode,r.code),
+promotions:a,offsets:i,totalPromotionAmount:C,totalOffsetAmount:T,nppDiscountAmount:P,payableAmount:O,
+amountInWords:f(o.amountInWords,o.summary?.amountInWords,o.totalAmountText)||c(O||x)});return{company:{code:f(o.distributor?.code,t.companyCode,r.code),
 name:f(o.distributor?.name,t.companyName,r.name),address:f(o.distributor?.address,t.companyAddress,r.address),phone:f(o.distributor?.phone,t.companyPhone,r.phone),
 taxCode:t.taxCode||r.taxCode},document:{id:o.id||o._id||"",code:f(o.code,o.orderCode,o.refCode,o.id,o._id),
 invoiceCode:f(o.invoiceCode,o.invoiceNo,o.soHoaDon,o.documentCode,o.code),customerOrderCode:f(o.customerOrderCode,o.soDonHang,o.orderCode,o.documentCode,o.code),
@@ -143,8 +141,8 @@ name:f(o.salesStaffName,o.salesPersonName,o.salesmanName,o.nvbhName,o.maNVBHName
 code:f(o.deliveryStaffCode,o.deliveryCode),name:f(o.deliveryStaffName,o.deliveryName),phone:f(o.deliveryPhone,o.deliveryStaffPhone),route:f(o.route,o.routeName,o.tuyen)},items:n,
 promotions:a,displayRewards:i,warehouseGroups:p,masterKpis:Array.isArray(o.masterKpis)?o.masterKpis:[],masterKpiTotals:o.masterKpiTotals||{},totals:{totalQty:l,goodsAmount:N,
 totalAmount:x,goodsAmountAfterPromotion:A,grossAmountBeforePromotion:y,promotionAmount:C,displayRewardOffset:T,nppDiscountAmount:P,promotionRate:b,discount:h,tax:g,paid:S,
-payable:v,debt:O,orderCount:s(f(o.orderCount,o.totalOrders,Array.isArray(o.children)?o.children.length:0)),promotionValue:C,displayRewardTotal:T,
-totalAmountText:f(o.amountInWords,o.summary?.amountInWords,o.totalAmountText)||c(v||x)},meta:{printedAt:(new Date).toLocaleString("vi-VN"),printedBy:t.printedBy||"",
+payable:O,debt:v,orderCount:s(f(o.orderCount,o.totalOrders,Array.isArray(o.children)?o.children.length:0)),promotionValue:C,displayRewardTotal:T,
+totalAmountText:f(o.amountInWords,o.summary?.amountInWords,o.totalAmountText)||c(O||x)},meta:{printedAt:(new Date).toLocaleString("vi-VN"),printedBy:t.printedBy||"",
 copyLabel:t.copyLabel||"Liên 1"},erpInvoiceV46:D,printContract:o.printContract||null,printProfile:o.printProfile||o.printContract?.profile||"",formatMoney:u}}module.exports={
 buildPrintData:W,buildDeliveryInvoicePayload:G,calculateDeliveryInvoiceSummary:_,paginateDeliveryInvoice:L,validateAgainstDmsSample:$,formatMoney:u,formatDate:m,formatDateTime:d,
 numberToVietnameseWords:c};

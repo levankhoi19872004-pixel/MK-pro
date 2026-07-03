@@ -166,24 +166,27 @@ function normalizeLine(item = {}, context = {}) {
   const pickingZone = pickingZoneOf(item, parent, product, context);
   const warehouseCode = legacyPrintGroupCode(pickingZone);
   const lineType = lineTypeOf(item, mode);
-  const catalogPrice = catalogPriceOf(item, product);
-  const finalPrice = lineType === 'PROMO' ? 0 : finalPriceOf(item, product);
+  const isPromotionLine = lineType === 'PROMO';
+  const catalogPrice = isPromotionLine ? 0 : catalogPriceOf(item, product);
+  const finalPrice = isPromotionLine ? 0 : finalPriceOf(item, product);
   const costPrice = costPriceOf(item, product);
-  const unitPrice = mode === 'import' ? costPrice : catalogPrice;
+  const unitPrice = isPromotionLine ? 0 : (mode === 'import' ? costPrice : catalogPrice);
   const calculatedLineAmount = mode === 'import'
     ? Math.round(quantity * costPrice)
-    : lineType === 'PROMO'
+    : isPromotionLine
       ? 0
       : Math.round(quantity * (mode === 'return' ? finalPriceOf(item, product) : finalPrice));
-  const lineAmount = toNumber(firstDefined(item.lineAmountAtOrder, item.lineAmount, item.amount, calculatedLineAmount));
-  const priceBeforeTaxBeforePromotion = toNumber(firstDefined(
+  const lineAmount = isPromotionLine
+    ? 0
+    : toNumber(firstDefined(item.lineAmountAtOrder, item.lineAmount, item.amount, calculatedLineAmount));
+  const priceBeforeTaxBeforePromotion = isPromotionLine ? 0 : toNumber(firstDefined(
     item.preTaxPriceAtOrder,
     item.priceBeforeTaxBeforePromotion,
     item.listPriceBeforeVat,
     item.priceBeforeTax,
     catalogPrice > 0 ? Math.round(catalogPrice / 1.08) : 0
   ));
-  const vatAmount = lineType === 'PROMO' ? 0 : toNumber(firstDefined(
+  const vatAmount = isPromotionLine ? 0 : toNumber(firstDefined(
     item.vatAmountAtOrder,
     item.vatAmount,
     item.taxAmount,

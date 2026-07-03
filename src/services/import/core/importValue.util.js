@@ -659,6 +659,7 @@ function getDmsVatAmountForLine(row = {}, quantity = 0, finalPrice = 0, lineAmou
 }
 
 function getDmsPriceFromRow(row = {}, quantity = 0) {
+  if (isZeroAmountPromoLineFromRow(row)) return 0;
   const actualAmount = getActualAmountFromRow(row);
   if (actualAmount > 0 && quantity > 0) return actualAmount / quantity;
   const explicit = getSalePriceFromRow(row);
@@ -669,6 +670,7 @@ function getDmsPriceFromRow(row = {}, quantity = 0) {
 }
 
 function getDmsAmountFromRow(row = {}, quantity = 0, salePrice = 0) {
+  if (isZeroAmountPromoLineFromRow(row)) return 0;
   const actualAmount = getActualAmountFromRow(row);
   if (actualAmount > 0) return actualAmount;
   return quantity * salePrice;

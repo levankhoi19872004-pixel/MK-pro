@@ -342,14 +342,18 @@ function normalizeOneItem(item, index, sourceOrder = null) {
   const qty = getItemQuantity(item);
   const pack = getItemPack(item);
 
+  const lineType = String(pick(item.lineType, item.type, item.kind, item.itemType, item.isPromo ? 'PROMO' : 'SALE') || 'SALE').toUpperCase();
+  const isPromo = lineType === 'PROMO' || lineType === 'PROMOTION' || lineType === 'KM' || item.isPromo === true || item.isPromotionItem === true;
+
   // Chuẩn cột mẫu đơn DMS/V46:
   // Cột 1: CS/SU = cột 2 / quy cách.
   // Cột 2: số lượng lẻ thực tế.
   // Cột 3: giá trước thuế = cột 4 / 1.08.
   // Cột 4: giá bán sau thuế, trước KM = products.salePrice.
   // Cột 5: giá sau thuế, sau KM/CK = cột 4 - cột 4 * %CK, hoặc giá bán thẳng người tạo đơn nhập.
-  const priceAfterTaxBeforePromotion = getCatalogSalePrice(item);
-  const priceBeforeTax = toNumber(pick(
+  // Dòng KM/hàng tặng import phải giữ toàn bộ cột tiền bằng 0, không fallback giá danh mục.
+  const priceAfterTaxBeforePromotion = isPromo ? 0 : getCatalogSalePrice(item);
+  const priceBeforeTax = isPromo ? 0 : toNumber(pick(
     item.preTaxPriceAtOrder,
     item.priceBeforeTaxBeforePromotion,
     item.listPriceBeforeVat,
@@ -357,8 +361,8 @@ function normalizeOneItem(item, index, sourceOrder = null) {
     item.priceBeforeVat,
     Math.round(priceAfterTaxBeforePromotion / 1.08)
   ));
-  const discountPercent = getDiscountPercent(item);
-  const directNetPrice = toNumber(pick(
+  const discountPercent = isPromo ? 0 : getDiscountPercent(item);
+  const directNetPrice = isPromo ? 0 : toNumber(pick(
     item.priceAfterTaxAfterPromotion,
     item.priceAfterPromotion,
     item.priceAfterVatAfterDiscount,
@@ -369,13 +373,13 @@ function normalizeOneItem(item, index, sourceOrder = null) {
     item.manualPrice,
     0
   ));
-  const priceAfterPromotion = discountPercent > 0
-    ? Math.floor(priceAfterTaxBeforePromotion * (1 - discountPercent / 100))
-    : (directNetPrice || priceAfterTaxBeforePromotion);
+  const priceAfterPromotion = isPromo
+    ? 0
+    : (discountPercent > 0
+      ? Math.floor(priceAfterTaxBeforePromotion * (1 - discountPercent / 100))
+      : (directNetPrice || priceAfterTaxBeforePromotion));
 
-  const discount = getItemDiscount(item);
-  const lineType = String(pick(item.lineType, item.type, item.kind, item.itemType, item.isPromo ? 'PROMO' : 'SALE') || 'SALE').toUpperCase();
-  const isPromo = lineType === 'PROMO' || lineType === 'PROMOTION' || lineType === 'KM' || item.isPromo === true;
+  const discount = isPromo ? 0 : getItemDiscount(item);
   const normalizedLineType = isPromo
     ? 'PROMO'
     : lineType === 'RETURN'
@@ -446,6 +450,7 @@ function normalizeOneItem(item, index, sourceOrder = null) {
     lineAmount: amount,
     lineType: normalizedLineType,
     isPromo,
+    isPromotionItem: isPromo,
     lineTypeName,
     note: item.note || '',
     sourceOrderCode: sourceOrder ? pick(sourceOrder.code, sourceOrder.orderCode, sourceOrder.id) : '',

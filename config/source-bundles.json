@@ -71,7 +71,7 @@
         "services/printDataBuilder.legacy.source/part-02.jsfrag",
         "services/printDataBuilder.legacy.source/part-03.jsfrag"
       ],
-      "sourceSha256": "4829a2cc36f5cdea5ed37ca04e7837843a29ffab8d7f8fc7be1dae57b98c5471"
+      "sourceSha256": "e74034eeb68a5d6334514ed92235e399b8f2b0fe9752bd42945c72c23c47fbb5"
     },
     {
       "target": "src/services/fundService.js",

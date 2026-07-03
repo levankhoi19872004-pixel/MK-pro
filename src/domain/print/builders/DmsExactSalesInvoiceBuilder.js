@@ -99,7 +99,8 @@ function exactLine(item = {}, order = {}, product = {}) {
   const line = normalizeLine(item, { parent: order, product, mode: 'sale' });
   const catalogExcel = ProductCatalogExportPolicy.metadata(product);
   const quantity = toNumber(line.quantity);
-  const finalPrice = firstPositive(
+  const isPromotionLine = line.lineType === 'PROMO';
+  const finalPrice = isPromotionLine ? 0 : firstPositive(
     item.finalPriceAtOrder,
     item.finalPrice,
     item.priceAfterTaxAfterPromotion,
@@ -109,16 +110,16 @@ function exactLine(item = {}, order = {}, product = {}) {
     item.salePrice,
     item.price
   );
-  const catalogPrice = catalogPriceForLine(item, order, product, line, finalPrice);
-  const lineAmount = firstPositive(
+  const catalogPrice = isPromotionLine ? 0 : catalogPriceForLine(item, order, product, line, finalPrice);
+  const lineAmount = isPromotionLine ? 0 : firstPositive(
     item.lineAmountAtOrder,
     item.lineAmount,
     item.amount,
     quantity > 0 && finalPrice > 0 ? Math.round(quantity * finalPrice) : 0
   );
   // Cột 3 của mẫu đơn con được suy ra trực tiếp từ cột 4.
-  // Không lấy giá trước thuế từ file DMS vì cột 4 là giá bán chuẩn của sản phẩm.
-  const priceBeforeTax = catalogPrice > 0
+  // Dòng khuyến mại/hàng tặng import phải giữ snapshot giá bằng 0, không fallback giá danh mục.
+  const priceBeforeTax = isPromotionLine ? 0 : (catalogPrice > 0
     ? Math.round(catalogPrice / 1.08)
     : firstPositive(
       item.preTaxPriceAtOrder,
@@ -127,7 +128,7 @@ function exactLine(item = {}, order = {}, product = {}) {
       item.priceBeforeTax,
       item.priceBeforeVat,
       finalPrice > 0 ? Math.round(finalPrice / 1.08) : 0
-    );
+    ));
 
   // Một số đơn DMS cũ đã lưu snapshot Thuế/giá trước thuế bằng 0.
   // Giá trị 0 không được chặn fallback tính toán cho dòng hàng bán có tiền.
@@ -137,7 +138,7 @@ function exactLine(item = {}, order = {}, product = {}) {
     item.taxAmount,
     item.tax
   );
-  const vatAmount = line.lineType === 'PROMO'
+  const vatAmount = isPromotionLine
     ? 0
     : (explicitVat || calculateVatFromAmount(lineAmount) || (
       finalPrice > 0 ? Math.round((finalPrice - (finalPrice / 1.08)) * quantity) : 0
@@ -147,7 +148,7 @@ function exactLine(item = {}, order = {}, product = {}) {
     ...line,
     catalogPrice,
     catalogPackingQty: catalogExcel.packingQty,
-    currentCatalogSalePrice: catalogExcel.salePrice,
+    currentCatalogSalePrice: isPromotionLine ? 0 : catalogExcel.salePrice,
     finalPrice,
     priceBeforeTaxBeforePromotion: priceBeforeTax,
     priceAfterTaxBeforePromotion: catalogPrice,
@@ -216,6 +217,10 @@ function buildDmsExactSalesInvoice(order = {}, context = {}) {
 
   const totalQty = lines.reduce((sum, line) => sum + toNumber(line.quantity), 0);
   const totalAmount = lines.reduce((sum, line) => sum + toNumber(line.lineAmount), 0);
+  const grossAmountBeforePromotion = lines.reduce(
+    (sum, line) => sum + (toNumber(line.quantity) * toNumber(line.priceAfterTaxBeforePromotion)),
+    0
+  );
   const invoiceCode = cleanText(sourceOrder.invoiceCode || sourceOrder.invoiceNo || sourceOrder.soHoaDon || sourceOrder.externalInvoiceCode || sourceOrder.externalOrderCode || sourceOrder.code || sourceOrder.id);
   const orderCode = cleanText(sourceOrder.customerOrderCode || sourceOrder.soDonHang || sourceOrder.orderCode || sourceOrder.salesOrderCode || sourceOrder.code || sourceOrder.id);
   const documentDate = cleanText(sourceOrder.orderDateTime || sourceOrder.orderDate || sourceOrder.date || sourceOrder.documentDate || sourceOrder.createdAt);
@@ -282,10 +287,10 @@ function buildDmsExactSalesInvoice(order = {}, context = {}) {
     customerTaxCode: contract.parties.customer.taxCode,
     totalQuantity: totalQty,
     totalQty,
-    totalAmount: toNumber(sourceOrder.totalAmount || totalAmount),
-    goodsAmount: suppressPromotions
-      ? toNumber(sourceOrder.totalAmount || totalAmount)
-      : toNumber(sourceOrder.goodsAmount || sourceOrder.grossAmountBeforePromotion || totalAmount),
+    totalAmount,
+    goodsAmount: grossAmountBeforePromotion,
+    grossAmountBeforePromotion,
+    goodsAmountAfterPromotion: totalAmount,
     promotions: suppressPromotions ? [] : (Array.isArray(sourceOrder.promotions) ? sourceOrder.promotions : []),
     offsets: Array.isArray(sourceOrder.offsets) ? sourceOrder.offsets : (Array.isArray(sourceOrder.displayRewards) ? sourceOrder.displayRewards : []),
     totalPromotionAmount: suppressPromotions ? 0 : toNumber(sourceOrder.totalPromotionAmount),

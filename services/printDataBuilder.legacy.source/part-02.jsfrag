@@ -188,7 +188,16 @@ function normalizeInvoiceItem(item, index) {
   const conversionRate = Math.max(1, toNumber(pick(
     item.conversionRate, item.pack, item.packingQty, item.unitsPerCase, item.qtyPerCase, 1
   )) || 1);
-  const priceAfterTaxBeforePromotion = pickPositive(
+  const rawLineType = String(pick(item.lineType, item.type, item.kind, item.itemType, item.isPromo ? 'PROMO' : '') || '').toUpperCase();
+  const isPromotionGift = Boolean(
+    item.isPromotionGift ||
+    item.isPromotionItem ||
+    item.isPromo ||
+    rawLineType === 'PROMO' ||
+    rawLineType === 'PROMOTION' ||
+    rawLineType === 'KM'
+  );
+  const priceAfterTaxBeforePromotion = isPromotionGift ? 0 : pickPositive(
     item.priceAfterTaxBeforePromotion,
     item.priceAfterVatBeforeDiscount,
     item.listPriceAfterVat,
@@ -197,8 +206,8 @@ function normalizeInvoiceItem(item, index) {
     item.price,
     item.unitPrice
   );
-  // Snapshot 0 ở dữ liệu DMS cũ không được chặn fallback từ giá sau thuế.
-  const priceBeforeTaxBeforePromotion = pickPositive(
+  // Dòng KM/hàng tặng import phải giữ toàn bộ cột tiền bằng 0, không fallback giá danh mục.
+  const priceBeforeTaxBeforePromotion = isPromotionGift ? 0 : pickPositive(
     item.preTaxPriceAtOrder,
     item.priceBeforeTaxBeforePromotion,
     item.priceBeforeTax,
@@ -206,8 +215,8 @@ function normalizeInvoiceItem(item, index) {
     item.listPriceBeforeVat,
     Math.round(priceAfterTaxBeforePromotion / 1.08)
   );
-  const discountPercent = toNumber(item.discountPercent);
-  const priceAfterTaxAfterPromotion = pickPositive(
+  const discountPercent = isPromotionGift ? 0 : toNumber(item.discountPercent);
+  const priceAfterTaxAfterPromotion = isPromotionGift ? 0 : pickPositive(
     item.priceAfterTaxAfterPromotion,
     item.finalPriceAtOrder,
     item.finalPrice,
@@ -218,13 +227,13 @@ function normalizeInvoiceItem(item, index) {
       ? Math.round(priceAfterTaxBeforePromotion * (1 - discountPercent / 100))
       : priceAfterTaxBeforePromotion
   );
-  const lineAmount = pickPositive(
+  const lineAmount = isPromotionGift ? 0 : pickPositive(
     item.lineAmountAtOrder,
     item.lineAmount,
     item.amount,
     Math.round(quantity * priceAfterTaxAfterPromotion)
   );
-  const vatAmount = Boolean(item.isPromotionGift || item.isPromo || item.lineType === 'PROMO')
+  const vatAmount = isPromotionGift
     ? 0
     : pickPositive(
         item.vatAmountAtOrder,
@@ -255,7 +264,8 @@ function normalizeInvoiceItem(item, index) {
     discountPercent,
     vatAmount,
     lineAmount,
-    isPromotionGift: Boolean(item.isPromotionGift || item.isPromo || item.lineType === 'PROMO'),
+    isPromotionGift,
+    isPromotionItem: isPromotionGift,
     promotionCode: item.promotionCode || '',
     promotionRows: Array.isArray(item.promotionRows)
       ? item.promotionRows
@@ -267,7 +277,7 @@ function normalizeInvoiceItem(item, index) {
           gsvAmount: quantity * priceAfterTaxBeforePromotion,
           lineAmount,
           discountPercent,
-          isPromo: Boolean(item.isPromotionGift || item.isPromo || item.lineType === 'PROMO')
+          isPromo: isPromotionGift
         })
   };
 }
