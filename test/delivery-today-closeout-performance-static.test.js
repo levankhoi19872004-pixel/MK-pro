@@ -33,3 +33,10 @@ test('order repository closeout patch uses updateOne with $set and no upsert', (
   assert.doesNotMatch(body, /upsert\s*:\s*true/);
   assert.doesNotMatch(body, /findOneAndUpdate\s*\(/);
 });
+
+
+test('delivery closeout only rebuilds debt read model when a new AR-DEBT-OPEN was posted', () => {
+  const source = read(closeoutPath);
+  assert.match(source, /readModelAffected:\s*arResult\s*&&\s*arResult\.posted\s*===\s*true/);
+  assert.match(source, /row\.confirmed\s*&&\s*row\.readModelAffected\s*===\s*true/);
+});

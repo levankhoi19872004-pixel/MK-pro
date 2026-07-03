@@ -245,6 +245,42 @@ function customerFilter(customerCode) {
   return value ? { customerCode: value } : {};
 }
 
+async function replaceReadModelRows(Model, rows = [], filterForRow, options = {}) {
+  const session = options.session;
+  const safeRows = Array.isArray(rows) ? rows : [];
+  if (!safeRows.length) return { matchedCount: 0, modifiedCount: 0, upsertedCount: 0 };
+  const operations = safeRows.map((row) => ({
+    replaceOne: {
+      filter: filterForRow(row),
+      replacement: row,
+      upsert: true
+    }
+  }));
+  if (typeof Model.bulkWrite === 'function') {
+    return Model.bulkWrite(operations, { ordered: false, session });
+  }
+  const summary = { matchedCount: 0, modifiedCount: 0, upsertedCount: 0 };
+  for (const operation of operations) {
+    const result = await Model.replaceOne(operation.replaceOne.filter, operation.replaceOne.replacement, { upsert: true, session });
+    summary.matchedCount += Number(result.matchedCount || result.n || 0);
+    summary.modifiedCount += Number(result.modifiedCount || result.nModified || 0);
+    summary.upsertedCount += Number(result.upsertedCount || (result.upsertedId ? 1 : 0));
+  }
+  return summary;
+}
+
+function debtOrderFilter(row = {}) {
+  const id = clean(row.id);
+  if (id) return { id };
+  return { customerCode: clean(row.customerCode), sourceId: clean(row.sourceId) };
+}
+
+function debtCustomerFilter(row = {}, fallbackCustomerCode = '') {
+  const customerCode = clean(row.customerCode || fallbackCustomerCode);
+  if (customerCode) return { customerCode };
+  return { id: clean(row.id || `DEBT-CUSTOMER:${fallbackCustomerCode}`) };
+}
+
 async function persistReadModel(result, scope = {}, options = {}) {
   const { ArDebtOrder, ArDebtCustomer } = getModels();
   if (options.dryRun) return { dryRun: true, writtenOrders: 0, writtenCustomers: 0 };
@@ -259,11 +295,25 @@ async function persistReadModel(result, scope = {}, options = {}) {
   }
 
   if (customerCode) {
-    await ArDebtOrder.deleteMany({ customerCode }, { session });
-    await ArDebtCustomer.deleteMany({ customerCode }, { session });
-    if (result.debtOrders.length) await ArDebtOrder.insertMany(result.debtOrders, { ordered: false, session });
-    if (result.debtCustomers.length) await ArDebtCustomer.insertMany(result.debtCustomers, { ordered: false, session });
-    return { dryRun: false, writtenOrders: result.debtOrders.length, writtenCustomers: result.debtCustomers.length };
+    const debtOrderRows = Array.isArray(result.debtOrders) ? result.debtOrders : [];
+    const debtCustomerRows = Array.isArray(result.debtCustomers) ? result.debtCustomers : [];
+    const orderIds = debtOrderRows.map((row) => clean(row.id)).filter(Boolean);
+
+    if (debtOrderRows.length) {
+      await replaceReadModelRows(ArDebtOrder, debtOrderRows, debtOrderFilter, { session });
+      await ArDebtOrder.deleteMany(orderIds.length ? { customerCode, id: { $nin: orderIds } } : { customerCode }, { session });
+    } else {
+      await ArDebtOrder.deleteMany({ customerCode }, { session });
+    }
+
+    const customerRow = debtCustomerRows.find((row) => lower(row.customerCode) === lower(customerCode)) || debtCustomerRows[0];
+    if (customerRow) {
+      await ArDebtCustomer.replaceOne(debtCustomerFilter(customerRow, customerCode), customerRow, { upsert: true, session });
+    } else {
+      await ArDebtCustomer.deleteOne({ customerCode }, { session });
+    }
+
+    return { dryRun: false, writtenOrders: debtOrderRows.length, writtenCustomers: customerRow ? 1 : 0, mode: 'incremental_customer_replace' };
   }
 
   if (options.allowFullRebuild === true) {

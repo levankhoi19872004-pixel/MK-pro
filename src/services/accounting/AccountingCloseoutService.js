@@ -327,6 +327,7 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     status: 'confirmed',
     orderId: DeliveryCloseoutService.orderId(order),
     affectedCustomerCode: clean(order.customerCode),
+    readModelAffected: arResult && arResult.posted === true,
     closeout: confirmedCloseout,
     arDebtOpen: arResult,
     patchResult,
@@ -383,7 +384,7 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
   });
 
   const affectedCustomerCodes = unique(results
-    .filter((row) => row && row.confirmed)
+    .filter((row) => row && row.confirmed && row.readModelAffected === true)
     .map((row) => row.affectedCustomerCode));
   const readModelRebuilds = [];
   for (const customerCode of affectedCustomerCodes) {

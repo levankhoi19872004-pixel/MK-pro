@@ -37,3 +37,19 @@ test('delivery closeout rebuilds AR debt read model outside transaction by custo
   assert.doesNotMatch(between, /rebuildDebtForSource\s*\(/);
   assert.match(source, /affectedCustomerCodes/);
 });
+
+
+
+test('AR debt customer rebuild uses replaceOne/upsert instead of scoped deleteMany on every closeout', () => {
+  const source = read(readModelPath);
+  const match = source.match(/async\s+function\s+persistReadModel[\s\S]*?\n}\n\nasync function rebuildDebtForSource/);
+  assert.ok(match, 'persistReadModel must exist');
+  const body = match[0];
+  const customerBranch = body.slice(body.indexOf('if (customerCode)'), body.indexOf('if (options.allowFullRebuild'));
+  assert.match(customerBranch, /ArDebtCustomer\.replaceOne\s*\(/);
+  assert.match(customerBranch, /upsert\s*:\s*true/);
+  assert.match(customerBranch, /ArDebtCustomer\.deleteOne\s*\(\s*{\s*customerCode\s*}/);
+  assert.doesNotMatch(customerBranch, /ArDebtCustomer\.deleteMany\s*\(\s*{\s*customerCode\s*}/);
+  assert.match(body, /incremental_customer_replace/);
+});
+
