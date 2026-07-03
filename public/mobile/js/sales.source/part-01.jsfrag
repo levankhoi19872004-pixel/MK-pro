@@ -28,7 +28,7 @@ requireRole(['sales']);
 bindLogout(document.getElementById('logoutBtn'));
 
 const user = getUser();
-document.getElementById('staffInfo').textContent = `${user.name || user.username || 'Nhân viên'} · ${user.role || 'sales'}`;
+document.getElementById('staffInfo').textContent = `${user.name || user.username || 'Nhân viên'}`;
 
 
 

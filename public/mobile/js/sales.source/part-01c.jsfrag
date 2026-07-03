@@ -33,7 +33,8 @@ const announceMobileStatus = createStatusAnnouncer(mobileGlobalStatus);
 function updateNetworkStatus() {
   if (!networkStatus) return;
   const online = navigator.onLine !== false;
-  networkStatus.textContent = online ? 'Đang online' : 'Đang offline';
+  networkStatus.textContent = online ? '' : 'Mất mạng';
+  networkStatus.hidden = online;
   networkStatus.classList.toggle('offline', !online);
   networkStatus.classList.toggle('online', online);
 }

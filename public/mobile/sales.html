@@ -4,16 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>V51 Mobile - Bán hàng</title>
-  <link rel="stylesheet" href="./mobile.css?v=phase158-customer-compact-v1" />
+  <link rel="stylesheet" href="./mobile.css?v=phase160-header-customer-ultra-compact-v1" />
   <link rel="stylesheet" href="/css/97-clearable-search-inputs.css?v=global-search-clear-v1" />
 </head>
 <body>
   <main class="mobile-page sales-app-page">
-    <header class="mobile-header">
+    <header class="mobile-header mobile-sales-compact-header">
       <div class="mobile-header-identity">
-        <h1>App bán hàng</h1>
-        <p id="staffInfo">Đang tải...</p>
-        <span id="networkStatus" class="network-status" role="status" aria-live="polite">Đang kiểm tra mạng</span>
+        <p id="staffInfo" class="mobile-sales-staff-name">Đang tải...</p>
+        <span id="networkStatus" class="network-status" role="status" aria-live="polite" hidden>Đang kiểm tra mạng</span>
       </div>
       <button id="logoutBtn" type="button" class="ghost-btn mobile-header-action">Thoát</button>
     </header>
@@ -49,10 +48,10 @@
     </section>
 
     <section id="orderTab" class="tab-panel">
-      <section class="card">
-        <div class="section-title-row">
-          <h2 id="orderFormTitle">Đặt hàng</h2>
-          <button id="clearOrderBtn" class="ghost-btn small-btn">Làm mới</button>
+      <section class="card mobile-order-customer-card">
+        <div class="mobile-order-customer-actions">
+          <h2 id="orderFormTitle" class="mobile-sr-only">Đặt hàng</h2>
+          <button id="clearOrderBtn" class="ghost-btn small-btn mobile-order-reset-btn" type="button" aria-label="Làm mới đơn">Mới</button>
         </div>
         <div id="selectedCustomer" class="selected-box muted mobile-selected-customer-compact">Chưa chọn khách hàng. Hãy sang tab Khách hàng để chọn.</div>
       </section>

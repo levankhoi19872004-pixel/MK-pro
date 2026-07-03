@@ -330,3 +330,158 @@
   #orderTab .mobile-product-search-first-card{gap:7px;padding-top:9px}
 }
 /* MOBILE_SALES_SEARCH_FIRST_V1_END */
+
+
+/* PHASE160_MOBILE_SALES_ULTRA_COMPACT_HEADER_START */
+/* Header 1 dòng: chỉ tên nhân viên + Thoát, ẩn trạng thái online bình thường. */
+.sales-app-page .mobile-header.mobile-sales-compact-header{
+  min-height:44px;
+  height:auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:calc(env(safe-area-inset-top,0px) + 6px) 0 6px;
+  margin:0;
+}
+.sales-app-page .mobile-sales-compact-header .mobile-header-identity{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex:1 1 auto;
+  min-width:0;
+  overflow:hidden;
+}
+.sales-app-page .mobile-sales-compact-header .mobile-sales-staff-name{
+  margin:0;
+  min-width:0;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#0f172a;
+  font-size:14px;
+  line-height:1.2;
+  font-weight:700;
+}
+.sales-app-page .mobile-sales-compact-header .network-status[hidden],
+.sales-app-page .mobile-sales-compact-header .network-status.online{
+  display:none!important;
+}
+.sales-app-page .mobile-sales-compact-header .network-status.offline{
+  display:inline-flex;
+  flex:0 0 auto;
+  align-items:center;
+  min-height:22px;
+  padding:2px 7px;
+  border-radius:999px;
+  background:#fff1f2;
+  color:#b42318;
+  font-size:11px;
+  line-height:1;
+  font-weight:800;
+  white-space:nowrap;
+}
+.sales-app-page .mobile-sales-compact-header .mobile-header-action{
+  flex:0 0 auto;
+  min-width:54px;
+  max-width:64px;
+  min-height:32px;
+  padding:6px 10px;
+  border-radius:10px;
+  font-size:13px;
+  line-height:1;
+  font-weight:700;
+}
+
+/* Khối khách đang đặt hàng: 2 dòng, bỏ title/card trang trí, giảm chiều cao. */
+#orderTab .mobile-order-customer-card{
+  position:relative;
+  display:block;
+  padding:7px 42px 7px 10px;
+  margin-bottom:8px;
+  border-radius:12px;
+  border:1px solid #e2e8f0;
+  background:#ffffff;
+  box-shadow:none;
+  overflow:hidden;
+}
+#orderTab .mobile-order-customer-actions{
+  position:absolute;
+  top:6px;
+  right:6px;
+  margin:0;
+  padding:0;
+  display:block;
+}
+.mobile-sr-only{
+  position:absolute!important;
+  width:1px!important;
+  height:1px!important;
+  padding:0!important;
+  margin:-1px!important;
+  overflow:hidden!important;
+  clip:rect(0,0,0,0)!important;
+  white-space:nowrap!important;
+  border:0!important;
+}
+#orderTab .mobile-order-reset-btn{
+  min-width:30px;
+  min-height:24px;
+  padding:3px 6px;
+  border-radius:8px;
+  font-size:11px;
+  line-height:1;
+  font-weight:800;
+}
+#orderTab #selectedCustomer.mobile-selected-customer-compact{
+  display:block;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  min-height:0;
+  margin:0;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:#475569;
+  font-size:12px;
+  line-height:1.25;
+  font-weight:700;
+  overflow:hidden;
+}
+#orderTab #selectedCustomer.mobile-selected-customer-compact strong{
+  display:block;
+  min-width:0;
+  max-width:100%;
+  margin:0 0 2px;
+  color:#0f172a;
+  font-size:13px;
+  line-height:1.25;
+  font-weight:800;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+#orderTab #selectedCustomer.mobile-selected-customer-compact span{
+  display:block;
+  min-width:0;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+#orderTab #selectedCustomer.mobile-selected-customer-compact.muted{
+  color:#64748b;
+  font-size:12px;
+  font-weight:700;
+}
+#orderTab .mobile-product-search-first-card{
+  padding-top:8px;
+}
+@media (max-width:340px){
+  .sales-app-page .mobile-sales-compact-header .mobile-sales-staff-name{font-size:13px;}
+  .sales-app-page .mobile-sales-compact-header .mobile-header-action{min-width:50px;padding-left:8px;padding-right:8px;}
+  #orderTab .mobile-order-customer-card{padding-right:38px;}
+}
+/* PHASE160_MOBILE_SALES_ULTRA_COMPACT_HEADER_END */
