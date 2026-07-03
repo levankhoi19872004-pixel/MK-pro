@@ -192,7 +192,7 @@
         "public/mobile/mobile.source/mobile-03.css",
         "public/mobile/mobile.source/mobile-04.css"
       ],
-      "sourceSha256": "929faa846fcfc387cb9530283965198d21c46073a5dde4071e563c0ea8002912"
+      "sourceSha256": "e4d303220d73851817ecddd2b24855b3637039da05b1be92c648e43631376342"
     },
     {
       "target": "public/print.css",
