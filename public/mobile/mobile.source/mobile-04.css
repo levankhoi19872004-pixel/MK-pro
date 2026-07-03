@@ -239,3 +239,50 @@
 .mobile-order-tracking-metrics-compact strong{font-size:12px;}
 @media (min-width:390px){.mobile-order-tracking-metrics-compact{grid-template-columns:repeat(3,minmax(0,1fr));}}
 /* PHASE153_MOBILE_SALES_ORDER_COMPACT_CLOSEOUT_END */
+
+/* PHASE157_MOBILE_SALES_VIEWPORT_LAYOUT_FIX_START */
+/* Scoped mobile-sales layout contract: keep sales app, cards and bottom nav on one viewport width. */
+.sales-app-page,
+.sales-app-page *{box-sizing:border-box;}
+.sales-app-page{width:100%;max-width:520px;min-width:0;margin:0 auto;padding:12px;padding-bottom:calc(96px + env(safe-area-inset-bottom,0px));overflow-x:clip;-webkit-text-size-adjust:100%;}
+.sales-app-page .mobile-header,
+.sales-app-page .tab-panel,
+.sales-app-page .card,
+.sales-app-page .customer-list,
+.sales-app-page .customer-card{width:100%;max-width:100%;min-width:0;}
+.sales-app-page .mobile-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:calc(env(safe-area-inset-top,0px) + 8px) 0 10px;}
+.sales-app-page .mobile-header-identity{flex:1 1 auto;min-width:0;overflow:hidden;}
+.sales-app-page .mobile-header-identity h1,
+.sales-app-page .mobile-header-identity p{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sales-app-page .mobile-header-action{flex:0 0 auto;min-width:68px;max-width:92px;}
+.sales-app-page .card{overflow:hidden;margin-left:0;margin-right:0;}
+.sales-app-page .section-title-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;min-width:0;}
+.sales-app-page .section-title-row h2{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sales-app-page .section-title-row .small-btn{min-width:0;white-space:nowrap;}
+.sales-app-page input,
+.sales-app-page select,
+.sales-app-page textarea{max-width:100%;min-width:0;}
+.sales-app-page .help-text{max-width:100%;overflow-wrap:anywhere;}
+.sales-app-page .customer-list{display:flex;flex-direction:column;gap:10px;margin-top:10px;overflow:hidden;}
+.sales-app-page .customer-card{display:block;margin:0;padding:12px;text-align:left;overflow:hidden;}
+.sales-app-page .customer-card strong,
+.sales-app-page .customer-contact{min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:break-word;}
+.sales-app-page .customer-card strong{line-height:1.25;}
+.sales-app-page .customer-contact{white-space:normal;}
+.sales-app-page .customer-metrics{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;width:100%;max-width:100%;min-width:0;margin-top:10px;}
+.sales-app-page .customer-metrics em{display:block;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:11px;padding:8px 10px;font-style:normal;font-weight:900;}
+.sales-app-page .customer-metrics .metric-debt{background:#fff1f2;color:#b42318;}
+.sales-app-page .customer-metrics em:not(.metric-debt){background:#eff6ff;color:#155eef;}
+.sales-app-page .mobile-tabs.mobile-bottom-nav{position:fixed;top:auto;bottom:0;left:50%;right:auto;transform:translateX(-50%);width:100%;max-width:520px;min-width:0;grid-template-columns:repeat(4,minmax(0,1fr));padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));overflow:hidden;}
+.sales-app-page .mobile-tabs.mobile-bottom-nav .tab-btn{min-width:0;max-width:100%;overflow:hidden;}
+.sales-app-page .mobile-tabs.mobile-bottom-nav .tab-btn>span:last-child{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+@media (max-width:520px){
+  .sales-app-page{max-width:none;width:100%;padding-left:12px;padding-right:12px;}
+  .sales-app-page .mobile-tabs.mobile-bottom-nav{left:0;right:0;transform:none;width:100%;max-width:none;}
+}
+@media (max-width:340px){
+  .sales-app-page .customer-metrics{grid-template-columns:1fr;}
+  .sales-app-page .section-title-row{grid-template-columns:1fr;}
+  .sales-app-page .section-title-row .small-btn{width:100%;}
+}
+/* PHASE157_MOBILE_SALES_VIEWPORT_LAYOUT_FIX_END */
