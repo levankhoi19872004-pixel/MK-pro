@@ -68,9 +68,9 @@
     return parseVietnameseMoney(inputValue);
   }
   function today() { return new Date().toISOString().slice(0, 10); }
-  function isConfirmed(row) { return row && (row.accountingConfirmed || row.deliveryCloseoutStatus === 'closed' || row.closeoutStatus === 'accounting_confirmed' || row.closeoutStatus === 'corrected_confirmed'); }
+  function isConfirmed(row) { return row && (row.accountingConfirmed || row.accountingStatus === 'confirmed' || row.deliveryCloseoutStatus === 'closed' || row.closeoutStatus === 'accounting_confirmed' || row.closeoutStatus === 'corrected_confirmed'); }
   function statusLabel(row) {
-    if (row && (row.deliveryCloseoutStatus === 'closed' || row.closeoutStatus === 'accounting_confirmed' || row.accountingConfirmed)) return 'Đã chốt sổ';
+    if (row && (row.deliveryCloseoutStatus === 'closed' || row.closeoutStatus === 'accounting_confirmed' || row.accountingConfirmed || row.accountingStatus === 'confirmed')) return 'Đã chốt sổ';
     var status = String((row && (row.closeoutStatus || row.status)) || 'pending').toLowerCase();
     if (status === 'pending' || status === 'draft') return 'Chưa chốt';
     if (status === 'delivered') return 'Đã giao';
@@ -1132,7 +1132,17 @@
       var json = await res.json();
       if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không chốt được sổ giao hàng');
       var posted = json.totalDebtPosted != null ? json.totalDebtPosted : (json.data && json.data.totalDebtPosted);
-      setModalNotice('closeout', 'Đã chốt sổ giao hàng. Đã chuyển ' + money(posted || 0) + ' sang công nợ.', 'success');
+      var data = json.data || {};
+      var closed = json.closedOrders != null ? json.closedOrders : (data.confirmedOrders || 0);
+      var skipped = json.skippedOrders != null ? json.skippedOrders : (data.skippedOrders || 0);
+      var status = String(json.status || data.status || '').toLowerCase();
+      var successMessage = 'Đã chốt sổ giao hàng. Đã chuyển ' + money(posted || 0) + ' sang công nợ.';
+      if ((!closed && skipped) || status === 'idempotent') {
+        successMessage = 'Đơn đã được chốt trước đó. Hệ thống đã bỏ qua và không ghi lại công nợ.';
+      } else if (closed && skipped) {
+        successMessage = 'Đã chốt ' + closed + ' đơn, bỏ qua ' + skipped + ' đơn đã chốt trước đó. Đã chuyển ' + money(posted || 0) + ' sang công nợ.';
+      }
+      setModalNotice('closeout', successMessage, 'success');
       await load({ silent: true });
     } catch (err) {
       setModalError('closeout', err.message || 'Không chốt được sổ giao hàng');

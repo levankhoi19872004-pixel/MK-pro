@@ -111,14 +111,20 @@ router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, 
       return sum + (Number.isFinite(amount) && amount > 0 ? Math.round(amount) : 0);
     }, 0);
     const closeoutId = `DTC-${String(body.date || body.deliveryDate || '').replace(/[^0-9]/g, '') || 'DATE'}-${String(body.deliveryStaffCode || body.delivery || 'ALL').replace(/[^a-zA-Z0-9_-]/g, '')}-${Date.now()}`;
+    const closedOrders = result.confirmedOrders || 0;
+    const skippedOrders = result.skippedOrders || 0;
+    const responseMessage = result.status === 'idempotent'
+      ? 'Các đơn đã được chốt trước đó'
+      : (skippedOrders > 0 ? `Đã chốt ${closedOrders} đơn, bỏ qua ${skippedOrders} đơn đã chốt` : 'Đã chốt sổ giao hàng');
     return res.json({
       ok: true,
       success: true,
-      message: 'Đã chốt sổ giao hàng',
+      status: result.status || 'confirmed',
+      message: responseMessage,
       closeoutId,
       checkedOrders: result.totalOrders || rows.length,
-      closedOrders: result.confirmedOrders || 0,
-      skippedOrders: result.skippedOrders || 0,
+      closedOrders,
+      skippedOrders,
       debtLedgerCreated,
       idempotentLedgers,
       skippedZeroDebt,

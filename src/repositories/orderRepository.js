@@ -45,10 +45,10 @@ async function count(filter = {}, options = {}) {
   return collectionRepository.count(ORDER_KEY, filter, options);
 }
 
-async function findByIdOrCode(idOrCode) {
+async function findByIdOrCode(idOrCode, options = {}) {
   const filter = identityFilter(idOrCode);
   if (!filter) return null;
-  const rows = await collectionRepository.findAll(ORDER_KEY, filter, { limit: 1 });
+  const rows = await collectionRepository.findAll(ORDER_KEY, filter, { ...options, limit: 1 });
   return rows[0] || null;
 }
 
@@ -131,7 +131,8 @@ async function patchAccountingCloseoutById(orderId, patch = {}, options = {}) {
   if (!value) throw new Error('Thiếu salesOrder id để chốt sổ');
   if (!isGeneratedSalesOrderId(value)) throw new Error('Chốt sổ giao hàng yêu cầu salesOrder id nội bộ ổn định');
   const Model = collectionRepository.getModel(ORDER_KEY);
-  return Model.updateOne(
+  const startedAt = Date.now();
+  const result = await Model.updateOne(
     {
       id: value,
       accountingConfirmed: { $ne: true }
@@ -142,6 +143,13 @@ async function patchAccountingCloseoutById(orderId, patch = {}, options = {}) {
     },
     { session: options.session }
   );
+  return {
+    acknowledged: result.acknowledged,
+    matchedCount: result.matchedCount || 0,
+    modifiedCount: result.modifiedCount || 0,
+    upsertedCount: result.upsertedCount || 0,
+    durationMs: Date.now() - startedAt
+  };
 }
 
 async function remove(idOrCode, options = {}) {
