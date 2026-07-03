@@ -32,18 +32,12 @@ test('return order clear resets today while reload preserves current values', ()
   }
 });
 
-test('master return separates page, filter and batch actions', () => {
+test('master return operational screen is not mounted in index fragments', () => {
   const html = read('public/fragments/index/03-index-body.html');
-  const start = html.indexOf('<section id="masterReturnOrdersTab"');
-  const end = html.indexOf('<div id="masterReturnOrderTable"', start);
-  const toolbar = html.slice(start, end);
-  assert.match(toolbar, /class="ui-list-toolbar"/);
-  assert.match(toolbar, /class="ui-page-actions"/);
-  assert.match(toolbar, /class="ui-search-filter-bar master-return-filter-bar"/);
-  assert.match(toolbar, /class="master-return-batch-actions"/);
-  assert.ok(toolbar.indexOf('applyMasterReturnFiltersButton') < toolbar.indexOf('clearMasterReturnFiltersButton'));
-  assert.ok(toolbar.indexOf('clearMasterReturnFiltersButton') < toolbar.indexOf('reloadMasterReturnOrdersButton'));
-  assert.ok(toolbar.indexOf('reloadMasterReturnOrdersButton') < toolbar.indexOf('receiveSelectedMasterReturnOrdersButton'));
+  const nav = read('public/fragments/index/01-index-body.html');
+  assert.doesNotMatch(html, /<section id="masterReturnOrdersTab"/);
+  assert.doesNotMatch(html, /Đơn tổng trả hàng/);
+  assert.doesNotMatch(nav, /data-tab="masterReturnOrdersTab"/);
 });
 
 test('master return dates no longer auto-load and toolbar actions are guarded', () => {
@@ -55,20 +49,14 @@ test('master return dates no longer auto-load and toolbar actions are guarded', 
   assert.match(source, /masterReturnOrderDateTo\.value=today\(\)/);
 });
 
-test('master return popup keeps its primary action last', () => {
+test('master return popup is no longer mounted in the operational UI', () => {
   const html = read('public/fragments/index/03-index-body.html');
-  const start = html.indexOf('<form id="masterReturnOrderForm"');
-  const end = html.indexOf('</form>', start);
-  const form = html.slice(start, end);
-  const submitIndex = form.indexOf('id="submitMasterReturnOrderButton"');
-  assert.ok(form.indexOf('name="note"') < submitIndex);
-  assert.ok(form.indexOf('name="returnDate"') < submitIndex);
-  assert.ok(form.indexOf('name="deliveryStaffCode"') < submitIndex);
-  assert.ok(form.indexOf('name="deliveryStaffName"') < submitIndex);
-  assert.equal(form.lastIndexOf('<button'), form.lastIndexOf('<button id="submitMasterReturnOrderButton"'));
+  assert.doesNotMatch(html, /id="masterReturnOrderModal"/);
+  assert.doesNotMatch(html, /id="masterReturnOrderForm"/);
+  assert.doesNotMatch(html, /id="submitMasterReturnOrderButton"/);
 });
 
-test('return responsive rules remain scoped to the two return screens', () => {
+test('return responsive rules keep return orders scoped and legacy master-return CSS inert', () => {
   const css = read('public/css/96-ui-toolbar-system.css');
   assert.match(css, /#returnOrdersTab \.return-order-filter-grid/);
   assert.match(css, /#masterReturnOrdersTab \.master-return-filter-bar/);

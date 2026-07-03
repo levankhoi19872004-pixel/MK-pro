@@ -44,7 +44,7 @@ test('mobile warehouse return check updates returnOrders to ready or blocked bef
   assert.match(warehouseService, /warehouse_return_check_discrepancy/);
 });
 
-test('web returnOrders UI exposes Nhập kho only through canStockIn and hides master return order module', () => {
+test('web returnOrders UI exposes Nhập kho only through canStockIn and removes master return order module from UI', () => {
   const returnUi = read('public/js/app/debt/07b-return-orders.js');
   const nav = read('public/fragments/index/01-index-body.html');
   const masterSection = read('public/fragments/index/03-index-body.html');
@@ -56,8 +56,10 @@ test('web returnOrders UI exposes Nhập kho only through canStockIn and hides m
   assert.match(returnUi, /Xác nhận nhập kho phiếu trả/);
   assert.match(returnUi, /Hệ thống sẽ cộng hàng trả vào tồn kho MAIN/);
 
-  assert.match(nav, /data-tab="masterReturnOrdersTab" hidden aria-hidden="true" data-deprecated-module="master-return-orders"/);
-  assert.match(masterSection, /id="masterReturnOrdersTab" class="tab-content" hidden aria-hidden="true" data-deprecated-module="master-return-orders"/);
-  assert.match(tabLoader, /Đơn tổng trả hàng đã deprecated/);
+  assert.doesNotMatch(nav, /data-tab="masterReturnOrdersTab"/);
+  assert.doesNotMatch(nav, /Đơn tổng trả hàng/);
+  assert.doesNotMatch(masterSection, /id="masterReturnOrdersTab"/);
+  assert.doesNotMatch(masterSection, /Đơn tổng trả hàng/);
+  assert.match(tabLoader, /case 'masterReturnOrdersTab'/);
   assert.match(tabLoader, /data-tab="returnOrdersTab"/);
 });

@@ -1,1 +1,2626 @@
-/css/base/00-base-01.css?v=phase79-source-split-v1/css/base/00-base-06.css?v=phase79-source-split-v1/css/overrides/10-operational-01.css?v=return-order-nvgh-v1/css/overrides/10-operational-04.css?v=phase79-source-split-v1/css/70-master-return-orders.css 90-excel-interaction.css phase70-dashboard-sales-staff-kpi-v1 auth-fetch-boundary-v1/js/app/state/00a-catalog-orders-state.js/js/bootstrap/03-tab-loader.js 00b-debt-return-fund-state.js?v=phase61-delivery-fund-split-tabs-v1 07f-fund-ledger.js?v=phase79b-source-shards-v1 07f-fund-ledger.part02.js?v=phase79b-source-shards-v1 07f-fund-ledger.part03.js?v=phase79b-source-shards-v1 <bdata-tab="dashboardTab">Tổng quan <bdata-tab="debtCollectionsTab"><bid="dashboardTab" class="tab-content active"><bid="productsTab" class="tab-content"><bid="dashboardTargetUploadButton"><bid="dashboardTargetTemplateButton"><table><thead><tr>Chỉ tiêu tổng Tổng bán raTổng trả về Thực đạt Công nợ Doanh số hôm nay</tr></thead><tbody id="dashboardSalesTable"><td colspan="8"><tbody id="userTable"><tr><td colspan="7">Đang tảiname="businessName"name="taxCode"name="taxInvoiceAddress"name="vatInvoiceRequired"value="true"name="vatInvoiceRequired"value="false"exportVatNonInvoiceOrdersButtonsales-order-head-meta sales-compact-optionsclass="sales-vat-note" hidden >Thêm sản phẩm< Đối chiếu tồn DMS Hạn mức mở Tồn thực tế hiện tại10-dms-inventory.js?v=phase86-production-hardening-v1ContextExport.jsSpreadsheetGrid.jsExcelFeatureBindings.jsid="openExcelPasteImportButton"id="openSalesItemPasteButton"id="openImportItemPasteButton"id="exportSelectedMasterOrdersButton"id="exportSelectedImportOrdersButton"id="debtCollectionTable"id="openExternalDebtModalButton"id="reloadDebtsButton"id="externalDebtModal"id="externalDebtCustomerSearch"id="externalDebtSalesStaffSearch"id="externalDebtDeliveryStaffSearch"id="externalDebtReason" <xdata-fund-panel="deliverySubmission"id="createDeliveryCashSubmissionButton"><xdata-fund-panel="expenseVoucher"id="createExpenseVoucherButton"><xdata-fund-panel="bankTransfer"id="createFundTransferButton"><xid="deliveryCashSubmissionModal"id="deliveryCashSubmissionForm"><xid="expenseVoucherModal"id="expenseVoucherForm"><xid="fundTransferModal"id="fundTransferForm"><xid="deliveryCashSubmissionDate"name="deliveryDate"><xid="deliveryCashSubmissionStaffCode"name="deliveryStaffCode">id="deliveryCashSubmissionPreview"id="deliveryCashSubmissionPreviewTable"id="deliveryCashSubmissionReportCash"id="deliveryCashSubmissionReportBank"id="deliveryCashSubmissionCashInput"id="deliveryCashSubmissionBankInput"Tiền mặt cần thuTài khoản cần thuThực nộp tiền mặtThực nhận tài khoản <xdata-delivery-subtab="cash">Tiền mặt< <xdata-delivery-subtab="bank">Chuyển khoản<data-delivery-subpanel="cash"data-delivery-subpanel="bank"id="deliveryCashSubmissionTable"id="deliveryBankSubmissionTable"Báo cáo TMThực nộp TMBáo cáo TKThực nhận TKid="deliveryShortageResolutionModal"id="deliveryShortageRepaymentModal" NVGH đã thu nhưng chưa nộp đủ Chờ đối soát ngân hàngvalue="admin"value="manager"value="accountant"value="warehouse"value="sales"value="delivery"name="pickingZone" PHIẾU BỐC HÀNG ĐƠN TỔNG - HC PHIẾU BỐC HÀNG ĐƠN TỔNG - PC không ảnh hưởng tồn kho MAINid="masterReturnOrderModal" class="modal-backdrop"class="master-return-three-layer" 1. Thông tin đơn tổng trả 2. Phiếu trả chưa gộp 3. Phiếu trả được chọnid="moveToGroupedReturnOrdersButton"id="removeFromGroupedReturnOrdersButton"id="unmergedReturnDateFrom"id="unmergedReturnDateTo" <xid="masterReturnDeliveryStaffName" readonly>id="importDataMode"Cập nhật an toàn dữ liệu hiện cóid="downloadImportTemplateButton"id="commitImportButton"id="importPreviewTable"05-sales-orders.js?v=phase86-production-hardening-v105-sales-orders.part02.js?v=phase86-production-hardening-v105-sales-orders.part03.js?v=phase86-production-hardening-v105-sales-orders.part04.js?v=phase86-production-hardening-v1
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unilever - Minh Khai Thái Bình</title>
+  <link rel="stylesheet" href="/css/base/00-base-01.css?v=phase79-source-split-v1" />
+  <link rel="stylesheet" href="/css/base/00-base-02.css?v=phase79-source-split-v1" />
+  <link rel="stylesheet" href="/css/base/00-base-03.css?v=phase79-source-split-v1" />
+  <link rel="stylesheet" href="/css/base/00-base-04.css?v=phase79-source-split-v1" />
+  <link rel="stylesheet" href="/css/base/00-base-05.css?v=phase79-source-split-v1" />
+  <link rel="stylesheet" href="/css/base/00-base-06.css?v=phase79-source-split-v1" />
+  <link rel="stylesheet" href="/css/05-home-dashboard.css?v=home-dashboard-v3" />
+  <link rel="stylesheet" href="/css/overrides/10-operational-01.css?v=return-order-nvgh-v1" />
+  <link rel="stylesheet" href="/css/overrides/10-operational-02.css?v=phase79-source-split-v1" />
+  <link rel="stylesheet" href="/css/overrides/10-operational-03.css?v=phase79-source-split-v1" />
+  <link rel="stylesheet" href="/css/overrides/10-operational-04.css?v=phase79-source-split-v1" />
+  <link rel="stylesheet" href="/css/95-report-center-popup.css?v=phase148-invoice-customer-filter-v1" />
+  <link rel="stylesheet" href="/css/20-catalog-modals.css?v=ui-toolbar-customer-v1" />
+  <link rel="stylesheet" href="/css/30-master-orders.css?v=phase64-master-order-dates-v1" />
+  <link rel="stylesheet" href="/css/40-import-sales.css?v=phase35-css-split-v1" />
+  <link rel="stylesheet" href="/css/50-promotions.css?v=phase35-css-split-v1" />
+  <link rel="stylesheet" href="/css/60-finance-external-debt.css?v=phase35-css-split-v1" />
+  <link rel="stylesheet" href="/css/61-fund-summary.css?v=phase81-fund-summary-v1" />
+  <link rel="stylesheet" href="/css/70-master-return-orders.css?v=phase82-master-return-popup-v1" />
+  <link rel="stylesheet" href="/css/80-dms-inventory.css?v=ui-toolbar-inventory-v1" />
+  <link rel="stylesheet" href="/css/90-excel-interaction.css?v=phase73-excel-interaction-v1" />
+  <link rel="stylesheet" href="/css/96-ui-toolbar-system.css?v=ui-toolbar-customer-v1" />
+  <link rel="stylesheet" href="/css/97-clearable-search-inputs.css?v=global-search-clear-v1" />
+  <link rel="stylesheet" href="/css/99-table-alignment.css?v=phase77-global-column-alignment-v1" />
+  <link rel="stylesheet" href="/css/98-header-branding.css?v=phase35-header-branding-v1" />
+  <script src="/js/auth-guard.js?v=auth-fetch-boundary-v1"></script>
+  <script src="/js/ui/toolbar-actions.js?v=ui-toolbar-pilot-v1"></script>
+</head>
+<body>
+  <div class="app">
+    <header class="header app-header" aria-label="Tiêu đề hệ thống">
+      <div class="app-header__brand">
+        <h1 class="app-header__title">Unilever - Minh Khai Thái Bình</h1>
+        <p class="app-header__subtitle">Phần mềm quản lý tổng thể NPP <span aria-hidden="true">|</span> Lập trình: Lê Văn Khởi</p>
+      </div>
+      <div class="app-header__status" aria-label="Trạng thái hệ thống">
+        <span id="serverStatus" class="status status-pill status-pill--online">Đang kiểm tra server...</span>
+      </div>
+      <div class="app-header__debug" aria-label="Thông tin kỹ thuật" hidden></div>
+      <div class="app-header__actions" aria-label="Tài khoản và phiên đăng nhập"></div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab-button active" data-tab="dashboardTab">Tổng quan</button>
+      <button class="tab-button" data-tab="productsTab">Sản phẩm</button>
+      <button class="tab-button" data-tab="customersTab">Khách hàng</button>
+      <button class="tab-button" data-tab="importTab">Nhập kho</button>
+      <button class="tab-button" data-tab="salesTab">Bán hàng</button>
+      <button class="tab-button" data-tab="stockTab">Tồn kho</button>
+      <button class="tab-button" data-tab="masterOrdersTab">Đơn tổng</button>
+      <button class="tab-button" data-tab="returnOrdersTab">Đơn trả hàng</button>
+      <button class="tab-button tab-button-new" data-tab="deliveryTodayNewTab">Đơn giao hôm nay (New)</button>
+      <button class="tab-button tab-button-new" data-tab="debtNewTab">Công nợ (New)</button>
+      <button class="tab-button" data-tab="debtCollectionsTab">Thu nợ chờ xác nhận</button>
+      <button class="tab-button" data-tab="fundsTab">Quỹ tiền</button>
+      <button class="tab-button" data-tab="reportsTab">Báo cáo</button>
+      <button class="tab-button" data-tab="usersTab">Tài khoản</button>
+      <button class="tab-button" data-tab="promotionsTab">Khuyến mại</button>
+      <button class="tab-button" data-tab="importDataTab">Import dữ liệu</button>
+      <button class="tab-button" data-tab="adminCorrectionsTab">Chỉnh sửa số liệu</button>
+      <button class="tab-button" data-tab="systemTab">Hệ thống</button>
+    </nav>
+
+    <section id="dashboardTab" class="tab-content active">
+      <main class="dashboard-shell">
+        <section class="dashboard-hero">
+          <div>
+            <h2>Tổng quan kinh doanh</h2>
+            <p>Báo cáo bán hàng, công nợ và tiến độ giao hàng theo tháng.</p>
+          </div>
+          <div class="dashboard-toolbar">
+            <label>Tháng báo cáo
+              <input id="dashboardMonth" type="month" />
+            </label>
+            <button id="dashboardTargetButton" type="button" class="secondary" hidden>Cập nhật chỉ tiêu</button>
+            <button id="dashboardTargetTemplateButton" type="button" class="secondary" hidden>Tải mẫu chỉ tiêu</button>
+            <button id="dashboardTargetUploadButton" type="button" class="secondary" hidden>Upload chỉ tiêu</button>
+            <input id="dashboardTargetUploadInput" type="file" accept=".xlsx" hidden />
+            <button id="dashboardRefreshButton" type="button">Tải lại</button>
+          </div>
+        </section>
+
+        <p id="dashboardLoadState" class="dashboard-state">Đang chuẩn bị dữ liệu tổng quan...</p>
+
+        <div id="dashboardSourceNote" class="dashboard-source-note" aria-live="polite"></div>
+
+        <section class="dashboard-summary-grid" aria-label="Chỉ số tổng quan">
+          <article class="dashboard-summary-card is-primary"><span>Chỉ tiêu tháng</span><strong id="dashboardTargetTotal">0 ₫</strong><small id="dashboardAchievementText">Đạt 0%</small></article>
+          <article class="dashboard-summary-card"><span>Thực đạt tháng</span><strong id="dashboardSalesTotal">0 ₫</strong><small id="dashboardOrderCount">0 đơn đã xác nhận kế toán · giá trị thực tế trên đơn</small></article>
+          <article class="dashboard-summary-card is-warning"><span>Chờ xác nhận</span><strong id="dashboardPendingSalesTotal">0 ₫</strong><small id="dashboardPendingOrderCount">0 đơn chưa xác nhận kế toán</small></article>
+          <article class="dashboard-summary-card is-danger"><span>Hàng trả tháng</span><strong id="dashboardReturnTotal">0 ₫</strong><small>Phiếu trả đã xác nhận · giá trị thực tế</small></article>
+          <article class="dashboard-summary-card is-primary"><span>Doanh số ròng</span><strong id="dashboardNetSalesTotal">0 ₫</strong><small>Thực đạt đã xác nhận trừ hàng trả đã xác nhận</small></article>
+          <article class="dashboard-summary-card"><span>Giá trị khuyến mại</span><strong id="dashboardPromotionValueTotal">0 ₫</strong><small>Chiết khấu + hàng KM; không cộng vào thực đạt</small></article>
+          <article class="dashboard-summary-card is-warning"><span>Tổng công nợ</span><strong id="dashboardDebtTotal">0 ₫</strong><small>Nguồn chuẩn arLedgers</small></article>
+          <article class="dashboard-summary-card"><span>Phát sinh hôm nay</span><strong id="dashboardTodaySalesTotal">0 ₫</strong><small id="dashboardTodayOrderCount">0 đơn hôm nay, gồm cả chờ xác nhận</small></article>
+        </section>
+
+        <section class="card dashboard-report-card">
+          <div class="dashboard-card-head">
+            <div><h3>Chỉ tiêu nhân viên bán hàng theo tháng</h3><p>Tổng bán ra gồm đơn đã xác nhận và đơn chờ xác nhận; thực đạt chỉ tính doanh số đã xác nhận sau khi trừ hàng trả đã xác nhận.</p></div>
+          </div>
+          <div class="dashboard-table-wrap">
+            <table class="dashboard-table">
+              <thead><tr><th>Nhân viên</th><th>Mã NVBH</th><th>Chỉ tiêu tổng</th><th title="Doanh số đã xác nhận + doanh số chờ xác nhận">Tổng bán ra</th><th title="Giá trị phiếu trả đã xác nhận">Tổng trả về</th><th title="Doanh số đã xác nhận - hàng trả đã xác nhận">Thực đạt</th><th title="Số dư công nợ hiện tại từ arLedgers">Công nợ</th><th title="Doanh số phát sinh trong ngày, gồm cả đơn chờ xác nhận">Doanh số hôm nay</th></tr></thead>
+              <tbody id="dashboardSalesTable"><tr><td colspan="8" class="empty-cell">Đang tải...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="dashboard-delivery-grid">
+          <article class="card dashboard-report-card">
+            <div class="dashboard-card-head"><div><h3>Báo cáo giao hàng trong tháng</h3><p>Tổng hợp theo từng nhân viên giao hàng.</p></div></div>
+            <div class="dashboard-table-wrap">
+              <table class="dashboard-table">
+                <thead><tr><th>Nhân viên</th><th>Mã NVGH</th><th>Tổng đơn</th><th>Đã giao</th><th>Đang giao</th><th>Chưa giao</th><th>Giao lỗi</th><th>Giá trị giao</th><th>Hàng trả</th><th>Hoàn thành</th></tr></thead>
+                <tbody id="dashboardDeliveryMonthTable"><tr><td colspan="10" class="empty-cell">Đang tải...</td></tr></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="card dashboard-report-card">
+            <div class="dashboard-card-head"><div><h3>Báo cáo giao hàng hôm nay</h3><p>Tiến độ thực hiện trong ngày theo từng nhân viên giao hàng.</p></div></div>
+            <div class="dashboard-table-wrap">
+              <table class="dashboard-table">
+                <thead><tr><th>Nhân viên</th><th>Mã NVGH</th><th>NVBH thuộc nhánh</th><th>Tổng đơn</th><th>Đã giao</th><th>Đang giao</th><th>Chưa giao</th><th>Giao lỗi</th><th>Hàng trả</th><th>Tiến độ</th></tr></thead>
+                <tbody id="dashboardDeliveryTodayTable"><tr><td colspan="10" class="empty-cell">Đang tải...</td></tr></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </main>
+    </section>
+
+    <div id="dashboardTargetModal" class="dashboard-modal" hidden aria-hidden="true">
+      <section class="dashboard-modal-card" role="dialog" aria-modal="true" aria-labelledby="dashboardTargetTitle">
+        <div class="dashboard-modal-head">
+          <div><h3 id="dashboardTargetTitle">Cập nhật chỉ tiêu tháng</h3><p id="dashboardTargetPeriod" class="muted"></p></div>
+          <button id="dashboardTargetCloseButton" type="button" class="secondary small">Đóng</button>
+        </div>
+        <div class="dashboard-modal-body">
+          <table class="dashboard-target-table">
+            <thead><tr><th>Mã NVBH</th><th>Nhân viên bán hàng</th><th>Chỉ tiêu tháng</th></tr></thead>
+            <tbody id="dashboardTargetTable"><tr><td colspan="3">Đang tải...</td></tr></tbody>
+          </table>
+        </div>
+        <div class="dashboard-modal-foot">
+          <p id="dashboardTargetMessage" class="dashboard-target-message"></p>
+          <button id="dashboardTargetSaveButton" type="button">Lưu chỉ tiêu</button>
+        </div>
+      </section>
+    </div>
+
+    <section id="productsTab" class="tab-content">
+      <main class="grid product-workspace-grid">
+        <section class="card product-card">
+          <div class="ui-page-header product-page-header">
+            <div class="ui-page-title">
+              <h2>Danh sách sản phẩm</h2>
+              <p id="productCount" class="muted ui-page-meta">Đang tải...</p>
+            </div>
+            <div class="ui-page-actions">
+              <button type="button" id="openProductModalButton" class="primary-action">Tạo sản phẩm</button>
+            </div>
+          </div>
+          <div class="ui-list-toolbar product-module-toolbar">
+            <div class="ui-search-filter-bar product-toolbar-grid">
+              <label class="ui-toolbar-field ui-field-search">Tìm sản phẩm
+                <input id="searchInput" placeholder="Tìm mã, tên, barcode, nhóm hàng..." autocomplete="off" />
+              </label>
+              <div class="ui-toolbar-actions product-toolbar-actions">
+                <button type="button" id="applyProductFiltersButton" class="ui-action-primary">Tìm kiếm</button>
+                <button type="button" id="clearProductFiltersButton" class="ui-button-ghost">Xóa lọc</button>
+                <button type="button" id="reloadProductsButton" class="ui-button-ghost">Tải lại</button>
+              </div>
+            </div>
+          </div>
+          <div id="productBulkActions" class="bulk-actions product-bulk-actions" hidden>
+            <div class="bulk-info">
+              <strong id="productSelectedCount">0</strong>
+              <span>sản phẩm được chọn</span>
+            </div>
+            <div class="bulk-buttons">
+              <button type="button" id="bulkEditProductButton" class="small">Sửa</button>
+              <button type="button" id="bulkOpenProductButton" class="small success">Mở bán</button>
+              <button type="button" id="bulkStopProductButton" class="small danger">Ngừng bán</button>
+            </div>
+          </div>
+          <div class="table-wrap product-list-wrap">
+            <table class="product-table">
+              <thead class="sr-only-product-head">
+                <tr>
+                  <th class="col-select"><input type="checkbox" id="productCheckAll" aria-label="Chọn tất cả sản phẩm" /></th>
+                  <th class="col-product">Sản phẩm</th>
+                  <th class="col-status">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody id="productTable"><tr><td colspan="3" class="empty-cell">Đang tải dữ liệu...</td></tr></tbody>
+            </table>
+          </div>
+          <div id="productPagination" class="table-pagination">
+            <span id="productPageInfo">Hiển thị 0-0 / 0 sản phẩm</span>
+            <div class="pagination-controls">
+              <label>Số dòng
+                <select id="productPageSize">
+                  <option value="20">20</option>
+                  <option value="50" selected>50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <button type="button" id="productPrevPage" class="ghost">Trước</button>
+              <button type="button" id="productNextPage">Sau</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <div id="productModal" class="modal-backdrop" aria-hidden="true">
+      <section class="modal-card product-modal-card product-workspace" role="dialog" aria-modal="true" aria-labelledby="formTitle">
+        <div class="modal-head product-workspace-head">
+          <h3 id="formTitle">Thêm sản phẩm</h3>
+          <button type="button" id="closeProductModalButton" class="ghost">Đóng</button>
+        </div>
+        <div class="product-modal-body product-workspace-body">
+          <form id="productForm" class="form product-workspace-form">
+            <input type="hidden" name="id" />
+            <label>Mã sản phẩm *<input name="code" placeholder="VD: SP003" required /></label>
+            <label>Tên sản phẩm *<input name="name" placeholder="VD: OMO 800g" required /></label>
+            <div class="two-cols">
+              <label>Đơn vị bán chính<input name="unit" placeholder="Thùng, Lốc, Chai" /></label>
+              <label>Nhóm hàng<input name="category" placeholder="Bột giặt" /></label>
+            </div>
+            <div class="two-cols">
+              <label>Đơn vị gốc nhỏ nhất<input name="baseUnit" placeholder="Gói, Chai, Cái" /></label>
+              <label>Quy đổi / 1 ĐVT bán<input name="conversionRate" type="number" min="1" step="1" placeholder="VD: 12" /></label>
+            </div>
+            <label>Quy cách đóng gói<input name="packing" placeholder="VD: 1 thùng = 12 chai" /></label>
+            <label>Khu bốc hàng khi in đơn tổng
+              <select name="pickingZone" required>
+                <option value="HC">HC</option>
+                <option value="PC">PC</option>
+              </select>
+              <small class="muted">Chỉ dùng để tách phiếu bốc hàng HC/PC; không ảnh hưởng tồn kho MAIN.</small>
+            </label>
+            <label>Barcode / mã vạch<input name="barcode" placeholder="Có thể để trống" /></label>
+            <div class="two-cols">
+              <label>Giá nhập<input name="costPrice" type="number" min="0" placeholder="0" /></label>
+              <label>Giá bán<input name="salePrice" type="number" min="0" placeholder="0" /></label>
+            </div>
+            <div class="two-cols">
+              <label>Tồn tối thiểu<input name="minStock" type="number" min="0" placeholder="0" /></label>
+              <label>Tồn tối đa<input name="maxStock" type="number" min="0" placeholder="0" /></label>
+            </div>
+            <label class="check-row"><input name="isActive" type="checkbox" checked />Đang mở bán</label>
+            <div class="button-row">
+              <button type="submit">Lưu sản phẩm</button>
+              <button type="button" id="resetButton" class="secondary">Nhập mới</button>
+            </div>
+          </form>
+          <p id="formMessage" class="message"></p>
+        </div>
+      </section>
+    </div>
+
+    <section id="customersTab" class="tab-content">
+      <main class="grid customer-workspace-grid">
+        <section class="card customer-card">
+          <div class="ui-page-header customer-page-header">
+            <div class="ui-page-title">
+              <h2>Danh sách khách hàng</h2>
+              <p id="customerCount" class="muted ui-page-meta">Đang tải...</p>
+            </div>
+            <div class="ui-page-actions">
+              <button type="button" id="openCustomerModalButton" class="primary-action">Tạo khách hàng</button>
+            </div>
+          </div>
+          <div class="ui-list-toolbar customer-module-toolbar">
+            <div class="ui-search-filter-bar customer-toolbar-grid">
+              <label class="ui-toolbar-field ui-field-search">Tìm khách hàng
+                <input id="customerSearchInput" placeholder="Tìm mã, tên, SĐT, MST, địa chỉ..." autocomplete="off" />
+              </label>
+              <div class="ui-toolbar-actions customer-toolbar-actions">
+                <button type="button" id="applyCustomerFiltersButton" class="ui-action-primary">Tìm kiếm</button>
+                <button type="button" id="clearCustomerFiltersButton" class="ui-button-ghost">Xóa lọc</button>
+                <button type="button" id="reloadCustomersButton" class="ui-button-ghost">Tải lại</button>
+              </div>
+            </div>
+          </div>
+          <div id="customerBulkActions" class="bulk-actions customer-bulk-actions" hidden>
+            <div class="bulk-info customer-bulk-info">
+              <label class="customer-bulk-select-all"><input id="customerCheckAll" type="checkbox" /> Chọn tất cả</label>
+              <span><strong id="customerSelectedCount">0</strong> khách hàng được chọn</span>
+            </div>
+            <div class="bulk-buttons customer-bulk-buttons">
+              <button id="bulkDeleteCustomerButton" class="small danger" type="button">Xóa nhiều</button>
+            </div>
+          </div>
+          <div class="table-wrap customer-table-wrap">
+            <table class="customer-data-table">
+              <thead><tr><th></th><th>Mã</th><th>Tên khách</th><th>SĐT</th><th>Địa chỉ</th><th>Khu vực</th><th>NV phụ trách</th><th>Thao tác</th></tr></thead>
+              <tbody id="customerTable"><tr><td colspan="8">Đang tải...</td></tr></tbody>
+            </table>
+          </div>
+          <div id="customerPagination" class="table-pagination">
+            <span id="customerPageInfo">Hiển thị 0-0 / 0 khách hàng</span>
+            <div class="pagination-controls">
+              <label>Số dòng
+                <select id="customerPageSize">
+                  <option value="20">20</option>
+                  <option value="50" selected>50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <button id="customerPrevPage" type="button" class="small">Trước</button>
+              <button id="customerNextPage" type="button" class="small">Sau</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <div id="customerModal" class="modal-backdrop" aria-hidden="true">
+      <section class="modal-card customer-modal-card customer-workspace" role="dialog" aria-modal="true" aria-labelledby="customerFormTitle">
+        <div class="modal-head customer-workspace-head">
+          <h3 id="customerFormTitle">Thêm khách hàng</h3>
+          <button type="button" id="closeCustomerModalButton" class="ghost">Đóng</button>
+        </div>
+        <div class="customer-modal-body customer-workspace-body">
+          <form id="customerForm" class="form customer-workspace-form">
+            <label>Mã khách hàng *<input name="code" placeholder="VD: KH001" required /></label>
+            <label>Tên khách hàng *<input name="name" placeholder="VD: Cửa hàng Minh Anh" required /></label>
+            <label>Tên hộ kinh doanh<input name="businessName" maxlength="250" placeholder="Tên đăng ký trên giấy phép/hóa đơn VAT" /></label>
+            <div class="two-cols">
+              <label>Số điện thoại<input name="phone" placeholder="098..." /></label>
+              <label>Khu vực<input name="area" placeholder="VD: Hải Phòng" /></label>
+            </div>
+            <label>Địa chỉ<input name="address" placeholder="Địa chỉ giao hàng" /></label>
+            <div class="two-cols">
+              <label>Mã số thuế<input name="taxCode" maxlength="30" placeholder="VD: 1001234567 hoặc 1001234567-001" /></label>
+              <label>Địa chỉ hóa đơn thuế<input name="taxInvoiceAddress" maxlength="500" placeholder="Địa chỉ đăng ký với cơ quan thuế" /></label>
+            </div>
+            <label>Nhân viên phụ trách
+              <input id="customerStaffSearch" placeholder="Gõ mã/tên NVBH..." autocomplete="off" />
+              <input name="legacyStaffCode" id="customerStaffCode" type="hidden" />
+              <input name="legacyStaffName" id="customerStaffName" type="hidden" />
+              <div id="customerStaffSuggestions" class="suggestions" hidden></div>
+            </label>
+            <div class="button-row">
+              <button type="submit">Lưu khách hàng</button>
+              <button type="button" id="resetCustomerButton" class="secondary">Nhập mới</button>
+            </div>
+          </form>
+          <p id="customerMessage" class="message"></p>
+        </div>
+      </section>
+    </div>
+
+    <section id="importTab" class="tab-content">
+      <!-- IMPORT_ORDER_POPUP_PATCH_START: màn chính chỉ giữ lịch sử, form tạo/sửa phiếu nhập chuyển vào popup -->
+      <main class="grid import-grid import-order-history-grid">
+        <section class="card import-history-card">
+          <!-- IMPORT_HISTORY_LAYOUT_GROUPED_START: khoanh vùng UI lịch sử phiếu nhập, chỉ gom nút/lọc/thống kê, không đổi API -->
+          <div class="toolbar import-history-toolbar import-history-toolbar-v2">
+            <div class="import-history-title-block">
+              <h2>Lịch sử phiếu nhập</h2>
+              <p id="importOrderCount" class="muted">Đang tải...</p>
+            </div>
+            <div class="import-history-actions import-history-actions-v2">
+              <button id="openImportOrderModalButton" class="primary-action" type="button">+ Tạo phiếu nhập</button>
+              <button type="button" class="secondary" id="printSelectedImportOrdersButton">In phiếu</button>
+              <button type="button" class="secondary" id="exportSelectedImportOrdersButton">Xuất Excel</button>
+              <button id="reloadImportOrdersButton" class="secondary" type="button">Tải lại</button>
+            </div>
+          </div>
+          <div class="import-history-filter import-history-filter-v2">
+            <div class="import-date-filter-row import-date-filter-row-v2">
+              <label>Từ ngày
+                <input type="date" id="importDateFromFilter" />
+              </label>
+              <label>Đến ngày
+                <input type="date" id="importDateToFilter" />
+              </label>
+              <button type="button" class="primary small" id="applyImportDateFilterButton">Lọc</button>
+              <button type="button" class="secondary small" id="clearImportDateFilterButton">Xóa lọc</button>
+            </div>
+            <p id="importDateFilterInfo" class="muted">Đang tải khoảng thời gian...</p>
+          </div>
+          <div class="import-summary-cards" aria-label="Thống kê nhanh phiếu nhập">
+            <div class="import-summary-card">
+              <span>Tổng phiếu</span>
+              <strong id="importSummaryCount">0</strong>
+            </div>
+            <div class="import-summary-card">
+              <span>Tổng SL</span>
+              <strong id="importSummaryQty">0</strong>
+            </div>
+            <div class="import-summary-card">
+              <span>Tổng giá trị</span>
+              <strong id="importSummaryAmount">0</strong>
+            </div>
+          </div>
+          <div id="importOrderList" class="order-list import-order-one-line-list">Đang tải lịch sử...</div>
+          <!-- IMPORT_HISTORY_LAYOUT_GROUPED_END -->
+        </section>
+      </main>
+    </section>
+
+
+    <div id="importOrderModal" class="modal-backdrop" aria-hidden="true">
+      <section class="modal-card import-order-workspace" role="dialog" aria-modal="true" aria-labelledby="importOrderModalTitle">
+        <div class="import-order-workspace-head">
+          <div>
+            <h3 id="importOrderModalTitle">Tạo phiếu nhập kho</h3>
+            <p class="muted">Nhập thông tin phiếu, thêm dòng hàng rồi lưu nháp.</p>
+          </div>
+          <button type="button" id="closeImportOrderModalButton" class="secondary small">Đóng</button>
+        </div>
+        <div class="import-order-workspace-body">
+          <!-- IMPORT_LAYOUT_VERTICAL_V2_START: bố cục dọc gọn, chỉ thay đổi trình bày popup nhập kho -->
+          <form id="importForm" class="form import-order-workspace-form import-vertical-layout">
+            <section class="import-vertical-section import-info-compact">
+              <div class="import-section-title">
+                <h4>1. Thông tin phiếu nhập</h4>
+              </div>
+              <div class="import-info-row">
+                <label>Ngày nhập<input name="date" type="date" /></label>
+                <label>Nhà cung cấp<input name="supplier" placeholder="VD: Unilever" /></label>
+                <label class="import-note-field">Ghi chú<input name="note" placeholder="VD: nhập hàng đầu ngày" /></label>
+              </div>
+            </section>
+
+            <section class="import-vertical-section import-line-compact">
+              <div class="import-section-title">
+                <h4>2. Thêm dòng hàng</h4>
+              </div>
+              <div class="import-line-row">
+                <label class="import-product-field">Sản phẩm
+                  <div class="autocomplete">
+                    <input id="importProductSearch" type="text" placeholder="Gõ mã/tên/barcode sản phẩm..." autocomplete="off" />
+                    <input id="importProductSelect" type="hidden" />
+                    <div id="importProductSuggestions" class="suggestions" hidden></div>
+                  </div>
+                </label>
+                <label>Số lượng<input id="importQuantity" type="number" min="1" value="1" /></label>
+                <label>Giá nhập<input id="importCostPrice" type="number" min="0" value="0" readonly /></label>
+                <button type="button" id="addImportItemButton" class="secondary import-add-line-button">Thêm vào phiếu</button>
+                <button type="button" id="openImportItemPasteButton" class="secondary import-add-line-button">Dán từ Excel</button>
+              </div>
+            </section>
+
+            <section class="import-vertical-section import-items-section">
+              <div class="import-section-title">
+                <h4>3. Danh sách hàng đã thêm</h4>
+              </div>
+              <div class="table-wrap compact import-items-scroll">
+                <table>
+                  <thead><tr><th>Mã</th><th>Tên</th><th>SL</th><th>Giá</th><th>Tiền</th><th></th></tr></thead>
+                  <tbody id="importItemsTable"><tr><td colspan="6">Chưa có dòng hàng</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+
+            <div class="import-sticky-footer">
+              <div class="summary-box import-footer-summary">
+                <span>Tổng SL: <strong id="importTotalQuantity">0</strong></span>
+                <span>Tổng tiền: <strong id="importTotalAmount">0</strong></span>
+              </div>
+              <div class="form-actions import-form-actions">
+                <button type="submit">Lưu phiếu nhập nháp</button>
+                <button type="button" id="skipImportDraftButton" class="secondary">Bỏ qua</button>
+              </div>
+            </div>
+          </form>
+          <p id="importMessage" class="message"></p>
+          <!-- IMPORT_LAYOUT_VERTICAL_V2_END -->
+        </div>
+      </section>
+    </div>
+    <!-- IMPORT_ORDER_POPUP_PATCH_END -->
+
+    <section id="salesTab" class="tab-content">
+      <main class="sales-page-main">
+        <section class="card sales-history-card">
+          <div class="ui-list-toolbar">
+            <header class="ui-page-header">
+              <div class="ui-page-title">
+                <h2>Lịch sử đơn bán</h2>
+                <p id="salesOrderCount" class="muted ui-page-meta">Đang tải...</p>
+              </div>
+              <div class="ui-page-actions" aria-label="Hành động cấp màn hình">
+                <button id="selectAllSalesOrdersButton" class="secondary compact-action" type="button">Chọn tất cả</button>
+                <button id="printSelectedSalesOrdersButton" class="secondary compact-action" type="button">In đơn</button>
+                <button id="exportSelectedSalesOrdersButton" class="secondary compact-action" type="button">Xuất Excel</button>
+                <button id="openCreateSalesOrderButton" class="primary compact-action" type="button">+ Tạo đơn mới</button>
+              </div>
+            </header>
+            <div class="ui-search-filter-bar" role="search" aria-label="Tìm và lọc đơn bán">
+              <label class="ui-toolbar-field ui-field-search">Tìm kiếm
+                <input id="salesOrderSearchInput" placeholder="Tìm mã đơn, khách hàng, ghi chú..." />
+              </label>
+              <label class="ui-toolbar-field ui-field-staff">Nhân viên bán hàng
+                <span class="autocomplete"><input id="salesOrderStaffFilter" placeholder="Tìm NV bán hàng..." autocomplete="off" /><div id="salesOrderStaffFilterSuggestions" class="suggestions" hidden></div></span>
+              </label>
+              <label class="ui-toolbar-field ui-field-date">Từ ngày
+                <input id="salesOrderDateFrom" type="date" title="Từ ngày bán" />
+              </label>
+              <label class="ui-toolbar-field ui-field-date">Đến ngày
+                <input id="salesOrderDateTo" type="date" title="Đến ngày bán" />
+              </label>
+              <label class="ui-toolbar-field ui-field-status">Nguồn đơn
+                <select id="salesOrderSourceFilter" title="Nguồn đơn">
+                  <option value="">Tất cả nguồn</option>
+                  <option value="sales_app">APP/NVBH</option>
+                  <option value="dms">DMS</option>
+                  <option value="s3">S3</option>
+                  <option value="manual">Thủ công</option>
+                </select>
+              </label>
+              <div class="ui-toolbar-actions">
+                <button id="applySalesOrderFiltersButton" class="ui-action-primary" type="button">Tìm</button>
+                <button id="clearSalesOrderFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
+                <button id="reloadSalesOrdersButton" class="secondary" type="button">Tải lại</button>
+              </div>
+            </div>
+          </div>
+          <div class="sales-order-list-head" aria-hidden="true">
+            <span></span>
+            <span>Mã đơn</span>
+            <span>Khách hàng</span>
+            <!-- SALES_HISTORY_NVBH_COLUMN_PATCH_START -->
+            <span>NV bán hàng</span>
+            <!-- SALES_HISTORY_NVBH_COLUMN_PATCH_END -->
+            <span>Ngày bán</span>
+            <span>Giá trị</span>
+            <span>Nguồn</span>
+            <span>HĐ VAT</span>
+            <span>Thao tác</span>
+          </div>
+          <div id="salesOrderList" class="order-list">Đang tải lịch sử...</div>
+          <div class="load-more-wrap"><button id="loadMoreSalesOrdersButton" class="secondary compact-action" type="button" style="display:none">Tải thêm đơn</button></div>
+        </section>
+      </main>
+    </section>
+
+    <div id="salesOrderModal" class="modal-backdrop" aria-hidden="true">
+      <section class="modal-card sales-order-modal-card sales-order-workspace" role="dialog" aria-modal="true" aria-labelledby="salesOrderModalTitle">
+        <div class="modal-head sales-order-workspace-head">
+          <div class="sales-order-head-copy">
+            <h3 id="salesOrderModalTitle">Tạo đơn bán hàng</h3>
+            <p class="muted sales-order-head-meta">Thông tin đơn gọn · danh sách sản phẩm là khu vực thao tác chính</p>
+          </div>
+          <button type="button" class="secondary small" id="closeSalesOrderModalButton">Đóng</button>
+        </div>
+        <div class="sales-order-modal-body sales-order-workspace-body">
+          <form id="salesForm" class="form sales-order-workspace-form">
+            <section class="sales-order-info-panel" aria-label="Thông tin đơn bán">
+              <div class="sales-order-info-grid">
+                <label>Khách hàng
+                  <div class="autocomplete">
+                    <input id="salesCustomerSearch" type="text" placeholder="Gõ mã/tên/sđt/tuyến khách hàng..." autocomplete="off" />
+                    <input name="customerId" id="salesCustomerSelect" type="hidden" />
+                    <div id="salesCustomerSuggestions" class="suggestions" hidden></div>
+                  </div>
+                </label>
+                <label>Nhân viên bán hàng
+                  <div class="autocomplete">
+                    <input id="salesStaffSearch" type="text" placeholder="Gõ mã/tên/tài khoản NV bán hàng..." autocomplete="off" />
+                    <input name="salesStaffCode" id="salesStaffSelect" type="hidden" />
+                    <input name="salesStaffName" id="salesStaffName" type="hidden" />
+                    <div id="salesStaffSuggestions" class="suggestions" hidden></div>
+                  </div>
+                </label>
+                <label>Ngày bán<input name="date" type="date" /></label>
+                <div class="sales-mode-box sales-mode-inline" aria-label="Phương thức bán">
+                  <div class="sales-mode-title">Phương thức</div>
+                  <div class="sales-compact-options">
+                    <label class="sales-mode-option" title="Bán thẳng theo giá mặc định"><input type="radio" name="saleMode" value="direct" /> Giá mặc định</label>
+                    <label class="sales-mode-option" title="Bán theo chương trình khuyến mại"><input type="radio" name="saleMode" value="promotion" checked /> Theo KM</label>
+                  </div>
+                </div>
+                <div class="sales-vat-option" aria-label="Yêu cầu hóa đơn VAT">
+                  <div class="sales-mode-title">Hóa đơn VAT</div>
+                  <div class="sales-compact-options">
+                    <label class="sales-mode-option"><input type="radio" name="vatInvoiceRequired" value="true" checked /> Xuất HĐ</label>
+                    <label class="sales-mode-option"><input type="radio" name="vatInvoiceRequired" value="false" /> Không xuất</label>
+                  </div>
+                  <button type="button" id="saveSalesVatSettingButton" class="secondary small sales-vat-save-button" hidden>Lưu VAT</button>
+                </div>
+                <label class="sales-note-field">Ghi chú đơn<input name="note" placeholder="VD: giao trong ngày" /></label>
+                <label class="sales-vat-note" hidden>Lý do không xuất HĐ<input name="vatInvoiceNote" placeholder="VD: Khách hàng không lấy hóa đơn" /></label>
+              </div>
+            </section>
+
+            <section class="import-line-box sales-product-toolbar" aria-label="Thêm dòng bán">
+              <div class="sales-product-toolbar-title">
+                <h3>Thêm sản phẩm</h3>
+                <span class="muted">Nhập thùng/lẻ</span>
+              </div>
+              <div class="sales-product-toolbar-grid">
+                <label class="sales-product-field">Sản phẩm
+                  <div class="autocomplete">
+                    <input id="salesProductSearch" type="text" placeholder="Gõ mã/tên/barcode sản phẩm..." autocomplete="off" />
+                    <input id="salesProductSelect" type="hidden" />
+                    <div id="salesProductSuggestions" class="suggestions" hidden></div>
+                  </div>
+                </label>
+                <label>Thùng<input id="salesQuantityCase" type="number" min="0" value="0" /></label>
+                <label>Lẻ<input id="salesQuantityLoose" type="number" min="0" value="1" /></label>
+                <label>Giá bán<input id="salesPrice" type="number" min="0" step="any" value="0" /></label>
+                <button type="button" id="addSalesItemButton" class="secondary sales-add-line-button">Thêm vào đơn</button>
+                <button type="button" id="openSalesItemPasteButton" class="secondary sales-add-line-button">Dán từ Excel</button>
+              </div>
+            </section>
+
+            <section class="sales-items-panel" aria-label="Danh sách sản phẩm trong đơn">
+              <div id="salesItemsTableWrap" class="table-wrap compact sales-items-table-wrap">
+                <table class="sales-items-table">
+                  <colgroup>
+                    <col class="sales-col-code" />
+                    <col class="sales-col-name" />
+                    <col class="sales-col-case" />
+                    <col class="sales-col-loose" />
+                    <col class="sales-col-price" />
+                    <col class="sales-col-amount" />
+                    <col class="sales-col-action" />
+                  </colgroup>
+                  <thead>
+                    <tr><th>Mã</th><th>Tên</th><th>Thùng</th><th>Lẻ</th><th>Giá</th><th>Tiền</th><th></th></tr>
+                  </thead>
+                  <tbody id="salesItemsTable"><tr><td colspan="7">Chưa có dòng hàng</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section id="salesOrderFooter" class="sales-order-footer" aria-label="Tổng kết đơn bán">
+              <div class="sales-order-footer-summary">
+                <span>Tổng SL (quy đổi): <strong id="salesTotalQuantity">0</strong></span>
+                <span>Tổng tiền: <strong id="salesTotalAmount">0</strong></span>
+                <label class="sales-paid-field">Tiền đã thu<input name="paidAmount" type="number" min="0" value="0" /></label>
+              </div>
+              <div class="sale-actions">
+                <button type="button" class="secondary" id="btnCancelSale">Bỏ qua</button>
+                <button type="submit" id="btnCreateSale">Tạo đơn bán & trừ tồn</button>
+              </div>
+            </section>
+          </form>
+          <p id="salesMessage" class="message"></p>
+        </div>
+      </section>
+    </div>
+
+    <section id="stockTab" class="tab-content">
+      <div class="stock-subtabs" role="tablist" aria-label="Quản lý tồn kho">
+        <button id="stockCurrentSubtab" type="button" class="stock-subtab active" data-stock-panel="stockCurrentPanel">Tồn kho hiện tại</button>
+        <button id="stockDmsSubtab" type="button" class="stock-subtab" data-stock-panel="dmsInventoryPanel">Đối chiếu tồn DMS</button>
+      </div>
+
+      <section id="stockCurrentPanel" class="stock-subpanel active">
+        <section class="card stock-current-shell">
+          <div class="ui-page-header">
+            <div class="ui-page-title">
+              <h2>Tồn kho hiện tại</h2>
+              <p id="stockCount" class="muted ui-page-meta">Đang tải...</p>
+            </div>
+          </div>
+          <div class="ui-list-toolbar stock-module-toolbar">
+            <div class="ui-search-filter-bar stock-current-toolbar-grid">
+              <label class="ui-toolbar-field ui-field-search">Tìm sản phẩm
+                <input id="stockSearchInput" type="search" placeholder="Tìm mã / tên sản phẩm..." />
+              </label>
+              <div class="ui-toolbar-actions stock-current-toolbar-actions">
+                <button id="stockApplyFiltersButton" type="button" class="ui-action-primary">Tìm kiếm</button>
+                <button id="stockClearFiltersButton" type="button" class="secondary">Xóa lọc</button>
+                <button id="stockReloadButton" type="button" class="secondary ui-button-ghost">Tải lại</button>
+              </div>
+            </div>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tên sản phẩm</th><th>ĐVT</th><th>Quy cách</th><th>Tồn kho</th><th>Cập nhật</th></tr></thead><tbody id="stockTable"><tr><td colspan="6">Đang tải tồn kho...</td></tr></tbody></table></div>
+        </section>
+      </section>
+
+      <section id="dmsInventoryPanel" class="stock-subpanel" hidden>
+        <section class="card dms-inventory-shell">
+          <div class="ui-page-header dms-inventory-head">
+            <div class="ui-page-title">
+              <h2>Đối chiếu tồn DMS Unilever</h2>
+              <p id="dmsInventoryLatestInfo" class="muted ui-page-meta">Chưa có dữ liệu đối chiếu.</p>
+            </div>
+            <div class="ui-page-actions dms-inventory-actions">
+              <button id="dmsInventoryHistoryButton" type="button" class="secondary">Lịch sử</button>
+              <button id="dmsInventoryUploadButton" type="button">Tải file DMS buổi sáng</button>
+            </div>
+          </div>
+
+          <div class="dms-kpi-grid">
+            <article class="dms-kpi-card danger"><span>DMS nhiều hơn thực tế</span><strong id="dmsGreaterSkuCount">0 SKU</strong><small id="dmsGreaterQty">0 đơn vị lẻ</small></article>
+            <article class="dms-kpi-card primary"><span>Thực tế nhiều hơn DMS</span><strong id="internalGreaterSkuCount">0 SKU</strong><small id="internalGreaterQty">0 đơn vị lẻ</small></article>
+            <article class="dms-kpi-card success"><span>Khớp hoàn toàn</span><strong id="dmsMatchedSkuCount">0 SKU</strong><small>Không có chênh lệch</small></article>
+            <article class="dms-kpi-card warning"><span>Cần kiểm tra mã/quy cách</span><strong id="dmsWarningSkuCount">0 SKU</strong><small>Chưa ghép mã hoặc sai quy cách</small></article>
+          </div>
+
+          <div class="ui-list-toolbar stock-module-toolbar dms-inventory-toolbar">
+            <div class="ui-search-filter-bar dms-inventory-toolbar-grid">
+              <label class="ui-toolbar-field ui-field-search">Tìm sản phẩm
+                <input id="dmsInventorySearch" type="search" placeholder="Tìm toàn bộ theo mã hoặc tên sản phẩm..." />
+              </label>
+              <label class="ui-toolbar-field ui-field-status">Loại đối chiếu
+                <select id="dmsInventoryTypeFilter">
+                  <option value="internal_greater">Thực tế nhiều hơn DMS</option>
+                  <option value="dms_greater">DMS nhiều hơn thực tế</option>
+                  <option value="matched">Khớp hoàn toàn</option>
+                  <option value="unmapped">Chưa ghép mã</option>
+                  <option value="conversion_mismatch">Sai quy cách</option>
+                  <option value="all">Tất cả</option>
+                </select>
+              </label>
+              <div class="ui-toolbar-actions dms-inventory-toolbar-actions">
+                <button id="dmsInventoryApplyButton" type="button" class="ui-action-primary">Tìm kiếm</button>
+                <button id="dmsInventoryClearButton" type="button" class="secondary">Xóa lọc</button>
+                <button id="dmsInventoryReloadButton" type="button" class="secondary ui-button-ghost">Tải lại</button>
+              </div>
+            </div>
+          </div>
+
+          <p id="dmsInventoryMessage" class="message"></p>
+          <div class="table-wrap dms-inventory-table-wrap">
+            <table class="dms-inventory-table">
+              <thead><tr><th>Mã SP</th><th>Tên sản phẩm</th><th>Quy cách</th><th>Tồn DMS</th><th>Tồn thực tế hiện tại</th><th>Chênh lệch</th><th>Hạn mức mở</th><th>Đã bán App</th><th>Còn bán App</th><th>Trạng thái</th></tr></thead>
+              <tbody id="dmsInventoryTable"><tr><td colspan="10">Chưa có dữ liệu.</td></tr></tbody>
+            </table>
+          </div>
+          <div class="dms-pagination">
+            <span id="dmsInventoryCount" class="muted">0 dòng</span>
+            <div><button id="dmsInventoryPrevButton" type="button" class="secondary small">Trang trước</button><button id="dmsInventoryNextButton" type="button" class="secondary small">Trang sau</button></div>
+          </div>
+        </section>
+      </section>
+
+      <div id="dmsInventoryUploadModal" class="modal-backdrop" aria-hidden="true" hidden>
+        <section class="modal-card dms-upload-modal" role="dialog" aria-modal="true" aria-labelledby="dmsInventoryUploadTitle">
+          <div class="modal-header"><div><h2 id="dmsInventoryUploadTitle">Tải file tồn DMS buổi sáng</h2><p class="muted">Hệ thống dùng cột U, V, W, AX, AY và không ghi đè tồn kho thực tế.</p></div><button id="dmsInventoryUploadCloseButton" type="button" class="secondary">Đóng</button></div>
+          <div class="dms-upload-form">
+            <label>File Excel DMS<input id="dmsInventoryFileInput" type="file" accept=".xlsx" /></label>
+            <label>Ngày dữ liệu<input id="dmsInventorySnapshotDate" type="date" /></label>
+            <label class="dms-upload-note">Ghi chú<input id="dmsInventoryNote" type="text" placeholder="Ví dụ: File tồn đầu ngày sau khi DMS cập nhật" /></label>
+            <button id="dmsInventoryPreviewButton" type="button">Đọc và kiểm tra file</button>
+          </div>
+          <p id="dmsInventoryUploadMessage" class="message"></p>
+          <div id="dmsInventoryPreviewSummary" class="dms-preview-summary" hidden></div>
+          <div class="table-wrap dms-preview-table-wrap"><table><thead><tr><th>Mã SP</th><th>Tên</th><th>DMS</th><th>Thực tế</th><th>Loại</th></tr></thead><tbody id="dmsInventoryPreviewTable"><tr><td colspan="5">Chưa đọc file.</td></tr></tbody></table></div>
+          <div class="modal-actions"><button id="dmsInventoryCommitButton" type="button" disabled>Xác nhận cập nhật hạn mức bán App</button></div>
+        </section>
+      </div>
+
+      <div id="dmsInventoryHistoryModal" class="modal-backdrop" aria-hidden="true" hidden>
+        <section class="modal-card dms-history-modal" role="dialog" aria-modal="true" aria-labelledby="dmsInventoryHistoryTitle">
+          <div class="modal-header"><div><h2 id="dmsInventoryHistoryTitle">Lịch sử tải file tồn DMS</h2><p class="muted">Mỗi lần cập nhật mới thay thế hạn mức đang hoạt động của lần trước.</p></div><button id="dmsInventoryHistoryCloseButton" type="button" class="secondary">Đóng</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Thời gian</th><th>File</th><th>DMS &gt; thực tế</th><th>Thực tế &gt; DMS</th><th>Người tải</th></tr></thead><tbody id="dmsInventoryHistoryTable"><tr><td colspan="5">Đang tải...</td></tr></tbody></table></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="masterOrdersTab" class="tab-content">
+      <!-- MASTER_ORDER_POPUP_PATCH_START: màn chính chỉ giữ danh sách đơn tổng, tạo đơn tổng đưa vào popup 3 layer -->
+      <main class="grid master-order-grid master-order-list-only-grid">
+        <section class="card master-list-card master-list-only-card">
+          <div class="ui-list-toolbar">
+            <div class="ui-page-header">
+              <div>
+                <h2>Danh sách đơn tổng</h2>
+                <p id="masterOrderCount" class="muted ui-page-meta">Đang tải...</p>
+              </div>
+              <div class="ui-page-actions">
+                <button id="selectAllMasterOrdersButton" class="secondary" type="button">Chọn tất cả</button>
+                <button id="printSelectedMasterOrdersButton" class="secondary" type="button">In đơn tổng</button>
+                <button id="exportSelectedMasterOrdersButton" class="secondary" type="button">Xuất Excel</button>
+                <button id="openMasterOrderModalButton" class="primary ui-action-primary" type="button">+ Tạo đơn tổng</button>
+              </div>
+            </div>
+            <div class="ui-search-filter-bar">
+              <label class="ui-toolbar-field ui-field-search">
+                <span>Tìm kiếm</span>
+                <input id="masterOrderSearch" placeholder="Tìm mã đơn tổng, NV giao, NV bán, ghi chú..." />
+              </label>
+              <label class="ui-toolbar-field">
+                <span>Từ ngày</span>
+                <input id="masterOrderDateFrom" type="date" title="Từ ngày" />
+              </label>
+              <label class="ui-toolbar-field">
+                <span>Đến ngày</span>
+                <input id="masterOrderDateTo" type="date" title="Đến ngày" />
+              </label>
+              <div class="ui-toolbar-actions">
+                <button id="applyMasterOrderFiltersButton" class="primary" type="button">Tìm kiếm</button>
+                <button id="clearMasterOrderFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
+
+                <button id="reloadMasterOrdersButton" class="secondary" type="button">Tải lại</button>
+              </div>
+            </div>
+          </div>
+          <!-- MASTER_ORDER_LIST_ACTION_PATCH_START: thêm cột ghi chú và đổi Huỷ đơn thành Thao tác -->
+          <div class="master-order-list-head">
+            <span></span>
+            <span>Mã đơn tổng</span>
+            <span>NV giao</span>
+            <span>Ghi chú</span>
+            <span>Ngày giao</span>
+            <span>Giá trị</span>
+            <span>Thao tác</span>
+          </div>
+          <!-- MASTER_ORDER_LIST_ACTION_PATCH_END -->
+          <div id="masterOrderList" class="order-list master-order-fixed-list">Đang tải đơn tổng...</div>
+        </section>
+      </main>
+
+      <div id="masterOrderModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal-card master-order-modal-workspace" role="dialog" aria-modal="true" aria-labelledby="masterOrderModalTitle">
+          <div class="modal-header">
+            <div>
+              <h2 id="masterOrderModalTitle">Tạo đơn tổng</h2>
+              <p class="muted">Chọn đơn chưa gộp ở layer 2, bấm gộp để chuyển sang layer 3 rồi mới tạo đơn tổng.</p>
+            </div>
+            <button id="closeMasterOrderModalButton" class="secondary" type="button">Đóng</button>
+          </div>
+
+          <div class="master-order-three-layer">
+            <!-- MASTER_ORDER_LAYOUT_V2_START: layer 1 ngang phía trên, chỉ đổi bố cục tạo đơn tổng -->
+            <section class="card master-order-layer master-order-layer-info">
+              <div class="toolbar compact-toolbar master-order-info-header">
+                <div><h3>1. Thông tin đơn tổng</h3><p class="muted">Thông tin giao hàng</p></div>
+                <div class="master-selection-summary">
+                  <span>Đã đưa vào gộp: <strong id="selectedChildOrderCount">0</strong> đơn</span>
+                  <span>Tổng tiền: <strong id="selectedChildOrderAmount">0</strong></span>
+                  <span>Còn phải thu: <strong id="selectedChildOrderDebt">0</strong></span>
+                </div>
+              </div>
+              <form id="masterOrderForm" class="form master-order-form master-order-form-v2">
+                <label>Ngày tạo đơn tổng<input name="masterOrderDate" type="date" readonly aria-readonly="true" title="Ngày tạo đơn tổng được hệ thống lấy theo ngày hiện tại" /></label>
+                <label>Ngày giao hàng<input name="deliveryDate" type="date" required title="Mặc định là ngày kế tiếp; nếu tạo vào thứ 7 thì chuyển sang thứ 2" /></label>
+                <label>Tuyến / khu vực<input name="routeName" placeholder="VD: Tuyến Hải Phòng 1" required /></label>
+                <label>Mã NV giao hàng<input name="deliveryStaffCode" placeholder="VD: GH01" /></label>
+                <label>Tên NV giao hàng<input name="deliveryStaffName" placeholder="VD: Nguyễn Văn Giao" /></label>
+                <label class="master-order-note-field">Ghi chú<input name="note" placeholder="Ghi chú giao hàng / tuyến" /></label>
+                <label class="inline-check master-order-group-check"><input name="groupBySalesStaff" type="checkbox" value="true" checked /> Gộp riêng theo từng nhân viên bán hàng</label>
+                <button class="master-order-submit-button" type="submit">Tạo đơn tổng</button>
+              </form>
+              <p id="masterOrderMessage" class="message"></p>
+            </section>
+            <!-- MASTER_ORDER_LAYOUT_V2_END -->
+
+            <section class="card master-order-layer master-order-layer-unmerged">
+              <div class="toolbar compact-toolbar">
+                <div><h3>2. Đơn con chưa gộp</h3><p id="unmergedOrderCount" class="muted">Đang tải đơn con chưa gộp...</p></div>
+                <div class="button-row">
+                  <button id="reloadUnmergedOrdersButton" type="button" class="secondary small" aria-label="Tải lại danh sách đơn con chưa gộp">Tải lại</button>
+                  <button id="selectAllUnmergedOrdersButton" type="button" class="secondary small">Chọn tất cả</button>
+                  <button id="moveToGroupedOrdersButton" type="button" class="primary small">Gộp đơn đã chọn →</button>
+                </div>
+              </div>
+              <div class="master-filter-row">
+                <input id="unmergedOrderSearch" placeholder="Tìm mã đơn, khách, địa chỉ..." />
+                <div class="autocomplete master-sales-staff-filter">
+                  <input id="unmergedSalesStaffFilter" placeholder="Lọc NV bán hàng..." autocomplete="off" />
+                  <div id="unmergedSalesStaffSuggestions" class="suggestions" hidden></div>
+                </div>
+                <select id="unmergedSourceFilter">
+                  <option value="">Tất cả nguồn</option>
+                  <option value="NVBH">Từ NVBH</option>
+                  <option value="DMS">Từ DMS</option>
+                </select>
+                <input id="unmergedDateFrom" type="date" title="Từ ngày đơn" />
+                <input id="unmergedDateTo" type="date" title="Đến ngày đơn" />
+              </div>
+              <div id="unmergedOrderList" class="order-list compact-order-list">Đang tải...</div>
+            </section>
+
+            <section class="card master-order-layer master-order-layer-selected">
+              <div class="toolbar compact-toolbar">
+                <div><h3>3. Danh sách đơn con được gộp</h3><p class="muted">Chỉ các đơn ở danh sách này mới được gửi tạo đơn tổng</p></div>
+                <button id="removeFromGroupedOrdersButton" type="button" class="secondary small">← Bỏ khỏi danh sách gộp</button>
+              </div>
+              <div id="selectedMasterChildOrderList" class="order-list compact-order-list selected-master-child-list">
+                <div class="empty-cell">Chưa có đơn con nào được đưa vào danh sách gộp.</div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+      <!-- MASTER_ORDER_POPUP_PATCH_END -->
+    </section>
+
+
+
+    <!-- Deprecated operational UI removed: legacy master-return aggregate screen.
+         Legacy backend/data are kept for historical compatibility; old tab requests redirect to returnOrdersTab. -->
+
+<section id="deliveryTodayNewTab" class="tab-content">
+  <main id="deliveryTodayNewRoot" class="new-module-shell">
+    <section class="card">
+      <h2>Đơn giao hôm nay (New)</h2>
+      <p class="muted">Màn mới đọc salesOrders.deliveryCloseout + returnOrders. Không dùng unlock/sửa in-place.</p>
+      <p class="message">Đang khởi tạo giao diện mới...</p>
+    </section>
+  </main>
+</section>
+
+<section id="debtNewTab" class="tab-content">
+  <main id="debtNewRoot" class="new-module-shell">
+    <section class="card">
+      <h2>Công nợ (New)</h2>
+      <p class="muted">Màn mới chỉ đọc AR-DEBT-OPEN, AR-DEBT-PAYMENT, AR-DEBT-ADJUSTMENT, AR-DEBT-VOID.</p>
+      <p class="message">Đang khởi tạo giao diện mới...</p>
+    </section>
+  </main>
+</section>
+
+    <section id="debtCollectionsTab" class="tab-content">
+      <section class="card">
+        <div class="ui-list-toolbar debt-collection-list-toolbar">
+          <div class="ui-page-header">
+            <div class="ui-page-title">
+              <h2>Thu nợ chờ kế toán xác nhận</h2>
+              <p id="debtCollectionCount" class="muted ui-page-meta">Danh sách phiếu thu nợ do app bán hàng/app giao hàng gửi lên. Chỉ khi kế toán xác nhận mới trừ công nợ và ghi quỹ.</p>
+            </div>
+          </div>
+          <div class="ui-search-filter-bar debt-collection-toolbar-grid" role="search" aria-label="Tìm và lọc phiếu thu nợ">
+            <label class="ui-toolbar-field ui-field-search">Tìm kiếm
+              <input id="debtCollectionSearchInput" placeholder="Mã phiếu / khách hàng / nhân viên" />
+            </label>
+            <label class="ui-toolbar-field ui-field-status">Trạng thái
+              <select id="debtCollectionStatusFilter" title="Trạng thái phiếu thu nợ">
+                <option value="submitted">Chờ xác nhận</option>
+                <option value="accounting_confirmed">Đã xác nhận</option>
+                <option value="rejected">Đã từ chối</option>
+                <option value="all">Tất cả</option>
+              </select>
+            </label>
+            <label class="ui-toolbar-field debt-collection-source-field">Nguồn thu
+              <select id="debtCollectionCollectorTypeFilter" title="Nguồn thu">
+                <option value="">Tất cả nguồn</option>
+                <option value="sales">App bán hàng</option>
+                <option value="delivery">App giao hàng</option>
+              </select>
+            </label>
+            <label class="ui-toolbar-field ui-field-date">Từ ngày
+              <input id="debtCollectionDateFrom" type="date" title="Từ ngày" />
+            </label>
+            <label class="ui-toolbar-field ui-field-date">Đến ngày
+              <input id="debtCollectionDateTo" type="date" title="Đến ngày" />
+            </label>
+            <div class="ui-toolbar-actions debt-collection-toolbar-actions">
+              <button id="applyDebtCollectionFiltersButton" class="primary-action ui-action-primary" type="button">Tìm kiếm</button>
+              <button id="clearDebtCollectionFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
+              <button id="reloadDebtCollectionsButton" class="secondary" type="button">Tải lại</button>
+            </div>
+          </div>
+        </div>
+        <div class="debt-v2-kpis debt-v2-kpis-4">
+          <div><span>Tổng tiền</span><b id="debtCollectionTotalKpi">0</b></div>
+          <div><span>Chờ xác nhận</span><b id="debtCollectionSubmittedKpi">0</b></div>
+          <div><span>Đã xác nhận</span><b id="debtCollectionConfirmedKpi">0</b></div>
+          <div><span>Từ chối</span><b id="debtCollectionRejectedKpi">0</b></div>
+        </div>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Mã phiếu</th>
+                <th>Khách hàng</th>
+                <th>Người thu</th>
+                <th>Số tiền</th>
+                <th>Hình thức</th>
+                <th>Trạng thái</th>
+                <th>Phân bổ</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="debtCollectionTable"><tr><td colspan="8">Bấm Tìm kiếm hoặc Tải lại để xem danh sách thu nợ chờ xác nhận.</td></tr></tbody>
+          </table>
+        </div>
+        <p id="debtCollectionMessage" class="message"></p>
+      </section>
+    </section>
+
+
+    <section id="returnOrdersTab" class="tab-content">
+      <section class="card">
+        <div class="ui-list-toolbar">
+          <div class="ui-page-header">
+            <div class="ui-page-title">
+              <h2>Đơn trả hàng</h2>
+              <p id="returnOrderCount" class="muted ui-page-meta">Quản lý riêng phiếu trả hàng từ app giao hàng và phần mềm. Nguồn dữ liệu một mối: <strong>/api/return-orders</strong>.</p>
+            </div>
+          </div>
+          <form id="returnOrderFilterForm" class="return-order-filter-form" autocomplete="off">
+            <div class="ui-search-filter-bar return-order-filter-grid">
+            <label class="return-order-search-field ui-toolbar-field ui-field-search" for="returnOrderSearchInput">
+              <span>Tìm kiếm</span>
+              <input id="returnOrderSearchInput" placeholder="Mã trả hàng, khách hàng, đơn bán, nhân viên giao" />
+            </label>
+            <label class="ui-toolbar-field return-order-field-date" for="returnOrderDateFrom">
+              <span>Từ ngày</span>
+              <input id="returnOrderDateFrom" type="date" />
+            </label>
+            <label class="ui-toolbar-field return-order-field-date" for="returnOrderDateTo">
+              <span>Đến ngày</span>
+              <input id="returnOrderDateTo" type="date" />
+            </label>
+            <div class="return-order-filter-actions ui-toolbar-actions">
+              <button id="applyReturnOrderFiltersButton" class="primary ui-action-primary" type="submit">Tìm kiếm</button>
+              <button id="clearReturnOrderFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
+              <button id="reloadReturnOrdersButton" class="secondary" type="button">Tải lại</button>
+            </div>
+            </div>
+          </form>
+        </div>
+        <div class="return-order-list-card return-order-list-full">
+          <div class="return-order-section-title">
+            <span>Danh sách phiếu trả</span>
+            <small>Nhấn vào một dòng hoặc nút Xem chi tiết để mở popup.</small>
+          </div>
+          <div class="table-wrap compact-table return-order-one-line-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mã trả hàng</th>
+                  <th>Ngày</th>
+                  <th>Khách</th>
+                  <th>NVGH</th>
+                  <th>SL</th>
+                  <th>Giá trị</th>
+                  <th>Trạng thái</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody id="returnOrderTable"><tr><td colspan="8">Đang tải đơn trả hàng...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="returnOrderDetailModal" class="modal-backdrop return-order-detail-modal" aria-hidden="true">
+          <section class="modal-card return-order-detail-modal-card" role="dialog" aria-modal="true" aria-labelledby="returnOrderDetailModalTitle">
+            <div class="modal-head return-order-modal-head">
+              <div>
+                <h3 id="returnOrderDetailModalTitle">Chi tiết phiếu trả hàng</h3>
+                <p class="muted">Chỉ xem dữ liệu từ returnOrders; không chỉnh sửa trực tiếp trong popup.</p>
+              </div>
+              <button id="closeReturnOrderDetailModal" class="secondary" type="button" aria-label="Đóng popup chi tiết">Đóng</button>
+            </div>
+            <div id="returnOrderDetailPanel" class="return-order-detail-panel return-order-modal-body">
+              <div class="return-detail-empty">
+                <strong>Chưa chọn phiếu trả hàng</strong>
+                <p>Đóng popup và chọn một phiếu trong danh sách.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </section>
+
+    <section id="fundsTab" class="tab-content">
+      <main class="funds-tabs-layout">
+        <section class="card full-width funds-v2-shell">
+          <div class="ui-page-header funds-v2-header">
+            <div class="ui-page-title">
+              <h2>Quỹ tiền</h2>
+              <p id="fundSummary" class="muted ui-page-meta">Nguồn chuẩn: fundLedgers. Tách rõ tiền mặt, ngân hàng, thu giao hàng, phiếu chi và chuyển quỹ.</p>
+            </div>
+          </div>
+
+          <div class="fund-tab-nav" role="tablist" aria-label="Quỹ tiền">
+            <button type="button" class="fund-tab-button active" data-fund-tab="fundLedger" role="tab" aria-selected="true">Sổ quỹ</button>
+            <button type="button" class="fund-tab-button" data-fund-tab="fundSummaryBook" role="tab" aria-selected="false">Sổ quỹ tổng hợp</button>
+            <button type="button" class="fund-tab-button" data-fund-tab="deliverySubmission" role="tab" aria-selected="false">Nộp quỹ giao hàng</button>
+            <button type="button" class="fund-tab-button" data-fund-tab="expenseVoucher" role="tab" aria-selected="false">Phiếu chi</button>
+            <button type="button" class="fund-tab-button" data-fund-tab="bankTransfer" role="tab" aria-selected="false">Nộp ngân hàng</button>
+          </div>
+
+          <div class="ui-list-toolbar fund-module-toolbar">
+            <div class="ui-search-filter-bar fund-toolbar-grid" role="search" aria-label="Tìm và lọc dữ liệu quỹ tiền">
+              <label class="ui-toolbar-field ui-field-search">
+                <span>Tìm kiếm</span>
+                <input id="fundSearchInput" type="search" placeholder="Mã phiếu, NVGH, khách hàng, ghi chú" autocomplete="off" />
+              </label>
+              <label class="ui-toolbar-field fund-ledger-only-field fund-type-field">
+                <span>Loại quỹ</span>
+                <select id="fundTypeFilter">
+                  <option value="all">Tất cả</option>
+                  <option value="cash">Tiền mặt</option>
+                  <option value="bank">Ngân hàng</option>
+                </select>
+              </label>
+              <label class="ui-toolbar-field fund-ledger-only-field fund-direction-field">
+                <span>Thu/Chi</span>
+                <select id="fundDirectionFilter">
+                  <option value="all">Tất cả</option>
+                  <option value="in">Thu</option>
+                  <option value="out">Chi</option>
+                </select>
+              </label>
+              <label class="ui-toolbar-field ui-field-date fund-ledger-only-field">
+                <span>Từ ngày</span>
+                <input id="fundDateFrom" type="date" />
+              </label>
+              <label class="ui-toolbar-field ui-field-date fund-ledger-only-field">
+                <span>Đến ngày</span>
+                <input id="fundDateTo" type="date" />
+              </label>
+              <div class="ui-toolbar-actions fund-toolbar-actions">
+                <button id="applyFundFiltersButton" class="ui-action-primary" type="button">Tìm kiếm</button>
+                <button id="clearFundFiltersButton" class="secondary" type="button">Xóa lọc</button>
+                <button id="reloadFundLedgerButton" class="secondary ui-button-ghost" type="button">Tải lại</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="fund-tab-panel active" data-fund-panel="fundLedger">
+            <div class="kpi-row debt-v2-kpis debt-v2-kpis-4 funds-kpi-row">
+              <div><span>Tồn tiền mặt</span><b id="fundCashBalanceKpi">0</b></div>
+              <div><span>Tồn ngân hàng</span><b id="fundBankBalanceKpi">0</b></div>
+              <div><span>Tổng thu</span><b id="fundTotalInKpi">0</b></div>
+              <div><span>Tổng chi</span><b id="fundTotalOutKpi">0</b></div>
+            </div>
+            <div class="table-scroll funds-main-table-scroll">
+              <table>
+                <thead><tr><th>Ngày</th><th>Mã phiếu</th><th>Quỹ</th><th>Thu</th><th>Chi</th><th>Tồn sau GD</th><th>Nguồn</th><th>Đối tượng</th><th>Ghi chú</th></tr></thead>
+                <tbody id="fundLedgerTable"><tr><td colspan="9">Đang tải sổ quỹ...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="fund-tab-panel fund-summary-book" data-fund-panel="fundSummaryBook">
+            <div class="ui-list-toolbar fund-summary-toolbar">
+              <div class="ui-search-filter-bar fund-summary-filter-grid" role="search" aria-label="Lọc Sổ quỹ tổng hợp">
+                <label class="ui-toolbar-field ui-field-date">
+                  <span>Từ ngày</span>
+                  <input id="fundSummaryDateFrom" type="date" />
+                </label>
+                <label class="ui-toolbar-field ui-field-date">
+                  <span>Đến ngày</span>
+                  <input id="fundSummaryDateTo" type="date" />
+                </label>
+                <label class="ui-toolbar-field ui-field-search fund-summary-person-field">
+                  <span>Người nộp hoặc nhận</span>
+                  <input id="fundSummaryPersonSearch" type="search" placeholder="Mã hoặc tên người" autocomplete="off" />
+                </label>
+                <label class="ui-toolbar-field">
+                  <span>Vai trò</span>
+                  <select id="fundSummaryRoleFilter">
+                    <option value="">Tất cả</option>
+                    <option value="nvbh">NVBH</option>
+                    <option value="nvgh">NVGH</option>
+                    <option value="accountant">Kế toán</option>
+                    <option value="cashier">Thủ quỹ</option>
+                    <option value="supplier">Nhà cung cấp</option>
+                    <option value="customer">Khách hàng</option>
+                    <option value="other">Khác</option>
+                    <option value="unknown">Chưa xác định</option>
+                  </select>
+                </label>
+                <label class="ui-toolbar-field">
+                  <span>Loại giao dịch</span>
+                  <select id="fundSummaryTransactionFilter">
+                    <option value="all">Tất cả</option>
+                    <option value="deposit">Nộp tiền</option>
+                    <option value="expense">Chi tiền</option>
+                    <option value="transfer">Chuyển quỹ nội bộ</option>
+                  </select>
+                </label>
+                <label class="ui-toolbar-field">
+                  <span>Quỹ</span>
+                  <select id="fundSummaryFundFilter">
+                    <option value="">Tất cả</option>
+                    <option value="cash">Tiền mặt</option>
+                    <option value="bank">Ngân hàng</option>
+                  </select>
+                </label>
+                <div class="ui-toolbar-actions fund-summary-actions">
+                  <button id="applyFundSummaryFiltersButton" class="ui-action-primary" type="button">Tìm kiếm</button>
+                  <button id="resetFundSummaryFiltersButton" class="secondary" type="button">Đặt lại</button>
+                  <button id="exportFundSummaryButton" class="secondary ui-button-ghost" type="button">Xuất Excel</button>
+                </div>
+              </div>
+            </div>
+
+            <p id="fundSummaryBookMessage" class="message fund-summary-message" aria-live="polite"></p>
+            <div class="kpi-row debt-v2-kpis fund-summary-kpis">
+              <div><span>Tổng tiền đã nộp</span><b id="fundSummaryDepositedKpi">0</b></div>
+              <div><span>Tổng tiền đã chi</span><b id="fundSummaryExpenseKpi">0</b></div>
+              <div><span>Chênh lệch thuần</span><b id="fundSummaryNetKpi">0</b></div>
+              <div><span>Số người phát sinh</span><b id="fundSummaryPeopleKpi">0</b></div>
+              <div><span>Số phiếu nộp</span><b id="fundSummaryDepositCountKpi">0</b></div>
+              <div><span>Số phiếu chi</span><b id="fundSummaryExpenseCountKpi">0</b></div>
+              <div><span>Chuyển quỹ nội bộ</span><b id="fundSummaryTransferKpi">0</b></div>
+            </div>
+
+            <div class="table-scroll funds-main-table-scroll fund-summary-table-scroll">
+              <table id="fundSummaryTable">
+                <thead>
+                  <tr>
+                    <th>STT</th>
+                    <th>Mã người</th>
+                    <th>Tên người</th>
+                    <th>Vai trò</th>
+                    <th class="numeric"><button type="button" class="fund-summary-sort" data-sort="depositedAmount">Tổng tiền đã nộp</button></th>
+                    <th class="center"><button type="button" class="fund-summary-sort" data-sort="depositVoucherCount">Số phiếu nộp</button></th>
+                    <th class="numeric"><button type="button" class="fund-summary-sort" data-sort="expenseAmount">Tổng tiền đã nhận</button></th>
+                    <th class="center"><button type="button" class="fund-summary-sort" data-sort="expenseVoucherCount">Số phiếu chi</button></th>
+                    <th class="numeric"><button type="button" class="fund-summary-sort" data-sort="netAmount">Chênh lệch thuần</button></th>
+                    <th class="numeric"><button type="button" class="fund-summary-sort" data-sort="internalTransferAmount">Chuyển quỹ nội bộ</button></th>
+                    <th>Giao dịch gần nhất</th>
+                    <th>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody id="fundSummaryTableBody"><tr><td colspan="12">Chọn bộ lọc để tải Sổ quỹ tổng hợp.</td></tr></tbody>
+              </table>
+            </div>
+            <div class="fund-summary-pagination" aria-label="Phân trang Sổ quỹ tổng hợp">
+              <button id="fundSummaryPrevPage" class="secondary" type="button">Trang trước</button>
+              <span id="fundSummaryPageInfo" class="muted">Trang 1/1</span>
+              <button id="fundSummaryNextPage" class="secondary" type="button">Trang sau</button>
+            </div>
+          </div>
+
+          <div class="fund-tab-panel" data-fund-panel="deliverySubmission">
+            <section class="fund-list-card fund-list-card-full">
+              <div class="ui-page-header fund-list-toolbar">
+                <div class="ui-page-title">
+                  <h3>Danh sách phiếu nộp quỹ</h3>
+                  <span class="muted ui-page-meta">Đối soát riêng tiền mặt và chuyển khoản; xác nhận phiếu mới ghi fundLedgers</span>
+                </div>
+                <div class="ui-page-actions">
+                  <button id="createDeliveryCashSubmissionButton" class="ui-action-primary" type="button">Tạo phiếu nộp quỹ</button>
+                </div>
+              </div>
+
+              <div class="delivery-subtab-nav" role="tablist" aria-label="Đối soát phiếu nộp quỹ giao hàng">
+                <button type="button" class="delivery-subtab-button active" data-delivery-subtab="cash" role="tab" aria-selected="true">Tiền mặt</button>
+                <button type="button" class="delivery-subtab-button" data-delivery-subtab="bank" role="tab" aria-selected="false">Chuyển khoản</button>
+              </div>
+
+              <div class="delivery-subtab-panel active" data-delivery-subpanel="cash" role="tabpanel">
+                <div class="table-scroll funds-sub-table-scroll">
+                  <table>
+                    <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TM</th><th>Thực nộp TM</th><th>Chênh TM</th><th>Còn thiếu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                    <tbody id="deliveryCashSubmissionTable"><tr><td colspan="9">Chưa tải danh sách tiền mặt.</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="delivery-subtab-panel" data-delivery-subpanel="bank" role="tabpanel" hidden>
+                <div class="table-scroll funds-sub-table-scroll">
+                  <table>
+                    <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TK</th><th>Thực nhận TK</th><th>Chênh TK</th><th>Còn thiếu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                    <tbody id="deliveryBankSubmissionTable"><tr><td colspan="9">Chưa tải danh sách chuyển khoản.</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="fund-tab-panel" data-fund-panel="expenseVoucher">
+            <section class="fund-list-card fund-list-card-full">
+              <div class="ui-page-header fund-list-toolbar">
+                <div class="ui-page-title">
+                  <h3>Danh sách phiếu chi</h3>
+                  <span class="muted ui-page-meta">Nguồn EXPENSE_VOUCHER</span>
+                </div>
+                <div class="ui-page-actions">
+                  <button id="createExpenseVoucherButton" class="ui-action-primary" type="button">Tạo phiếu chi</button>
+                </div>
+              </div>
+              <div class="table-scroll funds-sub-table-scroll">
+                <table>
+                  <thead><tr><th>Mã</th><th>Ngày</th><th>Quỹ</th><th>Loại chi</th><th>Người nhận</th><th>Số tiền</th><th>TT</th><th>Thao tác</th></tr></thead>
+                  <tbody id="expenseVoucherTable"><tr><td colspan="8">Chưa tải phiếu chi.</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div class="fund-tab-panel" data-fund-panel="bankTransfer">
+            <section class="fund-list-card fund-list-card-full">
+              <div class="ui-page-header fund-list-toolbar">
+                <div class="ui-page-title">
+                  <h3>Danh sách nộp ngân hàng</h3>
+                  <span class="muted ui-page-meta">Nguồn FUND_TRANSFER</span>
+                </div>
+                <div class="ui-page-actions">
+                  <button id="createFundTransferButton" class="ui-action-primary" type="button">Tạo phiếu nộp ngân hàng</button>
+                </div>
+              </div>
+              <div class="table-scroll funds-sub-table-scroll">
+                <table>
+                  <thead><tr><th>Mã</th><th>Ngày</th><th>Từ quỹ</th><th>Đến quỹ</th><th>Ngân hàng</th><th>Số tiền</th><th>TT</th><th>Thao tác</th></tr></thead>
+                  <tbody id="fundTransferTable"><tr><td colspan="8">Chưa tải phiếu chuyển quỹ.</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div id="deliveryCashSubmissionModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card" role="dialog" aria-modal="true" aria-labelledby="deliveryCashSubmissionModalTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="deliveryCashSubmissionModalTitle">Tạo phiếu nộp quỹ giao hàng</h3>
+                  <p class="muted">Tạo phiếu theo ngày giao + NVGH. Xác nhận phiếu mới ghi fundLedgers.</p>
+                </div>
+                <button id="closeDeliveryCashSubmissionModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
+                <form id="deliveryCashSubmissionForm" class="form fund-form-grid">
+                  <label>Ngày giao<input id="deliveryCashSubmissionDate" name="deliveryDate" type="date" /></label>
+
+                  <label>Mã NV giao hàng<input id="deliveryCashSubmissionStaffCode" name="deliveryStaffCode" placeholder="VD: ghth" autocomplete="off" /></label>
+
+                  <section id="deliveryCashSubmissionPreview" class="delivery-cash-preview full-span" aria-live="polite">
+                    <div id="deliveryCashSubmissionPreviewStatus" class="delivery-cash-preview-empty">
+                      Chọn ngày giao và nhập mã NV giao hàng để xem tiền cần thu.
+                    </div>
+                    <div id="deliveryCashSubmissionPreviewContent" hidden>
+                      <div class="delivery-cash-preview-head">
+                        <div>
+                          <strong id="deliveryCashSubmissionPreviewStaff">NVGH</strong>
+                          <span id="deliveryCashSubmissionPreviewDate" class="muted"></span>
+                        </div>
+                        <span id="deliveryCashSubmissionPreviewOrderCount" class="fund-preview-count">0 đơn</span>
+                      </div>
+                      <div class="delivery-cash-preview-kpis">
+                        <div><span>Tiền mặt cần thu</span><b id="deliveryCashSubmissionReportCash">0</b></div>
+                        <div><span>Tài khoản cần thu</span><b id="deliveryCashSubmissionReportBank">0</b></div>
+                        <div><span>Tổng cần thu</span><b id="deliveryCashSubmissionReportTotal">0</b></div>
+                        <div><span>Chênh thực nhập</span><b id="deliveryCashSubmissionInputDifference">0</b></div>
+                      </div>
+                      <div class="table-scroll delivery-cash-preview-table-scroll">
+                        <table class="delivery-cash-preview-table">
+                          <thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Tiền mặt</th><th>Tài khoản</th><th>Tổng</th></tr></thead>
+                          <tbody id="deliveryCashSubmissionPreviewTable"><tr><td colspan="5">Chưa có dữ liệu.</td></tr></tbody>
+                          <tfoot><tr><th colspan="2">Tổng theo báo cáo</th><th id="deliveryCashSubmissionPreviewCashTotal">0</th><th id="deliveryCashSubmissionPreviewBankTotal">0</th><th id="deliveryCashSubmissionPreviewGrandTotal">0</th></tr></tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  </section>
+
+                  <label>Thực nộp tiền mặt<input id="deliveryCashSubmissionCashInput" name="submittedCashAmount" type="number" min="0" step="1" placeholder="Tự điền theo báo cáo" /></label>
+                  <label>Thực nhận tài khoản<input id="deliveryCashSubmissionBankInput" name="submittedBankAmount" type="number" min="0" step="1" placeholder="Tự điền theo báo cáo" /></label>
+                  <label class="full-span">Ghi chú<input name="note" placeholder="Ghi chú nộp quỹ" /></label>
+                  <div class="form-actions full-span"><button type="submit">Tạo phiếu nộp quỹ</button></div>
+                  <p id="deliveryCashSubmissionMessage" class="message full-span"></p>
+                </form>
+              </div>
+            </section>
+          </div>
+
+          <div id="deliveryShortageResolutionModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card fund-shortage-modal-card" role="dialog" aria-modal="true" aria-labelledby="deliveryShortageResolutionTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="deliveryShortageResolutionTitle">Phân loại khoản thiếu trước khi xác nhận</h3>
+                  <p class="muted">Phiếu gốc được khóa sau xác nhận. Chỉ khoản NVGH đã thu nhưng chưa nộp mới tạo công nợ NVGH.</p>
+                </div>
+                <button id="closeDeliveryShortageResolutionModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
+                <form id="deliveryShortageResolutionForm" class="form fund-form-grid">
+                  <input id="deliveryShortageResolutionSubmissionCode" name="submissionCode" type="hidden" />
+                  <input id="deliveryShortageResolutionMode" name="mode" type="hidden" />
+                  <div id="deliveryShortageResolutionSummary" class="fund-shortage-summary full-span"></div>
+
+                  <section id="deliveryCashShortageResolutionSection" class="fund-shortage-resolution-section full-span" hidden>
+                    <div class="fund-shortage-section-head"><strong>Thiếu tiền mặt</strong><b id="deliveryCashShortageResolutionAmount">0</b></div>
+                    <div class="fund-shortage-resolution-grid">
+                      <label>Cách xử lý
+                        <select id="deliveryCashShortageReason" name="cashReasonType">
+                          <option value="">-- Chọn nguyên nhân --</option>
+                          <option value="collected_not_remitted">NVGH đã thu nhưng chưa nộp đủ</option>
+                          <option value="customer_not_paid">Khách hàng chưa thanh toán</option>
+                          <option value="approved_expense">Khoản chi/điều chỉnh đã được duyệt</option>
+                          <option value="pending_review">Chờ kiểm tra, chưa xác định trách nhiệm</option>
+                        </select>
+                      </label>
+                      <label>Ghi chú giải trình<input id="deliveryCashShortageNote" name="cashNote" placeholder="Nhập khi cần giải trình" /></label>
+                    </div>
+                  </section>
+
+                  <section id="deliveryBankShortageResolutionSection" class="fund-shortage-resolution-section full-span" hidden>
+                    <div class="fund-shortage-section-head"><strong>Thiếu chuyển khoản</strong><b id="deliveryBankShortageResolutionAmount">0</b></div>
+                    <div class="fund-shortage-resolution-grid">
+                      <label>Cách xử lý
+                        <select id="deliveryBankShortageReason" name="bankReasonType">
+                          <option value="">-- Chọn nguyên nhân --</option>
+                          <option value="pending_bank_reconciliation">Chờ đối soát ngân hàng</option>
+                          <option value="delivery_staff_liability">NVGH chịu trách nhiệm nộp bù</option>
+                          <option value="customer_not_paid">Khách hàng chưa chuyển khoản</option>
+                          <option value="approved_adjustment">Điều chỉnh đã được duyệt</option>
+                        </select>
+                      </label>
+                      <label>Ghi chú giải trình<input id="deliveryBankShortageNote" name="bankNote" placeholder="Thông tin giao dịch hoặc lý do" /></label>
+                    </div>
+                  </section>
+
+                  <div class="form-actions full-span">
+                    <button id="submitDeliveryShortageResolutionButton" type="submit">Xác nhận phiếu và ghi quỹ</button>
+                  </div>
+                  <p id="deliveryShortageResolutionMessage" class="message full-span"></p>
+                </form>
+              </div>
+            </section>
+          </div>
+
+          <div id="deliveryShortageRepaymentModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card fund-shortage-modal-card" role="dialog" aria-modal="true" aria-labelledby="deliveryShortageRepaymentTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="deliveryShortageRepaymentTitle">Nộp bù thiếu quỹ NVGH</h3>
+                  <p class="muted">Phiếu nộp bù tạo ở trạng thái chờ xác nhận. Chỉ khi xác nhận mới tăng fundLedgers và giảm số còn thiếu.</p>
+                </div>
+                <button id="closeDeliveryShortageRepaymentModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
+                <div id="deliveryShortageRepaymentSummary" class="delivery-shortage-kpis"></div>
+                <form id="deliveryShortageRepaymentForm" class="form fund-form-grid">
+                  <input id="deliveryShortageRepaymentShortageId" name="shortageId" type="hidden" />
+                  <label>Ngày nộp bù<input id="deliveryShortageRepaymentDate" name="repaymentDate" type="date" /></label>
+                  <label>Hình thức nhận
+                    <select id="deliveryShortageRepaymentFundType" name="fundType">
+                      <option value="cash">Tiền mặt</option>
+                      <option value="bank">Chuyển khoản</option>
+                    </select>
+                  </label>
+                  <label>Số tiền nộp bù<input id="deliveryShortageRepaymentAmount" name="amount" type="number" min="1" step="1" /></label>
+                  <label>Ghi chú<input id="deliveryShortageRepaymentNote" name="note" placeholder="Nộp bù lần..." /></label>
+                  <div class="form-actions full-span"><button type="submit">Tạo phiếu nộp bù</button></div>
+                  <p id="deliveryShortageRepaymentMessage" class="message full-span"></p>
+                </form>
+                <div class="table-scroll delivery-shortage-history-scroll">
+                  <table>
+                    <thead><tr><th>Mã phiếu bù</th><th>Ngày</th><th>Hình thức</th><th>Số tiền</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                    <tbody id="deliveryShortageRepaymentTable"><tr><td colspan="6">Chưa tải lịch sử nộp bù.</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div id="expenseVoucherModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card" role="dialog" aria-modal="true" aria-labelledby="expenseVoucherModalTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="expenseVoucherModalTitle">Tạo phiếu chi</h3>
+                  <p class="muted">Phiếu tạo ở trạng thái pending; xác nhận mới ghi direction = out vào fundLedgers.</p>
+                </div>
+                <button id="closeExpenseVoucherModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
+                <form id="expenseVoucherForm" class="form fund-form-grid">
+                  <label>Ngày chi<input name="date" type="date" /></label>
+                  <label>Quỹ chi<select name="fundType"><option value="cash">Tiền mặt</option><option value="bank">Ngân hàng</option></select></label>
+                  <label>Loại chi<input name="expenseType" placeholder="xang_xe / boc_vac / khac" /></label>
+                  <label>Số tiền<input name="amount" type="number" min="0" step="1" /></label>
+                  <label>Mã người nhận<input name="receiverCode" placeholder="Mã NV/NCC/KH nếu có" /></label>
+                  <label>Người nhận<input name="receiverName" /></label>
+                  <label>Vai trò người nhận<select name="receiverRole"><option value="other">Khác</option><option value="sales">NVBH</option><option value="delivery">NVGH</option><option value="accountant">Kế toán</option><option value="cashier">Thủ quỹ</option><option value="supplier">Nhà cung cấp</option><option value="customer">Khách hàng</option></select></label>
+                  <label>Ghi chú<input name="note" /></label>
+                  <div class="form-actions full-span"><button type="submit">Ghi phiếu chi</button></div>
+                  <p id="expenseVoucherMessage" class="message full-span"></p>
+                </form>
+              </div>
+            </section>
+          </div>
+
+          <div id="fundSummaryDetailModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-summary-detail-card" role="dialog" aria-modal="true" aria-labelledby="fundSummaryDetailTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="fundSummaryDetailTitle">Chi tiết Sổ quỹ tổng hợp</h3>
+                  <p id="fundSummaryDetailSubtitle" class="muted">Các chứng từ cấu thành số tổng hợp.</p>
+                </div>
+                <button id="closeFundSummaryDetailModal" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-summary-detail-body">
+                <div class="kpi-row debt-v2-kpis fund-summary-detail-kpis">
+                  <div><span>Đã nộp</span><b id="fundSummaryDetailDeposited">0</b></div>
+                  <div><span>Đã nhận</span><b id="fundSummaryDetailExpense">0</b></div>
+                  <div><span>Chênh lệch</span><b id="fundSummaryDetailNet">0</b></div>
+                  <div><span>Chuyển quỹ</span><b id="fundSummaryDetailTransfer">0</b></div>
+                </div>
+                <p id="fundSummaryDetailMessage" class="message" aria-live="polite"></p>
+                <div class="table-scroll fund-summary-detail-scroll">
+                  <table>
+                    <thead><tr><th>Ngày giờ</th><th>Mã chứng từ</th><th>Loại giao dịch</th><th>Quỹ</th><th>Nội dung</th><th>Số tiền nộp</th><th>Số tiền chi</th><th>Người tạo</th><th>Trạng thái</th></tr></thead>
+                    <tbody id="fundSummaryDetailTable"><tr><td colspan="9">Chưa chọn người cần xem.</td></tr></tbody>
+                  </table>
+                </div>
+                <div class="fund-summary-pagination">
+                  <button id="fundSummaryDetailPrevPage" class="secondary" type="button">Trang trước</button>
+                  <span id="fundSummaryDetailPageInfo" class="muted">Trang 1/1</span>
+                  <button id="fundSummaryDetailNextPage" class="secondary" type="button">Trang sau</button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div id="fundTransferModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card" role="dialog" aria-modal="true" aria-labelledby="fundTransferModalTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="fundTransferModalTitle">Tạo phiếu nộp ngân hàng</h3>
+                  <p class="muted">Xác nhận phiếu mới ghi 2 dòng: tiền mặt chi và ngân hàng thu.</p>
+                </div>
+                <button id="closeFundTransferModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
+                <form id="fundTransferForm" class="form fund-form-grid">
+                  <label>Ngày<input name="date" type="date" /></label>
+                  <label>Từ quỹ<select name="fromFund"><option value="cash">Tiền mặt</option><option value="bank">Ngân hàng</option></select></label>
+                  <label>Đến quỹ<select name="toFund"><option value="bank">Ngân hàng</option><option value="cash">Tiền mặt</option></select></label>
+                  <label>Số tiền<input name="amount" type="number" min="0" step="1" /></label>
+                  <label>Ngân hàng<input name="bankName" placeholder="VCB / BIDV..." /></label>
+                  <label>Ghi chú<input name="note" /></label>
+                  <div class="form-actions full-span"><button type="submit">Ghi chuyển quỹ</button></div>
+                  <p id="fundTransferMessage" class="message full-span"></p>
+                </form>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <section id="reportsTab" class="tab-content">
+      <main class="report-directory-shell">
+        <section class="card report-directory-hero ui-page-header">
+          <div class="ui-page-title">
+            <span class="report-eyebrow">REPORT CENTER V2</span>
+            <h2>Danh sách báo cáo quản trị</h2>
+            <p class="muted ui-page-meta">Chọn đúng báo cáo cần xem. Mỗi báo cáo mở trong một cửa sổ riêng để màn hình chính luôn gọn và dễ tìm.</p>
+          </div>
+          <div class="ui-page-actions report-directory-status-wrap">
+            <span id="reportDirectoryState" class="report-directory-state" aria-live="polite">Chưa tải danh mục</span>
+          </div>
+        </section>
+
+        <section class="card invoice-export-card" aria-labelledby="invoiceExportTitle">
+          <div class="invoice-export-head">
+            <div>
+              <h3 id="invoiceExportTitle">Xuất hóa đơn</h3>
+              <p class="muted">Lọc theo ngày nghiệp vụ và đúng mã NVBH. SSE luôn xuất tất cả đơn VAT và không VAT sau khi trừ hàng trả đã xác nhận kế toán.</p>
+            </div>
+          </div>
+          <div class="invoice-export-filter-grid" role="group" aria-label="Bộ lọc xuất hóa đơn">
+            <label class="invoice-export-field">Từ ngày
+              <input id="invoiceExportFromDate" type="date" autocomplete="off" />
+            </label>
+            <label class="invoice-export-field">Đến ngày
+              <input id="invoiceExportToDate" type="date" autocomplete="off" />
+            </label>
+            <label class="invoice-export-field invoice-export-staff-field">Nhân viên bán hàng
+              <select id="invoiceExportSalesStaffCode" aria-label="Lọc theo nhân viên bán hàng">
+                <option value="">Tất cả nhân viên bán hàng</option>
+              </select>
+            </label>
+            <label class="invoice-export-field invoice-export-customer-field">Khách hàng
+              <span class="invoice-export-customer-combobox">
+                <input id="invoiceExportCustomerSearch" type="search" autocomplete="off" placeholder="Nhập mã/tên/SĐT khách hàng..." aria-label="Lọc theo khách hàng" aria-autocomplete="list" aria-controls="invoiceExportCustomerSuggestions" />
+                <button id="clearInvoiceExportCustomerButton" type="button" class="invoice-export-customer-clear" aria-label="Bỏ chọn khách hàng" hidden>×</button>
+              </span>
+              <input id="invoiceExportCustomerCode" type="hidden" />
+              <div id="invoiceExportCustomerSuggestions" class="invoice-export-customer-suggestions" role="listbox" hidden></div>
+            </label>
+            <button id="clearInvoiceExportFiltersButton" type="button" class="ui-button-ghost invoice-export-clear-button" aria-label="Xóa bộ lọc xuất hóa đơn">Xóa lọc</button>
+          </div>
+          <div class="invoice-export-actions">
+            <button id="exportVatInvoiceTT78Button" type="button" class="secondary invoice-export-button" data-invoice-type="VAT">Xuất hóa đơn VAT</button>
+            <button id="exportVatNonInvoiceOrdersButton" type="button" class="secondary invoice-export-button" data-invoice-type="NON_VAT">Xuất hóa đơn không VAT</button>
+            <button id="exportSseInvoiceButton" type="button" class="secondary invoice-export-button">Xuất Excel SSE</button>
+            <button id="downloadSseErrorReportButton" type="button" class="secondary invoice-export-button" hidden>Tải báo cáo lỗi SSE</button>
+          </div>
+          <p id="vatInvoiceExportSummary" class="muted invoice-export-status" aria-live="polite">Chưa xuất dữ liệu. Thao tác tải file chỉ đọc dữ liệu và không thay đổi chứng từ.</p>
+        </section>
+
+        <section class="card report-directory-card">
+          <div class="report-directory-head">
+            <div>
+              <h3>Danh mục báo cáo</h3>
+              <p class="muted">Báo cáo được nhóm theo nghiệp vụ. Nhấn “Xem báo cáo” để mở popup chi tiết.</p>
+            </div>
+          </div>
+          <div class="ui-list-toolbar report-directory-toolbar">
+            <div class="ui-search-filter-bar report-directory-toolbar-grid">
+              <label class="ui-toolbar-field ui-field-search">Tìm báo cáo
+                <input id="reportCatalogSearch" placeholder="Tên hoặc nội dung báo cáo..." autocomplete="off" />
+              </label>
+              <div class="ui-toolbar-actions report-directory-toolbar-actions">
+                <button id="applyReportCatalogFiltersButton" class="ui-action-primary" type="button">Tìm kiếm</button>
+                <button id="clearReportCatalogFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
+                <button id="reloadReportCatalogButton" class="secondary" type="button">Tải lại</button>
+              </div>
+            </div>
+          </div>
+          <div id="reportCatalog" class="report-directory-list">
+            <div class="report-catalog-loading">Đang tải danh mục...</div>
+          </div>
+        </section>
+
+        <details class="card report-export-card report-directory-export-card">
+          <summary>
+            <span><strong>Kho mẫu Excel và dữ liệu xuất</strong><small>Giữ đầy đủ các mẫu xuất cũ để đối soát và gửi ngoài hệ thống.</small></span>
+          </summary>
+          <div class="report-export-body">
+            <div class="note-box">
+              <strong>Quy tắc nguồn dữ liệu:</strong>
+              Tồn kho hiện tại đọc inventories. Nhập - xuất - tồn và thẻ kho đọc stockTransactions. Công nợ đọc arLedgers. Quỹ đọc fundLedgers. Doanh số chỉ tính đơn đã xác nhận kế toán và không cộng dòng hàng khuyến mại.
+            </div>
+            <div class="report-export-buttons">
+              <button type="button" class="secondary report-export-btn" data-report-code="sales-detail">Báo cáo bán hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="delivery-trips">Báo cáo giao hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="returns-detail">Báo cáo trả hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="debt-period">Báo cáo công nợ</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="debt-ledger">Sổ công nợ chi tiết</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="inventory-current">Tồn kho hiện tại</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="inventory-movement">Nhập - xuất - tồn</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="stock-card">Thẻ kho</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="finance-ledger">Quỹ tiền</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="sales-by-staff">Báo cáo NVBH</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="delivery-by-staff">Báo cáo NVGH</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="sales-by-customer">Doanh số khách hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="sales-by-product">Doanh số sản phẩm</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="info-products">Thông tin sản phẩm</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="info-customers">Thông tin khách hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-code="info-staffs">Thông tin tài khoản</button>
+            </div>
+          </div>
+        </details>
+      </main>
+
+      <div id="reportCenterModal" class="modal-backdrop report-center-modal" hidden aria-hidden="true">
+        <main class="report-center-shell report-center-dialog" role="dialog" aria-modal="true" aria-labelledby="reportCenterModalTitle">
+          <section class="card report-popup-header">
+            <div class="report-center-heading ui-page-header">
+              <div class="ui-page-title">
+                <span class="report-eyebrow">CHI TIẾT BÁO CÁO</span>
+                <h2 id="reportCenterModalTitle">Xem báo cáo</h2>
+                <p class="muted ui-page-meta">Lọc, phân tích và xuất Excel cho báo cáo đang chọn.</p>
+              </div>
+              <div class="ui-page-actions report-center-heading-actions">
+                <div id="reportLoadState" class="report-load-state" aria-live="polite">Sẵn sàng tải báo cáo</div>
+                <button id="reportExportCurrentButton" class="secondary" type="button">Xuất Excel</button>
+                <button id="closeReportCenterButton" class="secondary report-center-close" type="button">Đóng</button>
+              </div>
+            </div>
+
+            <div class="ui-list-toolbar report-popup-filter-toolbar">
+              <div class="ui-search-filter-bar report-popup-toolbar-grid">
+                <label class="ui-toolbar-field ui-field-search">Tìm trong báo cáo
+                  <input id="reportSearchInput" placeholder="Mã, tên, chứng từ..." autocomplete="off" />
+                </label>
+                <div id="reportDynamicFilters" class="report-dynamic-filters" hidden></div>
+                <label class="ui-toolbar-field report-period-field">Kỳ báo cáo
+                  <select id="reportPeriodPreset">
+                    <option value="currentDay">Hôm nay</option>
+                    <option value="7days">7 ngày gần nhất</option>
+                    <option value="month" selected>Tháng này</option>
+                    <option value="previousMonth">Tháng trước</option>
+                    <option value="custom">Tùy chọn</option>
+                  </select>
+                </label>
+                <label class="ui-toolbar-field ui-field-date">Từ ngày<input id="reportFromDate" type="date" /></label>
+                <label class="ui-toolbar-field ui-field-date">Đến ngày<input id="reportToDate" type="date" /></label>
+                <label class="ui-toolbar-field report-page-size-field">Số dòng
+                  <select id="reportPageSize">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                  </select>
+                </label>
+                <div class="ui-toolbar-actions report-popup-toolbar-actions">
+                  <button id="applyReportFiltersButton" class="ui-action-primary" type="button">Tìm kiếm</button>
+                  <button id="clearReportFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
+                  <button id="reloadReportsButton" class="secondary" type="button">Tải lại</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card report-viewer-panel report-popup-viewer">
+            <div class="report-viewer-head">
+              <div>
+                <span id="reportActiveCategory" class="report-category-badge">Báo cáo</span>
+                <h3 id="reportActiveTitle">Chưa chọn báo cáo</h3>
+                <p id="reportSalesSummary" class="muted">Nhấn “Xem báo cáo” tại danh sách bên ngoài.</p>
+              </div>
+            </div>
+
+            <div id="reportSummaryMetrics" class="report-summary-metrics"></div>
+            <div id="reportChartPanel" class="report-chart-panel" hidden>
+              <div class="report-chart-head"><strong>Top dữ liệu</strong><span id="reportChartCaption" class="muted"></span></div>
+              <div id="reportChart" class="report-bar-chart"></div>
+            </div>
+
+            <div class="report-table-toolbar">
+              <span id="reportTableStatus" class="muted" aria-live="polite">Chưa tải dữ liệu</span>
+            </div>
+            <div class="table-wrap report-table-wrap">
+              <table class="report-data-table">
+                <thead id="reportTableHead"><tr><th>Chưa chọn báo cáo</th></tr></thead>
+                <tbody id="reportTableBody"><tr><td class="empty-cell">Nhấn “Xem báo cáo” để tải dữ liệu.</td></tr></tbody>
+              </table>
+            </div>
+            <div class="report-pagination">
+              <button id="reportPreviousPageButton" class="secondary" type="button">Trang trước</button>
+              <span id="reportPageInfo">Trang 0/0</span>
+              <button id="reportNextPageButton" class="secondary" type="button">Trang sau</button>
+            </div>
+            <aside id="reportRowDetailDrawer" class="report-row-detail-drawer" hidden aria-live="polite">
+              <div class="report-row-detail-head">
+                <strong id="reportRowDetailTitle">Chi tiết dòng báo cáo</strong>
+                <button id="closeReportRowDetailButton" class="ui-button-ghost" type="button">Đóng</button>
+              </div>
+              <div id="reportRowDetailBody" class="report-row-detail-body"></div>
+            </aside>
+          </section>
+
+          <div class="report-compat-hidden" hidden aria-hidden="true">
+            <div id="reportOverviewCards"></div>
+            <div id="reportAlertStrip"></div>
+            <span id="reportRevenue"></span><span id="reportOrderCount"></span><span id="reportNetSales"></span>
+            <span id="reportCollected"></span><span id="reportDebt"></span><span id="reportCashBalance"></span>
+            <span id="reportStockProducts"></span><span id="reportDeliveredOrders"></span><span id="reportReturnAmount"></span>
+            <span id="reportStockSummary"></span><table><tbody id="reportStockTable"></tbody></table>
+            <span id="reportDebtSummary"></span><table><tbody id="reportDebtTable"></tbody></table>
+            <span id="reportCashSummary"></span><table><tbody id="reportCashTable"></tbody></table>
+            <table><tbody id="reportSalesTable"></tbody></table>
+          </div>
+        </main>
+      </div>
+    </section>
+
+    <section id="usersTab" class="tab-content">
+      <main class="grid">
+        <section class="card">
+          <h2>Thêm / sửa tài khoản</h2>
+          <form id="userForm" class="form">
+            <input type="hidden" name="id" />
+            <label>Mã NV / mã tài khoản<input name="code" placeholder="VD: BH01" /></label>
+
+            <label>Tên đăng nhập *<input name="username" placeholder="VD: banhang01" required /></label>
+            <label>Mật khẩu<input name="password" placeholder="Tạo mới bắt buộc nhập mật khẩu" /></label>
+            <label>Họ tên *<input name="name" placeholder="Tên nhân viên" required /></label>
+            <label>SĐT<input name="phone" placeholder="Số điện thoại" /></label>
+            <label>Phân quyền
+              <select name="role">
+                <option value="sales">Bán hàng</option>
+                <option value="delivery">Giao hàng</option>
+                <option value="warehouse">Kho</option>
+                <option value="accountant">Kế toán</option>
+                <option value="manager">Quản lý</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+            <label class="check-row"><input name="isActive" type="checkbox" checked />Đang hoạt động</label>
+            <div class="button-row">
+              <button type="submit">Lưu tài khoản</button>
+              <button type="button" id="resetUserButton" class="secondary">Nhập mới</button>
+            </div>
+          </form>
+          <p id="userMessage" class="message"></p>
+        </section>
+        <section class="card">
+          <div class="toolbar"><div><h2>Danh sách tài khoản</h2><p id="userCount" class="muted">Đang tải...</p></div><input id="userSearchInput" placeholder="Tìm mã, tên, tài khoản, quyền..." /></div>
+          <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tài khoản</th><th>Họ tên</th><th>SĐT</th><th>Quyền</th><th>Trạng thái</th><th></th></tr></thead><tbody id="userTable"><tr><td colspan="7">Đang tải...</td></tr></tbody></table></div>
+        </section>
+      </main>
+    </section>
+
+    <section id="promotionsTab" class="tab-content">
+      <section class="card">
+        <div class="toolbar">
+          <div>
+            <h2>Quản lý khuyến mại</h2>
+            <p class="muted">Quản lý các loại khuyến mại theo file import Excel. Trong từng tab, phần mềm gom các dòng cùng mã CTKM thành 1 chương trình để dễ sửa, hủy và quản lý thời hạn.</p>
+          </div>
+          <input id="promotionSearchAllInput" placeholder="Tìm mã CTKM, nội dung, mã SP..." />
+        </div>
+        <p id="promotion3Message" class="message"></p>
+      </section>
+
+      <!-- PROMOTION_MAIN_TAB_WITH_SEPARATE_POPUPS_START: giữ tab ngoài màn chính, mỗi tab chỉ mở popup riêng khi tạo/sửa -->
+      <section class="card promotion-type-tabs-card" aria-label="Tab nghiệp vụ khuyến mại">
+        <div class="promotion-type-tabs">
+          <button type="button" class="active" data-promotion-program-tab="productRules">CK sản phẩm</button>
+          <button type="button" data-promotion-program-tab="groupItems">Nhóm SP KM</button>
+          <button type="button" data-promotion-program-tab="groupRules">Điều kiện KM / Ontop</button>
+          <button type="button" data-promotion-program-tab="customerOrderValueDiscounts">CK thêm theo DS</button>
+        </div>
+      </section>
+      <!-- PROMOTION_MAIN_TAB_WITH_SEPARATE_POPUPS_END -->
+
+      <!-- PROMOTION_SEPARATE_POPUPS_START: 3 popup riêng, mỗi popup chỉ chứa đúng nghiệp vụ của nó -->
+      <div id="promotionProductPopup" class="promotion-workspace-overlay promotion-type-popup" data-promotion-popup="productRules" hidden>
+        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionProductPopupTitle">
+          <header class="promotion-workspace-header">
+            <div>
+              <h2 id="promotionProductPopupTitle">CK sản phẩm</h2>
+              <p id="promotionProductPopupSubtitle" class="muted">Popup riêng cho chiết khấu sản phẩm.</p>
+            </div>
+            <button type="button" class="secondary promotion-workspace-close" data-promotion-popup-close="productRules">Đóng</button>
+          </header>
+          <div id="promotionProductPopupBody" class="promotion-workspace-body"><p class="muted">Chưa chọn chương trình CK sản phẩm.</p></div>
+          <footer class="promotion-workspace-footer">
+            <span class="muted">Chỉ xử lý CK sản phẩm trong popup này.</span>
+            <button type="button" class="secondary" data-promotion-popup-close="productRules">Đóng</button>
+          </footer>
+        </section>
+      </div>
+
+      <div id="promotionGroupPopup" class="promotion-workspace-overlay promotion-type-popup" data-promotion-popup="groupItems" hidden>
+        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionGroupPopupTitle">
+          <header class="promotion-workspace-header">
+            <div>
+              <h2 id="promotionGroupPopupTitle">Nhóm sản phẩm KM</h2>
+              <p id="promotionGroupPopupSubtitle" class="muted">Popup riêng cho danh sách sản phẩm trong nhóm.</p>
+            </div>
+            <button type="button" class="secondary promotion-workspace-close" data-promotion-popup-close="groupItems">Đóng</button>
+          </header>
+          <div id="promotionGroupPopupBody" class="promotion-workspace-body"><p class="muted">Chưa chọn nhóm sản phẩm.</p></div>
+          <footer class="promotion-workspace-footer">
+            <span class="muted">Chỉ xử lý nhóm sản phẩm KM trong popup này.</span>
+            <button type="button" class="secondary" data-promotion-popup-close="groupItems">Đóng</button>
+          </footer>
+        </section>
+      </div>
+
+      <div id="promotionConditionPopup" class="promotion-workspace-overlay promotion-type-popup" data-promotion-popup="groupRules" hidden>
+        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionConditionPopupTitle">
+          <header class="promotion-workspace-header">
+            <div>
+              <h2 id="promotionConditionPopupTitle">Điều kiện KM / Ontop</h2>
+              <p id="promotionConditionPopupSubtitle" class="muted">Popup riêng cho điều kiện nhóm và Ontop.</p>
+            </div>
+            <button type="button" class="secondary promotion-workspace-close" data-promotion-popup-close="groupRules">Đóng</button>
+          </header>
+          <div id="promotionConditionPopupBody" class="promotion-workspace-body"><p class="muted">Chưa chọn điều kiện khuyến mại.</p></div>
+          <footer class="promotion-workspace-footer">
+            <span class="muted">Chỉ xử lý điều kiện KM / Ontop trong popup này.</span>
+            <button type="button" class="secondary" data-promotion-popup-close="groupRules">Đóng</button>
+          </footer>
+        </section>
+      </div>
+
+
+      <div id="promotionCustomerOrderValueDiscountPopup" class="promotion-workspace-overlay promotion-type-popup" data-promotion-popup="customerOrderValueDiscounts" hidden>
+        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionCustomerOrderValueDiscountPopupTitle">
+          <header class="promotion-workspace-header">
+            <div>
+              <h2 id="promotionCustomerOrderValueDiscountPopupTitle">Tạo rule CK thêm theo DS</h2>
+              <p id="promotionCustomerOrderValueDiscountPopupSubtitle" class="muted">Popup riêng cho rule chiết khấu thêm theo doanh số khách hàng.</p>
+            </div>
+            <button type="button" class="secondary promotion-workspace-close" data-promotion-popup-close="customerOrderValueDiscounts">Đóng</button>
+          </header>
+          <div id="promotionCustomerOrderValueDiscountPopupBody" class="promotion-workspace-body"><p class="muted">Chưa chọn rule CK thêm theo DS.</p></div>
+          <footer class="promotion-workspace-footer">
+            <span class="muted">Chỉ xử lý rule CK thêm theo DS trong popup này.</span>
+            <button type="button" class="secondary" data-promotion-popup-close="customerOrderValueDiscounts">Đóng</button>
+          </footer>
+        </section>
+      </div>
+      <!-- PROMOTION_SEPARATE_POPUPS_END -->
+
+      <main id="promotionProductProgramTab" class="promotion-management-layout promotion-program-panel active" data-promotion-program-panel="productRules">
+        <section class="card promotion-program-list">
+          <div class="toolbar">
+            <div><h2>Danh sách chương trình CK sản phẩm</h2><p id="promotionProductProgramCount" class="muted">Đang tải...</p></div>
+            <div class="promotion-program-actions"><button type="button" id="createPromotionProductProgramButton">+ Tạo chương trình</button><button type="button" id="reloadPromotionProductProgramsButton" class="secondary">Tải lại</button></div>
+          </div>
+          <div class="table-wrap promotion-program-table-wrap">
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Xem</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionProductProgramTable"><tr><td colspan="8">Đang tải...</td></tr></tbody></table>
+          </div>
+        </section>
+        <section class="card promotion-program-detail">
+          <div class="toolbar"><div><h2>Chi tiết CK sản phẩm</h2><p class="muted">Chọn Sửa bên trái để xem danh sách sản phẩm và chiết khấu trực tiếp.</p></div></div>
+          <form id="promotionProductProgramForm" class="form compact-form promotion-program-form">
+            <label>Mã chương trình<input name="programCode" readonly placeholder="Chọn chương trình bên trái" /></label>
+            <label>Nội dung chương trình<input name="programName" placeholder="Nội dung chương trình" /></label>
+            <label>Từ ngày<input name="startDate" type="date" /></label>
+            <label>Đến ngày<input name="endDate" type="date" /></label>
+            <label>Tình trạng<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
+            <div class="button-row"><button type="submit">Lưu chương trình</button><button type="button" id="cancelPromotionProductProgramButton" class="danger">Huỷ chương trình</button></div>
+          </form>
+          <section class="promotion-inline-editor">
+            <h3>Thêm sản phẩm vào KM</h3>
+            <form id="promotionProductLineForm" class="form compact-form promotion-line-form">
+              <label>Sản phẩm<input name="productCode" placeholder="Nhập mã sản phẩm" /></label>
+              <label>Mức CK %<input name="discountPercent" type="number" min="0" step="0.01" placeholder="VD: 5" /></label>
+              <button type="submit">Thêm</button>
+            </form>
+          </section>
+          <h3>Danh sách sản phẩm và chiết khấu đi kèm</h3>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Mã SP</th><th>Tên sản phẩm</th><th>CK%</th><th>Sửa</th><th>Xóa</th></tr></thead><tbody id="promotionProductProgramDetailTable"><tr><td colspan="6">Chưa chọn chương trình.</td></tr></tbody></table></div>
+        </section>
+      </main>
+
+      <main id="promotionGroupItemProgramTab" class="promotion-management-layout promotion-program-panel" data-promotion-program-panel="groupItems">
+        <section class="card promotion-program-list">
+          <div class="toolbar">
+            <div><h2>Danh sách nhóm sản phẩm KM</h2><p id="promotionGroupItemProgramCount" class="muted">Đang tải...</p></div>
+            <div class="promotion-program-actions"><button type="button" id="createPromotionGroupItemProgramButton">+ Tạo nhóm</button><button type="button" id="reloadPromotionGroupItemProgramsButton" class="secondary">Tải lại</button></div>
+          </div>
+          <div class="table-wrap promotion-program-table-wrap">
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Xem</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionGroupItemProgramTable"><tr><td colspan="8">Đang tải...</td></tr></tbody></table>
+          </div>
+        </section>
+        <section class="card promotion-program-detail">
+          <div class="toolbar"><div><h2>Chi tiết nhóm sản phẩm KM</h2><p class="muted">Tab này chỉ dùng để gom sản phẩm thành nhóm, phục vụ điều kiện khuyến mại ở Tab 3.</p></div></div>
+          <form id="promotionGroupItemProgramForm" class="form compact-form promotion-program-form">
+            <label>Mã nhóm<input name="programCode" readonly placeholder="Chọn nhóm bên trái" /></label>
+            <label>Nội dung nhóm<input name="programName" placeholder="Nội dung nhóm" /></label>
+            <label>Từ ngày<input name="startDate" type="date" /></label>
+            <label>Đến ngày<input name="endDate" type="date" /></label>
+            <label>Tình trạng<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
+            <div class="button-row"><button type="submit">Lưu nhóm</button><button type="button" id="cancelPromotionGroupItemProgramButton" class="danger">Huỷ nhóm</button></div>
+          </form>
+          <section class="promotion-inline-editor">
+            <h3>Thêm sản phẩm vào nhóm</h3>
+            <form id="promotionGroupProductLineForm" class="form compact-form promotion-line-form">
+              <label>Sản phẩm<input name="productCode" placeholder="Nhập mã sản phẩm" /></label>
+              <button type="submit">Thêm</button>
+            </form>
+          </section>
+          <h3>Danh sách sản phẩm trong nhóm</h3>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Mã SP</th><th>Tên sản phẩm</th><th>Sửa</th><th>Xóa</th></tr></thead><tbody id="promotionGroupItemProgramDetailTable"><tr><td colspan="5">Chưa chọn chương trình.</td></tr></tbody></table></div>
+        </section>
+      </main>
+
+      <main id="promotionGroupRuleProgramTab" class="promotion-management-layout promotion-program-panel" data-promotion-program-panel="groupRules">
+        <section class="card promotion-program-list">
+          <div class="toolbar">
+            <div><h2>Danh sách điều kiện nhóm KM / Ontop</h2><p id="promotionGroupRuleProgramCount" class="muted">Đang tải...</p></div>
+            <div class="promotion-program-actions"><button type="button" id="createPromotionGroupRuleProgramButton">+ Tạo điều kiện</button><button type="button" id="reloadPromotionGroupRuleProgramsButton" class="secondary">Tải lại</button></div>
+          </div>
+          <div class="table-wrap promotion-program-table-wrap">
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Xem</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionGroupRuleProgramTable"><tr><td colspan="8">Đang tải...</td></tr></tbody></table>
+          </div>
+        </section>
+        <section class="card promotion-program-detail">
+          <div class="toolbar"><div><h2>Chi tiết điều kiện nhóm KM / Ontop</h2><p class="muted">Các mức doanh số điều kiện và chiết khấu của nhóm.</p></div></div>
+          <form id="promotionGroupRuleProgramForm" class="form compact-form promotion-program-form">
+            <label>Mã chương trình<input name="programCode" readonly placeholder="Chọn chương trình bên trái" /></label>
+            <label>Nội dung chương trình<input name="programName" placeholder="Nội dung chương trình" /></label>
+            <label>Từ ngày<input name="startDate" type="date" /></label>
+            <label>Đến ngày<input name="endDate" type="date" /></label>
+            <label>Tình trạng<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
+            <div class="button-row"><button type="submit">Lưu chương trình</button><button type="button" id="cancelPromotionGroupRuleProgramButton" class="danger">Huỷ chương trình</button></div>
+          </form>
+          <section class="promotion-inline-editor">
+            <h3>Thêm điều kiện khuyến mại</h3>
+            <form id="promotionTierLineForm" class="form compact-form promotion-line-form">
+              <label>Nhóm áp dụng<select name="groupCode" id="promotionTierGroupSelect"><option value="">Chọn nhóm sản phẩm</option></select></label>
+              <label>Tính theo<select name="basis" id="promotionTierBasisSelect"><option value="ORDER_VALUE">Tính theo doanh số</option><option value="QUANTITY">Tính theo số lượng</option></select></label>
+              <label id="promotionTierThresholdLabel">Doanh số từ<input name="minAmount" id="promotionTierThresholdInput" type="number" min="0" step="1000" placeholder="VD: 1000000" /></label>
+              <label>Chiết khấu %<input name="discountPercent" type="number" min="0" step="0.01" placeholder="VD: 2" /></label>
+              <button type="submit">Thêm điều kiện</button>
+            </form>
+          </section>
+          <h3>Danh sách điều kiện và chiết khấu đi kèm</h3>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Nhóm áp dụng</th><th>Tính theo</th><th>Ngưỡng từ</th><th>CK%</th><th>Sửa</th><th>Xóa</th></tr></thead><tbody id="promotionGroupRuleProgramDetailTable"><tr><td colspan="7">Chưa chọn chương trình.</td></tr></tbody></table></div>
+        </section>
+      </main>
+
+      <main id="promotionCustomerOrderValueDiscountProgramTab" class="promotion-management-layout promotion-program-panel" data-promotion-program-panel="customerOrderValueDiscounts">
+        <section class="card promotion-program-list">
+          <div class="toolbar">
+            <div><h2>Danh sách CK thêm theo doanh số KH</h2><p id="promotionCustomerOrderValueDiscountProgramCount" class="muted">Đang tải...</p></div>
+            <div class="promotion-program-actions"><button type="button" id="createPromotionCustomerOrderValueDiscountProgramButton">+ Tạo rule</button><button type="button" id="reloadPromotionCustomerOrderValueDiscountProgramsButton" class="secondary">Tải lại</button></div>
+          </div>
+          <div class="table-wrap promotion-program-table-wrap">
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Xem</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionCustomerOrderValueDiscountProgramTable"><tr><td colspan="8">Đang tải...</td></tr></tbody></table>
+          </div>
+        </section>
+        <section class="card promotion-program-detail">
+          <div class="toolbar"><div><h2>Chi tiết CK thêm theo doanh số KH</h2><p class="muted">Chỉ khách hàng trong danh sách đạt doanh số đơn tối thiểu mới được giảm thêm %.</p></div></div>
+          <form id="promotionCustomerOrderValueDiscountProgramForm" class="form compact-form promotion-program-form">
+            <label>Mã chương trình<input name="programCode" required placeholder="VD: CUST-DS-202607" /></label>
+            <label>Tên chương trình<input name="programName" required placeholder="VD: KH danh sách đạt DS đơn giảm thêm 3%" /></label>
+            <label>Từ ngày<input name="startDate" type="date" /></label>
+            <label>Đến ngày<input name="endDate" type="date" /></label>
+            <label>Doanh số đơn tối thiểu<input name="minOrderAmount" type="number" min="1000" step="1000" required placeholder="VD: 2000000" /></label>
+            <label>% chiết khấu thêm<input name="discountPercent" type="number" min="0.01" max="100" step="0.01" required placeholder="VD: 3" /></label>
+            <label>Cách tính nền<select name="baseAmountMode"><option value="after_line_promotions">Sau khuyến mãi dòng hàng</option><option value="before_promotions">Trước khuyến mãi</option></select></label>
+            <label>Trạng thái<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
+            <label class="full-row">Mã khách hàng áp dụng<textarea name="customerCodes" rows="4" required placeholder="Mỗi dòng một mã khách hàng hoặc phân tách bằng dấu phẩy"></textarea></label>
+            <label class="full-row">Ghi chú<input name="note" placeholder="Ghi chú nội bộ" /></label>
+            <div class="button-row"><button type="submit">Lưu rule</button><button type="button" id="cancelPromotionCustomerOrderValueDiscountProgramButton" class="danger">Huỷ rule</button></div>
+          </form>
+          <h3>Danh sách khách hàng áp dụng</h3>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Mã KH</th><th>DS tối thiểu</th><th>CK%</th><th>Cách tính nền</th><th>Trạng thái</th></tr></thead><tbody id="promotionCustomerOrderValueDiscountProgramDetailTable"><tr><td colspan="6">Chưa chọn chương trình.</td></tr></tbody></table></div>
+        </section>
+      </main>
+    </section>
+
+    <section id="importDataTab" class="tab-content">
+      <section class="card import-data-card">
+        <div class="toolbar">
+          <div>
+            <h2>Import dữ liệu Excel</h2>
+            <p class="muted">Chọn file rồi bấm Import ngay. Hệ thống tự kiểm tra, tự cắt hàng vượt tồn và báo cáo kết quả sau import.</p>
+          </div>
+        </div>
+
+        <div class="import-panel">
+          <label>Loại import
+            <select id="importDataType">
+              <option value="products">Sản phẩm</option>
+              <option value="customers">Khách hàng</option>
+              <option value="users">Thông tin tài khoản</option>
+              <option value="openingStock">Tồn kho ban đầu</option>
+              <option value="importOrders">Phiếu nhập kho</option>
+              <option value="salesOrders">Đơn con DMS / đơn bán DMS</option>
+              <option value="salesOrdersS3">Đơn S3 rút gọn</option>
+              <option value="openingDebt">Công nợ ban đầu</option>
+              <option value="debtCollections">Phiếu thu công nợ</option>
+              <option value="cashbook">Quỹ tiền</option>
+              <option value="promotionProductRules">Import CK sản phẩm</option>
+              <option value="promotionGroupItems">Import nhóm sản phẩm KM</option>
+              <option value="promotionGroupRules">Import điều kiện nhóm KM</option>
+              <option value="promotionCustomerOrderValueDiscounts">Import CK thêm theo doanh số KH</option>
+            </select>
+          </label>
+          <label id="importModeLabel">Chế độ import
+            <select id="importDataMode">
+              <option value="create">Import thông thường</option>
+              <option value="update">Cập nhật an toàn dữ liệu hiện có</option>
+            </select>
+          </label>
+          <label>File Excel
+            <input id="importExcelFile" type="file" accept=".xlsx,.xls" multiple />
+          </label>
+          <div class="button-row import-actions">
+            <button type="button" id="downloadImportTemplateButton" class="secondary">Tải mẫu Excel</button>
+            <button type="button" id="openExcelPasteImportButton" class="secondary">Dán trực tiếp từ Excel</button>
+            <button type="button" id="previewImportButton" class="secondary" style="display:none">Xem trước</button>
+            <button type="button" id="commitImportButton" class="success" disabled>Import các dòng đã chọn</button>
+          </div>
+        </div>
+
+        <div class="note-box import-guide">
+          <strong>Mẫu Excel chuẩn:</strong>
+          <p>Bấm <b>Tải mẫu Excel</b> theo đúng loại import đang chọn. Sau đó chọn file Excel hoặc bấm <b>Dán trực tiếp từ Excel</b> để tạo bản xem trước.</p>
+          <p>Sản phẩm/khách hàng nên import trước, sau đó mới import tồn kho, phiếu nhập, đơn bán, công nợ và quỹ tiền.</p>
+          <p id="importModeHelp"><b>Cập nhật an toàn</b> chỉ áp dụng cho Sản phẩm, Khách hàng và Tài khoản: ô trống/cột thiếu giữ nguyên dữ liệu cũ; chỉ field có giá trị mới và khác dữ liệu Mongo mới được cập nhật.</p>
+        </div>
+
+        <p id="importDataMessage" class="message"></p>
+        <p id="importPreviewSourceNotice" class="message import-source-notice">Vui lòng chọn file Excel hoặc dán trực tiếp dữ liệu từ Excel.</p>
+        <div id="importPreviewSummary" class="summary-box import-preview-summary">
+          <span>Tổng dòng: <strong>0</strong></span>
+          <span>Hợp lệ: <strong>0</strong></span>
+          <span>Lỗi: <strong>0</strong></span>
+        </div>
+        <div class="table-wrap import-preview-wrap">
+          <table>
+            <thead id="importPreviewHead"><tr><th>Trạng thái</th><th>Dữ liệu</th><th>Lỗi</th></tr></thead>
+            <tbody id="importPreviewTable"><tr><td colspan="3">Chọn file Excel hoặc dán trực tiếp dữ liệu từ Excel để tạo preview.</td></tr></tbody>
+          </table>
+        </div>
+
+
+        <section class="import-shortage-report-section">
+          <div class="toolbar compact-toolbar">
+            <div>
+              <h3>Báo cáo hàng thiếu khi import</h3>
+              <p class="muted">Báo cáo được lưu lâu dài theo từng lần import để kiểm tra và đối soát.</p>
+            </div>
+            <div class="button-row">
+              <select id="importShortageReportStatusFilter" aria-label="Lọc trạng thái báo cáo hàng thiếu">
+                <option value="">Tất cả trạng thái</option>
+                <option value="open">Chưa đối soát</option>
+                <option value="in_review">Đang đối soát</option>
+                <option value="resolved">Đã xử lý</option>
+              </select>
+              <input id="importShortageReportSearch" placeholder="Mã báo cáo / đơn / SP / khách" />
+              <button type="button" id="reloadImportShortageReportsButton" class="secondary">Tải lại</button>
+            </div>
+          </div>
+          <div class="table-wrap import-shortage-report-wrap">
+            <table>
+              <thead><tr><th>Mã báo cáo</th><th>Ngày import</th><th>File</th><th>Đơn</th><th>Sản phẩm</th><th>SL thiếu</th><th>Giá trị cắt</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+              <tbody id="importShortageReportTable"><tr><td colspan="9">Đang tải báo cáo...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <div id="importShortageReportModal" class="app-modal" hidden>
+          <div class="app-modal__backdrop" data-close-import-shortage-report></div>
+          <section class="app-modal__dialog import-shortage-report-dialog" role="dialog" aria-modal="true" aria-labelledby="importShortageReportModalTitle">
+            <header class="app-modal__header">
+              <div>
+                <h2 id="importShortageReportModalTitle">Chi tiết báo cáo hàng thiếu</h2>
+                <p id="importShortageReportModalMeta" class="muted"></p>
+              </div>
+              <button type="button" class="secondary" data-close-import-shortage-report>Đóng</button>
+            </header>
+            <div class="app-modal__body">
+              <div id="importShortageReportModalSummary" class="summary-box"></div>
+              <div class="button-row import-shortage-report-actions">
+                <label>Trạng thái
+                  <select id="importShortageReportEditStatus">
+                    <option value="open">Chưa đối soát</option>
+                    <option value="in_review">Đang đối soát</option>
+                    <option value="resolved">Đã xử lý</option>
+                  </select>
+                </label>
+                <label class="import-shortage-note-label">Ghi chú chung
+                  <input id="importShortageReportEditNote" placeholder="Nội dung đối soát" />
+                </label>
+                <button type="button" id="saveImportShortageReportButton">Lưu đối soát</button>
+                <button type="button" id="downloadImportShortageReportButton" class="secondary">Tải CSV</button>
+              </div>
+              <div class="table-wrap import-shortage-detail-wrap">
+                <table>
+                  <thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Mã SP</th><th>Tên SP</th><th>SL yêu cầu</th><th>Tồn lúc import</th><th>SL thiếu</th><th>Giá trị cắt</th><th>Đối soát</th><th>Ghi chú</th></tr></thead>
+                  <tbody id="importShortageReportDetailTable"><tr><td colspan="10">Chưa có dữ liệu.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </section>
+
+
+    <section id="adminCorrectionsTab" class="tab-content">
+      <section class="card admin-correction-card">
+        <div class="toolbar">
+          <div>
+            <h2>Trung tâm chỉnh sửa số liệu</h2>
+            <p class="muted">Admin được sửa dữ liệu, nhưng số liệu kho/công nợ/quỹ đã phát sinh phải đi qua phiếu điều chỉnh và audit log.</p>
+          </div>
+          <div class="button-row">
+            <button type="button" id="reloadAdminCorrectionsButton" class="secondary">Tải lại</button>
+            <button type="button" id="loadAdminCorrectionStandardButton" class="secondary">Quy chuẩn</button>
+          </div>
+        </div>
+        <div id="adminCorrectionStandardBox" class="note-box" hidden></div>
+        <div class="summary-box admin-correction-summary">
+          <span>Đang chờ: <strong id="adminCorrectionPendingCount">0</strong></span>
+          <span>Rủi ro cao: <strong id="adminCorrectionHighRiskCount">0</strong></span>
+          <span>Đã áp dụng: <strong id="adminCorrectionAppliedCount">0</strong></span>
+        </div>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead><tr><th>Mã phiếu</th><th>Loại dữ liệu</th><th>Mã chứng từ</th><th>Rủi ro</th><th>Trạng thái</th><th>Lý do</th><th>Người tạo</th><th>Thời gian</th><th>Thao tác</th></tr></thead>
+            <tbody id="adminCorrectionsTable"><tr><td colspan="9">Đang tải phiếu chỉnh sửa...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <main class="grid two-cols admin-correction-workspace">
+        <section class="card">
+          <div class="toolbar"><div><h3>Tạo phiếu chỉnh sửa</h3><p class="muted">Dùng cho chỉnh master data hoặc tạo phiếu điều chỉnh tồn kho/công nợ/quỹ.</p></div></div>
+          <form id="adminCorrectionForm" class="form compact-form">
+            <label>Loại dữ liệu
+              <select name="entityType" id="adminCorrectionEntityType">
+                <option value="customer">Khách hàng</option>
+                <option value="product">Sản phẩm</option>
+                <option value="sales_order">Đơn bán</option>
+                <option value="return_order">Đơn trả hàng</option>
+                <option value="inventory">Điều chỉnh tồn kho</option>
+                <option value="ar">Điều chỉnh công nợ</option>
+                <option value="fund">Điều chỉnh quỹ</option>
+              </select>
+            </label>
+            <label>Mã / ID dữ liệu<input name="entityId" placeholder="VD: BO038382, KH001, SP001..." /></label>
+            <label>Loại chỉnh sửa
+              <select name="correctionType" id="adminCorrectionType">
+                <option value="entity_patch">Sửa field dữ liệu</option>
+                <option value="inventory_adjustment">Phiếu chỉnh tồn kho</option>
+                <option value="ar_adjustment">Phiếu chỉnh công nợ</option>
+                <option value="fund_adjustment">Phiếu chỉnh quỹ</option>
+              </select>
+            </label>
+            <label>Patch JSON / dữ liệu điều chỉnh
+              <textarea name="proposedPatch" rows="7" placeholder='VD field thường: {"name":"Tên mới"}
+Tồn kho: {"productCode":"SP001","warehouseCode":"MAIN","adjustQty":10}
+Công nợ: {"customerCode":"KH001","adjustAmount":-50000}
+Quỹ: {"fundType":"cash","account":"CASH","adjustAmount":100000}'></textarea>
+            </label>
+            <label>Lý do bắt buộc<input name="reason" placeholder="Nêu rõ nguyên nhân sửa và căn cứ đối soát" required /></label>
+            <label class="check-row"><input type="checkbox" name="applyImmediately" />Áp dụng ngay nếu đã đủ quyền</label>
+            <div class="button-row"><button type="submit">Tạo phiếu</button><button type="button" id="validateAdminCorrectionButton" class="secondary">Kiểm tra trước</button></div>
+          </form>
+          <p id="adminCorrectionFormMessage" class="message"></p>
+        </section>
+        <section class="card">
+          <div class="toolbar"><div><h3>Chi tiết / diff</h3><p class="muted">Hiển thị dữ liệu trước/sau, cảnh báo ảnh hưởng và lịch sử audit.</p></div></div>
+          <pre id="adminCorrectionDetailBox" class="system-json-box">Chọn một phiếu hoặc kiểm tra patch để xem chi tiết.</pre>
+        </section>
+      </main>
+    </section>
+
+    <section id="systemTab" class="tab-content">
+      <section class="card system-card">
+        <div class="toolbar">
+          <div>
+            <h2>Hệ thống</h2>
+            <p class="muted">Backup, kiểm tra dữ liệu và reset phần mềm khi cần làm sạch dữ liệu.</p>
+          </div>
+          <div class="toolbar-actions">
+            <a href="/enterprise.html" class="secondary" style="text-decoration:none;display:inline-flex;align-items:center;">Trung tâm mở rộng</a>
+            <button type="button" id="reloadSystemStatusButton" class="secondary">Tải trạng thái</button>
+          </div>
+
+          <button type="button" id="reloadSystemDataSourceButton" class="secondary">Tải số lượng dữ liệu</button>
+        </div>
+
+        <div class="summary-box system-summary" id="systemStatusBox">
+          <span>Mongo: <strong id="systemMongoState">Đang kiểm tra</strong></span>
+          <span>Reset: <strong id="systemResetState">Đang kiểm tra</strong></span>
+          <span>Nguồn dữ liệu: <strong id="systemDataSource">MongoDB</strong></span>
+        </div>
+
+        <div class="system-grid">
+          <div class="system-panel">
+            <h3>1. Backup dữ liệu</h3>
+            <p class="muted">Nên backup trước khi reset. File backup sẽ lưu trong thư mục <strong>backups</strong> trên server.</p>
+            <button type="button" id="createSystemBackupButton">Tạo backup</button>
+          </div>
+
+          <div class="system-panel system-danger-panel">
+            <h3>2. Reset dữ liệu phần mềm</h3>
+            <p class="muted">Reset sẽ tự tạo backup trước, sau đó xóa dữ liệu theo phạm vi bên dưới.</p>
+            <label>Phạm vi reset
+              <select id="systemResetScope">
+                <option value="operational">Chỉ dữ liệu phát sinh: đơn, nhập, giao, công nợ, quỹ, trả hàng</option>
+                <option value="catalog">Danh mục: sản phẩm, khách hàng, nhân viên, khuyến mại</option>
+                <option value="all">Toàn bộ dữ liệu Mongo trong phần mềm</option>
+              </select>
+            </label>
+            <label>Mã xác nhận
+              <input id="systemResetConfirm" placeholder="Nhập RESET_MONGO_DATA" autocomplete="off" />
+            </label>
+            <button type="button" id="resetSystemDataButton" class="danger">Reset dữ liệu</button>
+            <p class="danger-text small-note">Chức năng này chỉ chạy khi server bật ALLOW_SYSTEM_RESET=true.</p>
+          </div>
+        </div>
+
+        <div class="system-panel">
+          <h3>Số lượng dữ liệu hiện tại</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Collection</th><th>Số dòng</th></tr></thead>
+              <tbody id="systemCountsTable"><tr><td colspan="2">Bấm “Tải số lượng dữ liệu” để xem số dòng từng collection.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+
+        <div class="system-panel api-monitor-panel">
+          <div class="toolbar compact-toolbar">
+            <div>
+              <h3>API Monitor toàn phần mềm</h3>
+              <p class="muted">Theo dõi toàn bộ API đang chạy: Total, Mongo Time, JS Time, số query DB, số dòng trả về.</p>
+            </div>
+            <div class="toolbar-actions">
+              <label class="inline-filter">
+                Lọc
+                <select id="apiMonitorFilter">
+                  <option value="all">Tất cả API</option>
+                  <option value="slow">Chỉ API chậm</option>
+                </select>
+              </label>
+              <button type="button" id="reloadApiMonitorButton" class="secondary">Tải API Monitor</button>
+              <button type="button" id="resetApiMonitorButton" class="secondary danger-light">Xóa thống kê</button>
+            </div>
+          </div>
+
+          <div class="summary-box api-monitor-summary" id="apiMonitorSummary">
+            <span>Tổng API: <strong id="apiMonitorTotalRoutes">0</strong></span>
+            <span>Lượt gọi: <strong id="apiMonitorTotalCalls">0</strong></span>
+            <span>API chậm: <strong id="apiMonitorSlowRoutes">0</strong></span>
+            <span>Lượt chậm: <strong id="apiMonitorSlowCalls">0</strong></span>
+            <span>Lỗi: <strong id="apiMonitorErrorCalls">0</strong></span>
+            <span>Mongo: <strong id="apiMonitorTotalMongoMs">0ms</strong></span>
+            <span>JS: <strong id="apiMonitorTotalJsMs">0ms</strong></span>
+            <span>DB Queries: <strong id="apiMonitorTotalDbQueries">0</strong></span>
+          </div>
+
+          <div class="api-monitor-tabs" id="apiMonitorTabs">
+            <button type="button" class="api-monitor-tab active" data-api-monitor-tab="all">Tab 1. Tất cả API</button>
+            <button type="button" class="api-monitor-tab" data-api-monitor-tab="slowest">Tab 2. Top API chậm nhất</button>
+            <button type="button" class="api-monitor-tab" data-api-monitor-tab="most-called">Tab 3. Top API gọi nhiều nhất</button>
+            <button type="button" class="api-monitor-tab" data-api-monitor-tab="most-rows">Tab 4. API nhiều rows nhất</button>
+            <button type="button" class="api-monitor-tab" data-api-monitor-tab="query-trace">Tab 5. Query Trace</button>
+          </div>
+
+          <div class="api-monitor-tab-panel active" data-api-monitor-panel="all">
+            <h4>Tab 1. Tất cả API</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table class="api-performance-table api-performance-table--routes" data-table-align="off">
+                <colgroup>
+                  <col class="api-col-module">
+                  <col class="api-col-api">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-query">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-status">
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Lần gọi</th>
+                    <th>TB Total</th>
+                    <th>TB Mongo</th>
+                    <th>TB JS</th>
+                    <th>TB Query</th>
+                    <th>Max Total</th>
+                    <th>Max Mongo</th>
+                    <th>Query chậm nhất</th>
+                    <th>Rows cuối</th>
+                    <th>Chậm</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody id="apiMonitorTable"><tr><td colspan="13">Bấm Tải API Monitor để xem.</td></tr></tbody>
+              </table>
+            </div>
+
+            <h4>Báo cáo API chạy chậm gần nhất</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table class="api-performance-table api-performance-table--slow-log" data-table-align="off">
+                <colgroup>
+                  <col class="api-col-time">
+                  <col class="api-col-module">
+                  <col class="api-col-api">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-query">
+                  <col class="api-col-number">
+                  <col class="api-col-status">
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Thời gian</th>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Total</th>
+                    <th>Mongo</th>
+                    <th>JS</th>
+                    <th>DB Queries</th>
+                    <th>Query chậm nhất</th>
+                    <th>Rows</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="apiSlowTable"><tr><td colspan="10">Chưa có dữ liệu API chậm.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-monitor-tab-panel" data-api-monitor-panel="slowest">
+            <h4>Tab 2. Top API chậm nhất</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table class="api-performance-table api-performance-table--top-slow" data-table-align="off">
+                <colgroup>
+                  <col class="api-col-module">
+                  <col class="api-col-api">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-query">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-status">
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Max Total</th>
+                    <th>TB Total</th>
+                    <th>TB Mongo</th>
+                    <th>TB JS</th>
+                    <th>Query chậm nhất</th>
+                    <th>Gọi</th>
+                    <th>Chậm</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="apiTopSlowTable"><tr><td colspan="10">Chưa có dữ liệu.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-monitor-tab-panel" data-api-monitor-panel="most-called">
+            <h4>Tab 3. Top API gọi nhiều nhất</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table class="api-performance-table api-performance-table--top-called" data-table-align="off">
+                <colgroup>
+                  <col class="api-col-module">
+                  <col class="api-col-api">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-status">
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Lần gọi</th>
+                    <th>TB Total</th>
+                    <th>TB Mongo</th>
+                    <th>TB JS</th>
+                    <th>TB Query</th>
+                    <th>Max Total</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="apiTopCalledTable"><tr><td colspan="9">Chưa có dữ liệu.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-monitor-tab-panel" data-api-monitor-panel="most-rows">
+            <h4>Tab 4. API có nhiều rows nhất</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table class="api-performance-table api-performance-table--top-rows" data-table-align="off">
+                <colgroup>
+                  <col class="api-col-module">
+                  <col class="api-col-api">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-status">
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Max Rows</th>
+                    <th>TB Rows</th>
+                    <th>Rows cuối</th>
+                    <th>Lần gọi</th>
+                    <th>TB Total</th>
+                    <th>TB Mongo</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody id="apiTopRowsTable"><tr><td colspan="9">Chưa có dữ liệu.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-monitor-tab-panel" data-api-monitor-panel="query-trace">
+            <h4>Tab 5. Query Trace - query Mongo chậm nhất theo API</h4>
+            <p class="muted">Dùng tab này để biết trong một API, query Mongo nào đang kéo chậm: MasterOrder.find, SalesOrder.find, ReturnOrder.find, ArLedger.find...</p>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table class="api-performance-table api-performance-table--query-trace" data-table-align="off">
+                <colgroup>
+                  <col class="api-col-module">
+                  <col class="api-col-api">
+                  <col class="api-col-query">
+                  <col class="api-col-input">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-number">
+                  <col class="api-col-status">
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Query chậm nhất</th>
+                    <th>Input Keys</th>
+                    <th>MS</th>
+                    <th>Rows</th>
+                    <th>Max Mongo</th>
+                    <th>Max Total</th>
+                    <th>DB Query cuối</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody id="apiTopQueryTraceTable"><tr><td colspan="10">Chưa có dữ liệu Query Trace.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <p id="systemMessage" class="message"></p>
+      </section>
+    </section>
+
+
+  </div>
+
+  <div id="excelPasteImportModal" class="modal-backdrop" aria-hidden="true">
+    <section class="modal-card excel-paste-modal" role="dialog" aria-modal="true" aria-labelledby="excelPasteImportTitle">
+      <div class="modal-header">
+        <div>
+          <h2 id="excelPasteImportTitle">Dán dữ liệu trực tiếp từ Excel</h2>
+          <p class="muted">Chọn ô đầu tiên rồi Ctrl+V. Hệ thống tự chia theo cột Tab và dòng xuống hàng.</p>
+        </div>
+        <button id="closeExcelPasteImportButton" class="secondary" type="button">Đóng</button>
+      </div>
+      <div class="excel-paste-help"><strong>Loại dữ liệu:</strong> <span id="excelPasteImportTypeLabel">-</span>. Dòng trống sẽ tự bỏ qua; mã có số 0 đầu được giữ nguyên.</div>
+      <div class="excel-paste-toolbar">
+        <button id="clearExcelPasteImportButton" class="secondary small" type="button">Xóa bảng</button>
+        <button id="addExcelPasteRowsButton" class="secondary small" type="button">+ 20 dòng</button>
+        <span class="excel-paste-spacer"></span>
+        <strong id="excelPasteImportRowCount">0 dòng có dữ liệu</strong>
+      </div>
+      <div id="excelPasteImportGrid"></div>
+      <p id="excelPasteImportStatus" class="excel-paste-status"></p>
+      <div class="modal-actions">
+        <button id="validateExcelPasteImportButton" type="button">Kiểm tra và tạo bản xem trước</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="lineItemPasteModal" class="modal-backdrop" aria-hidden="true">
+    <section class="modal-card excel-paste-modal" role="dialog" aria-modal="true" aria-labelledby="lineItemPasteTitle">
+      <div class="modal-header">
+        <div>
+          <h2 id="lineItemPasteTitle">Dán danh sách hàng từ Excel</h2>
+          <p id="lineItemPasteDescription" class="muted">Dán mã sản phẩm và số lượng vào bảng.</p>
+        </div>
+        <button id="closeLineItemPasteButton" class="secondary" type="button">Đóng</button>
+      </div>
+      <div class="excel-paste-help">Các mã sản phẩm được đối chiếu theo lô. Dòng sai mã hoặc số lượng không hợp lệ sẽ không được thêm.</div>
+      <div class="excel-paste-toolbar">
+        <button id="clearLineItemPasteButton" class="secondary small" type="button">Xóa bảng</button>
+        <button id="addLineItemPasteRowsButton" class="secondary small" type="button">+ 20 dòng</button>
+        <span class="excel-paste-spacer"></span>
+        <strong id="lineItemPasteRowCount">0 dòng có dữ liệu</strong>
+      </div>
+      <div id="lineItemPasteGrid"></div>
+      <p id="lineItemPasteStatus" class="excel-paste-status"></p>
+      <div class="modal-actions">
+        <button id="applyLineItemPasteButton" type="button">Đối chiếu và thêm vào chứng từ</button>
+      </div>
+    </section>
+  </div>
+
+    <script src="/js/security/safe-dom.js?v=phase09-csp-v1"></script>
+    <script src="/js/utils/v45-speed-monitor.js?v=speed-monitor-v1"></script>
+<script src="/js/utils/v45-common-utils.js?v=v45-common-utils"></script>
+  <script src="/js/components/excel-interaction/ContextExport.js?v=phase73-excel-interaction-v1"></script>
+  <script src="/js/components/excel-interaction/SpreadsheetGrid.js?v=phase73-excel-interaction-v1"></script>
+  <script src="/js/search/autocompleteEngine.js?v=unified-search-v1"></script>
+  <script src="/js/search/searchFieldsConfig.js?v=external-debt-v1"></script>
+  <script src="/js/search/catalogCacheService.js?v=unified-search-v1"></script>
+  <script src="/js/search/unifiedSearchEngine.js?v=unified-search-v1"></script>
+<script src="/js/search/configuredAutocomplete.js?v=external-debt-v1"></script>
+<script src="/js/search/productSearchBox.js?v=phase50-dms-quota-v1"></script>
+  <script src="/js/shared/orderStatus.js?v=order-lifecycle-v1"></script>
+  <script src="/js/app/shared/source-note-ui.js?v=phase139-source-contract-v1"></script>
+  <script src="/js/app/00-dashboard.js?v=phase70-dashboard-sales-staff-kpi-v1"></script>
+  <script src="/js/app/state/00a-catalog-orders-state.js?v=ui-toolbar-customer-v1"></script>
+  <script src="/js/app/state/00b-debt-return-fund-state.js?v=phase61-delivery-fund-split-tabs-v1&patch=phase63-delivery-shortage-repayment-v1"></script>
+  <script src="/js/app/state/00c-admin-system-state.js?v=phase72-report-center-v2"></script>
+  <script src="/js/app/01-utils-print-tabs.js?v=phase62-picking-zone-v1"></script>
+  <script src="/js/app/02-products.js?v=ui-toolbar-product-v1"></script>
+  <script src="/js/app/03-customers-autocomplete.js?v=ui-toolbar-customer-v1"></script>
+  <script src="/js/app/04-import-orders.js?v=phase73-excel-interaction-v1"></script>
+  <script src="/js/app/05-sales-orders.js?v=phase86-production-hardening-v1"></script>
+  <script src="/js/app/05-sales-orders.part02.js?v=phase86-production-hardening-v1"></script>
+  <script src="/js/app/05-sales-orders.part03.js?v=phase86-production-hardening-v1"></script>
+  <script src="/js/app/05-sales-orders.part04.js?v=phase86-production-hardening-v1"></script>
+  <script src="/js/ui/sales-toolbar-pilot.js?v=ui-toolbar-pilot-v1"></script>
+  <script src="/js/app/06-master-delivery.js?v=phase69-unmerged-refresh-v1&patch=phase73-excel-interaction-v1"></script>
+  <script src="/js/ui/master-orders-toolbar.js?v=ui-toolbar-master-orders-v1"></script>
+  <script src="/js/app/debt/07a-debt-core.js?v=phase35-debt-split-v1"></script>
+  <script src="/js/app/debt/07b-return-orders.js?v=return-order-nvgh-v1"></script>
+  <script src="/js/app/debt/07c-ar-cashbook.js?v=phase35-debt-split-v1"></script>
+  <script src="/js/app/debt/07d-master-return-orders.js?v=phase82-master-return-popup-v1"></script>
+  <script src="/js/app/debt/07e-debt-collections.js?v=phase35-debt-split-v1"></script>
+  <script src="/js/app/debt/07f-fund-ledger.js?v=phase79b-source-shards-v1"></script>
+  <script src="/js/app/debt/07f-fund-ledger.part02.js?v=phase79b-source-shards-v1"></script>
+  <script src="/js/app/debt/07f-fund-ledger.part03.js?v=phase79b-source-shards-v1"></script>
+  <script src="/js/app/debt/07g-fund-summary.js?v=phase81-fund-summary-v1"></script>
+  <script src="/js/app/new/91-delivery-today-new.js?v=phase91-new-modules-v1"></script>
+  <script src="/js/app/new/92-debt-new.js?v=phase91-new-modules-v1"></script>
+  <script src="/js/app/admin/08a-reports.js?v=phase76-report-directory-popup-v1"></script>
+  <script src="/js/app/admin/08b-users.js?v=phase35-admin-split-v1"></script>
+  <script src="/js/app/admin/08c-promotions-legacy.js?v=phase35-admin-split-v1"></script>
+  <script src="/js/app/admin/08d-import-excel.js?v=phase11-import-session-contract-v2"></script>
+  <script src="/js/app/admin/08d-import-excel.part02.js?v=phase11-import-session-contract-v2"></script>
+  <script src="/js/app/admin/08d-import-excel.part03.js?v=phase11-import-session-contract-v2"></script>
+  <script src="/js/app/admin/08e-promotion-programs.js?v=phase35-admin-split-v1"></script>
+  <script src="/js/app/admin/08f-vat-export.js?v=phase148-invoice-customer-filter-v1"></script>
+  <script src="/js/app/admin/08g-data-corrections.js?v=phase47-admin-data-correction-v1"></script>
+  <script src="/js/app/09-system.js?v=staff-auto-users-v5"></script>
+  <script src="/js/app/10-dms-inventory.js?v=phase86-production-hardening-v1"></script>
+  <script src="/js/components/excel-interaction/ExcelFeatureBindings.js?v=phase73-excel-interaction-v1"></script>
+  <script src="/js/bootstrap/01-catalog-orders.js?v=ui-toolbar-customer-v1"></script>
+  <script src="/js/bootstrap/02-delivery-system.js?v=phase35-bootstrap-split-v1"></script>
+  <script src="/js/bootstrap/03-tab-loader.js?v=phase35-bootstrap-split-v1"></script>
+  <script src="/js/ui/table-alignment.js?v=phase77-global-column-alignment-v1"></script>
+  <script src="/js/ui/clearable-search-inputs.js?v=global-search-clear-v1"></script>
+</body>
+</html>

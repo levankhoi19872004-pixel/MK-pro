@@ -275,17 +275,24 @@ window.printDocument=printDocument;
 
 
 function setupTabs(){
+  const deprecatedTabRedirects={masterReturnOrdersTab:'returnOrdersTab'};
   document.querySelectorAll('.tab-button').forEach(button=>{
     button.addEventListener('click',()=>{
+      const requestedTab=button.dataset.tab;
+      const redirectTab=deprecatedTabRedirects[requestedTab];
+      if(redirectTab){
+        const redirectButton=document.querySelector('.tab-button[data-tab="'+redirectTab+'"]');
+        if(redirectButton && redirectButton!==button){ redirectButton.click(); return; }
+      }
       document.querySelectorAll('.tab-button').forEach(btn=>btn.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(tab=>tab.classList.remove('active'));
       button.classList.add('active');
-      const tab=document.getElementById(button.dataset.tab);
+      const tab=document.getElementById(requestedTab);
       if(tab) tab.classList.add('active');
 
-      if(button.dataset.tab==='importDataTab' && typeof resetImportPreviewMessage==='function') resetImportPreviewMessage();
+      if(requestedTab==='importDataTab' && typeof resetImportPreviewMessage==='function') resetImportPreviewMessage();
       if(typeof window.V45LoadTabDataOnce==='function'){
-        window.V45LoadTabDataOnce(button.dataset.tab).catch?.(console.warn);
+        window.V45LoadTabDataOnce(requestedTab).catch?.(console.warn);
       }
     });
   });

@@ -66,7 +66,7 @@ async function loadTabDataOnce(tabName, options = {}){
         if(typeof loadReturnOrders === 'function') await loadReturnOrders();
         break;
       case 'masterReturnOrdersTab':
-        // Đơn tổng trả hàng đã deprecated: không tải luồng cũ, điều hướng về Đơn trả hàng.
+        // Legacy aggregate return screen is deprecated: redirect to return orders.
         document.querySelector('.tab-button[data-tab="returnOrdersTab"]')?.click();
         break;
       case 'deliveryTodayNewTab':
