@@ -17,6 +17,88 @@ test('daily debt helper zeroes small residuals from delivery closeout formula', 
   assert.equal(amount, 0);
 });
 
+test('mobile order TT includes offset-only delivery closeout amount', () => {
+  const versionsByKey = new Map();
+  versionsByKey.set('B0038771', {
+    orderCode: 'B0038771',
+    customerName: 'Chị Hạnh',
+    closeoutVersion: 2,
+    originalAmount: 5344067,
+    cashAmount: 5159000,
+    bankAmount: 0,
+    rewardAmount: 0,
+    offsetAmount: 185000,
+    returnAmount: 0,
+    status: 'closed'
+  });
+
+  const summary = buildMobileSalesOrderTrackingSummary({
+    id: 'B0038771',
+    code: 'B0038771',
+    customerCode: '4501683',
+    customerName: 'Chị Hạnh',
+    totalAmount: 5344067
+  }, { versionsByKey, returnsByKey: new Map() });
+
+  assert.equal(summary.closeoutSource, 'deliveryCloseoutVersions');
+  assert.equal(summary.cashAmount, 5159000);
+  assert.equal(summary.bankAmount, 0);
+  assert.equal(summary.offsetAmount, 185000);
+  assert.equal(summary.bonusAmount, 185000);
+  assert.equal(summary.rewardAmount, 185000);
+  assert.equal(summary.returnAmount, 0);
+  assert.equal(summary.dailyDebtAmount, 0);
+  assert.equal(summary.remainingDebt, 0);
+});
+
+test('mobile order daily debt handles reward-only delivery closeout amount', () => {
+  const amount = _internal.calculateDailyDebtFromCloseout({
+    payableAmount: 1000000,
+    cashAmount: 700000,
+    bankAmount: 0,
+    rewardAmount: 300000,
+    offsetAmount: 0,
+    returnAmount: 0
+  });
+  assert.equal(amount, 0);
+});
+
+test('mobile order daily debt adds different reward and offset amounts', () => {
+  const amount = _internal.calculateDailyDebtFromCloseout({
+    payableAmount: 1000000,
+    cashAmount: 500000,
+    bankAmount: 0,
+    rewardAmount: 100000,
+    offsetAmount: 200000,
+    returnAmount: 0
+  });
+  assert.equal(amount, 200000);
+});
+
+test('mobile order daily debt avoids double counting duplicated reward and offset amounts', () => {
+  assert.equal(_internal.normalizeRewardOffsetAmount(300000, 300000), 300000);
+  const amount = _internal.calculateDailyDebtFromCloseout({
+    payableAmount: 1000000,
+    cashAmount: 700000,
+    bankAmount: 0,
+    rewardAmount: 300000,
+    offsetAmount: 300000,
+    returnAmount: 0
+  });
+  assert.equal(amount, 0);
+});
+
+test('latest version money reads newOffsetAmount aliases', () => {
+  const money = _internal.latestVersionMoney({
+    cashAmount: 700000,
+    bankAmount: 0,
+    rewardAmount: 0,
+    newOffsetAmount: 300000
+  }, {});
+  assert.equal(money.offsetAmount, 300000);
+  assert.equal(money.bonusAmount, 300000);
+});
+
 test('mobile order daily debt is calculated from deliveryCloseoutVersions without AR fallback', () => {
   const versionsByKey = new Map();
   versionsByKey.set('B0038774', {

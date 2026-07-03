@@ -303,6 +303,25 @@
     };
   }
 
+
+  async function getSalesOrderReturns({ params = {}, mobileUser }) {
+    const identity = buildSalesOrderIdentityFilter(params.id);
+    const owner = mobileSalesOwnerMongoFilter(mobileUser);
+    if (!identity || !owner) return fail(404, 'Không tìm thấy đơn bán');
+
+    const order = await SalesOrder.findOne({ $and: [identity, owner, activeSalesOrderMongoFilter()] }).lean();
+    if (!order) return fail(404, 'Không tìm thấy đơn bán');
+
+    const summary = await buildMobileSalesOrderReturnsSummary(order);
+    return {
+      body: {
+        ok: true,
+        source: 'returnOrders',
+        ...summary
+      }
+    };
+  }
+
   async function renderSalesOrderPrintHtml({ params = {}, mobileUser }) {
     const identity = buildSalesOrderIdentityFilter(params.id);
     const owner = mobileSalesOwnerMongoFilter(mobileUser);

@@ -488,6 +488,7 @@
   return {
     createSalesOrder,
     getSalesOrder,
+    getSalesOrderReturns,
     renderSalesOrderPrintHtml,
     updateSalesOrder,
     deleteSalesOrder,

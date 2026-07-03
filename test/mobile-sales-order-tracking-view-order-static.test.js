@@ -24,6 +24,11 @@ test('mobile sales order tracking uses deliveryCloseoutVersions for daily order 
   assert.doesNotMatch(helper, /accounting_confirmed_ar_ledger/);
   assert.match(helper, /calculateDailyDebtFromCloseout/);
   assert.match(helper, /calculateDeliveryDebtAmount/);
+  assert.match(helper, /normalizeRewardOffsetAmount/);
+  assert.match(helper, /newOffsetAmount/);
+  assert.match(helper, /correctedOffsetAmount/);
+  assert.match(helper, /finalOffsetAmount/);
+  assert.match(helper, /offsetAmount: money\(moneySource\.offsetAmount\)/);
   assert.match(helper, /dailyDebtAmount/);
   assert.match(helper, /closeoutSource: latestVersion \? 'deliveryCloseoutVersions'/);
   assert.match(helper, /function orderTotalAmount\(order = \{\}\)/);
@@ -62,6 +67,9 @@ test('mobile sales app renders compact daily closeout KPI cards and in-app modal
 
   assert.match(ux, /data-view-order/);
   assert.match(ux, /data-print-url/);
+  assert.match(ux, /displayRewardOffsetAmount/);
+  assert.match(ux, /tracking\.offsetAmount \?\? order\.offsetAmount/);
+  assert.doesNotMatch(ux, /tracking\.bonusAmount \?\? tracking\.rewardAmount \?\? order\.bonusAmount \?\? order\.rewardAmount/);
   assert.match(ux, /mobile-order-print-modal/);
   assert.match(ux, /mobile-order-print-frame/);
   assert.match(ux, /data-mobile-order-print-zoom/);

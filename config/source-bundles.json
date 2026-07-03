@@ -51,7 +51,7 @@
         "src/services/mobile/sales.service.source/part-02.jsfrag",
         "src/services/mobile/sales.service.source/part-03.jsfrag"
       ],
-      "sourceSha256": "514c17900cb18327121c7a6ec448b095477d21fffec04118646bb1722ed47424"
+      "sourceSha256": "b6661b0ce0a5ad2029004b0096a2826ebecf63c0302dd1be74bd4d6c3d046a91"
     },
     {
       "target": "src/engines/delivery.legacy.engine.js",
@@ -132,7 +132,7 @@
         "public/mobile/js/sales.source/part-03.jsfrag",
         "public/mobile/js/sales.source/part-03b.jsfrag"
       ],
-      "sourceSha256": "5ef4d452a6b6bc82503677e769c301d8435ea72e81e656d5b7ef069bb9e0835c"
+      "sourceSha256": "1b39eb62863c2929c8bc9b746cbd707c4feba602c022731fdafd509aa999f380"
     },
     {
       "target": "public/js/app/admin/08d-import-excel.js",

@@ -5,7 +5,7 @@ const calculateCartonUnit = v45Common.calculateCartonUnit;
 import { mobileApi, getUser } from './api.js?v=phase86-production-hardening-v1';
 import { queueOperation, canQueueOfflineOperation, isNetworkError, listOperations } from './offline-sync.js?v=phase86-production-hardening-v1';
 import { bindLogout, debounce, escapeHtml, formatDisplayDate, formatShortDate, money, requireLogin, requireRole, setButtonBusy, setMessage } from './ui.js';
-import { buildCartItemsHtml, buildOrderCardsHtml, createMobileSalesNavigation, createStatusAnnouncer } from './sales-ux.js?v=phase153-daily-closeout-modal-zoom';
+import { buildCartItemsHtml, buildOrderCardsHtml, createMobileSalesNavigation, createStatusAnnouncer } from './sales-ux.js?v=phase155-returns-modal-v1';
 import { collectMobileSalesDom } from './sales/dom.js?v=phase86-production-hardening-v1';
 import { createMobileSalesState, OrderDraftStore } from './sales/state.js?v=phase86-production-hardening-v1';
 import {

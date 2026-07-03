@@ -44,6 +44,13 @@ function firstNumber(source = {}, keys = []) {
   return 0;
 }
 
+function normalizeRewardOffsetAmount(rewardAmount = 0, offsetAmount = 0) {
+  const reward = money(rewardAmount);
+  const offset = money(offsetAmount);
+  if (reward > 0 && offset > 0 && reward === offset) return reward;
+  return money(reward + offset);
+}
+
 function orderIdentityValues(order = {}) {
   return unique([
     order.id,
@@ -157,17 +164,18 @@ function deliveryCloseout(order = {}) {
   return order.deliveryCloseout && typeof order.deliveryCloseout === 'object' ? order.deliveryCloseout : {};
 }
 
-const CASH_FIELDS = ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount', 'paymentCashAmount', 'paidCashAmount', 'paidCash', 'collectedCash', 'deliveryCashAmount', 'cashCollected', 'cash'];
-const BANK_FIELDS = ['bankAmount', 'transferAmount', 'bankTransferAmount', 'paymentTransferAmount', 'paymentBankAmount', 'paidBankAmount', 'paidTransferAmount', 'collectedBankAmount', 'deliveryBankAmount', 'bankCollected', 'bankCollectedAmount', 'transferCollectedAmount'];
-const BONUS_FIELDS = ['rewardAmount', 'bonusAmount', 'allowanceAmount', 'promotionRewardAmount', 'displayRewardAmount', 'bonusReturnAmount', 'rewardOffsetAmount', 'promotionOffsetAmount'];
-const OFFSET_FIELDS = ['offsetAmount', 'debtOffsetAmount', 'otherOffsetAmount', 'deliveryOffsetAmount'];
+const CASH_FIELDS = ['cashAmount', 'newCashAmount', 'cashCollectedAmount', 'newCashCollectedAmount', 'cashReceivedAmount', 'paymentCashAmount', 'paidCashAmount', 'paidCash', 'collectedCash', 'deliveryCashAmount', 'cashCollected', 'cash'];
+const BANK_FIELDS = ['bankAmount', 'newBankAmount', 'transferAmount', 'newTransferAmount', 'bankTransferAmount', 'paymentTransferAmount', 'paymentBankAmount', 'paidBankAmount', 'paidTransferAmount', 'collectedBankAmount', 'deliveryBankAmount', 'bankCollected', 'bankCollectedAmount', 'newBankCollectedAmount', 'transferCollectedAmount'];
+const BONUS_FIELDS = ['rewardAmount', 'newRewardAmount', 'bonusAmount', 'newBonusAmount', 'allowanceAmount', 'newAllowanceAmount', 'promotionRewardAmount', 'newPromotionRewardAmount', 'displayRewardAmount', 'newDisplayRewardAmount', 'bonusReturnAmount', 'newBonusReturnAmount', 'rewardOffsetAmount', 'newRewardOffsetAmount', 'promotionOffsetAmount', 'newPromotionOffsetAmount'];
+const OFFSET_FIELDS = ['offsetAmount', 'newOffsetAmount', 'debtOffsetAmount', 'newDebtOffsetAmount', 'deliveryOffsetAmount', 'newDeliveryOffsetAmount', 'otherOffsetAmount', 'newOtherOffsetAmount', 'rewardOffsetAmount', 'newRewardOffsetAmount', 'promotionOffsetAmount', 'newPromotionOffsetAmount', 'correctedOffsetAmount', 'finalOffsetAmount'];
 
 function orderMoneyBreakdown(order = {}) {
   const closeout = deliveryCloseout(order);
   const cashAmount = firstMoney(closeout, CASH_FIELDS) || firstMoney(order, CASH_FIELDS);
   const bankAmount = firstMoney(closeout, BANK_FIELDS) || firstMoney(order, BANK_FIELDS);
-  const bonusAmount = firstMoney(closeout, BONUS_FIELDS) || firstMoney(order, BONUS_FIELDS);
+  const rewardAmount = firstMoney(closeout, BONUS_FIELDS) || firstMoney(order, BONUS_FIELDS);
   const offsetAmount = firstMoney(closeout, OFFSET_FIELDS) || firstMoney(order, OFFSET_FIELDS);
+  const bonusAmount = normalizeRewardOffsetAmount(rewardAmount, offsetAmount);
   const explicitCollected = firstMoney(closeout, ['collectedAmount', 'cashCollectedTotal', 'paidAmount', 'paymentAmount', 'deliveryCollectedAmount'])
     || firstMoney(order, ['collectedAmount', 'cashCollectedTotal', 'paidAmount', 'paymentAmount', 'deliveryCollectedAmount', 'paidAmount']);
   let collectedAmount = cashAmount + bankAmount;
@@ -179,20 +187,26 @@ function orderMoneyBreakdown(order = {}) {
   return {
     cashAmount: nextCashAmount,
     bankAmount,
-    bonusAmount: bonusAmount + offsetAmount,
+    rewardAmount,
+    offsetAmount,
+    bonusAmount,
     collectedAmount
   };
 }
 
 function latestVersionMoney(latestVersion = null, fallback = {}) {
   if (!latestVersion) return fallback;
-  const cashAmount = firstNumber(latestVersion, ['cashAmount', 'newCashAmount', 'cashCollectedAmount', 'newCashCollectedAmount', 'cashCollected']) || money(fallback.cashAmount);
-  const bankAmount = firstNumber(latestVersion, ['bankAmount', 'newBankAmount', 'bankCollectedAmount', 'newBankCollectedAmount', 'transferAmount']) || money(fallback.bankAmount);
-  const bonusAmount = firstNumber(latestVersion, ['rewardAmount', 'newRewardAmount', 'bonusAmount', 'newBonusAmount']) || money(fallback.bonusAmount);
+  const cashAmount = firstNumber(latestVersion, CASH_FIELDS) || money(fallback.cashAmount);
+  const bankAmount = firstNumber(latestVersion, BANK_FIELDS) || money(fallback.bankAmount);
+  const rewardAmount = firstMoney(latestVersion, BONUS_FIELDS) || money(fallback.rewardAmount);
+  const offsetAmount = firstMoney(latestVersion, OFFSET_FIELDS) || money(fallback.offsetAmount);
+  const bonusAmount = normalizeRewardOffsetAmount(rewardAmount, offsetAmount) || money(fallback.bonusAmount);
   const explicitCollected = firstNumber(latestVersion, ['collectedAmount', 'newCollectedAmount', 'cashCollectedAmount', 'newCashCollectedAmount']);
   return {
     cashAmount,
     bankAmount,
+    rewardAmount,
+    offsetAmount,
     bonusAmount,
     collectedAmount: explicitCollected || cashAmount + bankAmount
   };
@@ -204,11 +218,14 @@ function latestVersionReturnAmount(latestVersion = null, fallback = 0) {
 }
 
 function calculateDailyDebtFromCloseout(input = {}) {
+  const rewardAmount = firstMoney(input, BONUS_FIELDS) || money(input.bonusAmount ?? input.rewardAmount ?? input.allowanceAmount ?? 0);
+  const offsetAmount = firstMoney(input, OFFSET_FIELDS);
+  const rewardOrOffsetAmount = normalizeRewardOffsetAmount(rewardAmount, offsetAmount);
   const result = calculateDeliveryDebtAmount({
     receivableAmount: money(input.payableAmount ?? input.receivableAmount ?? input.totalAmount ?? input.originalAmount ?? input.saleAmount ?? 0),
     cashAmount: money(input.cashAmount ?? input.cashCollectedAmount ?? input.cashCollected ?? 0),
     bankAmount: money(input.bankAmount ?? input.transferAmount ?? input.bankCollectedAmount ?? 0),
-    rewardAmount: money(input.bonusAmount ?? input.rewardAmount ?? input.allowanceAmount ?? 0),
+    rewardAmount: rewardOrOffsetAmount,
     returnAmount: money(input.returnAmount ?? input.returnedAmount ?? 0)
   });
   return Math.max(0, normalizeDebtAmount(result.rawDebtAmount));
@@ -358,7 +375,8 @@ function buildMobileSalesOrderTrackingSummary(order = {}, context = {}) {
     payableAmount: totalAmount,
     cashAmount: moneySource.cashAmount,
     bankAmount: moneySource.bankAmount,
-    bonusAmount: moneySource.bonusAmount,
+    rewardAmount: moneySource.rewardAmount,
+    offsetAmount: moneySource.offsetAmount,
     returnAmount
   });
   const remainingDebt = dailyDebtAmount;
@@ -382,6 +400,8 @@ function buildMobileSalesOrderTrackingSummary(order = {}, context = {}) {
     collectedAmount: money(moneySource.collectedAmount),
     cashAmount: money(moneySource.cashAmount),
     bankAmount: money(moneySource.bankAmount),
+    rewardSourceAmount: money(moneySource.rewardAmount),
+    offsetAmount: money(moneySource.offsetAmount),
     bonusAmount: money(moneySource.bonusAmount),
     rewardAmount: money(moneySource.bonusAmount),
     returnAmount,
@@ -438,6 +458,8 @@ function decorateMobileSalesOrderForTracking(order = {}, tracking = null) {
     bankAmount: summary.bankAmount,
     bonusAmount: summary.bonusAmount,
     rewardAmount: summary.rewardAmount,
+    rewardSourceAmount: summary.rewardSourceAmount,
+    offsetAmount: summary.offsetAmount,
     returnAmount: summary.returnAmount,
     dailyDebtAmount: summary.dailyDebtAmount,
     remainingDebt: summary.remainingDebt,
@@ -458,7 +480,9 @@ module.exports = {
     orderTotalAmount,
     orderMoneyBreakdown,
     returnOrderAmount,
+    latestVersionMoney,
     latestVersionReturnAmount,
+    normalizeRewardOffsetAmount,
     calculateDailyDebtFromCloseout,
     deliveryCloseoutVersionKeys,
     isInactiveDeliveryCloseoutVersion,

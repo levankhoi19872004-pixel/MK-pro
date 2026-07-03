@@ -26,6 +26,7 @@ const { buildInventoryEditMovements, normalizeProductCode: normalizeEditProductC
 const { customerOwnershipFilterForSalesUser, combineFilters } = require('../../domain/staff/customerOwnership');
 const { parseMobilePagination, buildPagination } = require('./mobilePagination.util');
 const { buildMobileSalesOrderTrackingSummaries, decorateMobileSalesOrderForTracking } = require('./mobileSalesOrderTracking.service');
+const { buildMobileSalesOrderReturnsSummary } = require('./mobileSalesOrderReturns.service');
 const printDocumentService = require('../printDocumentService');
 
 

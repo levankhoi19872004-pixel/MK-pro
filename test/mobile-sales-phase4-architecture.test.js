@@ -107,5 +107,5 @@ test('phase 4 lowers the main bundle budget and bumps browser cache version', ()
   const bytes = fs.statSync(path.join(ROOT, 'public/mobile/js/sales.js')).size;
   assert.ok(bytes <= 40960, `sales.js is ${bytes} bytes`);
   assert.equal(budget.files['public/mobile/js/sales.js'], 40960);
-  assert.match(html, /sales\.js\?v=(phase86-production-hardening-v1|phase152-order-modal-v1)/);
+  assert.match(html, /sales\.js\?v=(phase86-production-hardening-v1|phase152-order-modal-v1|phase155-returns-modal-v1)/);
 });

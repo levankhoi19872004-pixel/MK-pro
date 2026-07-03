@@ -1,3 +1,13 @@
+const mobileSalesEscapeHtml = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+const mobileSalesMoney = (value = 0) => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(Number(value || 0));
+const mobileSalesShortDate = (value = '') => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const iso = raw.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+  return raw;
+};
+
 export function createMobileSalesNavigation(options = {}) {
   const tabs = Array.from(options.tabs || []);
   const panels = Array.from(options.panels || []);
@@ -178,6 +188,14 @@ export function buildOrderCardsHtml(orders = [], helpers = {}) {
     return value;
   };
   const numberValue = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+  const displayRewardOffsetAmount = (tracking = {}, order = {}) => {
+    const bonus = numberValue(tracking.bonusAmount ?? order.bonusAmount);
+    const reward = numberValue(tracking.rewardAmount ?? order.rewardAmount);
+    const offset = numberValue(tracking.offsetAmount ?? order.offsetAmount);
+    if (bonus > 0) return bonus;
+    if (reward > 0 && offset > 0 && reward === offset) return reward;
+    return reward + offset;
+  };
 
   return orders.map((order) => {
     const pending = order.pendingSync === true;
@@ -188,7 +206,7 @@ export function buildOrderCardsHtml(orders = [], helpers = {}) {
     const totalAmount = numberValue(tracking.totalAmount ?? order.totalAmount);
     const cashAmount = numberValue(tracking.cashAmount ?? order.cashAmount);
     const bankAmount = numberValue(tracking.bankAmount ?? order.bankAmount);
-    const bonusAmount = numberValue(tracking.bonusAmount ?? tracking.rewardAmount ?? order.bonusAmount ?? order.rewardAmount);
+    const bonusAmount = displayRewardOffsetAmount(tracking, order);
     const returnAmount = numberValue(tracking.returnAmount ?? order.returnAmount);
     const remainingDebt = numberValue(tracking.remainingDebt ?? order.remainingDebt ?? order.orderRemainingDebt ?? order.debtAmount);
     const deliveryStatus = statusLabel(tracking.deliveryStatus || order.deliveryStatus || order.lifecycleStatus || order.status || 'pending');
@@ -201,6 +219,10 @@ export function buildOrderCardsHtml(orders = [], helpers = {}) {
         : '<span class="mobile-sales-order-lock-pill locked">Đã gộp</span><span class="mobile-sales-order-lock-pill readonly">Chỉ xem</span>');
     const viewButton = !pending && printUrl
       ? `<button type="button" class="primary-btn small-btn mobile-view-order-btn" data-view-order="${escapeHtml(orderKey)}" data-order-code="${escapeHtml(orderCode)}" data-print-url="${escapeHtml(printUrl)}">Xem đơn</button>`
+      : '';
+    const returnsUrl = !pending && orderKey ? `/api/mobile/sales/orders/${encodeURIComponent(orderKey)}/returns` : '';
+    const viewReturnsButton = returnsUrl
+      ? `<button type="button" class="ghost-btn small-btn mobile-view-returns-btn" data-view-returns="${escapeHtml(orderKey)}" data-order-code="${escapeHtml(orderCode)}" data-returns-url="${escapeHtml(returnsUrl)}">Xem hàng trả</button>`
       : '';
     const editDeleteButtons = !pending && order.canEdit
       ? `<button type="button" class="ghost-btn small-btn" data-edit-order="${escapeHtml(orderKey)}">Chỉnh sửa</button><button type="button" class="danger-btn small-btn" data-delete-order="${escapeHtml(orderKey)}" data-order-code="${escapeHtml(orderCode)}">Xóa</button>`
@@ -228,8 +250,9 @@ export function buildOrderCardsHtml(orders = [], helpers = {}) {
           <span><small>CN</small><strong>${money(remainingDebt)}</strong></span>
         </div>
         ${error}
-        <div class="row-actions mobile-order-actions">
+        <div class="row-actions mobile-order-actions mobile-sales-order-actions">
           ${viewButton}
+          ${viewReturnsButton}
           ${editDeleteButtons}
         </div>
       </article>`;
@@ -249,7 +272,27 @@ function ensureMobileOrderPrintStyles() {
     .mobile-sales-order-lock-pill.locked,.mobile-sales-order-lock-pill.readonly{background:#f1f5f9;color:#475569}
     .mobile-sales-order-lock-pill.editable{background:#dcfce7;color:#166534}
     .mobile-sales-order-lock-pill.sync{background:#ffedd5;color:#9a3412}
-    .mobile-view-order-btn{width:100%;min-height:42px}
+    .mobile-sales-order-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .mobile-view-order-btn,.mobile-view-returns-btn{width:100%;min-height:42px}
+    .mobile-order-print-modal[hidden],.mobile-order-returns-modal[hidden]{display:none!important}
+    .mobile-order-returns-modal{position:fixed;inset:0;z-index:10020;display:grid;place-items:center;padding:12px;background:rgba(15,23,42,.50)}
+    .mobile-order-returns-sheet{position:relative;z-index:1;display:grid;grid-template-rows:auto minmax(0,1fr);width:min(96vw,900px);height:min(90vh,980px);max-height:calc(100vh - 24px - env(safe-area-inset-bottom));overflow:hidden;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.34)}
+    .mobile-order-returns-header{position:sticky;top:0;z-index:2;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid #dbe4f0;background:#fff}
+    .mobile-order-returns-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#0f172a;font-size:15px;font-weight:900}
+    .mobile-order-returns-close{min-height:38px;border:0;border-radius:12px;background:#e2e8f0;color:#0f172a;font-weight:900;padding:7px 12px}
+    .mobile-order-returns-body{position:relative;min-height:0;overflow:auto;padding:12px;background:#f8fafc}
+    .mobile-order-returns-loading,.mobile-order-returns-empty,.mobile-order-returns-error{display:grid;place-items:center;min-height:180px;padding:18px;text-align:center;border-radius:14px;background:#fff;color:#475569;font-weight:900}
+    .mobile-order-returns-empty{color:#334155}
+    .mobile-order-returns-error{color:#b42318;background:#fff7f7}
+    .mobile-order-returns-loading[hidden],.mobile-order-returns-empty[hidden],.mobile-order-returns-error[hidden],.mobile-order-returns-content[hidden]{display:none!important}
+    .mobile-order-returns-meta{display:grid;gap:6px;margin-bottom:10px;padding:10px;border:1px solid #dbe4f0;border-radius:14px;background:#fff;color:#334155;font-size:12px;font-weight:800}
+    .mobile-order-returns-total{color:#0f172a;font-size:14px;font-weight:950}
+    .mobile-order-returns-table-wrap{overflow:auto;border:1px solid #dbe4f0;border-radius:14px;background:#fff}
+    .mobile-order-returns-table{width:100%;min-width:760px;border-collapse:collapse;font-size:12px;color:#0f172a}
+    .mobile-order-returns-table th,.mobile-order-returns-table td{padding:9px 10px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top}
+    .mobile-order-returns-table th{position:sticky;top:0;z-index:1;background:#f1f5f9;font-weight:950;color:#334155}
+    .mobile-order-returns-table td.number{text-align:right;font-weight:900}
+    .mobile-order-returns-table tr:last-child td{border-bottom:0}
     .mobile-order-print-modal[hidden]{display:none!important}
     .mobile-order-print-modal{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:12px;background:rgba(15,23,42,.48)}
     .mobile-order-print-sheet{position:relative;z-index:1;display:grid;grid-template-rows:auto minmax(0,1fr);width:min(96vw,860px);height:min(90vh,980px);max-height:calc(100vh - 24px - env(safe-area-inset-bottom));overflow:hidden;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.32)}
@@ -263,7 +306,7 @@ function ensureMobileOrderPrintStyles() {
     .mobile-order-print-loading,.mobile-order-print-error{position:absolute;inset:0;display:grid;place-items:center;padding:18px;text-align:center;color:#475569;font-weight:800;background:#f8fafc}
     .mobile-order-print-error{color:#b42318;background:#fff7f7}
     .mobile-order-print-error[hidden],.mobile-order-print-loading[hidden],.mobile-order-print-frame[hidden]{display:none!important}
-    @media (max-width:420px){.mobile-order-print-header{grid-template-columns:1fr;gap:8px}.mobile-order-print-toolbar{justify-content:space-between}.mobile-order-print-title{white-space:normal}.mobile-order-heading{grid-template-columns:1fr}.mobile-sales-order-lock-pills{justify-content:flex-start;max-width:none}.mobile-order-print-modal{padding:8px}.mobile-order-print-sheet{width:96vw;height:88vh;border-radius:16px}}
+    @media (max-width:420px){.mobile-order-print-header,.mobile-order-returns-header{grid-template-columns:1fr;gap:8px}.mobile-order-print-toolbar{justify-content:space-between}.mobile-order-print-title,.mobile-order-returns-title{white-space:normal}.mobile-order-heading{grid-template-columns:1fr}.mobile-sales-order-lock-pills{justify-content:flex-start;max-width:none}.mobile-order-print-modal,.mobile-order-returns-modal{padding:8px}.mobile-order-print-sheet,.mobile-order-returns-sheet{width:96vw;height:88vh;border-radius:16px}.mobile-sales-order-actions{grid-template-columns:1fr}}
   `;
   document.head.appendChild(style);
 }
@@ -384,6 +427,144 @@ export function openMobileOrderPrintModal(options = {}) {
   }, 0);
 }
 
+
+function ensureMobileOrderReturnsModal() {
+  if (typeof document === 'undefined') return null;
+  ensureMobileOrderPrintStyles();
+  let modal = document.getElementById('mobileOrderReturnsModal');
+  if (modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'mobileOrderReturnsModal';
+  modal.className = 'mobile-order-returns-modal';
+  modal.hidden = true;
+  modal.innerHTML = `
+    <div class="mobile-order-returns-sheet" role="dialog" aria-modal="true" aria-labelledby="mobileOrderReturnsTitle">
+      <div class="mobile-order-returns-header">
+        <div id="mobileOrderReturnsTitle" class="mobile-order-returns-title">Hàng trả</div>
+        <button type="button" class="mobile-order-returns-close" data-mobile-order-returns-close>Đóng</button>
+      </div>
+      <div class="mobile-order-returns-body">
+        <div class="mobile-order-returns-loading">Đang tải hàng trả...</div>
+        <div class="mobile-order-returns-empty" hidden>Đơn không có hàng trả về</div>
+        <div class="mobile-order-returns-error" hidden></div>
+        <div class="mobile-order-returns-content" hidden>
+          <div class="mobile-order-returns-meta"></div>
+          <div class="mobile-order-returns-table-wrap">
+            <table class="mobile-order-returns-table">
+              <thead>
+                <tr>
+                  <th>Mã SP</th>
+                  <th>Tên SP</th>
+                  <th>Quy cách</th>
+                  <th>Số lượng trả</th>
+                  <th>Giá trị 1 đơn vị SP</th>
+                  <th>Tổng giá trị trả</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal || event.target.closest('[data-mobile-order-returns-close]')) closeMobileOrderReturnsModal();
+  });
+  return modal;
+}
+
+function formatReturnQty(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return '0';
+  return Number.isInteger(n) ? String(n) : String(n).replace(/\.0+$/, '');
+}
+
+function renderMobileOrderReturnsModal(data = {}) {
+  const modal = ensureMobileOrderReturnsModal();
+  if (!modal) return;
+  const content = modal.querySelector('.mobile-order-returns-content');
+  const meta = modal.querySelector('.mobile-order-returns-meta');
+  const tbody = modal.querySelector('.mobile-order-returns-table tbody');
+  const rows = Array.isArray(data.rows) ? data.rows : [];
+  const customer = [data.customerCode, data.customerName].filter(Boolean).join(' - ');
+  const salesman = [data.salesStaffCode, data.salesStaffName].filter(Boolean).join(' - ');
+  const delivery = [data.deliveryStaffCode, data.deliveryStaffName].filter(Boolean).join(' - ');
+  if (meta) {
+    meta.innerHTML = `
+      <div><strong>Khách hàng:</strong> ${mobileSalesEscapeHtml(customer || '-')}</div>
+      <div><strong>NVBH:</strong> ${mobileSalesEscapeHtml(salesman || '-')}</div>
+      <div><strong>NVGH:</strong> ${mobileSalesEscapeHtml(delivery || '-')}</div>
+      <div><strong>Ngày trả:</strong> ${mobileSalesEscapeHtml(mobileSalesShortDate(data.returnDate || '') || data.returnDate || '-')}</div>
+      <div class="mobile-order-returns-total">Tổng giá trị trả: ${mobileSalesMoney(data.totalReturnAmount || 0)}</div>`;
+  }
+  if (tbody) {
+    tbody.innerHTML = rows.map((row) => `
+      <tr>
+        <td>${mobileSalesEscapeHtml(row.productCode || '-')}</td>
+        <td>${mobileSalesEscapeHtml(row.productName || '-')}</td>
+        <td>${mobileSalesEscapeHtml(String(row.specification || '-'))}</td>
+        <td class="number">${mobileSalesEscapeHtml(formatReturnQty(row.returnQty))}</td>
+        <td class="number">${mobileSalesMoney(row.unitPrice || 0)}</td>
+        <td class="number">${mobileSalesMoney(row.returnAmount || 0)}</td>
+      </tr>`).join('');
+  }
+  if (content) content.hidden = false;
+}
+
+export function closeMobileOrderReturnsModal() {
+  const modal = typeof document === 'undefined' ? null : document.getElementById('mobileOrderReturnsModal');
+  if (!modal) return;
+  modal.hidden = true;
+  document.body.classList.remove('mobile-order-print-open');
+}
+
+export async function openMobileOrderReturnsModal(options = {}) {
+  const url = String(options.returnsUrl || '').trim();
+  if (!url) return;
+  const modal = ensureMobileOrderReturnsModal();
+  if (!modal) return;
+  const title = modal.querySelector('.mobile-order-returns-title');
+  const loading = modal.querySelector('.mobile-order-returns-loading');
+  const empty = modal.querySelector('.mobile-order-returns-empty');
+  const error = modal.querySelector('.mobile-order-returns-error');
+  const content = modal.querySelector('.mobile-order-returns-content');
+  if (title) title.textContent = `Hàng trả - ${String(options.orderCode || options.orderKey || '').trim()}`.trim();
+  if (loading) loading.hidden = false;
+  if (empty) empty.hidden = true;
+  if (error) {
+    error.hidden = true;
+    error.textContent = '';
+  }
+  if (content) content.hidden = true;
+  modal.hidden = false;
+  document.body.classList.add('mobile-order-print-open');
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.ok === false) throw new Error(data.message || 'Không tải được hàng trả');
+    if (loading) loading.hidden = true;
+    if (!data.hasReturns || !Array.isArray(data.rows) || !data.rows.length) {
+      if (empty) {
+        empty.hidden = false;
+        empty.textContent = 'Đơn không có hàng trả về';
+      }
+      return;
+    }
+    renderMobileOrderReturnsModal(data);
+  } catch (err) {
+    if (loading) loading.hidden = true;
+    if (error) {
+      error.hidden = false;
+      error.textContent = err?.message || 'Không tải được hàng trả. Vui lòng thử lại.';
+    }
+  }
+}
+
 if (typeof document !== 'undefined') {
   document.addEventListener('click', (event) => {
     const button = event.target.closest('[data-view-order]');
@@ -397,7 +578,22 @@ if (typeof document !== 'undefined') {
       orderCode: button.dataset.orderCode || button.dataset.viewOrder || ''
     });
   });
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-view-returns]');
+    if (!button) return;
+    const url = String(button.dataset.returnsUrl || '').trim();
+    if (!url) return;
+    event.preventDefault();
+    openMobileOrderReturnsModal({
+      returnsUrl: url,
+      orderKey: button.dataset.viewReturns || '',
+      orderCode: button.dataset.orderCode || button.dataset.viewReturns || ''
+    });
+  });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeMobileOrderPrintModal();
+    if (event.key === 'Escape') {
+      closeMobileOrderPrintModal();
+      closeMobileOrderReturnsModal();
+    }
   });
 }

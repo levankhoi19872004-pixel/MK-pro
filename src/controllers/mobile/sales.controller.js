@@ -37,6 +37,7 @@ function createMobileSalesController(ctx) {
   return {
     createOrder: wrapMobile(service, 'createSalesOrder', 500, 'Không tạo được đơn mobile'),
     getOrder: wrapMobile(service, 'getSalesOrder', 500, 'Không đọc được đơn mobile'),
+    getOrderReturns: wrapMobile(service, 'getSalesOrderReturns', 500, 'Không tải được hàng trả mobile'),
     renderOrderPrint,
     updateOrder: wrapMobile(service, 'updateSalesOrder', 400, 'Không sửa được đơn mobile'),
     deleteOrder: wrapMobile(service, 'deleteSalesOrder', 400, 'Không xóa được đơn mobile'),
