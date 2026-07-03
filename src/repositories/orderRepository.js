@@ -125,6 +125,25 @@ async function patchByIdentity(idOrCode, patch = {}, options = {}) {
   return collectionRepository.patchByIdentity(ORDER_KEY, value, canonicalizeOperationalStaff(patch), ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
 }
 
+
+async function patchAccountingCloseoutById(orderId, patch = {}, options = {}) {
+  const value = normalizeIdOrCode(orderId);
+  if (!value) throw new Error('Thiếu salesOrder id để chốt sổ');
+  if (!isGeneratedSalesOrderId(value)) throw new Error('Chốt sổ giao hàng yêu cầu salesOrder id nội bộ ổn định');
+  const Model = collectionRepository.getModel(ORDER_KEY);
+  return Model.updateOne(
+    {
+      id: value,
+      accountingConfirmed: { $ne: true }
+    },
+    {
+      $set: canonicalizeOperationalStaff(patch),
+      $inc: { version: 1 }
+    },
+    { session: options.session }
+  );
+}
+
 async function remove(idOrCode, options = {}) {
   const filter = identityFilter(idOrCode);
   if (!filter) throw new Error(`Không có khóa định danh để xóa ${ORDER_KEY}`);
@@ -156,4 +175,4 @@ async function removeResolved(order = {}, fallbackRef = '', options = {}) {
   }, { session: options.session });
 }
 
-module.exports = { findAll, count, findByIdOrCode, findManyByIds, findManyByIdentity, findManyByIdentityMatches, upsert, patchByIdentity, replaceAll, remove, removeResolved, identityFields };
+module.exports = { findAll, count, findByIdOrCode, findManyByIds, findManyByIdentity, findManyByIdentityMatches, upsert, patchByIdentity, patchAccountingCloseoutById, replaceAll, remove, removeResolved, identityFields };

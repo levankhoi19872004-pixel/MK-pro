@@ -249,13 +249,34 @@ async function persistReadModel(result, scope = {}, options = {}) {
   const { ArDebtOrder, ArDebtCustomer } = getModels();
   if (options.dryRun) return { dryRun: true, writtenOrders: 0, writtenCustomers: 0 };
   const session = options.session;
-  const orderFilter = scope.sourceId ? { sourceId: scope.sourceId } : (scope.customerCode ? { customerCode: scope.customerCode } : {});
-  const customerFilterValue = scope.customerCode ? { customerCode: scope.customerCode } : {};
-  await ArDebtOrder.deleteMany(orderFilter, { session });
-  await ArDebtCustomer.deleteMany(customerFilterValue, { session });
-  if (result.debtOrders.length) await ArDebtOrder.insertMany(result.debtOrders, { ordered: false, session });
-  if (result.debtCustomers.length) await ArDebtCustomer.insertMany(result.debtCustomers, { ordered: false, session });
-  return { dryRun: false, writtenOrders: result.debtOrders.length, writtenCustomers: result.debtCustomers.length };
+  const sourceId = clean(scope.sourceId);
+  const customerCode = clean(scope.customerCode);
+
+  if (sourceId) {
+    await ArDebtOrder.deleteMany({ sourceId }, { session });
+    if (result.debtOrders.length) await ArDebtOrder.insertMany(result.debtOrders, { ordered: false, session });
+    return { dryRun: false, writtenOrders: result.debtOrders.length, writtenCustomers: 0 };
+  }
+
+  if (customerCode) {
+    await ArDebtOrder.deleteMany({ customerCode }, { session });
+    await ArDebtCustomer.deleteMany({ customerCode }, { session });
+    if (result.debtOrders.length) await ArDebtOrder.insertMany(result.debtOrders, { ordered: false, session });
+    if (result.debtCustomers.length) await ArDebtCustomer.insertMany(result.debtCustomers, { ordered: false, session });
+    return { dryRun: false, writtenOrders: result.debtOrders.length, writtenCustomers: result.debtCustomers.length };
+  }
+
+  if (options.allowFullRebuild === true) {
+    await ArDebtOrder.deleteMany({}, { session });
+    await ArDebtCustomer.deleteMany({}, { session });
+    if (result.debtOrders.length) await ArDebtOrder.insertMany(result.debtOrders, { ordered: false, session });
+    if (result.debtCustomers.length) await ArDebtCustomer.insertMany(result.debtCustomers, { ordered: false, session });
+    return { dryRun: false, writtenOrders: result.debtOrders.length, writtenCustomers: result.debtCustomers.length };
+  }
+
+  const err = new Error('Refuse to rebuild AR debt read model without explicit scope');
+  err.code = 'AR_DEBT_READ_MODEL_SCOPE_REQUIRED';
+  throw err;
 }
 
 async function rebuildDebtForSource(sourceIdValue, options = {}) {
@@ -275,7 +296,7 @@ async function rebuildDebtForCustomer(customerCode, options = {}) {
 async function rebuildAllDebtReadModels(options = {}) {
   const rows = await loadCanonicalLedgerRows({}, options);
   const result = groupCanonicalLedgers(rows, options);
-  result.persist = await persistReadModel(result, {}, options);
+  result.persist = await persistReadModel(result, {}, { ...options, allowFullRebuild: true });
   return { scope: 'all', ...result };
 }
 

@@ -76,9 +76,13 @@ const INDEX_DEFINITIONS = {
     [{ code: 1 }, { name: 'uniq_returnOrders_code', unique: true, sparse: true }],
     // Compound index thay thế các index đơn cùng prefix.
     [{ salesOrderId: 1, status: 1 }, { name: 'idx_return_orders_sales_order_id_status', sparse: true }],
+    [{ salesOrderId: 1, returnStatus: 1 }, { name: 'idx_return_orders_sales_order_id_return_status', sparse: true }],
     [{ salesOrderCode: 1, status: 1 }, { name: 'idx_return_orders_sales_order_code_status', sparse: true }],
+    [{ salesOrderCode: 1, returnStatus: 1 }, { name: 'idx_return_orders_sales_order_code_return_status', sparse: true }],
     [{ orderId: 1, status: 1 }, { name: 'idx_return_orders_order_id_status', sparse: true }],
+    [{ orderId: 1, returnStatus: 1 }, { name: 'idx_return_orders_order_id_return_status', sparse: true }],
     [{ orderCode: 1, status: 1 }, { name: 'idx_return_orders_order_code_status', sparse: true }],
+    [{ orderCode: 1, returnStatus: 1 }, { name: 'idx_return_orders_order_code_return_status', sparse: true }],
     [{ sourceOrderId: 1, status: 1 }, { name: 'idx_return_orders_source_status' }],
     [{ sourceOrderCode: 1, status: 1 }, { name: 'idx_return_orders_source_code_status', sparse: true }],
     [{ deliveryOrderId: 1, status: 1 }, { name: 'idx_return_orders_delivery_order_id_status', sparse: true }],
@@ -114,6 +118,8 @@ const INDEX_DEFINITIONS = {
     // P0 AR-RETURN idempotency: tầng 1 chỉ tạo non-unique index an toàn khi deploy.
     // Unique DB-level guard được bật riêng bằng scripts/create-ar-return-unique-index.js sau audit sạch.
     [{ idempotencyKey: 1 }, { name: 'idx_arledger_idempotencyKey' }],
+    [{ account: 1, accountingConfirmed: 1, accountingStatus: 1, active: 1, reversed: 1, category: 1, sourceId: 1 }, { name: 'idx_ar_ledger_canonical_source_lookup' }],
+    [{ customerCode: 1, status: 1, reversed: 1, category: 1 }, { name: 'idx_ar_ledger_customer_status_category_lookup' }],
     [{ type: 1, sourceType: 1, sourceId: 1 }, { name: 'idx_ar_return_source_lookup' }],
     // P0 admin AR adjustment: non-unique lookup indexes only.
     // Unique guard is created by scripts/create-ar-adjustment-unique-index.js after audit sạch.
@@ -167,6 +173,18 @@ const INDEX_DEFINITIONS = {
     [{ customerCode: 1, status: 1, reversed: 1, type: 1 }, { name: 'idx_ar_balance_customer_active_lookup', sparse: true }],
     [{ orderCode: 1, status: 1, reversed: 1, type: 1 }, { name: 'idx_ar_balance_order_active_lookup', sparse: true }]
   ],
+  arDebtOrders: [
+    [{ sourceId: 1 }, { name: 'idx_ar_debt_orders_source_id', sparse: true }],
+    [{ customerCode: 1, status: 1 }, { name: 'idx_ar_debt_orders_customer_status' }],
+    [{ customerCode: 1, lastDebtDate: -1 }, { name: 'idx_ar_debt_orders_customer_last_debt_date' }]
+  ],
+  arDebtCustomers: [
+    [{ customerCode: 1 }, { name: 'uniq_ar_debt_customers_customer_code', unique: true, sparse: true }],
+    [{ status: 1, remainingDebt: -1 }, { name: 'idx_ar_debt_customers_status_remaining_debt' }],
+    [{ salesStaffCode: 1, status: 1, remainingDebt: -1 }, { name: 'idx_ar_debt_customers_sales_staff_status_debt' }],
+    [{ deliveryStaffCode: 1, status: 1, remainingDebt: -1 }, { name: 'idx_ar_debt_customers_delivery_staff_status_debt' }]
+  ],
+
   cashbooks: [
     [{ id: 1 }, { name: 'idx_cashbooks_id' }],
     [{ code: 1 }, { name: 'idx_cashbooks_code' }],

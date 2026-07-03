@@ -8,6 +8,7 @@ const { compactDeliveryOrderKeys } = require('../master-order/masterOrderIdentit
 const { findReturnOrdersForDeliveryChildren } = require('../master-order/masterOrderReturn.impl');
 const DeliveryCloseoutService = require('./DeliveryCloseoutService');
 const ArDebtOpenPostingService = require('./ArDebtOpenPostingService');
+const arDebtReadModel = require('../arDebtReadModel.service');
 
 const CONFIRM_GUARD_TTL_MS = Math.max(1000, Number(process.env.CLOSEOUT_CONFIRM_GUARD_TTL_MS || 8000));
 const inFlight = new Map();
@@ -108,24 +109,24 @@ function buildCloseoutDiagnostic(order = {}, closeout = {}, arResult = null) {
   return diagnostic;
 }
 
-function buildConfirmedOrderPatch(order = {}, closeout = {}, actor = 'accountant') {
+function buildConfirmedOrderPatchFields(order = {}, closeout = {}, actor = 'accountant') {
   const finalDebt = DeliveryCloseoutService.positiveMoney(closeout.finalDebtAmount);
+  const now = dateUtil.nowIso();
   return {
-    ...order,
     deliveryCloseout: stripOperationalDetails(closeout),
     accountingConfirmed: true,
     accountingStatus: 'confirmed',
     accountingLocked: true,
     editLocked: true,
     deliveryLocked: true,
-    accountingConfirmedAt: order.accountingConfirmedAt || closeout.confirmedAt || dateUtil.nowIso(),
+    accountingConfirmedAt: order.accountingConfirmedAt || closeout.confirmedAt || now,
     accountingConfirmedBy: order.accountingConfirmedBy || actor,
     debtAmount: finalDebt,
     debt: finalDebt,
     arBalance: finalDebt,
     arStatus: finalDebt > 0 ? 'ar_debt_opened' : 'paid',
     lifecycleStatus: finalDebt > 0 ? 'ar_debt_opened' : 'paid',
-    updatedAt: dateUtil.nowIso()
+    updatedAt: now
   };
 }
 
@@ -252,11 +253,15 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
   // finalDebtAmount âm lớn là overpayment/exception: vẫn khóa closeout nhưng không sinh công nợ âm.
 
   if (existingCloseout.status === 'accounting_confirmed' || order.accountingConfirmed === true) {
-    const postResult = await ArDebtOpenPostingService.postDebtOpen(order, existingCloseout, options);
+    const postResult = await ArDebtOpenPostingService.postDebtOpen(order, existingCloseout, {
+      ...options,
+      skipReadModelRebuild: true
+    });
     return {
       skipped: true,
       idempotent: true,
       orderId: DeliveryCloseoutService.orderId(order),
+      affectedCustomerCode: clean(order.customerCode),
       closeout: existingCloseout,
       arDebtOpen: postResult,
       diagnostic: buildCloseoutDiagnostic(order, existingCloseout, postResult)
@@ -264,9 +269,17 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
   }
 
   const confirmedCloseout = DeliveryCloseoutService.confirmCloseout(order, computed, { actor, reason: clean(options.reason || options.closeoutReason || '') });
-  const updatedOrder = buildConfirmedOrderPatch(order, confirmedCloseout, actor);
-  await orderRepository.upsert(updatedOrder, options);
-  const arResult = await ArDebtOpenPostingService.postDebtOpen(updatedOrder, confirmedCloseout, { ...options, note: clean(options.note || options.reason || `Mở công nợ cuối cùng từ chốt giao hàng ${DeliveryCloseoutService.orderCode(order)}`) });
+  const patch = buildConfirmedOrderPatchFields(order, confirmedCloseout, actor);
+  await orderRepository.patchAccountingCloseoutById(DeliveryCloseoutService.orderId(order), patch, options);
+  const updatedOrderForLedger = {
+    ...order,
+    ...patch
+  };
+  const arResult = await ArDebtOpenPostingService.postDebtOpen(updatedOrderForLedger, confirmedCloseout, {
+    ...options,
+    skipReadModelRebuild: true,
+    note: clean(options.note || options.reason || `Mở công nợ cuối cùng từ chốt giao hàng ${DeliveryCloseoutService.orderCode(order)}`)
+  });
   await auditService.log('ACCOUNTING_CONFIRM_DELIVERY_CLOSEOUT', {
     refType: 'SALES_ORDER',
     refId: DeliveryCloseoutService.orderId(order),
@@ -277,6 +290,7 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
   return {
     confirmed: true,
     orderId: DeliveryCloseoutService.orderId(order),
+    affectedCustomerCode: clean(order.customerCode),
     closeout: confirmedCloseout,
     arDebtOpen: arResult,
     diagnostic: buildCloseoutDiagnostic(order, confirmedCloseout, arResult)
@@ -305,6 +319,12 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     }
   });
 
+  const affectedCustomerCodes = unique(results.map((row) => row && row.affectedCustomerCode));
+  const readModelRebuilds = [];
+  for (const customerCode of affectedCustomerCodes) {
+    readModelRebuilds.push(await arDebtReadModel.rebuildDebtForCustomer(customerCode, { actor, reason }));
+  }
+
   const confirmedOrders = results.filter((row) => row.confirmed).length;
   const skippedOrders = results.filter((row) => row.skipped).length;
   const diagnostics = results.map((row) => row.diagnostic).filter(Boolean);
@@ -321,6 +341,7 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     results,
     diagnostics,
     warnings,
+    readModelRebuilds: readModelRebuilds.map((row) => ({ scope: row.scope, customerCode: row.customerCode, writtenOrders: row.persist?.writtenOrders || 0, writtenCustomers: row.persist?.writtenCustomers || 0 })),
     reason,
     message: `Kế toán đã xác nhận ${confirmedOrders} đơn theo deliveryCloseout. Công nợ chỉ sinh AR-DEBT-OPEN nếu finalDebtAmount > 0 sau ngưỡng dung sai ±1.000.`
   };
@@ -365,7 +386,7 @@ module.exports = {
     orderDeliveryStaffCode,
     orderSalesStaffCode,
     isCompletedDelivery,
-    buildConfirmedOrderPatch,
+    buildConfirmedOrderPatchFields,
     guardKey,
     stripOperationalDetails,
     buildCloseoutDiagnostic
