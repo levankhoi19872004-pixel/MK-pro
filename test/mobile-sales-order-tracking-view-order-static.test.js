@@ -34,9 +34,14 @@ test('mobile sales order tracking uses deliveryCloseoutVersions for daily order 
   assert.match(helper, /function orderTotalAmount\(order = \{\}\)/);
   assert.match(helper, /'payableAmount'[\s\S]*'finalAmount'[\s\S]*'totalAmount'/);
   assert.match(helper, /const totalAmount = orderTotalAmount\(order\)/);
-  assert.match(helper, /const moneySource = latestVersionMoney\(latestVersion, orderMoneyBreakdown\(order\)\)/);
+  assert.match(helper, /const rawMoneySource = latestVersionMoney\(latestVersion, orderMoneyBreakdown\(order\)\)/);
+  assert.match(helper, /resolveDeliveryTodayContractMoney/);
+  assert.match(helper, /DELIVERY_TODAY_ORDERS_CONTRACT/);
+  assert.match(helper, /rawFinalDebtAmount/);
   assert.match(helper, /const returnAmount = latestVersion[\s\S]*latestVersionReturnAmount/);
   assert.match(helper, /const remainingDebt = dailyDebtAmount/);
+  assert.match(helper, /contract: DELIVERY_TODAY_ORDERS_CONTRACT/);
+  assert.match(helper, /closeoutMatchedBy/);
   assert.match(helper, /'deliveryCloseoutVersions'/);
   assert.match(helper, /'order_delivery_fields'/);
   assert.match(helper, /'no_daily_closeout'/);
@@ -44,6 +49,9 @@ test('mobile sales order tracking uses deliveryCloseoutVersions for daily order 
   assert.match(helper, /isBetterDeliveryCloseoutVersion/);
 
   assert.match(serviceSource, /buildMobileSalesOrderTrackingSummaries\(visibleRows\)/);
+  assert.match(serviceSource, /deliveryCloseout: 1/);
+  assert.match(serviceSource, /deliveryDate: 1/);
+  assert.match(serviceSource, /offsetAmount: 1/);
   assert.match(serviceSource, /decorateMobileSalesOrderForTracking\(baseOrder, tracking\)/);
   assert.match(serviceSource, /MOBILE_SALES_ORDER_TRACKING_DERIVED/);
   assert.match(generatedService, /mobileSalesOrderTracking\.service/);

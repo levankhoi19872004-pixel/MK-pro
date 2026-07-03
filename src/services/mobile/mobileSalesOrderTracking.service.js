@@ -7,6 +7,8 @@ const { normalizeDebtAmount, calculateDeliveryDebtAmount } = require('../../cons
 
 const INACTIVE_STATUSES = ['cancelled', 'canceled', 'void', 'voided', 'deleted', 'removed', 'rejected', 'duplicate_cancelled'];
 const CONFIRMED_STATUSES = ['confirmed', 'posted', 'locked', 'accounting_confirmed', 'completed', 'closed'];
+const DELIVERY_TODAY_ORDERS_CONTRACT = 'delivery-today-orders';
+
 
 function text(value = '') {
   return String(value ?? '').trim();
@@ -44,6 +46,21 @@ function firstNumber(source = {}, keys = []) {
   return 0;
 }
 
+function hasExplicitMoney(source = {}, key = '') {
+  return Object.prototype.hasOwnProperty.call(source || {}, key)
+    && source[key] !== undefined
+    && source[key] !== null
+    && String(source[key]).trim() !== '';
+}
+
+function firstExplicitMoney(source = {}, keys = []) {
+  for (const key of keys) {
+    if (!hasExplicitMoney(source, key)) continue;
+    return { key, value: money(source[key]) };
+  }
+  return null;
+}
+
 function normalizeRewardOffsetAmount(rewardAmount = 0, offsetAmount = 0) {
   const reward = money(rewardAmount);
   const offset = money(offsetAmount);
@@ -52,6 +69,7 @@ function normalizeRewardOffsetAmount(rewardAmount = 0, offsetAmount = 0) {
 }
 
 function orderIdentityValues(order = {}) {
+  const closeout = deliveryCloseout(order);
   return unique([
     order.id,
     order._id,
@@ -64,7 +82,19 @@ function orderIdentityValues(order = {}) {
     order.orderId,
     order.sourceOrderId,
     order.sourceId,
-    order.refId
+    order.refId,
+    order.masterOrderId,
+    order.masterOrderCode,
+    order.masterOrderNo,
+    order.masterCode,
+    order.deliveryMasterId,
+    order.deliveryMasterCode,
+    closeout.id,
+    closeout.code,
+    closeout.closeoutId,
+    closeout.closeoutCode,
+    closeout.originalCloseoutId,
+    closeout.originalCloseoutCode
   ]);
 }
 
@@ -166,8 +196,9 @@ function deliveryCloseout(order = {}) {
 
 const CASH_FIELDS = ['cashAmount', 'newCashAmount', 'cashCollectedAmount', 'newCashCollectedAmount', 'cashReceivedAmount', 'paymentCashAmount', 'paidCashAmount', 'paidCash', 'collectedCash', 'deliveryCashAmount', 'cashCollected', 'cash'];
 const BANK_FIELDS = ['bankAmount', 'newBankAmount', 'transferAmount', 'newTransferAmount', 'bankTransferAmount', 'paymentTransferAmount', 'paymentBankAmount', 'paidBankAmount', 'paidTransferAmount', 'collectedBankAmount', 'deliveryBankAmount', 'bankCollected', 'bankCollectedAmount', 'newBankCollectedAmount', 'transferCollectedAmount'];
-const BONUS_FIELDS = ['rewardAmount', 'newRewardAmount', 'bonusAmount', 'newBonusAmount', 'allowanceAmount', 'newAllowanceAmount', 'promotionRewardAmount', 'newPromotionRewardAmount', 'displayRewardAmount', 'newDisplayRewardAmount', 'bonusReturnAmount', 'newBonusReturnAmount', 'rewardOffsetAmount', 'newRewardOffsetAmount', 'promotionOffsetAmount', 'newPromotionOffsetAmount'];
+const BONUS_FIELDS = ['rewardAmount', 'newRewardAmount', 'bonusAmount', 'newBonusAmount', 'allowanceAmount', 'newAllowanceAmount', 'promotionRewardAmount', 'newPromotionRewardAmount', 'displayRewardAmount', 'newDisplayRewardAmount', 'bonusReturnAmount', 'newBonusReturnAmount', 'rewardOffsetAmount', 'newRewardOffsetAmount', 'promotionOffsetAmount', 'newPromotionOffsetAmount', 'correctedRewardAmount', 'finalRewardAmount'];
 const OFFSET_FIELDS = ['offsetAmount', 'newOffsetAmount', 'debtOffsetAmount', 'newDebtOffsetAmount', 'deliveryOffsetAmount', 'newDeliveryOffsetAmount', 'otherOffsetAmount', 'newOtherOffsetAmount', 'rewardOffsetAmount', 'newRewardOffsetAmount', 'promotionOffsetAmount', 'newPromotionOffsetAmount', 'correctedOffsetAmount', 'finalOffsetAmount'];
+const VERSION_DEBT_FIELDS = ['rawFinalDebtAmount', 'rawDebtAmount', 'finalDebtAmount', 'newDebtAmount', 'debtAmount'];
 
 function orderMoneyBreakdown(order = {}) {
   const closeout = deliveryCloseout(order);
@@ -215,6 +246,63 @@ function latestVersionMoney(latestVersion = null, fallback = {}) {
 function latestVersionReturnAmount(latestVersion = null, fallback = 0) {
   if (!latestVersion) return money(fallback);
   return firstNumber(latestVersion, ['returnAmount', 'returnedAmount', 'newReturnAmount', 'newReturnedAmount']) || money(fallback);
+}
+
+function inferRewardOffsetFromVersionDebt(input = {}) {
+  const version = input.latestVersion || null;
+  if (!version) return null;
+  const debt = firstExplicitMoney(version, VERSION_DEBT_FIELDS);
+  if (!debt) return null;
+  const inferred = money(
+    money(input.payableAmount)
+    - money(input.cashAmount)
+    - money(input.bankAmount)
+    - money(input.returnAmount)
+    - money(debt.value)
+  );
+  if (inferred <= 0) return null;
+  return {
+    amount: inferred,
+    debtField: debt.key,
+    matchedBy: `inferred_from_${debt.key}`
+  };
+}
+
+function resolveDeliveryTodayContractMoney(input = {}) {
+  const base = input.moneySource || {};
+  let rewardAmount = money(base.rewardAmount);
+  let offsetAmount = money(base.offsetAmount);
+  let bonusAmount = normalizeRewardOffsetAmount(rewardAmount, offsetAmount);
+  let closeoutMatchedBy = input.closeoutMatchedBy || (input.latestVersion ? 'order_identity' : 'order_delivery_fields');
+
+  // Contract delivery-today-orders: TT is the delivery reward/offset amount.
+  // Some DeliveryCloseoutVersion rows keep the final debt/raw debt but omit the reward/offset field.
+  // Infer TT from PT - TM - CK - HT - rawDebt to stay aligned with /api/new/delivery-today/orders.
+  if (!bonusAmount && input.latestVersion) {
+    const inferred = inferRewardOffsetFromVersionDebt({
+      latestVersion: input.latestVersion,
+      payableAmount: input.payableAmount,
+      cashAmount: base.cashAmount,
+      bankAmount: base.bankAmount,
+      returnAmount: input.returnAmount
+    });
+    if (inferred && inferred.amount > 0) {
+      rewardAmount = inferred.amount;
+      offsetAmount = 0;
+      bonusAmount = inferred.amount;
+      closeoutMatchedBy = inferred.matchedBy;
+    }
+  }
+
+  return {
+    cashAmount: money(base.cashAmount),
+    bankAmount: money(base.bankAmount),
+    collectedAmount: money(base.collectedAmount || (money(base.cashAmount) + money(base.bankAmount))),
+    rewardAmount,
+    offsetAmount,
+    bonusAmount,
+    closeoutMatchedBy
+  };
 }
 
 function calculateDailyDebtFromCloseout(input = {}) {
@@ -270,8 +358,11 @@ function deliveryCloseoutVersionKeys(row = {}) {
     row.orderCode,
     row.originalCloseoutId,
     row.originalCloseoutCode,
+    row.correctionOfCloseoutId,
     row.closeoutId,
-    row.closeoutCode
+    row.closeoutCode,
+    row.correctionId,
+    row.correctionCode
   ]);
 }
 
@@ -310,8 +401,11 @@ async function loadLatestVersionsByOrderKey(orders = [], options = {}) {
       { orderCode: { $in: allKeys } },
       { originalCloseoutId: { $in: allKeys } },
       { originalCloseoutCode: { $in: allKeys } },
+      { correctionOfCloseoutId: { $in: allKeys } },
       { closeoutId: { $in: allKeys } },
-      { closeoutCode: { $in: allKeys } }
+      { closeoutCode: { $in: allKeys } },
+      { correctionId: { $in: allKeys } },
+      { correctionCode: { $in: allKeys } }
     ]
   };
   let query = DeliveryCloseoutVersion.find(match).sort({ closeoutVersion: -1, updatedAt: -1, createdAt: -1 }).lean();
@@ -363,20 +457,26 @@ function buildMobileSalesOrderTrackingSummary(order = {}, context = {}) {
   // orders/salesOrders remain the primary source for the original order identity and payable amount.
   // deliveryCloseoutVersions only overlays actual delivery money; returnOrders is the return SSoT.
   const totalAmount = orderTotalAmount(order) || money(latestVersion?.originalAmount ?? latestVersion?.saleAmount ?? 0);
-  const moneySource = latestVersionMoney(latestVersion, orderMoneyBreakdown(order));
+  const rawMoneySource = latestVersionMoney(latestVersion, orderMoneyBreakdown(order));
   const returnFromRows = returnRows.reduce((sum, row) => sum + returnOrderAmount(row), 0);
   const returnAmount = latestVersion
     ? latestVersionReturnAmount(latestVersion, returnFromRows || order.returnAmount || order.returnedAmount || 0)
     : (returnRows.length
       ? money(returnFromRows)
       : money(order.returnAmount ?? order.returnedAmount ?? 0));
+  const moneySource = resolveDeliveryTodayContractMoney({
+    latestVersion,
+    payableAmount: totalAmount,
+    returnAmount,
+    moneySource: rawMoneySource
+  });
 
   const dailyDebtAmount = calculateDailyDebtFromCloseout({
     payableAmount: totalAmount,
     cashAmount: moneySource.cashAmount,
     bankAmount: moneySource.bankAmount,
-    rewardAmount: moneySource.rewardAmount,
-    offsetAmount: moneySource.offsetAmount,
+    rewardAmount: moneySource.bonusAmount,
+    offsetAmount: 0,
     returnAmount
   });
   const remainingDebt = dailyDebtAmount;
@@ -407,7 +507,13 @@ function buildMobileSalesOrderTrackingSummary(order = {}, context = {}) {
     returnAmount,
     dailyDebtAmount: remainingDebt,
     remainingDebt,
+    orderRemainingDebt: remainingDebt,
+    contract: DELIVERY_TODAY_ORDERS_CONTRACT,
+    sourcePriority: 'orders + deliveryCloseoutVersions + returnOrders',
     closeoutSource: latestVersion ? 'deliveryCloseoutVersions' : source,
+    closeoutVersionId: latestVersion ? text(latestVersion.id || latestVersion.code || latestVersion.closeoutCode || '') : '',
+    closeoutMatchedBy: latestVersion ? moneySource.closeoutMatchedBy : source,
+    deliveryDate: text(latestVersion?.deliveryDate || order.deliveryDate || order.documentDate || order.orderDate || order.date || ''),
     deliveredAt: text(latestVersion?.deliveredAt || order.deliveredAt || closeout.deliveredAt || closeout.closedAt || ''),
     accountingConfirmedAt: text(latestVersion?.accountingConfirmedAt || order.accountingConfirmedAt || closeout.accountingConfirmedAt || ''),
     returnOrderCount: returnRows.length,
@@ -483,6 +589,8 @@ module.exports = {
     latestVersionMoney,
     latestVersionReturnAmount,
     normalizeRewardOffsetAmount,
+    resolveDeliveryTodayContractMoney,
+    inferRewardOffsetFromVersionDebt,
     calculateDailyDebtFromCloseout,
     deliveryCloseoutVersionKeys,
     isInactiveDeliveryCloseoutVersion,
