@@ -182,10 +182,6 @@ export function buildOrderCardsHtml(orders = [], helpers = {}) {
   return orders.map((order) => {
     const pending = order.pendingSync === true;
     const tracking = order.deliveryTracking || {};
-    const lockedReason = order.lockedReason || order.editLockReason || 'Không thể sửa/xóa trên app';
-    const status = pending
-      ? (order.status === 'conflict' ? 'Cần xử lý đồng bộ' : (order.status === 'failed' ? 'Đồng bộ thất bại' : 'Chờ đồng bộ'))
-      : (order.canEdit ? 'Có thể sửa' : lockedReason);
     const error = pending && order.syncError ? `<div class="mobile-inline-error">${escapeHtml(order.syncError)}</div>` : '';
     const orderKey = String(order.id || order.orderId || order.code || '').trim();
     const printUrl = String(order.printUrl || (orderKey ? `/api/mobile/sales/orders/${encodeURIComponent(orderKey)}/print.pdf` : '')).trim();
@@ -198,32 +194,34 @@ export function buildOrderCardsHtml(orders = [], helpers = {}) {
     const remainingDebt = numberValue(tracking.remainingDebt ?? order.remainingDebt ?? order.orderRemainingDebt ?? order.debtAmount);
     const deliveryStatus = statusLabel(tracking.deliveryStatus || order.deliveryStatus || order.lifecycleStatus || order.status || 'pending');
     const accountingStatus = statusLabel(tracking.accountingStatus || order.accountingStatus || (tracking.accountingConfirmed ? 'accounting_confirmed' : 'pending'));
-    const trackingSource = tracking.source ? `<span>Nguồn: ${escapeHtml(tracking.source)}</span>` : '';
+    const orderCode = String(order.code || order.orderCode || orderKey || '').trim();
+    const lockPills = pending
+      ? '<span class="mobile-sales-order-lock-pill sync">Chờ đồng bộ</span>'
+      : (order.canEdit
+        ? '<span class="mobile-sales-order-lock-pill editable">Có thể sửa</span>'
+        : '<span class="mobile-sales-order-lock-pill locked">Đã gộp</span><span class="mobile-sales-order-lock-pill readonly">Chỉ xem</span>');
     const viewButton = !pending && printUrl
-      ? `<a class="primary-btn small-btn" data-view-order="${escapeHtml(orderKey)}" href="${escapeHtml(printUrl)}" target="_blank" rel="noopener">Xem đơn</a>`
+      ? `<button type="button" class="primary-btn small-btn mobile-view-order-btn" data-view-order="${escapeHtml(orderKey)}" data-order-code="${escapeHtml(orderCode)}" data-print-url="${escapeHtml(printUrl)}">Xem đơn</button>`
       : '';
     const editDeleteButtons = !pending && order.canEdit
-      ? `<button type="button" class="ghost-btn small-btn" data-edit-order="${escapeHtml(orderKey)}">Chỉnh sửa</button><button type="button" class="danger-btn small-btn" data-delete-order="${escapeHtml(orderKey)}" data-order-code="${escapeHtml(order.code || order.orderCode || '')}">Xóa</button>`
-      : `<span class="muted mobile-order-lock-note">${escapeHtml(pending ? 'Đơn được giữ an toàn trên thiết bị.' : lockedReason)}</span>`;
+      ? `<button type="button" class="ghost-btn small-btn" data-edit-order="${escapeHtml(orderKey)}">Chỉnh sửa</button><button type="button" class="danger-btn small-btn" data-delete-order="${escapeHtml(orderKey)}" data-order-code="${escapeHtml(orderCode)}">Xóa</button>`
+      : '';
 
     return `
       <article class="order-item mobile-order-card ${pending ? 'pending-sync-order' : ''}">
         <div class="mobile-order-heading">
-          <div><strong>${escapeHtml(order.code || order.orderCode || '')}</strong><span>${escapeHtml(order.customerCode || '')}${order.customerCode && order.customerName ? ' · ' : ''}${escapeHtml(order.customerName || '')}</span></div>
-          <span class="order-status-badge ${pending ? 'sync' : (order.canEdit ? 'editable' : 'locked')}">${escapeHtml(status)}</span>
+          <div><strong>${escapeHtml(orderCode)}</strong><span>${escapeHtml(order.customerCode || '')}${order.customerCode && order.customerName ? ' · ' : ''}${escapeHtml(order.customerName || '')}</span></div>
+          <div class="mobile-sales-order-lock-pills">${lockPills}</div>
         </div>
         <div class="mobile-order-metrics mobile-order-tracking-metrics">
           <span><small>Ngày</small><strong>${escapeHtml(formatDate(order.date || order.orderDate))}</strong></span>
           <span><small>Tổng đơn</small><strong>${money(totalAmount)}</strong></span>
           <span><small>Đã thu</small><strong>${money(collectedAmount)}</strong></span>
-          <span><small>Hàng trả</small><strong>${money(returnAmount)}</strong></span>
-          <span><small>Trả thưởng</small><strong>${money(bonusAmount)}</strong></span>
           <span><small>Còn nợ</small><strong>${money(remainingDebt)}</strong></span>
-        </div>
-        <div class="mobile-order-tracking-line">
-          <span>TM: ${money(cashAmount)}</span>
-          <span>CK: ${money(bankAmount)}</span>
-          ${trackingSource}
+          <span><small>TM</small><strong>${money(cashAmount)}</strong></span>
+          <span><small>CK</small><strong>${money(bankAmount)}</strong></span>
+          <span><small>Trả thưởng</small><strong>${money(bonusAmount)}</strong></span>
+          <span><small>Hàng trả</small><strong>${money(returnAmount)}</strong></span>
         </div>
         <div class="mobile-order-status-line">
           <span>Giao: <strong>${escapeHtml(deliveryStatus)}</strong></span>
@@ -236,4 +234,127 @@ export function buildOrderCardsHtml(orders = [], helpers = {}) {
         </div>
       </article>`;
   }).join('');
+}
+
+const MOBILE_ORDER_PRINT_STYLE_ID = 'mobile-order-print-modal-style';
+
+function ensureMobileOrderPrintStyles() {
+  if (typeof document === 'undefined' || document.getElementById(MOBILE_ORDER_PRINT_STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = MOBILE_ORDER_PRINT_STYLE_ID;
+  style.textContent = `
+    body.mobile-order-print-open{overflow:hidden;touch-action:none}
+    .mobile-sales-order-lock-pills{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;align-items:center;max-width:120px}
+    .mobile-sales-order-lock-pill{display:inline-flex;align-items:center;justify-content:center;min-height:22px;border-radius:999px;padding:3px 7px;font-size:10px;font-weight:900;line-height:1;background:#eef2ff;color:#1d4ed8;white-space:nowrap}
+    .mobile-sales-order-lock-pill.locked,.mobile-sales-order-lock-pill.readonly{background:#f1f5f9;color:#475569}
+    .mobile-sales-order-lock-pill.editable{background:#dcfce7;color:#166534}
+    .mobile-sales-order-lock-pill.sync{background:#ffedd5;color:#9a3412}
+    .mobile-view-order-btn{width:100%;min-height:42px}
+    .mobile-order-print-modal[hidden]{display:none!important}
+    .mobile-order-print-modal{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:12px;background:rgba(15,23,42,.48)}
+    .mobile-order-print-sheet{position:relative;z-index:1;display:grid;grid-template-rows:auto minmax(0,1fr);width:min(96vw,860px);height:min(90vh,980px);max-height:calc(100vh - 24px - env(safe-area-inset-bottom));overflow:hidden;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.32)}
+    .mobile-order-print-header{position:sticky;top:0;z-index:2;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid #dbe4f0;background:#fff}
+    .mobile-order-print-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#0f172a;font-size:15px;font-weight:900}
+    .mobile-order-print-close{min-height:40px;border:0;border-radius:12px;background:#e2e8f0;color:#0f172a;font-weight:900;padding:8px 12px}
+    .mobile-order-print-body{position:relative;min-height:0;background:#f8fafc}
+    .mobile-order-print-frame{width:100%;height:100%;border:0;background:#fff}
+    .mobile-order-print-loading,.mobile-order-print-error{position:absolute;inset:0;display:grid;place-items:center;padding:18px;text-align:center;color:#475569;font-weight:800;background:#f8fafc}
+    .mobile-order-print-error{color:#b42318;background:#fff7f7}
+    .mobile-order-print-error[hidden],.mobile-order-print-loading[hidden],.mobile-order-print-frame[hidden]{display:none!important}
+    @media (max-width:380px){.mobile-order-heading{grid-template-columns:1fr}.mobile-sales-order-lock-pills{justify-content:flex-start;max-width:none}.mobile-order-print-modal{padding:8px}.mobile-order-print-sheet{width:96vw;height:88vh;border-radius:16px}}
+  `;
+  document.head.appendChild(style);
+}
+
+function ensureMobileOrderPrintModal() {
+  if (typeof document === 'undefined') return null;
+  ensureMobileOrderPrintStyles();
+  let modal = document.getElementById('mobileOrderPrintModal');
+  if (modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'mobileOrderPrintModal';
+  modal.className = 'mobile-order-print-modal';
+  modal.hidden = true;
+  modal.innerHTML = `
+    <div class="mobile-order-print-sheet" role="dialog" aria-modal="true" aria-labelledby="mobileOrderPrintTitle">
+      <div class="mobile-order-print-header">
+        <div id="mobileOrderPrintTitle" class="mobile-order-print-title">Xem đơn</div>
+        <button type="button" class="mobile-order-print-close" data-mobile-order-print-close>Đóng</button>
+      </div>
+      <div class="mobile-order-print-body">
+        <div class="mobile-order-print-loading">Đang tải đơn...</div>
+        <iframe class="mobile-order-print-frame" title="Xem đơn bán" hidden></iframe>
+        <div class="mobile-order-print-error" hidden></div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal || event.target.closest('[data-mobile-order-print-close]')) closeMobileOrderPrintModal();
+  });
+  return modal;
+}
+
+export function closeMobileOrderPrintModal() {
+  const modal = typeof document === 'undefined' ? null : document.getElementById('mobileOrderPrintModal');
+  if (!modal) return;
+  const frame = modal.querySelector('.mobile-order-print-frame');
+  if (frame) frame.src = 'about:blank';
+  modal.hidden = true;
+  document.body.classList.remove('mobile-order-print-open');
+}
+
+export function openMobileOrderPrintModal(options = {}) {
+  const url = String(options.printUrl || '').trim();
+  if (!url) return;
+  const modal = ensureMobileOrderPrintModal();
+  if (!modal) return;
+  const frame = modal.querySelector('.mobile-order-print-frame');
+  const title = modal.querySelector('.mobile-order-print-title');
+  const loading = modal.querySelector('.mobile-order-print-loading');
+  const error = modal.querySelector('.mobile-order-print-error');
+  if (title) title.textContent = `Xem đơn ${String(options.orderCode || options.orderKey || '').trim()}`.trim();
+  if (loading) loading.hidden = false;
+  if (error) {
+    error.hidden = true;
+    error.textContent = '';
+  }
+  if (frame) {
+    frame.hidden = true;
+    frame.src = 'about:blank';
+    frame.onload = () => {
+      if (loading) loading.hidden = true;
+      frame.hidden = false;
+    };
+    frame.onerror = () => {
+      if (loading) loading.hidden = true;
+      if (error) {
+        error.hidden = false;
+        error.textContent = 'Không tải được đơn. Vui lòng thử lại.';
+      }
+      frame.hidden = true;
+    };
+  }
+  modal.hidden = false;
+  document.body.classList.add('mobile-order-print-open');
+  window.setTimeout(() => {
+    if (frame) frame.src = url;
+  }, 0);
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-view-order]');
+    if (!button) return;
+    const url = String(button.dataset.printUrl || '').trim();
+    if (!url) return;
+    event.preventDefault();
+    openMobileOrderPrintModal({
+      printUrl: url,
+      orderKey: button.dataset.viewOrder || '',
+      orderCode: button.dataset.orderCode || button.dataset.viewOrder || ''
+    });
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeMobileOrderPrintModal();
+  });
 }

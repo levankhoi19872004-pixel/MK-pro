@@ -1,7 +1,6 @@
 'use strict';
 
 const ReturnOrder = require('../../models/ReturnOrder');
-const FundLedger = require('../../models/FundLedger');
 const DeliveryCloseoutVersion = require('../../models/DeliveryCloseoutVersion');
 const arBalanceService = require('../accounting/arBalanceService');
 const { toNumber } = require('../../utils/common.util');
@@ -37,6 +36,15 @@ function firstMoney(source = {}, keys = []) {
   return 0;
 }
 
+function firstNumber(source = {}, keys = []) {
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(source || {}, key)) continue;
+    if (source[key] === undefined || source[key] === null || source[key] === '') continue;
+    return money(source[key]);
+  }
+  return 0;
+}
+
 function orderIdentityValues(order = {}) {
   return unique([
     order.id,
@@ -63,7 +71,18 @@ function orderDisplayCode(order = {}) {
 }
 
 function orderTotalAmount(order = {}) {
-  return money(order.totalAmount ?? order.amount ?? order.total ?? order.grandTotal ?? order.payableAmount ?? order.orderAmount);
+  return firstNumber(order, [
+    'payableAmount',
+    'finalAmount',
+    'finalTotalAmount',
+    'netAmount',
+    'totalPayable',
+    'totalAmount',
+    'amount',
+    'total',
+    'grandTotal',
+    'orderAmount'
+  ]);
 }
 
 function orderMasterCode(order = {}) {
@@ -91,16 +110,21 @@ function isInactive(row = {}) {
   return INACTIVE_STATUSES.includes(status) || row.deleted === true || row.isDeleted === true || Boolean(row.deletedAt);
 }
 
+function isConfirmedStatus(value = '') {
+  const status = lower(value);
+  return CONFIRMED_STATUSES.includes(status) || status === 'accounting_confirmed';
+}
+
 function isAccountingConfirmed(order = {}, latestVersion = null) {
   const accountingStatus = lower(order.accountingStatus || order.arStatus || '');
   const lifecycleStatus = lower(order.lifecycleStatus || '');
   const closeoutStatus = lower(order.deliveryCloseout?.status || order.deliveryCloseoutStatus || '');
-  const versionStatus = lower(latestVersion?.status || latestVersion?.accountingStatus || '');
+  const versionStatus = lower(latestVersion?.accountingStatus || latestVersion?.status || latestVersion?.closeoutStatus || '');
   return order.accountingConfirmed === true
-    || CONFIRMED_STATUSES.includes(accountingStatus)
+    || isConfirmedStatus(accountingStatus)
     || lifecycleStatus === 'accounting_confirmed'
     || closeoutStatus === 'accounting_confirmed'
-    || versionStatus === 'accounting_confirmed';
+    || isConfirmedStatus(versionStatus);
 }
 
 function lineReturnAmount(item = {}) {
@@ -163,54 +187,16 @@ function orderMoneyBreakdown(order = {}) {
 
 function latestVersionMoney(latestVersion = null, fallback = {}) {
   if (!latestVersion) return fallback;
-  const cashAmount = money(latestVersion.cashAmount ?? latestVersion.newCashAmount ?? latestVersion.cashCollectedAmount ?? fallback.cashAmount);
-  const bankAmount = money(latestVersion.bankAmount ?? latestVersion.newBankAmount ?? latestVersion.bankCollectedAmount ?? fallback.bankAmount);
-  const bonusAmount = money(latestVersion.rewardAmount ?? latestVersion.newRewardAmount ?? latestVersion.bonusAmount ?? fallback.bonusAmount);
-  const collectedAmount = money(latestVersion.collectedAmount ?? latestVersion.newCollectedAmount ?? (cashAmount + bankAmount));
+  const cashAmount = firstNumber(latestVersion, ['cashAmount', 'newCashAmount', 'cashCollectedAmount', 'newCashCollectedAmount', 'cashCollected']) || money(fallback.cashAmount);
+  const bankAmount = firstNumber(latestVersion, ['bankAmount', 'newBankAmount', 'bankCollectedAmount', 'newBankCollectedAmount', 'transferAmount']) || money(fallback.bankAmount);
+  const bonusAmount = firstNumber(latestVersion, ['rewardAmount', 'newRewardAmount', 'bonusAmount', 'newBonusAmount']) || money(fallback.bonusAmount);
+  const explicitCollected = firstNumber(latestVersion, ['collectedAmount', 'newCollectedAmount', 'cashCollectedAmount', 'newCashCollectedAmount']);
   return {
     cashAmount,
     bankAmount,
     bonusAmount,
-    collectedAmount: collectedAmount || cashAmount + bankAmount
+    collectedAmount: explicitCollected || cashAmount + bankAmount
   };
-}
-
-function fundLedgerKeys(row = {}) {
-  return unique([
-    row.orderId,
-    row.orderCode,
-    row.salesOrderId,
-    row.salesOrderCode,
-    row.refId,
-    row.refCode,
-    row.referenceId,
-    row.referenceCode,
-    row.sourceId,
-    row.sourceCode,
-    row.originalSourceId
-  ]);
-}
-
-function isActiveFundLedger(row = {}) {
-  if (row.isDeleted === true || row.deleted === true || row.deletedAt) return false;
-  const status = lower(row.status || row.accountingStatus || '');
-  if (INACTIVE_STATUSES.includes(status)) return false;
-  return true;
-}
-
-function fundLedgerSignedAmount(row = {}) {
-  const amount = money(row.amount);
-  const direction = lower(row.direction || 'in');
-  if (row.isReversal === true || direction === 'out' || direction === 'cash_out') return -amount;
-  return amount;
-}
-
-function applyFundLedgerRow(target, row = {}) {
-  const amount = fundLedgerSignedAmount(row);
-  const fundType = lower(row.fundType || row.account || row.paymentMethod || row.method || 'cash');
-  if (fundType.includes('bank') || fundType.includes('transfer') || fundType.includes('ck')) target.bankAmount += amount;
-  else target.cashAmount += amount;
-  target.collectedAmount = target.cashAmount + target.bankAmount;
 }
 
 async function loadReturnsByOrderKey(orders = [], options = {}) {
@@ -244,61 +230,66 @@ async function loadReturnsByOrderKey(orders = [], options = {}) {
   return map;
 }
 
+function deliveryCloseoutVersionKeys(row = {}) {
+  return unique([
+    row.salesOrderId,
+    row.salesOrderCode,
+    row.orderId,
+    row.orderCode,
+    row.originalCloseoutId,
+    row.originalCloseoutCode,
+    row.closeoutId,
+    row.closeoutCode
+  ]);
+}
+
+function isInactiveDeliveryCloseoutVersion(row = {}) {
+  return isInactive(row) || lower(row.status || row.accountingStatus || row.closeoutStatus).includes('cancel');
+}
+
+function deliveryCloseoutVersionRank(row = {}) {
+  return isConfirmedStatus(row.accountingStatus || row.status || row.closeoutStatus) ? 2 : 1;
+}
+
+function deliveryCloseoutVersionTime(row = {}) {
+  const value = Date.parse(row.updatedAt || row.createdAt || row.deliveredAt || row.accountingConfirmedAt || '');
+  return Number.isFinite(value) ? value : 0;
+}
+
+function isBetterDeliveryCloseoutVersion(candidate = {}, current = null) {
+  if (!current) return true;
+  const rankDiff = deliveryCloseoutVersionRank(candidate) - deliveryCloseoutVersionRank(current);
+  if (rankDiff !== 0) return rankDiff > 0;
+  const versionDiff = Number(candidate.closeoutVersion || candidate.originalCloseoutVersion || 0) - Number(current.closeoutVersion || current.originalCloseoutVersion || 0);
+  if (versionDiff !== 0) return versionDiff > 0;
+  return deliveryCloseoutVersionTime(candidate) > deliveryCloseoutVersionTime(current);
+}
+
 async function loadLatestVersionsByOrderKey(orders = [], options = {}) {
   const allKeys = unique(orders.flatMap(orderIdentityValues));
   if (!allKeys.length) return new Map();
   const match = {
+    deleted: { $ne: true },
+    isDeleted: { $ne: true },
     $or: [
       { salesOrderId: { $in: allKeys } },
       { salesOrderCode: { $in: allKeys } },
       { orderId: { $in: allKeys } },
       { orderCode: { $in: allKeys } },
       { originalCloseoutId: { $in: allKeys } },
-      { originalCloseoutCode: { $in: allKeys } }
+      { originalCloseoutCode: { $in: allKeys } },
+      { closeoutId: { $in: allKeys } },
+      { closeoutCode: { $in: allKeys } }
     ]
   };
-  let query = DeliveryCloseoutVersion.find(match).sort({ closeoutVersion: -1, createdAt: -1 }).lean();
+  let query = DeliveryCloseoutVersion.find(match).sort({ closeoutVersion: -1, updatedAt: -1, createdAt: -1 }).lean();
   if (options.session && typeof query.session === 'function') query = query.session(options.session);
-  const rows = await query;
+  const rows = (await query).filter((row) => !isInactiveDeliveryCloseoutVersion(row));
   const map = new Map();
   for (const row of rows || []) {
-    const keys = unique([row.salesOrderId, row.salesOrderCode, row.orderId, row.orderCode, row.originalCloseoutId, row.originalCloseoutCode]);
-    for (const key of keys) {
+    for (const key of deliveryCloseoutVersionKeys(row)) {
       const current = map.get(key);
-      if (!current || Number(row.closeoutVersion || 0) > Number(current.closeoutVersion || 0)) map.set(key, row);
-    }
-  }
-  return map;
-}
-
-async function loadFundLedgersByOrderKey(orders = [], options = {}) {
-  const allKeys = unique(orders.flatMap(orderIdentityValues));
-  if (!allKeys.length) return new Map();
-  const match = {
-    isDeleted: { $ne: true },
-    deleted: { $ne: true },
-    $or: [
-      { orderId: { $in: allKeys } },
-      { orderCode: { $in: allKeys } },
-      { salesOrderId: { $in: allKeys } },
-      { salesOrderCode: { $in: allKeys } },
-      { refId: { $in: allKeys } },
-      { refCode: { $in: allKeys } },
-      { referenceId: { $in: allKeys } },
-      { referenceCode: { $in: allKeys } },
-      { sourceId: { $in: allKeys } },
-      { sourceCode: { $in: allKeys } },
-      { originalSourceId: { $in: allKeys } }
-    ]
-  };
-  let query = FundLedger.find(match).lean();
-  if (options.session && typeof query.session === 'function') query = query.session(options.session);
-  const rows = (await query).filter(isActiveFundLedger);
-  const map = new Map();
-  for (const row of rows) {
-    for (const key of fundLedgerKeys(row)) {
-      if (!map.has(key)) map.set(key, { cashAmount: 0, bankAmount: 0, collectedAmount: 0 });
-      applyFundLedgerRow(map.get(key), row);
+      if (isBetterDeliveryCloseoutVersion(row, current)) map.set(key, row);
     }
   }
   return map;
@@ -343,15 +334,17 @@ function hasDeliveryOperationalState(order = {}, summary = {}) {
 function buildMobileSalesOrderTrackingSummary(order = {}, context = {}) {
   const returnRows = rowsForOrder(order, context.returnsByKey);
   const latestVersion = firstByOrderKeys(order, context.versionsByKey);
-  const fundBreakdown = firstByOrderKeys(order, context.fundLedgersByKey);
   const confirmed = isAccountingConfirmed(order, latestVersion);
-  const baseMoney = latestVersionMoney(latestVersion, orderMoneyBreakdown(order));
-  const moneySource = confirmed && fundBreakdown && (money(fundBreakdown.cashAmount) || money(fundBreakdown.bankAmount))
-    ? { ...baseMoney, cashAmount: money(fundBreakdown.cashAmount), bankAmount: money(fundBreakdown.bankAmount), collectedAmount: money(fundBreakdown.cashAmount) + money(fundBreakdown.bankAmount) }
-    : baseMoney;
+
+  // orders/salesOrders remain the primary source for the original order identity and payable amount.
+  // deliveryCloseoutVersions only overlays actual delivery money; returnOrders is the return SSoT.
+  const totalAmount = orderTotalAmount(order) || money(latestVersion?.originalAmount ?? latestVersion?.saleAmount ?? 0);
+  const moneySource = latestVersionMoney(latestVersion, orderMoneyBreakdown(order));
   const returnFromRows = returnRows.reduce((sum, row) => sum + returnOrderAmount(row), 0);
-  const returnAmount = money(latestVersion?.returnedAmount ?? latestVersion?.returnAmount ?? returnFromRows ?? order.returnAmount ?? order.returnedAmount ?? 0);
-  const totalAmount = money(latestVersion?.originalAmount ?? latestVersion?.saleAmount ?? orderTotalAmount(order));
+  const returnAmount = returnRows.length
+    ? money(returnFromRows)
+    : money(latestVersion?.returnedAmount ?? latestVersion?.returnAmount ?? order.returnAmount ?? order.returnedAmount ?? 0);
+
   const calculatedDebt = calculateDeliveryDebtAmount({
     receivableAmount: totalAmount,
     cashAmount: moneySource.cashAmount,
@@ -360,20 +353,24 @@ function buildMobileSalesOrderTrackingSummary(order = {}, context = {}) {
     returnAmount
   }).debtAmount;
   const arDebt = confirmed ? arBalanceForOrder(order, context.arBalanceMap) : null;
-  const remainingDebt = arDebt !== null ? arDebt : Math.max(0, normalizeDebtAmount(latestVersion?.finalDebtAmount ?? latestVersion?.debtAmount ?? calculatedDebt));
+  const remainingDebt = arDebt !== null
+    ? arDebt
+    : Math.max(0, normalizeDebtAmount(calculatedDebt));
+
   const closeout = deliveryCloseout(order);
   const source = confirmed && arDebt !== null
     ? 'accounting_confirmed_ar_ledger'
-    : (latestVersion ? 'delivery_closeout_version' : (hasDeliveryOperationalState(order, { ...moneySource, returnAmount }) ? 'delivery_pending_accounting' : 'sales_order_snapshot'));
+    : (latestVersion ? (confirmed ? 'delivery_closeout_accounting_confirmed' : 'delivery_pending_accounting')
+      : (hasDeliveryOperationalState(order, { ...moneySource, returnAmount }) ? 'delivery_pending_accounting' : 'sales_order_snapshot'));
 
   return {
-    masterOrderCode: orderMasterCode(order),
-    deliveryStaffCode: deliveryStaffCode(order),
-    deliveryStaffName: deliveryStaffName(order),
-    salesStaffCode: salesStaffCode(order),
-    salesStaffName: salesStaffName(order),
-    deliveryStatus: text(order.deliveryStatus || order.lifecycleStatus || order.status || 'pending'),
-    accountingStatus: confirmed ? 'accounting_confirmed' : text(order.accountingStatus || closeout.status || 'pending'),
+    masterOrderCode: orderMasterCode(order) || text(latestVersion?.masterOrderCode || latestVersion?.masterOrderNo || ''),
+    deliveryStaffCode: deliveryStaffCode(order) || text(latestVersion?.deliveryStaffCode || ''),
+    deliveryStaffName: deliveryStaffName(order) || text(latestVersion?.deliveryStaffName || ''),
+    salesStaffCode: salesStaffCode(order) || text(latestVersion?.salesStaffCode || ''),
+    salesStaffName: salesStaffName(order) || text(latestVersion?.salesStaffName || ''),
+    deliveryStatus: text(latestVersion?.deliveryStatus || latestVersion?.closeoutStatus || order.deliveryStatus || order.lifecycleStatus || order.status || 'pending'),
+    accountingStatus: confirmed ? 'accounting_confirmed' : text(latestVersion?.accountingStatus || order.accountingStatus || closeout.status || 'pending'),
     accountingConfirmed: confirmed,
     totalAmount,
     collectedAmount: money(moneySource.collectedAmount),
@@ -383,8 +380,8 @@ function buildMobileSalesOrderTrackingSummary(order = {}, context = {}) {
     rewardAmount: money(moneySource.bonusAmount),
     returnAmount,
     remainingDebt,
-    deliveredAt: text(order.deliveredAt || closeout.deliveredAt || closeout.closedAt || ''),
-    accountingConfirmedAt: text(order.accountingConfirmedAt || closeout.accountingConfirmedAt || latestVersion?.createdAt || ''),
+    deliveredAt: text(latestVersion?.deliveredAt || order.deliveredAt || closeout.deliveredAt || closeout.closedAt || ''),
+    accountingConfirmedAt: text(latestVersion?.accountingConfirmedAt || order.accountingConfirmedAt || closeout.accountingConfirmedAt || ''),
     returnOrderCount: returnRows.length,
     returnOrderCodes: unique(returnRows.map((row) => row.code || row.id)),
     source
@@ -394,10 +391,9 @@ function buildMobileSalesOrderTrackingSummary(order = {}, context = {}) {
 async function buildMobileSalesOrderTrackingSummaries(orders = [], options = {}) {
   const rows = Array.isArray(orders) ? orders : [];
   if (!rows.length) return new Map();
-  const [returnsByKey, versionsByKey, fundLedgersByKey, arBalanceMap] = await Promise.all([
+  const [returnsByKey, versionsByKey, arBalanceMap] = await Promise.all([
     loadReturnsByOrderKey(rows, options),
     loadLatestVersionsByOrderKey(rows, options),
-    loadFundLedgersByOrderKey(rows, options),
     arBalanceService.loadOrderBalances(rows, options)
   ]);
   const map = new Map();
@@ -405,7 +401,6 @@ async function buildMobileSalesOrderTrackingSummaries(orders = [], options = {})
     const summary = buildMobileSalesOrderTrackingSummary(order, {
       returnsByKey,
       versionsByKey,
-      fundLedgersByKey,
       arBalanceMap
     });
     for (const key of orderIdentityValues(order)) map.set(key, summary);
@@ -455,6 +450,9 @@ module.exports = {
     orderTotalAmount,
     orderMoneyBreakdown,
     returnOrderAmount,
+    deliveryCloseoutVersionKeys,
+    isInactiveDeliveryCloseoutVersion,
+    isBetterDeliveryCloseoutVersion,
     isAccountingConfirmed,
     hasDeliveryOperationalState
   }

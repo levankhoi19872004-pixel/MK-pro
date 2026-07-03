@@ -2,7 +2,7 @@
 const e=window.V45Common||{},t=e.todayValue,n=e.calculateCartonUnit;import{mobileApi as r,getUser as a}from"./api.js?v=phase86-production-hardening-v1"
 ;import{queueOperation as o,canQueueOfflineOperation as s,isNetworkError as i,listOperations as c}from"./offline-sync.js?v=phase86-production-hardening-v1"
 ;import{bindLogout as d,debounce as l,escapeHtml as u,formatDisplayDate as m,formatShortDate as h,money as g,requireLogin as p,requireRole as b,setButtonBusy as f,setMessage as y}from"./ui.js"
-;import{buildCartItemsHtml as v,buildOrderCardsHtml as C,createMobileSalesNavigation as w,createStatusAnnouncer as k}from"./sales-ux.js?v=phase86-production-hardening-v1"
+;import{buildCartItemsHtml as v,buildOrderCardsHtml as C,createMobileSalesNavigation as w,createStatusAnnouncer as k}from"./sales-ux.js?v=phase152-order-modal-v1"
 ;import{collectMobileSalesDom as S}from"./sales/dom.js?v=phase86-production-hardening-v1"
 ;import{createMobileSalesState as N,OrderDraftStore as P}from"./sales/state.js?v=phase86-production-hardening-v1"
 ;import{buildDebtLookup as E,customerAddressValue as L,customerAvailableDebtValue as T,customerCodeValue as A,customerDebtValue as x,customerNameValue as D,customerPendingCollectedValue as $,customerPhoneValue as M,customerSalesValue as O,debtClassName as B,mergeCustomerDebt as I,mergeCustomerPages as q,normalizeSelectedCustomerForSubmit as K,uniqueCustomerIdentityKeys as Q}from"./sales/customer.js?v=phase86-production-hardening-v1"

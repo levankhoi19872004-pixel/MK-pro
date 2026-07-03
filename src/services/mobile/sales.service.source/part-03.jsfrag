@@ -397,7 +397,7 @@
         debtAmount: tracking ? tracking.remainingDebt : 0,
         currentDebtAmount: runtimeDebt.currentDebtAmount,
         customerDebtAmount: runtimeDebt.currentDebtAmount,
-        debtSource: tracking ? tracking.source : runtimeDebt.debtSource,
+        debtSource: runtimeDebt.debtSource,
         customerDebtSource: runtimeDebt.debtSource,
         status: order.status,
         lifecycleStatus: order.lifecycleStatus || order.status || '',

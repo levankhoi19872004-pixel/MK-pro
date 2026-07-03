@@ -8,7 +8,7 @@ const test = require('node:test');
 const ROOT = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 
-test('mobile sales orders expose delivery tracking from accounting-safe sources', () => {
+test('mobile sales order tracking uses orders as primary and delivery/return as actual overlays', () => {
   const helper = read('src/services/mobile/mobileSalesOrderTracking.service.js');
   const serviceSource = read('src/services/mobile/sales.service.source/part-03.jsfrag');
   const generatedService = read('src/services/mobile/sales.service.js');
@@ -17,14 +17,21 @@ test('mobile sales orders expose delivery tracking from accounting-safe sources'
   assert.match(helper, /function buildMobileSalesOrderTrackingSummaries\(/);
   assert.match(helper, /decorateMobileSalesOrderForTracking/);
   assert.match(helper, /ReturnOrder/);
-  assert.match(helper, /FundLedger/);
   assert.match(helper, /DeliveryCloseoutVersion/);
+  assert.doesNotMatch(helper, /FundLedger/);
   assert.match(helper, /arBalanceService\.loadOrderBalances/);
   assert.match(helper, /calculateDeliveryDebtAmount/);
+  assert.match(helper, /function orderTotalAmount\(order = \{\}\)/);
+  assert.match(helper, /'payableAmount'[\s\S]*'finalAmount'[\s\S]*'totalAmount'/);
+  assert.match(helper, /const totalAmount = orderTotalAmount\(order\)/);
+  assert.match(helper, /const moneySource = latestVersionMoney\(latestVersion, orderMoneyBreakdown\(order\)\)/);
+  assert.match(helper, /const returnAmount = returnRows\.length[\s\S]*returnFromRows/);
+  assert.match(helper, /const calculatedDebt = calculateDeliveryDebtAmount[\s\S]*const remainingDebt = arDebt !== null/);
   assert.match(helper, /'accounting_confirmed_ar_ledger'/);
   assert.match(helper, /'delivery_pending_accounting'/);
   assert.match(helper, /'sales_order_snapshot'/);
-  assert.match(helper, /source\n\s*};/);
+  assert.match(helper, /isInactiveDeliveryCloseoutVersion/);
+  assert.match(helper, /isBetterDeliveryCloseoutVersion/);
 
   assert.match(serviceSource, /buildMobileSalesOrderTrackingSummaries\(visibleRows\)/);
   assert.match(serviceSource, /decorateMobileSalesOrderForTracking\(baseOrder, tracking\)/);
@@ -32,7 +39,7 @@ test('mobile sales orders expose delivery tracking from accounting-safe sources'
   assert.match(generatedService, /mobileSalesOrderTracking\.service/);
 });
 
-test('mobile sales app has view-order print route and button without unlocking edits', () => {
+test('mobile sales app opens view-order in an in-app modal, not a new WebView tab', () => {
   const routes = read('src/routes/mobile/sales.routes.js');
   const controller = read('src/controllers/mobile/sales.controller.js');
   const serviceSource = read('src/services/mobile/sales.service.source/part-02.jsfrag');
@@ -40,7 +47,7 @@ test('mobile sales app has view-order print route and button without unlocking e
   const generatedSales = read('public/mobile/js/sales.js');
 
   assert.match(routes, /\/orders\/:id\/print\.pdf/);
-  assert.ok(routes.indexOf("/orders/:id/print.pdf") < routes.indexOf("/orders/:id'"), 'print route must be registered before generic /orders/:id route');
+  assert.ok(routes.indexOf('/orders/:id/print.pdf') < routes.indexOf("/orders/:id'"), 'print route must be registered before generic /orders/:id route');
   assert.match(controller, /renderOrderPrint/);
   assert.match(controller, /text\/html; charset=utf-8/);
   assert.match(serviceSource, /renderSalesOrderPrintHtml/);
@@ -48,11 +55,20 @@ test('mobile sales app has view-order print route and button without unlocking e
   assert.match(serviceSource, /mobileSalesOwnerMongoFilter\(mobileUser\)/);
 
   assert.match(ux, /data-view-order/);
-  assert.match(ux, /target=\"_blank\"/);
-  assert.match(ux, />Xem đơn<\/a>/);
-  assert.match(ux, /deliveryTracking/);
+  assert.match(ux, /data-print-url/);
+  assert.match(ux, /mobile-order-print-modal/);
+  assert.match(ux, /mobile-order-print-frame/);
+  assert.match(ux, /frame\.src = 'about:blank'/);
+  assert.match(ux, /openMobileOrderPrintModal/);
+  assert.match(ux, /document\.addEventListener\('click'/);
+  assert.doesNotMatch(ux, /target="_blank"/);
+  assert.doesNotMatch(ux, /window\.open/);
+  assert.doesNotMatch(ux, /Đơn đã gộp đơn tổng, app bán hàng không được sửa/);
+  assert.match(ux, /Đã gộp/);
+  assert.match(ux, /Chỉ xem/);
+  assert.match(ux, /Xem đơn/);
   assert.match(ux, /Hàng trả/);
   assert.match(ux, /Trả thưởng/);
-  assert.match(ux, /Không thể sửa\/xóa trên app/);
-  assert.doesNotMatch(generatedSales, /data-view-order/);
+
+  assert.doesNotMatch(generatedSales, /window\.open/);
 });

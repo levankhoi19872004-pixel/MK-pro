@@ -54,7 +54,7 @@ const t=le(e);return{promotionId:String(t.promotionId||t.id||t._id||t.programId|
 promotionCode:String(t.promotionCode||t.code||t.programCode||t.ruleCode||"").trim(),
 promotionName:String(t.promotionName||t.name||t.programName||t.ruleName||t.description||"").trim()}}function pe(a){r(a)
 ;const{normalizeText:s,toNumber:N,formatCaseLooseQty:v,buildProductLineMeta:D,makeId:q,buildSalesCode:Q,buildCashCode:B,updateSalesOrderWithRepost:U,writeMobileLog:L}=a
-;function z(e={}){return K(e)}function F(e={}){return V(e)}async function re(e=[],t={}){const o=Array.isArray(e)?e:[];if(!o.length)return{error:"Đơn mobile chưa có sản phẩm",
+;function z(e={}){return K(e)}function F(e={}){return V(e)}async function ne(e=[],t={}){const o=Array.isArray(e)?e:[];if(!o.length)return{error:"Đơn mobile chưa có sản phẩm",
 status:400};const r=await X(o),n=W(r),a=[],s=new Map;for(const e of o){const t=Y(e),o=n.get(t)||n.get(String(t).toUpperCase())||n.get(String(t).toLowerCase());if(!o)return{
 error:`Không tìm thấy sản phẩm: ${e.productCode||e.code||""}`,status:400};const r=N(e.quantity??e.qty??0);if(r<=0)return{
 error:`Số lượng phải lớn hơn 0: ${o.code||o.productCode||""}`,status:400};const i=N(o.salePrice??o.price??0),d=String(o.code||o.productCode||o.sku||"").trim();a.push({
@@ -68,13 +68,13 @@ priceLocked:!0,lockedPrice:!0,lockedPromotion:!0,promotionCalculated:!0,promotio
 conversionRate:e.conversionRateAtOrder||e.conversionRate||1,
 pickingZone:e.pickingZoneAtOrder||e.productSnapshot?.pickingZone||("KHO_PC"===(e.warehouseCodeAtOrder||e.warehouseCode)?"PC":"HC"),
 warehouseCode:e.warehouseCodeAtOrder||e.warehouseCode||"KHO_HC",defaultWarehouse:e.warehouseCodeAtOrder||e.warehouseCode||"KHO_HC"},...l}}),products:r,productByCode:s}}
-function ne(e={}){return[String(e.productCode||e.code||e.productId||"").trim(),String(e.unit||e.baseUnit||"").trim(),String(N(e.salePrice??e.price??e.unitPrice??0))].join("|")}
+function ce(e={}){return[String(e.productCode||e.code||e.productId||"").trim(),String(e.unit||e.baseUnit||"").trim(),String(N(e.salePrice??e.price??e.unitPrice??0))].join("|")}
 return{createSalesOrder:async function({body:r={},mobileUser:a}){
 const s=G(r),i=g(r,["sales-create",a&&(a.id||a.code),r.customerCode||s[0]||"",Array.isArray(r.items)?r.items.length:0]),u=f(i);if(u)return u
 ;const C=a&&(a.staffCode||a.code||a.id||"mobile-sales"),S=O("mobile.sales.create",C,i),y=await I(S);if(y&&"completed"===y.status&&y.response)return h(i,y.response)
 ;if(y&&"processing"===y.status)return ue(409,"Yêu cầu tạo đơn trùng đang được xử lý");const b=p("sales.createOrder");let _,$=null;try{_=await o(async o=>{b("start")
 ;const s=await Z(r,a,o),u=Array.isArray(r.items)?r.items:[],p=N(r.paidAmount),g=t.todayVN();if(!s)return ue(403,"Khách hàng không thuộc phạm vi nhân viên bán hàng")
-;if(!u.length)return ue(400,"Đơn mobile chưa có sản phẩm");b("load_customer_direct");const f=await re(u,{customerCode:s.code||s.customerCode||r.customerCode,date:g})
+;if(!u.length)return ue(400,"Đơn mobile chưa có sản phẩm");b("load_customer_direct");const f=await ne(u,{customerCode:s.code||s.customerCode||r.customerCode,date:g})
 ;if(f.error)return ue(f.status||400,f.error);const{items:h,productByCode:S}=f;b("prepare_items_server_authoritative",{products:S.size});const y=await de(Array.from(S.values()))
 ;b("batch_stock_check",{products:S.size});const O=new Map;for(const e of h){const t=String(e.productCode||"").trim();O.set(t,N(O.get(t))+N(e.quantity))}
 for(const[e,t]of O.entries()){const o=S.get(e),r=y.get(e)||0;if(r<t)return ue(400,`Không đủ tồn mở bán: ${e}. Tồn ${v(r,o?.conversionRate||1)}, cần ${v(t,o?.conversionRate||1)}`)}
@@ -113,7 +113,7 @@ filename:`${String(a.code||a.id||"sales-order").replace(/[^a-zA-Z0-9._-]/g,"_")}
 const s=g(r,["sales-update",a&&(a.id||a.code),e.id]),u=f(s);if(u)return u
 ;const l=String(a&&(a.staffCode||a.code||a.id||"mobile-sales")),C=F(a),S=O("mobile.sales.update",l,s),y=await I(S);if(y&&"completed"===y.status&&y.response)return h(s,y.response)
 ;if(y&&"processing"===y.status)return ue(409,"Yêu cầu sửa đơn trùng đang được xử lý");const b=p("sales.updateOrder");b("start");const v=x(e.id),D=H(a)
-;if(!v||!D)return h(s,ue(404,"Không tìm thấy đơn bán"));const k=await n.findOne({$and:[v,D,j()]}).lean();if(!k)return h(s,ue(404,"Không tìm thấy đơn bán"));const M=oe(k)
+;if(!v||!D)return h(s,ue(404,"Không tìm thấy đơn bán"));const k=await n.findOne({$and:[v,D,j()]}).lean();if(!k)return h(s,ue(404,"Không tìm thấy đơn bán"));const M=re(k)?"":oe(k)
 ;if(M)return h(s,ue(409,M));const R=J(k),T=R?await i.findOne(R).lean():null
 ;if(T&&(ee(T)||te(T)))return h(s,ue(409,"Đơn đã phát sinh nghiệp vụ trả hàng, không thể chỉnh sửa trên app bán hàng"));const E=Array.isArray(r.items)?r.items:null,Q=G(r).length?r:{
 customerId:k.customerId,customerCode:k.customerCode},B=await Z(Q,a);if(!B)return h(s,ue(403,"Khách hàng không thuộc phạm vi nhân viên bán hàng"))
@@ -121,7 +121,7 @@ customerId:k.customerId,customerCode:k.customerCode},B=await Z(Q,a);if(!B)return
 customerName:B.name||B.customerName||k.customerName||"",customerPhone:B.phone||k.customerPhone||"",customerAddress:B.address||k.customerAddress||"",
 note:String(r.note??k.note??"").trim(),salesStaffCode:z(a),salesStaffName:C,salesmanCode:z(a),salesmanName:C,vatInvoiceRequired:!1!==k.vatInvoiceRequired,
 vatInvoiceDecisionSource:k.vatInvoiceDecisionSource||"default",vatInvoiceNote:String(k.vatInvoiceNote||""),vatInvoiceUpdatedAt:String(k.vatInvoiceUpdatedAt||""),
-vatInvoiceUpdatedBy:String(k.vatInvoiceUpdatedBy||""),updatedAt:U};if(E){const e=await re(E,{
+vatInvoiceUpdatedBy:String(k.vatInvoiceUpdatedBy||""),updatedAt:U};if(E){const e=await ne(E,{
 customerCode:r.customerCode||r.customer?.code||r.customer?.customerCode||k.customerCode,date:r.date||r.orderDate||k.date||k.orderDate})
 ;if(e.error)return h(s,ue(e.status||400,e.error));const t=e.items,o=t.find(e=>N(e.quantity)<=0||!$(e.productCode||e.code||e.sku||e.productId))
 ;if(o)return h(s,ue(400,`Sản phẩm hoặc số lượng không hợp lệ: ${o.productCode||o.code||o.productName||""}`))
@@ -144,8 +144,8 @@ masterOrderCode:null},{masterOrderCode:""}]},{$or:[{masterOrderNo:{$exists:!1}},
 },A=await n.findOneAndUpdate(y,{$set:{...g,stockPosted:f,stockPostedAt:o.stockPostedAt||U,stockPostedBy:o.stockPostedBy||l,lastMobileEditRequestKey:s,lastMobileEditedAt:U,
 lastMobileEditedBy:l},$inc:{version:1}},{new:!0,lean:!0,session:e});if(!A){const e=new Error("Đơn vừa được thay đổi ở nơi khác. Vui lòng tải lại rồi sửa lại");throw e.status=409,
 e.code="ORDER_CONCURRENT_UPDATE",e}if(u&&!ee(u)&&!te(u)){const o=function(e={},o=null){
-const r=new Map((Array.isArray(o?.items)?o.items:[]).map(e=>[String(e.lineKey||ne(e)),e])),n=(Array.isArray(e.items)?e.items:[]).map(e=>{
-const t=N(e.salePrice??e.price??e.unitPrice??0),o=N(e.quantity??e.qty??0),n=ne({...e,salePrice:t}),a=r.get(n)||{},s=N(a.returnQty??a.qtyReturn??a.quantity??0);return{...a,
+const r=new Map((Array.isArray(o?.items)?o.items:[]).map(e=>[String(e.lineKey||ce(e)),e])),n=(Array.isArray(e.items)?e.items:[]).map(e=>{
+const t=N(e.salePrice??e.price??e.unitPrice??0),o=N(e.quantity??e.qty??0),n=ce({...e,salePrice:t}),a=r.get(n)||{},s=N(a.returnQty??a.qtyReturn??a.quantity??0);return{...a,
 productId:e.productId||e.productCode||"",productCode:e.productCode||e.code||e.productId||"",productName:e.productName||e.name||"",unit:e.unit||e.baseUnit||"",soldQty:o,price:t,
 salePrice:t,soldAmount:Math.round(o*t),returnQty:s,qtyReturn:s,returnQuantity:s,quantity:s,qty:s,returnAmount:Math.round(s*t),amount:Math.round(s*t),lineKey:n}
 }),a=n.reduce((e,t)=>e+N(t.soldAmount),0),s=n.reduce((e,t)=>e+N(t.returnAmount),0),i=s>0?"waiting_receive":"draft";return{...o||{},
@@ -183,7 +183,7 @@ status:"all"}),R(S)]),I=S.map(e=>{
 const t=v.get(String(e.customerCode||"").trim())||y._internal.emptyCustomerDebt(e.customerCode||""),o=oe(e),r=O.get(e.id||e.code||String(e._id||"")),n={id:e.id||String(e._id||""),
 code:e.code,date:e.date||e.orderDate,customerName:e.customerName,totalAmount:N(e.totalAmount??e.amount??e.grandTotal),
 paidAmount:r?r.collectedAmount:N(e.paidAmount??e.paymentAmount),debtAmount:r?r.remainingDebt:0,currentDebtAmount:t.currentDebtAmount,customerDebtAmount:t.currentDebtAmount,
-debtSource:r?r.source:t.debtSource,customerDebtSource:t.debtSource,status:e.status,lifecycleStatus:e.lifecycleStatus||e.status||"",deliveryStatus:e.deliveryStatus||"pending",
+debtSource:t.debtSource,customerDebtSource:t.debtSource,status:e.status,lifecycleStatus:e.lifecycleStatus||e.status||"",deliveryStatus:e.deliveryStatus||"pending",
 accountingStatus:e.accountingStatus||"",accountingConfirmed:!0===e.accountingConfirmed,deleted:Boolean(e.deleted),isDeleted:Boolean(e.isDeleted),deletedAt:e.deletedAt||"",
 deleteMode:e.deleteMode||"",deleteReason:e.deleteReason||"",masterOrderId:e.masterOrderId||"",masterOrderCode:e.masterOrderCode||"",mergeStatus:e.mergeStatus||"unmerged",
 canEdit:!o,editLockReason:o,stockPosted:!0===e.stockPosted,customerId:e.customerId,customerCode:e.customerCode,customerPhone:e.customerPhone,customerAddress:e.customerAddress,
