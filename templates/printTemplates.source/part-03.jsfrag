@@ -1,5 +1,5 @@
             <td class="dms-summary-label-cell">Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:</td>
-            <td class="dms-summary-value-cell">${formatPercent(summary.promotionRate ?? data.totals?.promotionRate)}%</td>
+            <td class="dms-summary-value-cell">${formatRatePercent(summary.promotionRate ?? data.totals?.promotionRate)}%</td>
           </tr>
         </tbody>
       </table>

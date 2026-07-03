@@ -386,3 +386,32 @@ body.dms-print-body .dms-detail-table .dms-total-row th {
 .excel-only-column {
   display: none !important;
 }
+
+/* Phase150: keep DMS promotion descriptions inside their own column on printed invoices. */
+.dms-promotion-table,
+body.dms-print-body .dms-promotion-table {
+  table-layout: fixed;
+}
+.dms-promotion-table th,
+.dms-promotion-table td,
+body.dms-print-body .dms-promotion-table th,
+body.dms-print-body .dms-promotion-table td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  vertical-align: top;
+}
+.dms-promotion-table .dms-promo-description-cell,
+body.dms-print-body .dms-promotion-table .dms-promo-description-cell {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+.dms-promotion-table .dms-money-cell,
+.dms-promotion-table .dms-number-cell,
+body.dms-print-body .dms-promotion-table .dms-money-cell,
+body.dms-print-body .dms-promotion-table .dms-number-cell {
+  text-align: right;
+  white-space: nowrap;
+  word-break: normal;
+}

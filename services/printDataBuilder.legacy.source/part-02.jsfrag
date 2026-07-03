@@ -1,5 +1,5 @@
-    const discountBeforeTax = toNumber(pick(promo.discountBeforeTax, promo.beforeTax, promo.amountBeforeTax, promo.tienCKTruocThue));
-    const discountAfterTax = toNumber(pick(promo.discountAfterTax, promo.afterTax, promo.amountAfterTax, promo.tienCKSauThue, promo.discountAmount));
+    const discountBeforeTax = toNumber(pick(promo.discountBeforeTax, promo.beforeTax, promo.ckBeforeTax, promo.discountAmountBeforeTax, promo.amountBeforeTax, promo.tienCKTruocThue));
+    const discountAfterTax = toNumber(pick(promo.discountAfterTax, promo.afterTax, promo.ckAfterTax, promo.discountAmountAfterTax, promo.amountAfterTax, promo.tienCKSauThue, promo.promotionAfterTax, promo.discountAmount));
     return {
       stt: index + 1,
       code,
@@ -295,12 +295,16 @@ function normalizeInvoicePromotion(row = {}) {
     basisAmount: toNumber(row.qualifiedAmount || row.basisAmount),
     discountPercent: toNumber(row.discountPercent || row.percent),
     percent: toNumber(row.discountPercent || row.percent),
-    discountBeforeTax: toNumber(row.discountBeforeTax || row.beforeTax),
-    beforeTax: toNumber(row.discountBeforeTax || row.beforeTax),
-    discountAfterTax: toNumber(row.discountAfterTax || row.afterTax),
-    afterTax: toNumber(row.discountAfterTax || row.afterTax)
+    discountBeforeTax: toNumber(row.discountBeforeTax || row.beforeTax || row.ckBeforeTax || row.discountAmountBeforeTax || row.amountBeforeTax),
+    beforeTax: toNumber(row.discountBeforeTax || row.beforeTax || row.ckBeforeTax || row.discountAmountBeforeTax || row.amountBeforeTax),
+    discountAfterTax: toNumber(row.discountAfterTax || row.afterTax || row.ckAfterTax || row.discountAmountAfterTax || row.amountAfterTax || row.promotionAfterTax || row.discountAmount),
+    afterTax: toNumber(row.discountAfterTax || row.afterTax || row.ckAfterTax || row.discountAmountAfterTax || row.amountAfterTax || row.promotionAfterTax || row.discountAmount),
+    goodsPromotionAmount: toNumber(row.goodsPromotionAmount || row.promotionGoodsAmount || row.freeGoodsValue || row.giftValue || row.giftAmount || row.goodsAmount)
   };
 }
+
+function sumPromotionMoneyAfterTax(promotions = []) { return promotions.reduce((sum, item) => sum + toNumber(item.discountAfterTax || item.afterTax || item.ckAfterTax || item.discountAmountAfterTax || item.amountAfterTax || item.promotionAfterTax || item.discountAmount), 0); }
+function sumPromotionGoodsValue(promotions = []) { return promotions.reduce((sum, item) => sum + toNumber(item.goodsPromotionAmount || item.promotionGoodsAmount || item.freeGoodsValue || item.giftValue || item.giftAmount || item.goodsAmount), 0); }
 
 function normalizeInvoiceOffset(row = {}) {
   return {
@@ -326,9 +330,11 @@ function calculateDeliveryInvoiceSummary(payload = {}) {
     0
   );
   const totalVatAmount = items.reduce((sum, item) => sum + toNumber(item.vatAmount), 0);
-  const totalPromotionAmount = payload.totalPromotionAmount !== undefined
-    ? toNumber(payload.totalPromotionAmount)
-    : promotions.reduce((sum, item) => sum + toNumber(item.discountAfterTax), 0);
+  const moneyPromo = sumPromotionMoneyAfterTax(promotions);
+  const goodsPromo = toNumber(payload.totalGoodsPromotionAmount || payload.goodsPromotionAmount || payload.summary?.totalGoodsPromotionAmount || payload.summary?.goodsPromotionAmount) || sumPromotionGoodsValue(promotions);
+  const calcPromo = goodsPromo + moneyPromo;
+  const explicitPromo = payload.totalPromotionAmount !== undefined ? toNumber(payload.totalPromotionAmount) : toNumber(payload.summary?.totalPromotionAmount || payload.summary?.promotionAmount);
+  const totalPromotionAmount = calcPromo > 0 ? calcPromo : explicitPromo;
   const totalOffsetAmount = payload.totalOffsetAmount !== undefined
     ? toNumber(payload.totalOffsetAmount)
     : offsets.reduce((sum, item) => sum + toNumber(item.offsetAmount), 0);
@@ -346,7 +352,9 @@ function calculateDeliveryInvoiceSummary(payload = {}) {
     goodsAmountAfterPromotion,
     grossAmountBeforePromotion,
     totalPromotionAmount,
-    promotionAmount: totalPromotionAmount,
+    promotionAmount: moneyPromo,
+    totalMoneyPromotionAmount: moneyPromo,
+    totalGoodsPromotionAmount: goodsPromo,
     totalOffsetAmount,
     displayRewardOffset: totalOffsetAmount,
     nppDiscountAmount,
@@ -501,7 +509,11 @@ function buildPrintData(document = {}, options = {}) {
     document.grandTotal,
     items.reduce((sum, item) => sum + item.amount, 0)
   ));
-  const promotionValue = toNumber(pick(document.promotionValue, document.totalPromotionValue, document.totalPromotionAmount, document.totalDiscountAmount, document.promotionAmount, document.discountAmount, document.summary?.promotionAmount, promotions.reduce((sum, item) => sum + (item.afterTax || item.beforeTax || 0), 0)));
+  const rowMoneyPromo = sumPromotionMoneyAfterTax(promotions);
+  const rowGoodsPromo = toNumber(pick(document.totalGoodsPromotionAmount, document.goodsPromotionAmount, document.summary?.totalGoodsPromotionAmount, document.summary?.goodsPromotionAmount, sumPromotionGoodsValue(promotions)));
+  const rowPromo = rowGoodsPromo + rowMoneyPromo;
+  const explicitPromo = toNumber(pick(document.promotionValue, document.totalPromotionValue, document.totalPromotionAmount, document.totalDiscountAmount, document.promotionAmount, document.discountAmount, document.summary?.promotionAmount));
+  const promotionValue = rowPromo > 0 ? rowPromo : explicitPromo;
   // PRINT_PROMOTION_TOTALS_END
   const displayRewardTotal = toNumber(pick(document.displayRewardTotal, document.totalDisplayReward, document.rewardAmount, document.offsetAmount, document.summary?.displayRewardOffset, displayRewards.reduce((sum, item) => sum + item.offsetAmount, 0)));
   const nppDiscountAmount = toNumber(pick(document.nppDiscountAmount, document.summary?.nppDiscountAmount, 0));

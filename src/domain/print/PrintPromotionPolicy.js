@@ -50,11 +50,12 @@ function isExplicitPromotionOrder(order = {}) {
 }
 
 function shouldSuppressPromotionDetails(order = {}) {
-  // Quy tắc nghiệp vụ: đơn import/DMS bán thẳng không chạy engine khuyến mại
-  // và không được sinh bảng chi tiết khuyến mại khi in.
-  if (isImportedOrder(order)) return true;
+  // Đơn import/DMS bán thẳng không chạy engine khuyến mại thì không in chi tiết KM.
+  // Nhưng đơn DMS đã có cờ/chứng từ khuyến mại rõ ràng phải giữ bảng B+C để in đúng tổng C và tỷ lệ KM.
+  if (isDirectPriceOrder(order)) return true;
   if (isExplicitPromotionOrder(order)) return false;
-  return isDirectPriceOrder(order);
+  if (isImportedOrder(order)) return true;
+  return false;
 }
 
 function shouldApplyLegacyPromotionFallback(order = {}) {

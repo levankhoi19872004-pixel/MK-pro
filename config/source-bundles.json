@@ -71,7 +71,7 @@
         "services/printDataBuilder.legacy.source/part-02.jsfrag",
         "services/printDataBuilder.legacy.source/part-03.jsfrag"
       ],
-      "sourceSha256": "e74034eeb68a5d6334514ed92235e399b8f2b0fe9752bd42945c72c23c47fbb5"
+      "sourceSha256": "beb56cf1d02b925d7e8b2863150ba10d60e04b1e241530cd0f42f13356ef6723"
     },
     {
       "target": "src/services/fundService.js",
@@ -101,7 +101,7 @@
         "templates/printTemplates.source/part-02.jsfrag",
         "templates/printTemplates.source/part-03.jsfrag"
       ],
-      "sourceSha256": "40628ea23aedaebdb053e17677151f38bea8a9c47559091d75ea8217eabde16b"
+      "sourceSha256": "5c97cc6ee153040a939a1a9d42b6d58b71cc3dbbcdd57597f36224e27091bf67"
     },
     {
       "target": "public/js/app/05-sales-orders.js",
@@ -201,7 +201,7 @@
         "public/print.source/print-01.css",
         "public/print.source/print-02.css"
       ],
-      "sourceSha256": "2d5e76addfd25dfc5838cc486caf4aa7ff890e021bc939078749f68edfdf4e8d"
+      "sourceSha256": "1b5bce79008812df9ecee6811c5672b5692b6684a33f2a32ee89626dcef5cf32"
     },
     {
       "target": "public/mobile/js/ui-runtime.js",

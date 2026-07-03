@@ -23,7 +23,7 @@ function text(value, fallback = '') {
 }
 
 function getDmsPayload(data) {
-  return data.erpInvoiceV46 || {};
+  return data.erpInvoiceV46||{};
 }
 
 function getDmsHeader(data) {
@@ -191,12 +191,60 @@ function getDmsOffsets(data) {
   }));
 }
 
+
+function sumDmsPromotionMoneyAfterTax(data) {
+  return getDmsPromotions(data).reduce((sum, promo) => sum + pickDmsPromotionDiscountAfterTax(promo), 0);
+}
+
+function sumDmsPromotionGoodsValue(data) {
+  return getDmsPromotions(data).reduce((sum, promo) => sum + Number(
+    promo?.goodsPromotionAmount ??
+    promo?.promotionGoodsAmount ??
+    promo?.freeGoodsValue ??
+    promo?.giftValue ??
+    promo?.giftAmount ??
+    promo?.goodsAmount ??
+    0
+  ), 0);
+}
+
+function getDmsPromotionTotals(data) {
+  const payload = getDmsPayload(data);
+  const summary = payload.summary || {};
+  const moneyPromotion = sumDmsPromotionMoneyAfterTax(data) || Number(summary.totalMoneyPromotionAmount ?? summary.moneyPromotionAmount ?? 0) || 0;
+  const goodsPromotion = sumDmsPromotionGoodsValue(data) || Number(summary.totalGoodsPromotionAmount ?? summary.goodsPromotionAmount ?? 0) || 0;
+  const explicitTotal = Number(summary.totalPromotionAmount ?? summary.promotionAmount ?? data.totals?.promotionValue ?? 0) || 0;
+  const calculatedTotal = goodsPromotion + moneyPromotion;
+  return {
+    moneyPromotion,
+    goodsPromotion,
+    totalPromotion: calculatedTotal || explicitTotal
+  };
+}
+
+function formatRatePercent(value) {
+  const n = Number(String(value ?? 0).replace(',', '.')) || 0;
+  return n.toLocaleString('vi-VN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 function getDmsSummary(data) {
   const payload = getDmsPayload(data);
   const summary = payload.summary || {};
+  const promotionTotals = getDmsPromotionTotals(data);
+  const grossAmountBeforePromotion = Number(summary.grossAmountBeforePromotion ?? data.totals?.goodsAmount ?? 0) || 0;
+  const nppDiscountAmount = Number(summary.nppDiscountAmount ?? data.totals?.nppDiscountAmount ?? 0) || 0;
+  const promotionRate = grossAmountBeforePromotion > 0
+    ? ((promotionTotals.totalPromotion + nppDiscountAmount) / grossAmountBeforePromotion) * 100
+    : 0;
   return {
     ...(data.totals || {}),
     ...summary,
+    grossAmountBeforePromotion,
+    totalPromotionAmount: promotionTotals.totalPromotion,
+    promotionAmount: promotionTotals.moneyPromotion,
+    totalMoneyPromotionAmount: promotionTotals.moneyPromotion,
+    totalGoodsPromotionAmount: promotionTotals.goodsPromotion,
+    nppDiscountAmount,
+    promotionRate,
     totalVatAmount: summary.totalVatAmount || data.totals?.tax || 0,
     amountInWords: summary.amountInWords || data.totals?.totalAmountText || ''
   };
@@ -294,6 +342,7 @@ function pickDmsPromotionDiscountBeforeTax(promo) {
     promo?.beforeTax ??
     promo?.ckBeforeTax ??
     promo?.discountAmountBeforeTax ??
+    promo?.amountBeforeTax ??
     promo?.promotionBeforeTax ??
     0
   ) || 0;
@@ -305,6 +354,7 @@ function pickDmsPromotionDiscountAfterTax(promo) {
     promo?.afterTax ??
     promo?.ckAfterTax ??
     promo?.discountAmountAfterTax ??
+    promo?.amountAfterTax ??
     promo?.promotionAfterTax ??
     0
   ) || 0;

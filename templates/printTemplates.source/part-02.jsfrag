@@ -261,17 +261,17 @@ function renderDmsPromotionTable(data) {
     ? promotions.map((promo) => `
       <tr>
         <td class="mono">${text(promo.code)}</td>
-        <td>${text(promo.description)}</td>
-        <td class="right">${dmsMoney(data, promo.qualifiedAmount)}</td>
-        <td class="right">${promo.hasGroupDiscount ? text(promo.discountPercent) : ''}</td>
-        <td class="right">${dmsMoney(data, promo.discountBeforeTax)}</td>
-        <td class="right">${dmsMoney(data, promo.discountAfterTax)}</td>
+        <td class="dms-promo-description-cell">${text(promo.description)}</td>
+        <td class="right dms-number-cell">${dmsMoney(data, promo.qualifiedAmount)}</td>
+        <td class="right dms-number-cell">${promo.hasGroupDiscount ? text(promo.discountPercent) : ''}</td>
+        <td class="right dms-money-cell">${dmsMoney(data, promo.discountBeforeTax)}</td>
+        <td class="right dms-money-cell">${dmsMoney(data, promo.discountAfterTax)}</td>
       </tr>`).join('')
     : '<tr class="dms-empty-row"><td colspan="6">&nbsp;</td></tr>';
 
   const totalPromotionAmount = promotions.length
     ? promotions.reduce((sum, promo) => sum + Number(promo.discountAfterTax || 0), 0)
-    : Number(summary.totalPromotionAmount ?? summary.promotionAmount ?? data.totals?.promotionValue ?? 0) || 0;
+    : Number(summary.totalMoneyPromotionAmount ?? summary.promotionAmount ?? data.totals?.promotionValue ?? 0) || 0;
 
   return `
     <div class="dms-section-title">CHI TIẾT KHUYẾN MÃI: (B+C)</div>

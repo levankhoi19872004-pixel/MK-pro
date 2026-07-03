@@ -292,3 +292,26 @@ body.dms-exact-body {
 .excel-only-column {
   display: none !important;
 }
+
+/* Phase150: DMS promotion detail table must wrap descriptions inside its own column. */
+.dmsx-promotion-table {
+  table-layout: fixed;
+}
+.dmsx-promotion-table th,
+.dmsx-promotion-table td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  vertical-align: top;
+}
+.dmsx-promotion-table .dmsx-promo-description {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+.dmsx-promotion-table .dmsx-money-cell,
+.dmsx-promotion-table .dmsx-number-cell {
+  text-align: right;
+  white-space: nowrap;
+  word-break: normal;
+}

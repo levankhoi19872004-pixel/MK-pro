@@ -26,6 +26,75 @@ function calculateVatFromAmount(amount = 0) {
 }
 
 
+function moneyPromotionValue(row = {}) {
+  return toNumber(firstDefined(
+    row.discountAfterTax,
+    row.afterTax,
+    row.ckAfterTax,
+    row.discountAmountAfterTax,
+    row.amountAfterTax,
+    row.promotionAfterTax,
+    row.discountAmount,
+    row.amount,
+    0
+  ));
+}
+
+function goodsPromotionValue(row = {}) {
+  return toNumber(firstDefined(
+    row.goodsPromotionAmount,
+    row.promotionGoodsAmount,
+    row.freeGoodsValue,
+    row.giftValue,
+    row.giftAmount,
+    row.goodsAmount,
+    0
+  ));
+}
+
+function flattenPromotionRows(lines = [], sourceOrder = {}) {
+  const rows = [];
+  for (const line of lines) {
+    for (const row of Array.isArray(line.promotionRows) ? line.promotionRows : []) rows.push(row);
+  }
+  for (const row of Array.isArray(sourceOrder.promotions) ? sourceOrder.promotions : []) rows.push(row);
+  return rows;
+}
+
+function calculatePromotionSummary(lines = [], sourceOrder = {}) {
+  const rows = flattenPromotionRows(lines, sourceOrder);
+  const totalMoneyPromotionAmount = rows.reduce((sum, row) => sum + moneyPromotionValue(row), 0);
+  const explicitGoodsPromotion = toNumber(firstDefined(
+    sourceOrder.totalGoodsPromotionAmount,
+    sourceOrder.goodsPromotionAmount,
+    sourceOrder.promotionGoodsAmount,
+    sourceOrder.summary?.totalGoodsPromotionAmount,
+    sourceOrder.summary?.goodsPromotionAmount,
+    0
+  ));
+  const rowGoodsPromotion = rows.reduce((sum, row) => sum + goodsPromotionValue(row), 0);
+  const totalGoodsPromotionAmount = explicitGoodsPromotion > 0 ? explicitGoodsPromotion : rowGoodsPromotion;
+  const explicitTotalPromotion = toNumber(firstDefined(
+    sourceOrder.totalPromotionAmount,
+    sourceOrder.promotionAmount,
+    sourceOrder.promotionValue,
+    sourceOrder.totalDiscountAmount,
+    sourceOrder.discountAmount,
+    sourceOrder.summary?.totalPromotionAmount,
+    sourceOrder.summary?.promotionAmount,
+    0
+  ));
+  const calculatedTotalPromotion = totalGoodsPromotionAmount + totalMoneyPromotionAmount;
+  const totalPromotionAmount = calculatedTotalPromotion > 0 ? calculatedTotalPromotion : explicitTotalPromotion;
+  return {
+    totalMoneyPromotionAmount,
+    totalGoodsPromotionAmount,
+    totalPromotionAmount,
+    promotionRows: rows
+  };
+}
+
+
 function productCatalogPrice(product = {}) {
   return firstPositive(product.salePrice, product.giaBan, product.price);
 }
@@ -221,6 +290,17 @@ function buildDmsExactSalesInvoice(order = {}, context = {}) {
     (sum, line) => sum + (toNumber(line.quantity) * toNumber(line.priceAfterTaxBeforePromotion)),
     0
   );
+  const promotionSummary = suppressPromotions
+    ? { totalMoneyPromotionAmount: 0, totalGoodsPromotionAmount: 0, totalPromotionAmount: 0, promotionRows: [] }
+    : calculatePromotionSummary(lines, sourceOrder);
+  const nppDiscountAmount = toNumber(firstDefined(
+    sourceOrder.nppDiscountAmount,
+    sourceOrder.summary?.nppDiscountAmount,
+    0
+  ));
+  const promotionRate = grossAmountBeforePromotion > 0
+    ? Number((((promotionSummary.totalPromotionAmount + nppDiscountAmount) / grossAmountBeforePromotion) * 100).toFixed(2))
+    : 0;
   const invoiceCode = cleanText(sourceOrder.invoiceCode || sourceOrder.invoiceNo || sourceOrder.soHoaDon || sourceOrder.externalInvoiceCode || sourceOrder.externalOrderCode || sourceOrder.code || sourceOrder.id);
   const orderCode = cleanText(sourceOrder.customerOrderCode || sourceOrder.soDonHang || sourceOrder.orderCode || sourceOrder.salesOrderCode || sourceOrder.code || sourceOrder.id);
   const documentDate = cleanText(sourceOrder.orderDateTime || sourceOrder.orderDate || sourceOrder.date || sourceOrder.documentDate || sourceOrder.createdAt);
@@ -293,9 +373,13 @@ function buildDmsExactSalesInvoice(order = {}, context = {}) {
     goodsAmountAfterPromotion: totalAmount,
     promotions: suppressPromotions ? [] : (Array.isArray(sourceOrder.promotions) ? sourceOrder.promotions : []),
     offsets: Array.isArray(sourceOrder.offsets) ? sourceOrder.offsets : (Array.isArray(sourceOrder.displayRewards) ? sourceOrder.displayRewards : []),
-    totalPromotionAmount: suppressPromotions ? 0 : toNumber(sourceOrder.totalPromotionAmount),
-    promotionAmount: suppressPromotions ? 0 : toNumber(sourceOrder.promotionAmount),
-    promotionValue: suppressPromotions ? 0 : toNumber(sourceOrder.promotionValue),
+    totalPromotionAmount: promotionSummary.totalPromotionAmount,
+    promotionAmount: promotionSummary.totalMoneyPromotionAmount,
+    promotionValue: promotionSummary.totalPromotionAmount,
+    totalMoneyPromotionAmount: promotionSummary.totalMoneyPromotionAmount,
+    totalGoodsPromotionAmount: promotionSummary.totalGoodsPromotionAmount,
+    nppDiscountAmount,
+    promotionRate,
     printPromotionSuppressed: suppressPromotions,
     printContract: contract,
     printProfile: contract.profile,

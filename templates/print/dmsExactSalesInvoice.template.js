@@ -87,15 +87,23 @@ function salesStaffOf(data = {}) {
 
 function summaryOf(data = {}) {
   const row = payloadOf(data).summary || {};
+  const promotionTotals = promotionTotalsOf(data);
+  const grossAmountBeforePromotion = number(row.grossAmountBeforePromotion ?? data.totals?.goodsAmount);
+  const nppDiscountAmount = number(row.nppDiscountAmount ?? data.totals?.nppDiscountAmount);
+  const promotionRate = grossAmountBeforePromotion > 0
+    ? ((promotionTotals.totalPromotionAmount + nppDiscountAmount) / grossAmountBeforePromotion) * 100
+    : 0;
   return {
     totalQty: number(row.totalQty ?? data.totals?.totalQty),
     goodsAmountAfterPromotion: number(row.goodsAmountAfterPromotion ?? data.totals?.totalAmount),
-    grossAmountBeforePromotion: number(row.grossAmountBeforePromotion ?? data.totals?.goodsAmount),
-    totalPromotionAmount: number(row.totalPromotionAmount ?? row.promotionAmount ?? data.totals?.promotionValue),
+    grossAmountBeforePromotion,
+    totalPromotionAmount: promotionTotals.totalPromotionAmount,
+    totalMoneyPromotionAmount: promotionTotals.totalMoneyPromotionAmount,
+    totalGoodsPromotionAmount: promotionTotals.totalGoodsPromotionAmount,
     totalOffsetAmount: number(row.totalOffsetAmount ?? row.displayRewardOffset ?? data.totals?.displayRewardTotal),
-    nppDiscountAmount: number(row.nppDiscountAmount ?? data.totals?.nppDiscountAmount),
+    nppDiscountAmount,
     payableAmount: number(row.payableAmount ?? data.totals?.payable ?? data.totals?.totalAmount),
-    promotionRate: number(row.promotionRate ?? data.totals?.promotionRate),
+    promotionRate: Number.isFinite(promotionRate) ? promotionRate : 0,
     amountInWords: row.amountInWords || data.totals?.totalAmountText || ''
   };
 }
@@ -113,6 +121,48 @@ function promotionsOf(data = {}) {
 function rewardsOf(data = {}) {
   const rows = payloadOf(data).offsets;
   return Array.isArray(rows) ? rows : [];
+}
+
+
+function promotionMoneyValue(row = {}) {
+  return number(
+    row.discountAfterTax ??
+    row.afterTax ??
+    row.ckAfterTax ??
+    row.discountAmountAfterTax ??
+    row.amountAfterTax ??
+    row.promotionAfterTax ??
+    row.discountAmount ??
+    row.amount
+  );
+}
+
+function promotionGoodsValue(row = {}) {
+  return number(
+    row.goodsPromotionAmount ??
+    row.promotionGoodsAmount ??
+    row.freeGoodsValue ??
+    row.giftValue ??
+    row.giftAmount ??
+    row.goodsAmount
+  );
+}
+
+function promotionTotalsOf(data = {}) {
+  const payload = payloadOf(data);
+  const rows = promotionsOf(data);
+  const rowMoney = rows.reduce((sum, row) => sum + promotionMoneyValue(row), 0);
+  const rowGoods = rows.reduce((sum, row) => sum + promotionGoodsValue(row), 0);
+  const summary = payload.summary || {};
+  const totalMoneyPromotionAmount = rowMoney || number(summary.totalMoneyPromotionAmount ?? summary.moneyPromotionAmount);
+  const totalGoodsPromotionAmount = rowGoods || number(summary.totalGoodsPromotionAmount ?? summary.goodsPromotionAmount);
+  const explicitTotal = number(summary.totalPromotionAmount ?? summary.promotionAmount ?? data.totals?.promotionValue);
+  const calculatedTotal = totalGoodsPromotionAmount + totalMoneyPromotionAmount;
+  return {
+    totalMoneyPromotionAmount,
+    totalGoodsPromotionAmount,
+    totalPromotionAmount: calculatedTotal || explicitTotal
+  };
 }
 
 function previewActions() {
@@ -265,13 +315,13 @@ function renderPromotionTable(rows, showTitle, showTotal, summary) {
           ${rows.map((row) => `
           <tr>
             <td>${text(row.code || row.promotionCode)}</td>
-            <td>${text(row.description || row.name)}</td>
-            <td class="dmsx-right">${money(row.qualifiedAmount || row.basisAmount)}</td>
-            <td class="dmsx-right">${number(row.discountPercent || row.percent) ? percent(row.discountPercent || row.percent) : ''}</td>
-            <td class="dmsx-right">${money(row.discountBeforeTax || row.beforeTax)}</td>
-            <td class="dmsx-right">${money(row.discountAfterTax || row.afterTax)}</td>
+            <td class="dmsx-promo-description">${text(row.description || row.name)}</td>
+            <td class="dmsx-right dmsx-number-cell">${money(row.qualifiedAmount || row.basisAmount)}</td>
+            <td class="dmsx-right dmsx-number-cell">${number(row.discountPercent || row.percent) ? percent(row.discountPercent || row.percent) : ''}</td>
+            <td class="dmsx-right dmsx-money-cell">${money(row.discountBeforeTax || row.beforeTax)}</td>
+            <td class="dmsx-right dmsx-money-cell">${money(row.discountAfterTax || row.afterTax)}</td>
           </tr>`).join('')}
-          ${showTotal ? `<tr class="dmsx-detail-total"><td colspan="5" class="dmsx-right"><b>Tổng giá trị khuyến mãi tiền (C)</b></td><td class="dmsx-right"><b>${money(summary.totalPromotionAmount)}</b></td></tr>` : ''}
+          ${showTotal ? `<tr class="dmsx-detail-total"><td colspan="5" class="dmsx-right"><b>Tổng giá trị khuyến mãi tiền (C)</b></td><td class="dmsx-right"><b>${money(summary.totalMoneyPromotionAmount)}</b></td></tr>` : ''}
         </tbody>
       </table>
     </section>`;
@@ -295,7 +345,7 @@ function renderRewardTable(rows, showTitle, showTotal, summary) {
           ${rows.map((row) => `
           <tr>
             <td>${text(row.programCode || row.code)}</td>
-            <td>${text(row.description || row.name)}</td>
+            <td class="dmsx-promo-description">${text(row.description || row.name)}</td>
             <td class="dmsx-center">${text(row.displayMonth || row.month)}</td>
             <td class="dmsx-right">${number(row.goodsAmount) ? money(row.goodsAmount) : ''}</td>
             <td class="dmsx-center">${text(row.quantityText)}</td>
