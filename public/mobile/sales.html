@@ -57,18 +57,17 @@
         <div id="selectedCustomer" class="selected-box muted mobile-selected-customer-compact">Chưa chọn khách hàng. Hãy sang tab Khách hàng để chọn.</div>
       </section>
 
-      <section class="card">
-        <h2>Chọn sản phẩm</h2>
-        <!-- MOBILE_PRODUCT_ORDER_LAYOUT_START: sắp xếp lại luồng chọn SP -> xem thông tin -> nhập SL -> thêm giỏ -->
-        <!-- MOBILE_PRODUCT_GROUP_FILTER_UI_START: lọc sản phẩm theo Nhóm hàng trong danh mục sản phẩm -->
-        <select id="productGroupFilter" class="mobile-product-group-filter" aria-label="Lọc theo nhóm hàng">
+      <section class="card mobile-product-search-first-card">
+        <!-- MOBILE_PRODUCT_ORDER_LAYOUT_START: Search First - tìm SP là thao tác chính của NVBH -->
+        <!-- MOBILE_PRODUCT_GROUP_FILTER_UI_START: giữ DOM/state lọc nhóm để mở rộng sau, ẩn khỏi màn hình chính -->
+        <select id="productGroupFilter" class="mobile-product-group-filter mobile-product-group-filter-hidden" aria-label="Lọc theo nhóm hàng" hidden tabindex="-1">
           <option value="">Tất cả nhóm hàng</option>
         </select>
         <!-- MOBILE_PRODUCT_GROUP_FILTER_UI_END -->
-        <input id="productSearch" class="mobile-product-search-input" type="search" placeholder="Gõ mã / tên sản phẩm" />
+        <input id="productSearch" class="mobile-product-search-input" type="search" placeholder="Gõ mã / tên sản phẩm" autocomplete="off" />
         <div id="productSuggestions" class="suggestion-box"></div>
 
-        <div id="selectedProduct" class="selected-box muted mobile-selected-product-card">Chưa chọn sản phẩm</div>
+        <div id="selectedProduct" class="selected-box muted mobile-selected-product-card" hidden></div>
 
         <div class="qty-row three-cols mobile-product-qty-row" aria-label="Số lượng bán">
           <label class="mobile-qty-field" for="caseQtyInput"><span>Thùng</span><input id="caseQtyInput" class="mobile-qty-input mobile-case-qty-input" type="number" min="0" step="1" inputmode="numeric" placeholder="0" aria-label="Số lượng thùng" /></label>

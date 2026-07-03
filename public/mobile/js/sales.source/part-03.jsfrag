@@ -291,8 +291,7 @@ function clearOrderForm(clearCustomer = true) {
   caseQtyInput.value = '';
   looseQtyInput.value = '';
   paidAmountInput.value = '';
-  selectedProductBox.textContent = 'Chưa chọn sản phẩm';
-  selectedProductBox.classList.add('muted');
+  resetSelectedProduct();
   orderFormTitle.textContent = 'Đặt hàng';
   submitOrderBtn.textContent = 'Xác nhận đơn';
   if (clearCustomer) {

@@ -286,3 +286,47 @@
   .sales-app-page .section-title-row .small-btn{width:100%;}
 }
 /* PHASE157_MOBILE_SALES_VIEWPORT_LAYOUT_FIX_END */
+
+/* MOBILE_SALES_SEARCH_FIRST_V1_START */
+#orderTab .mobile-product-search-first-card{
+  display:grid;
+  gap:8px;
+  padding-top:10px;
+}
+#orderTab #productGroupFilter.mobile-product-group-filter-hidden,
+#orderTab #productGroupFilter.mobile-product-group-filter[hidden]{
+  display:none!important;
+  width:0!important;
+  height:0!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  overflow:hidden!important;
+}
+#orderTab #productSearch.mobile-product-search-input{
+  margin:0;
+  width:100%;
+}
+#orderTab #selectedProduct.mobile-selected-product-card[hidden]{
+  display:none!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+}
+#orderTab .mobile-product-search-first-card .suggestion-box:empty{
+  display:none;
+}
+#orderTab .mobile-product-search-first-card .suggestion-box{
+  margin-top:0;
+}
+#orderTab .mobile-product-search-first-card .mobile-product-qty-row{
+  margin-top:4px;
+}
+#orderTab .mobile-product-search-first-card #addItemBtn.mobile-add-to-cart-btn{
+  margin-top:4px;
+}
+@media (max-width:380px){
+  #orderTab .mobile-product-search-first-card{gap:7px;padding-top:9px}
+}
+/* MOBILE_SALES_SEARCH_FIRST_V1_END */

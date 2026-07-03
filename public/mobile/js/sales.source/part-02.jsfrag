@@ -54,7 +54,8 @@ function resetSelectedProduct() {
     productSearch.dataset.name = '';
     productSearch.dataset.type = '';
   }
-  selectedProductBox.textContent = 'Chưa chọn sản phẩm';
+  selectedProductBox.textContent = '';
+  selectedProductBox.hidden = true;
   selectedProductBox.classList.add('muted');
 }
 
@@ -89,6 +90,7 @@ function pickProduct(product) {
     noteClass: 'mobile-selected-product-quota-note'
   });
   // MOBILE_SELECTED_PRODUCT_CARD_RENDER_END
+  selectedProductBox.hidden = false;
   selectedProductBox.classList.remove('muted');
   productSuggestions.innerHTML = '';
   productSuggestions.classList.remove('has-many');
@@ -263,11 +265,19 @@ document.getElementById('addItemBtn').addEventListener('click', async () => {
   productSearch.value = '';
   caseQtyInput.value = '';
   looseQtyInput.value = '';
-  selectedProductBox.textContent = 'Chưa chọn sản phẩm';
+  selectedProductBox.textContent = '';
+  selectedProductBox.hidden = true;
   selectedProductBox.classList.add('muted');
   await recalculateCartPromotions();
   renderCart();
   setMessage(message, 'Đã thêm vào giỏ hàng và áp giá sau khuyến mại', 'success');
+  if (productSuggestions) {
+    productSuggestions.innerHTML = '';
+    productSuggestions.classList.remove('has-many');
+    productSuggestions.hidden = true;
+    productSuggestions.style.display = 'none';
+  }
+  window.requestAnimationFrame(() => productSearch?.focus());
   // MOBILE_SALES_CART_PROMOTION_RECALC_ADD_END
 });
 
