@@ -25,8 +25,12 @@ class FakeElement {
     this.value = '';
     this.clicked = 0;
     this.children = [];
+    this.hidden = false;
+    this.innerHTML = '';
   }
   addEventListener(name, handler) { this.listeners.set(name, handler); }
+  appendChild(child) { this.children.push(child); return child; }
+  contains(child) { return this.children.includes(child); }
   setAttribute(name, value) { this.attributes[name] = String(value); }
   remove() { this.removed = true; }
   replaceChildren(...children) { this.children = [...children]; }
@@ -46,6 +50,12 @@ function makeHarness(fetchImpl) {
   const to = new FakeElement(); to.value = '2026-06-20';
   const salesStaff = new FakeElement(); salesStaff.value = 'NVBH01';
   const clear = new FakeElement('Xóa lọc');
+  const customerSearch = new FakeElement();
+  const customerCode = new FakeElement();
+  const customerClear = new FakeElement('×');
+  customerClear.hidden = true;
+  const customerSuggestions = new FakeElement();
+  customerSuggestions.hidden = true;
   const anchors = [];
   const elements = {
     exportVatInvoiceTT78Button: vat,
@@ -54,6 +64,10 @@ function makeHarness(fetchImpl) {
     invoiceExportFromDate: from,
     invoiceExportToDate: to,
     invoiceExportSalesStaffCode: salesStaff,
+    invoiceExportCustomerSearch: customerSearch,
+    invoiceExportCustomerCode: customerCode,
+    clearInvoiceExportCustomerButton: customerClear,
+    invoiceExportCustomerSuggestions: customerSuggestions,
     clearInvoiceExportFiltersButton: clear
   };
   const urls = [];
@@ -63,7 +77,10 @@ function makeHarness(fetchImpl) {
     Option: function Option(text, value) { return { text, value }; },
     console: { error() {} },
     fetch: async (...args) => { urls.push(args[0]); return fetchImpl(...args); },
-    window: { UnifiedSearchEngine: { async searchSalesStaff() { return [{ code: 'NVBH01', name: 'Nhân viên 01' }]; } } },
+    window: { UnifiedSearchEngine: {
+      async searchSalesStaff() { return [{ code: 'NVBH01', name: 'Nhân viên 01' }]; },
+      async searchCustomer(q) { return [{ code: 'KH01', customerCode: 'KH01', name: 'Khách 01', customerName: 'Khách 01', phone: '0901' }].filter(item => String(item.code).includes(q) || String(item.name).includes(q)); }
+    } },
     setReportDefaults() {},
     setTimeout(fn) { fn(); return 1; },
     URL: {
@@ -73,16 +90,16 @@ function makeHarness(fetchImpl) {
     document: {
       getElementById(id) { return elements[id] || null; },
       createElement(tag) {
-        assert.equal(tag, 'a');
-        const anchor = new FakeElement();
-        anchors.push(anchor);
-        return anchor;
+        const el = new FakeElement();
+        if (tag === 'a') anchors.push(el);
+        return el;
       },
+      addEventListener() {},
       body: { appendChild() {} }
     }
   };
   vm.runInNewContext(SCRIPT, context, { filename: '08f-vat-export.js' });
-  return { vat, nonVat, summary, urls, anchors, salesStaff, clear };
+  return { vat, nonVat, summary, urls, anchors, salesStaff, clear, customerSearch, customerCode, customerClear, customerSuggestions };
 }
 
 function successfulResponse(fileName = 'Hoa_don_VAT.xlsx') {
@@ -133,6 +150,29 @@ test('one click downloads VAT workbook directly, keeps filters and restores butt
   assert.equal(harness.anchors.length, 1);
   assert.equal(harness.anchors[0].download, 'Hoa_don_VAT_01-06-2026_den_20-06-2026.xlsx');
   assert.match(harness.summary.textContent, /Đã tải/);
+});
+
+
+test('selected customerCode is sent to VAT/NON_VAT/SSE exports and clear resets customer', async () => {
+  const harness = makeHarness(async () => successfulResponse('Hoa_don_VAT_customer.xlsx'));
+  harness.customerSearch.value = 'KH01 - Khách 01';
+  harness.customerCode.value = 'KH01';
+  harness.customerClear.hidden = false;
+  await harness.vat.click();
+  assert.match(harness.urls[0], /customerCode=KH01/);
+  harness.clear.click();
+  assert.equal(harness.customerSearch.value, '');
+  assert.equal(harness.customerCode.value, '');
+  assert.equal(harness.customerClear.hidden, true);
+});
+
+test('typed customer without selecting suggestion blocks export to avoid misleading full export', async () => {
+  const harness = makeHarness(async () => successfulResponse('Hoa_don_VAT.xlsx'));
+  harness.customerSearch.value = 'Khách chưa chọn';
+  await harness.vat.click();
+  assert.equal(harness.urls.length, 0);
+  assert.equal(harness.summary.classList.contains('error'), true);
+  assert.match(harness.summary.textContent, /chọn khách hàng/);
 });
 
 

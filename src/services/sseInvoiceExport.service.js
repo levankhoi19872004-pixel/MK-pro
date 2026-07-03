@@ -364,7 +364,7 @@ async function buildSseInvoiceWorkbook(query = {}, currentUser = {}) {
   const built = buildSseRows({ ...data, invoiceType });
   if (built.errors.length) {
     const params = new URLSearchParams();
-    ['invoiceType','dateFrom','dateTo','fromDate','toDate','salesStaffCode'].forEach((key)=>{ if(query[key])params.set(key,String(query[key])); });
+    ['invoiceType','dateFrom','dateTo','fromDate','toDate','salesStaffCode','customerCode'].forEach((key)=>{ if(query[key])params.set(key,String(query[key])); });
     if (!params.has('invoiceType')) params.set('invoiceType', invoiceType);
     return {
       error:`Có ${built.errors.length} lỗi mapping SSE. File upload chưa được tạo để tránh dữ liệu thiếu.`,

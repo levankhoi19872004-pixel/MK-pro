@@ -246,6 +246,14 @@
                 <option value="">Tất cả nhân viên bán hàng</option>
               </select>
             </label>
+            <label class="invoice-export-field invoice-export-customer-field">Khách hàng
+              <span class="invoice-export-customer-combobox">
+                <input id="invoiceExportCustomerSearch" type="search" autocomplete="off" placeholder="Nhập mã/tên/SĐT khách hàng..." aria-label="Lọc theo khách hàng" aria-autocomplete="list" aria-controls="invoiceExportCustomerSuggestions" />
+                <button id="clearInvoiceExportCustomerButton" type="button" class="invoice-export-customer-clear" aria-label="Bỏ chọn khách hàng" hidden>×</button>
+              </span>
+              <input id="invoiceExportCustomerCode" type="hidden" />
+              <div id="invoiceExportCustomerSuggestions" class="invoice-export-customer-suggestions" role="listbox" hidden></div>
+            </label>
             <button id="clearInvoiceExportFiltersButton" type="button" class="ui-button-ghost invoice-export-clear-button" aria-label="Xóa bộ lọc xuất hóa đơn">Xóa lọc</button>
           </div>
           <div class="invoice-export-actions">

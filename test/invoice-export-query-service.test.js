@@ -7,7 +7,7 @@ const service = require('../src/services/invoiceExportQuery.service');
 test('export filters validate date format and range while supporting one-sided ranges', () => {
   assert.deepEqual(
     service.normalizeExportQuery({ dateFrom: '2026-06-01', salesStaffCode: '35128' }, { invoiceGroup: 'ALL' }),
-    { dateFrom: '2026-06-01', dateTo: '', salesStaffCode: '35128', invoiceGroup: 'ALL', limit: 20000 }
+    { dateFrom: '2026-06-01', dateTo: '', salesStaffCode: '35128', customerCode: '', invoiceGroup: 'ALL', limit: 20000 }
   );
   assert.equal(service.normalizeExportQuery({ dateTo: '2026-06-30' }, { invoiceGroup: 'VAT' }).dateTo, '2026-06-30');
   assert.throws(
@@ -77,17 +77,34 @@ test('return query includes operational documents and master links without requi
   assert.doesNotMatch(text, /accountingConfirmed|posted_to_ar|arPosted/);
 });
 
-test('order Mongo filter applies date, exact staff code and invoice group server-side', () => {
+test('customer filter normalizes to customerCode and supports canonical-first legacy aliases', () => {
+  const filters = service.normalizeExportQuery({ customerCode: 'BBHOASON' }, { invoiceGroup: 'ALL' });
+  assert.equal(filters.customerCode, 'BBHOASON');
+
+  const clause = service.buildCustomerMongoClause('BBHOASON');
+  const text = JSON.stringify(clause);
+  assert.match(text, /customerCode/);
+  assert.match(text, /customer\.code/);
+  assert.match(text, /customerId/);
+
+  assert.equal(service.matchesInvoiceExportFilters({ customerCode: 'BBHOASON', customer: { code: 'OTHER' } }, { customerCode: 'BBHOASON' }, { invoiceGroup: 'ALL' }), true);
+  assert.equal(service.matchesInvoiceExportFilters({ customerCode: 'OTHER', customer: { code: 'BBHOASON' } }, { customerCode: 'BBHOASON' }, { invoiceGroup: 'ALL' }), false);
+  assert.equal(service.matchesInvoiceExportFilters({ customer: { code: 'BBHOASON' } }, { customerCode: 'BBHOASON' }, { invoiceGroup: 'ALL' }), true);
+});
+
+test('order Mongo filter applies date, exact staff/customer code and invoice group server-side', () => {
   const previous = process.env.TENANT_MODE;
   try {
     process.env.TENANT_MODE = 'multi';
     const filter = service.buildInvoiceOrderMongoFilter(
-      { dateFrom: '2026-06-01', dateTo: '2026-06-30', salesStaffCode: '35128' },
+      { dateFrom: '2026-06-01', dateTo: '2026-06-30', salesStaffCode: '35128', customerCode: 'BBHOASON' },
       { invoiceGroup: 'VAT', currentUser: { tenantId: 'tenant-a' } }
     );
     const text = JSON.stringify(filter);
     assert.match(text, /vatInvoiceRequired/);
     assert.match(text, /salesStaffCode/);
+    assert.match(text, /customerCode/);
+    assert.match(text, /BBHOASON/);
     assert.match(text, /orderDate/);
     assert.match(text, /tenant-a/);
     assert.doesNotMatch(text, /salesStaffName|staffName/);

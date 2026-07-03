@@ -29,6 +29,8 @@ const ORDER_PROJECTION = [
   'date', 'orderDate', 'documentDate', 'createdDate', 'createdAt',
   'deleted', 'isDeleted', 'deletedAt',
   'customerId', 'customerCode', 'customerName', 'customerPhone',
+  'customer.code', 'customer.customerCode', 'customer.name', 'customer.customerName', 'customer.phone',
+  'clientCode', 'khachHangCode',
   'salesStaffCode', 'salesStaffName', 'salesPersonCode', 'salesPersonName',
   'salesmanCode', 'salesmanName', 'nvbhCode', 'nvbhName', 'maNVBH', 'maNVBHName',
   'sseCustomerCode', 'customerSseCode', 'accountingCustomerCode', 'customerAccountingCode', 'customerErpCode',
@@ -99,12 +101,13 @@ function normalizeExportQuery(query = {}, options = {}) {
   }
 
   const salesStaffCode = cleanText(query.salesStaffCode || '');
+  const customerCode = cleanText(query.customerCode || query.customerId || query.customer || query.code || '');
   const limitDefault = Number(options.defaultLimit || 20000);
   const limitMax = Number(options.maxLimit || 100000);
   const parsedLimit = Number(query.limit || limitDefault);
   const limit = Math.min(Math.max(Number.isFinite(parsedLimit) ? Math.trunc(parsedLimit) : limitDefault, 1), limitMax);
 
-  return { dateFrom, dateTo, salesStaffCode, invoiceGroup, limit };
+  return { dateFrom, dateTo, salesStaffCode, customerCode, invoiceGroup, limit };
 }
 
 function missingFieldClause(field) {
@@ -182,6 +185,29 @@ function buildSalesStaffMongoClause(salesStaffCode) {
   };
 }
 
+
+function buildCustomerMongoClause(customerCode) {
+  const code = cleanText(customerCode);
+  if (!code) return null;
+
+  const canonicalMissing = missingFieldClause('customerCode');
+  const nestedCodeMissing = missingFieldClause('customer.code');
+  const nestedCustomerCodeMissing = missingFieldClause('customer.customerCode');
+  const customerIdMissing = missingFieldClause('customerId');
+  const clientCodeMissing = missingFieldClause('clientCode');
+
+  return {
+    $or: [
+      { customerCode: code },
+      { $and: [canonicalMissing, { 'customer.code': code }] },
+      { $and: [canonicalMissing, nestedCodeMissing, { 'customer.customerCode': code }] },
+      { $and: [canonicalMissing, nestedCodeMissing, nestedCustomerCodeMissing, { customerId: code }] },
+      { $and: [canonicalMissing, nestedCodeMissing, nestedCustomerCodeMissing, customerIdMissing, { clientCode: code }] },
+      { $and: [canonicalMissing, nestedCodeMissing, nestedCustomerCodeMissing, customerIdMissing, clientCodeMissing, { khachHangCode: code }] }
+    ]
+  };
+}
+
 function buildTenantClause(currentUser = {}) {
   // Dự án mặc định single-tenant. Chỉ áp scope tenant khi vận hành đã bật rõ multi-tenant.
   // Trước đây TENANT_MODE để trống vẫn bị hiểu như multi-tenant, làm dữ liệu đơn cũ
@@ -200,9 +226,11 @@ function buildInvoiceOrderMongoFilter(query = {}, options = {}) {
   }
   const dateClause = buildBusinessDateMongoClause(filters);
   const staffClause = buildSalesStaffMongoClause(filters.salesStaffCode);
+  const customerClause = buildCustomerMongoClause(filters.customerCode);
   const tenantClause = buildTenantClause(options.currentUser || {});
   if (dateClause) clauses.push(dateClause);
   if (staffClause) clauses.push(staffClause);
+  if (customerClause) clauses.push(customerClause);
   if (tenantClause) clauses.push(tenantClause);
   return clauses.length === 1 ? clauses[0] : { $and: clauses };
 }
@@ -219,6 +247,12 @@ function businessSalesStaffCodeOf(order = {}) {
   );
 }
 
+function businessCustomerCodeOf(order = {}) {
+  return cleanText(
+    order.customerCode || order.customer?.code || order.customer?.customerCode || order.customerId || order.clientCode || order.khachHangCode || ''
+  );
+}
+
 function matchesInvoiceExportFilters(order = {}, query = {}, options = {}) {
   let filters;
   try {
@@ -230,6 +264,7 @@ function matchesInvoiceExportFilters(order = {}, query = {}, options = {}) {
   if (filters.dateFrom && (!date || date < filters.dateFrom)) return false;
   if (filters.dateTo && (!date || date > filters.dateTo)) return false;
   if (filters.salesStaffCode && businessSalesStaffCodeOf(order) !== filters.salesStaffCode) return false;
+  if (filters.customerCode && businessCustomerCodeOf(order) !== filters.customerCode) return false;
   return true;
 }
 
@@ -373,7 +408,7 @@ async function loadInvoiceExportData({ query = {}, invoiceGroup = INVOICE_GROUPS
   orderQuery = applyLimit(orderQuery, filters.limit);
   const orders = (await leanResult(orderQuery)) || [];
 
-  const customerCodes = uniqueText(orders.map((order) => order.customerCode));
+  const customerCodes = uniqueText(orders.map((order) => businessCustomerCodeOf(order)));
   const customerIds = uniqueText(orders.map((order) => order.customerId)).filter((value) => mongoose.isValidObjectId(value));
   const productCodes = [];
   const productIds = [];
@@ -420,9 +455,11 @@ module.exports = {
   normalizeExportQuery,
   buildBusinessDateMongoClause,
   buildSalesStaffMongoClause,
+  buildCustomerMongoClause,
   buildInvoiceOrderMongoFilter,
   businessDateOf,
   businessSalesStaffCodeOf,
+  businessCustomerCodeOf,
   matchesInvoiceExportFilters,
   buildReturnLinkFilter,
   isEligibleReturnOrder,

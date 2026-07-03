@@ -255,7 +255,7 @@ async function searchCustomers(query = {}) {
   const q = String(query.q || query.search || query.keyword || '').trim();
   if (!q && !allowsEmptyCustomerSearch(query)) return [];
   if (q && !queryGuard.ensureSearchKeyword(query, 2).ok) return [];
-  const customers = await searchRepository.findCustomers({ ...(query || {}), limit: queryGuard.clampLimit(query.limit, 20, 500) });
+  const customers = await searchRepository.findCustomers({ ...(query || {}), limit: queryGuard.clampLimit(query.limit, 20, 50) });
   let revenueByCustomer = new Map();
   const includeMetrics = ['1', 'true', 'yes'].includes(String(query.includeMetrics ?? query.mobile ?? '').toLowerCase());
   if (includeMetrics) {

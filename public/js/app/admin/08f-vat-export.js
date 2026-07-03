@@ -9,12 +9,18 @@
   const fromInput=document.getElementById('invoiceExportFromDate');
   const toInput=document.getElementById('invoiceExportToDate');
   const salesStaffSelect=document.getElementById('invoiceExportSalesStaffCode');
+  const customerInput=document.getElementById('invoiceExportCustomerSearch');
+  const customerCodeInput=document.getElementById('invoiceExportCustomerCode');
+  const customerClearButton=document.getElementById('clearInvoiceExportCustomerButton');
+  const customerSuggestions=document.getElementById('invoiceExportCustomerSuggestions');
   const clearFiltersButton=document.getElementById('clearInvoiceExportFiltersButton');
   const summary=document.getElementById('vatInvoiceExportSummary');
   const exportButtons=[vatButton,nonVatButton,sseButton,sseErrorButton].filter(Boolean);
-  const controls=[fromInput,toInput,salesStaffSelect,clearFiltersButton].filter(Boolean);
+  const controls=[fromInput,toInput,salesStaffSelect,customerInput,customerClearButton,clearFiltersButton].filter(Boolean);
   let exportInFlight=false;
   let sseErrorReportUrl='';
+  let selectedCustomer=null;
+  let customerSearchTimer=null;
 
   if(!exportButtons.length)return;
 
@@ -42,11 +48,18 @@
     if(toInput&&!toInput.value)toInput.value=document.getElementById('reportToDate')?.value||'';
   }
 
+  function currentCustomerCode(){
+    return String(customerCodeInput?.value||selectedCustomer?.code||selectedCustomer?.customerCode||'').trim();
+  }
+
   function validateFilters(){
     const from=fromInput?.value||'';
     const to=toInput?.value||'';
     if(from&&to&&from>to)throw new Error('Từ ngày không được lớn hơn Đến ngày');
-    return {from,to,salesStaffCode:salesStaffSelect?.value||''};
+    const typedCustomer=String(customerInput?.value||'').trim();
+    const customerCode=currentCustomerCode();
+    if(typedCustomer&&!customerCode)throw new Error('Vui lòng chọn khách hàng từ danh sách gợi ý hoặc bấm x để bỏ chọn.');
+    return {from,to,salesStaffCode:salesStaffSelect?.value||'',customerCode};
   }
 
   function exportParams(invoiceType){
@@ -55,6 +68,7 @@
     if(filters.from)params.set('dateFrom',filters.from);
     if(filters.to)params.set('dateTo',filters.to);
     if(filters.salesStaffCode)params.set('salesStaffCode',filters.salesStaffCode);
+    if(filters.customerCode)params.set('customerCode',filters.customerCode);
     return params;
   }
 
@@ -187,13 +201,128 @@
     return download(sseErrorReportUrl,sseErrorButton,'báo cáo lỗi/cảnh báo SSE','SSE_Loi_mapping.xlsx');
   }
 
+  function clearCustomerSelection(options={}){
+    selectedCustomer=null;
+    if(customerCodeInput)customerCodeInput.value='';
+    if(customerInput)customerInput.value='';
+    if(customerClearButton)customerClearButton.hidden=true;
+    hideCustomerSuggestions();
+    if(!options.silent)setSummary('Đã bỏ lọc khách hàng.');
+  }
+
   function clearFilters(){
     if(fromInput)fromInput.value='';
     if(toInput)toInput.value='';
     if(salesStaffSelect)salesStaffSelect.value='';
+    clearCustomerSelection({silent:true});
     sseErrorReportUrl='';
     if(sseErrorButton)sseErrorButton.hidden=true;
     setSummary('Đã xóa bộ lọc xuất hóa đơn.');
+  }
+
+
+  function customerCodeOf(item={}){
+    return String(item.customerCode||item.code||item.customerId||item.id||'').trim();
+  }
+
+  function customerNameOf(item={}){
+    return String(item.customerName||item.name||item.fullName||'').trim();
+  }
+
+  function customerLabel(item={}){
+    return [customerCodeOf(item),customerNameOf(item),item.phone||item.mobile||item.customerPhone].filter(Boolean).join(' - ');
+  }
+
+  function hideCustomerSuggestions(){
+    if(!customerSuggestions)return;
+    customerSuggestions.hidden=true;
+    customerSuggestions.innerHTML='';
+  }
+
+  function selectCustomer(item={}){
+    const code=customerCodeOf(item);
+    if(!code)return;
+    const name=customerNameOf(item);
+    selectedCustomer={code,customerCode:code,name,customerName:name};
+    if(customerCodeInput)customerCodeInput.value=code;
+    if(customerInput)customerInput.value=customerLabel(item)||code;
+    if(customerClearButton)customerClearButton.hidden=false;
+    hideCustomerSuggestions();
+    setSummary(`Đã chọn khách hàng ${[code,name].filter(Boolean).join(' - ')}.`);
+  }
+
+  function renderCustomerSuggestions(rows=[]){
+    if(!customerSuggestions)return;
+    customerSuggestions.innerHTML='';
+    const valid=(rows||[]).filter(item=>customerCodeOf(item)).slice(0,20);
+    if(!valid.length){
+      customerSuggestions.hidden=true;
+      return;
+    }
+    valid.forEach(item=>{
+      const button=document.createElement('button');
+      button.type='button';
+      button.className='invoice-export-customer-option';
+      button.setAttribute('role','option');
+      const title=document.createElement('strong');
+      title.textContent=[customerCodeOf(item),customerNameOf(item)].filter(Boolean).join(' - ');
+      const sub=document.createElement('span');
+      sub.textContent=[item.address||item.customerAddress||'',item.phone||item.mobile||item.customerPhone||''].filter(Boolean).join(' · ');
+      button.appendChild(title);
+      if(sub.textContent)button.appendChild(sub);
+      button.addEventListener('click',()=>selectCustomer(item));
+      customerSuggestions.appendChild(button);
+    });
+    customerSuggestions.hidden=false;
+  }
+
+  async function searchCustomersForInvoice(keyword){
+    const q=String(keyword||'').trim();
+    if(q.length<2)return [];
+    if(window.UnifiedSearchEngine?.searchCustomer){
+      return window.UnifiedSearchEngine.searchCustomer(q,{limit:20,minChars:2,allowEmpty:'',showOnFocus:''});
+    }
+    if(window.CatalogCache?.searchCustomers){
+      return window.CatalogCache.searchCustomers(q,{limit:20});
+    }
+    const response=await fetch(`/api/search/customers?q=${encodeURIComponent(q)}&limit=20&activeOnly=1`,{headers:{Accept:'application/json'}});
+    const payload=await response.json().catch(()=>({}));
+    if(!response.ok||payload.ok===false)throw new Error(payload.message||'Không tìm được khách hàng');
+    return payload.customers||payload.items||payload.data||[];
+  }
+
+  function scheduleCustomerSearch(){
+    if(!customerInput)return;
+    const q=String(customerInput.value||'').trim();
+    selectedCustomer=null;
+    if(customerCodeInput)customerCodeInput.value='';
+    if(customerClearButton)customerClearButton.hidden=!q;
+    if(customerSearchTimer)clearTimeout(customerSearchTimer);
+    if(q.length<2){hideCustomerSuggestions();return;}
+    customerSearchTimer=setTimeout(async()=>{
+      try{renderCustomerSuggestions(await searchCustomersForInvoice(q));}
+      catch(error){console.warn('[INVOICE_EXPORT_CUSTOMER_SEARCH]',error);hideCustomerSuggestions();}
+    },180);
+  }
+
+  function bindCustomerAutocomplete(){
+    if(!customerInput)return;
+    customerInput.addEventListener('input',scheduleCustomerSearch);
+    customerInput.addEventListener('focus',()=>{
+      if(String(customerInput.value||'').trim().length>=2)scheduleCustomerSearch();
+    });
+    customerInput.addEventListener('keydown',(event)=>{
+      if(event.key==='Escape')hideCustomerSuggestions();
+    });
+    if(customerClearButton){
+      customerClearButton.addEventListener('click',()=>clearCustomerSelection());
+    }
+    document.addEventListener('click',(event)=>{
+      if(!customerSuggestions||customerSuggestions.hidden)return;
+      const target=event.target;
+      if(target===customerInput||target===customerSuggestions||customerSuggestions.contains?.(target))return;
+      hideCustomerSuggestions();
+    });
   }
 
   async function loadSalesStaffOptions(){
@@ -226,6 +355,7 @@
   }
 
   initializeDateDefaults();
+  bindCustomerAutocomplete();
   loadSalesStaffOptions();
   bind(vatButton,()=>downloadInvoiceExport('VAT',vatButton),'boundInvoiceExport');
   bind(nonVatButton,()=>downloadInvoiceExport('NON_VAT',nonVatButton),'boundInvoiceExport');
