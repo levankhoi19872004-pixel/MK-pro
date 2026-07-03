@@ -326,8 +326,10 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     confirmed: true,
     status: 'confirmed',
     orderId: DeliveryCloseoutService.orderId(order),
+    orderCode: DeliveryCloseoutService.orderCode(order),
+    affectedSourceId: clean(arResult?.entry?.sourceId || DeliveryCloseoutService.orderId(order)),
     affectedCustomerCode: clean(order.customerCode),
-    readModelAffected: arResult && arResult.posted === true,
+    readModelRebuildNeeded: arResult?.posted === true || arResult?.idempotent === true,
     closeout: confirmedCloseout,
     arDebtOpen: arResult,
     patchResult,
@@ -383,12 +385,15 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     }
   });
 
-  const affectedCustomerCodes = unique(results
-    .filter((row) => row && row.confirmed && row.readModelAffected === true)
-    .map((row) => row.affectedCustomerCode));
+  const readModelAffectedResults = results.filter((row) => row && row.confirmed && row.readModelRebuildNeeded);
+  const affectedSourceIds = unique(readModelAffectedResults.map((row) => row.affectedSourceId || row.orderId));
+  const affectedCustomerCodes = unique(readModelAffectedResults.map((row) => row.affectedCustomerCode));
   const readModelRebuilds = [];
+  for (const sourceId of affectedSourceIds) {
+    readModelRebuilds.push(await arDebtReadModel.rebuildDebtForSource(sourceId, { actor, reason }));
+  }
   for (const customerCode of affectedCustomerCodes) {
-    readModelRebuilds.push(await arDebtReadModel.rebuildDebtForCustomer(customerCode, { actor, reason }));
+    readModelRebuilds.push(await arDebtReadModel.refreshDebtCustomerFromOrders(customerCode, { actor, reason }));
   }
 
   const confirmedOrders = results.filter((row) => row.confirmed).length;
@@ -412,7 +417,7 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     results,
     diagnostics,
     warnings,
-    readModelRebuilds: readModelRebuilds.map((row) => ({ scope: row.scope, customerCode: row.customerCode, writtenOrders: row.persist?.writtenOrders || 0, writtenCustomers: row.persist?.writtenCustomers || 0 })),
+    readModelRebuilds: readModelRebuilds.map((row) => ({ scope: row.scope, sourceId: row.sourceId, customerCode: row.customerCode, writtenOrders: row.persist?.writtenOrders || 0, writtenCustomers: row.persist?.writtenCustomers || 0 })),
     reason,
     message: confirmedOrders > 0
       ? `Kế toán đã xác nhận ${confirmedOrders} đơn theo deliveryCloseout. Bỏ qua ${skippedOrders} đơn đã chốt trước đó.`

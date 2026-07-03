@@ -245,40 +245,109 @@ function customerFilter(customerCode) {
   return value ? { customerCode: value } : {};
 }
 
-async function replaceReadModelRows(Model, rows = [], filterForRow, options = {}) {
-  const session = options.session;
-  const safeRows = Array.isArray(rows) ? rows : [];
-  if (!safeRows.length) return { matchedCount: 0, modifiedCount: 0, upsertedCount: 0 };
-  const operations = safeRows.map((row) => ({
-    replaceOne: {
-      filter: filterForRow(row),
-      replacement: row,
-      upsert: true
-    }
-  }));
-  if (typeof Model.bulkWrite === 'function') {
-    return Model.bulkWrite(operations, { ordered: false, session });
+
+function debtOrderIdentity(row = {}) {
+  return clean(row.id || (row.customerCode && row.sourceId ? `DEBT-ORDER:${row.customerCode}:${row.sourceId}` : ''));
+}
+
+function debtCustomerIdentity(row = {}) {
+  const code = clean(row.customerCode);
+  return clean(row.id || (code ? `DEBT-CUSTOMER:${code}` : ''));
+}
+
+function buildDebtCustomerSummaryFromOrders(orderRows = [], customerCodeValue = '', options = {}) {
+  const customerCode = clean(customerCodeValue);
+  const rows = (Array.isArray(orderRows) ? orderRows : [])
+    .filter((row) => !customerCode || clean(row.customerCode) === customerCode);
+  if (!rows.length) return null;
+  const rebuiltAt = options.rebuiltAt || dateUtil.nowIso();
+  const summary = {
+    id: `DEBT-CUSTOMER:${customerCode || clean(rows[0].customerCode)}`,
+    customerCode: customerCode || clean(rows[0].customerCode),
+    customerName: clean(rows[0].customerName),
+    salesStaffCode: clean(rows[0].salesStaffCode),
+    salesStaffName: clean(rows[0].salesStaffName),
+    deliveryStaffCode: clean(rows[0].deliveryStaffCode),
+    deliveryStaffName: clean(rows[0].deliveryStaffName),
+    debit: 0,
+    credit: 0,
+    rawDebt: 0,
+    remainingDebt: 0,
+    orderCount: 0,
+    ledgerCount: 0,
+    lastDebtDate: '',
+    status: 'paid',
+    rebuiltAt,
+    readModelVersion: rows[0].readModelVersion || 'phase87-single-ar-debt-closeout-v2'
+  };
+  for (const row of rows) {
+    if (!summary.customerName && row.customerName) summary.customerName = clean(row.customerName);
+    if (!summary.salesStaffCode && row.salesStaffCode) summary.salesStaffCode = clean(row.salesStaffCode);
+    if (!summary.salesStaffName && row.salesStaffName) summary.salesStaffName = clean(row.salesStaffName);
+    if (!summary.deliveryStaffCode && row.deliveryStaffCode) summary.deliveryStaffCode = clean(row.deliveryStaffCode);
+    if (!summary.deliveryStaffName && row.deliveryStaffName) summary.deliveryStaffName = clean(row.deliveryStaffName);
+    summary.debit += Math.round(toNumber(row.debit));
+    summary.credit += Math.round(toNumber(row.credit));
+    summary.rawDebt += Math.round(toNumber(row.rawDebt ?? (toNumber(row.debit) - toNumber(row.credit))));
+    summary.remainingDebt += Math.round(toNumber(row.remainingDebt));
+    summary.orderCount += hasOpenDebt(row.remainingDebt) ? 1 : 0;
+    summary.ledgerCount += Math.round(toNumber(row.ledgerCount));
+    if (!summary.lastDebtDate || clean(row.lastDebtDate) > summary.lastDebtDate) summary.lastDebtDate = clean(row.lastDebtDate);
   }
-  const summary = { matchedCount: 0, modifiedCount: 0, upsertedCount: 0 };
-  for (const operation of operations) {
-    const result = await Model.replaceOne(operation.replaceOne.filter, operation.replaceOne.replacement, { upsert: true, session });
-    summary.matchedCount += Number(result.matchedCount || result.n || 0);
-    summary.modifiedCount += Number(result.modifiedCount || result.nModified || 0);
-    summary.upsertedCount += Number(result.upsertedCount || (result.upsertedId ? 1 : 0));
-  }
+  summary.debit = Math.round(summary.debit);
+  summary.credit = Math.round(summary.credit);
+  summary.rawDebt = Math.round(summary.rawDebt);
+  summary.remainingDebt = normalizeDebtAmount(summary.rawDebt, DEBT_ZERO_TOLERANCE);
+  summary.status = hasOpenDebt(summary.remainingDebt) ? 'open' : 'paid';
   return summary;
 }
 
-function debtOrderFilter(row = {}) {
-  const id = clean(row.id);
-  if (id) return { id };
-  return { customerCode: clean(row.customerCode), sourceId: clean(row.sourceId) };
+async function replaceDebtOrdersById(ArDebtOrder, debtOrders = [], options = {}) {
+  const session = options.session;
+  const rows = (Array.isArray(debtOrders) ? debtOrders : [])
+    .map((row) => ({ ...row, id: debtOrderIdentity(row) }))
+    .filter((row) => row.id);
+  if (!rows.length) return { upsertedOrders: 0 };
+  if (typeof ArDebtOrder.bulkWrite === 'function') {
+    const result = await ArDebtOrder.bulkWrite(rows.map((row) => ({
+      replaceOne: {
+        filter: { id: row.id },
+        replacement: row,
+        upsert: true
+      }
+    })), { ordered: false, session });
+    return {
+      upsertedOrders: rows.length,
+      bulkResult: {
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+        upsertedCount: result.upsertedCount
+      }
+    };
+  }
+  for (const row of rows) {
+    await ArDebtOrder.updateOne({ id: row.id }, { $set: row }, { upsert: true, session });
+  }
+  return { upsertedOrders: rows.length };
 }
 
-function debtCustomerFilter(row = {}, fallbackCustomerCode = '') {
-  const customerCode = clean(row.customerCode || fallbackCustomerCode);
-  if (customerCode) return { customerCode };
-  return { id: clean(row.id || `DEBT-CUSTOMER:${fallbackCustomerCode}`) };
+async function replaceDebtCustomer(ArDebtCustomer, customer = null, customerCodeValue = '', options = {}) {
+  const session = options.session;
+  const customerCode = clean(customerCodeValue || customer?.customerCode);
+  if (!customer) {
+    if (!customerCode) return { upsertedCustomers: 0, deletedCustomers: 0 };
+    const deleted = await ArDebtCustomer.deleteOne({ customerCode }, { session });
+    return { upsertedCustomers: 0, deletedCustomers: deleted.deletedCount || 0 };
+  }
+  const row = { ...customer, id: debtCustomerIdentity(customer) };
+  const filter = row.customerCode ? { customerCode: row.customerCode } : { id: row.id };
+  const result = await ArDebtCustomer.updateOne(filter, { $set: row }, { upsert: true, session });
+  return {
+    upsertedCustomers: 1,
+    matchedCount: result.matchedCount,
+    modifiedCount: result.modifiedCount,
+    upsertedCount: result.upsertedCount || 0
+  };
 }
 
 async function persistReadModel(result, scope = {}, options = {}) {
@@ -289,31 +358,44 @@ async function persistReadModel(result, scope = {}, options = {}) {
   const customerCode = clean(scope.customerCode);
 
   if (sourceId) {
-    await ArDebtOrder.deleteMany({ sourceId }, { session });
-    if (result.debtOrders.length) await ArDebtOrder.insertMany(result.debtOrders, { ordered: false, session });
-    return { dryRun: false, writtenOrders: result.debtOrders.length, writtenCustomers: 0 };
+    const debtOrders = Array.isArray(result.debtOrders) ? result.debtOrders : [];
+    const orderWrite = await replaceDebtOrdersById(ArDebtOrder, debtOrders, options);
+    let staleOrderDelete = { deletedCount: 0, skipped: true };
+    if (!debtOrders.length && options.deleteStaleOrders === true) {
+      // Explicit maintenance/correction-only cleanup. The delivery closeout hot path
+      // must not issue destructive deleteMany round-trips when it has just posted
+      // or idempotently found AR-DEBT-OPEN for a known source.
+      staleOrderDelete = await ArDebtOrder.deleteOne({ sourceId }, { session });
+    }
+    return {
+      dryRun: false,
+      writtenOrders: debtOrders.length,
+      writtenCustomers: 0,
+      upsertedOrders: orderWrite.upsertedOrders || 0,
+      staleOrdersDeleted: staleOrderDelete.deletedCount || 0,
+      staleOrderCleanupSkipped: staleOrderDelete.skipped === true
+    };
   }
 
   if (customerCode) {
-    const debtOrderRows = Array.isArray(result.debtOrders) ? result.debtOrders : [];
-    const debtCustomerRows = Array.isArray(result.debtCustomers) ? result.debtCustomers : [];
-    const orderIds = debtOrderRows.map((row) => clean(row.id)).filter(Boolean);
-
-    if (debtOrderRows.length) {
-      await replaceReadModelRows(ArDebtOrder, debtOrderRows, debtOrderFilter, { session });
-      await ArDebtOrder.deleteMany(orderIds.length ? { customerCode, id: { $nin: orderIds } } : { customerCode }, { session });
-    } else {
-      await ArDebtOrder.deleteMany({ customerCode }, { session });
-    }
-
-    const customerRow = debtCustomerRows.find((row) => lower(row.customerCode) === lower(customerCode)) || debtCustomerRows[0];
-    if (customerRow) {
-      await ArDebtCustomer.replaceOne(debtCustomerFilter(customerRow, customerCode), customerRow, { upsert: true, session });
-    } else {
-      await ArDebtCustomer.deleteOne({ customerCode }, { session });
-    }
-
-    return { dryRun: false, writtenOrders: debtOrderRows.length, writtenCustomers: customerRow ? 1 : 0, mode: 'incremental_customer_replace' };
+    const debtOrders = (result.debtOrders || []).filter((row) => clean(row.customerCode) === customerCode);
+    const debtCustomers = (result.debtCustomers || []).filter((row) => clean(row.customerCode) === customerCode);
+    const orderWrite = await replaceDebtOrdersById(ArDebtOrder, debtOrders, options);
+    // Do not run destructive stale-order cleanup by customer in the
+    // closeout/read-model refresh path. In production this cleanup became
+    // the slowest query for POST /api/new/delivery-today/closeout.
+    // Full destructive cleanup remains available through rebuildAllDebtReadModels().
+    const customerWrite = await replaceDebtCustomer(ArDebtCustomer, debtCustomers[0] || null, customerCode, options);
+    return {
+      dryRun: false,
+      writtenOrders: debtOrders.length,
+      writtenCustomers: debtCustomers.length ? 1 : 0,
+      staleOrdersDeleted: 0,
+      staleOrderCleanupSkipped: true,
+      upsertedOrders: orderWrite.upsertedOrders || 0,
+      upsertedCustomers: customerWrite.upsertedCustomers || 0,
+      customerWrite
+    };
   }
 
   if (options.allowFullRebuild === true) {
@@ -341,6 +423,43 @@ async function rebuildDebtForCustomer(customerCode, options = {}) {
   const result = groupCanonicalLedgers(rows, options);
   result.persist = await persistReadModel(result, { customerCode: clean(customerCode) }, options);
   return { scope: 'customer', customerCode: clean(customerCode), ...result };
+}
+
+
+async function refreshDebtCustomerFromOrders(customerCodeValue, options = {}) {
+  const customerCode = clean(customerCodeValue);
+  if (!customerCode) {
+    const err = new Error('Missing customerCode for AR debt customer refresh');
+    err.code = 'AR_DEBT_CUSTOMER_REFRESH_CUSTOMER_REQUIRED';
+    throw err;
+  }
+  const { ArDebtOrder, ArDebtCustomer } = getModels();
+  if (options.dryRun) {
+    const query = ArDebtOrder.find({ customerCode });
+    if (typeof query.lean === 'function') query.lean();
+    const orderRows = await query;
+    const debtCustomer = buildDebtCustomerSummaryFromOrders(orderRows, customerCode, options);
+    return { scope: 'customer-summary', customerCode, dryRun: true, debtCustomer, persist: { dryRun: true, writtenCustomers: 0 } };
+  }
+  const session = options.session;
+  const query = ArDebtOrder.find({ customerCode });
+  if (typeof query.lean === 'function') query.lean();
+  if (typeof query.session === 'function' && session) query.session(session);
+  const orderRows = await query;
+  const debtCustomer = buildDebtCustomerSummaryFromOrders(orderRows, customerCode, options);
+  const customerWrite = await replaceDebtCustomer(ArDebtCustomer, debtCustomer, customerCode, options);
+  return {
+    scope: 'customer-summary',
+    customerCode,
+    orderCount: orderRows.length,
+    debtCustomer,
+    persist: {
+      dryRun: false,
+      writtenOrders: 0,
+      writtenCustomers: debtCustomer ? 1 : 0,
+      customerWrite
+    }
+  };
 }
 
 async function rebuildAllDebtReadModels(options = {}) {
@@ -516,6 +635,7 @@ module.exports = {
   setModelsForTest,
   rebuildDebtForSource,
   rebuildDebtForCustomer,
+  refreshDebtCustomerFromOrders,
   rebuildAllDebtReadModels,
   getDebtCustomers,
   getDebtOrders
