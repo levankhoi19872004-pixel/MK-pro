@@ -24,6 +24,11 @@ export const MOBILE_ROUTES = {
   deliveryReturn: '/api/delivery/return',
   deliveryPayment: '/api/delivery/payment',
   deliveryCustomerDebts: '/api/mobile/delivery/customer-debts',
+  warehouseReturnChecks: '/api/mobile/warehouse/return-checks',
+  warehouseReturnCheckDetail: '/api/mobile/warehouse/return-checks/detail',
+  warehouseReturnCheckSave: '/api/mobile/warehouse/return-checks/save',
+  warehouseReturnCheckConfirm: '/api/mobile/warehouse/return-checks/confirm',
+  warehouseReturnCheckItemSources: '/api/mobile/warehouse/return-checks/item-sources',
   cashSubmit: '/api/mobile/cash/submit',
   refresh: '/api/auth/refresh'
 };

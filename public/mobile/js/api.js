@@ -390,6 +390,27 @@ export const mobileApi = {
   },
   submitCash(payload) {
     return apiRequest(MOBILE_ROUTES.cashSubmit, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'cash-submit')) });
+  },
+  getWarehouseReturnChecks(params = {}) {
+    const query = new URLSearchParams(params);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`${MOBILE_ROUTES.warehouseReturnChecks}${suffix}`, { requestKey: 'warehouse-return-checks', cancelPrevious: true });
+  },
+  getWarehouseReturnCheckDetail(params = {}) {
+    const query = new URLSearchParams(params);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`${MOBILE_ROUTES.warehouseReturnCheckDetail}${suffix}`, { requestKey: 'warehouse-return-check-detail', cancelPrevious: true });
+  },
+  saveWarehouseReturnCheck(payload = {}) {
+    return apiRequest(MOBILE_ROUTES.warehouseReturnCheckSave, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'warehouse-return-save')), timeoutMs: getMobileRuntimeConfig().commandTimeoutMs });
+  },
+  confirmWarehouseReturnCheck(payload = {}) {
+    return apiRequest(MOBILE_ROUTES.warehouseReturnCheckConfirm, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'warehouse-return-confirm')), timeoutMs: getMobileRuntimeConfig().commandTimeoutMs });
+  },
+  getWarehouseReturnItemSources(params = {}) {
+    const query = new URLSearchParams(params);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`${MOBILE_ROUTES.warehouseReturnCheckItemSources}${suffix}`, { requestKey: 'warehouse-return-item-sources', cancelPrevious: true });
   }
 };
 

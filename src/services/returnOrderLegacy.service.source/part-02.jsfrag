@@ -346,6 +346,14 @@ async function confirmAccountingReturnOrder(idOrCode, body = {}, options = {}) {
     return { error: err.message, code: err.code, status: 400 };
   }
 
+  if (await warehouseReturnCheckService.hasBlockingWarehouseReturnCheckForReturnOrder(current)) {
+    return {
+      error: 'Phiếu trả hàng chưa được thủ kho xác nhận. Vui lòng kiểm hàng trả trước khi chốt kế toán.',
+      code: 'WAREHOUSE_RETURN_CHECK_REQUIRED',
+      status: 409
+    };
+  }
+
   let postedReturnOrder = null;
 
   await withMongoTransaction(async (session) => {

@@ -12,6 +12,7 @@ const InventoryPostingService = require('../domain/posting/InventoryPostingServi
 const postingEngine = require('../engines/posting.engine');
 const financialService = require('./financialService');
 const auditService = require('./auditService');
+const warehouseReturnCheckService = require('./mobile/warehouseReturnCheck.service');
 const ReturnOrder = require('../models/ReturnOrder');
 const ReturnStateMachine = require('../domain/lifecycle/ReturnStateMachine');
 const { RETURN_STATES } = ReturnStateMachine;

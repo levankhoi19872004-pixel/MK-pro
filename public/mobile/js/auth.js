@@ -7,6 +7,7 @@ const message = document.getElementById('loginMessage');
 function getRoleHome(user) {
   if (user?.role === 'delivery') return './delivery.html';
   if (user?.role === 'sales') return './sales.html';
+  if (user?.role === 'warehouse') return './warehouse.html';
   if (user?.role === 'admin') return './sales.html';
   if (user?.role === 'accountant') return '../index.html';
   return './login.html';

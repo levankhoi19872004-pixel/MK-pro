@@ -12,6 +12,10 @@ function registerStaticRoutes(app) {
     res.sendFile(path.join(__dirname, '..', '..', 'public', 'mobile', 'delivery.html'));
   });
 
+  app.get('/mobile/warehouse', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', '..', 'public', 'mobile', 'warehouse.html'));
+  });
+
   const renderApplication = async (req, res, next) => {
     try {
       const html = await renderIndexPage();

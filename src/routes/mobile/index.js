@@ -7,6 +7,7 @@ const { createMobileSalesRouter } = require('./sales.routes');
 const { createMobileDeliveryRouter } = require('./delivery.routes');
 const { createMobileDebtRouter, createMobileDebtCollectionRouter } = require('./debts.routes');
 const { createMobileSyncRouter } = require('./sync.routes');
+const { createMobileWarehouseRouter } = require('./warehouse.routes');
 const { body } = require('express-validator');
 const { createMobileRuntimeController } = require('../../controllers/mobile/runtime.controller');
 
@@ -65,6 +66,7 @@ function createMobileRouter(ctx) {
   router.use('/debt-collections', createMobileDebtCollectionRouter(ctx));
   router.use('/sales', createMobileSalesRouter(ctx));
   router.use('/delivery', createMobileDeliveryRouter(ctx));
+  router.use('/warehouse', createMobileWarehouseRouter(ctx));
   router.use('/sync', createMobileSyncRouter(ctx));
 
   return router;

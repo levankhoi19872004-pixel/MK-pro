@@ -32,6 +32,7 @@ module.exports = {
   deliveryShortageRepayments: require('./DeliveryShortageRepayment'),
   deliveryCloseoutCorrections: require('./DeliveryCloseoutCorrection'),
   deliveryCloseoutVersions: require('./DeliveryCloseoutVersion'),
+  warehouseReturnChecks: require('./WarehouseReturnCheck'),
   expenseVouchers: require('./ExpenseVoucher'),
   fundTransfers: require('./FundTransfer'),
   cashbook: require('./Cashbook'),
