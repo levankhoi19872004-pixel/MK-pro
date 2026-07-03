@@ -23,6 +23,7 @@ function createMobileSalesRouter(ctx) {
   ];
 
   router.post('/orders', ...onlySales, orderPayloadRules, validateRequest, controller.createOrder);
+  router.get('/orders/:id/print.pdf', ...onlySales, param('id').isString().trim().notEmpty(), validateRequest, controller.renderOrderPrint);
   router.get('/orders/:id', ...onlySales, param('id').isString().trim().notEmpty(), validateRequest, controller.getOrder);
   router.put('/orders/:id', ...onlySales, param('id').isString().trim().notEmpty(), orderPayloadRules, validateRequest, controller.updateOrder);
   router.delete('/orders/:id', ...onlySales, param('id').isString().trim().notEmpty(), validateRequest, controller.deleteOrder);

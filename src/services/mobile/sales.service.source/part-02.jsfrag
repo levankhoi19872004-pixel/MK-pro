@@ -287,16 +287,41 @@
       }
     }
 
+    const trackingMap = await buildMobileSalesOrderTrackingSummaries([order]);
+    const decoratedOrder = decorateMobileSalesOrderForTracking({
+      ...order,
+      canEdit: !editLockReason,
+      editLockReason
+    }, trackingMap.get(order.id || order.code || params.id));
+
     return {
       body: {
         ok: true,
         source: 'mobile-sales-route-direct',
-        order: {
-          ...order,
-          canEdit: !editLockReason,
-          editLockReason
-        }
+        order: decoratedOrder
       }
+    };
+  }
+
+  async function renderSalesOrderPrintHtml({ params = {}, mobileUser }) {
+    const identity = buildSalesOrderIdentityFilter(params.id);
+    const owner = mobileSalesOwnerMongoFilter(mobileUser);
+    if (!identity || !owner) return fail(404, 'Không tìm thấy đơn bán');
+
+    const order = await SalesOrder.findOne({ $and: [identity, owner, activeSalesOrderMongoFilter()] }).lean();
+    if (!order) return fail(404, 'Không tìm thấy đơn bán');
+
+    const printKey = order.id || order.code || order.orderCode || order.salesOrderCode || params.id;
+    const result = await printDocumentService.renderSalesOrder(String(printKey || '').trim(), {
+      source: 'mobile-sales-order-view',
+      readonly: '1'
+    });
+    if (result.error) return fail(result.status || 400, result.error);
+    return {
+      statusCode: 200,
+      contentType: 'text/html; charset=utf-8',
+      html: result.html,
+      filename: `${String(order.code || order.id || 'sales-order').replace(/[^a-zA-Z0-9._-]/g, '_')}.html`
     };
   }
 

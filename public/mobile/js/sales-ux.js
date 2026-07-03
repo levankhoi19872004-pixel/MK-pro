@@ -166,29 +166,73 @@ export function buildOrderCardsHtml(orders = [], helpers = {}) {
   const escapeHtml = helpers.escapeHtml || String;
   const money = helpers.money || String;
   const formatDate = helpers.formatDate || String;
+  const statusLabel = (value = '') => {
+    const normalized = String(value || '').toLowerCase();
+    if (!normalized) return 'Chưa có';
+    if (normalized === 'pending') return 'Chờ xử lý';
+    if (normalized === 'assigned') return 'Đã gán giao';
+    if (normalized === 'delivering') return 'Đang giao';
+    if (normalized === 'delivered' || normalized === 'done' || normalized === 'completed') return 'Đã giao';
+    if (normalized === 'accounting_confirmed' || normalized === 'confirmed' || normalized === 'posted' || normalized === 'closed') return 'Kế toán xác nhận';
+    if (normalized === 'cancelled' || normalized === 'canceled') return 'Đã hủy';
+    return value;
+  };
+  const numberValue = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+
   return orders.map((order) => {
     const pending = order.pendingSync === true;
+    const tracking = order.deliveryTracking || {};
+    const lockedReason = order.lockedReason || order.editLockReason || 'Không thể sửa/xóa trên app';
     const status = pending
       ? (order.status === 'conflict' ? 'Cần xử lý đồng bộ' : (order.status === 'failed' ? 'Đồng bộ thất bại' : 'Chờ đồng bộ'))
-      : (order.canEdit ? 'Có thể sửa' : (order.editLockReason || 'Đã khóa sửa'));
+      : (order.canEdit ? 'Có thể sửa' : lockedReason);
     const error = pending && order.syncError ? `<div class="mobile-inline-error">${escapeHtml(order.syncError)}</div>` : '';
+    const orderKey = String(order.id || order.orderId || order.code || '').trim();
+    const printUrl = String(order.printUrl || (orderKey ? `/api/mobile/sales/orders/${encodeURIComponent(orderKey)}/print.pdf` : '')).trim();
+    const totalAmount = numberValue(tracking.totalAmount ?? order.totalAmount);
+    const collectedAmount = numberValue(tracking.collectedAmount ?? order.collectedAmount ?? order.paidAmount);
+    const cashAmount = numberValue(tracking.cashAmount ?? order.cashAmount);
+    const bankAmount = numberValue(tracking.bankAmount ?? order.bankAmount);
+    const bonusAmount = numberValue(tracking.bonusAmount ?? tracking.rewardAmount ?? order.bonusAmount ?? order.rewardAmount);
+    const returnAmount = numberValue(tracking.returnAmount ?? order.returnAmount);
+    const remainingDebt = numberValue(tracking.remainingDebt ?? order.remainingDebt ?? order.orderRemainingDebt ?? order.debtAmount);
+    const deliveryStatus = statusLabel(tracking.deliveryStatus || order.deliveryStatus || order.lifecycleStatus || order.status || 'pending');
+    const accountingStatus = statusLabel(tracking.accountingStatus || order.accountingStatus || (tracking.accountingConfirmed ? 'accounting_confirmed' : 'pending'));
+    const trackingSource = tracking.source ? `<span>Nguồn: ${escapeHtml(tracking.source)}</span>` : '';
+    const viewButton = !pending && printUrl
+      ? `<a class="primary-btn small-btn" data-view-order="${escapeHtml(orderKey)}" href="${escapeHtml(printUrl)}" target="_blank" rel="noopener">Xem đơn</a>`
+      : '';
+    const editDeleteButtons = !pending && order.canEdit
+      ? `<button type="button" class="ghost-btn small-btn" data-edit-order="${escapeHtml(orderKey)}">Chỉnh sửa</button><button type="button" class="danger-btn small-btn" data-delete-order="${escapeHtml(orderKey)}" data-order-code="${escapeHtml(order.code || order.orderCode || '')}">Xóa</button>`
+      : `<span class="muted mobile-order-lock-note">${escapeHtml(pending ? 'Đơn được giữ an toàn trên thiết bị.' : lockedReason)}</span>`;
+
     return `
       <article class="order-item mobile-order-card ${pending ? 'pending-sync-order' : ''}">
         <div class="mobile-order-heading">
-          <div><strong>${escapeHtml(order.code || '')}</strong><span>${escapeHtml(order.customerCode || '')}${order.customerCode && order.customerName ? ' · ' : ''}${escapeHtml(order.customerName || '')}</span></div>
+          <div><strong>${escapeHtml(order.code || order.orderCode || '')}</strong><span>${escapeHtml(order.customerCode || '')}${order.customerCode && order.customerName ? ' · ' : ''}${escapeHtml(order.customerName || '')}</span></div>
           <span class="order-status-badge ${pending ? 'sync' : (order.canEdit ? 'editable' : 'locked')}">${escapeHtml(status)}</span>
         </div>
-        <div class="mobile-order-metrics">
-          <span><small>Ngày</small><strong>${escapeHtml(formatDate(order.date))}</strong></span>
-          <span><small>Tổng</small><strong>${money(order.totalAmount)}</strong></span>
-          <span><small>Đã thu</small><strong>${money(order.paidAmount)}</strong></span>
-          <span><small>Còn nợ</small><strong>${money(order.debtAmount)}</strong></span>
+        <div class="mobile-order-metrics mobile-order-tracking-metrics">
+          <span><small>Ngày</small><strong>${escapeHtml(formatDate(order.date || order.orderDate))}</strong></span>
+          <span><small>Tổng đơn</small><strong>${money(totalAmount)}</strong></span>
+          <span><small>Đã thu</small><strong>${money(collectedAmount)}</strong></span>
+          <span><small>Hàng trả</small><strong>${money(returnAmount)}</strong></span>
+          <span><small>Trả thưởng</small><strong>${money(bonusAmount)}</strong></span>
+          <span><small>Còn nợ</small><strong>${money(remainingDebt)}</strong></span>
+        </div>
+        <div class="mobile-order-tracking-line">
+          <span>TM: ${money(cashAmount)}</span>
+          <span>CK: ${money(bankAmount)}</span>
+          ${trackingSource}
+        </div>
+        <div class="mobile-order-status-line">
+          <span>Giao: <strong>${escapeHtml(deliveryStatus)}</strong></span>
+          <span>Kế toán: <strong>${escapeHtml(accountingStatus)}</strong></span>
         </div>
         ${error}
         <div class="row-actions mobile-order-actions">
-          ${!pending && order.canEdit
-            ? `<button type="button" class="ghost-btn small-btn" data-edit-order="${escapeHtml(order.id || order.code)}">Chỉnh sửa</button><button type="button" class="danger-btn small-btn" data-delete-order="${escapeHtml(order.id || order.code)}" data-order-code="${escapeHtml(order.code)}">Xóa</button>`
-            : `<span class="muted">${escapeHtml(pending ? 'Đơn được giữ an toàn trên thiết bị.' : (order.editLockReason || 'Không thể sửa/xóa trên app'))}</span>`}
+          ${viewButton}
+          ${editDeleteButtons}
         </div>
       </article>`;
   }).join('');

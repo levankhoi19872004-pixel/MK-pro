@@ -379,22 +379,31 @@
     const totals = facet.totals?.[0] || {};
     const visibleRows = (facet.rows || []).filter((order) => orderStatusUtil.isOrderVisibleInHistory(order));
     const customerCodes = Array.from(new Set(visibleRows.map((order) => String(order.customerCode || '').trim()).filter(Boolean)));
-    const debtMap = await arDebtRuntimeView.getCustomerDebtMap(customerCodes, { status: 'all' });
+    const [debtMap, trackingMap] = await Promise.all([
+      arDebtRuntimeView.getCustomerDebtMap(customerCodes, { status: 'all' }),
+      buildMobileSalesOrderTrackingSummaries(visibleRows)
+    ]);
     const items = visibleRows.map((order) => {
       const runtimeDebt = debtMap.get(String(order.customerCode || '').trim()) || arDebtRuntimeView._internal.emptyCustomerDebt(order.customerCode || '');
-      return {
+      const editLockReason = mobileSalesOrderEditLockReason(order);
+      const tracking = trackingMap.get(order.id || order.code || String(order._id || ''));
+      const baseOrder = {
         id: order.id || String(order._id || ''),
         code: order.code,
         date: order.date || order.orderDate,
         customerName: order.customerName,
         totalAmount: toNumber(order.totalAmount ?? order.amount ?? order.grandTotal),
-        paidAmount: toNumber(order.paidAmount ?? order.paymentAmount),
-        debtAmount: runtimeDebt.currentDebtAmount,
+        paidAmount: tracking ? tracking.collectedAmount : toNumber(order.paidAmount ?? order.paymentAmount),
+        debtAmount: tracking ? tracking.remainingDebt : 0,
         currentDebtAmount: runtimeDebt.currentDebtAmount,
-        debtSource: runtimeDebt.debtSource,
+        customerDebtAmount: runtimeDebt.currentDebtAmount,
+        debtSource: tracking ? tracking.source : runtimeDebt.debtSource,
+        customerDebtSource: runtimeDebt.debtSource,
         status: order.status,
         lifecycleStatus: order.lifecycleStatus || order.status || '',
         deliveryStatus: order.deliveryStatus || 'pending',
+        accountingStatus: order.accountingStatus || '',
+        accountingConfirmed: order.accountingConfirmed === true,
         deleted: Boolean(order.deleted),
         isDeleted: Boolean(order.isDeleted),
         deletedAt: order.deletedAt || '',
@@ -403,8 +412,8 @@
         masterOrderId: order.masterOrderId || '',
         masterOrderCode: order.masterOrderCode || '',
         mergeStatus: order.mergeStatus || 'unmerged',
-        canEdit: mobileSalesOrderCanEdit(order),
-        editLockReason: mobileSalesOrderEditLockReason(order),
+        canEdit: !editLockReason,
+        editLockReason,
         stockPosted: order.stockPosted === true,
         customerId: order.customerId,
         customerCode: order.customerCode,
@@ -424,8 +433,12 @@
         note: order.note || '',
         createdAt: order.createdAt
       };
+      return decorateMobileSalesOrderForTracking(baseOrder, tracking);
     });
-    const debtSummaryAmount = Array.from(debtMap.values()).reduce((sum, row) => sum + Number(row.currentDebtAmount || 0), 0);
+    const debtSummaryAmount = items.reduce((sum, row) => {
+      const debtValue = row.deliveryTracking ? row.deliveryTracking.remainingDebt : row.debtAmount;
+      return sum + Number(debtValue || 0);
+    }, 0);
 
     return {
       body: {
@@ -437,7 +450,7 @@
           totalAmount: toNumber(totals.totalAmount),
           paidAmount: toNumber(totals.paidAmount),
           debtAmount: debtSummaryAmount,
-          debtSource: arDebtRuntimeView.DEBT_SOURCE,
+          debtSource: 'MOBILE_SALES_ORDER_TRACKING_DERIVED',
           orderCount: toNumber(totals.orderCount)
         },
         pagination: buildPagination({ page, limit, totalRows: totals.orderCount || 0 })
@@ -475,6 +488,7 @@
   return {
     createSalesOrder,
     getSalesOrder,
+    renderSalesOrderPrintHtml,
     updateSalesOrder,
     deleteSalesOrder,
     listSalesOrders,

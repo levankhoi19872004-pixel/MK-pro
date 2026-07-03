@@ -51,7 +51,7 @@
         "src/services/mobile/sales.service.source/part-02.jsfrag",
         "src/services/mobile/sales.service.source/part-03.jsfrag"
       ],
-      "sourceSha256": "d74e646135670d31cbe086398e5440949f83667ba8c4efea562aed1edb0ad5d8"
+      "sourceSha256": "3b545269a0cc2c3a162f25ee6765170b5ec433773d1a9fc7cc2083f6ee277501"
     },
     {
       "target": "src/engines/delivery.legacy.engine.js",
