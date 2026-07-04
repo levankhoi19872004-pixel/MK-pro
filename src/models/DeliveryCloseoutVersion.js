@@ -64,6 +64,7 @@ module.exports = flexModel('DeliveryCloseoutVersion', 'deliveryCloseoutVersions'
   sourceType: String,
   idempotencyKey: String,
   reason: String,
+  auditReason: String,
   note: String,
   createdBy: String,
   createdAt: String,

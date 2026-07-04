@@ -245,13 +245,6 @@ function sumAdjustments(rows = []) {
 }
 
 function validateCorrectionInput(input = {}, calculated = {}) {
-  const reason = text(input.reason);
-  if (!reason) {
-    const err = new Error('Bắt buộc nhập lý do điều chỉnh.');
-    err.code = 'DELIVERY_CLOSEOUT_CORRECTION_REASON_REQUIRED';
-    err.status = 400;
-    throw err;
-  }
   const paymentLabels = {
     cash: 'Tiền mặt sau điều chỉnh',
     bank: 'Chuyển khoản sau điều chỉnh',
@@ -266,12 +259,16 @@ function validateCorrectionInput(input = {}, calculated = {}) {
       throw err;
     }
   }
-  if (!money(calculated.returnAdjustmentAmount) && !money(calculated.cashAdjustmentAmount)) {
-    const err = new Error('Không có chênh lệch hàng trả hoặc tiền thu để điều chỉnh.');
-    err.code = 'DELIVERY_CLOSEOUT_CORRECTION_EMPTY';
-    err.status = 400;
-    throw err;
-  }
+  // No-change corrections are intentionally allowed. They create an immutable
+  // closeout version/audit history without forcing a cash, bank, reward or return delta.
+}
+
+function correctionReason(input = {}) {
+  return text(input.reason ?? input.adjustReason ?? input.correctionReason ?? '');
+}
+
+function correctionAuditReason(input = {}) {
+  return correctionReason(input) || 'Điều chỉnh không ghi lý do';
 }
 
 function buildIdempotencyKey(input = {}, order = {}) {
@@ -283,7 +280,7 @@ function buildIdempotencyKey(input = {}, order = {}) {
     hash(stableJson(input.correctedCashLines || input.cashAdjustmentLines || [])),
     hash(stableJson(input.paymentCorrection || {})),
     hash(stableJson({ returnAdjustmentAmount: money(input.returnAdjustmentAmount), cashAdjustmentAmount: money(input.cashAdjustmentAmount), debtAdjustmentAmount: input.debtAdjustmentAmount === undefined ? null : money(input.debtAdjustmentAmount) })),
-    hash(text(input.reason))
+    hash(correctionReason(input))
   ].join(':');
 }
 
@@ -417,6 +414,7 @@ function buildVersionSnapshot(order = {}, baseSnapshot = {}, correction = {}, no
     sourceType: 'DELIVERY_CLOSEOUT_CORRECTION',
     idempotencyKey: correction.idempotencyKey,
     reason: text(correction.reason),
+    auditReason: text(correction.auditReason || correction.reason || 'Điều chỉnh không ghi lý do'),
     note: text(correction.note),
     createdBy: text(correction.createdBy),
     createdAt: now,
@@ -563,7 +561,8 @@ async function createCorrection(input = {}, options = {}) {
       debtAdjustmentAmount,
       returnAdjustmentItems,
       cashAdjustmentLines,
-      reason: text(input.reason),
+      reason: correctionReason(input),
+      auditReason: correctionAuditReason(input),
       note: text(input.note || ''),
       status: 'confirmed',
       sourceType: 'DELIVERY_CLOSEOUT_CORRECTION',
@@ -607,7 +606,7 @@ async function createCorrection(input = {}, options = {}) {
       debtAdjustmentAmount,
       returnAdjustmentAmount,
       cashAdjustmentAmount,
-      reason: correction.reason,
+      reason: correction.auditReason || correction.reason || 'Điều chỉnh không ghi lý do',
       correctedBy: actor,
       correctedAt: now,
       idempotencyKey: `AR-DEBT-ADJUSTMENT:${correctionId}`
@@ -622,6 +621,10 @@ async function createCorrection(input = {}, options = {}) {
       );
     }
 
+    const adjustmentMessage = ledgerEntry && ledgerEntry.code
+      ? `và AR-DEBT-ADJUSTMENT ${debtAdjustmentAmount >= 0 ? 'debit' : 'credit'} ${Math.abs(debtAdjustmentAmount)}`
+      : 'không sinh AR-DEBT-ADJUSTMENT vì không có chênh lệch công nợ';
+
     return {
       success: true,
       correction,
@@ -629,7 +632,7 @@ async function createCorrection(input = {}, options = {}) {
       newCloseout: newCloseoutVersion,
       arDebtAdjustmentLedger: ledgerEntry,
       arDebtAdjustment: adjustment,
-      message: `Đã tạo correction version ${newCloseoutVersionNo} và AR-DEBT-ADJUSTMENT ${debtAdjustmentAmount >= 0 ? 'debit' : 'credit'} ${Math.abs(debtAdjustmentAmount)}.`
+      message: `Đã tạo correction version ${newCloseoutVersionNo}; ${adjustmentMessage}.`
     };
   });
 }
@@ -706,6 +709,8 @@ module.exports = {
     previousDebtAmount,
     itemAdjustmentAmount,
     cashLineAdjustmentAmount,
+    correctionReason,
+    correctionAuditReason,
     validateCorrectionInput
   }
 };

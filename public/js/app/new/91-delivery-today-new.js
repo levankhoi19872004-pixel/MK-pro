@@ -1565,7 +1565,7 @@
         modalNoticeHtml('adjustment') +
         '<div id="deliveryTodayNewAdjustmentContent" class="delivery-new-tab-panel"></div>' +
         '<div class="delivery-new-modal-footer">' +
-          '<label>Lý do điều chỉnh<input id="deliveryAdjustmentReason" placeholder="Vui lòng nhập lý do điều chỉnh"></label>' +
+          '<label>Lý do điều chỉnh / tùy chọn<input id="deliveryAdjustmentReason" placeholder="Có thể để trống"></label>' +
           '<label>Ghi chú<input id="deliveryAdjustmentNote" placeholder="Ghi chú thêm nếu có"></label>' +
           '<button type="button" id="deliveryAdjustmentClose" class="secondary">Đóng</button>' +
           '<button type="button" id="deliveryAdjustmentSave" class="primary-action">Lưu điều chỉnh</button>' +
@@ -1609,8 +1609,6 @@
     var noteEl = byId('deliveryAdjustmentNote');
     var reason = reasonEl ? reasonEl.value.trim() : '';
     var note = noteEl ? noteEl.value.trim() : '';
-    if (!reason) { setModalError('adjustment', 'Vui lòng nhập lý do điều chỉnh.'); return; }
-
     var totals = totalsFromPopup(row);
     if (totals.newCash < 0) { setModalError('adjustment', 'Tiền mặt sau điều chỉnh không được âm.'); return; }
     if (totals.newBank < 0) { setModalError('adjustment', 'Chuyển khoản sau điều chỉnh không được âm.'); return; }
@@ -1623,10 +1621,6 @@
       { paymentMethod: 'reward', oldAmount: totals.oldReward, newAmount: totals.newReward, adjustmentAmount: totals.newReward - totals.oldReward }
     ].filter(function (line) { return num(line.adjustmentAmount) !== 0; });
 
-    if (!correctedReturnItems.length && !cashLines.length) {
-      setModalError('adjustment', 'Không có chênh lệch để điều chỉnh.');
-      return;
-    }
     if (correctedReturnItems.some(function (item) { return qty(item.newReturnQty) < 0; })) {
       setModalError('adjustment', 'Số lượng trả không được âm.');
       return;

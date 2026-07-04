@@ -62,6 +62,7 @@ module.exports = flexModel('DeliveryCloseoutCorrection', 'deliveryCloseoutCorrec
   cashAdjustmentLines: Array,
 
   reason: String,
+  auditReason: String,
   note: String,
   status: String,
   sourceType: String,
