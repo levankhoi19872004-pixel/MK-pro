@@ -578,6 +578,15 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
   const closeoutFinalDebt = latestVersion
     ? finalDebtAmount
     : (closeout.finalDebtAmount !== undefined ? normalizeDebtAmount(closeout.finalDebtAmount) : finalDebtAmount);
+  const confirmedCloseout = isConfirmedCloseout(order);
+  const orderStatus = text(order.status || order.deliveryStatus || order.lifecycleStatus).toLowerCase();
+  const cancelledOrDeleted = order.deleted === true
+    || order.isDeleted === true
+    || order.cancelled === true
+    || order.canceled === true
+    || ['cancelled', 'canceled', 'deleted', 'void', 'voided'].includes(orderStatus);
+  const viewSelectable = !cancelledOrDeleted;
+  const closeoutEligible = viewSelectable && !confirmedCloseout;
   return {
     id: text(order.id || order._id),
     orderId: text(order.id || order._id),
@@ -594,8 +603,14 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     orderItems: compactOrderItems(order.orderItems || order.items || order.soldItems || order.products || order.lines || []),
     soldItems: compactOrderItems(order.soldItems || order.items || order.orderItems || order.products || order.lines || []),
     closeoutStatus: latestVersion ? text(latestVersion.status || 'corrected_confirmed') : closeoutStatus(order),
-    deliveryCloseoutStatus: isConfirmedCloseout(order) ? 'closed' : text(order.deliveryCloseoutStatus || closeout.deliveryCloseoutStatus || ''),
-    accountingConfirmed: isConfirmedCloseout(order),
+    deliveryCloseoutStatus: confirmedCloseout ? 'closed' : text(order.deliveryCloseoutStatus || closeout.deliveryCloseoutStatus || ''),
+    accountingConfirmed: confirmedCloseout,
+    viewSelectable,
+    closeoutEligible,
+    adjustmentAllowed: viewSelectable,
+    closeoutLocked: confirmedCloseout,
+    canCloseout: closeoutEligible,
+    canAdjust: viewSelectable,
     correctionVersionApplied: Boolean(latestVersion),
     correctionId: latestVersion ? text(latestVersion.correctionId) : '',
     correctionCode: latestVersion ? text(latestVersion.correctionCode) : '',
@@ -637,8 +652,8 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     paymentIds: Array.isArray(closeout.paymentIds) ? closeout.paymentIds : [],
     version: latestVersion ? Number(latestVersion.closeoutVersion || 0) : Number(closeout.version || (Array.isArray(closeout.versions) ? closeout.versions.length : 0) || 0),
     source: latestVersion ? 'deliveryCloseoutVersions + AR-DEBT-ADJUSTMENT' : 'salesOrders.deliveryCloseout + returnOrders',
-    correctionRequired: isConfirmedCloseout(order),
-    correctionMessage: isConfirmedCloseout(order) ? 'Đơn đã xác nhận kế toán: mọi sửa đổi phải qua correction flow.' : ''
+    correctionRequired: confirmedCloseout,
+    correctionMessage: confirmedCloseout ? 'Đơn đã xác nhận kế toán: mọi sửa đổi phải qua correction flow.' : ''
   };
 }
 

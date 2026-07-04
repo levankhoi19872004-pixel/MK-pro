@@ -14,7 +14,7 @@ function bodyOf(functionName, nextFunctionName) {
   return source.slice(start, end === -1 ? source.length : end);
 }
 
-test('checking or unchecking an NVBH selects or removes its selectable orders', () => {
+test('checking or unchecking an NVBH selects or removes its view-selectable orders', () => {
   const body = bodyOf('toggleSalesmanSelection', 'renderSalesmanGroupPanel');
   assert.match(body, /state\.selectedSalesmanKeys\[key\]\s*=\s*Boolean\(checked\)/);
   assert.match(body, /selectGroupOrders\(group, Boolean\(checked\)\)/);
@@ -30,7 +30,7 @@ test('manual order checkbox updates NVBH checkbox state and KPI', () => {
   assert.match(body, /renderSalesmanGroupPanel\(\)/);
 });
 
-test('default load ticks all NVBH and selects selectable orders for closeout', () => {
+test('default load ticks all NVBH and selects view-selectable orders for tracking', () => {
   assert.match(source, /state\.salesmanGroups\.forEach\(function \(group\) \{ state\.selectedSalesmanKeys\[group\.key\] = true; \}\);\n\s*selectDefaultOrdersForSelectedSalesmen\(\);/);
   const body = bodyOf('selectDefaultOrdersForSelectedSalesmen', 'pruneSelectedOrderIds');
   assert.match(body, /state\.selectedOrderIds = new Set\(\)/);
@@ -54,5 +54,5 @@ test('unselecting all NVBH gives an empty selected-state message and disabled cl
   assert.match(renderRowsBody, /!visibleRows\.length/);
   assert.match(renderRowsBody, /delivery-new-no-salesman-selected/);
   const canCloseoutBody = bodyOf('canCloseoutSelectedOrders', 'applySelectedSalesmanFilter');
-  assert.match(canCloseoutBody, /getSelectedOrders\(\)\.length > 0/);
+  assert.match(canCloseoutBody, /selectedCloseoutRows\(\)\.length > 0/);
 });

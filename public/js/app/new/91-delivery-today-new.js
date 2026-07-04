@@ -115,7 +115,7 @@
           '<div class="delivery-v46-panel-title delivery-v46-panel-title-with-actions delivery-new-orders-toolbar"><h3>Danh sách đơn</h3><div class="delivery-v46-list-actions delivery-new-closeout-toolbar"><span id="deliveryTodayNewOrderCount">0 đơn</span><span id="deliveryTodayNewSelectionCount" class="delivery-new-selection-count">0 đơn được chọn</span><button id="deliveryTodayNewSelectAllOrders" type="button" class="secondary">Chọn tất cả</button><button id="deliveryTodayNewClearOrders" type="button" class="secondary">Bỏ chọn</button><button id="deliveryTodayNewCloseout" type="button" class="primary-action delivery-new-closeout-btn" disabled>Chốt sổ giao hàng</button></div></div>' +
           '<div class="delivery-new-orders-table">' +
             '<div class="delivery-new-orders-header delivery-new-order-grid" role="row">' +
-              '<div class="delivery-new-order-cell delivery-new-order-checkbox-cell"><input id="deliveryTodayNewHeaderSelectAllOrders" type="checkbox" aria-label="Chọn tất cả đơn có thể chốt"></div>' +
+              '<div class="delivery-new-order-cell delivery-new-order-checkbox-cell"><input id="deliveryTodayNewHeaderSelectAllOrders" type="checkbox" aria-label="Chọn tất cả đơn để xem KPI"></div>' +
               '<div class="delivery-new-order-cell delivery-new-order-customer-cell">Đơn / Khách hàng</div>' +
               '<div class="delivery-new-order-cell delivery-new-staff-cell">NVBH</div>' +
               '<div class="delivery-new-order-cell delivery-new-money-cell">Phải thu</div>' +
@@ -740,8 +740,28 @@
 
   function orderSelectionKey(row) { return rowKey(row); }
 
+  function orderCancelledOrDeleted(row) {
+    if (!row) return true;
+    var status = String(row.status || row.deliveryStatus || row.lifecycleStatus || '').toLowerCase();
+    return row.deleted === true || row.isDeleted === true || row.cancelled === true || row.canceled === true || ['cancelled', 'canceled', 'deleted', 'void', 'voided'].indexOf(status) >= 0;
+  }
+
+  function isViewSelectableOrder(row) {
+    return Boolean(row && orderSelectionKey(row) && row.viewSelectable !== false && !orderCancelledOrDeleted(row));
+  }
+
+  function isCloseoutEligibleOrder(row) {
+    if (!isViewSelectableOrder(row)) return false;
+    var closeoutLocked = row.closeoutLocked === true || row.deliveryCloseoutLocked === true || row.accountingLocked === true;
+    var alreadyClosed = closeoutLocked || isConfirmed(row);
+    if (alreadyClosed) return false;
+    if (row.closeoutEligible === false || row.canCloseout === false) return false;
+    if (row.closeoutEligible === true || row.canCloseout === true) return true;
+    return true;
+  }
+
   function isOrderSelectable(row) {
-    return Boolean(row && orderSelectionKey(row) && !isConfirmed(row));
+    return isViewSelectableOrder(row);
   }
 
   function isOrderSelected(row) {
@@ -749,11 +769,11 @@
   }
 
   function getSelectableVisibleRows() {
-    return getVisibleRowsBySelectedSalesmen().filter(isOrderSelectable);
+    return getVisibleRowsBySelectedSalesmen().filter(isViewSelectableOrder);
   }
 
   function groupSelectableRows(group) {
-    return ((group && group.orders) || []).filter(isOrderSelectable);
+    return ((group && group.orders) || []).filter(isViewSelectableOrder);
   }
 
   function groupSelectedCount(group) {
@@ -791,7 +811,7 @@
   }
 
   function pruneSelectedOrderIds(visibleRows) {
-    var allowed = new Set((visibleRows || getVisibleRowsBySelectedSalesmen()).filter(isOrderSelectable).map(orderSelectionKey));
+    var allowed = new Set((visibleRows || getVisibleRowsBySelectedSalesmen()).filter(isViewSelectableOrder).map(orderSelectionKey));
     var selected = ensureSelectedOrderSet();
     Array.from(selected).forEach(function (key) { if (!allowed.has(key)) selected.delete(key); });
   }
@@ -834,7 +854,7 @@
 
   function getSelectedOrders() {
     var selected = ensureSelectedOrderSet();
-    return getVisibleRowsBySelectedSalesmen().filter(function (row) { return isOrderSelectable(row) && selected.has(orderSelectionKey(row)); });
+    return getVisibleRowsBySelectedSalesmen().filter(function (row) { return isViewSelectableOrder(row) && selected.has(orderSelectionKey(row)); });
   }
 
   function getSelectedCloseoutSummary() {
@@ -842,7 +862,7 @@
   }
 
   function canCloseoutSelectedOrders() {
-    return getSelectedOrders().length > 0 && !state.closeoutBusy;
+    return selectedCloseoutRows().length > 0 && !state.closeoutBusy;
   }
 
   function applySelectedSalesmanFilter() {
@@ -875,7 +895,7 @@
     }
     var selected = selectedSalesmanSet();
     var selectedCount = groups.filter(function (group) { return selected[group.key]; }).length;
-    var header = '<div class="delivery-new-salesman-compact-header"><div><h3>NVBH thuộc NVGH đang chọn</h3><small>Tick trực tiếp từng NVBH. KPI tổng và danh sách đơn tính theo các đơn đang được chọn để chốt.</small></div><small>Đang chọn ' + selectedCount + '/' + groups.length + ' NVBH</small></div>';
+    var header = '<div class="delivery-new-salesman-compact-header"><div><h3>NVBH thuộc NVGH đang chọn</h3><small>Tick trực tiếp từng NVBH. KPI tổng và danh sách đơn tính theo các đơn đang chọn để xem/theo dõi.</small></div><small>Đang chọn ' + selectedCount + '/' + groups.length + ' NVBH</small></div>';
     var head = '<div class="delivery-new-salesman-grid delivery-new-salesman-grid-head" role="row">' +
       '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-check-cell">Chọn</div>' +
       '<div class="delivery-new-salesman-grid-cell">NVBH</div>' +
@@ -938,14 +958,18 @@
 
   function renderOrderRow(row) {
     var confirmed = isConfirmed(row);
-    var selectable = isOrderSelectable(row);
+    var viewSelectable = isViewSelectableOrder(row);
+    var closeoutEligible = isCloseoutEligibleOrder(row);
     var key = orderSelectionKey(row);
     var checked = isOrderSelected(row) ? ' checked' : '';
-    var disabled = selectable ? '' : ' disabled';
+    var disabled = viewSelectable ? '' : ' disabled';
     var selectedClass = checked ? ' selected' : '';
     var debtClass = num(row.finalDebtAmount) > 0 ? 'delivery-new-debt' : 'delivery-new-zero';
+    var checkboxTitle = viewSelectable
+      ? (closeoutEligible ? 'Chọn đơn để xem KPI và đưa vào phạm vi có thể chốt' : 'Chọn đơn để xem KPI/theo dõi; đơn này không còn có thể chốt lại')
+      : 'Đơn không đủ điều kiện chọn để xem';
     return '<div data-order-key="' + esc(key) + '" class="delivery-new-row delivery-new-order-row delivery-new-order-grid' + selectedClass + '" role="row">' +
-      '<label class="delivery-new-order-cell delivery-new-order-checkbox delivery-new-order-checkbox-cell" title="' + esc(selectable ? 'Chọn đơn để chốt sổ' : 'Đơn đã chốt hoặc không đủ điều kiện chọn') + '"><input type="checkbox" class="deliveryTodayNewOrderSelect" data-order-key="' + esc(key) + '"' + checked + disabled + '></label>' +
+      '<label class="delivery-new-order-cell delivery-new-order-checkbox delivery-new-order-checkbox-cell" title="' + esc(checkboxTitle) + '"><input type="checkbox" class="deliveryTodayNewOrderSelect" data-order-key="' + esc(key) + '"' + checked + disabled + '></label>' +
       '<span class="delivery-new-order-cell delivery-new-order-customer-cell"><b>' + esc(row.orderCode || row.orderId) + '</b><small>' + esc(row.customerName || '') + ' · ' + esc(row.customerCode || '') + '</small></span>' +
       '<span class="delivery-new-order-cell delivery-new-staff-cell" title="' + esc(salesmanLabel(row)) + '">' + esc(salesmanLabel(row)) + '</span>' +
       '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + moneyDash(row.originalAmount) + '</span>' +
@@ -965,17 +989,20 @@
     var selectAll = byId('deliveryTodayNewSelectAllOrders');
     var clearAll = byId('deliveryTodayNewClearOrders');
     var visible = visibleRows || getVisibleRowsBySelectedSalesmen();
-    var selectable = visible.filter(isOrderSelectable);
-    var selectedCount = getSelectedOrders().length;
-    if (countEl) countEl.textContent = visible.length + ' đơn';
-    if (selectedEl) selectedEl.textContent = selectedCount + ' đơn được chọn / ' + selectable.length + ' đơn có thể chốt';
-    if (selectAll) selectAll.disabled = !selectable.length || selectedCount === selectable.length;
+    var viewSelectable = visible.filter(isViewSelectableOrder);
+    var selectedOrders = getSelectedOrders();
+    var selectedCount = selectedOrders.length;
+    var selectedCloseoutCount = selectedOrders.filter(isCloseoutEligibleOrder).length;
+    var closedCount = visible.filter(isConfirmed).length;
+    if (countEl) countEl.textContent = 'Tổng đơn: ' + visible.length;
+    if (selectedEl) selectedEl.textContent = 'Đang chọn: ' + selectedCount + ' · Có thể chốt: ' + selectedCloseoutCount + ' · Đã chốt: ' + closedCount;
+    if (selectAll) selectAll.disabled = !viewSelectable.length || selectedCount === viewSelectable.length;
     if (clearAll) clearAll.disabled = !selectedCount;
     var headerCheck = byId('deliveryTodayNewHeaderSelectAllOrders');
     if (headerCheck) {
-      headerCheck.disabled = !selectable.length;
-      headerCheck.checked = Boolean(selectable.length && selectedCount === selectable.length);
-      headerCheck.indeterminate = Boolean(selectedCount > 0 && selectedCount < selectable.length);
+      headerCheck.disabled = !viewSelectable.length;
+      headerCheck.checked = Boolean(viewSelectable.length && selectedCount === viewSelectable.length);
+      headerCheck.indeterminate = Boolean(selectedCount > 0 && selectedCount < viewSelectable.length);
     }
   }
 
@@ -1021,7 +1048,7 @@
   }
 
   function selectedCloseoutRows() {
-    return getSelectedOrders();
+    return getSelectedOrders().filter(isCloseoutEligibleOrder);
   }
 
   function closeoutSummary(rows) {
@@ -1044,11 +1071,14 @@
   function updateCloseoutButton() {
     var btn = byId('deliveryTodayNewCloseout');
     if (!btn) return;
+    var selectedRows = state.hasSearched ? getSelectedOrders() : [];
     var rows = state.hasSearched ? selectedCloseoutRows() : [];
     var summary = closeoutSummary(rows);
     btn.disabled = !canCloseoutSelectedOrders();
     btn.textContent = state.closeoutBusy ? 'Đang chốt...' : ('Chốt sổ giao hàng' + (rows.length ? ' (' + rows.length + ')' : ''));
-    btn.title = rows.length ? ('Chuyển CN còn lại sang AR-DEBT: ' + money(summary.totalDebt)) : 'Vui lòng chọn ít nhất một đơn để chốt sổ.';
+    if (!selectedRows.length) btn.title = 'Vui lòng chọn ít nhất một đơn để chốt sổ.';
+    else if (!rows.length) btn.title = 'Các đơn đang chọn đều đã chốt sổ hoặc không còn có thể chốt.';
+    else btn.title = 'Chuyển CN còn lại sang AR-DEBT: ' + money(summary.totalDebt);
     updateOrderSelectionToolbar(getVisibleRowsBySelectedSalesmen());
   }
 
@@ -1061,8 +1091,10 @@
   function openCloseoutModal() {
     var modal = byId('deliveryTodayNewCloseoutModal');
     if (!modal) return;
+    var selectedRows = getSelectedOrders();
     var rows = selectedCloseoutRows();
-    if (!rows.length) { setMessage('Vui lòng chọn ít nhất một đơn để chốt sổ.', true); return; }
+    if (!selectedRows.length) { setMessage('Vui lòng chọn ít nhất một đơn để chốt sổ.', true); return; }
+    if (!rows.length) { setMessage('Các đơn đang chọn đều đã chốt sổ hoặc không còn có thể chốt.', true); return; }
     clearModalNotice('closeout');
     var summary = closeoutSummary(rows);
     var f = filters();
@@ -1075,7 +1107,7 @@
           detailCell('Ngày giao', f.date || 'Theo bộ lọc') +
           detailCell('NVGH', f.delivery || 'Theo bộ lọc') +
           detailCell('NVBH đã chọn', selectedGroups.length + '/' + (state.salesmanGroups || []).length) +
-          detailCell('Số đơn đã chọn', summary.orderCount) +
+          detailCell('Số đơn có thể chốt', summary.orderCount) +
           detailCell('Tổng phải thu', money(summary.originalAmount)) +
           detailCell('Tổng tiền mặt', money(summary.cashAmount)) +
           detailCell('Tổng chuyển khoản', money(summary.bankAmount)) +
@@ -1104,7 +1136,7 @@
     var rows = selectedCloseoutRows();
     var reasonEl = byId('deliveryCloseoutReason');
     var reason = reasonEl ? reasonEl.value.trim() : '';
-    if (!rows.length) { setModalError('closeout', 'Không có đơn trong phạm vi chốt.'); return; }
+    if (!rows.length) { setModalError('closeout', 'Không có đơn nào còn có thể chốt trong các đơn đang chọn.'); return; }
     if (!reason) { setModalError('closeout', 'Vui lòng nhập lý do chốt sổ.'); return; }
     var f = filters();
     var salesStaffCodes = (state.salesmanGroups || [])
@@ -1553,7 +1585,7 @@
             '<small>NVBH: ' + esc((row.salesStaffCode || '') + ' - ' + (row.salesStaffName || '')) + ' · NVGH: ' + esc((row.deliveryStaffCode || '') + ' - ' + (row.deliveryStaffName || '')) + ' · Ngày giao: ' + esc(row.deliveryDate || '') + ' · Trạng thái: ' + esc(statusLabel(row)) + '</small></div>' +
           '<button type="button" id="deliveryTodayNewModalCloseTop" class="delivery-new-modal-close" aria-label="Đóng modal điều chỉnh đơn giao">Đóng</button>' +
         '</div>' +
-        (isConfirmed(row) ? '<div class="delivery-new-safe-note">Đơn đã chốt sổ/xác nhận kế toán. Mọi thay đổi sẽ tạo version mới, không sửa bản cũ.</div><div class="delivery-new-safe-note">Đơn đã chốt sổ. Tab Thu tiền cho phép tạo correction tiền thu; các tab khác dùng để kiểm tra dữ liệu trước khi lưu.</div>' : '<div class="delivery-new-safe-note">Đơn chưa xác nhận kế toán. Vui lòng xử lý hàng trả ở luồng giao hàng hiện tại.</div>') +
+        (isConfirmed(row) ? '<div class="delivery-new-safe-note">Đơn đã chốt sổ/xác nhận kế toán. Mọi thay đổi sẽ tạo version mới, không sửa bản cũ.</div><div class="delivery-new-safe-note">Đơn đã chốt sổ. Tab Thu tiền cho phép tạo correction tiền thu; các tab khác dùng để kiểm tra dữ liệu trước khi lưu.</div>' : '<div class="delivery-new-safe-note">Đơn chưa chốt sổ. Admin/kế toán có thể cập nhật trạng thái thu tiền hiện tại trước khi chốt.</div>') +
         '<div class="delivery-new-tabs">' +
           tabButton('overview', 'Tổng quan') +
           tabButton('delivery', 'Hàng giao') +
@@ -1601,10 +1633,6 @@
   }
 
   async function submitAdjustmentPopup(row) {
-    if (!isConfirmed(row)) {
-      setModalError('adjustment', 'Đơn chưa xác nhận kế toán. Vui lòng xử lý hàng trả ở luồng giao hàng hiện tại.');
-      return;
-    }
     var reasonEl = byId('deliveryAdjustmentReason');
     var noteEl = byId('deliveryAdjustmentNote');
     var reason = reasonEl ? reasonEl.value.trim() : '';
@@ -1657,7 +1685,7 @@
       });
       var json = await res.json();
       if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tạo được điều chỉnh');
-      setModalNotice('adjustment', 'Đã lưu điều chỉnh và tạo version mới.', 'success');
+      setModalNotice('adjustment', json.message || 'Đã lưu điều chỉnh.', 'success');
       await load({ silent: true });
     } catch (err) {
       setModalError('adjustment', err.message || 'Không tạo được điều chỉnh');

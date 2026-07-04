@@ -151,6 +151,36 @@ function previousPaymentState(snapshot = {}, order = {}) {
   return { receivableAmount, returnAmount, cashAmount, bankAmount, rewardAmount, collectedAmount, debtAmount };
 }
 
+
+function firstOrderMoney(source = {}, keys = [], fallbackValue = 0) {
+  for (const key of keys) {
+    if (hasOwnValue(source, key)) return money(source[key]);
+  }
+  return money(fallbackValue);
+}
+
+function openOrderPaymentState(order = {}) {
+  const closeout = closeoutOf(order);
+  const receivableAmount = saleAmount(order, closeout);
+  const returnAmount = firstOrderMoney(closeout, ['returnAmount', 'returnedAmount'], firstOrderMoney(order, ['returnAmount', 'returnedAmount', 'returnOrderAmount'], 0));
+  const cashAmount = firstOrderMoney(closeout, ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount'], firstOrderMoney(order, ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount', 'paidCashAmount'], 0));
+  const bankAmount = firstOrderMoney(closeout, ['bankAmount', 'bankTransferAmount', 'transferAmount'], firstOrderMoney(order, ['bankAmount', 'bankTransferAmount', 'transferAmount', 'paidBankAmount'], 0));
+  const rewardAmount = firstOrderMoney(closeout, ['rewardAmount', 'bonusAmount', 'allowanceAmount'], firstOrderMoney(order, ['rewardAmount', 'bonusAmount', 'allowanceAmount'], 0));
+  const debtCalculation = calculateDeliveryDebtAmount({
+    receivableAmount,
+    cashAmount,
+    bankAmount,
+    rewardAmount,
+    returnAmount
+  });
+  const explicitDebt = closeout.finalDebtAmount ?? closeout.debtAmount;
+  const debtAmount = explicitDebt !== undefined && explicitDebt !== null && explicitDebt !== ''
+    ? normalizeDebtAmount(explicitDebt)
+    : money(debtCalculation.debtAmount);
+  const collectedAmount = money(cashAmount + bankAmount + rewardAmount);
+  return { receivableAmount, returnAmount, cashAmount, bankAmount, rewardAmount, collectedAmount, debtAmount };
+}
+
 function paymentMethodOf(line = {}) {
   const method = text(line.paymentMethod || line.method || line.type || 'cash').toLowerCase();
   if (['bank', 'transfer', 'ck', 'wire', 'bank_transfer'].includes(method)) return 'bank';
@@ -443,11 +473,181 @@ async function loadIdempotentResult(correction = {}, options = {}) {
   return { idempotent: true, correction, newCloseoutVersion, arDebtAdjustmentLedger };
 }
 
+
+async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
+  const session = options.session;
+  const now = options.now || dateUtil.nowIso();
+  const actor = actorName(input.actor || options.actor || input.createdBy || input.correctedBy || 'accountant');
+  const currentState = openOrderPaymentState(order);
+  const returnAdjustmentItems = normalizeReturnAdjustmentItems(input.correctedReturnItems || input.returnAdjustmentItems || []);
+  const rawCashLines = input.correctedCashLines || input.cashAdjustmentLines || [];
+  const explicitReturnAdjustment = input.returnAdjustmentAmount !== undefined ? money(input.returnAdjustmentAmount) : null;
+  const returnAdjustmentAmount = money(explicitReturnAdjustment === null ? sumAdjustments(returnAdjustmentItems) : explicitReturnAdjustment);
+  const newReturnAmount = money(currentState.returnAmount + returnAdjustmentAmount);
+  const nextPaymentState = finalPaymentStateFromInput(input, rawCashLines, currentState);
+  const cashAdjustmentLines = buildFinalPaymentLines(currentState, nextPaymentState);
+  const cashDeltaAmount = money(nextPaymentState.cashAmount - currentState.cashAmount);
+  const bankDeltaAmount = money(nextPaymentState.bankAmount - currentState.bankAmount);
+  const rewardDeltaAmount = money(nextPaymentState.rewardAmount - currentState.rewardAmount);
+  const cashAdjustmentAmount = money(cashDeltaAmount + bankDeltaAmount + rewardDeltaAmount);
+  const debtCalculation = calculateDeliveryDebtAmount({
+    receivableAmount: currentState.receivableAmount,
+    cashAmount: nextPaymentState.cashAmount,
+    bankAmount: nextPaymentState.bankAmount,
+    rewardAmount: nextPaymentState.rewardAmount,
+    returnAmount: newReturnAmount
+  });
+  const newDebtAmount = money(debtCalculation.debtAmount);
+  const debtAdjustmentAmount = money(newDebtAmount - currentState.debtAmount);
+  const calculated = {
+    returnAdjustmentItems,
+    cashAdjustmentLines,
+    returnAdjustmentAmount,
+    cashAdjustmentAmount,
+    debtAdjustmentAmount,
+    currentState,
+    finalState: { ...nextPaymentState, returnAmount: newReturnAmount, debtAmount: newDebtAmount }
+  };
+  validateCorrectionInput(input, calculated);
+
+  const original = originalCloseoutIdentity(order);
+  const baseId = orderId(order) || orderCode(order) || original.id;
+  const correctionId = text(input.id || `DCOA-${baseId}-${Date.now()}-${shortHash(stableJson(input))}`);
+  const correctionCode = text(input.correctionCode || input.code || correctionId);
+  const collectedWithoutReward = money(nextPaymentState.cashAmount + nextPaymentState.bankAmount);
+  const closeout = closeoutOf(order);
+  const nextCloseout = {
+    ...closeout,
+    id: text(closeout.id || closeout.closeoutId || original.id),
+    code: text(closeout.code || closeout.closeoutCode || original.code),
+    status: text(closeout.status || 'draft'),
+    originalAmount: currentState.receivableAmount,
+    saleAmount: currentState.receivableAmount,
+    returnedAmount: newReturnAmount,
+    returnAmount: newReturnAmount,
+    cashAmount: nextPaymentState.cashAmount,
+    bankAmount: nextPaymentState.bankAmount,
+    rewardAmount: nextPaymentState.rewardAmount,
+    collectedAmount: collectedWithoutReward,
+    totalCollectedAmount: collectedWithoutReward,
+    rawFinalDebtAmount: debtCalculation.rawDebtAmount,
+    finalDebtAmount: newDebtAmount,
+    debtAmount: newDebtAmount,
+    adjustedBeforeCloseout: true,
+    adjustedBeforeCloseoutAt: now,
+    adjustedBeforeCloseoutBy: actor,
+    updatedAt: now,
+    updatedBy: actor
+  };
+
+  const correction = {
+    id: correctionId,
+    code: correctionCode,
+    correctionCode,
+    tenantId: text(order.tenantId),
+    originalCloseoutId: original.id,
+    originalCloseoutCode: original.code,
+    originalCloseoutVersion: original.version,
+    newCloseoutVersion: original.version,
+    deliveryDate: text(order.deliveryDate || order.orderDate || order.date || order.documentDate),
+    deliveryStaffCode: text(order.deliveryStaffCode || order.deliveryCode || order.nvghCode),
+    deliveryStaffName: text(order.deliveryStaffName || order.deliveryName || order.nvghName),
+    salesStaffCode: text(order.salesStaffCode || order.salesmanCode || order.nvbhCode),
+    salesStaffName: text(order.salesStaffName || order.salesmanName || order.nvbhName),
+    customerId: text(order.customerId),
+    customerCode: text(order.customerCode),
+    customerName: text(order.customerName),
+    salesOrderId: orderId(order),
+    salesOrderCode: orderCode(order),
+    orderId: orderId(order),
+    orderCode: orderCode(order),
+    previousReturnAmount: currentState.returnAmount,
+    previousCashAmount: currentState.cashAmount,
+    previousBankAmount: currentState.bankAmount,
+    previousRewardAmount: currentState.rewardAmount,
+    previousCashCollectedAmount: currentState.cashAmount,
+    previousCollectedAmount: currentState.collectedAmount,
+    previousDebtAmount: currentState.debtAmount,
+    newReturnAmount,
+    newCashAmount: nextPaymentState.cashAmount,
+    newBankAmount: nextPaymentState.bankAmount,
+    newRewardAmount: nextPaymentState.rewardAmount,
+    newCashCollectedAmount: nextPaymentState.cashAmount,
+    newCollectedAmount: nextPaymentState.collectedAmount,
+    newDebtAmount,
+    cashAmount: nextPaymentState.cashAmount,
+    bankAmount: nextPaymentState.bankAmount,
+    rewardAmount: nextPaymentState.rewardAmount,
+    returnAmount: newReturnAmount,
+    debtAmount: newDebtAmount,
+    finalDebtAmount: newDebtAmount,
+    rawDebtAmount: debtCalculation.rawDebtAmount,
+    returnAdjustmentAmount,
+    cashDeltaAmount,
+    bankDeltaAmount,
+    rewardDeltaAmount,
+    totalCollectedDelta: cashAdjustmentAmount,
+    cashAdjustmentAmount,
+    debtDeltaAmount: debtAdjustmentAmount,
+    debtAdjustmentAmount,
+    returnAdjustmentItems,
+    cashAdjustmentLines,
+    reason: correctionReason(input),
+    auditReason: correctionAuditReason(input),
+    note: text(input.note || ''),
+    status: 'open_order_adjusted',
+    sourceType: 'DELIVERY_OPEN_ADJUSTMENT',
+    idempotencyKey: text(input.idempotencyKey || `DELIVERY_OPEN_ADJUSTMENT:${correctionId}`),
+    createdBy: actor,
+    createdAt: now,
+    updatedAt: now,
+    auditTrail: [{ at: now, by: actor, action: 'UPDATE_DELIVERY_ORDER_BEFORE_CLOSEOUT', originalCloseoutId: original.id }],
+    metadata: { phase: 'Phase173', preCloseoutAdjustment: true, correctionSemantics: 'final_state_value', doesNotPostLedger: true }
+  };
+
+  await DeliveryCloseoutCorrection.findOneAndUpdate(
+    { id: correctionId },
+    { $setOnInsert: correction },
+    { upsert: true, new: true, setDefaultsOnInsert: true, session }
+  );
+
+  await SalesOrder.updateOne(
+    buildOrderLookup(orderId(order) || orderCode(order)),
+    {
+      $set: {
+        cashAmount: nextPaymentState.cashAmount,
+        bankAmount: nextPaymentState.bankAmount,
+        rewardAmount: nextPaymentState.rewardAmount,
+        paidAmount: collectedWithoutReward,
+        collectedAmount: collectedWithoutReward,
+        debtAmount: newDebtAmount,
+        deliveryCloseout: nextCloseout,
+        updatedAt: now
+      }
+    },
+    { session }
+  );
+
+  return {
+    success: true,
+    preCloseoutAdjustment: true,
+    correction,
+    newCloseout: nextCloseout,
+    newCloseoutVersion: null,
+    arDebtAdjustmentLedger: null,
+    arDebtAdjustment: { posted: false, skipped: true, reason: 'pre_closeout_no_ledger' },
+    message: 'Đã cập nhật điều chỉnh trước chốt sổ; chưa sinh AR ledger.'
+  };
+}
+
 async function createCorrection(input = {}, options = {}) {
   return withOptionalMongoTransaction(options, async (session) => {
     const now = options.now || dateUtil.nowIso();
     const actor = actorName(input.actor || options.actor || input.createdBy || input.correctedBy || 'accountant');
     const order = await findOrderForCorrection(input, { ...options, session });
+    if (!isCloseoutConfirmed(order)) {
+      return createOpenOrderAdjustment(input, order, { ...options, session, now, actor });
+    }
     const originalCloseout = assertConfirmedCloseout(order);
     const original = originalCloseoutIdentity(order);
     const idempotencyKey = text(input.idempotencyKey || buildIdempotencyKey(input, order));
@@ -694,6 +894,7 @@ module.exports = {
   listVersions,
   normalizeReturnAdjustmentItems,
   normalizeCashAdjustmentLines,
+  createOpenOrderAdjustment,
   buildIdempotencyKey,
   buildVersionSnapshot,
   assertConfirmedCloseout,
@@ -707,6 +908,7 @@ module.exports = {
     previousReturnAmount,
     previousCashAmount,
     previousDebtAmount,
+    openOrderPaymentState,
     itemAdjustmentAmount,
     cashLineAdjustmentAmount,
     correctionReason,
