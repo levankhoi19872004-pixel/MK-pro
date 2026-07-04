@@ -170,7 +170,8 @@ const INDEX_DEFINITIONS = {
     [{ salesStaffCode: 1, customerCode: 1, createdAt: -1 }, { name: 'idx_ar_sales_staff_customer_created' }],
     [{ deliveryStaffCode: 1, customerCode: 1, createdAt: -1 }, { name: 'idx_ar_delivery_staff_customer_created' }],
     [{ orderCode: 1, status: 1 }, { name: 'idx_ar_order_status' }],
-    [{ idempotencyKey: 1 }, { name: 'idx_ar_ledgers_idempotency_key', sparse: true }],
+    // Giữ duy nhất managed index cũ idx_arledger_idempotencyKey cho arLedgers.idempotencyKey.
+    // Không khai báo thêm index idempotencyKey thứ hai để tránh conflict startup với cùng key nhưng khác option sparse.
     [{ sourceId: 1, category: 1, reversed: 1, active: 1 }, { name: 'idx_ar_ledgers_source_category_active' }],
     [{ customerCode: 1, category: 1, reversed: 1, active: 1 }, { name: 'idx_ar_ledgers_customer_category_active' }],
     [{ customerCode: 1, status: 1, reversed: 1, type: 1 }, { name: 'idx_ar_balance_customer_active_lookup', sparse: true }],
