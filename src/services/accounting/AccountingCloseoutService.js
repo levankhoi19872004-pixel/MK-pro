@@ -8,7 +8,7 @@ const { compactDeliveryOrderKeys } = require('../master-order/masterOrderIdentit
 const { findReturnOrdersForDeliveryChildren } = require('../master-order/masterOrderReturn.impl');
 const DeliveryCloseoutService = require('./DeliveryCloseoutService');
 const ArDebtOpenPostingService = require('./ArDebtOpenPostingService');
-const arDebtReadModel = require('../arDebtReadModel.service');
+const readModelSyncJobService = require('../readModelSyncJob.service');
 
 const CONFIRM_GUARD_TTL_MS = Math.max(1000, Number(process.env.CLOSEOUT_CONFIRM_GUARD_TTL_MS || 8000));
 const inFlight = new Map();
@@ -79,11 +79,36 @@ function returnOrdersForOrder(order = {}, returnByKey = new Map()) {
   return rows;
 }
 
+function compactCloseoutForOrder(closeout = {}) {
+  return {
+    originalAmount: closeout.originalAmount,
+    deliveredAmount: closeout.deliveredAmount,
+    returnedAmount: closeout.returnedAmount,
+    cashAmount: closeout.cashAmount,
+    bankAmount: closeout.bankAmount,
+    collectedAmount: closeout.collectedAmount,
+    offsetAmount: closeout.offsetAmount,
+    rewardAmount: closeout.rewardAmount,
+    rawFinalDebtAmount: closeout.rawFinalDebtAmount,
+    finalDebtAmount: closeout.finalDebtAmount,
+    returnOrderIds: Array.isArray(closeout.returnOrderIds) ? closeout.returnOrderIds : [],
+    paymentIds: Array.isArray(closeout.paymentIds) ? closeout.paymentIds : [],
+    status: closeout.status,
+    version: closeout.version,
+    calculationHash: closeout.calculationHash,
+    sourceHash: closeout.sourceHash,
+    createdAt: closeout.createdAt,
+    createdBy: closeout.createdBy,
+    updatedAt: closeout.updatedAt,
+    updatedBy: closeout.updatedBy,
+    confirmedAt: closeout.confirmedAt,
+    confirmedBy: closeout.confirmedBy,
+    reason: closeout.reason || ''
+  };
+}
+
 function stripOperationalDetails(closeout = {}) {
-  const copy = { ...closeout };
-  delete copy.activeReturnOrders;
-  delete copy.paymentRows;
-  return copy;
+  return compactCloseoutForOrder(closeout);
 }
 
 
@@ -329,7 +354,7 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     orderCode: DeliveryCloseoutService.orderCode(order),
     affectedSourceId: clean(arResult?.entry?.sourceId || DeliveryCloseoutService.orderId(order)),
     affectedCustomerCode: clean(order.customerCode),
-    readModelRebuildNeeded: arResult?.posted === true || arResult?.idempotent === true,
+    readModelSyncNeeded: arResult?.posted === true,
     closeout: confirmedCloseout,
     arDebtOpen: arResult,
     patchResult,
@@ -369,6 +394,7 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
       diagnostics,
       warnings: [],
       readModelRebuilds: [],
+      readModelSync: { mode: 'skipped', queued: 0, status: 'not_needed' },
       reason,
       message: 'Các đơn đã được kế toán chốt trước đó. Hệ thống bỏ qua để tránh ghi lại SalesOrder, sinh trùng AR-DEBT-OPEN hoặc rebuild công nợ không cần thiết.'
     };
@@ -377,24 +403,40 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
   const returnOrders = await findReturnOrdersForDeliveryChildren(pendingConfirmOrders);
   const returnByKey = groupReturnOrdersBySalesOrder(returnOrders, pendingConfirmOrders);
 
+  const readModelSyncJobs = [];
   await withMongoTransaction(async (session) => {
     for (const order of pendingConfirmOrders) {
       const rows = returnOrdersForOrder(order, returnByKey);
       const result = await confirmOneOrder(order, rows, { session, actor, confirmedBy: actor, reason, note: reason });
       results.push(result);
     }
+
+    const readModelAffectedResults = results.filter((row) => row && row.confirmed && row.readModelSyncNeeded);
+    const syncGroups = new Map();
+    for (const row of readModelAffectedResults) {
+      const customerCode = clean(row.affectedCustomerCode);
+      const sourceId = clean(row.affectedSourceId || row.orderId);
+      if (!customerCode && !sourceId) continue;
+      const key = customerCode || '(missing-customer)';
+      if (!syncGroups.has(key)) syncGroups.set(key, { customerCode, sourceIds: [] });
+      if (sourceId) syncGroups.get(key).sourceIds.push(sourceId);
+    }
+    for (const group of syncGroups.values()) {
+      readModelSyncJobs.push(await readModelSyncJobService.enqueueArDebtSyncJobs({
+        customerCode: group.customerCode,
+        sourceIds: unique(group.sourceIds),
+        reason,
+        actor,
+        source: 'DELIVERY_CLOSEOUT',
+        metadata: { route: 'POST /api/new/delivery-today/closeout' }
+      }, { session }));
+    }
   });
 
-  const readModelAffectedResults = results.filter((row) => row && row.confirmed && row.readModelRebuildNeeded);
-  const affectedSourceIds = unique(readModelAffectedResults.map((row) => row.affectedSourceId || row.orderId));
-  const affectedCustomerCodes = unique(readModelAffectedResults.map((row) => row.affectedCustomerCode));
-  const readModelRebuilds = [];
-  for (const sourceId of affectedSourceIds) {
-    readModelRebuilds.push(await arDebtReadModel.rebuildDebtForSource(sourceId, { actor, reason }));
+  if (readModelSyncJobs.some((row) => Number(row.queued || 0) > 0)) {
+    readModelSyncJobService.scheduleDrain({ limit: 10, actor, reason });
   }
-  for (const customerCode of affectedCustomerCodes) {
-    readModelRebuilds.push(await arDebtReadModel.refreshDebtCustomerFromOrders(customerCode, { actor, reason }));
-  }
+  const readModelSyncQueued = readModelSyncJobs.reduce((sum, row) => sum + Number(row.queued || 0), 0);
 
   const confirmedOrders = results.filter((row) => row.confirmed).length;
   const skippedOrders = results.filter((row) => row.skipped).length;
@@ -417,10 +459,11 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     results,
     diagnostics,
     warnings,
-    readModelRebuilds: readModelRebuilds.map((row) => ({ scope: row.scope, sourceId: row.sourceId, customerCode: row.customerCode, writtenOrders: row.persist?.writtenOrders || 0, writtenCustomers: row.persist?.writtenCustomers || 0 })),
+    readModelRebuilds: [],
+    readModelSync: { mode: 'queued', queued: readModelSyncQueued, status: readModelSyncQueued > 0 ? 'pending' : 'not_needed', jobs: readModelSyncJobs.flatMap((row) => row.jobs || []) },
     reason,
     message: confirmedOrders > 0
-      ? `Kế toán đã xác nhận ${confirmedOrders} đơn theo deliveryCloseout. Bỏ qua ${skippedOrders} đơn đã chốt trước đó.`
+      ? `Kế toán đã xác nhận ${confirmedOrders} đơn theo deliveryCloseout. Bỏ qua ${skippedOrders} đơn đã chốt trước đó. Công nợ được đồng bộ nền.`
       : 'Các đơn đã được kế toán chốt trước đó.'
   };
 }
@@ -467,6 +510,7 @@ module.exports = {
     buildConfirmedOrderPatchFields,
     guardKey,
     stripOperationalDetails,
+    compactCloseoutForOrder,
     isAccountingConfirmed,
     buildAlreadyConfirmedResult,
     buildCloseoutDiagnostic

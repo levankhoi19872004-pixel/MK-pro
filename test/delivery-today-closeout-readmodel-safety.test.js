@@ -44,19 +44,14 @@ test('customer read-model refresh avoids destructive customer/order deleteMany b
   assert.doesNotMatch(refresh[0], /ArDebtCustomer\.deleteMany/);
 });
 
-test('delivery closeout refreshes read model incrementally outside transaction', () => {
+test('delivery closeout only enqueues AR debt read-model sync instead of rebuilding in hot path', () => {
   const source = read(closeoutPath);
   const transactionIndex = source.indexOf('await withMongoTransaction');
-  const sourceRebuildIndex = source.indexOf('rebuildDebtForSource', transactionIndex);
-  const customerRefreshIndex = source.indexOf('refreshDebtCustomerFromOrders', transactionIndex);
   assert.ok(transactionIndex > -1, 'closeout must still use transaction for business writes');
-  assert.ok(sourceRebuildIndex > transactionIndex, 'source read-model rebuild must happen after transaction block');
-  assert.ok(customerRefreshIndex > sourceRebuildIndex, 'customer summary refresh must happen after source order rebuild');
-  const between = source.slice(transactionIndex, sourceRebuildIndex);
-  assert.doesNotMatch(between, /rebuildDebtForSource\s*\(/);
-  assert.doesNotMatch(between, /refreshDebtCustomerFromOrders\s*\(/);
-  assert.doesNotMatch(source, /rebuildDebtForCustomer\s*\(customerCode/);
-  assert.match(source, /readModelRebuildNeeded/);
-  assert.match(source, /affectedSourceIds/);
-  assert.match(source, /affectedCustomerCodes/);
+  assert.doesNotMatch(source, /rebuildDebtForSource\s*\(/);
+  assert.doesNotMatch(source, /refreshDebtCustomerFromOrders\s*\(/);
+  assert.doesNotMatch(source, /rebuildDebtForCustomer\s*\(/);
+  assert.match(source, /enqueueArDebtSyncJobs\s*\(/);
+  assert.match(source, /readModelSyncNeeded/);
+  assert.match(source, /readModelSync:\s*{\s*mode:\s*'queued'/);
 });

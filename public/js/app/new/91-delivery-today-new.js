@@ -1136,11 +1136,14 @@
       var closed = json.closedOrders != null ? json.closedOrders : (data.confirmedOrders || 0);
       var skipped = json.skippedOrders != null ? json.skippedOrders : (data.skippedOrders || 0);
       var status = String(json.status || data.status || '').toLowerCase();
-      var successMessage = 'Đã chốt sổ giao hàng. Đã chuyển ' + money(posted || 0) + ' sang công nợ.';
+      var sync = json.readModelSync || data.readModelSync || {};
+      var syncPending = String(sync.status || '').toLowerCase() === 'pending' || String(sync.mode || '').toLowerCase() === 'queued';
+      var syncNote = syncPending ? ' Công nợ đang đồng bộ nền.' : '';
+      var successMessage = 'Đã chốt sổ giao hàng. Đã chuyển ' + money(posted || 0) + ' sang công nợ.' + syncNote;
       if ((!closed && skipped) || status === 'idempotent') {
         successMessage = 'Đơn đã được chốt trước đó. Hệ thống đã bỏ qua và không ghi lại công nợ.';
       } else if (closed && skipped) {
-        successMessage = 'Đã chốt ' + closed + ' đơn, bỏ qua ' + skipped + ' đơn đã chốt trước đó. Đã chuyển ' + money(posted || 0) + ' sang công nợ.';
+        successMessage = 'Đã chốt ' + closed + ' đơn, bỏ qua ' + skipped + ' đơn đã chốt trước đó. Đã chuyển ' + money(posted || 0) + ' sang công nợ.' + syncNote;
       }
       setModalNotice('closeout', successMessage, 'success');
       await load({ silent: true });

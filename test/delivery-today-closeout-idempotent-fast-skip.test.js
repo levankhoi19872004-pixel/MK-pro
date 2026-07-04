@@ -39,8 +39,9 @@ test('confirmed orders are not passed to confirmOneOrder in mixed batch', () => 
   const internal = source.slice(internalStart, source.indexOf('async function confirmDeliveryAccounting', internalStart + 1));
   assert.match(internal, /for\s*\(const order of pendingConfirmOrders\)/);
   assert.doesNotMatch(internal, /for\s*\(const order of orders\)/);
-  assert.match(internal, /const\s+readModelAffectedResults\s*=\s*results\.filter\(\(row\)\s*=>\s*row\s*&&\s*row\.confirmed\s*&&\s*row\.readModelRebuildNeeded\)/);
-  assert.match(internal, /const\s+affectedCustomerCodes\s*=\s*unique\(readModelAffectedResults\.map\(\(row\)\s*=>\s*row\.affectedCustomerCode\)\)/);
+  assert.match(internal, /const\s+readModelAffectedResults\s*=\s*results\.filter\(\(row\)\s*=>\s*row\s*&&\s*row\.confirmed\s*&&\s*row\.readModelSyncNeeded\)/);
+  assert.match(internal, /enqueueArDebtSyncJobs\s*\(/);
+  assert.match(internal, /readModelSyncJobs/);
 });
 
 test('confirmOneOrder has guard before any update or AR posting for already confirmed orders', () => {
@@ -85,4 +86,5 @@ test('frontend treats accountingStatus confirmed as non-selectable and idempoten
   assert.match(source, /row\.accountingStatus\s*===\s*'confirmed'/);
   assert.match(source, /Đơn đã được chốt trước đó\. Hệ thống đã bỏ qua/);
   assert.match(source, /Đã chốt '\s*\+\s*closed\s*\+\s*' đơn, bỏ qua '/);
+  assert.match(source, /Công nợ đang đồng bộ nền/);
 });

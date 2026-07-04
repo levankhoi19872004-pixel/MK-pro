@@ -61,6 +61,7 @@ module.exports = {
   internalSaleAllocations: require('./InternalSaleAllocation'),
   internalSaleAllocationLedgers: require('./InternalSaleAllocationLedger'),
   outboxEvents: require('./OutboxEvent'),
+  readModelSyncJobs: require('./ReadModelSyncJob'),
   purchaseOrders: require('./PurchaseOrder'),
   goodsReceipts: require('./GoodsReceipt'),
   supplierPayableLedgers: require('./SupplierPayableLedger'),

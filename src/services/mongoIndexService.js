@@ -170,10 +170,14 @@ const INDEX_DEFINITIONS = {
     [{ salesStaffCode: 1, customerCode: 1, createdAt: -1 }, { name: 'idx_ar_sales_staff_customer_created' }],
     [{ deliveryStaffCode: 1, customerCode: 1, createdAt: -1 }, { name: 'idx_ar_delivery_staff_customer_created' }],
     [{ orderCode: 1, status: 1 }, { name: 'idx_ar_order_status' }],
+    [{ idempotencyKey: 1 }, { name: 'idx_ar_ledgers_idempotency_key', sparse: true }],
+    [{ sourceId: 1, category: 1, reversed: 1, active: 1 }, { name: 'idx_ar_ledgers_source_category_active' }],
+    [{ customerCode: 1, category: 1, reversed: 1, active: 1 }, { name: 'idx_ar_ledgers_customer_category_active' }],
     [{ customerCode: 1, status: 1, reversed: 1, type: 1 }, { name: 'idx_ar_balance_customer_active_lookup', sparse: true }],
     [{ orderCode: 1, status: 1, reversed: 1, type: 1 }, { name: 'idx_ar_balance_order_active_lookup', sparse: true }]
   ],
   arDebtOrders: [
+    [{ id: 1 }, { name: 'uniq_ar_debt_orders_id', unique: true, sparse: true }],
     [{ sourceId: 1 }, { name: 'idx_ar_debt_orders_source_id', sparse: true }],
     [{ customerCode: 1, status: 1 }, { name: 'idx_ar_debt_orders_customer_status' }],
     [{ customerCode: 1, lastDebtDate: -1 }, { name: 'idx_ar_debt_orders_customer_last_debt_date' }]
@@ -417,6 +421,12 @@ const INDEX_DEFINITIONS = {
 };
 
 Object.assign(INDEX_DEFINITIONS, {
+  readModelSyncJobs: [
+    [{ idempotencyKey: 1 }, { name: 'uniq_read_model_sync_jobs_idempotency_key', unique: true, sparse: true }],
+    [{ status: 1, nextRunAt: 1, createdAt: 1 }, { name: 'idx_read_model_sync_jobs_status_next_created' }],
+    [{ customerCode: 1, status: 1 }, { name: 'idx_read_model_sync_jobs_customer_status' }],
+    [{ type: 1, status: 1, createdAt: 1 }, { name: 'idx_read_model_sync_jobs_type_status_created' }]
+  ],
   outboxEvents: [
     [{ id: 1 }, { name: 'uniq_outbox_events_id', unique: true }],
     [{ status: 1, availableAt: 1, createdAt: 1 }, { name: 'idx_outbox_status_available_created' }],

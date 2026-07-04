@@ -113,9 +113,11 @@ router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, 
     const closeoutId = `DTC-${String(body.date || body.deliveryDate || '').replace(/[^0-9]/g, '') || 'DATE'}-${String(body.deliveryStaffCode || body.delivery || 'ALL').replace(/[^a-zA-Z0-9_-]/g, '')}-${Date.now()}`;
     const closedOrders = result.confirmedOrders || 0;
     const skippedOrders = result.skippedOrders || 0;
+    const readModelSync = result.readModelSync || { mode: 'skipped', queued: 0, status: 'not_needed' };
+    const syncSuffix = readModelSync && readModelSync.status === 'pending' ? '. Công nợ đang đồng bộ nền' : '';
     const responseMessage = result.status === 'idempotent'
       ? 'Các đơn đã được chốt trước đó'
-      : (skippedOrders > 0 ? `Đã chốt ${closedOrders} đơn, bỏ qua ${skippedOrders} đơn đã chốt` : 'Đã chốt sổ giao hàng');
+      : (skippedOrders > 0 ? `Đã chốt ${closedOrders} đơn, bỏ qua ${skippedOrders} đơn đã chốt${syncSuffix}` : `Đã chốt sổ giao hàng${syncSuffix}`);
     return res.json({
       ok: true,
       success: true,
@@ -131,6 +133,7 @@ router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, 
       totalDebtPosted,
       warnings: overpaymentWarnings,
       diagnostics: result.diagnostics || [],
+      readModelSync,
       data: { ...result, closeoutId, debtLedgerCreated, idempotentLedgers, skippedZeroDebt, totalDebtPosted, warnings: overpaymentWarnings, diagnostics: result.diagnostics || [] },
       canonicalRoute: '/api/new/delivery-today/closeout'
     });

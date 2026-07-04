@@ -38,9 +38,15 @@ test('closeout confirmed order patch contains only accounting closeout fields', 
   assert.doesNotMatch(body, /paymentAllocations\s*:/);
 });
 
-test('closeout confirmed order patch strips operational closeout details', () => {
+test('closeout confirmed order patch stores compact closeout without operational/history details', () => {
   const fullSource = source;
-  assert.match(fullSource, /delete\s+copy\.activeReturnOrders/);
-  assert.match(fullSource, /delete\s+copy\.paymentRows/);
+  assert.match(fullSource, /function\s+compactCloseoutForOrder\s*\(/);
   assert.match(patchBody(), /stripOperationalDetails\s*\(\s*closeout\s*\)/);
+  const compact = fullSource.match(/function\s+compactCloseoutForOrder[\s\S]*?\n}\n/);
+  assert.ok(compact, 'compactCloseoutForOrder must exist');
+  assert.doesNotMatch(compact[0], /versions\s*:/);
+  assert.doesNotMatch(compact[0], /auditTrail\s*:/);
+  assert.doesNotMatch(compact[0], /activeReturnOrders\s*:/);
+  assert.doesNotMatch(compact[0], /paymentRows\s*:/);
+  assert.doesNotMatch(compact[0], /offsetRows\s*:/);
 });
