@@ -22,9 +22,10 @@ const RAW_REPORT_SOURCE_REGISTRY = {
   },
   'sales-by-staff': {
     primaryCollections: ['orders', 'arLedgers'],
+    secondaryCollections: ['users'],
     service: 'SalesReportService.salesReport',
     exportService: 'ReportCenterService.run',
-    sourceLabel: 'Doanh số NVBH từ orders đã xác nhận + AR Ledger',
+    sourceLabel: 'Doanh số NVBH từ orders đã xác nhận + AR Ledger; danh sách NVBH từ users đang hoạt động',
     allowedLegacyExportTypes: ['salesman-report'],
     forbiddenCollections: [REPORTING_SNAPSHOT_COLLECTION, 'salesOrders.remainingDebt', 'salesOrders.debtAmount']
   },

@@ -9,7 +9,7 @@ const INACTIVE_STATUSES = Object.freeze([
   'duplicate_cancelled'
 ]);
 
-const ACCOUNTING_CONFIRMED_STATUSES = Object.freeze(['confirmed', 'locked', 'posted']);
+const ACCOUNTING_CONFIRMED_STATUSES = Object.freeze(['confirmed', 'locked', 'posted', 'accounting_confirmed']);
 const ACCOUNTING_REOPEN_STATUSES = Object.freeze(['reopened', 'needs_reconfirm', 'needs_repost']);
 const RETURN_CONFIRMED_STATES = Object.freeze(['accounting_confirmed', 'posted_to_ar']);
 const TRUTHY_DELETE_VALUES = Object.freeze([true, 'true', 1, '1', 'yes', 'YES', 'y', 'Y']);

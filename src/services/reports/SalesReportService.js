@@ -2,6 +2,8 @@
 
 const SalesOrder = require('../../models/SalesOrder');
 const Product = require('../../models/Product');
+const User = require('../../models/User');
+const { STAFF_ROLES } = require('../../constants/business.constants');
 const arLedgerReadService = require('../arLedgerRead.service');
 const {
   activeDocumentFilter,
@@ -38,6 +40,132 @@ function textMatches(row = {}, q = '') {
     row.code, row.orderCode, row.customerCode, row.customerName,
     row.salesStaffCode, row.salesStaffName, row.deliveryStaffCode, row.deliveryStaffName
   ].some((value) => text(value).toLowerCase().includes(needle));
+}
+
+
+function salesStaffKey(row = {}) {
+  const code = text(row.salesStaffCode || row.salesmanCode || row.staffCode || row.code).trim();
+  if (code) return `code:${code.toLowerCase()}`;
+  const name = text(row.salesStaffName || row.salesmanName || row.staffName || row.name).trim();
+  if (name) return `name:${name.toLowerCase()}`;
+  return '';
+}
+
+function salesStaffRow(row = {}) {
+  return {
+    salesStaffCode: text(row.salesStaffCode || row.salesmanCode || row.staffCode || row.code),
+    salesStaffName: text(row.salesStaffName || row.salesmanName || row.staffName || row.name)
+  };
+}
+
+function userSalesStaffCode(user = {}) {
+  return text(user.salesStaffCode || user.staffCode || user.salesmanCode || user.employeeCode || user.maNhanVien || user.code);
+}
+
+function userSalesStaffName(user = {}) {
+  return text(user.salesStaffName || user.salesmanName || user.fullName || user.name);
+}
+
+const SALES_ROLE_VALUES = Object.freeze([...new Set([...(STAFF_ROLES.SALES || []), 'sales', 'sale', 'nvbh', 'NVBH', 'salesStaff', 'sales_staff'])]);
+
+function activeSalesStaffUserFilter() {
+  return {
+    isActive: { $ne: false },
+    $or: [
+      { role: { $in: SALES_ROLE_VALUES } },
+      { roleLabel: { $in: SALES_ROLE_VALUES } },
+      { type: { $in: SALES_ROLE_VALUES } },
+      { position: { $in: SALES_ROLE_VALUES } },
+      { isSalesman: true },
+      { isSalesStaff: true },
+      { salesStaff: true }
+    ]
+  };
+}
+
+async function loadActiveSalesStaff() {
+  const users = await User.find(activeSalesStaffUserFilter()).select({
+    username: 1,
+    fullName: 1,
+    name: 1,
+    code: 1,
+    staffCode: 1,
+    employeeCode: 1,
+    maNhanVien: 1,
+    salesStaffCode: 1,
+    salesStaffName: 1,
+    salesmanCode: 1,
+    salesmanName: 1,
+    role: 1,
+    roleLabel: 1,
+    type: 1,
+    position: 1,
+    isSalesman: 1,
+    isSalesStaff: 1,
+    salesStaff: 1,
+    isActive: 1
+  }).sort({ fullName: 1, name: 1, staffCode: 1, code: 1 }).lean();
+
+  const rows = [];
+  const seen = new Set();
+  for (const user of users || []) {
+    const staff = {
+      salesStaffCode: userSalesStaffCode(user),
+      salesStaffName: userSalesStaffName(user)
+    };
+    const key = salesStaffKey(staff);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    rows.push(staff);
+  }
+  return rows;
+}
+
+function buildSalesmanReportRows(rows = [], activeSalesStaff = []) {
+  const bySalesmanMap = new Map();
+  const ensureSalesman = (source = {}) => {
+    const staff = salesStaffRow(source);
+    const key = salesStaffKey(staff);
+    if (!key) return null;
+    if (!bySalesmanMap.has(key)) {
+      bySalesmanMap.set(key, {
+        salesmanCode: staff.salesStaffCode,
+        salesmanName: staff.salesStaffName,
+        orderCount: 0,
+        customerCodes: new Set(),
+        beforePromoAmount: 0,
+        actualAmount: 0,
+        promotionValue: 0,
+        receiptAmount: 0,
+        returnAmount: 0,
+        debtAmount: 0
+      });
+    }
+    return bySalesmanMap.get(key);
+  };
+
+  activeSalesStaff.forEach(ensureSalesman);
+  for (const row of rows) {
+    const target = ensureSalesman({
+      salesStaffCode: row.salesStaffCode,
+      salesStaffName: row.salesStaffName
+    });
+    if (!target) continue;
+    target.orderCount += 1;
+    if (row.customerCode || row.customerName) target.customerCodes.add(row.customerCode || row.customerName);
+    target.beforePromoAmount += toNumber(row.beforePromoAmount);
+    target.actualAmount += toNumber(row.actualAmount);
+    target.promotionValue += toNumber(row.promotionValue);
+    target.receiptAmount += toNumber(row.receiptAmount);
+    target.returnAmount += toNumber(row.returnAmount);
+    target.debtAmount += toNumber(row.debtAmount);
+  }
+
+  return Array.from(bySalesmanMap.values()).map((row) => ({
+    ...row,
+    customerCount: row.customerCodes.size,
+    customerCodes: undefined
+  })).sort((a, b) => b.actualAmount - a.actualAmount || text(a.salesmanName || a.salesmanCode).localeCompare(text(b.salesmanName || b.salesmanCode), 'vi'));
 }
 
 async function loadProductMap() {
@@ -217,9 +345,10 @@ function orderCanonicalKey(order = {}) {
 }
 
 async function salesReport(query = {}) {
-  const [{ rows: orders, duplicateCount, dateFrom, dateTo }, productMap] = await Promise.all([
+  const [{ rows: orders, duplicateCount, dateFrom, dateTo }, productMap, activeSalesStaff] = await Promise.all([
     loadConfirmedOrders(query),
-    loadProductMap()
+    loadProductMap(),
+    loadActiveSalesStaff()
   ]);
   const arByOrder = await loadArByOrders(orders);
   const rows = orders.map((order) => {
@@ -305,38 +434,7 @@ async function salesReport(query = {}) {
     missingArDebitAmount: 0
   });
 
-  const bySalesmanMap = new Map();
-  for (const row of rows) {
-    const key = row.salesStaffCode || row.salesStaffName || 'UNKNOWN';
-    if (!bySalesmanMap.has(key)) {
-      bySalesmanMap.set(key, {
-        salesmanCode: row.salesStaffCode,
-        salesmanName: row.salesStaffName,
-        orderCount: 0,
-        customerCodes: new Set(),
-        beforePromoAmount: 0,
-        actualAmount: 0,
-        promotionValue: 0,
-        receiptAmount: 0,
-        returnAmount: 0,
-        debtAmount: 0
-      });
-    }
-    const target = bySalesmanMap.get(key);
-    target.orderCount += 1;
-    target.customerCodes.add(row.customerCode || row.customerName);
-    target.beforePromoAmount += row.beforePromoAmount;
-    target.actualAmount += row.actualAmount;
-    target.promotionValue += row.promotionValue;
-    target.receiptAmount += row.receiptAmount;
-    target.returnAmount += row.returnAmount;
-    target.debtAmount += row.debtAmount;
-  }
-  const bySalesman = Array.from(bySalesmanMap.values()).map((row) => ({
-    ...row,
-    customerCount: row.customerCodes.size,
-    customerCodes: undefined
-  })).sort((a, b) => b.actualAmount - a.actualAmount || a.salesmanName.localeCompare(b.salesmanName, 'vi'));
+  const bySalesman = buildSalesmanReportRows(rows, activeSalesStaff);
 
   const paged = paginate(rows, query, { defaultLimit: 50, maxLimit: 200 });
   return {
@@ -354,6 +452,13 @@ async function salesReport(query = {}) {
 }
 
 module.exports = {
+  salesStaffKey,
+  salesStaffRow,
+  userSalesStaffCode,
+  userSalesStaffName,
+  activeSalesStaffUserFilter,
+  loadActiveSalesStaff,
+  buildSalesmanReportRows,
   loadProductMap,
   valueOrder,
   loadConfirmedOrders,
