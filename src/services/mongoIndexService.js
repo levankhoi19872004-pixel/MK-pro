@@ -341,6 +341,21 @@ const INDEX_DEFINITIONS = {
     [{ action: 1 }, { name: 'idx_audit_logs_action' }],
     [{ createdAt: -1 }, { name: 'idx_audit_logs_created_at' }]
   ],
+  auditEvents: [
+    [{ eventType: 1, occurredAt: -1 }, { name: 'idx_audit_events_type_time' }],
+    [{ module: 1, occurredAt: -1 }, { name: 'idx_audit_events_module_time' }],
+    [{ entityType: 1, entityId: 1, occurredAt: -1 }, { name: 'idx_audit_events_entity_time' }],
+    [{ actorUserId: 1, occurredAt: -1 }, { name: 'idx_audit_events_actor_time', sparse: true }],
+    [{ eventType: 1, idempotencyKey: 1 }, { name: 'idx_audit_events_idempotency', sparse: true }]
+  ],
+  notifications: [
+    [{ recipientUserId: 1, readAt: 1, createdAt: -1 }, { name: 'idx_notifications_recipient_read_time' }],
+    [{ recipientUserId: 1, createdAt: -1 }, { name: 'idx_notifications_recipient_time' }],
+    [{ module: 1, createdAt: -1 }, { name: 'idx_notifications_module_time' }],
+    [{ severity: 1, createdAt: -1 }, { name: 'idx_notifications_severity_time' }],
+    [{ eventType: 1, createdAt: -1 }, { name: 'idx_notifications_event_time' }],
+    [{ idempotencyKey: 1, recipientUserId: 1 }, { name: 'idx_notifications_idempotency_recipient', sparse: true }]
+  ],
   adminCorrectionRequests: [
     [{ correctionCode: 1 }, { name: 'uniq_admin_correction_code', unique: true, partialFilterExpression: { correctionCode: { $type: 'string', $gt: '' } } }],
     [{ status: 1, createdAt: -1 }, { name: 'idx_admin_corrections_status_created' }],

@@ -41,7 +41,7 @@ async function loadProductGroupOptions(force = false) {
     renderProductGroupOptions(data.items || data.groups || []);
   } catch (err) {
     state.product.groupOptionsLoaded = false;
-    if (err?.code !== 'REQUEST_ABORTED') console.warn('[mobile-sales] không tải được nhóm hàng sản phẩm:', err.message || err);
+    if (err?.code !== 'REQUEST_ABORTED') console.warn('[sales:groups]', err.message || err);
   }
 }
 // MOBILE_PRODUCT_GROUP_FILTER_OPTIONS_END
@@ -60,36 +60,23 @@ function resetSelectedProduct() {
   selectedProductBox.classList.remove('mobile-selected-product-compact-meta');
 }
 
-function mobileProductPrice(product = {}) {
-  return Number(product.finalPrice || product.unitPrice || product.salePrice || product.price || 0);
-}
-
-function mobileProductOriginalPrice(product = {}) {
-  return Number(product.originalPrice || product.grossPrice || product.catalogSalePrice || product.salePrice || product.price || 0);
-}
-
-function mobileProductQuotaDate(product = {}) {
-  const value = product.internalSaleQuota?.snapshotDate || product.internalSaleQuota?.date || product.internalSaleQuota?.importDate || '';
-  return value ? formatDisplayDate(value) : 'chưa cập nhật';
+// DMS_APP_QUOTA_LABEL_CONTRACT: Tồn thực tế · Được bán App
+function mobileProductViewUtils() {
+  return { formatStockTL, money, formatDisplayDate };
 }
 
 function mobileProductMetaLine(product = {}) {
-  const price = mobileProductPrice(product);
-  const originalPrice = mobileProductOriginalPrice(product);
-  const priceLabel = originalPrice > price && price > 0
-    ? `Giá KM ${money(price)} · Gốc ${money(originalPrice)}`
-    : `Giá ${money(price)}`;
-  return [
-    `Tồn ${product.stockDisplay || formatStockTL(product.availableQty, product.conversionRate)}`,
-    `App ${formatStockTL(product.maxOrderQty, product.conversionRate)}`,
-    priceLabel,
-    `DMS ${mobileProductQuotaDate(product)}`
-  ].join(' · ');
+  return productMetaLine(product, mobileProductViewUtils());
 }
 
 function renderSelectedProductCompact(product = {}) {
   if (!selectedProductBox) return;
-  selectedProductBox.textContent = mobileProductMetaLine(product);
+  window.SafeDom.renderMetricCard(selectedProductBox, {
+    title: '',
+    titleClass: 'mobile-sr-only',
+    metaClass: 'mobile-selected-product-compact-meta-line',
+    metrics: buildMobileProductMetrics(product, mobileProductViewUtils())
+  });
   selectedProductBox.hidden = false;
   selectedProductBox.classList.remove('muted');
   selectedProductBox.classList.add('mobile-selected-product-compact-meta');
@@ -108,18 +95,13 @@ function placeMobileProductSuggestions() {
 }
 
 function installMobileSalesProductLabel() {
-  if (!window.UnifiedProductSearch || window.UnifiedProductSearch.__mobileSalesCompactLabel === true) return;
-  const originalLabelHtml = window.UnifiedProductSearch.labelHtml;
-  const compactLabelHtml = (product = {}, mode = 'sales') => {
-    if (mode !== 'sales') return typeof originalLabelHtml === 'function' ? originalLabelHtml(product, mode) : escapeHtml(String(product.label || ''));
-    const p = toMobileProduct(product);
-    const title = [p.code, p.name].filter(Boolean).join(' · ');
-    return `<div class="mobile-product-suggest-title">${escapeHtml(title)}</div>`
-      + `<div class="mobile-product-suggest-meta">${escapeHtml(mobileProductMetaLine(p))}</div>`;
-  };
-  window.UnifiedProductSearch.labelHtml = compactLabelHtml;
-  window.UnifiedProductSearch.__mobileSalesCompactLabel = true;
+  installProductLabel({
+    toMobileProduct,
+    escapeHtml,
+    mobileProductMetaLine
+  });
 }
+
 
 function pickProduct(product) {
   const p = toMobileProduct(product);
@@ -168,7 +150,7 @@ async function searchMobileProducts(keyword = '') {
     }
     return rows;
   } catch (err) {
-    console.warn('[mobile-sales] mobile product search fallback:', err.message || err);
+    console.warn('[sales:product]', err.message || err);
   }
 
   if (window.UnifiedSearchEngine && typeof window.UnifiedSearchEngine.searchProduct === 'function') {

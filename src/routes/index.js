@@ -43,6 +43,7 @@ const enterpriseRoutes = require('./enterpriseRoutes');
 const backgroundJobRoutes = require('./backgroundJobRoutes');
 const adminCorrectionRoutes = require('./adminCorrectionRoutes');
 const newOperationsRoutes = require('./newOperationsRoutes');
+const notificationRoutes = require('./notificationRoutes');
 
 
 function registerApiRoutes(app) {
@@ -58,6 +59,9 @@ function registerApiRoutes(app) {
 
   // Unified login for web software + sales app + delivery app.
   app.use('/api/auth', authRoutes);
+
+  // Event-driven Notification Center: auth is enforced by global API boundary.
+  app.use('/api/notifications', notificationRoutes);
 
   // Unified search engine for web + mobile autocomplete.
   app.use('/api/search', searchRoutes);

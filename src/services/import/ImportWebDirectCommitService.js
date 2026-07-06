@@ -2,6 +2,8 @@
 
 const excelImportService = require('../excelImportService');
 const importSessionService = require('../importSessionService');
+const { emitDomainEventSafe } = require('../events/domainEventBus');
+const { EVENT_TYPES } = require('../events/domainEventTypes');
 
 function cleanText(value) {
   return String(value ?? '').trim();
@@ -34,6 +36,51 @@ function normalizeSelectedRowKeys(value) {
   return Array.isArray(value)
     ? value.map((item) => cleanText(item)).filter(Boolean)
     : [];
+}
+
+
+function actorFromUser(user = {}) {
+  return {
+    userId: cleanText(user._id || user.id || user.userId),
+    code: cleanText(user.staffCode || user.code || user.username),
+    name: actorName(user),
+    role: cleanText(user.role)
+  };
+}
+
+async function emitImportNotification(eventType, session = {}, result = {}, user = {}, extra = {}) {
+  const sessionId = cleanText(session.sessionId || session.id || extra.sessionId || result.sessionId || result.importSessionId);
+  const errorRows = Number(result.errorRows ?? session.errorRows ?? (Array.isArray(session.invalidRows) ? session.invalidRows.length : 0) ?? 0);
+  const skippedRows = Number(result.skippedRows ?? result.skipped ?? session.skippedRows ?? 0);
+  const importedRows = Number(result.importedRows ?? result.imported ?? result.totalCommitRows ?? 0);
+  const hasErrors = errorRows > 0 || skippedRows > 0 || eventType === EVENT_TYPES.IMPORT_FAILED;
+  if (!hasErrors) return;
+  await emitDomainEventSafe({
+    eventType,
+    entityType: 'importSession',
+    entityId: sessionId,
+    entityCode: sessionId,
+    severity: eventType === EVENT_TYPES.IMPORT_FAILED ? 'critical' : 'warning',
+    actor: actorFromUser(user),
+    before: {},
+    after: {
+      status: eventType === EVENT_TYPES.IMPORT_FAILED ? 'failed' : 'done',
+      importedRows,
+      errorRows,
+      skippedRows
+    },
+    diff: { importedRows, errorRows, skippedRows },
+    metadata: {
+      importType: cleanText(result.type || session.type || extra.type),
+      sessionId,
+      totalRows: Number(result.totalRows ?? session.totalRows ?? 0),
+      importedRows,
+      errorRows,
+      skippedRows,
+      reason: cleanText(result.error || result.detail || extra.reason)
+    },
+    idempotencyKey: `${eventType}:${sessionId}`
+  });
 }
 
 function buildDonePayload(session, sessionId) {
@@ -105,8 +152,11 @@ async function commitSession(payload = {}, user = {}) {
   });
 
   if (result && result.error) {
+    await emitImportNotification(EVENT_TYPES.IMPORT_FAILED, session, result, user, { sessionId: canonicalSessionId, type: cleanText(payload.type || session.type), reason: result.error });
     return result;
   }
+
+  await emitImportNotification(EVENT_TYPES.IMPORT_COMPLETED_WITH_ERRORS, session, result || {}, user, { sessionId: canonicalSessionId, type: cleanText(payload.type || session.type) });
 
   return {
     ...result,

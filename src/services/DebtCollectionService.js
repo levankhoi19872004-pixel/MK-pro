@@ -10,6 +10,8 @@ const dateUtil = require('../utils/date.util');
 const { makeId, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const DebtCollectionPolicy = require('../policies/debtCollection.policy');
+const { emitDomainEventSafe } = require('./events/domainEventBus');
+const { EVENT_TYPES } = require('./events/domainEventTypes');
 
 const ACTIVE_STATUSES = ['submitted', 'accounting_confirmed'];
 
@@ -266,7 +268,7 @@ function isAccountingConfirmedCollection(collection = {}) {
 }
 
 async function confirmDebtCollection(idOrCode, command = {}) {
-  return withMongoTransaction(async (session) => {
+  const confirmedResult = await withMongoTransaction(async (session) => {
     ensureConfirmPostingContracts();
 
     const collection = await DebtCollection.findOne({
@@ -414,6 +416,41 @@ async function confirmDebtCollection(idOrCode, command = {}) {
       }
     };
   });
+
+  try {
+    const collection = confirmedResult?.body?.collection;
+    if (collection && !confirmedResult?.body?.skipped) {
+      await emitDomainEventSafe({
+        eventType: EVENT_TYPES.AR_RECEIPT_CONFIRMED,
+        entityType: 'debtCollection',
+        entityId: text(collection.id || collection._id),
+        entityCode: text(collection.code),
+        severity: 'info',
+        actor: command.user || {
+          name: text(command.accountingUserName || command.accountingConfirmedBy || collection.accountingConfirmedBy),
+          role: 'accountant'
+        },
+        before: { status: 'submitted', amount: money(collection.amount) },
+        after: { status: collection.status, amount: money(collection.amount), accountingConfirmed: true },
+        diff: { amount: money(collection.amount) },
+        metadata: {
+          customerCode: text(collection.customerCode),
+          customerName: text(collection.customerName),
+          amount: money(collection.amount),
+          receiptCode: text(collection.code),
+          ledgerId: Array.isArray(collection.arLedgerIds) ? text(collection.arLedgerIds[0]) : '',
+          paymentMethod: text(collection.paymentMethod),
+          deliveryStaffCode: text(collection.deliveryStaffCode),
+          salesStaffCode: text(collection.salesStaffCode)
+        },
+        idempotencyKey: `AR_RECEIPT_CONFIRMED:${text(collection.id || collection.code)}`
+      });
+    }
+  } catch (err) {
+    console.error('[DEBT_COLLECTION_NOTIFICATION_ERROR]', err && (err.stack || err.message || err));
+  }
+
+  return confirmedResult;
 }
 
 async function rejectDebtCollection(idOrCode, command = {}) {

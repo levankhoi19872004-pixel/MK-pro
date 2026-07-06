@@ -42,6 +42,8 @@ module.exports = {
   importShortageReports: require('./ImportShortageReport'),
   mobileLogs: require('./MobileLog'),
   auditLogs: require('./AuditLog'),
+  auditEvents: require('./AuditEvent'),
+  notifications: require('./Notification'),
   adminCorrectionRequests: require('./AdminCorrectionRequest'),
   inventoryAdjustments: require('./InventoryAdjustment'),
   arAdjustments: require('./ArAdjustment'),

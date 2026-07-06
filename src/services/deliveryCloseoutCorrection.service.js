@@ -9,6 +9,8 @@ const SalesOrder = require('../models/SalesOrder');
 const DeliveryCloseoutCorrection = require('../models/DeliveryCloseoutCorrection');
 const DeliveryCloseoutVersion = require('../models/DeliveryCloseoutVersion');
 const ArDebtAdjustmentPostingService = require('./accounting/ArDebtAdjustmentPostingService');
+const { emitDomainEventSafe } = require('./events/domainEventBus');
+const { EVENT_TYPES } = require('./events/domainEventTypes');
 
 function text(value = '') {
   return String(value ?? '').trim();
@@ -641,7 +643,7 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
 }
 
 async function createCorrection(input = {}, options = {}) {
-  return withOptionalMongoTransaction(options, async (session) => {
+  const result = await withOptionalMongoTransaction(options, async (session) => {
     const now = options.now || dateUtil.nowIso();
     const actor = actorName(input.actor || options.actor || input.createdBy || input.correctedBy || 'accountant');
     const order = await findOrderForCorrection(input, { ...options, session });
@@ -835,6 +837,54 @@ async function createCorrection(input = {}, options = {}) {
       message: `Đã tạo correction version ${newCloseoutVersionNo}; ${adjustmentMessage}.`
     };
   });
+
+  if (result && result.success && result.correction) {
+    const correction = result.correction;
+    const hasMoneyDelta = money(correction.cashDeltaAmount) !== 0 || money(correction.bankDeltaAmount) !== 0 || money(correction.rewardDeltaAmount) !== 0 || money(correction.debtDeltaAmount) !== 0 || money(correction.returnAdjustmentAmount) !== 0;
+    await emitDomainEventSafe({
+      eventType: EVENT_TYPES.DELIVERY_CLOSEOUT_ADJUSTED,
+      entityType: 'deliveryCloseout',
+      entityId: text(correction.newCloseoutId || correction.originalCloseoutId || correction.salesOrderId),
+      entityCode: text(correction.salesOrderCode || correction.orderCode || correction.newCloseoutCode),
+      severity: hasMoneyDelta ? 'warning' : 'info',
+      actor: input.actor || options.actor || { name: correction.createdBy || 'accountant', role: 'accountant' },
+      before: {
+        cashAmount: money(correction.previousCashAmount),
+        bankAmount: money(correction.previousBankAmount),
+        rewardAmount: money(correction.previousRewardAmount),
+        returnAmount: money(correction.previousReturnAmount),
+        debtAmount: money(correction.previousDebtAmount)
+      },
+      after: {
+        cashAmount: money(correction.newCashAmount),
+        bankAmount: money(correction.newBankAmount),
+        rewardAmount: money(correction.newRewardAmount),
+        returnAmount: money(correction.newReturnAmount),
+        debtAmount: money(correction.newDebtAmount)
+      },
+      diff: {
+        cashDeltaAmount: money(correction.cashDeltaAmount),
+        bankDeltaAmount: money(correction.bankDeltaAmount),
+        rewardDeltaAmount: money(correction.rewardDeltaAmount),
+        returnAdjustmentAmount: money(correction.returnAdjustmentAmount),
+        debtDeltaAmount: money(correction.debtDeltaAmount)
+      },
+      metadata: {
+        orderCode: text(correction.salesOrderCode || correction.orderCode),
+        customerCode: text(correction.customerCode),
+        customerName: text(correction.customerName),
+        deliveryStaffCode: text(correction.deliveryStaffCode),
+        deliveryStaffName: text(correction.deliveryStaffName),
+        salesStaffCode: text(correction.salesStaffCode),
+        salesStaffName: text(correction.salesStaffName),
+        reason: text(correction.reason || correction.auditReason),
+        correctionCode: text(correction.correctionCode || correction.code)
+      },
+      idempotencyKey: `DELIVERY_CLOSEOUT_ADJUSTED:${text(correction.id || correction.correctionCode)}`
+    });
+  }
+
+  return result;
 }
 
 async function listCorrections(originalCloseoutId = '', options = {}) {

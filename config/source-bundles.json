@@ -6,11 +6,13 @@
       "mode": "commonjs",
       "parts": [
         "src/services/returnOrderLegacy.service.source/part-01.jsfrag",
+        "src/services/returnOrderLegacy.service.source/part-01b.jsfrag",
         "src/services/returnOrderLegacy.service.source/part-02.jsfrag",
+        "src/services/returnOrderLegacy.service.source/part-02b.jsfrag",
         "src/services/returnOrderLegacy.service.source/part-03.jsfrag",
         "src/services/returnOrderLegacy.service.source/part-04.jsfrag"
       ],
-      "sourceSha256": "982a8d88ed1456faa6b791ab25e4fb779e7f4e6981431cada8d0abdae52dad48"
+      "sourceSha256": "7566dbf60a3046a266fc542a336e9e97e5c073bb391b6f10b26d7f0ca0d4894f"
     },
     {
       "target": "src/services/importExportLegacy.service.js",
@@ -132,20 +134,24 @@
         "public/mobile/js/sales.source/part-03.jsfrag",
         "public/mobile/js/sales.source/part-03b.jsfrag"
       ],
-      "sourceSha256": "f3024aad39ce4b39d641b7a710d2353a03da990c0fa369ededcfa35834181d92"
+      "sourceSha256": "04cb6d4ecf92b59e86138a1773226f8a747ef2a200b190b71544cd557e3250ec"
     },
     {
       "target": "public/js/app/admin/08d-import-excel.js",
       "mode": "classic-chunks",
       "parts": [
         "public/js/app/admin/08d-import-excel.source/part-01.jsfrag",
+        "public/js/app/admin/08d-import-excel.source/part-01b.jsfrag",
         "public/js/app/admin/08d-import-excel.source/part-02.jsfrag",
+        "public/js/app/admin/08d-import-excel.source/part-02b.jsfrag",
         "public/js/app/admin/08d-import-excel.source/part-03.jsfrag"
       ],
-      "sourceSha256": "e2b129dd0467cc70df7d9b073a1b0df79e8caf1cd08ba85c1f456ffcc6a4431c",
+      "sourceSha256": "bff3f97e1553e1d2397a97d02477f2b9d900d0dfbef32421e7928f5e16a264fd",
       "runtimeFiles": [
         "public/js/app/admin/08d-import-excel.js",
+        "public/js/app/admin/08d-import-excel.part04.js",
         "public/js/app/admin/08d-import-excel.part02.js",
+        "public/js/app/admin/08d-import-excel.part05.js",
         "public/js/app/admin/08d-import-excel.part03.js"
       ]
     },
@@ -190,9 +196,10 @@
         "public/mobile/mobile.source/mobile-01.css",
         "public/mobile/mobile.source/mobile-02.css",
         "public/mobile/mobile.source/mobile-03.css",
-        "public/mobile/mobile.source/mobile-04.css"
+        "public/mobile/mobile.source/mobile-04.css",
+        "public/mobile/mobile.source/mobile-05.css"
       ],
-      "sourceSha256": "e4d303220d73851817ecddd2b24855b3637039da05b1be92c648e43631376342"
+      "sourceSha256": "4ba68b42eee6573c2280675e6264282bd62e768d49b0654135f667718de68f59"
     },
     {
       "target": "public/print.css",

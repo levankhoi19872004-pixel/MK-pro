@@ -58,7 +58,7 @@
   function money(value) { return parseVndAmount(value).toLocaleString('vi-VN'); }
   function orderKey(order) { return String((order && (order.orderCode || order.salesOrderCode || order.orderId || order.salesOrderId || order.id)) || ''); }
   function orderRemainingDebt(order) {
-    return Math.max(0, parseVndAmount(order && (order.remainingDebt ?? order.debt ?? order.debtAmount ?? 0)));
+    return Math.max(0, parseVndAmount(order && (order.debt ?? order.remainingDebt ?? order.availableDebt ?? order.availableDebtAmount ?? order.debtAmount ?? 0)));
   }
   function orderPendingCollectionAmount(order) {
     return Math.max(0, parseVndAmount(order && (order.pendingCollectionAmount ?? order.pendingCollectedAmount ?? 0)));

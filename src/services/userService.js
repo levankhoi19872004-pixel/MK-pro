@@ -4,6 +4,8 @@ const userRepository = require('../repositories/userRepository');
 const queryGuard = require('../utils/queryGuard.util');
 const { makeId, stripMongoFields } = require('../utils/common.util');
 const { isBcryptHash, hashPasswordSync } = require('../security/passwordPolicy');
+const { emitDomainEventSafe } = require('./events/domainEventBus');
+const { EVENT_TYPES } = require('./events/domainEventTypes');
 
 const ROLE_LABELS = {
   admin: 'Admin - toàn quyền',
@@ -123,7 +125,23 @@ async function saveUser(body, options = {}) {
   const duplicated = await userRepository.findDuplicateUser(payload.staffCode || payload.code, payload.username, current?._id);
   if (duplicated) return { error: 'Mã nhân viên hoặc tên đăng nhập đã tồn tại trong MongoDB', status: 409 };
   const saved = current ? await userRepository.updateUser(id, payload) : await userRepository.createUser(payload);
-  return { user: staffToClient(saved), created: !current };
+  const client = staffToClient(saved);
+  if (current && String(current.role || '') !== String(payload.role || '')) {
+    await emitDomainEventSafe({
+      eventType: EVENT_TYPES.USER_ROLE_CHANGED,
+      entityType: 'user',
+      entityId: String(client.id || client._id || payload.id || ''),
+      entityCode: String(client.username || client.staffCode || client.code || ''),
+      severity: 'critical',
+      actor: options.actor || {},
+      before: { role: current.role, roleLabel: ROLE_LABELS[current.role] || current.role },
+      after: { role: payload.role, roleLabel: ROLE_LABELS[payload.role] || payload.role },
+      diff: { role: `${current.role || ''} -> ${payload.role || ''}` },
+      metadata: { userName: client.name || client.username, staffCode: client.staffCode || client.code },
+      idempotencyKey: `USER_ROLE_CHANGED:${client.id || client.username}:${current.role || ''}:${payload.role || ''}:${Date.now()}`
+    });
+  }
+  return { user: client, created: !current };
 }
 
 async function deleteUser(id, options = {}) {
@@ -145,7 +163,21 @@ async function deleteUser(id, options = {}) {
     actorCode: actor.staffCode || actor.code || actor.username || '',
     reason: options.reason || 'Ngừng hoạt động qua API DELETE'
   });
-  return { user: staffToClient(staff), deactivated: true };
+  const client = staffToClient(staff);
+  await emitDomainEventSafe({
+    eventType: EVENT_TYPES.USER_DISABLED,
+    entityType: 'user',
+    entityId: String(client.id || client._id || current.id || ''),
+    entityCode: String(client.username || client.staffCode || client.code || ''),
+    severity: 'critical',
+    actor,
+    before: { isActive: current.isActive !== false, role: current.role },
+    after: { isActive: false, role: client.role },
+    diff: { isActive: 'active -> disabled' },
+    metadata: { userName: client.name || client.username, staffCode: client.staffCode || client.code, reason: options.reason || '' },
+    idempotencyKey: `USER_DISABLED:${client.id || client.username}`
+  });
+  return { user: client, deactivated: true };
 }
 
 async function listStaffs(query) {

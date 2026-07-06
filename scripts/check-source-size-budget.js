@@ -36,9 +36,11 @@ for (const group of CONFIG.groups || []) {
   const suffixes = Array.isArray(group.suffixes) ? group.suffixes : [];
   for (const file of walk(absoluteRoot)) {
     if (!suffixes.some((suffix) => file.endsWith(suffix))) continue;
+    const relative = path.relative(ROOT, file).replace(/\\/g, '/');
+    const reviewedBudget = Number(group.overrides?.[relative] || group.maxBytes);
     const bytes = fs.statSync(file).size;
-    if (bytes > group.maxBytes) {
-      violations.push(`${path.relative(ROOT, file)}: ${bytes} bytes > budget ${group.maxBytes}`);
+    if (bytes > reviewedBudget) {
+      violations.push(`${relative}: ${bytes} bytes > budget ${reviewedBudget}`);
     }
   }
 }

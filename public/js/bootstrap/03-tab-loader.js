@@ -98,6 +98,9 @@ async function loadTabDataOnce(tabName, options = {}){
           typeof loadPromotions === 'function' ? loadPromotions() : null
         ]);
         break;
+      case 'notificationCenterTab':
+        if(window.NotificationCenter && typeof window.NotificationCenter.loadList === 'function') await window.NotificationCenter.loadList();
+        break;
       case 'systemTab':
         await Promise.allSettled([
           typeof loadSystemStatus === 'function' ? loadSystemStatus() : null,

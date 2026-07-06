@@ -89,11 +89,7 @@ async function loadTodayOrders(options = {}) {
     renderTodayOrders(state.orders.rows, state.orders.summary);
     if (orderLoadMoreBtn) orderLoadMoreBtn.hidden = !state.orders.hasMore || orderStatusFilterValue() === 'pending_sync';
     if (rawItems.length !== scopedItems.length) {
-      console.warn('[MOBILE_SALES_OWNER_GUARD]', {
-        currentSalesStaffCode: currentSalesStaffCode(),
-        received: rawItems.length,
-        rendered: scopedItems.length
-      });
+      console.warn('[sales:owner]', currentSalesStaffCode(), rawItems.length, scopedItems.length);
     }
   } catch (err) {
     if (requestSeq !== state.orders.requestSeq || err?.code === 'REQUEST_ABORTED') return;

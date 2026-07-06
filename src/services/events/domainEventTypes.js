@@ -1,0 +1,68 @@
+'use strict';
+
+const SEVERITY = Object.freeze({
+  INFO: 'info',
+  WARNING: 'warning',
+  CRITICAL: 'critical'
+});
+
+const MODULE = Object.freeze({
+  ORDER: 'order',
+  DELIVERY: 'delivery',
+  AR: 'ar',
+  STOCK: 'stock',
+  RETURN: 'return',
+  IMPORT: 'import',
+  FUND: 'fund',
+  USER: 'user',
+  SYSTEM: 'system'
+});
+
+const EVENT_TYPES = Object.freeze({
+  ORDER_AMOUNT_CHANGED: 'ORDER_AMOUNT_CHANGED',
+  ORDER_DELETED: 'ORDER_DELETED',
+  ORDER_DELIVERY_STAFF_CHANGED: 'ORDER_DELIVERY_STAFF_CHANGED',
+  ORDER_SALES_STAFF_CHANGED: 'ORDER_SALES_STAFF_CHANGED',
+  DELIVERY_CLOSEOUT_ADJUSTED: 'DELIVERY_CLOSEOUT_ADJUSTED',
+  DELIVERY_CLOSEOUT_LOCKED: 'DELIVERY_CLOSEOUT_LOCKED',
+  DELIVERY_ACCOUNTING_CONFIRMED: 'DELIVERY_ACCOUNTING_CONFIRMED',
+  AR_RECEIPT_CONFIRMED: 'AR_RECEIPT_CONFIRMED',
+  AR_LEDGER_CREATED_MANUAL: 'AR_LEDGER_CREATED_MANUAL',
+  AR_LEDGER_REVERSED: 'AR_LEDGER_REVERSED',
+  RETURN_ORDER_WAREHOUSE_CHECKED: 'RETURN_ORDER_WAREHOUSE_CHECKED',
+  RETURN_ORDER_STOCK_IMPORTED: 'RETURN_ORDER_STOCK_IMPORTED',
+  STOCK_ADJUSTED: 'STOCK_ADJUSTED',
+  FUND_LEDGER_CREATED: 'FUND_LEDGER_CREATED',
+  IMPORT_COMPLETED_WITH_ERRORS: 'IMPORT_COMPLETED_WITH_ERRORS',
+  IMPORT_FAILED: 'IMPORT_FAILED',
+  USER_ROLE_CHANGED: 'USER_ROLE_CHANGED',
+  USER_DISABLED: 'USER_DISABLED'
+});
+
+const EVENT_DEFAULTS = Object.freeze({
+  ORDER_AMOUNT_CHANGED: { module: MODULE.ORDER, entityType: 'salesOrder', severity: SEVERITY.WARNING },
+  ORDER_DELETED: { module: MODULE.ORDER, entityType: 'salesOrder', severity: SEVERITY.CRITICAL },
+  ORDER_DELIVERY_STAFF_CHANGED: { module: MODULE.ORDER, entityType: 'salesOrder', severity: SEVERITY.WARNING },
+  ORDER_SALES_STAFF_CHANGED: { module: MODULE.ORDER, entityType: 'salesOrder', severity: SEVERITY.WARNING },
+  DELIVERY_CLOSEOUT_ADJUSTED: { module: MODULE.DELIVERY, entityType: 'deliveryCloseout', severity: SEVERITY.WARNING },
+  DELIVERY_CLOSEOUT_LOCKED: { module: MODULE.DELIVERY, entityType: 'deliveryCloseout', severity: SEVERITY.INFO },
+  DELIVERY_ACCOUNTING_CONFIRMED: { module: MODULE.DELIVERY, entityType: 'deliveryCloseout', severity: SEVERITY.INFO },
+  AR_RECEIPT_CONFIRMED: { module: MODULE.AR, entityType: 'arLedger', severity: SEVERITY.INFO },
+  AR_LEDGER_CREATED_MANUAL: { module: MODULE.AR, entityType: 'arLedger', severity: SEVERITY.WARNING },
+  AR_LEDGER_REVERSED: { module: MODULE.AR, entityType: 'arLedger', severity: SEVERITY.CRITICAL },
+  RETURN_ORDER_WAREHOUSE_CHECKED: { module: MODULE.RETURN, entityType: 'returnOrder', severity: SEVERITY.INFO },
+  RETURN_ORDER_STOCK_IMPORTED: { module: MODULE.RETURN, entityType: 'returnOrder', severity: SEVERITY.WARNING },
+  STOCK_ADJUSTED: { module: MODULE.STOCK, entityType: 'stockTransaction', severity: SEVERITY.WARNING },
+  FUND_LEDGER_CREATED: { module: MODULE.FUND, entityType: 'fundLedger', severity: SEVERITY.INFO },
+  IMPORT_COMPLETED_WITH_ERRORS: { module: MODULE.IMPORT, entityType: 'importSession', severity: SEVERITY.WARNING },
+  IMPORT_FAILED: { module: MODULE.IMPORT, entityType: 'importSession', severity: SEVERITY.CRITICAL },
+  USER_ROLE_CHANGED: { module: MODULE.USER, entityType: 'user', severity: SEVERITY.CRITICAL },
+  USER_DISABLED: { module: MODULE.USER, entityType: 'user', severity: SEVERITY.CRITICAL }
+});
+
+module.exports = {
+  SEVERITY,
+  MODULE,
+  EVENT_TYPES,
+  EVENT_DEFAULTS
+};

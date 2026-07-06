@@ -18,6 +18,7 @@ import {
   applyPromotionLines, attachPackingRate, buildPromotionCartPayloadItem, normalizePackingRate,
   normalizeProductGroupName, normalizeProductSearchResponse, toMobileProduct as normalizeMobileProduct
 } from './sales/product.js?v=phase86-production-hardening-v1';
+import { buildMobileProductMetrics, installMobileSalesProductLabel as installProductLabel, mobileProductMetaLine as productMetaLine } from './sales/product-view.js?v=phase178-test-repair-v1';
 import { buildOrderPayloadItems, calculateCartTotals, cartQuantityFromInputs, validateCartQuantity } from './sales/cart.js?v=phase86-production-hardening-v1';
 import { buildOrderQueryKey, mergeOrderPages, orderMatchesDisplayFilter as matchesOrderStatus, orderMatchesSearchText as matchesOrderSearch, orderStatusFilterValue as readOrderStatusFilter, upsertOrder } from './sales/orders.js?v=phase86-production-hardening-v1';
 import { debtCustomerKey, filterAndSortDebts, mergeDebtPages, parseMobileMoneyInput } from './sales/debt.js?v=phase86-production-hardening-v1';

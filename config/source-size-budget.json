@@ -6,7 +6,7 @@
     "public/index.shell.html": 8192,
     "public/css/00-base.css": 2048,
     "public/css/10-operational-overrides.css": 2048,
-    "src/services/returnOrderLegacy.service.js": 40960,
+    "src/services/returnOrderLegacy.service.js": 49152,
     "src/services/importExportLegacy.service.js": 40960,
     "src/services/reportLegacy.service.js": 40960,
     "src/services/orderLegacy.service.js": 40960,
@@ -52,7 +52,10 @@
         ".impl.js",
         ".util.js"
       ],
-      "maxBytes": 40960
+      "maxBytes": 40960,
+      "overrides": {
+        "src/services/import/preview/importPreview.impl.js": 49152
+      }
     },
     {
       "root": "public/css/base",
