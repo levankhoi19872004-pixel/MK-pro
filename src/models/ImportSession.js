@@ -4,9 +4,25 @@ const mongoose = require('mongoose');
 
 const ImportErrorSchema = new mongoose.Schema({
   row: Number,
+  rowNo: Number,
   field: String,
+  label: String,
+  code: String,
   message: String,
-  rawValue: mongoose.Schema.Types.Mixed
+  rawValue: mongoose.Schema.Types.Mixed,
+  value: mongoose.Schema.Types.Mixed,
+  sourceFile: String
+}, { _id: false });
+
+const ImportInvalidRowSchema = new mongoose.Schema({
+  rowNo: Number,
+  field: String,
+  label: String,
+  value: mongoose.Schema.Types.Mixed,
+  code: String,
+  message: String,
+  sourceFile: String,
+  status: String
 }, { _id: false });
 
 const ImportSessionSchema = new mongoose.Schema({
@@ -59,8 +75,12 @@ const ImportSessionSchema = new mongoose.Schema({
   totalRows: { type: Number, default: 0 },
   validRows: { type: Number, default: 0 },
   errorRows: { type: Number, default: 0 },
+  warningRows: { type: Number, default: 0 },
+  skippedRows: { type: Number, default: 0 },
+  importableRows: { type: Number, default: 0 },
 
   importErrors: { type: [ImportErrorSchema], default: [] },
+  invalidRows: { type: [ImportInvalidRowSchema], default: [] },
 
   // Chỉ lưu sample nhỏ để UI preview nhanh.
   // Không lưu toàn bộ rows vào import_sessions.

@@ -76,6 +76,7 @@ const {
 
 const PROMOTION_MISSING_PRODUCT_ERROR = 'Mã sản phẩm chưa có trong danh mục';
 const { buildPromotionProductRuleGroups, applyPromotionProductRuleDuplicatePolicy } = require('../promotionProductRuleGrouping');
+const { attachImportWarningContract } = require('../core/importWarningContract.util');
 
 function normalizeUploadedFileName(value) {
   const text = cleanText(value);
@@ -155,7 +156,7 @@ function buildPreviewSummary(type, result = []) {
   const groupedPreview = type === 'promotionProductRules'
     ? buildPromotionProductRuleGroups(safe)
     : { groups: [], groupSummary: {} };
-  return {
+  return attachImportWarningContract({
     type,
     rows: safe,
     groups: groupedPreview.groups,
@@ -176,7 +177,7 @@ function buildPreviewSummary(type, result = []) {
       skippedCount: invalidRows,
       ...groupedPreview.groupSummary
     }
-  };
+  });
 }
 
 async function previewMongoNative(type, rows = [], options = {}) {
@@ -756,14 +757,14 @@ async function buildPreviewFromRows({ type, rows = [], userName = '', importMode
   if (type === 'salesOrders') {
     const validatedRows = await importRules.validateImportBatch(result.rows || []);
 
-    return {
+    return attachImportWarningContract({
       ...result,
       importMode: normalizedImportMode,
       rows: validatedRows,
       total: validatedRows.length,
       valid: validatedRows.filter((r) => r.valid).length,
       invalid: validatedRows.filter((r) => !r.valid).length
-    };
+    });
   }
 
   return { ...result, importMode: normalizedImportMode };

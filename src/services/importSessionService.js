@@ -5,6 +5,11 @@ const ImportSession = require('../models/ImportSession');
 const ImportSessionRow = require('../models/ImportSessionRow');
 const BackgroundJob = require('../models/BackgroundJob');
 const { cleanupImportFiles, cleanupImportSession } = require('../utils/importTempFileStore');
+const {
+  buildImportInvalidRows,
+  summarizeImportWarningContract,
+  isImportRowImportable
+} = require('./import/core/importWarningContract.util');
 
 const IMPORT_PREVIEW_LIMIT = Number(process.env.IMPORT_PREVIEW_LIMIT || 100);
 const IMPORT_SESSION_ROW_BATCH_SIZE = Number(process.env.IMPORT_SESSION_ROW_BATCH_SIZE || 500);
@@ -135,7 +140,7 @@ function normalizeErrors(rows = []) {
 }
 
 function isValidImportRow(row = {}) {
-  return row && row.valid !== false && row.canImport !== false && (!Array.isArray(row.errors) || row.errors.length === 0);
+  return isImportRowImportable(row);
 }
 
 function buildSessionRowDoc(sessionId, type, row = {}, index = 0) {
@@ -270,8 +275,10 @@ async function savePreviewResult(id, { rows = [], previewRows = [], fileNames = 
 
   const sessionId = session.sessionId || session.id;
   const errors = normalizeErrors(rows);
+  const invalidRows = buildImportInvalidRows(rows);
+  const warningSummary = summarizeImportWarningContract(rows);
   const validRows = rows.filter(isValidImportRow);
-  const errorRowNumbers = new Set(errors.map((err) => err.row).filter(Boolean));
+  const errorRowNumbers = new Set(invalidRows.map((err) => err.rowNo || err.row).filter(Boolean));
 
   await ImportSessionRow.deleteMany({ sessionId });
 
@@ -287,9 +294,13 @@ async function savePreviewResult(id, { rows = [], previewRows = [], fileNames = 
       $set: {
         status: 'preview_ready',
         totalRows: rows.length,
-        validRows: validRows.length,
-        errorRows: errorRowNumbers.size || errors.length,
+        validRows: warningSummary.validRows,
+        errorRows: warningSummary.errorRows || errorRowNumbers.size || errors.length,
+        warningRows: warningSummary.warningRows,
+        skippedRows: warningSummary.skippedRows,
+        importableRows: warningSummary.importableRows || validRows.length,
         importErrors: errors.slice(0, 1000),
+        invalidRows: invalidRows.slice(0, 1000),
         previewRows: (previewRows.length ? previewRows : rows)
           .slice(0, IMPORT_PREVIEW_LIMIT)
           .map(compactPreviewRow),

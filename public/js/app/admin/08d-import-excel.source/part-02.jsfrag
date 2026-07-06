@@ -288,6 +288,7 @@ function renderImportPreview(result){
     const selected=getSelectedImportRows().length;
     if(commitImportButton){commitImportButton.disabled=selected<=0;commitImportButton.textContent='Import các mã CTKM đã chọn';}
     syncImportSelectedCount();
+    renderImportWarningModal(result);
     return;
   }
   const orderMode=importPreviewRows.some(r=>r&&r.previewMode==='order');
@@ -326,6 +327,7 @@ function renderImportPreview(result){
   }
   // Bỏ cửa sổ popup preview: chỉ hiển thị báo cáo gọn ngay trên màn import.
   renderImportShortageActions(importPreviewRows);
+  renderImportWarningModal(result);
   if(commitImportButton){commitImportButton.disabled=selectable<=0;commitImportButton.textContent=getSelectedImportMode()==='update'?'Cập nhật các dòng đã chọn':'Import các dòng đã chọn';}
 }
 window.renderImportPreviewFromExcel=renderImportPreview;
