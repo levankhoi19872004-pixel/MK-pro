@@ -452,6 +452,81 @@ Quỹ: {"fundType":"cash","account":"CASH","adjustAmount":100000}'></textarea>
       </main>
     </section>
 
+
+    <section id="orderSplitToolTab" class="tab-content order-split-shell">
+      <section class="card">
+        <div class="toolbar">
+          <div>
+            <h2>Công cụ → Chia đơn theo giá trị</h2>
+            <p class="muted">Module ngoài luồng: chỉ đọc Excel, chia số liệu trong bộ nhớ và xuất Excel. Không ghi đơn bán, kho, công nợ, quỹ hay hóa đơn thật.</p>
+          </div>
+          <div class="toolbar-actions">
+            <button type="button" id="orderSplitTemplateButton" class="secondary">Tải file mẫu</button>
+          </div>
+        </div>
+        <div class="order-split-danger-note">Guard an toàn: chức năng VAT chỉ xuất file Excel theo mẫu, chưa phát hành hóa đơn điện tử và không gọi API VNPT.</div>
+        <div class="order-split-grid">
+          <aside class="order-split-panel">
+            <h3>1. File & cấu hình</h3>
+            <form class="order-split-form" onsubmit="return false;">
+              <label>File Excel đầu vào
+                <input id="orderSplitFile" type="file" accept=".xlsx,.xlsm,.xls" />
+              </label>
+              <label>Biên độ lệch tuyệt đối
+                <input id="orderSplitToleranceAmount" type="number" min="0" step="1000" value="0" placeholder="VD: 5000" />
+              </label>
+              <label>Biên độ lệch %
+                <input id="orderSplitTolerancePercent" type="number" min="0" step="0.01" value="0" placeholder="VD: 0.5" />
+              </label>
+              <label class="check-row"><input id="orderSplitAllowOverTarget" type="checkbox" /> Cho phép tổng target vượt tổng đơn</label>
+              <hr />
+              <h3>2. Cấu hình VAT</h3>
+              <label>Thuế suất VAT mặc định (%)
+                <select id="orderSplitVatRate">
+                  <option value="8">8%</option>
+                  <option value="10" selected>10%</option>
+                </select>
+              </label>
+              <label>Giá đầu vào
+                <select id="orderSplitPriceMode">
+                  <option value="net">Giá chưa VAT</option>
+                  <option value="gross">Giá đã gồm VAT</option>
+                </select>
+              </label>
+              <label>Làm tròn
+                <select id="orderSplitRoundingMode">
+                  <option value="line">Theo từng dòng</option>
+                  <option value="invoice">Theo từng hóa đơn</option>
+                </select>
+              </label>
+              <label>Prefix mã đơn/hóa đơn
+                <input id="orderSplitOrderPrefix" placeholder="VD: VAT-" />
+              </label>
+              <div class="order-split-actions">
+                <button type="button" id="orderSplitPreviewButton">Kiểm tra & Preview</button>
+              </div>
+            </form>
+            <p id="orderSplitStatus" class="message order-split-status"></p>
+          </aside>
+          <main class="order-split-panel">
+            <h3>3. Preview kết quả</h3>
+            <div id="orderSplitSummary" class="order-split-summary"><span>Chưa preview</span></div>
+            <div class="order-split-export-bar">
+              <button type="button" id="orderSplitExportButton" disabled>Xuất kết quả chia đơn</button>
+              <button type="button" id="orderSplitVatExportButton" class="secondary" disabled>Xuất hóa đơn VAT theo mẫu</button>
+            </div>
+            <div class="order-split-preview-tabs">
+              <button type="button" class="order-split-preview-tab active" data-view="lines">Kết quả chia</button>
+              <button type="button" class="order-split-preview-tab" data-view="compare">Đối chiếu target</button>
+              <button type="button" class="order-split-preview-tab" data-view="stock">Tồn còn lại</button>
+              <button type="button" class="order-split-preview-tab" data-view="warnings">Cảnh báo</button>
+            </div>
+            <div id="orderSplitPreviewBody"><p class="muted">Upload file và bấm Kiểm tra & Preview để xem kết quả.</p></div>
+          </main>
+        </div>
+      </section>
+    </section>
+
     <section id="systemTab" class="tab-content">
       <section class="card system-card">
         <div class="toolbar">

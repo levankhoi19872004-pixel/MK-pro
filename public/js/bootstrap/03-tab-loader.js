@@ -101,6 +101,9 @@ async function loadTabDataOnce(tabName, options = {}){
       case 'notificationCenterTab':
         if(window.NotificationCenter && typeof window.NotificationCenter.loadList === 'function') await window.NotificationCenter.loadList();
         break;
+      case 'orderSplitToolTab':
+        if(typeof loadOrderSplitTool === 'function') await loadOrderSplitTool();
+        break;
       case 'systemTab':
         await Promise.allSettled([
           typeof loadSystemStatus === 'function' ? loadSystemStatus() : null,

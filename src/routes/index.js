@@ -44,6 +44,7 @@ const backgroundJobRoutes = require('./backgroundJobRoutes');
 const adminCorrectionRoutes = require('./adminCorrectionRoutes');
 const newOperationsRoutes = require('./newOperationsRoutes');
 const notificationRoutes = require('./notificationRoutes');
+const orderSplitToolRoutes = require('./tools/orderSplit.routes');
 
 
 function registerApiRoutes(app) {
@@ -62,6 +63,9 @@ function registerApiRoutes(app) {
 
   // Event-driven Notification Center: auth is enforced by global API boundary.
   app.use('/api/notifications', notificationRoutes);
+
+  // Out-of-flow Excel calculator tool. It must not touch ERP business collections.
+  app.use('/api/tools/order-split', orderSplitToolRoutes);
 
   // Unified search engine for web + mobile autocomplete.
   app.use('/api/search', searchRoutes);
