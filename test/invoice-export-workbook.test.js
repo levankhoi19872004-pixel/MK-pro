@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const readXlsxFile = require('read-excel-file/node');
+const ExcelJS = require('exceljs');
 
 function queryResult(rows, capture) {
   return {
@@ -42,14 +43,20 @@ test('unified invoice export produces valid, disjoint VAT and NON_VAT workbooks'
     {
       _id: 'mongo-vat-old', id: 'VAT-OLD', code: 'VAT-OLD', orderDate: '2026-06-20',
       customerCode: 'C01', customerName: 'Khách VAT cũ', status: 'pending',
-      items: [{ productCode: 'P01', productName: 'Sản phẩm 1', quantity: 2, finalPrice: 10800, amount: 21600 }],
-      totalAmount: 21600
+      items: [
+        { productCode: 'P01', productName: 'Sản phẩm 1', quantity: 2, finalPrice: 10800, amount: 21600 },
+        { productCode: 'P02', productName: 'Sản phẩm 2', quantity: 1, finalPrice: 21600, amount: 21600 }
+      ],
+      totalAmount: 43200
     },
     {
       _id: 'mongo-vat-dms', id: 'VAT-DMS', code: 'VAT-DMS', orderDate: '2026-06-20',
       customerCode: 'C02', customerName: 'Khách VAT DMS', status: 'pending', source: 'DMS', vatInvoiceRequired: true,
-      items: [{ productCode: 'P01', productName: 'Sản phẩm 1', quantity: 1, finalPrice: 10800, amount: 10800 }],
-      totalAmount: 10800
+      items: [
+        { productCode: 'P01', productName: 'Sản phẩm 1', quantity: 1, finalPrice: 10800, amount: 10800 },
+        { productCode: 'P02', productName: 'Sản phẩm 2', quantity: 2, finalPrice: 21600, amount: 43200 }
+      ],
+      totalAmount: 54000
     },
     {
       _id: 'mongo-non-bool', id: 'NON-BOOL', code: 'NON-BOOL', orderDate: '2026-06-20',
@@ -74,7 +81,10 @@ test('unified invoice export produces valid, disjoint VAT and NON_VAT workbooks'
       items: [{ productCode: 'P01', quantity: 1, finalPrice: 10800 }]
     }
   ];
-  const products = [{ code: 'P01', name: 'Sản phẩm 1', conversionRate: 24, salePrice: 12000, baseUnit: 'gói' }];
+  const products = [
+    { code: 'P01', name: 'Sản phẩm 1', conversionRate: 24, salePrice: 12000, baseUnit: 'gói' },
+    { code: 'P02', name: 'Sản phẩm 2', conversionRate: 12, salePrice: 24000, baseUnit: 'chai' }
+  ];
   const customers = orders.map((order) => ({ code: order.customerCode, name: order.customerName }));
   const captures = { orders: [], returns: [], customers: [], products: [] };
   const replacements = [
@@ -118,9 +128,26 @@ test('unified invoice export produces valid, disjoint VAT and NON_VAT workbooks'
     const nonVatOrders = sheetRows(nonVatWorkbook, 'DanhSachDon');
     const nonVatDetails = sheetRows(nonVatWorkbook, 'ChiTietHang');
 
+    const templateWorkbook = new ExcelJS.Workbook();
+    await templateWorkbook.xlsx.load(vat.buffer);
+    const templateSheet = templateWorkbook.getWorksheet('Sheet1');
+    assert.ok(templateSheet, 'Thiếu Sheet1 VNPT');
+    assert.equal(templateSheet.getCell('S1').value, 'TyLeChietKhau');
+    assert.equal(templateSheet.getCell('AD1').value, 'Fkey');
+    assert.equal(templateSheet.getCell('AS1').value, 'LDDNBo');
+    assert.equal(templateSheet.getCell('AT1').value, 'HDSo');
+    assert.equal(templateSheet.getCell('AX1').value, 'HDKTNgay');
+    assert.equal(templateSheet.getCell('AY1').value, 'HDKTSo');
+    assert.equal(templateSheet.getCell('AZ1').value, 'CCCDan');
+    assert.equal(templateSheet.getCell('BC1').value, 'mau_01');
+    assert.equal(templateSheet.getCell('C2').numFmt, '@');
+    assert.equal(templateSheet.getCell('AD2').numFmt, '@');
+
     const vatIds = new Set(columnValues(vatSheet, 'Fkey'));
     const nonVatIds = new Set(columnValues(nonVatOrders, 'Mã đơn'));
     assert.deepEqual([...vatIds].sort(), ['VAT-DMS', 'VAT-OLD']);
+    assert.equal(columnValues(vatSheet, 'Fkey').length, 4);
+    assert.equal(columnValues(vatSheet, 'Fkey').every(Boolean), true);
     assert.deepEqual([...nonVatIds].sort(), ['NON-BOOL', 'NON-STRING']);
     assert.equal([...vatIds].some((id) => nonVatIds.has(id)), false);
     assert.equal(vatIds.size + nonVatIds.size, 4);

@@ -30,6 +30,7 @@ const { normalizePickingZone, pickingZoneFrom, pickingZoneLabel, PICKING_ZONES }
 const sseInvoiceExportService = require('./sseInvoiceExport.service');
 const invoiceExportQueryService = require('./invoiceExportQuery.service');
 const invoiceNetSalesService = require('./invoiceNetSales.service');
+const vnptTt78TemplateExportService = require('./invoice/VnptTt78TemplateExportService');
 
 function stripMongoFields(row = {}) {
   const plain = { ...row };
@@ -103,15 +104,16 @@ async function buildWorkbook({ type, rows }) {
 const TT78_VAT_RATE = 0.08;
 const { extractCustomerTaxProfile } = require('../utils/customerTaxProfile.util');
 const { extractCustomerBusinessProfile } = require('../utils/customerBusinessProfile.util');
-const TT78_HEADERS = [
+const TT78_TEMPLATE_HEADERS = [
   'STT', 'NgayHoaDon', 'MaKhachHang', 'TenKhachHang', 'TenNguoiMua', 'MaSoThue',
   'DiaChiKhachHang', 'DienThoaiKhachHang', 'SoTaiKhoan', 'NganHang', 'HinhThucTT',
   'MaSanPham', 'SanPham', 'DonViTinh', 'Extra1SP', 'Extra2SP', 'SoLuong', 'DonGia',
-  'TyLeChietKhauHienThi', 'SoTienChietKhau', 'ThanhTien', 'TienBan', 'ThueSuat',
+  'TyLeChietKhau', 'SoTienChietKhau', 'ThanhTien', 'TienBan', 'ThueSuat',
   'TienThueSanPham', 'TienThue', 'TongCong', 'TinhChatHangHoa', 'DonViTienTe',
   'TyGia', 'Fkey', 'Extra1', 'Extra2', 'EmailKhachHang', 'VungDuLieu', 'Extra3',
   'Extra4', 'Extra5', 'Extra6', 'Extra7', 'Extra8', 'Extra9', 'Extra10', 'Extra11',
-  'Extra12', 'LOONo', 'HDSe', 'xVTNXHan', 'NVChuan', 'PTChuyenKhoan', 'HDKTTu', 'CCCDan'
+  'Extra12', 'LDDNBo', 'HDSo', 'HVTNXHang', 'TNVChuyen', 'PTVChuyen', 'HDKTNgay',
+  'HDKTSo', 'CCCDan', 'Extra13', 'Extra14', 'mau_01'
 ];
 
 function cleanText(value) {
@@ -522,13 +524,13 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
         DiaChiKhachHang: isFirst ? ci.address : '', DienThoaiKhachHang: isFirst ? ci.phone : '', SoTaiKhoan: isFirst ? ci.bankAccount : '',
         NganHang: isFirst ? ci.bankName : '', HinhThucTT: isFirst ? paymentMethod(order) : '', MaSanPham: line.productCode,
         SanPham: line.productName, DonViTinh: line.unit, Extra1SP: line.catalogPackingQty, Extra2SP: line.catalogSalePrice,
-        SoLuong: line.invoiceQty, DonGia: line.unitPriceBeforeVat, TyLeChietKhauHienThi: '', SoTienChietKhau: '',
+        SoLuong: line.invoiceQty, DonGia: line.unitPriceBeforeVat, TyLeChietKhau: '', SoTienChietKhau: '',
         ThanhTien: line.lineAmountBeforeVat, TienBan: isFirst ? invoiceAmountBeforeVat : '', ThueSuat: isFirst ? 8 : '',
         TienThueSanPham: '', TienThue: isFirst ? invoiceVat : '', TongCong: isFirst ? invoiceTotal : '', TinhChatHangHoa: 0,
-        DonViTienTe: isFirst ? 'VND' : '', TyGia: '', Fkey: isFirst ? currentOrderCode : '', Extra1: '', Extra2: '',
+        DonViTienTe: isFirst ? 'VND' : '', TyGia: '', Fkey: currentOrderCode, Extra1: '', Extra2: '',
         EmailKhachHang: isFirst ? ci.email : '', VungDuLieu: '', Extra3: '', Extra4: '', Extra5: '', Extra6: '', Extra7: '',
-        Extra8: '', Extra9: '', Extra10: '', Extra11: '', Extra12: '', LOONo: '', HDSe: '', xVTNXHan: '', NVChuan: '',
-        PTChuyenKhoan: '', HDKTTu: '', CCCDan: ''
+        Extra8: '', Extra9: '', Extra10: '', Extra11: '', Extra12: '', LDDNBo: '', HDSo: '', HVTNXHang: '', TNVChuyen: '',
+        PTVChuyen: '', HDKTNgay: '', HDKTSo: '', CCCDan: ''
       });
       auditRows.push({
         MaDon: currentOrderCode, MaKhachHang: ci.code, TenKhachHang: ci.name, MaSoThue: ci.taxCode,

@@ -6,17 +6,11 @@
       code: 'INVOICE_EXPORT_NO_DATA'
     };
   }
-  const workbook = createWorkbook();
-  const sheetRows = [TT78_HEADERS, ...rows.map((row) => TT78_HEADERS.map((header) => row[header] ?? ''))];
-  appendAoaSheetToWorkbook(workbook, 'Sheet1', sheetRows, { autoFilter: true });
-
   const auditHeaders = [
     'MaDon', 'MaKhachHang', 'TenKhachHang', 'MaSoThue', 'DiaChiHoaDon', 'MaSanPham', 'SanPham', 'Quy cách', 'Giá bán',
     'SoLuongBan', 'SoLuongTra', 'SoLuongTraAnToan', 'SoLuongXuatHoaDon',
     'GiaSauKhuyenMaiCoVAT', 'DonGiaTruocVAT', 'ThanhTienTruocVAT', 'ReturnOrderCode', 'ReturnOrderId', 'ReturnQtySource', 'LyDoBoDong'
   ];
-  appendAoaSheetToWorkbook(workbook, 'DoiChieu', [auditHeaders, ...auditRows.map((row) => auditHeaders.map((header) => row[header] ?? ''))]);
-
   const summary = rows.reduce((acc, row) => {
     if (row.TienBan !== '') {
       acc.invoiceCount += 1;
@@ -27,19 +21,15 @@
     acc.lineCount += row.MaSanPham ? 1 : 0;
     return acc;
   }, { invoiceCount: 0, lineCount: 0, amountBeforeVat: 0, vatAmount: 0, totalAmount: 0 });
-  appendAoaSheetToWorkbook(workbook, 'ThongTin', [
-    ['Mẫu', 'TT78 - Sheet1'],
-    ['Từ ngày', dateFrom === '0000-01-01' ? '' : dateFrom],
-    ['Đến ngày', dateTo === '9999-12-31' ? '' : dateTo],
-    ['Số hóa đơn', summary.invoiceCount],
-    ['Số dòng sản phẩm', summary.lineCount],
-    ['Tiền bán trước thuế', roundMoney(summary.amountBeforeVat, 2)],
-    ['Tiền thuế 8%', roundMoney(summary.vatAmount, 2)],
-    ['Tổng cộng', Math.round(summary.totalAmount)],
-    ['Quy tắc', 'Số lượng xuất HĐ = số lượng bán - số lượng trả; Đơn giá = giá sau khuyến mại trên đơn / 1.08']
-  ]);
-
-  const buffer = writeWorkbook(workbook);
+  const buffer = await vnptTt78TemplateExportService.buildVnptTt78WorkbookFromTemplate({
+    rows,
+    auditRows,
+    auditHeaders,
+    summary,
+    dateFrom,
+    dateTo,
+    warnings
+  });
   const fromName = dateFrom === '0000-01-01' ? 'all' : dateFrom;
   const toName = dateTo === '9999-12-31' ? dateUtil.todayVN() : dateTo;
   return { buffer, rows: rows.length, orderCount: summary.invoiceCount, warningCount: warnings.length, warnings: warnings.slice(0, 100), fileName: `Hoa_don_VAT_TT78_${fromName}_${toName}.xlsx` };

@@ -56,10 +56,22 @@ test('router remains authenticated and role-scoped through the existing export n
   assert.match(mount, /app\.use\('\/api\/export', exportRouter\)/);
 });
 
-test('invoice exports are generated dynamically and do not depend on platform-specific template paths', () => {
+test('VAT TT78 export uses committed VNPT template and never rebuilds Sheet1 header dynamically', () => {
   const source = readSource('src/services/importExportLegacy.service.js');
-  assert.match(source, /createWorkbook\(\)/);
-  assert.match(source, /writeWorkbook\(workbook\)/);
-  assert.doesNotMatch(source, /[A-Za-z]:\\/);
-  assert.doesNotMatch(source, /Invoice[-_].*\.xlsx/i);
+  const templateService = read('src/services/invoice/VnptTt78TemplateExportService.js');
+  const templatePath = path.join(ROOT, 'templates/vnpt/FileMauHoaDon1Thue_TT78.xlsx');
+
+  assert.equal(fs.existsSync(templatePath), true);
+  assert.match(source, /VnptTt78TemplateExportService/);
+  assert.match(source, /buildVnptTt78WorkbookFromTemplate/);
+  assert.doesNotMatch(source, /const workbook = createWorkbook\(\);\s*const sheetRows = \[TT78_HEADERS/s);
+  assert.doesNotMatch(source, /appendAoaSheetToWorkbook\(workbook, 'Sheet1'/);
+
+  assert.match(templateService, /validateVnptTt78Template/);
+  assert.match(templateService, /TEMPLATE_RELATIVE_PATH = 'templates\/vnpt\/FileMauHoaDon1Thue_TT78\.xlsx'/);
+  assert.match(templateService, /BC:\s*'mau_01'/);
+  assert.match(templateService, /AD:\s*'Fkey'/);
+  assert.match(templateService, /S:\s*'TyLeChietKhau'/);
+  assert.doesNotMatch(`${source}\n${templateService}`, /[A-Za-z]:\\/);
+  assert.doesNotMatch(source, /TyLeChietKhauHienThi|LOONo|HDSe|xVTNXHan|NVChuan|PTChuyenKhoan|HDKTTu/);
 });

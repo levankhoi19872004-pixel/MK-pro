@@ -1,105 +1,103 @@
 /* GENERATED FILE — edit src/services/importExportLegacy.service.source/part-01.jsfrag, src/services/importExportLegacy.service.source/part-02.jsfrag, src/services/importExportLegacy.service.source/part-03.jsfrag and run npm run build:source-bundles. */
 "use strict"
-;const e=require("../utils/date.util"),{createWorkbook:n,appendAoaSheet:o,writeWorkbook:t}=require("../utils/excelWriter.util"),a=require("./excelImportService"),r=require("./import-template/LegacyImportTemplateAdapter"),i=require("../repositories/exportRepository"),u=require("../models/SalesOrder"),c=require("../models/ReturnOrder"),s=require("../models/Customer"),d=require("../models/Product"),h=require("./excel/ProductExcelEnrichmentService"),{INVOICE_TYPES:T,normalizeInvoiceType:l,resolveInvoiceType:m,isActiveInvoiceOrder:g}=require("./invoiceExportClassifier"),p=require("../models"),f=require("./reportService"),y=require("./reports/ReportCenterService"),{LEGACY_EXPORT_TYPE_TO_REPORT_CODE:S,reportCodeForLegacyExport:C}=require("./reports/ReportLegacyExportMap"),{pickSalesStaffCode:N,pickSalesStaffName:D,pickDeliveryStaffCode:M,pickDeliveryStaffName:A}=require("../domain/staff/staffIdentity"),{normalizePickingZone:v,pickingZoneFrom:H,pickingZoneLabel:K,PICKING_ZONES:b}=require("../utils/pickingZone.util"),P=require("./sseInvoiceExport.service"),k=require("./invoiceExportQuery.service"),x=require("./invoiceNetSales.service")
-;function V(e={}){const n={...e};return delete n._id,delete n.__v,n}function R(e){return null==e?"":Array.isArray(e)||"object"==typeof e?JSON.stringify(e):e}function G(e=[]){
-const n=e.map(V),o=new Set;n.forEach(e=>Object.keys(e).forEach(e=>o.add(e)));const t=Array.from(o),a=n.map(e=>t.map(n=>R(e[n])));return{headers:t,body:a}}function O(e=""){
-return"products"===L(e).toLowerCase()?["productCode","code","sku","barcode"]:h.PRODUCT_CODE_KEYS}async function B({type:e,rows:a}){const r=O(e),i=await h.enrichRows(a,{
-productCodeKeys:r,packingKey:"Quy cách",salePriceKey:"Giá bán"}),{headers:u,body:c}=G(i.rows),s=n();o(s,"Export",[u,...c]);const d=h.documentProductLines(a);if(d.length){
-const e=(await h.enrichRows(d,{packingKey:"Quy cách",salePriceKey:"Giá bán"})).rows.map(e=>({MaChungTu:e.documentCode,MaSP:Z(e),SanPham:W(e),"Quy cách":e["Quy cách"],
-"Giá bán":e["Giá bán"],SoLuong:Y(e),GiaSauKM:_(e.finalPrice??e.priceAfterPromotion??e.discountedPrice??""),ThanhTien:oe(e)
-})),n=["MaChungTu","MaSP","SanPham","Quy cách","Giá bán","SoLuong","GiaSauKM","ThanhTien"];o(s,"ChiTietSanPham",[n,...e.map(e=>n.map(n=>e[n]??""))])}
-return o(s,"ThongTin",[["Loại dữ liệu",e],["Số dòng",a.length],["Thời gian xuất",(new Date).toISOString()],["Quy tắc sản phẩm","Nếu có sản phẩm: Quy cách là số lượng đóng gói; Giá bán lấy từ danh mục sản phẩm. Đơn con giữ thêm Giá sau KM."]]),
+;const e=require("../utils/date.util"),{createWorkbook:o,appendAoaSheet:n,writeWorkbook:t}=require("../utils/excelWriter.util"),a=require("./excelImportService"),r=require("./import-template/LegacyImportTemplateAdapter"),i=require("../repositories/exportRepository"),u=require("../models/SalesOrder"),c=require("../models/ReturnOrder"),s=require("../models/Customer"),d=require("../models/Product"),h=require("./excel/ProductExcelEnrichmentService"),{INVOICE_TYPES:T,normalizeInvoiceType:l,resolveInvoiceType:m,isActiveInvoiceOrder:g}=require("./invoiceExportClassifier"),p=require("../models"),f=require("./reportService"),y=require("./reports/ReportCenterService"),{LEGACY_EXPORT_TYPE_TO_REPORT_CODE:S,reportCodeForLegacyExport:C}=require("./reports/ReportLegacyExportMap"),{pickSalesStaffCode:N,pickSalesStaffName:D,pickDeliveryStaffCode:M,pickDeliveryStaffName:A}=require("../domain/staff/staffIdentity"),{normalizePickingZone:v,pickingZoneFrom:H,pickingZoneLabel:K,PICKING_ZONES:b}=require("../utils/pickingZone.util"),P=require("./sseInvoiceExport.service"),k=require("./invoiceExportQuery.service"),V=require("./invoiceNetSales.service"),x=require("./invoice/VnptTt78TemplateExportService")
+;function R(e={}){const o={...e};return delete o._id,delete o.__v,o}function G(e){return null==e?"":Array.isArray(e)||"object"==typeof e?JSON.stringify(e):e}function w(e=[]){
+const o=e.map(R),n=new Set;o.forEach(e=>Object.keys(e).forEach(e=>n.add(e)));const t=Array.from(n),a=o.map(e=>t.map(o=>G(e[o])));return{headers:t,body:a}}function B(e=""){
+return"products"===_(e).toLowerCase()?["productCode","code","sku","barcode"]:h.PRODUCT_CODE_KEYS}async function O({type:e,rows:a}){const r=B(e),i=await h.enrichRows(a,{
+productCodeKeys:r,packingKey:"Quy cách",salePriceKey:"Giá bán"}),{headers:u,body:c}=w(i.rows),s=o();n(s,"Export",[u,...c]);const d=h.documentProductLines(a);if(d.length){
+const e=(await h.enrichRows(d,{packingKey:"Quy cách",salePriceKey:"Giá bán"})).rows.map(e=>({MaChungTu:e.documentCode,MaSP:W(e),SanPham:z(e),"Quy cách":e["Quy cách"],
+"Giá bán":e["Giá bán"],SoLuong:J(e),GiaSauKM:q(e.finalPrice??e.priceAfterPromotion??e.discountedPrice??""),ThanhTien:te(e)
+})),o=["MaChungTu","MaSP","SanPham","Quy cách","Giá bán","SoLuong","GiaSauKM","ThanhTien"];n(s,"ChiTietSanPham",[o,...e.map(e=>o.map(o=>e[o]??""))])}
+return n(s,"ThongTin",[["Loại dữ liệu",e],["Số dòng",a.length],["Thời gian xuất",(new Date).toISOString()],["Quy tắc sản phẩm","Nếu có sản phẩm: Quy cách là số lượng đóng gói; Giá bán lấy từ danh mục sản phẩm. Đơn con giữ thêm Giá sau KM."]]),
 t(s)}
-const w=.08,{extractCustomerTaxProfile:E}=require("../utils/customerTaxProfile.util"),{extractCustomerBusinessProfile:Q}=require("../utils/customerBusinessProfile.util"),I=["STT","NgayHoaDon","MaKhachHang","TenKhachHang","TenNguoiMua","MaSoThue","DiaChiKhachHang","DienThoaiKhachHang","SoTaiKhoan","NganHang","HinhThucTT","MaSanPham","SanPham","DonViTinh","Extra1SP","Extra2SP","SoLuong","DonGia","TyLeChietKhauHienThi","SoTienChietKhau","ThanhTien","TienBan","ThueSuat","TienThueSanPham","TienThue","TongCong","TinhChatHangHoa","DonViTienTe","TyGia","Fkey","Extra1","Extra2","EmailKhachHang","VungDuLieu","Extra3","Extra4","Extra5","Extra6","Extra7","Extra8","Extra9","Extra10","Extra11","Extra12","LOONo","HDSe","xVTNXHan","NVChuan","PTChuyenKhoan","HDKTTu","CCCDan"]
-;function L(e){return String(e??"").trim()}function _(e,n=0){const o=Number(String(e??"").replace(/,/g,""));return Number.isFinite(o)?o:n}function q(e,n=2){const o=10**n
-;return Math.round(_(e)*o)/o}function j(n){return e.toDateOnly(n||"")||L(n).slice(0,10)}function $(e,n={}){
-const o=j(e),t=j(n.dateFrom||n.from||n.fromDate||""),a=j(n.dateTo||n.to||n.toDate||"");return!(t&&o<t||a&&o>a)}function F(e={}){return g(e)}function X(e={}){
-return[e.id,e._id,e.code,e.orderCode,e.documentCode,e.salesOrderId,e.salesOrderCode,e.externalOrderCode,e.invoiceCode,e.refCode].map(L).filter(Boolean)}function U(e={}){
-return L(e.code||e.orderCode||e.salesOrderCode||e.documentCode||e.id||e._id)}function Z(e={}){return L(e.productCode||e.code||e.sku||e.barcode||e.productId||e.id)}function W(e={}){
-return L(e.productName||e.name||e.itemName||e.productTitle||"")}function z(e={},n={}){return L(e.unit||e.baseUnit||e.dvt||e.uom||n.unit||n.baseUnit||"")}function Y(e={}){
-return _(e.quantity??e.qty??e.totalQty??e.qtySale??e.saleQty??0)}function J(e={}){return _(e.returnQty??e.qtyReturn??e.returnQuantity??e.returnedQty??0)}function ee(e={}){
-return L(e.lineKey||e.orderLineId||e.salesOrderItemId||e.itemId||e._id||"")}function ne(e={}){
-return _(e.finalPrice??e.priceAfterPromotion??e.promoPrice??e.price??e.salePrice??e.unitPrice??e.sellPrice??0)}function oe(e={}){
-return _(e.amount??e.totalAmount??e.lineAmount??e.money??0)||Y(e)*ne(e)}function te(e,n){return`${L(e)}@@${L(n)}`}function ae(e={}){const n=ne(e);return n?String(q(n,6)):""}
-function re(e,n,o="",t=""){return[L(e),L(n),L(o),L(t)].join("@@")}function ie(e={}){return L(e.code||e.id||e.returnOrderCode||e.documentCode||e._id)}function ue(e={}){
-return L(e.id||e._id||e.code||e.returnOrderCode||e.documentCode)}function ce(e={}){
-const n=e.updatedAt||e.modifiedAt||e.createdAt||e.date||e.documentDate||"",o=n?new Date(n).getTime():0;return Number.isFinite(o)?o:0}function se(){return{status:{
-$nin:["void","cancelled","canceled","deleted","removed"]},returnStatus:{$nin:["void","cancelled","canceled","deleted","removed"]}}}function de(e,n,o,t={}){if(!n||!o)return
-;e.set(n,_(e.get(n))+o),e.__sourceMap||(e.__sourceMap=new Map);const a=e.__sourceMap.get(n)||{codes:new Set,ids:new Set,sourceRows:[]};t.code&&a.codes.add(t.code),
-t.id&&a.ids.add(t.id),t.sourceRow&&a.sourceRows.push(t.sourceRow),e.__sourceMap.set(n,a)}function he(e,n){const o=e&&e.__sourceMap;if(!o)return{ReturnOrderCode:"",ReturnOrderId:"",
-ReturnQtySource:""};const t=o.get(n);if(!t)return{ReturnOrderCode:"",ReturnOrderId:"",ReturnQtySource:""}
+const E=.08,{extractCustomerTaxProfile:Q}=require("../utils/customerTaxProfile.util"),{extractCustomerBusinessProfile:I}=require("../utils/customerBusinessProfile.util"),L=["STT","NgayHoaDon","MaKhachHang","TenKhachHang","TenNguoiMua","MaSoThue","DiaChiKhachHang","DienThoaiKhachHang","SoTaiKhoan","NganHang","HinhThucTT","MaSanPham","SanPham","DonViTinh","Extra1SP","Extra2SP","SoLuong","DonGia","TyLeChietKhau","SoTienChietKhau","ThanhTien","TienBan","ThueSuat","TienThueSanPham","TienThue","TongCong","TinhChatHangHoa","DonViTienTe","TyGia","Fkey","Extra1","Extra2","EmailKhachHang","VungDuLieu","Extra3","Extra4","Extra5","Extra6","Extra7","Extra8","Extra9","Extra10","Extra11","Extra12","LDDNBo","HDSo","HVTNXHang","TNVChuyen","PTVChuyen","HDKTNgay","HDKTSo","CCCDan","Extra13","Extra14","mau_01"]
+;function _(e){return String(e??"").trim()}function q(e,o=0){const n=Number(String(e??"").replace(/,/g,""));return Number.isFinite(n)?n:o}function j(e,o=2){const n=10**o
+;return Math.round(q(e)*n)/n}function $(o){return e.toDateOnly(o||"")||_(o).slice(0,10)}function F(e,o={}){
+const n=$(e),t=$(o.dateFrom||o.from||o.fromDate||""),a=$(o.dateTo||o.to||o.toDate||"");return!(t&&n<t||a&&n>a)}function X(e={}){return g(e)}function U(e={}){
+return[e.id,e._id,e.code,e.orderCode,e.documentCode,e.salesOrderId,e.salesOrderCode,e.externalOrderCode,e.invoiceCode,e.refCode].map(_).filter(Boolean)}function Z(e={}){
+return _(e.code||e.orderCode||e.salesOrderCode||e.documentCode||e.id||e._id)}function W(e={}){return _(e.productCode||e.code||e.sku||e.barcode||e.productId||e.id)}function z(e={}){
+return _(e.productName||e.name||e.itemName||e.productTitle||"")}function Y(e={},o={}){return _(e.unit||e.baseUnit||e.dvt||e.uom||o.unit||o.baseUnit||"")}function J(e={}){
+return q(e.quantity??e.qty??e.totalQty??e.qtySale??e.saleQty??0)}function ee(e={}){return q(e.returnQty??e.qtyReturn??e.returnQuantity??e.returnedQty??0)}function oe(e={}){
+return _(e.lineKey||e.orderLineId||e.salesOrderItemId||e.itemId||e._id||"")}function ne(e={}){
+return q(e.finalPrice??e.priceAfterPromotion??e.promoPrice??e.price??e.salePrice??e.unitPrice??e.sellPrice??0)}function te(e={}){
+return q(e.amount??e.totalAmount??e.lineAmount??e.money??0)||J(e)*ne(e)}function ae(e,o){return`${_(e)}@@${_(o)}`}function re(e={}){const o=ne(e);return o?String(j(o,6)):""}
+function ie(e,o,n="",t=""){return[_(e),_(o),_(n),_(t)].join("@@")}function ue(e={}){return _(e.code||e.id||e.returnOrderCode||e.documentCode||e._id)}function ce(e={}){
+return _(e.id||e._id||e.code||e.returnOrderCode||e.documentCode)}function se(e={}){
+const o=e.updatedAt||e.modifiedAt||e.createdAt||e.date||e.documentDate||"",n=o?new Date(o).getTime():0;return Number.isFinite(n)?n:0}function de(){return{status:{
+$nin:["void","cancelled","canceled","deleted","removed"]},returnStatus:{$nin:["void","cancelled","canceled","deleted","removed"]}}}function he(e,o,n,t={}){if(!o||!n)return
+;e.set(o,q(e.get(o))+n),e.__sourceMap||(e.__sourceMap=new Map);const a=e.__sourceMap.get(o)||{codes:new Set,ids:new Set,sourceRows:[]};t.code&&a.codes.add(t.code),
+t.id&&a.ids.add(t.id),t.sourceRow&&a.sourceRows.push(t.sourceRow),e.__sourceMap.set(o,a)}function Te(e,o){const n=e&&e.__sourceMap;if(!n)return{ReturnOrderCode:"",ReturnOrderId:"",
+ReturnQtySource:""};const t=n.get(o);if(!t)return{ReturnOrderCode:"",ReturnOrderId:"",ReturnQtySource:""}
 ;const a=Array.from(t.codes||[]).filter(Boolean),r=Array.from(t.ids||[]).filter(Boolean),i=Array.from(t.sourceRows||[]).filter(Boolean);return{ReturnOrderCode:a.join(", "),
-ReturnOrderId:r.join(", "),ReturnQtySource:i.join(" | ")}}function Te(e=[]){const n=new Map,o=new Map;for(const n of e||[]){if(!F(n))continue
-;const e=ie(n),t=ue(n),a=ce(n),r=Array.from(new Set([n.salesOrderId,n.orderId,n.sourceOrderId,n.deliveryOrderId,n.salesOrderCode,n.orderCode,n.sourceOrderCode,n.deliveryOrderCode,n.originalOrderCode].map(L).filter(Boolean)))
-;if(!r.length)continue;const i=L(n.salesOrderCode||n.orderCode||n.salesOrderId||n.orderId||r[0]);for(const u of Array.isArray(n.items)?n.items:[]){const n=Z(u);if(!n)continue
-;const c=J(u);if(!c)continue;const s=ee(u),d=ae(u),h=`${e||t||"RETURN_ORDER"}:${i}:${n}:${c}`,T=[e||t,i,n,s||"",d||""].map(L).join("@@"),l={roKeys:r,pcode:n,qty:c,lineKey:s,
-priceKey:d,roCode:e,roId:t,updatedMs:a,sourceRow:h},m=o.get(T);(!m||a>=m.updatedMs)&&o.set(T,l)}}for(const e of o.values()){
-const{roKeys:o,pcode:t,qty:a,lineKey:r,priceKey:i,roCode:u,roId:c,sourceRow:s}=e,d={code:u,id:c,sourceRow:s}
-;for(const e of o)de(n,r&&i?re(e,t,r,i):r?re(e,t,r,""):i?re(e,t,"",i):te(e,t),a,d)}return n}function le(e,n={},o={}){const t=Z(o);if(!t)return{qty:0,ReturnOrderCode:"",
-ReturnOrderId:"",ReturnQtySource:""};const a=ee(o),r=ae(o);let i={qty:0,key:""};for(const o of X(n)){
-const n=[a&&r?re(o,t,a,r):"",a?re(o,t,a,""):"",r?re(o,t,"",r):"",te(o,t)].filter(Boolean);for(const o of n){const n=_(e.get(o));if(n>i.qty&&(i={qty:n,key:o}),n)break}}return{
-qty:i.qty,...he(e,i.key)}}function me(e,n={},o={}){return le(e,n,o).qty}function ge(e={}){return L(e.customerCode||e.customerId||e.customerName||e.customerPhone||"")}
-function pe(e=[]){const n=new Map;for(const o of e||[])[o.code,o.customerCode,o.id,o._id,o.name,o.customerName,o.phone,o.mobile].map(L).filter(Boolean).forEach(e=>n.set(e,o))
-;return n}function fe(e=[]){const n=new Map;for(const o of e||[])[o.code,o.productCode,o.sku,o.barcode,o.id,o._id].map(L).filter(Boolean).forEach(e=>n.set(e,o));return n}
-function ye(e={},n=new Map){
-const o=n.get(L(e.customerCode))||n.get(L(e.customerId))||n.get(L(e.customerName))||{},t=E(e),a=E(o),r=Q(e),i=Q(o),u=L(e.customerName||o.name||o.customerName),c=L(r.businessName||i.businessName)
-;return{code:L(e.customerCode||o.code||o.customerCode||e.customerId||o.id),name:c||u,buyer:L(e.buyerName||e.contactName||o.buyerName||o.representative||o.contactName||u),
-taxCode:L(t.taxCode||a.taxCode),address:L(t.taxInvoiceAddress||a.taxInvoiceAddress||e.customerAddress||e.address||o.address||o.deliveryAddress),
-phone:L(e.customerPhone||e.phone||o.phone||o.mobile),bankAccount:L(o.bankAccount||o.accountNumber||e.bankAccount),bankName:L(o.bankName||e.bankName),
-email:L(o.email||e.customerEmail||e.email)}}function Se(e={}){const n=L(e.paymentMethod||e.paymentType||e.method||e.hinhThucTT||"");if(n)return n
-;const o=_(e.cashAmount||e.collectedCashAmount),t=_(e.bankAmount||e.transferAmount||e.collectedBankAmount);return o&&t?"TM/CK":t?"CK":"TM/CK"}
-function Ce({orders:n,returnOrders:o,customers:t,products:a,query:r={}}){const i=pe(t),u=fe(a),c=[],s=[],d=[];let l=0
-;const g=(n||[]).filter(F).filter(e=>m(e)===T.VAT).filter(e=>k.matchesInvoiceExportFilters(e,r,{invoiceGroup:T.VAT})).filter(e=>{if(!r.customerCode&&!r.customerId)return!0
-;const n=L(r.customerCode||r.customerId);return[e.customerCode,e.customerId,e.customerName].map(L).includes(n)
-}).sort((e,n)=>L(e.orderDate||e.date||e.documentDate||e.createdAt).localeCompare(L(n.orderDate||n.date||n.documentDate||n.createdAt))||U(e).localeCompare(U(n))),p=x.buildNetSaleDataset({
-orders:g,returnOrders:o,isEligibleReturnOrder:k.isEligibleReturnOrder});for(const n of p.orders){
-const o=n.order,t=[],a=ye(o,i),r=U(o),T=j(o.orderDate||o.date||o.documentDate||o.createdAt||e.todayVN());for(const e of n.lines){
-const n=e.item,o=e.productCode,a=u.get(o)||{},i=W(n)||L(a.name||a.productName),c=e.soldQty,s=e.returnedQty,T=e.netQty,l=ne(n)||(c?oe(n)/c:0),m=x.sourceSummary(e);if(!o||T<=0){
-o||d.push({code:"MISSING_PRODUCT_CODE",orderCode:r,message:"Dòng bán thiếu productCode nên không thể đưa vào dataset hóa đơn."});continue}const g=q(l/1.08,6),p=q(T*g,2);t.push({
-productCode:o,productName:i,unit:z(n,a),catalogPackingQty:h.catalogPackingQty(a),catalogSalePrice:h.catalogSalePrice(a),soldQty:c,returnQty:s,safeReturnQty:s,invoiceQty:T,
+ReturnOrderId:r.join(", "),ReturnQtySource:i.join(" | ")}}function le(e=[]){const o=new Map,n=new Map;for(const o of e||[]){if(!X(o))continue
+;const e=ue(o),t=ce(o),a=se(o),r=Array.from(new Set([o.salesOrderId,o.orderId,o.sourceOrderId,o.deliveryOrderId,o.salesOrderCode,o.orderCode,o.sourceOrderCode,o.deliveryOrderCode,o.originalOrderCode].map(_).filter(Boolean)))
+;if(!r.length)continue;const i=_(o.salesOrderCode||o.orderCode||o.salesOrderId||o.orderId||r[0]);for(const u of Array.isArray(o.items)?o.items:[]){const o=W(u);if(!o)continue
+;const c=ee(u);if(!c)continue;const s=oe(u),d=re(u),h=`${e||t||"RETURN_ORDER"}:${i}:${o}:${c}`,T=[e||t,i,o,s||"",d||""].map(_).join("@@"),l={roKeys:r,pcode:o,qty:c,lineKey:s,
+priceKey:d,roCode:e,roId:t,updatedMs:a,sourceRow:h},m=n.get(T);(!m||a>=m.updatedMs)&&n.set(T,l)}}for(const e of n.values()){
+const{roKeys:n,pcode:t,qty:a,lineKey:r,priceKey:i,roCode:u,roId:c,sourceRow:s}=e,d={code:u,id:c,sourceRow:s}
+;for(const e of n)he(o,r&&i?ie(e,t,r,i):r?ie(e,t,r,""):i?ie(e,t,"",i):ae(e,t),a,d)}return o}function me(e,o={},n={}){const t=W(n);if(!t)return{qty:0,ReturnOrderCode:"",
+ReturnOrderId:"",ReturnQtySource:""};const a=oe(n),r=re(n);let i={qty:0,key:""};for(const n of U(o)){
+const o=[a&&r?ie(n,t,a,r):"",a?ie(n,t,a,""):"",r?ie(n,t,"",r):"",ae(n,t)].filter(Boolean);for(const n of o){const o=q(e.get(n));if(o>i.qty&&(i={qty:o,key:n}),o)break}}return{
+qty:i.qty,...Te(e,i.key)}}function ge(e,o={},n={}){return me(e,o,n).qty}function pe(e={}){return _(e.customerCode||e.customerId||e.customerName||e.customerPhone||"")}
+function fe(e=[]){const o=new Map;for(const n of e||[])[n.code,n.customerCode,n.id,n._id,n.name,n.customerName,n.phone,n.mobile].map(_).filter(Boolean).forEach(e=>o.set(e,n))
+;return o}function ye(e=[]){const o=new Map;for(const n of e||[])[n.code,n.productCode,n.sku,n.barcode,n.id,n._id].map(_).filter(Boolean).forEach(e=>o.set(e,n));return o}
+function Se(e={},o=new Map){
+const n=o.get(_(e.customerCode))||o.get(_(e.customerId))||o.get(_(e.customerName))||{},t=Q(e),a=Q(n),r=I(e),i=I(n),u=_(e.customerName||n.name||n.customerName),c=_(r.businessName||i.businessName)
+;return{code:_(e.customerCode||n.code||n.customerCode||e.customerId||n.id),name:c||u,buyer:_(e.buyerName||e.contactName||n.buyerName||n.representative||n.contactName||u),
+taxCode:_(t.taxCode||a.taxCode),address:_(t.taxInvoiceAddress||a.taxInvoiceAddress||e.customerAddress||e.address||n.address||n.deliveryAddress),
+phone:_(e.customerPhone||e.phone||n.phone||n.mobile),bankAccount:_(n.bankAccount||n.accountNumber||e.bankAccount),bankName:_(n.bankName||e.bankName),
+email:_(n.email||e.customerEmail||e.email)}}function Ce(e={}){const o=_(e.paymentMethod||e.paymentType||e.method||e.hinhThucTT||"");if(o)return o
+;const n=q(e.cashAmount||e.collectedCashAmount),t=q(e.bankAmount||e.transferAmount||e.collectedBankAmount);return n&&t?"TM/CK":t?"CK":"TM/CK"}
+function Ne({orders:o,returnOrders:n,customers:t,products:a,query:r={}}){const i=fe(t),u=ye(a),c=[],s=[],d=[];let l=0
+;const g=(o||[]).filter(X).filter(e=>m(e)===T.VAT).filter(e=>k.matchesInvoiceExportFilters(e,r,{invoiceGroup:T.VAT})).filter(e=>{if(!r.customerCode&&!r.customerId)return!0
+;const o=_(r.customerCode||r.customerId);return[e.customerCode,e.customerId,e.customerName].map(_).includes(o)
+}).sort((e,o)=>_(e.orderDate||e.date||e.documentDate||e.createdAt).localeCompare(_(o.orderDate||o.date||o.documentDate||o.createdAt))||Z(e).localeCompare(Z(o))),p=V.buildNetSaleDataset({
+orders:g,returnOrders:n,isEligibleReturnOrder:k.isEligibleReturnOrder});for(const o of p.orders){
+const n=o.order,t=[],a=Se(n,i),r=Z(n),T=$(n.orderDate||n.date||n.documentDate||n.createdAt||e.todayVN());for(const e of o.lines){
+const o=e.item,n=e.productCode,a=u.get(n)||{},i=z(o)||_(a.name||a.productName),c=e.soldQty,s=e.returnedQty,T=e.netQty,l=ne(o)||(c?te(o)/c:0),m=V.sourceSummary(e);if(!n||T<=0){
+n||d.push({code:"MISSING_PRODUCT_CODE",orderCode:r,message:"Dòng bán thiếu productCode nên không thể đưa vào dataset hóa đơn."});continue}const g=j(l/1.08,6),p=j(T*g,2);t.push({
+productCode:n,productName:i,unit:Y(o,a),catalogPackingQty:h.catalogPackingQty(a),catalogSalePrice:h.catalogSalePrice(a),soldQty:c,returnQty:s,safeReturnQty:s,invoiceQty:T,
 priceInclVat:l,unitPriceBeforeVat:g,lineAmountBeforeVat:p,returnOrderCode:m.ReturnOrderCode,returnOrderId:m.ReturnOrderId,returnQtySource:m.ReturnQtySource})}
-if(!t.length||n.fullyReturned)continue;l+=1;const m=q(t.reduce((e,n)=>e+n.lineAmountBeforeVat,0),2),g=q(m*w,2),p=Math.round(m+g);p<=0||t.forEach((e,n)=>{const t=0===n;c.push({
+if(!t.length||o.fullyReturned)continue;l+=1;const m=j(t.reduce((e,o)=>e+o.lineAmountBeforeVat,0),2),g=j(m*E,2),p=Math.round(m+g);p<=0||t.forEach((e,o)=>{const t=0===o;c.push({
 STT:t?l:"",NgayHoaDon:t?T:"",MaKhachHang:t?a.code:"",TenKhachHang:t?a.name:"",TenNguoiMua:t?a.buyer:"",MaSoThue:t?a.taxCode:"",DiaChiKhachHang:t?a.address:"",
-DienThoaiKhachHang:t?a.phone:"",SoTaiKhoan:t?a.bankAccount:"",NganHang:t?a.bankName:"",HinhThucTT:t?Se(o):"",MaSanPham:e.productCode,SanPham:e.productName,DonViTinh:e.unit,
-Extra1SP:e.catalogPackingQty,Extra2SP:e.catalogSalePrice,SoLuong:e.invoiceQty,DonGia:e.unitPriceBeforeVat,TyLeChietKhauHienThi:"",SoTienChietKhau:"",
-ThanhTien:e.lineAmountBeforeVat,TienBan:t?m:"",ThueSuat:t?8:"",TienThueSanPham:"",TienThue:t?g:"",TongCong:t?p:"",TinhChatHangHoa:0,DonViTienTe:t?"VND":"",TyGia:"",Fkey:t?r:"",
-Extra1:"",Extra2:"",EmailKhachHang:t?a.email:"",VungDuLieu:"",Extra3:"",Extra4:"",Extra5:"",Extra6:"",Extra7:"",Extra8:"",Extra9:"",Extra10:"",Extra11:"",Extra12:"",LOONo:"",
-HDSe:"",xVTNXHan:"",NVChuan:"",PTChuyenKhoan:"",HDKTTu:"",CCCDan:""}),s.push({MaDon:r,MaKhachHang:a.code,TenKhachHang:a.name,MaSoThue:a.taxCode,DiaChiHoaDon:a.address,
+DienThoaiKhachHang:t?a.phone:"",SoTaiKhoan:t?a.bankAccount:"",NganHang:t?a.bankName:"",HinhThucTT:t?Ce(n):"",MaSanPham:e.productCode,SanPham:e.productName,DonViTinh:e.unit,
+Extra1SP:e.catalogPackingQty,Extra2SP:e.catalogSalePrice,SoLuong:e.invoiceQty,DonGia:e.unitPriceBeforeVat,TyLeChietKhau:"",SoTienChietKhau:"",ThanhTien:e.lineAmountBeforeVat,
+TienBan:t?m:"",ThueSuat:t?8:"",TienThueSanPham:"",TienThue:t?g:"",TongCong:t?p:"",TinhChatHangHoa:0,DonViTienTe:t?"VND":"",TyGia:"",Fkey:r,Extra1:"",Extra2:"",
+EmailKhachHang:t?a.email:"",VungDuLieu:"",Extra3:"",Extra4:"",Extra5:"",Extra6:"",Extra7:"",Extra8:"",Extra9:"",Extra10:"",Extra11:"",Extra12:"",LDDNBo:"",HDSo:"",HVTNXHang:"",
+TNVChuyen:"",PTVChuyen:"",HDKTNgay:"",HDKTSo:"",CCCDan:""}),s.push({MaDon:r,MaKhachHang:a.code,TenKhachHang:a.name,MaSoThue:a.taxCode,DiaChiHoaDon:a.address,
 MaSanPham:e.productCode,SanPham:e.productName,"Quy cách":e.catalogPackingQty,"Giá bán":e.catalogSalePrice,SoLuongBan:e.soldQty,SoLuongTra:e.returnQty,
 SoLuongTraAnToan:e.safeReturnQty,SoLuongXuatHoaDon:e.invoiceQty,GiaSauKhuyenMaiCoVAT:e.priceInclVat,DonGiaTruocVAT:e.unitPriceBeforeVat,ThanhTienTruocVAT:e.lineAmountBeforeVat,
 ReturnOrderCode:e.returnOrderCode,ReturnOrderId:e.returnOrderId,ReturnQtySource:e.returnQtySource,LyDoBoDong:""})})}return{rows:c,auditRows:s,warnings:[...p.warnings,...d]}}
-async function Ne(a={},r={}){const i=k.normalizeExportQuery(a,{invoiceGroup:T.VAT
-}),u=i.dateFrom||"0000-01-01",c=i.dateTo||"9999-12-31",{orders:s,returnOrders:d,customers:h,products:l}=await k.loadInvoiceExportData({query:a,invoiceGroup:T.VAT,currentUser:r
-}),{rows:m,auditRows:g,warnings:p=[]}=Ce({orders:s,returnOrders:d,customers:h,products:l,query:a});if(!m.length)return{
-error:"Không có đơn VAT hoặc dòng sản phẩm hợp lệ trong phạm vi bộ lọc đã chọn",status:404,code:"INVOICE_EXPORT_NO_DATA"};const f=n(),y=[I,...m.map(e=>I.map(n=>e[n]??""))]
-;o(f,"Sheet1",y,{autoFilter:!0})
-;const S=["MaDon","MaKhachHang","TenKhachHang","MaSoThue","DiaChiHoaDon","MaSanPham","SanPham","Quy cách","Giá bán","SoLuongBan","SoLuongTra","SoLuongTraAnToan","SoLuongXuatHoaDon","GiaSauKhuyenMaiCoVAT","DonGiaTruocVAT","ThanhTienTruocVAT","ReturnOrderCode","ReturnOrderId","ReturnQtySource","LyDoBoDong"]
-;o(f,"DoiChieu",[S,...g.map(e=>S.map(n=>e[n]??""))]);const C=m.reduce((e,n)=>(""!==n.TienBan&&(e.invoiceCount+=1,e.amountBeforeVat+=_(n.TienBan),e.vatAmount+=_(n.TienThue),
-e.totalAmount+=_(n.TongCong)),e.lineCount+=n.MaSanPham?1:0,e),{invoiceCount:0,lineCount:0,amountBeforeVat:0,vatAmount:0,totalAmount:0})
-;o(f,"ThongTin",[["Mẫu","TT78 - Sheet1"],["Từ ngày","0000-01-01"===u?"":u],["Đến ngày","9999-12-31"===c?"":c],["Số hóa đơn",C.invoiceCount],["Số dòng sản phẩm",C.lineCount],["Tiền bán trước thuế",q(C.amountBeforeVat,2)],["Tiền thuế 8%",q(C.vatAmount,2)],["Tổng cộng",Math.round(C.totalAmount)],["Quy tắc","Số lượng xuất HĐ = số lượng bán - số lượng trả; Đơn giá = giá sau khuyến mại trên đơn / 1.08"]])
-;const N=t(f),D="0000-01-01"===u?"all":u,M="9999-12-31"===c?e.todayVN():c;return{buffer:N,rows:m.length,orderCount:C.invoiceCount,warningCount:p.length,warnings:p.slice(0,100),
-fileName:`Hoa_don_VAT_TT78_${D}_${M}.xlsx`}}function De(e={}){
-return[L(e.salesStaffCode||e.salesPersonCode||e.salesmanCode||e.nvbhCode||e.maNVBH),L(e.salesStaffName||e.salesPersonName||e.salesmanName||e.nvbhName||e.maNVBHName)].filter(Boolean).join(" - ")
-}function Me(e={}){return L(e.orderSourceName||e.orderSource||e.source||e.sourceType||e.importSource||"")}async function Ae(a={},r={}){const i=k.normalizeExportQuery(a,{
+async function De(o={},n={}){const t=k.normalizeExportQuery(o,{invoiceGroup:T.VAT
+}),a=t.dateFrom||"0000-01-01",r=t.dateTo||"9999-12-31",{orders:i,returnOrders:u,customers:c,products:s}=await k.loadInvoiceExportData({query:o,invoiceGroup:T.VAT,currentUser:n
+}),{rows:d,auditRows:h,warnings:l=[]}=Ne({orders:i,returnOrders:u,customers:c,products:s,query:o});if(!d.length)return{
+error:"Không có đơn VAT hoặc dòng sản phẩm hợp lệ trong phạm vi bộ lọc đã chọn",status:404,code:"INVOICE_EXPORT_NO_DATA"}
+;const m=d.reduce((e,o)=>(""!==o.TienBan&&(e.invoiceCount+=1,e.amountBeforeVat+=q(o.TienBan),e.vatAmount+=q(o.TienThue),e.totalAmount+=q(o.TongCong)),e.lineCount+=o.MaSanPham?1:0,
+e),{invoiceCount:0,lineCount:0,amountBeforeVat:0,vatAmount:0,totalAmount:0}),g=await x.buildVnptTt78WorkbookFromTemplate({rows:d,auditRows:h,
+auditHeaders:["MaDon","MaKhachHang","TenKhachHang","MaSoThue","DiaChiHoaDon","MaSanPham","SanPham","Quy cách","Giá bán","SoLuongBan","SoLuongTra","SoLuongTraAnToan","SoLuongXuatHoaDon","GiaSauKhuyenMaiCoVAT","DonGiaTruocVAT","ThanhTienTruocVAT","ReturnOrderCode","ReturnOrderId","ReturnQtySource","LyDoBoDong"],
+summary:m,dateFrom:a,dateTo:r,warnings:l}),p="0000-01-01"===a?"all":a,f="9999-12-31"===r?e.todayVN():r;return{buffer:g,rows:d.length,orderCount:m.invoiceCount,
+warningCount:l.length,warnings:l.slice(0,100),fileName:`Hoa_don_VAT_TT78_${p}_${f}.xlsx`}}function Me(e={}){
+return[_(e.salesStaffCode||e.salesPersonCode||e.salesmanCode||e.nvbhCode||e.maNVBH),_(e.salesStaffName||e.salesPersonName||e.salesmanName||e.nvbhName||e.maNVBHName)].filter(Boolean).join(" - ")
+}function Ae(e={}){return _(e.orderSourceName||e.orderSource||e.source||e.sourceType||e.importSource||"")}async function ve(a={},r={}){const i=k.normalizeExportQuery(a,{
 invoiceGroup:T.NON_VAT}),u=i.dateFrom||"0000-01-01",c=i.dateTo||"9999-12-31",{orders:s,returnOrders:d,customers:l,products:g}=await k.loadInvoiceExportData({query:a,
-invoiceGroup:T.NON_VAT,currentUser:r}),p=(s||[]).filter(F).filter(e=>m(e)===T.NON_VAT).filter(e=>k.matchesInvoiceExportFilters(e,a,{invoiceGroup:T.NON_VAT
-})),f=Te(d),y=pe(l),S=fe(g),C=[],N=[];let D=0,M=0,A=0;p.forEach((e,n)=>{const o=ye(e,y),t=U(e);let a=0,r=0;for(const n of Array.isArray(e.items)?e.items:[]){
-const o=Z(n),i=S.get(o)||{},u=Y(n),c=Math.min(u,me(f,e,n)),s=Math.max(0,u-c),d=ne(n)||(u?oe(n)/u:0),T=q(s*d,2);a+=q(c*d,2),r+=T,N.push({"Mã đơn":t,"Mã sản phẩm":o,
-"Tên sản phẩm":W(n)||L(i.name||i.productName),"Quy cách":h.catalogPackingQty(i),"Giá bán":h.catalogSalePrice(i),"Số lượng bán":u,"Số lượng trả":c,"Số lượng còn lại":s,"Đơn giá":d,
-"Thành tiền":T})}const i=_(e.totalAmount||e.grandTotal||0),u=_(e.paidAmount||e.paymentAmount||0),c=_(e.debtAmount??Math.max(0,i-u));D+=i,M+=a,A+=r,C.push({STT:n+1,
-"Ngày bán":j(e.orderDate||e.date||e.documentDate||e.createdAt),"Mã đơn":t,"Mã khách hàng":o.code,"Tên khách hàng":o.name,NVBH:De(e),"Nguồn đơn":Me(e),"Giá trị đơn":i,
-"Tiền đã thu":u,"Công nợ":c,"Lý do không xuất":L(e.vatInvoiceNote),"Người thay đổi":L(e.vatInvoiceUpdatedBy),"Thời gian thay đổi":L(e.vatInvoiceUpdatedAt)})})
+invoiceGroup:T.NON_VAT,currentUser:r}),p=(s||[]).filter(X).filter(e=>m(e)===T.NON_VAT).filter(e=>k.matchesInvoiceExportFilters(e,a,{invoiceGroup:T.NON_VAT
+})),f=le(d),y=fe(l),S=ye(g),C=[],N=[];let D=0,M=0,A=0;p.forEach((e,o)=>{const n=Se(e,y),t=Z(e);let a=0,r=0;for(const o of Array.isArray(e.items)?e.items:[]){
+const n=W(o),i=S.get(n)||{},u=J(o),c=Math.min(u,ge(f,e,o)),s=Math.max(0,u-c),d=ne(o)||(u?te(o)/u:0),T=j(s*d,2);a+=j(c*d,2),r+=T,N.push({"Mã đơn":t,"Mã sản phẩm":n,
+"Tên sản phẩm":z(o)||_(i.name||i.productName),"Quy cách":h.catalogPackingQty(i),"Giá bán":h.catalogSalePrice(i),"Số lượng bán":u,"Số lượng trả":c,"Số lượng còn lại":s,"Đơn giá":d,
+"Thành tiền":T})}const i=q(e.totalAmount||e.grandTotal||0),u=q(e.paidAmount||e.paymentAmount||0),c=q(e.debtAmount??Math.max(0,i-u));D+=i,M+=a,A+=r,C.push({STT:o+1,
+"Ngày bán":$(e.orderDate||e.date||e.documentDate||e.createdAt),"Mã đơn":t,"Mã khách hàng":n.code,"Tên khách hàng":n.name,NVBH:Me(e),"Nguồn đơn":Ae(e),"Giá trị đơn":i,
+"Tiền đã thu":u,"Công nợ":c,"Lý do không xuất":_(e.vatInvoiceNote),"Người thay đổi":_(e.vatInvoiceUpdatedBy),"Thời gian thay đổi":_(e.vatInvoiceUpdatedAt)})})
 ;const v=N.filter(e=>Number(e["Số lượng còn lại"])>0);if(!C.length||!v.length)return{error:"Không có đơn không VAT hoặc dòng sản phẩm hợp lệ trong phạm vi bộ lọc đã chọn",
-status:404,code:"INVOICE_EXPORT_NO_DATA"};const H=n()
-;Pe(H,"DanhSachDon",["STT","Ngày bán","Mã đơn","Mã khách hàng","Tên khách hàng","NVBH","Nguồn đơn","Giá trị đơn","Tiền đã thu","Công nợ","Lý do không xuất","Người thay đổi","Thời gian thay đổi"],C),
-Pe(H,"ChiTietHang",["Mã đơn","Mã sản phẩm","Tên sản phẩm","Quy cách","Giá bán","Số lượng bán","Số lượng trả","Số lượng còn lại","Đơn giá","Thành tiền"],N),
-o(H,"ThongTin",[["Từ ngày","0000-01-01"===u?"":u],["Đến ngày","9999-12-31"===c?"":c],["Số đơn không xuất hóa đơn",C.length],["Tổng giá trị đơn",q(D,2)],["Tổng hàng trả",q(M,2)],["Giá trị còn lại",q(A,2)]])
-;const K=t(H),b="0000-01-01"===u?"all":u,P="9999-12-31"===c?e.todayVN():c,x=b===P?b:`${b}_${P}`;return{buffer:K,rows:v.length,orderCount:C.length,
-fileName:`Hoa_don_khong_VAT_${x}.xlsx`}}
-const ve=["sales-report","delivery-report","return-report","debt-report","ar-ledger-detail","stock-report","inventory-movement-report","stock-card-report","fund-report","salesman-report","deliveryman-report","customer-sales-report","product-sales-report","product-info-report","customer-info-report","user-info-report"]
-;function He(e={}){return{from:j(e.dateFrom||e.from||e.fromDate||""),to:j(e.dateTo||e.to||e.toDate||"")}}function Ke(e={},n=["date","createdAt"]){const{from:o,to:t}=He(e)
-;return o||t?{$or:n.map(e=>({[e]:{...o?{$gte:o}:{},...t?{$lte:"createdAt"===e?`${t}T23:59:59.999Z`:t}:{}}}))}:{}}function be(e={}){
-return Math.min(Math.max(Number(e.limit||1e5),1),2e5)}function Pe(e,n,t,a){const r=a.map(e=>t.map(n=>e[n]??""));o(e,String(n||"BaoCao").slice(0,31),[t,...r])}function ke(e=""){
+status:404,code:"INVOICE_EXPORT_NO_DATA"};const H=o()
+;ke(H,"DanhSachDon",["STT","Ngày bán","Mã đơn","Mã khách hàng","Tên khách hàng","NVBH","Nguồn đơn","Giá trị đơn","Tiền đã thu","Công nợ","Lý do không xuất","Người thay đổi","Thời gian thay đổi"],C),
+ke(H,"ChiTietHang",["Mã đơn","Mã sản phẩm","Tên sản phẩm","Quy cách","Giá bán","Số lượng bán","Số lượng trả","Số lượng còn lại","Đơn giá","Thành tiền"],N),
+n(H,"ThongTin",[["Từ ngày","0000-01-01"===u?"":u],["Đến ngày","9999-12-31"===c?"":c],["Số đơn không xuất hóa đơn",C.length],["Tổng giá trị đơn",j(D,2)],["Tổng hàng trả",j(M,2)],["Giá trị còn lại",j(A,2)]])
+;const K=t(H),b="0000-01-01"===u?"all":u,P="9999-12-31"===c?e.todayVN():c,V=b===P?b:`${b}_${P}`;return{buffer:K,rows:v.length,orderCount:C.length,
+fileName:`Hoa_don_khong_VAT_${V}.xlsx`}}
+const He=["sales-report","delivery-report","return-report","debt-report","ar-ledger-detail","stock-report","inventory-movement-report","stock-card-report","fund-report","salesman-report","deliveryman-report","customer-sales-report","product-sales-report","product-info-report","customer-info-report","user-info-report"]
+;function Ke(e={}){return{from:$(e.dateFrom||e.from||e.fromDate||""),to:$(e.dateTo||e.to||e.toDate||"")}}function be(e={},o=["date","createdAt"]){const{from:n,to:t}=Ke(e)
+;return n||t?{$or:o.map(e=>({[e]:{...n?{$gte:n}:{},...t?{$lte:"createdAt"===e?`${t}T23:59:59.999Z`:t}:{}}}))}:{}}function Pe(e={}){
+return Math.min(Math.max(Number(e.limit||1e5),1),2e5)}function ke(e,o,t,a){const r=a.map(e=>t.map(o=>e[o]??""));n(e,String(o||"BaoCao").slice(0,31),[t,...r])}function Ve(e=""){
 return{"stock-report":"Tồn hiện tại đọc inventories; Tồn vật lý = onHand, Tồn khả dụng = onHand - reservedQty.",
 "inventory-movement-report":"Tồn đầu + Tổng nhập - Tổng xuất = Tồn cuối; chiều nhập/xuất theo dấu quantity; tồn cuối được backcast từ inventories khi có thể.",
 "stock-card-report":"Số dư chạy bắt đầu từ tồn đầu kỳ, không bắt đầu từ 0.",
@@ -110,130 +108,130 @@ return{"stock-report":"Tồn hiện tại đọc inventories; Tồn vật lý = 
 "product-info-report":"Thông tin sản phẩm ghép tồn kho hiện tại từ inventories và tách Tồn vật lý, Đã giữ chỗ, Tồn khả dụng.",
 "customer-info-report":"Công nợ lấy arLedgers; doanh số tháng chỉ gồm đơn đã xác nhận kế toán và giá trị thực tế tại thời điểm bán."
 }[e]||"Báo cáo sử dụng nguồn dữ liệu nghiệp vụ chuẩn của hệ thống."}async function xe(a,r,i,u,c={},s=null){const d=await h.enrichRows(u,{packingKey:"Quy cách",
-salePriceKey:"Giá bán"}),T=[...i];d.hasProducts&&(T.includes("Quy cách")||T.push("Quy cách"),T.includes("Giá bán")||T.push("Giá bán"));const l=n();if(s){
+salePriceKey:"Giá bán"}),T=[...i];d.hasProducts&&(T.includes("Quy cách")||T.push("Quy cách"),T.includes("Giá bán")||T.push("Giá bán"));const l=o();if(s){
 const e=[s.service,s.serviceMethod].filter(Boolean).join(".")
-;o(l,"THÔNG TIN NGUỒN",[["Trường","Giá trị"],["Mã báo cáo",s.reportCode||""],["Service",e],["Nguồn chính",(s.primaryCollections||[]).join(", ")],["Quy tắc SSoT",s.ssotRule||s.sourceLabel||""],["Xem và xuất cùng nguồn",s.viewAndExportSameSource?"Có":"Không"],["Trạng thái nguồn",s.sourceStatus||"OK"]])
-}Pe(l,r,T,d.rows);const{from:m,to:g}=He(c)
-;o(l,"ThongTin",[["Mẫu báo cáo",r],["Từ ngày",m],["Đến ngày",g],["Số dòng",d.rows.length],["Thời gian xuất",(new Date).toISOString()],["Quy tắc nghiệp vụ",ke(a)]])
-;const p=String(a||"report").replace(/[^a-zA-Z0-9_-]/g,"-"),f=`${m||"all"}_${g||e.todayVN()}`;return{buffer:t(l),rows:d.rows.length,fileName:`${p}_${f}.xlsx`}}function Ve(e={}){
-return Array.isArray(e.items)?e.items:[]}function Re(e={}){return Ve(e).reduce((e,n)=>e+Y(n),0)||_(e.totalQuantity||e.quantity||0)}function Ge(e={},n={}){
-return _(e.originalPrice??e.basePrice??e.listPrice??n.salePrice??e.salePrice??e.price??e.unitPrice??0)}function Oe(e={},n={}){return Y(e)*Ge(e,n)}function Be(e={}){
-return _(e.finalAmount??e.amount??e.totalAmount??e.lineAmount??0)||Y(e)*ne(e)}function we(e={},n=new Map){
-return Ve(e).reduce((e,o)=>e+Oe(o,n.get(Z(o))||{}),0)||_(e.beforePromoAmount||e.grossAmount||e.totalBeforeDiscount||e.totalAmount||0)}function Ee(e={}){
-return _(e.afterPromoAmount||e.totalAfterPromotion||e.totalAmount||e.amount||0)}function Qe(e={},n="sales"){return L("delivery"===n?A(e):D(e))}function Ie(e={},n="sales"){
-return L("delivery"===n?M(e):N(e))}async function Le(){const e=await d.find({}).select("code name salePrice conversionRate baseUnit unit brand category").lean()
-;return new Map(e.map(e=>[L(e.code),e]))}async function _e(e={}){const n=((await f.salesReport({...e,full:"1",export:"1"})).sales||[]).map((e,n)=>({STT:n+1,Ngay:e.date,
+;n(l,"THÔNG TIN NGUỒN",[["Trường","Giá trị"],["Mã báo cáo",s.reportCode||""],["Service",e],["Nguồn chính",(s.primaryCollections||[]).join(", ")],["Quy tắc SSoT",s.ssotRule||s.sourceLabel||""],["Xem và xuất cùng nguồn",s.viewAndExportSameSource?"Có":"Không"],["Trạng thái nguồn",s.sourceStatus||"OK"]])
+}ke(l,r,T,d.rows);const{from:m,to:g}=Ke(c)
+;n(l,"ThongTin",[["Mẫu báo cáo",r],["Từ ngày",m],["Đến ngày",g],["Số dòng",d.rows.length],["Thời gian xuất",(new Date).toISOString()],["Quy tắc nghiệp vụ",Ve(a)]])
+;const p=String(a||"report").replace(/[^a-zA-Z0-9_-]/g,"-"),f=`${m||"all"}_${g||e.todayVN()}`;return{buffer:t(l),rows:d.rows.length,fileName:`${p}_${f}.xlsx`}}function Re(e={}){
+return Array.isArray(e.items)?e.items:[]}function Ge(e={}){return Re(e).reduce((e,o)=>e+J(o),0)||q(e.totalQuantity||e.quantity||0)}function we(e={},o={}){
+return q(e.originalPrice??e.basePrice??e.listPrice??o.salePrice??e.salePrice??e.price??e.unitPrice??0)}function Be(e={},o={}){return J(e)*we(e,o)}function Oe(e={}){
+return q(e.finalAmount??e.amount??e.totalAmount??e.lineAmount??0)||J(e)*ne(e)}function Ee(e={},o=new Map){
+return Re(e).reduce((e,n)=>e+Be(n,o.get(W(n))||{}),0)||q(e.beforePromoAmount||e.grossAmount||e.totalBeforeDiscount||e.totalAmount||0)}function Qe(e={}){
+return q(e.afterPromoAmount||e.totalAfterPromotion||e.totalAmount||e.amount||0)}function Ie(e={},o="sales"){return _("delivery"===o?A(e):D(e))}function Le(e={},o="sales"){
+return _("delivery"===o?M(e):N(e))}async function _e(){const e=await d.find({}).select("code name salePrice conversionRate baseUnit unit brand category").lean()
+;return new Map(e.map(e=>[_(e.code),e]))}async function qe(e={}){const o=((await f.salesReport({...e,full:"1",export:"1"})).sales||[]).map((e,o)=>({STT:o+1,Ngay:e.date,
 MaDon:e.code,Nguon:e.source,MaKhachHang:e.customerCode,KhachHang:e.customerName,MaNVBH:e.salesStaffCode,NVBH:e.salesStaffName,MaNVGH:e.deliveryStaffCode,NVGH:e.deliveryStaffName,
-SoLuongBan:e.saleQuantity,SoLuongKhuyenMai:e.promoQuantity,DoanhSoTruocKM:Math.round(_(e.beforePromoAmount)),DoanhSoThucTe:Math.round(_(e.actualAmount)),
-ChietKhauKM:Math.round(_(e.promotionDiscountAmount)),GiaTriHangKM:Math.round(_(e.promotionValue)),DaThuTheoAR:Math.round(_(e.receiptAmount)),
-TraHangTheoAR:Math.round(_(e.returnAmount)),DieuChinhCongNo:Math.round(_(e.adjustmentAmount)),ConNoTheoAR:Math.round(_(e.debtAmount)),TrangThaiGiaoHang:e.deliveryStatus,
-TrangThaiKeToan:e.accountingStatus}));return xe("sales-report","BaoCaoBanHang",Object.keys(n[0]||{STT:"",Ngay:"",MaDon:"",Nguon:"",MaKhachHang:"",KhachHang:"",MaNVBH:"",NVBH:"",
+SoLuongBan:e.saleQuantity,SoLuongKhuyenMai:e.promoQuantity,DoanhSoTruocKM:Math.round(q(e.beforePromoAmount)),DoanhSoThucTe:Math.round(q(e.actualAmount)),
+ChietKhauKM:Math.round(q(e.promotionDiscountAmount)),GiaTriHangKM:Math.round(q(e.promotionValue)),DaThuTheoAR:Math.round(q(e.receiptAmount)),
+TraHangTheoAR:Math.round(q(e.returnAmount)),DieuChinhCongNo:Math.round(q(e.adjustmentAmount)),ConNoTheoAR:Math.round(q(e.debtAmount)),TrangThaiGiaoHang:e.deliveryStatus,
+TrangThaiKeToan:e.accountingStatus}));return xe("sales-report","BaoCaoBanHang",Object.keys(o[0]||{STT:"",Ngay:"",MaDon:"",Nguon:"",MaKhachHang:"",KhachHang:"",MaNVBH:"",NVBH:"",
 MaNVGH:"",NVGH:"",SoLuongBan:"",SoLuongKhuyenMai:"",DoanhSoTruocKM:"",DoanhSoThucTe:"",ChietKhauKM:"",GiaTriHangKM:"",DaThuTheoAR:"",TraHangTheoAR:"",DieuChinhCongNo:"",
-ConNoTheoAR:"",TrangThaiGiaoHang:"",TrangThaiKeToan:""}),n,e)}async function qe(e={}){const n=((await f.deliveryReport({...e,full:"1",export:"1"})).delivery||[]).map((e,n)=>({
-STT:n+1,NgayGiao:e.deliveryDate,MaDonTong:e.code,MaNVGH:e.deliveryStaffCode,NVGH:e.deliveryStaffName,SoDonDangGan:e.assignedOrderCount,SoDonDaGiao:e.orderCount,
-TongTienDonCon:Math.round(_(e.totalAmount)),DoanhSoDaXacNhan:Math.round(_(e.accountingConfirmedAmount)),TienThuTheoQuy:Math.round(_(e.collectedAmount)),TrangThai:e.status,
-LechSoDonSnapshot:_(e.dataQuality?.snapshotOrderCountDifference),LechTienSnapshot:Math.round(_(e.dataQuality?.snapshotAmountDifference))}))
-;return xe("delivery-report","BaoCaoGiaoHang",Object.keys(n[0]||{STT:"",NgayGiao:"",MaDonTong:"",MaNVGH:"",NVGH:"",SoDonDangGan:"",SoDonDaGiao:"",TongTienDonCon:"",
-DoanhSoDaXacNhan:"",TienThuTheoQuy:"",TrangThai:"",LechSoDonSnapshot:"",LechTienSnapshot:""}),n,e)}async function je(e={}){const n=((await f.returnReport({...e,full:"1",export:"1"
-})).returns||[]).map((e,n)=>({STT:n+1,Ngay:e.date,MaTraHang:e.code,MaDon:e.salesOrderCode,MaKhachHang:e.customerCode,KhachHang:e.customerName,MaNVBH:e.salesStaffCode,
-NVBH:e.salesStaffName,MaNVGH:e.deliveryStaffCode,NVGH:e.deliveryStaffName,GiaTriTra:Math.round(_(e.amount)),GiaTriChungTu:Math.round(_(e.documentAmount)),
-GiaTriARReturn:Math.round(_(e.arAmount)),TrangThaiNhapKho:e.warehouseReceiveStatus,TrangThaiTraHang:e.returnState,TrangThaiKeToan:e.accountingStatus}))
-;return xe("return-report","BaoCaoTraHang",Object.keys(n[0]||{STT:"",Ngay:"",MaTraHang:"",MaDon:"",MaKhachHang:"",KhachHang:"",MaNVBH:"",NVBH:"",MaNVGH:"",NVGH:"",GiaTriTra:"",
-GiaTriChungTu:"",GiaTriARReturn:"",TrangThaiNhapKho:"",TrangThaiTraHang:"",TrangThaiKeToan:""}),n,e)}async function $e(e={}){const n=((await f.periodDebtReport({...e,full:"1",
-export:"1",includePaid:"1"})).debts||[]).map((e,n)=>({STT:n+1,MaKhachHang:e.customerCode,KhachHang:e.customerName,MaNVBH:e.salesStaffCode,NVBH:e.salesStaffName,
-MaNVGH:e.deliveryStaffCode,NVGH:e.deliveryStaffName,DuDauKy:Math.round(_(e.openingBalance)),PhatSinhNo:Math.round(_(e.debitInPeriod)),DaThu:Math.round(_(e.receiptInPeriod)),
-TraHang:Math.round(_(e.returnInPeriod)),ChietKhauDieuChinh:Math.round(_(e.adjustmentInPeriod)+_(e.otherCreditInPeriod)),TongPhatSinhCo:Math.round(_(e.totalCreditInPeriod)),
-DuCuoiKy:Math.round(_(e.closingBalance))}));return xe("debt-report","BaoCaoCongNo",Object.keys(n[0]||{STT:"",MaKhachHang:"",KhachHang:"",MaNVBH:"",NVBH:"",MaNVGH:"",NVGH:"",
-DuDauKy:"",PhatSinhNo:"",DaThu:"",TraHang:"",ChietKhauDieuChinh:"",TongPhatSinhCo:"",DuCuoiKy:""}),n,e)}async function Fe(e={}){const n=((await f.arLedgerDetailReport({...e,
-full:"1",export:"1"})).ledger||[]).map((e,n)=>({STT:n+1,Ngay:e.date,MaKhachHang:e.customerCode,KhachHang:e.customerName,ChungTu:e.documentCode,Loai:e.type,DienGiai:e.description,
-DuTruocGiaoDich:Math.round(_(e.openingBalance)),No:Math.round(_(e.debit)),Co:Math.round(_(e.credit)),PhanLoaiCo:e.creditCategory,DuSauGiaoDich:Math.round(_(e.closingBalance))}))
-;return xe("ar-ledger-detail","SoCongNoChiTiet",Object.keys(n[0]||{STT:"",Ngay:"",MaKhachHang:"",KhachHang:"",ChungTu:"",Loai:"",DienGiai:"",DuTruocGiaoDich:"",No:"",Co:"",
-PhanLoaiCo:"",DuSauGiaoDich:""}),n,e)}async function Xe(e={}){const n=((await f.stockReport({...e,full:"1",export:"1"})).stock||[]).map((e,n)=>({STT:n+1,
-MaSP:L(e.productCode||e.code||e.productId),SanPham:L(e.productName||e.name),DonViTinh:L(e.unit||e.baseUnit),TonVatLy:_(e.onHand??e.quantity??e.qty),DaGiuCho:_(e.reservedQty),
-TonKhaDung:_(e.availableQty)}));return xe("stock-report","TonKhoHienTai",Object.keys(n[0]||{STT:"",MaSP:"",SanPham:"",DonViTinh:"",TonVatLy:"",DaGiuCho:"",TonKhaDung:""}),n,{})}
-async function Ue(e={}){const n=((await f.inventoryMovementReport({...e,full:"1",export:"1",mode:"movement"})).stock||[]).map((e,n)=>({STT:n+1,MaSP:e.productCode,
-SanPham:e.productName,DonViTinh:e.unit,TonDauKy:_(e.openingQty),NhapMua:_(e.importQty),HangTraNhapKho:_(e.returnQty),NhapKhac:_(e.otherInQty),TongNhap:_(e.inQty),
-XuatBan:_(e.saleQty),XuatDaoChungTu:_(e.reversalOutQty),XuatKhac:_(e.otherOutQty),TongXuat:_(e.outQty),DieuChinhRong:_(e.adjustmentQty),TonCuoiKy:_(e.endingQty),
-NguonTonCuoi:e.endingSource,TonCuoiTheoLedger:_(e.ledgerEndingQty),ChenhLechDoiSoat:_(e.reconciliationDifference)}))
-;return xe("inventory-movement-report","NhapXuatTon",Object.keys(n[0]||{STT:"",MaSP:"",SanPham:"",DonViTinh:"",TonDauKy:"",NhapMua:"",HangTraNhapKho:"",NhapKhac:"",TongNhap:"",
-XuatBan:"",XuatDaoChungTu:"",XuatKhac:"",TongXuat:"",DieuChinhRong:"",TonCuoiKy:"",NguonTonCuoi:"",TonCuoiTheoLedger:"",ChenhLechDoiSoat:""}),n,e)}async function Ze(e={}){
-const n=((await f.stockCardReport({...e,full:"1",export:"1"})).transactions||[]).map((e,n)=>({STT:n+1,Ngay:e.date,MaSP:e.productCode,SanPham:e.productName,ChungTu:e.refCode,
-Loai:e.type,PhanLoai:e.category,TonTruocGiaoDich:_(e.openingQty),Nhap:_(e.inQty),Xuat:_(e.outQty),TonSauGiaoDich:_(e.balanceQty),GhiChu:e.note}))
-;return xe("stock-card-report","TheKho",Object.keys(n[0]||{STT:"",Ngay:"",MaSP:"",SanPham:"",ChungTu:"",Loai:"",PhanLoai:"",TonTruocGiaoDich:"",Nhap:"",Xuat:"",TonSauGiaoDich:"",
-GhiChu:""}),n,e)}async function We(e={}){const n=((await f.financeReport({...e,full:"1",export:"1"})).fundLedger||[]).map((e,n)=>({STT:n+1,Ngay:e.date,ChungTu:e.code,Loai:e.type,
-LoaiQuy:e.fundType,TaiKhoanQuy:e.account,NguoiLienQuan:e.counterparty,TonDauDong:Math.round(_(e.openingBalance)),Thu:Math.round(_(e.inAmount)),Chi:Math.round(_(e.outAmount)),
-TonCuoiDong:Math.round(_(e.endingBalance)),GhiChu:e.note}));return xe("fund-report","BaoCaoQuyTien",Object.keys(n[0]||{STT:"",Ngay:"",ChungTu:"",Loai:"",LoaiQuy:"",TaiKhoanQuy:"",
-NguoiLienQuan:"",TonDauDong:"",Thu:"",Chi:"",TonCuoiDong:"",GhiChu:""}),n,e)}async function ze(e={}){const n=((await f.salesReport({...e,full:"1",export:"1"
-})).bySalesman||[]).map((e,n)=>({STT:n+1,MaNVBH:e.salesmanCode,NVBH:e.salesmanName,SoDon:e.orderCount,SoKhachHang:e.customerCount,DoanhSoTruocKM:Math.round(_(e.beforePromoAmount)),
-DoanhSoThucTe:Math.round(_(e.actualAmount)),GiaTriHangKM:Math.round(_(e.promotionValue)),DaThuTheoAR:Math.round(_(e.receiptAmount)),TraHangTheoAR:Math.round(_(e.returnAmount)),
-ConNoTheoAR:Math.round(_(e.debtAmount))}));return xe("salesman-report","BaoCaoNVBH",Object.keys(n[0]||{STT:"",MaNVBH:"",NVBH:"",SoDon:"",SoKhachHang:"",DoanhSoTruocKM:"",
-DoanhSoThucTe:"",GiaTriHangKM:"",DaThuTheoAR:"",TraHangTheoAR:"",ConNoTheoAR:""}),n,e)}async function Ye(e={}){const n=((await f.deliveryReport({...e,full:"1",export:"1"
-})).byStaff||[]).map((e,n)=>({STT:n+1,MaNVGH:e.deliveryStaffCode,NVGH:e.deliveryStaffName,SoChuyen:e.tripCount,SoDonDaGiao:e.orderCount,TongTienDonCon:Math.round(_(e.totalAmount)),
-DoanhSoDaXacNhan:Math.round(_(e.accountingConfirmedAmount)),ThuTienTheoQuy:Math.round(_(e.collectedAmount))}));return xe("deliveryman-report","BaoCaoNVGH",Object.keys(n[0]||{
-STT:"",MaNVGH:"",NVGH:"",SoChuyen:"",SoDonDaGiao:"",TongTienDonCon:"",DoanhSoDaXacNhan:"",ThuTienTheoQuy:""}),n,e)}async function Je(e={}){const n=await f.salesReport({...e,
-full:"1",export:"1"}),o=await f.periodDebtReport({...e,full:"1",export:"1",includePaid:"1"}),t=new Map((o.debts||[]).map(e=>[L(e.customerCode||e.customerName),e])),a=new Map
-;(n.sales||[]).forEach(e=>{const n=L(e.customerCode||e.customerName),o=a.get(n)||{MaKhachHang:e.customerCode,KhachHang:e.customerName,MaNVBH:e.salesStaffCode,NVBH:e.salesStaffName,
-SoDon:0,DoanhSoTruocKM:0,DoanhSoThucTe:0,GiaTriHangKM:0,DaThuTheoAR:0,TraHangTheoAR:0};o.SoDon+=1,o.DoanhSoTruocKM+=_(e.beforePromoAmount),o.DoanhSoThucTe+=_(e.actualAmount),
-o.GiaTriHangKM+=_(e.promotionValue),o.DaThuTheoAR+=_(e.receiptAmount),o.TraHangTheoAR+=_(e.returnAmount),a.set(n,o)});const r=Array.from(a.entries()).map(([e,n],o)=>{
-const a=t.get(e)||{};return{STT:o+1,...n,DoanhSoTruocKM:Math.round(n.DoanhSoTruocKM),DoanhSoThucTe:Math.round(n.DoanhSoThucTe),GiaTriHangKM:Math.round(n.GiaTriHangKM),
-DaThuTheoAR:Math.round(n.DaThuTheoAR),TraHangTheoAR:Math.round(n.TraHangTheoAR),DuDauKy:Math.round(_(a.openingBalance)),DuCuoiKy:Math.round(_(a.closingBalance))}})
+ConNoTheoAR:"",TrangThaiGiaoHang:"",TrangThaiKeToan:""}),o,e)}async function je(e={}){const o=((await f.deliveryReport({...e,full:"1",export:"1"})).delivery||[]).map((e,o)=>({
+STT:o+1,NgayGiao:e.deliveryDate,MaDonTong:e.code,MaNVGH:e.deliveryStaffCode,NVGH:e.deliveryStaffName,SoDonDangGan:e.assignedOrderCount,SoDonDaGiao:e.orderCount,
+TongTienDonCon:Math.round(q(e.totalAmount)),DoanhSoDaXacNhan:Math.round(q(e.accountingConfirmedAmount)),TienThuTheoQuy:Math.round(q(e.collectedAmount)),TrangThai:e.status,
+LechSoDonSnapshot:q(e.dataQuality?.snapshotOrderCountDifference),LechTienSnapshot:Math.round(q(e.dataQuality?.snapshotAmountDifference))}))
+;return xe("delivery-report","BaoCaoGiaoHang",Object.keys(o[0]||{STT:"",NgayGiao:"",MaDonTong:"",MaNVGH:"",NVGH:"",SoDonDangGan:"",SoDonDaGiao:"",TongTienDonCon:"",
+DoanhSoDaXacNhan:"",TienThuTheoQuy:"",TrangThai:"",LechSoDonSnapshot:"",LechTienSnapshot:""}),o,e)}async function $e(e={}){const o=((await f.returnReport({...e,full:"1",export:"1"
+})).returns||[]).map((e,o)=>({STT:o+1,Ngay:e.date,MaTraHang:e.code,MaDon:e.salesOrderCode,MaKhachHang:e.customerCode,KhachHang:e.customerName,MaNVBH:e.salesStaffCode,
+NVBH:e.salesStaffName,MaNVGH:e.deliveryStaffCode,NVGH:e.deliveryStaffName,GiaTriTra:Math.round(q(e.amount)),GiaTriChungTu:Math.round(q(e.documentAmount)),
+GiaTriARReturn:Math.round(q(e.arAmount)),TrangThaiNhapKho:e.warehouseReceiveStatus,TrangThaiTraHang:e.returnState,TrangThaiKeToan:e.accountingStatus}))
+;return xe("return-report","BaoCaoTraHang",Object.keys(o[0]||{STT:"",Ngay:"",MaTraHang:"",MaDon:"",MaKhachHang:"",KhachHang:"",MaNVBH:"",NVBH:"",MaNVGH:"",NVGH:"",GiaTriTra:"",
+GiaTriChungTu:"",GiaTriARReturn:"",TrangThaiNhapKho:"",TrangThaiTraHang:"",TrangThaiKeToan:""}),o,e)}async function Fe(e={}){const o=((await f.periodDebtReport({...e,full:"1",
+export:"1",includePaid:"1"})).debts||[]).map((e,o)=>({STT:o+1,MaKhachHang:e.customerCode,KhachHang:e.customerName,MaNVBH:e.salesStaffCode,NVBH:e.salesStaffName,
+MaNVGH:e.deliveryStaffCode,NVGH:e.deliveryStaffName,DuDauKy:Math.round(q(e.openingBalance)),PhatSinhNo:Math.round(q(e.debitInPeriod)),DaThu:Math.round(q(e.receiptInPeriod)),
+TraHang:Math.round(q(e.returnInPeriod)),ChietKhauDieuChinh:Math.round(q(e.adjustmentInPeriod)+q(e.otherCreditInPeriod)),TongPhatSinhCo:Math.round(q(e.totalCreditInPeriod)),
+DuCuoiKy:Math.round(q(e.closingBalance))}));return xe("debt-report","BaoCaoCongNo",Object.keys(o[0]||{STT:"",MaKhachHang:"",KhachHang:"",MaNVBH:"",NVBH:"",MaNVGH:"",NVGH:"",
+DuDauKy:"",PhatSinhNo:"",DaThu:"",TraHang:"",ChietKhauDieuChinh:"",TongPhatSinhCo:"",DuCuoiKy:""}),o,e)}async function Xe(e={}){const o=((await f.arLedgerDetailReport({...e,
+full:"1",export:"1"})).ledger||[]).map((e,o)=>({STT:o+1,Ngay:e.date,MaKhachHang:e.customerCode,KhachHang:e.customerName,ChungTu:e.documentCode,Loai:e.type,DienGiai:e.description,
+DuTruocGiaoDich:Math.round(q(e.openingBalance)),No:Math.round(q(e.debit)),Co:Math.round(q(e.credit)),PhanLoaiCo:e.creditCategory,DuSauGiaoDich:Math.round(q(e.closingBalance))}))
+;return xe("ar-ledger-detail","SoCongNoChiTiet",Object.keys(o[0]||{STT:"",Ngay:"",MaKhachHang:"",KhachHang:"",ChungTu:"",Loai:"",DienGiai:"",DuTruocGiaoDich:"",No:"",Co:"",
+PhanLoaiCo:"",DuSauGiaoDich:""}),o,e)}async function Ue(e={}){const o=((await f.stockReport({...e,full:"1",export:"1"})).stock||[]).map((e,o)=>({STT:o+1,
+MaSP:_(e.productCode||e.code||e.productId),SanPham:_(e.productName||e.name),DonViTinh:_(e.unit||e.baseUnit),TonVatLy:q(e.onHand??e.quantity??e.qty),DaGiuCho:q(e.reservedQty),
+TonKhaDung:q(e.availableQty)}));return xe("stock-report","TonKhoHienTai",Object.keys(o[0]||{STT:"",MaSP:"",SanPham:"",DonViTinh:"",TonVatLy:"",DaGiuCho:"",TonKhaDung:""}),o,{})}
+async function Ze(e={}){const o=((await f.inventoryMovementReport({...e,full:"1",export:"1",mode:"movement"})).stock||[]).map((e,o)=>({STT:o+1,MaSP:e.productCode,
+SanPham:e.productName,DonViTinh:e.unit,TonDauKy:q(e.openingQty),NhapMua:q(e.importQty),HangTraNhapKho:q(e.returnQty),NhapKhac:q(e.otherInQty),TongNhap:q(e.inQty),
+XuatBan:q(e.saleQty),XuatDaoChungTu:q(e.reversalOutQty),XuatKhac:q(e.otherOutQty),TongXuat:q(e.outQty),DieuChinhRong:q(e.adjustmentQty),TonCuoiKy:q(e.endingQty),
+NguonTonCuoi:e.endingSource,TonCuoiTheoLedger:q(e.ledgerEndingQty),ChenhLechDoiSoat:q(e.reconciliationDifference)}))
+;return xe("inventory-movement-report","NhapXuatTon",Object.keys(o[0]||{STT:"",MaSP:"",SanPham:"",DonViTinh:"",TonDauKy:"",NhapMua:"",HangTraNhapKho:"",NhapKhac:"",TongNhap:"",
+XuatBan:"",XuatDaoChungTu:"",XuatKhac:"",TongXuat:"",DieuChinhRong:"",TonCuoiKy:"",NguonTonCuoi:"",TonCuoiTheoLedger:"",ChenhLechDoiSoat:""}),o,e)}async function We(e={}){
+const o=((await f.stockCardReport({...e,full:"1",export:"1"})).transactions||[]).map((e,o)=>({STT:o+1,Ngay:e.date,MaSP:e.productCode,SanPham:e.productName,ChungTu:e.refCode,
+Loai:e.type,PhanLoai:e.category,TonTruocGiaoDich:q(e.openingQty),Nhap:q(e.inQty),Xuat:q(e.outQty),TonSauGiaoDich:q(e.balanceQty),GhiChu:e.note}))
+;return xe("stock-card-report","TheKho",Object.keys(o[0]||{STT:"",Ngay:"",MaSP:"",SanPham:"",ChungTu:"",Loai:"",PhanLoai:"",TonTruocGiaoDich:"",Nhap:"",Xuat:"",TonSauGiaoDich:"",
+GhiChu:""}),o,e)}async function ze(e={}){const o=((await f.financeReport({...e,full:"1",export:"1"})).fundLedger||[]).map((e,o)=>({STT:o+1,Ngay:e.date,ChungTu:e.code,Loai:e.type,
+LoaiQuy:e.fundType,TaiKhoanQuy:e.account,NguoiLienQuan:e.counterparty,TonDauDong:Math.round(q(e.openingBalance)),Thu:Math.round(q(e.inAmount)),Chi:Math.round(q(e.outAmount)),
+TonCuoiDong:Math.round(q(e.endingBalance)),GhiChu:e.note}));return xe("fund-report","BaoCaoQuyTien",Object.keys(o[0]||{STT:"",Ngay:"",ChungTu:"",Loai:"",LoaiQuy:"",TaiKhoanQuy:"",
+NguoiLienQuan:"",TonDauDong:"",Thu:"",Chi:"",TonCuoiDong:"",GhiChu:""}),o,e)}async function Ye(e={}){const o=((await f.salesReport({...e,full:"1",export:"1"
+})).bySalesman||[]).map((e,o)=>({STT:o+1,MaNVBH:e.salesmanCode,NVBH:e.salesmanName,SoDon:e.orderCount,SoKhachHang:e.customerCount,DoanhSoTruocKM:Math.round(q(e.beforePromoAmount)),
+DoanhSoThucTe:Math.round(q(e.actualAmount)),GiaTriHangKM:Math.round(q(e.promotionValue)),DaThuTheoAR:Math.round(q(e.receiptAmount)),TraHangTheoAR:Math.round(q(e.returnAmount)),
+ConNoTheoAR:Math.round(q(e.debtAmount))}));return xe("salesman-report","BaoCaoNVBH",Object.keys(o[0]||{STT:"",MaNVBH:"",NVBH:"",SoDon:"",SoKhachHang:"",DoanhSoTruocKM:"",
+DoanhSoThucTe:"",GiaTriHangKM:"",DaThuTheoAR:"",TraHangTheoAR:"",ConNoTheoAR:""}),o,e)}async function Je(e={}){const o=((await f.deliveryReport({...e,full:"1",export:"1"
+})).byStaff||[]).map((e,o)=>({STT:o+1,MaNVGH:e.deliveryStaffCode,NVGH:e.deliveryStaffName,SoChuyen:e.tripCount,SoDonDaGiao:e.orderCount,TongTienDonCon:Math.round(q(e.totalAmount)),
+DoanhSoDaXacNhan:Math.round(q(e.accountingConfirmedAmount)),ThuTienTheoQuy:Math.round(q(e.collectedAmount))}));return xe("deliveryman-report","BaoCaoNVGH",Object.keys(o[0]||{
+STT:"",MaNVGH:"",NVGH:"",SoChuyen:"",SoDonDaGiao:"",TongTienDonCon:"",DoanhSoDaXacNhan:"",ThuTienTheoQuy:""}),o,e)}async function eo(e={}){const o=await f.salesReport({...e,
+full:"1",export:"1"}),n=await f.periodDebtReport({...e,full:"1",export:"1",includePaid:"1"}),t=new Map((n.debts||[]).map(e=>[_(e.customerCode||e.customerName),e])),a=new Map
+;(o.sales||[]).forEach(e=>{const o=_(e.customerCode||e.customerName),n=a.get(o)||{MaKhachHang:e.customerCode,KhachHang:e.customerName,MaNVBH:e.salesStaffCode,NVBH:e.salesStaffName,
+SoDon:0,DoanhSoTruocKM:0,DoanhSoThucTe:0,GiaTriHangKM:0,DaThuTheoAR:0,TraHangTheoAR:0};n.SoDon+=1,n.DoanhSoTruocKM+=q(e.beforePromoAmount),n.DoanhSoThucTe+=q(e.actualAmount),
+n.GiaTriHangKM+=q(e.promotionValue),n.DaThuTheoAR+=q(e.receiptAmount),n.TraHangTheoAR+=q(e.returnAmount),a.set(o,n)});const r=Array.from(a.entries()).map(([e,o],n)=>{
+const a=t.get(e)||{};return{STT:n+1,...o,DoanhSoTruocKM:Math.round(o.DoanhSoTruocKM),DoanhSoThucTe:Math.round(o.DoanhSoThucTe),GiaTriHangKM:Math.round(o.GiaTriHangKM),
+DaThuTheoAR:Math.round(o.DaThuTheoAR),TraHangTheoAR:Math.round(o.TraHangTheoAR),DuDauKy:Math.round(q(a.openingBalance)),DuCuoiKy:Math.round(q(a.closingBalance))}})
 ;return xe("customer-sales-report","DoanhSoKhachHang",Object.keys(r[0]||{STT:"",MaKhachHang:"",KhachHang:"",MaNVBH:"",NVBH:"",SoDon:"",DoanhSoTruocKM:"",DoanhSoThucTe:"",
-GiaTriHangKM:"",DaThuTheoAR:"",TraHangTheoAR:"",DuDauKy:"",DuCuoiKy:""}),r,e)}async function en(e={}){const n=await f.salesReport({...e,full:"1",export:"1"}),o=new Map
-;(n.sales||[]).forEach(e=>(e.items||[]).forEach(e=>{const n=L(e.productCode||e.productName),t=o.get(n)||{MaSP:e.productCode,SanPham:e.productName,NhanHang:e.brand,SoLuongBan:0,
-DoanhSoTruocKM:0,DoanhSoThucTe:0};t.SoLuongBan+=_(e.quantity),t.DoanhSoTruocKM+=_(e.catalogAmount),t.DoanhSoThucTe+=_(e.actualAmount),o.set(n,t)}))
-;const t=Array.from(o.values()).reduce((e,n)=>e+n.DoanhSoThucTe,0)||1,a=Array.from(o.values()).map((e,n)=>({STT:n+1,...e,SoLuongBan:e.SoLuongBan,
+GiaTriHangKM:"",DaThuTheoAR:"",TraHangTheoAR:"",DuDauKy:"",DuCuoiKy:""}),r,e)}async function oo(e={}){const o=await f.salesReport({...e,full:"1",export:"1"}),n=new Map
+;(o.sales||[]).forEach(e=>(e.items||[]).forEach(e=>{const o=_(e.productCode||e.productName),t=n.get(o)||{MaSP:e.productCode,SanPham:e.productName,NhanHang:e.brand,SoLuongBan:0,
+DoanhSoTruocKM:0,DoanhSoThucTe:0};t.SoLuongBan+=q(e.quantity),t.DoanhSoTruocKM+=q(e.catalogAmount),t.DoanhSoThucTe+=q(e.actualAmount),n.set(o,t)}))
+;const t=Array.from(n.values()).reduce((e,o)=>e+o.DoanhSoThucTe,0)||1,a=Array.from(n.values()).map((e,o)=>({STT:o+1,...e,SoLuongBan:e.SoLuongBan,
 DoanhSoTruocKM:Math.round(e.DoanhSoTruocKM),DoanhSoThucTe:Math.round(e.DoanhSoThucTe),ChietKhauKM:Math.round(e.DoanhSoTruocKM-e.DoanhSoThucTe),
-TyTrong:`${q(e.DoanhSoThucTe/t*100,2)}%`}));return xe("product-sales-report","DoanhSoSanPham",Object.keys(a[0]||{STT:"",MaSP:"",SanPham:"",NhanHang:"",SoLuongBan:"",
+TyTrong:`${j(e.DoanhSoThucTe/t*100,2)}%`}));return xe("product-sales-report","DoanhSoSanPham",Object.keys(a[0]||{STT:"",MaSP:"",SanPham:"",NhanHang:"",SoLuongBan:"",
 DoanhSoTruocKM:"",DoanhSoThucTe:"",ChietKhauKM:"",TyTrong:""}),a,e)}
-const nn=new Set(["password","passwordHash","hash","salt","token","tokens","accessToken","refreshToken","secret","apiKey","session","sessions","resetPasswordToken","verificationToken"])
-;function on(e={},n=[]){for(const o of n){const n=L(e[o]);if(n)return n}return""}function tn(e){return!0===e?"Hoạt động":!1===e?"Ngưng hoạt động":L(e)}function an(e={},n=[],o=[]){
-const t=new Set([...n,...o,"_id","__v","searchText"]),a={};return Object.keys(e||{}).forEach(n=>{if(t.has(n))return;const o=e[n];null!=o&&""!==o&&(a[n]=o)}),
-Object.keys(a).length?JSON.stringify(a):""}function rn(e={},n=0,o=new Map){const t=on(e,["code","productCode","sku","id"]),a=o.get(L(t).toUpperCase())||{};return{STT:n+1,MaSP:t,
-TenSP:on(e,["name","productName","title"]),Barcode:on(e,["barcode","barCode"]),NhanHang:on(e,["brand","brandName"]),NganhHang:on(e,["category","categoryName","groupName"]),
-DonVi:on(e,["unit","baseUnit","uom"]),DonViCoSo:on(e,["baseUnit","unit"]),QuyDoi:_(e.conversionRate||e.ratio||1),
-"Quy cách":Math.max(1,_(e.conversionRate||e.packingQty||e.unitsPerCase||1)),"Giá bán":Math.round(_(e.salePrice||e.price||e.sellPrice)),
-GiaVon:Math.round(_(e.costPrice||e.cost||e.purchasePrice)),TonVatLy:_(a.onHand??a.quantity??a.qty),DaGiuCho:_(a.reservedQty),TonKhaDung:_(a.availableQty),
-KhuBocHang:K(v(H(e),b.HC)),TrangThai:tn(e.isActive??e.status),NgayTao:j(e.createdAt),NgayCapNhat:j(e.updatedAt),
-ThongTinKhac:an(e,["code","productCode","sku","name","productName","barcode","brand","category","unit","baseUnit","conversionRate","packing","salePrice","costPrice","pickingZone","warehouseCode","warehouseName","defaultWarehouse","isActive","status","createdAt","updatedAt"])
-}}async function un(e={}){const[n,o]=await Promise.all([d.find({}).sort({code:1,name:1}).limit(be(e)).lean(),f.stockReport({full:"1",export:"1"
-})]),t=new Map((o.stock||o.items||[]).map(e=>[L(e.productCode||e.code).toUpperCase(),e])),a=n.map((e,n)=>rn(e,n,t))
-;return xe("product-info-report","ThongTinSanPham",Object.keys(a[0]||rn({},-1,t)),a,e)}function cn(e={}){return[e.customerCode,e.customerId,e.customerName].map(L).filter(Boolean)}
-async function sn(){const n=await f.periodDebtReport({dateFrom:"0000-01-01",dateTo:e.todayVN(),full:"1",export:"1",includePaid:"1"}),o=new Map
-;return(n.debts||n.items||[]).forEach(e=>{const n=_(e.closingBalance);cn(e).forEach(e=>o.set(e,n))}),o}async function dn(n={}){
-const o=e.todayVN(),t=L(n.monthStart||n.monthFrom||`${o.slice(0,7)}-01`),a=L(n.monthEnd||n.monthTo||o),r=await f.salesReport({dateFrom:t,dateTo:a,full:"1",export:"1"}),i=new Map
-;return(r.sales||r.items||[]).forEach(e=>{const n=_(e.actualAmount);[e.customerCode,e.customerId,e.customerName].map(L).filter(Boolean).forEach(e=>{i.set(e,_(i.get(e))+n)})}),i}
-function hn(e,n=[]){for(const o of n.map(L).filter(Boolean))if(e.has(o))return _(e.get(o));return 0}function Tn(e={},n=0,o=new Map,t=new Map){
-const a=E(e),r=Q(e),i=[e.code,e.customerCode,e.id,e._id,e.name,e.customerName];return{STT:n+1,MaKH:on(e,["code","customerCode","id"]),TenKH:on(e,["name","customerName"]),
-TenHoKinhDoanh:r.businessName,SDT:on(e,["phone","mobile","customerPhone","tel"]),DiaChi:on(e,["address","customerAddress","fullAddress"]),MaSoThue:a.taxCode,
-DiaChiHoaDonThue:a.taxInvoiceAddress,Tuyen:on(e,["route","routeName","line"]),KhuVuc:on(e,["area","areaName","region","province"]),
-MaNVBH:on(e,["staffCode","salesStaffCode","salesmanCode"]),NVBHPhuTrach:on(e,["staffName","salesStaffName","salesmanName"]),MaNVGH:on(e,["deliveryStaffCode","shipperCode"]),
-NVGHPhuTrach:on(e,["deliveryStaffName","shipperName"]),CongNoHienTai:Math.round(hn(o,i)),DoanhSoThang:Math.round(hn(t,i)),TrangThai:tn(e.isActive??e.status),NgayTao:j(e.createdAt),
-NgayCapNhat:j(e.updatedAt),
-ThongTinKhac:an(e,["code","customerCode","name","customerName","businessName","customerBusinessName","householdBusinessName","taxBusinessName","invoiceBusinessName","tenHoKinhDoanh","phone","mobile","customerPhone","address","customerAddress","taxCode","customerTaxCode","taxNumber","vatNumber","vatCode","mst","taxInvoiceAddress","customerTaxInvoiceAddress","invoiceAddress","vatInvoiceAddress","billingAddress","route","area","region","staffCode","staffName","salesStaffCode","salesStaffName","deliveryStaffCode","deliveryStaffName","isActive","status","createdAt","updatedAt"])
-}}async function ln(e={}){const[n,o,t]=await Promise.all([s.find({}).sort({code:1,name:1
-}).limit(be(e)).lean(),sn(),dn(e)]),a=n.map((e,n)=>Tn(e,n,o,t)).sort((e,n)=>_(n.CongNoHienTai)-_(e.CongNoHienTai)||L(e.MaKH).localeCompare(L(n.MaKH)));return a.forEach((e,n)=>{
-e.STT=n+1}),xe("customer-info-report","ThongTinKhachHang",Object.keys(a[0]||Tn({},-1)),a,e)}function mn(e={}){const n={};return Object.keys(e||{}).forEach(o=>{
-if(nn.has(o)||o.startsWith("_")||["__v","searchText"].includes(o))return
-;if(["username","fullName","name","code","staffCode","role","roles","phone","email","isActive","status","permissions","area","route","lastLoginAt","lastLogin","createdAt","updatedAt"].includes(o))return
-;const t=e[o];null!=t&&""!==t&&(n[o]=t)}),Object.keys(n).length?JSON.stringify(n):""}function gn(e={},n=0){return{STT:n+1,TenDangNhap:on(e,["username","loginName"]),
-HoTen:on(e,["fullName","name","displayName"]),MaNhanVien:on(e,["staffCode","code","employeeCode"]),VaiTro:Array.isArray(e.roles)?e.roles.join(", "):on(e,["role","roles"]),
-SDT:on(e,["phone","mobile"]),Email:on(e,["email"]),TrangThai:tn(e.isActive??e.status),
-QuyenTruyCap:Array.isArray(e.permissions)?e.permissions.join(", "):L(e.permissions||e.permission||""),KhuVucTuyen:on(e,["area","route","region"]),NgayTao:j(e.createdAt),
-NgayCapNhat:j(e.updatedAt),LanDangNhapGanNhat:j(e.lastLoginAt||e.lastLogin||e.lastSeenAt),ThongTinKhac:mn(e)}}async function pn(e={}){
-const n=p.users,o=(await n.find({}).select("-password -passwordHash -hash -salt -token -tokens -accessToken -refreshToken -secret -apiKey -session -sessions -resetPasswordToken -verificationToken").sort({
-role:1,code:1,username:1}).limit(be(e)).lean()).map(gn);return xe("user-info-report","ThongTinTaiKhoan",Object.keys(o[0]||gn({},-1)),o,e)}async function fn(e){return a.preview(e)}
-async function yn(e){return a.commit(e)}async function Sn(){return a.logs()}function Cn(){return r.getBuiltInTemplates()}async function Nn(e){return r.buildBuiltInTemplateFile(e)}
-function Dn(e){return r.getFields(e)}async function Mn(){return r.listCustomTemplates()}async function An(e){return r.saveCustomTemplate(e)}async function vn(e){
-return r.deleteCustomTemplate(e)}async function Hn(e){return r.buildCustomTemplateFile(e)}function Kn(e={}){return(e.definition?.columns||[]).map(e=>Array.isArray(e)?{key:e[0],
-label:e[1]||e[0]}:{key:e.key,label:e.label||e.key}).filter(e=>L(e.key))}async function bn(e,n={},o={}){const t=L(n.__legacyExportType||""),a=await y.run(e,{...n,__exportAll:!0,
-__legacyBridge:t?{legacyExportType:t,mappedReportCode:e,bridgedToReportCenter:!0}:null},o),r=Kn(a),i=r.map(e=>e.label),u=(a.rows||[]).map((e,n)=>{const o={STT:n+1}
-;for(const n of r)o[n.label]=e[n.key]??"";return o});return xe(e,L(a.definition?.title||e).slice(0,31)||"BaoCao",["STT",...i],u,n,a.sourceNote)}function Pn(){
+const no=new Set(["password","passwordHash","hash","salt","token","tokens","accessToken","refreshToken","secret","apiKey","session","sessions","resetPasswordToken","verificationToken"])
+;function to(e={},o=[]){for(const n of o){const o=_(e[n]);if(o)return o}return""}function ao(e){return!0===e?"Hoạt động":!1===e?"Ngưng hoạt động":_(e)}function ro(e={},o=[],n=[]){
+const t=new Set([...o,...n,"_id","__v","searchText"]),a={};return Object.keys(e||{}).forEach(o=>{if(t.has(o))return;const n=e[o];null!=n&&""!==n&&(a[o]=n)}),
+Object.keys(a).length?JSON.stringify(a):""}function io(e={},o=0,n=new Map){const t=to(e,["code","productCode","sku","id"]),a=n.get(_(t).toUpperCase())||{};return{STT:o+1,MaSP:t,
+TenSP:to(e,["name","productName","title"]),Barcode:to(e,["barcode","barCode"]),NhanHang:to(e,["brand","brandName"]),NganhHang:to(e,["category","categoryName","groupName"]),
+DonVi:to(e,["unit","baseUnit","uom"]),DonViCoSo:to(e,["baseUnit","unit"]),QuyDoi:q(e.conversionRate||e.ratio||1),
+"Quy cách":Math.max(1,q(e.conversionRate||e.packingQty||e.unitsPerCase||1)),"Giá bán":Math.round(q(e.salePrice||e.price||e.sellPrice)),
+GiaVon:Math.round(q(e.costPrice||e.cost||e.purchasePrice)),TonVatLy:q(a.onHand??a.quantity??a.qty),DaGiuCho:q(a.reservedQty),TonKhaDung:q(a.availableQty),
+KhuBocHang:K(v(H(e),b.HC)),TrangThai:ao(e.isActive??e.status),NgayTao:$(e.createdAt),NgayCapNhat:$(e.updatedAt),
+ThongTinKhac:ro(e,["code","productCode","sku","name","productName","barcode","brand","category","unit","baseUnit","conversionRate","packing","salePrice","costPrice","pickingZone","warehouseCode","warehouseName","defaultWarehouse","isActive","status","createdAt","updatedAt"])
+}}async function uo(e={}){const[o,n]=await Promise.all([d.find({}).sort({code:1,name:1}).limit(Pe(e)).lean(),f.stockReport({full:"1",export:"1"
+})]),t=new Map((n.stock||n.items||[]).map(e=>[_(e.productCode||e.code).toUpperCase(),e])),a=o.map((e,o)=>io(e,o,t))
+;return xe("product-info-report","ThongTinSanPham",Object.keys(a[0]||io({},-1,t)),a,e)}function co(e={}){return[e.customerCode,e.customerId,e.customerName].map(_).filter(Boolean)}
+async function so(){const o=await f.periodDebtReport({dateFrom:"0000-01-01",dateTo:e.todayVN(),full:"1",export:"1",includePaid:"1"}),n=new Map
+;return(o.debts||o.items||[]).forEach(e=>{const o=q(e.closingBalance);co(e).forEach(e=>n.set(e,o))}),n}async function ho(o={}){
+const n=e.todayVN(),t=_(o.monthStart||o.monthFrom||`${n.slice(0,7)}-01`),a=_(o.monthEnd||o.monthTo||n),r=await f.salesReport({dateFrom:t,dateTo:a,full:"1",export:"1"}),i=new Map
+;return(r.sales||r.items||[]).forEach(e=>{const o=q(e.actualAmount);[e.customerCode,e.customerId,e.customerName].map(_).filter(Boolean).forEach(e=>{i.set(e,q(i.get(e))+o)})}),i}
+function To(e,o=[]){for(const n of o.map(_).filter(Boolean))if(e.has(n))return q(e.get(n));return 0}function lo(e={},o=0,n=new Map,t=new Map){
+const a=Q(e),r=I(e),i=[e.code,e.customerCode,e.id,e._id,e.name,e.customerName];return{STT:o+1,MaKH:to(e,["code","customerCode","id"]),TenKH:to(e,["name","customerName"]),
+TenHoKinhDoanh:r.businessName,SDT:to(e,["phone","mobile","customerPhone","tel"]),DiaChi:to(e,["address","customerAddress","fullAddress"]),MaSoThue:a.taxCode,
+DiaChiHoaDonThue:a.taxInvoiceAddress,Tuyen:to(e,["route","routeName","line"]),KhuVuc:to(e,["area","areaName","region","province"]),
+MaNVBH:to(e,["staffCode","salesStaffCode","salesmanCode"]),NVBHPhuTrach:to(e,["staffName","salesStaffName","salesmanName"]),MaNVGH:to(e,["deliveryStaffCode","shipperCode"]),
+NVGHPhuTrach:to(e,["deliveryStaffName","shipperName"]),CongNoHienTai:Math.round(To(n,i)),DoanhSoThang:Math.round(To(t,i)),TrangThai:ao(e.isActive??e.status),NgayTao:$(e.createdAt),
+NgayCapNhat:$(e.updatedAt),
+ThongTinKhac:ro(e,["code","customerCode","name","customerName","businessName","customerBusinessName","householdBusinessName","taxBusinessName","invoiceBusinessName","tenHoKinhDoanh","phone","mobile","customerPhone","address","customerAddress","taxCode","customerTaxCode","taxNumber","vatNumber","vatCode","mst","taxInvoiceAddress","customerTaxInvoiceAddress","invoiceAddress","vatInvoiceAddress","billingAddress","route","area","region","staffCode","staffName","salesStaffCode","salesStaffName","deliveryStaffCode","deliveryStaffName","isActive","status","createdAt","updatedAt"])
+}}async function mo(e={}){const[o,n,t]=await Promise.all([s.find({}).sort({code:1,name:1
+}).limit(Pe(e)).lean(),so(),ho(e)]),a=o.map((e,o)=>lo(e,o,n,t)).sort((e,o)=>q(o.CongNoHienTai)-q(e.CongNoHienTai)||_(e.MaKH).localeCompare(_(o.MaKH)));return a.forEach((e,o)=>{
+e.STT=o+1}),xe("customer-info-report","ThongTinKhachHang",Object.keys(a[0]||lo({},-1)),a,e)}function go(e={}){const o={};return Object.keys(e||{}).forEach(n=>{
+if(no.has(n)||n.startsWith("_")||["__v","searchText"].includes(n))return
+;if(["username","fullName","name","code","staffCode","role","roles","phone","email","isActive","status","permissions","area","route","lastLoginAt","lastLogin","createdAt","updatedAt"].includes(n))return
+;const t=e[n];null!=t&&""!==t&&(o[n]=t)}),Object.keys(o).length?JSON.stringify(o):""}function po(e={},o=0){return{STT:o+1,TenDangNhap:to(e,["username","loginName"]),
+HoTen:to(e,["fullName","name","displayName"]),MaNhanVien:to(e,["staffCode","code","employeeCode"]),VaiTro:Array.isArray(e.roles)?e.roles.join(", "):to(e,["role","roles"]),
+SDT:to(e,["phone","mobile"]),Email:to(e,["email"]),TrangThai:ao(e.isActive??e.status),
+QuyenTruyCap:Array.isArray(e.permissions)?e.permissions.join(", "):_(e.permissions||e.permission||""),KhuVucTuyen:to(e,["area","route","region"]),NgayTao:$(e.createdAt),
+NgayCapNhat:$(e.updatedAt),LanDangNhapGanNhat:$(e.lastLoginAt||e.lastLogin||e.lastSeenAt),ThongTinKhac:go(e)}}async function fo(e={}){
+const o=p.users,n=(await o.find({}).select("-password -passwordHash -hash -salt -token -tokens -accessToken -refreshToken -secret -apiKey -session -sessions -resetPasswordToken -verificationToken").sort({
+role:1,code:1,username:1}).limit(Pe(e)).lean()).map(po);return xe("user-info-report","ThongTinTaiKhoan",Object.keys(n[0]||po({},-1)),n,e)}async function yo(e){return a.preview(e)}
+async function So(e){return a.commit(e)}async function Co(){return a.logs()}function No(){return r.getBuiltInTemplates()}async function Do(e){return r.buildBuiltInTemplateFile(e)}
+function Mo(e){return r.getFields(e)}async function Ao(){return r.listCustomTemplates()}async function vo(e){return r.saveCustomTemplate(e)}async function Ho(e){
+return r.deleteCustomTemplate(e)}async function Ko(e){return r.buildCustomTemplateFile(e)}function bo(e={}){return(e.definition?.columns||[]).map(e=>Array.isArray(e)?{key:e[0],
+label:e[1]||e[0]}:{key:e.key,label:e.label||e.key}).filter(e=>_(e.key))}async function Po(e,o={},n={}){const t=_(o.__legacyExportType||""),a=await y.run(e,{...o,__exportAll:!0,
+__legacyBridge:t?{legacyExportType:t,mappedReportCode:e,bridgedToReportCenter:!0}:null},n),r=bo(a),i=r.map(e=>e.label),u=(a.rows||[]).map((e,o)=>{const n={STT:o+1}
+;for(const o of r)n[o.label]=e[o.key]??"";return n});return xe(e,_(a.definition?.title||e).slice(0,31)||"BaoCao",["STT",...i],u,o,a.sourceNote)}function ko(){
 return[...new Set([...i.getExportTypes(),"invoice-orders","vatInvoiceTT78","vat-non-invoice-orders","sse-invoice-orders","sse-invoice-errors",...Object.keys(S)])].sort()}
-async function kn(n,o={},t={}){const a=String(n||"").trim();if(["sse-invoice-orders","sseInvoiceOrders"].includes(a))return P.buildSseInvoiceWorkbook(o,t)
-;if(["sse-invoice-errors","sseInvoiceErrors"].includes(a))return P.buildSseErrorReportWorkbook(o,t);if(["invoice-orders","invoiceOrders"].includes(a)){const e=l(o.invoiceType)
-;return e?e===T.VAT?Ne(o,t):Ae(o,t):{error:"invoiceType chỉ nhận VAT hoặc NON_VAT",status:400}}
-if(["vatInvoiceTT78","vat-invoice-tt78","hoa-don-vat-tt78"].includes(a))return Ne(o,t);if(["vat-non-invoice-orders","vatNonInvoiceOrders"].includes(a))return Ae(o,t);const r=C(a)
-;if(r)return bn(r,{...o,__legacyExportType:a},t);const u=await i.findForExport(n,o);if(!u)return{error:"Loại dữ liệu export không hợp lệ",status:400};const c=await B({type:n,rows:u
-}),s=String(n||"data").replace(/[^a-zA-Z0-9_-]/g,"-");return{buffer:c,rows:u.length,fileName:`${s}-export-${e.todayVN()}.xlsx`}}module.exports={previewImport:fn,commitImport:yn,
-getImportLogs:Sn,getBuiltInTemplates:Cn,buildBuiltInTemplateFile:Nn,getFields:Dn,listCustomTemplates:Mn,saveCustomTemplate:An,deleteCustomTemplate:vn,buildCustomTemplateFile:Hn,
-getExportTypes:Pn,exportToExcel:kn};
+async function Vo(o,n={},t={}){const a=String(o||"").trim();if(["sse-invoice-orders","sseInvoiceOrders"].includes(a))return P.buildSseInvoiceWorkbook(n,t)
+;if(["sse-invoice-errors","sseInvoiceErrors"].includes(a))return P.buildSseErrorReportWorkbook(n,t);if(["invoice-orders","invoiceOrders"].includes(a)){const e=l(n.invoiceType)
+;return e?e===T.VAT?De(n,t):ve(n,t):{error:"invoiceType chỉ nhận VAT hoặc NON_VAT",status:400}}
+if(["vatInvoiceTT78","vat-invoice-tt78","hoa-don-vat-tt78"].includes(a))return De(n,t);if(["vat-non-invoice-orders","vatNonInvoiceOrders"].includes(a))return ve(n,t);const r=C(a)
+;if(r)return Po(r,{...n,__legacyExportType:a},t);const u=await i.findForExport(o,n);if(!u)return{error:"Loại dữ liệu export không hợp lệ",status:400};const c=await O({type:o,rows:u
+}),s=String(o||"data").replace(/[^a-zA-Z0-9_-]/g,"-");return{buffer:c,rows:u.length,fileName:`${s}-export-${e.todayVN()}.xlsx`}}module.exports={previewImport:yo,commitImport:So,
+getImportLogs:Co,getBuiltInTemplates:No,buildBuiltInTemplateFile:Do,getFields:Mo,listCustomTemplates:Ao,saveCustomTemplate:vo,deleteCustomTemplate:Ho,buildCustomTemplateFile:Ko,
+getExportTypes:ko,exportToExcel:Vo};
