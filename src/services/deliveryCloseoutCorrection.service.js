@@ -871,6 +871,8 @@ async function createCorrection(input = {}, options = {}) {
       },
       metadata: {
         orderCode: text(correction.salesOrderCode || correction.orderCode),
+        orderId: text(correction.salesOrderId || correction.orderId),
+        deliveryDate: text(correction.deliveryDate),
         customerCode: text(correction.customerCode),
         customerName: text(correction.customerName),
         deliveryStaffCode: text(correction.deliveryStaffCode),
@@ -878,7 +880,12 @@ async function createCorrection(input = {}, options = {}) {
         salesStaffCode: text(correction.salesStaffCode),
         salesStaffName: text(correction.salesStaffName),
         reason: text(correction.reason || correction.auditReason),
-        correctionCode: text(correction.correctionCode || correction.code)
+        correctionId: text(correction.id),
+        adjustmentId: text(correction.id),
+        correctionCode: text(correction.correctionCode || correction.code),
+        adjustmentCode: text(correction.correctionCode || correction.code),
+        targetPage: 'delivery-today-new',
+        action: 'open-adjustment-detail'
       },
       idempotencyKey: `DELIVERY_CLOSEOUT_ADJUSTED:${text(correction.id || correction.correctionCode)}`
     });

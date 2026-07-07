@@ -34,7 +34,11 @@ function sendError(res, err, fallback) {
     ok: false,
     success: false,
     code: err && err.code ? err.code : `NEW_OPS_${status}`,
-    message: err && err.message ? err.message : fallback
+    message: err && err.message ? err.message : fallback,
+    mismatches: err && err.mismatches ? err.mismatches : undefined,
+    diff: err && err.diff ? err.diff : undefined,
+    scope: err && err.scope ? err.scope : undefined,
+    data: err && err.data ? err.data : undefined
   });
 }
 
@@ -78,7 +82,11 @@ router.get('/delivery-today/orders', requireAuth, readRoles, async (req, res) =>
 router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, res) => {
   try {
     const body = req.body || {};
-    const orderIds = Array.isArray(body.orderIds) ? body.orderIds.map((value) => String(value || '').trim()).filter(Boolean) : [];
+    const orderIds = [
+      ...(Array.isArray(body.orderIds) ? body.orderIds : []),
+      ...(Array.isArray(body.selectedOrderIds) ? body.selectedOrderIds : []),
+      ...(Array.isArray(body.selectedOrderCodes) ? body.selectedOrderCodes : [])
+    ].map((value) => String(value || '').trim()).filter(Boolean);
     if (!orderIds.length) {
       return res.status(400).json({ ok: false, success: false, code: 'ORDER_SELECTION_REQUIRED', message: 'Vui lòng chọn ít nhất một đơn để chốt sổ.' });
     }
@@ -124,6 +132,10 @@ router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, 
       status: result.status || 'confirmed',
       message: responseMessage,
       closeoutId,
+      closeoutScope: result.closeoutScope,
+      closeoutScopeHash: result.closeoutScopeHash,
+      selectedOrderCodes: result.selectedOrderCodes || [],
+      selectedSalesStaffCodes: result.selectedSalesStaffCodes || [],
       checkedOrders: result.totalOrders || rows.length,
       closedOrders,
       skippedOrders,

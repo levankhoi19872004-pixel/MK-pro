@@ -29,6 +29,20 @@ function codeOf(event = {}, ...keys) {
   return '';
 }
 
+function deliveryAdjustmentActionUrl(event = {}) {
+  const orderCode = codeOf(event, 'orderCode', 'salesOrderCode') || event.entityCode;
+  const params = new URLSearchParams();
+  params.set('action', 'open-adjustment-detail');
+  if (orderCode) params.set('orderCode', orderCode);
+  const deliveryDate = codeOf(event, 'deliveryDate', 'orderDate', 'date');
+  if (deliveryDate) params.set('deliveryDate', deliveryDate);
+  const adjustmentId = codeOf(event, 'adjustmentId', 'correctionId');
+  if (adjustmentId) params.set('adjustmentId', adjustmentId);
+  const adjustmentCode = codeOf(event, 'adjustmentCode', 'correctionCode');
+  if (adjustmentCode) params.set('adjustmentCode', adjustmentCode);
+  return `/#/delivery-today-new?${params.toString()}`;
+}
+
 function amountDiffMessage(event = {}) {
   const diff = event.diff || {};
   const parts = [];
@@ -54,6 +68,7 @@ function actionUrlFor(event = {}) {
     case EVENT_TYPES.AR_LEDGER_REVERSED:
       return customerCode ? `/#/debt-new?customerCode=${encodeURIComponent(customerCode)}` : '/#/debt-new';
     case EVENT_TYPES.DELIVERY_CLOSEOUT_ADJUSTED:
+      return deliveryAdjustmentActionUrl(event);
     case EVENT_TYPES.DELIVERY_CLOSEOUT_LOCKED:
     case EVENT_TYPES.DELIVERY_ACCOUNTING_CONFIRMED:
       return orderCode ? `/#/delivery-today-new?orderCode=${encodeURIComponent(orderCode)}` : '/#/delivery-today-new';
@@ -177,5 +192,5 @@ function format(event = {}) {
 
 module.exports = {
   format,
-  _private: { money, signedMoney, amountDiffMessage, actionUrlFor }
+  _private: { money, signedMoney, amountDiffMessage, actionUrlFor, deliveryAdjustmentActionUrl }
 };

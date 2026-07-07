@@ -139,13 +139,6 @@ async function patchAccountingCloseoutById(orderId, patch = {}, options = {}) {
     },
     {
       $set: canonicalizeOperationalStaff(patch),
-      $unset: {
-        'deliveryCloseout.versions': '',
-        'deliveryCloseout.auditTrail': '',
-        'deliveryCloseout.activeReturnOrders': '',
-        'deliveryCloseout.paymentRows': '',
-        'deliveryCloseout.offsetRows': ''
-      },
       $inc: { version: 1 }
     },
     { session: options.session }

@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const dateUtil = require('../../utils/date.util');
 const orderRepository = require('../../repositories/orderRepository');
 const auditService = require('../auditService');
@@ -24,7 +25,20 @@ function unique(values = []) {
 }
 
 function normalizeOrderIds(body = {}) {
-  return unique(Array.isArray(body.orderIds) ? body.orderIds : [body.orderId, body.id, body.code]);
+  const explicit = [
+    ...(Array.isArray(body.orderIds) ? body.orderIds : []),
+    ...(Array.isArray(body.selectedOrderIds) ? body.selectedOrderIds : []),
+    ...(Array.isArray(body.selectedOrderCodes) ? body.selectedOrderCodes : [])
+  ];
+  return unique([
+    ...explicit,
+    body.orderId,
+    body.id,
+    body.code,
+    body.orderCode,
+    body.salesOrderCode,
+    body.selectedOrderCode
+  ]);
 }
 
 function isCompletedDelivery(order = {}) {
@@ -33,6 +47,98 @@ function isCompletedDelivery(order = {}) {
 
 function guardKey(date, orderIds = [], actor = '') {
   return JSON.stringify({ date, actor: clean(actor).toLowerCase(), orderIds: unique(orderIds).sort() });
+}
+
+function sha256(value = '') {
+  return crypto.createHash('sha256').update(String(value)).digest('hex');
+}
+
+function orderScopeCode(order = {}) {
+  return clean(DeliveryCloseoutService.orderCode(order) || DeliveryCloseoutService.orderId(order));
+}
+
+function resolveSelectedOrderCodes(orders = [], selectedOrderIds = []) {
+  const byInputKey = new Map();
+  for (const order of Array.isArray(orders) ? orders : []) {
+    const scopeCode = orderScopeCode(order);
+    for (const key of orderIdentityValues(order)) byInputKey.set(key, scopeCode || key);
+  }
+  const resolved = unique((Array.isArray(selectedOrderIds) ? selectedOrderIds : []).map((id) => byInputKey.get(clean(id)) || clean(id)));
+  return resolved.sort();
+}
+
+function selectedSalesStaffCodesFromBody(body = {}) {
+  return unique([
+    ...(Array.isArray(body.selectedSalesStaffCodes) ? body.selectedSalesStaffCodes : []),
+    ...(Array.isArray(body.salesStaffCodes) ? body.salesStaffCodes : []),
+    body.salesStaffCode,
+    body.salesman,
+    body.nvbhCode
+  ]).sort();
+}
+
+function resolveSelectedSalesStaffCodes(orders = [], body = {}) {
+  const explicit = selectedSalesStaffCodesFromBody(body);
+  if (explicit.length) return explicit;
+  return unique((Array.isArray(orders) ? orders : []).map(orderSalesStaffCode)).sort();
+}
+
+function buildCloseoutScopeKey(input = {}) {
+  const date = dateUtil.toDateOnly(input.date || input.deliveryDate || '');
+  const deliveryStaffCode = clean(input.deliveryStaffCode || input.delivery || input.nvghCode || '');
+  const selectedOrderCodes = unique(input.selectedOrderCodes || input.orderCodes || []).sort();
+  const selectedSalesStaffCodes = unique(input.selectedSalesStaffCodes || input.salesStaffCodes || []).sort();
+  const scopePayload = [date, deliveryStaffCode, selectedOrderCodes.join('|')].join('::');
+  return {
+    date,
+    deliveryStaffCode,
+    selectedOrderCodes,
+    selectedSalesStaffCodes,
+    scopeHash: sha256(scopePayload),
+    scopeKey: scopePayload,
+    scopeType: 'selected_orders'
+  };
+}
+
+function inactiveOrderReason(order = {}) {
+  const status = clean(order.status || order.deliveryStatus || order.lifecycleStatus || order.accountingStatus).toLowerCase();
+  if (order.deleted === true || order.isDeleted === true || order.deletedAt) return 'deleted';
+  if (['cancelled', 'canceled', 'void', 'voided', 'deleted', 'removed', 'rejected'].includes(status)) return status;
+  return '';
+}
+
+function attachCloseoutScope(closeout = {}, order = {}, options = {}) {
+  const scope = options.closeoutScope || {};
+  const selectedOrderCodes = unique(options.selectedOrderCodes || scope.selectedOrderCodes || []).sort();
+  const selectedSalesStaffCodes = unique(options.selectedSalesStaffCodes || scope.selectedSalesStaffCodes || []).sort();
+  return {
+    ...closeout,
+    closeoutScope: 'selected_orders',
+    closeoutScopeType: scope.scopeType || 'selected_orders',
+    closeoutScopeHash: clean(options.closeoutScopeHash || scope.scopeHash),
+    scopeHash: clean(options.closeoutScopeHash || scope.scopeHash),
+    selectedOrderCodes,
+    selectedSalesStaffCodes,
+    selectedOrderCount: selectedOrderCodes.length,
+    scopedOrderCode: orderScopeCode(order),
+    scopedSalesStaffCode: orderSalesStaffCode(order),
+    scopedDeliveryStaffCode: orderDeliveryStaffCode(order),
+    metadata: {
+      ...(closeout.metadata && typeof closeout.metadata === 'object' ? closeout.metadata : {}),
+      closeoutScope: 'selected_orders',
+      closeoutScopeHash: clean(options.closeoutScopeHash || scope.scopeHash),
+      selectedOrderCodes,
+      selectedSalesStaffCodes
+    }
+  };
+}
+
+function closeoutMismatchDiff(mismatches = []) {
+  return (Array.isArray(mismatches) ? mismatches : []).reduce((acc, row) => {
+    if (!row || !row.field) return acc;
+    acc[row.field] = Number(row.delta || 0);
+    return acc;
+  }, {});
 }
 
 function cleanupGuards(now = Date.now()) {
@@ -103,7 +209,14 @@ function compactCloseoutForOrder(closeout = {}) {
     updatedBy: closeout.updatedBy,
     confirmedAt: closeout.confirmedAt,
     confirmedBy: closeout.confirmedBy,
-    reason: closeout.reason || ''
+    reason: closeout.reason || '',
+    closeoutScope: closeout.closeoutScope,
+    closeoutScopeType: closeout.closeoutScopeType,
+    closeoutScopeHash: closeout.closeoutScopeHash || closeout.scopeHash,
+    scopeHash: closeout.scopeHash || closeout.closeoutScopeHash,
+    selectedOrderCodes: Array.isArray(closeout.selectedOrderCodes) ? closeout.selectedOrderCodes : [],
+    selectedSalesStaffCodes: Array.isArray(closeout.selectedSalesStaffCodes) ? closeout.selectedSalesStaffCodes : [],
+    selectedOrderCount: closeout.selectedOrderCount
   };
 }
 
@@ -125,7 +238,12 @@ function buildCloseoutDiagnostic(order = {}, closeout = {}, arResult = null) {
     returnAmount: DeliveryCloseoutService._internal.money(closeout.returnedAmount),
     rawDebtAmount: DeliveryCloseoutService._internal.money(closeout.rawFinalDebtAmount),
     normalizedDebtAmount,
-    action: normalizedDebtAmount > 0 ? 'posted_ar_debt_open' : (normalizedDebtAmount < 0 ? 'overpaid_or_negative_debt' : 'skipped_zero_debt')
+    action: normalizedDebtAmount > 0 ? 'posted_ar_debt_open' : (normalizedDebtAmount < 0 ? 'overpaid_or_negative_debt' : 'skipped_zero_debt'),
+    closeoutScopeHash: clean(closeout.closeoutScopeHash || closeout.scopeHash),
+    selectedOrderCodes: Array.isArray(closeout.selectedOrderCodes) ? closeout.selectedOrderCodes : [],
+    selectedSalesStaffCodes: Array.isArray(closeout.selectedSalesStaffCodes) ? closeout.selectedSalesStaffCodes : [],
+    rebuiltFromSsot: closeout.rebuiltFromSsot === true,
+    previousCloseoutMismatches: Array.isArray(closeout.previousCloseoutMismatches) ? closeout.previousCloseoutMismatches : []
   };
   if (arResult && arResult.entry) {
     diagnostic.ledgerId = arResult.entry.id || arResult.entry._id;
@@ -270,7 +388,7 @@ function validateSelectedOrderScope(orders = [], body = {}, selectedOrderIds = [
     }
   }
 
-  const requestedSales = unique(Array.isArray(body.salesStaffCodes) ? body.salesStaffCodes : [body.salesStaffCode, body.salesman, body.nvbhCode]);
+  const requestedSales = selectedSalesStaffCodesFromBody(body);
   if (requestedSales.length) {
     const mismatched = orders.filter((order) => {
       const code = orderSalesStaffCode(order);
@@ -279,6 +397,12 @@ function validateSelectedOrderScope(orders = [], body = {}, selectedOrderIds = [
     if (mismatched.length) {
       return { error: 'Có đơn không thuộc đúng NVBH đã chọn.', status: 400, code: 'ORDER_SELECTION_SALES_STAFF_MISMATCH', orderIds: mismatched.map((order) => clean(order.id || order.code || order.orderCode)) };
     }
+  }
+
+
+  const inactive = orders.filter(inactiveOrderReason);
+  if (inactive.length) {
+    return { error: 'Có đơn đã bị hủy/xóa hoặc không còn hợp lệ để chốt sổ.', status: 400, code: 'ORDER_SELECTION_INACTIVE', orderIds: inactive.map((order) => clean(order.id || order.code || order.orderCode)), reasons: inactive.map((order) => inactiveOrderReason(order)) };
   }
 
   return null;
@@ -304,18 +428,34 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     throw err;
   }
 
-  const compare = DeliveryCloseoutService.compareCloseout(computed, existingCloseout);
+  const scopedComputed = attachCloseoutScope(computed, order, options);
+  const compare = DeliveryCloseoutService.compareCloseout(scopedComputed, existingCloseout);
   if (!compare.ok) {
-    const err = new Error('deliveryCloseout hiện tại lệch với dữ liệu tính lại từ salesOrders/returnOrders/tiền giao hàng. Chặn xác nhận kế toán.');
-    err.code = 'DELIVERY_CLOSEOUT_CALCULATION_MISMATCH';
-    err.orderId = DeliveryCloseoutService.orderId(order);
-    err.orderCode = DeliveryCloseoutService.orderCode(order);
-    err.mismatches = compare.mismatches;
-    throw err;
+    scopedComputed.rebuiltFromSsot = true;
+    scopedComputed.previousCloseoutMismatches = compare.mismatches;
+    scopedComputed.previousCloseoutDiff = closeoutMismatchDiff(compare.mismatches);
+    scopedComputed.previousCloseoutHash = clean(existingCloseout.calculationHash || existingCloseout.sourceHash || '');
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn('[DELIVERY_CLOSEOUT_REBUILT_FROM_SSOT]', {
+        orderId: DeliveryCloseoutService.orderId(order),
+        orderCode: DeliveryCloseoutService.orderCode(order),
+        closeoutScopeHash: clean(scopedComputed.closeoutScopeHash || scopedComputed.scopeHash),
+        diff: scopedComputed.previousCloseoutDiff
+      });
+    }
+    await auditService.log('DELIVERY_CLOSEOUT_REBUILT_FROM_SSOT', {
+      refType: 'SALES_ORDER',
+      refId: DeliveryCloseoutService.orderId(order),
+      refCode: DeliveryCloseoutService.orderCode(order),
+      user: actor,
+      before: { deliveryCloseout: compactCloseoutForOrder(existingCloseout) },
+      after: { deliveryCloseout: compactCloseoutForOrder(scopedComputed), diff: scopedComputed.previousCloseoutDiff },
+      note: `Rebuild deliveryCloseout từ SSoT trước khi chốt; scope=${clean(scopedComputed.closeoutScopeHash || scopedComputed.scopeHash)}`
+    });
   }
 
   // finalDebtAmount âm lớn là overpayment/exception: vẫn khóa closeout nhưng không sinh công nợ âm.
-  const confirmedCloseout = DeliveryCloseoutService.confirmCloseout(order, computed, { actor, reason: clean(options.reason || options.closeoutReason || '') });
+  const confirmedCloseout = DeliveryCloseoutService.confirmCloseout(order, scopedComputed, { actor, reason: clean(options.reason || options.closeoutReason || '') });
   const patch = buildConfirmedOrderPatchFields(order, confirmedCloseout, actor);
   const patchResult = await orderRepository.patchAccountingCloseoutById(DeliveryCloseoutService.orderId(order), patch, options);
   if (!patchResult || Number(patchResult.matchedCount || 0) === 0) {
@@ -338,7 +478,9 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
   const arResult = await ArDebtOpenPostingService.postDebtOpen(updatedOrderForLedger, confirmedCloseout, {
     ...options,
     skipReadModelRebuild: true,
-    note: clean(options.note || options.reason || `Mở công nợ cuối cùng từ chốt giao hàng ${DeliveryCloseoutService.orderCode(order)}`)
+    note: clean(options.note || options.reason || `Mở công nợ cuối cùng từ chốt giao hàng ${DeliveryCloseoutService.orderCode(order)}`),
+    closeoutScopeHash: clean(confirmedCloseout.closeoutScopeHash || confirmedCloseout.scopeHash),
+    closeoutScope: confirmedCloseout.closeoutScope || 'selected_orders'
   });
   await auditService.log('ACCOUNTING_CONFIRM_DELIVERY_CLOSEOUT', {
     refType: 'SALES_ORDER',
@@ -346,6 +488,27 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     refCode: DeliveryCloseoutService.orderCode(order),
     user: actor,
     note: `Xác nhận kế toán chốt giao hàng: finalDebt=${confirmedCloseout.finalDebtAmount}, AR=${arResult.posted ? 'AR-DEBT-OPEN' : arResult.reason || 'idempotent'}, reason=${clean(options.reason || options.closeoutReason || '')}`
+  });
+  await auditService.log('DELIVERY_CLOSEOUT_CONFIRMED', {
+    refType: 'SALES_ORDER',
+    refId: DeliveryCloseoutService.orderId(order),
+    refCode: DeliveryCloseoutService.orderCode(order),
+    user: actor,
+    after: {
+      date: options.date,
+      deliveryStaffCode: orderDeliveryStaffCode(order),
+      salesStaffCode: orderSalesStaffCode(order),
+      selectedOrderCodes: confirmedCloseout.selectedOrderCodes || [],
+      selectedSalesStaffCodes: confirmedCloseout.selectedSalesStaffCodes || [],
+      totalReceivable: confirmedCloseout.originalAmount,
+      cashAmount: confirmedCloseout.cashAmount,
+      transferAmount: confirmedCloseout.bankAmount,
+      rewardAmount: confirmedCloseout.rewardAmount,
+      returnAmount: confirmedCloseout.returnedAmount,
+      debtAmount: confirmedCloseout.finalDebtAmount,
+      closeoutScopeHash: clean(confirmedCloseout.closeoutScopeHash || confirmedCloseout.scopeHash)
+    },
+    note: `DELIVERY_CLOSEOUT_CONFIRMED scope=${clean(confirmedCloseout.closeoutScopeHash || confirmedCloseout.scopeHash)} finalDebt=${confirmedCloseout.finalDebtAmount}`
   });
   return {
     confirmed: true,
@@ -356,6 +519,11 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     affectedCustomerCode: clean(order.customerCode),
     readModelSyncNeeded: arResult?.posted === true,
     closeout: confirmedCloseout,
+    closeoutScopeHash: clean(confirmedCloseout.closeoutScopeHash || confirmedCloseout.scopeHash),
+    selectedOrderCodes: confirmedCloseout.selectedOrderCodes || [],
+    selectedSalesStaffCodes: confirmedCloseout.selectedSalesStaffCodes || [],
+    rebuiltFromSsot: confirmedCloseout.rebuiltFromSsot === true,
+    previousCloseoutMismatches: confirmedCloseout.previousCloseoutMismatches || [],
     arDebtOpen: arResult,
     patchResult,
     diagnostic: buildCloseoutDiagnostic(order, confirmedCloseout, arResult)
@@ -373,6 +541,15 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
   const scopeError = validateSelectedOrderScope(orders, body, selectedOrderIds);
   if (scopeError) return scopeError;
 
+  const selectedOrderCodes = resolveSelectedOrderCodes(orders, selectedOrderIds);
+  const selectedSalesStaffCodes = resolveSelectedSalesStaffCodes(orders, body);
+  const closeoutScope = buildCloseoutScopeKey({
+    date,
+    deliveryStaffCode: body.deliveryStaffCode || body.delivery || body.nvghCode,
+    selectedOrderCodes,
+    selectedSalesStaffCodes
+  });
+
   const alreadyConfirmedOrders = orders.filter(isAccountingConfirmed);
   const pendingConfirmOrders = orders.filter((order) => !isAccountingConfirmed(order));
   const results = alreadyConfirmedOrders.map((order) => buildAlreadyConfirmedResult(order));
@@ -388,6 +565,10 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
       confirmedOrders: 0,
       skippedOrders: results.length,
       totalOrders: orders.length,
+      closeoutScope,
+      closeoutScopeHash: closeoutScope.scopeHash,
+      selectedOrderCodes,
+      selectedSalesStaffCodes,
       architecture: 'salesOrders.deliveryCloseout -> single AR-DEBT-OPEN',
       arPolicy: 'no AR-SALE / AR-RETURN / AR-RECEIPT from delivery accounting',
       results,
@@ -407,7 +588,7 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
   await withMongoTransaction(async (session) => {
     for (const order of pendingConfirmOrders) {
       const rows = returnOrdersForOrder(order, returnByKey);
-      const result = await confirmOneOrder(order, rows, { session, actor, confirmedBy: actor, reason, note: reason });
+      const result = await confirmOneOrder(order, rows, { session, actor, confirmedBy: actor, reason, note: reason, date, closeoutScope, closeoutScopeHash: closeoutScope.scopeHash, selectedOrderCodes, selectedSalesStaffCodes });
       results.push(result);
     }
 
@@ -454,6 +635,10 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     confirmedOrders,
     skippedOrders,
     totalOrders: orders.length,
+    closeoutScope,
+    closeoutScopeHash: closeoutScope.scopeHash,
+    selectedOrderCodes,
+    selectedSalesStaffCodes,
     architecture: 'salesOrders.deliveryCloseout -> single AR-DEBT-OPEN',
     arPolicy: 'no AR-SALE / AR-RETURN / AR-RECEIPT from delivery accounting',
     results,
@@ -502,6 +687,10 @@ module.exports = {
   returnOrdersForOrder,
   _internal: {
     normalizeOrderIds,
+    buildCloseoutScopeKey,
+    resolveSelectedOrderCodes,
+    resolveSelectedSalesStaffCodes,
+    selectedSalesStaffCodesFromBody,
     validateSelectedOrderScope,
     orderDeliveryDate,
     orderDeliveryStaffCode,
@@ -513,6 +702,8 @@ module.exports = {
     compactCloseoutForOrder,
     isAccountingConfirmed,
     buildAlreadyConfirmedResult,
-    buildCloseoutDiagnostic
+    buildCloseoutDiagnostic,
+    attachCloseoutScope,
+    closeoutMismatchDiff
   }
 };

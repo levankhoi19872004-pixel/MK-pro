@@ -313,7 +313,16 @@ function publicCloseoutVersion(closeout = {}) {
     createdBy: closeout.createdBy,
     confirmedAt: closeout.confirmedAt,
     confirmedBy: closeout.confirmedBy,
-    reason: closeout.reason || ''
+    reason: closeout.reason || '',
+    closeoutScope: closeout.closeoutScope,
+    closeoutScopeType: closeout.closeoutScopeType,
+    closeoutScopeHash: closeout.closeoutScopeHash || closeout.scopeHash,
+    scopeHash: closeout.scopeHash || closeout.closeoutScopeHash,
+    selectedOrderCodes: Array.isArray(closeout.selectedOrderCodes) ? closeout.selectedOrderCodes : [],
+    selectedSalesStaffCodes: Array.isArray(closeout.selectedSalesStaffCodes) ? closeout.selectedSalesStaffCodes : [],
+    selectedOrderCount: closeout.selectedOrderCount,
+    rebuiltFromSsot: closeout.rebuiltFromSsot === true,
+    previousCloseoutMismatches: Array.isArray(closeout.previousCloseoutMismatches) ? closeout.previousCloseoutMismatches : []
   };
 }
 

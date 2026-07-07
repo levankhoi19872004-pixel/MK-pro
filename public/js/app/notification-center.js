@@ -41,6 +41,93 @@
     }[key] || key || 'Hệ thống';
   }
 
+
+  function showCenterMessage(text, type) {
+    var el = document.getElementById('notificationCenterMessage');
+    if (!el) return;
+    el.hidden = !text;
+    el.textContent = text || '';
+    el.className = 'notification-message ' + (type || 'info');
+  }
+
+  function parseActionUrl(actionUrl) {
+    var raw = String(actionUrl || '').trim();
+    var result = { route: '', params: new URLSearchParams(), raw: raw };
+    if (!raw) return result;
+    var hashIndex = raw.indexOf('#/');
+    var part = hashIndex >= 0 ? raw.slice(hashIndex + 2) : raw.replace(/^\/?#?\/?/, '');
+    var pieces = part.split('?');
+    result.route = String(pieces[0] || '').replace(/^\//, '').trim();
+    result.params = new URLSearchParams(pieces[1] || '');
+    return result;
+  }
+
+  function firstText(values) {
+    for (var i = 0; i < values.length; i += 1) {
+      var value = String(values[i] == null ? '' : values[i]).trim();
+      if (value) return value;
+    }
+    return '';
+  }
+
+  function parseOrderCodeFromText() {
+    var joined = Array.prototype.slice.call(arguments).map(function (value) { return String(value || ''); }).join(' ');
+    var match = joined.match(/(?:Đơn|Don|Order)\s+([A-Za-z0-9._-]{4,})/i) || joined.match(/\b(B\d{5,}|SO[-_]?[A-Za-z0-9._-]+)\b/i);
+    return match && match[1] ? match[1].trim() : '';
+  }
+
+  function isDeliveryAdjustmentNotification(notification, fallbackActionUrl) {
+    var n = notification || {};
+    var metadata = n.metadata || {};
+    var parsed = parseActionUrl(fallbackActionUrl || n.actionUrl || '');
+    return String(n.eventType || '').toUpperCase() === 'DELIVERY_CLOSEOUT_ADJUSTED' ||
+      String(metadata.action || '').toLowerCase() === 'open-adjustment-detail' ||
+      (String(n.module || '').toLowerCase() === 'delivery' && /điều chỉnh đơn giao|dieu chinh don giao/i.test(String(n.title || '') + ' ' + String(n.message || ''))) ||
+      (parsed.route === 'delivery-today-new' && String(parsed.params.get('action') || '').toLowerCase() === 'open-adjustment-detail');
+  }
+
+  function deliveryAdjustmentPayload(notification, fallbackActionUrl) {
+    var n = notification || {};
+    var metadata = n.metadata || {};
+    var parsed = parseActionUrl(fallbackActionUrl || n.actionUrl || '');
+    var orderCode = firstText([
+      metadata.orderCode, metadata.salesOrderCode, parsed.params.get('orderCode'), parsed.params.get('salesOrderCode'), n.entityCode, parseOrderCodeFromText(n.title, n.message)
+    ]);
+    return {
+      orderCode: orderCode,
+      orderId: firstText([metadata.orderId, metadata.salesOrderId, parsed.params.get('orderId'), n.entityId]),
+      deliveryDate: firstText([metadata.deliveryDate, metadata.orderDate, parsed.params.get('deliveryDate'), parsed.params.get('date')]),
+      adjustmentId: firstText([metadata.adjustmentId, metadata.correctionId, parsed.params.get('adjustmentId'), parsed.params.get('correctionId')]),
+      adjustmentCode: firstText([metadata.adjustmentCode, metadata.correctionCode, parsed.params.get('adjustmentCode'), parsed.params.get('correctionCode')]),
+      source: 'notification-center',
+      viewOnly: true
+    };
+  }
+
+  function dispatchDeliveryAdjustment(payload) {
+    window.dispatchEvent(new CustomEvent('mkpro:delivery-open-adjustment', { detail: payload || {} }));
+  }
+
+  function navigateDeliveryAdjustment(notification, fallbackActionUrl) {
+    var payload = deliveryAdjustmentPayload(notification, fallbackActionUrl);
+    var params = new URLSearchParams();
+    params.set('action', 'open-adjustment-detail');
+    if (payload.orderCode) params.set('orderCode', payload.orderCode);
+    if (payload.orderId) params.set('orderId', payload.orderId);
+    if (payload.deliveryDate) params.set('deliveryDate', payload.deliveryDate);
+    if (payload.adjustmentId) params.set('adjustmentId', payload.adjustmentId);
+    if (payload.adjustmentCode) params.set('adjustmentCode', payload.adjustmentCode);
+    window.location.hash = '/delivery-today-new?' + params.toString();
+    var button = document.querySelector('.tab-button[data-tab="deliveryTodayNewTab"]');
+    if (button) button.click();
+    if (!payload.orderCode && !payload.orderId) {
+      showCenterMessage('Không đủ dữ liệu để mở trực tiếp chi tiết điều chỉnh. Đã chuyển đến màn Đơn giao hôm nay để bạn kiểm tra.', 'warning');
+      return;
+    }
+    showCenterMessage('Đang mở chi tiết điều chỉnh đơn ' + (payload.orderCode || payload.orderId) + '...', 'info');
+    setTimeout(function () { dispatchDeliveryAdjustment(payload); }, 80);
+  }
+
   async function apiJson(url, options) {
     var res = await fetch(url, Object.assign({ credentials: 'same-origin' }, options || {}));
     var json = await res.json().catch(function () { return {}; });
@@ -198,9 +285,12 @@
       'users': 'usersTab',
       'stock': 'stockTab'
     };
-    var match = String(actionUrl).match(/#\/([^?]+)/);
-    var key = match && match[1] ? match[1] : '';
-    var tab = map[key];
+    var parsed = parseActionUrl(actionUrl);
+    if (parsed.route === 'delivery-today-new' && String(parsed.params.get('action') || '').toLowerCase() === 'open-adjustment-detail') {
+      navigateDeliveryAdjustment({ actionUrl: actionUrl, metadata: Object.fromEntries(parsed.params.entries()), module: 'delivery' }, actionUrl);
+      return;
+    }
+    var tab = map[parsed.route];
     if (tab) {
       window.location.hash = actionUrl.split('#')[1] || '';
       document.querySelector('.tab-button[data-tab="' + tab + '"]')?.click();
@@ -211,9 +301,19 @@
 
   async function markRead(id, actionUrl) {
     if (!id) return;
-    try { await apiJson('/api/notifications/' + encodeURIComponent(id) + '/read', { method: 'POST' }); } catch (err) { console.warn('[NOTIFICATION_READ_ERROR]', err); }
+    var notification = null;
+    try {
+      var json = await apiJson('/api/notifications/' + encodeURIComponent(id) + '/read', { method: 'POST' });
+      notification = json.notification || null;
+    } catch (err) {
+      console.warn('[NOTIFICATION_READ_ERROR]', err);
+    }
     await loadSummary();
     if (document.getElementById('notificationCenterTab')?.classList.contains('active')) loadList();
+    if (notification && isDeliveryAdjustmentNotification(notification, actionUrl)) {
+      navigateDeliveryAdjustment(notification, actionUrl);
+      return;
+    }
     if (actionUrl) navigateActionUrl(actionUrl);
   }
 

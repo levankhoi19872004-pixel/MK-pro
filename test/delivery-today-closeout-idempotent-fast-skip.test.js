@@ -81,6 +81,23 @@ test('repository closeout update returns matchedCount without throwing on zero m
   assert.doesNotMatch(body, /upsert\s*:\s*true/);
 });
 
+
+
+test('repository closeout update does not set deliveryCloseout and unset deliveryCloseout children in one Mongo update', () => {
+  const source = read(orderRepositoryPath);
+  const match = source.match(/async\s+function\s+patchAccountingCloseoutById[\s\S]*?\n}\n/);
+  assert.ok(match, 'patchAccountingCloseoutById must exist');
+  const body = match[0];
+  assert.match(body, /\$set:\s*canonicalizeOperationalStaff\(patch\)/);
+  assert.match(body, /\$inc:\s*\{\s*version:\s*1\s*\}/);
+  assert.doesNotMatch(body, /\$unset\s*:/, 'must not combine $set.deliveryCloseout with child $unset paths');
+  assert.doesNotMatch(body, /deliveryCloseout\.versions/);
+  assert.doesNotMatch(body, /deliveryCloseout\.auditTrail/);
+  assert.doesNotMatch(body, /deliveryCloseout\.activeReturnOrders/);
+  assert.doesNotMatch(body, /deliveryCloseout\.paymentRows/);
+  assert.doesNotMatch(body, /deliveryCloseout\.offsetRows/);
+});
+
 test('frontend treats accountingStatus confirmed as non-selectable and idempotent as success notice', () => {
   const source = read(frontendPath);
   assert.match(source, /row\.accountingStatus\s*===\s*'confirmed'/);

@@ -62,3 +62,21 @@ test('frontend has notification bell, dropdown, center, filters and read actions
   assert.match(ui, /notificationSeverityFilter/);
   assert.match(read('public/fragments/index/07-index-body.html'), /notification-center\.js/);
 });
+
+
+test('delivery adjustment notification uses direct deep-link and view-only adjustment modal', () => {
+  const formatter = read('src/services/events/notificationFormatter.js');
+  const correctionService = read('src/services/deliveryCloseoutCorrection.service.js');
+  const notificationUi = read('public/js/app/notification-center.js');
+  const deliveryUi = read('public/js/app/new/91-delivery-today-new.js');
+  assert.match(formatter, /open-adjustment-detail/);
+  assert.match(formatter, /deliveryAdjustmentActionUrl/);
+  assert.match(correctionService, /targetPage: 'delivery-today-new'/);
+  assert.match(correctionService, /action: 'open-adjustment-detail'/);
+  assert.match(notificationUi, /mkpro:delivery-open-adjustment/);
+  assert.match(notificationUi, /parseOrderCodeFromText/);
+  assert.match(deliveryUi, /openAdjustmentFromDeepLink/);
+  assert.match(deliveryUi, /findRowByDeepLink/);
+  assert.match(deliveryUi, /Chi tiết điều chỉnh đơn giao/);
+  assert.match(deliveryUi, /adjustmentViewOnly/);
+});
