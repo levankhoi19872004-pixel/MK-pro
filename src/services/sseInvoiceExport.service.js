@@ -25,6 +25,12 @@ const ERROR_HEADERS = Object.freeze([
   'Mã đơn', 'Khách hàng', 'Mã sản phẩm', 'Tên sản phẩm', 'Trường bị thiếu', 'Nguyên nhân', 'Hướng xử lý'
 ]);
 
+const SALESMAN_SUMMARY_SHEET_NAME = 'TONG_THEO_NVBH';
+const SALESMAN_SUMMARY_HEADERS = Object.freeze([
+  'STT', 'Mã NVBH', 'Tên NVBH', 'Số đơn', 'Mã hàng', 'Tên mặt hàng', 'Đvt', 'Mã kho',
+  'Số lượng', 'Giá bán', 'Tiền hàng', 'Ghi chú'
+]);
+
 function cleanText(value) { return String(value ?? '').trim(); }
 function toNumber(value, fallback = 0) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
@@ -100,6 +106,22 @@ function qtyOf(item = {}) { return toNumber(item.quantity ?? item.qty ?? item.to
 function returnQtyOf(item = {}) { return toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? 0); }
 function priceAfterPromotionOf(item = {}) {
   return toNumber(item.finalPrice ?? item.priceAfterPromotion ?? item.promoPrice ?? item.price ?? item.salePrice ?? item.unitPrice ?? item.sellPrice ?? 0);
+}
+function catalogSalePriceInfo(product = {}) {
+  const fields = ['salePrice', 'price', 'unitPrice', 'basePrice'];
+  for (const field of fields) {
+    const value = product[field];
+    if (value === null || value === undefined || cleanText(value) === '') continue;
+    const price = toNumber(value, NaN);
+    if (Number.isFinite(price)) return { price, field, missing: false };
+  }
+  return { price: 0, field: '', missing: true };
+}
+function resolveSalesmanName(order = {}) {
+  return firstText(
+    order.salesStaffName, order.salesPersonName, order.salesmanName, order.nvbhName, order.maNVBHName,
+    order.sseSalesmanName, order.accountingSalesmanName
+  );
 }
 function lineKeyOf(item = {}) { return firstText(item.lineKey, item.orderLineId, item.salesOrderItemId, item.itemId, item._id); }
 function priceKeyOf(item = {}) { const p = priceAfterPromotionOf(item); return p ? String(round(p, 6)) : ''; }
@@ -223,6 +245,7 @@ function buildSseRows({ orders = [], returnOrders = [], customers = [], products
   const customerMap = buildCatalogMap(customers, ['_id','id','code','customerCode']);
   const productMap = buildCatalogMap(products, ['_id','id','code','productCode','sku','barcode']);
   const rows = [];
+  const summarySourceRows = [];
   const errors = [];
   const warnings = [];
   const seenOrders = new Set();
@@ -282,6 +305,21 @@ function buildSseRows({ orders = [], returnOrders = [], customers = [], products
       const lineErrors = validateLine({ order, item, customer, product, quantity, unitPrice, hasPrice: hasDirectPrice || hasAmountPrice, config: rowConfig });
       if (lineErrors.length) { errors.push(...lineErrors); continue; }
       rows.push(makeSseRow({ order, customer, product, quantity, unitPrice, config: rowConfig }));
+      const catalogSalePrice = catalogSalePriceInfo(catalogProduct);
+      summarySourceRows.push({
+        orderCode: orderCode(order),
+        orderKey,
+        salesStaffCode: resolveSalesmanCode(order, rowConfig),
+        salesStaffName: resolveSalesmanName(order),
+        productCode: product.code,
+        productName: firstText(catalogProduct.name, catalogProduct.productName, product.name),
+        unit: firstText(catalogProduct.baseUnit, catalogProduct.unit, product.unit),
+        warehouseCode: rowConfig.warehouseCode,
+        quantity,
+        catalogSalePrice: catalogSalePrice.price,
+        catalogSalePriceField: catalogSalePrice.field,
+        missingCatalogSalePrice: catalogSalePrice.missing
+      });
       exportedOrders.add(orderKey);
       if (rows.length > rowConfig.maxRows) {
         errors.push(errorRow(order,item,'Giới hạn dòng',`Số dòng vượt giới hạn ${rowConfig.maxRows}`,'Thu hẹp khoảng ngày và xuất lại'));
@@ -289,7 +327,7 @@ function buildSseRows({ orders = [], returnOrders = [], customers = [], products
       }
     }
   }
-  return { rows, errors, warnings, orderCount: exportedOrders.size };
+  return { rows, summarySourceRows, errors, warnings, orderCount: exportedOrders.size };
 }
 
 function sseFileName(invoiceType, query = {}) {
@@ -300,11 +338,134 @@ function sseFileName(invoiceType, query = {}) {
   const fmt = (d) => d === 'all' ? d : d.split('-').reverse().join('-');
   return `SSE_Hoa_don_${typeLabel}_tu_${fmt(from)}_den_${fmt(to)}.xlsx`;
 }
-function buildUploadWorkbook(rows, config) {
+function makeSalesmanSummaryKey(row = {}) {
+  return [cleanText(row.salesStaffCode), cleanText(row.productCode)].join('@@');
+}
+
+function buildSseSalesmanSummaryRows(sourceRows = []) {
+  const groups = new Map();
+  for (const source of Array.isArray(sourceRows) ? sourceRows : []) {
+    const salesStaffCode = cleanText(source.salesStaffCode);
+    const productCode = cleanText(source.productCode);
+    const quantity = toNumber(source.quantity, NaN);
+    if (!salesStaffCode || !productCode || !Number.isFinite(quantity) || quantity <= 0) continue;
+    const key = makeSalesmanSummaryKey(source);
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        salesStaffCode,
+        salesStaffName: cleanText(source.salesStaffName),
+        productCode,
+        productName: cleanText(source.productName),
+        unit: cleanText(source.unit),
+        warehouseCodes: new Set(),
+        orderCodes: new Set(),
+        quantity: 0,
+        unitPrice: toNumber(source.catalogSalePrice, 0),
+        missingCatalogSalePrice: Boolean(source.missingCatalogSalePrice),
+        priceFields: new Set(),
+        notes: new Set()
+      };
+      groups.set(key, group);
+    }
+    group.salesStaffName = group.salesStaffName || cleanText(source.salesStaffName);
+    group.productName = group.productName || cleanText(source.productName);
+    group.unit = group.unit || cleanText(source.unit);
+    if (cleanText(source.warehouseCode)) group.warehouseCodes.add(cleanText(source.warehouseCode));
+    if (cleanText(source.orderCode)) group.orderCodes.add(cleanText(source.orderCode));
+    else if (cleanText(source.orderKey)) group.orderCodes.add(cleanText(source.orderKey));
+    group.quantity = round(group.quantity + quantity, 6);
+    const currentPrice = toNumber(source.catalogSalePrice, NaN);
+    if (!group.missingCatalogSalePrice && Number.isFinite(currentPrice)) group.unitPrice = currentPrice;
+    if (source.missingCatalogSalePrice) {
+      group.missingCatalogSalePrice = true;
+      group.unitPrice = 0;
+      group.notes.add('Thiếu giá bán trong danh mục sản phẩm');
+    }
+    if (cleanText(source.catalogSalePriceField)) group.priceFields.add(cleanText(source.catalogSalePriceField));
+  }
+
+  return [...groups.values()]
+    .map((group) => {
+      const amount = round(group.quantity * toNumber(group.unitPrice), 2);
+      const noteParts = ['Tổng hợp từ sheet TỔNG'];
+      if (group.notes.size) noteParts.push(...group.notes);
+      return {
+        salesStaffCode: group.salesStaffCode,
+        salesStaffName: group.salesStaffName,
+        orderCount: group.orderCodes.size,
+        orderCodes: [...group.orderCodes],
+        productCode: group.productCode,
+        productName: group.productName,
+        unit: group.unit,
+        warehouseCode: [...group.warehouseCodes].join(', '),
+        quantity: group.quantity,
+        unitPrice: toNumber(group.unitPrice),
+        amount,
+        note: noteParts.join('; ')
+      };
+    })
+    .sort((a, b) => a.salesStaffCode.localeCompare(b.salesStaffCode, 'vi') || a.productCode.localeCompare(b.productCode, 'vi'));
+}
+
+function buildSseSalesmanSummaryAoa(sourceRows = []) {
+  const rows = buildSseSalesmanSummaryRows(sourceRows);
+  const aoa = [[...SALESMAN_SUMMARY_HEADERS]];
+  let currentSalesman = null;
+  let currentRows = [];
+  let stt = 1;
+  const allOrders = new Set();
+  let allQty = 0;
+  let allAmount = 0;
+
+  const flushSalesmanTotal = () => {
+    if (!currentRows.length) return;
+    const first = currentRows[0];
+    const orderCodes = new Set();
+    let qty = 0;
+    let amount = 0;
+    for (const row of currentRows) {
+      qty = round(qty + toNumber(row.quantity), 6);
+      amount = round(amount + toNumber(row.amount), 2);
+      for (const code of Array.isArray(row.orderCodes) ? row.orderCodes : []) {
+        if (cleanText(code)) orderCodes.add(cleanText(code));
+      }
+    }
+    aoa.push(['', first.salesStaffCode, first.salesStaffName, orderCodes.size || '', '', 'TỔNG NVBH', '', '', qty, '', amount, '']);
+    currentRows = [];
+  };
+
+  for (const row of rows) {
+    if (currentSalesman !== null && row.salesStaffCode !== currentSalesman) flushSalesmanTotal();
+    currentSalesman = row.salesStaffCode;
+    currentRows.push(row);
+    for (const code of Array.isArray(row.orderCodes) ? row.orderCodes : []) {
+      if (cleanText(code)) allOrders.add(cleanText(code));
+    }
+    allQty = round(allQty + toNumber(row.quantity), 6);
+    allAmount = round(allAmount + toNumber(row.amount), 2);
+    aoa.push([
+      stt, row.salesStaffCode, row.salesStaffName, row.orderCount, row.productCode, row.productName, row.unit,
+      row.warehouseCode, row.quantity, row.unitPrice, row.amount, row.note
+    ]);
+    stt += 1;
+  }
+  flushSalesmanTotal();
+  if (rows.length) aoa.push(['', '', '', allOrders.size || '', '', 'TỔNG CỘNG', '', '', allQty, '', allAmount, '']);
+  return aoa;
+}
+
+function buildUploadWorkbook(rows, config, summarySourceRows) {
   const workbook = createWorkbook();
   appendAoaSheet(workbook, config.sheetName || 'TỔNG', [[], [], [], [], [...SSE_HEADERS], ...rows], {
     widths: [14,28,12,18,14,16,24,16,32,10,12,12,12,10,12,14,16,12,14,10,10,12,12,14,12,12,16,14,12,12,10,12,12,10,12,14]
   });
+  if (Array.isArray(summarySourceRows)) {
+    appendAoaSheet(workbook, SALESMAN_SUMMARY_SHEET_NAME, buildSseSalesmanSummaryAoa(summarySourceRows), {
+      widths: [6,14,24,10,16,35,10,12,12,14,16,36],
+      autoFilter: true
+    });
+  }
   return writeWorkbook(workbook);
 }
 function buildErrorWorkbook(errors = [], invoiceType, query = {}) {
@@ -375,7 +536,7 @@ async function buildSseInvoiceWorkbook(query = {}, currentUser = {}) {
   }
   if (!built.rows.length) return { error:'Không có dòng sản phẩm hợp lệ trong phạm vi đã chọn', status:404, code:'SSE_NO_DATA' };
   return {
-    buffer:buildUploadWorkbook(built.rows,data.config),
+    buffer:buildUploadWorkbook(built.rows,data.config,built.summarySourceRows),
     rows:built.rows.length,
     orderCount:built.orderCount,
     warningCount:built.warnings.length,
@@ -405,6 +566,6 @@ async function buildSseErrorReportWorkbook(query = {}, currentUser = {}) {
 }
 
 module.exports = {
-  SSE_HEADERS, ERROR_HEADERS, loadConfig, validateConfig, buildSseRows, buildUploadWorkbook, buildErrorWorkbook,
-  buildSseInvoiceWorkbook, buildSseErrorReportWorkbook, sseFileName, loadData, _private:{resolveCustomer,resolveProduct,returnedQtyForLine,buildReturnMap,makeSseRow,returnOrderActive,validateConfigSet}
+  SSE_HEADERS, ERROR_HEADERS, SALESMAN_SUMMARY_SHEET_NAME, SALESMAN_SUMMARY_HEADERS, loadConfig, validateConfig, buildSseRows, buildUploadWorkbook, buildErrorWorkbook,
+  buildSseInvoiceWorkbook, buildSseErrorReportWorkbook, sseFileName, loadData, _private:{resolveCustomer,resolveProduct,returnedQtyForLine,buildReturnMap,makeSseRow,returnOrderActive,validateConfigSet,catalogSalePriceInfo,resolveSalesmanName,makeSalesmanSummaryKey,buildSseSalesmanSummaryRows,buildSseSalesmanSummaryAoa}
 };
