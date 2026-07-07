@@ -192,7 +192,10 @@ function createApp() {
     logger,
     genReqId: (req) => req.requestId,
     autoLogging: {
-      ignore: (req) => String(req.url || '').startsWith('/api/health/')
+      ignore: (req) => {
+        const url = String(req.url || '');
+        return url === '/api/health' || url.startsWith('/api/health?') || url.startsWith('/api/health/');
+      }
     },
     customProps: (req) => ({
       userId: req.user?._id || req.user?.id || undefined,

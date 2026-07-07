@@ -30,7 +30,6 @@ const { normalizePickingZone, pickingZoneFrom, pickingZoneLabel, PICKING_ZONES }
 const sseInvoiceExportService = require('./sseInvoiceExport.service');
 const invoiceExportQueryService = require('./invoiceExportQuery.service');
 const invoiceNetSalesService = require('./invoiceNetSales.service');
-const vnptTt78TemplateExportService = require('./invoice/VnptTt78TemplateExportService');
 
 function stripMongoFields(row = {}) {
   const plain = { ...row };

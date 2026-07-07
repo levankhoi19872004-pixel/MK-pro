@@ -2,7 +2,12 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const ExcelJS = require('exceljs');
+let ExcelJS = null;
+
+function getExcelJS() {
+  if (!ExcelJS) ExcelJS = require('exceljs');
+  return ExcelJS;
+}
 
 const TEMPLATE_RELATIVE_PATH = 'templates/vnpt/FileMauHoaDon1Thue_TT78.xlsx';
 const SHEET_NAME = 'Sheet1';
@@ -166,7 +171,10 @@ function applyRowStyle(targetRow, rowStyle) {
   for (let col = 1; col <= MAX_TEMPLATE_COLUMN; col += 1) {
     const source = rowStyle.styles[col] || {};
     const target = targetRow.getCell(col);
-    target.style = cloneStyle(source.style);
+    // Reuse the captured style object instead of deep-cloning it per cell/per row.
+    // ExcelJS already serializes style IDs on write; cloning here is a major heap amplifier
+    // when Render runs with a small old-space limit.
+    target.style = source.style || {};
     if (source.numFmt) target.numFmt = source.numFmt;
   }
 }
@@ -261,6 +269,22 @@ function clearDataRows(worksheet) {
   }
 }
 
+function maxExportRows() {
+  const configured = Number(process.env.MAX_VNPT_EXPORT_ROWS || 3000);
+  return Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : 3000;
+}
+
+function assertExportSize(rows = []) {
+  const maxRows = maxExportRows();
+  if (rows.length <= maxRows) return;
+  const error = new Error(`[VNPT_EXPORT_TOO_LARGE] ${rows.length} rows exceeds limit ${maxRows}. Please split date range.`);
+  error.status = 413;
+  error.statusCode = 413;
+  error.code = 'VNPT_EXPORT_TOO_LARGE';
+  error.details = { rowCount: rows.length, maxRows };
+  throw error;
+}
+
 function writeSheet1Rows(worksheet, rows = [], rowStyle) {
   const state = { lastFkey: '' };
   rows.forEach((row, index) => {
@@ -335,11 +359,13 @@ function addThongTinSheet(workbook, { dateFrom, dateTo, summary = {}, warnings =
 }
 
 async function buildVnptTt78WorkbookFromTemplate({ rows = [], auditRows = [], auditHeaders = [], summary, dateFrom = '', dateTo = '', warnings = [] } = {}) {
+  assertExportSize(rows);
   const sourceTemplatePath = templatePath();
   if (!fs.existsSync(sourceTemplatePath)) {
     throw new Error(`[VNPT_TEMPLATE_MISSING] Missing committed template at ${TEMPLATE_RELATIVE_PATH}`);
   }
-  const workbook = new ExcelJS.Workbook();
+  const ExcelJSLib = getExcelJS();
+  const workbook = new ExcelJSLib.Workbook();
   await workbook.xlsx.readFile(sourceTemplatePath);
   const worksheet = workbook.getWorksheet(SHEET_NAME);
   validateVnptTt78Template(worksheet);
@@ -361,5 +387,7 @@ module.exports = {
   TEMPLATE_RELATIVE_PATH,
   REQUIRED_HEADERS,
   validateVnptTt78Template,
+  maxExportRows,
+  assertExportSize,
   buildVnptTt78WorkbookFromTemplate
 };

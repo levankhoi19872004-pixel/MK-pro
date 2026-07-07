@@ -21,7 +21,8 @@
     acc.lineCount += row.MaSanPham ? 1 : 0;
     return acc;
   }, { invoiceCount: 0, lineCount: 0, amountBeforeVat: 0, vatAmount: 0, totalAmount: 0 });
-  const buffer = await vnptTt78TemplateExportService.buildVnptTt78WorkbookFromTemplate({
+  const { buildVnptTt78WorkbookFromTemplate } = require('./invoice/VnptTt78TemplateExportService');
+  const buffer = await buildVnptTt78WorkbookFromTemplate({
     rows,
     auditRows,
     auditHeaders,

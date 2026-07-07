@@ -1,16 +1,61 @@
 'use strict';
 
-const SalesReportService = require('./SalesReportService');
-const InventoryReportService = require('./InventoryReportService');
-const DebtReportService = require('./DebtReportService');
-const FinanceReportService = require('./FinanceReportService');
-const DeliveryReportService = require('./DeliveryReportService');
-const ReturnReportService = require('./ReturnReportService');
-const RewardReportService = require('./RewardReportService');
-const DashboardReportService = require('./DashboardReportService');
-const HomeDashboardService = require('../dashboard/HomeDashboardService');
-const InformationReportService = require('./InformationReportService');
-const arLedgerReadService = require('../arLedgerRead.service');
+let SalesReportService;
+let InventoryReportService;
+let DebtReportService;
+let FinanceReportService;
+let DeliveryReportService;
+let ReturnReportService;
+let RewardReportService;
+let DashboardReportService;
+let HomeDashboardService;
+let InformationReportService;
+let arLedgerReadService;
+
+function getSalesReportService() {
+  if (!SalesReportService) SalesReportService = require('./SalesReportService');
+  return SalesReportService;
+}
+function getInventoryReportService() {
+  if (!InventoryReportService) InventoryReportService = require('./InventoryReportService');
+  return InventoryReportService;
+}
+function getDebtReportService() {
+  if (!DebtReportService) DebtReportService = require('./DebtReportService');
+  return DebtReportService;
+}
+function getFinanceReportService() {
+  if (!FinanceReportService) FinanceReportService = require('./FinanceReportService');
+  return FinanceReportService;
+}
+function getDeliveryReportService() {
+  if (!DeliveryReportService) DeliveryReportService = require('./DeliveryReportService');
+  return DeliveryReportService;
+}
+function getReturnReportService() {
+  if (!ReturnReportService) ReturnReportService = require('./ReturnReportService');
+  return ReturnReportService;
+}
+function getRewardReportService() {
+  if (!RewardReportService) RewardReportService = require('./RewardReportService');
+  return RewardReportService;
+}
+function getDashboardReportService() {
+  if (!DashboardReportService) DashboardReportService = require('./DashboardReportService');
+  return DashboardReportService;
+}
+function getHomeDashboardService() {
+  if (!HomeDashboardService) HomeDashboardService = require('../dashboard/HomeDashboardService');
+  return HomeDashboardService;
+}
+function getInformationReportService() {
+  if (!InformationReportService) InformationReportService = require('./InformationReportService');
+  return InformationReportService;
+}
+function getArLedgerReadService() {
+  if (!arLedgerReadService) arLedgerReadService = require('../arLedgerRead.service');
+  return arLedgerReadService;
+}
 const { getReportSourceContract, validateReportSourceContract } = require('./ReportSourceRegistry');
 const { paginate, text, toNumber } = require('./ReportDomainUtils');
 
@@ -719,7 +764,7 @@ async function run(code, query = {}, user = {}) {
   switch (definition.code) {
     case 'sales-kpi': {
       const month = String(query.month || query.dateFrom || '').slice(0, 7);
-      const dashboard = await HomeDashboardService.getHomeDashboard({ month, force: String(query.force || '') === '1' });
+      const dashboard = await getHomeDashboardService().getHomeDashboard({ month, force: String(query.force || '') === '1' });
       const rows = (dashboard.salesByStaff || []).filter((row) => matchesSearch(row, baseQuery, ['salesStaffCode', 'salesStaffName', 'status']));
       return reportResult(definition, rows, dashboard.summary || summaryForRows(rows, ['targetAmount', 'salesAmount', 'returnAmount', 'netSalesAmount', 'debtAmount']), resultQuery, { period: dashboard.period, dataQuality: dashboard.dataQuality });
     }
@@ -728,7 +773,7 @@ async function run(code, query = {}, user = {}) {
     case 'sales-by-customer':
     case 'sales-by-product':
     case 'sales-detail': {
-      const sales = await SalesReportService.salesReport({ ...baseQuery, full: '1', export: '1' });
+      const sales = await getSalesReportService().salesReport({ ...baseQuery, full: '1', export: '1' });
       let rows = sales.sales || [];
       let summary = sales.summary || {};
       if (definition.code === 'sales-by-day') rows = aggregateSalesByDay(rows);
@@ -742,75 +787,75 @@ async function run(code, query = {}, user = {}) {
       return reportResult(definition, rows, summary, resultQuery, { dateFrom: sales.dateFrom, dateTo: sales.dateTo, source: sales.source });
     }
     case 'inventory-current': {
-      const stock = await InventoryReportService.currentStockReport({ ...baseQuery, full: '1', export: '1' });
+      const stock = await getInventoryReportService().currentStockReport({ ...baseQuery, full: '1', export: '1' });
       return reportResult(definition, stock.stock || [], stock.summary || {}, resultQuery, { source: stock.source, negativeStockCount: stock.negativeStockCount });
     }
     case 'inventory-movement': {
-      const movement = await InventoryReportService.inventoryMovementReport({ ...baseQuery, full: '1', export: '1' });
+      const movement = await getInventoryReportService().inventoryMovementReport({ ...baseQuery, full: '1', export: '1' });
       return reportResult(definition, movement.stock || [], movement.summary || {}, resultQuery, { dateFrom: movement.dateFrom, dateTo: movement.dateTo, source: movement.source });
     }
     case 'stock-card': {
-      const card = await InventoryReportService.stockCardReport({ ...baseQuery, full: '1', export: '1' });
+      const card = await getInventoryReportService().stockCardReport({ ...baseQuery, full: '1', export: '1' });
       return reportResult(definition, card.transactions || [], card.summary || {}, resultQuery, { dateFrom: card.dateFrom, dateTo: card.dateTo, source: card.source });
     }
     case 'debt-current': {
-      const rows = await arLedgerReadService.aggregateDebtByCustomer({ status: 'all', dateTo: baseQuery.dateTo });
+      const rows = await getArLedgerReadService().aggregateDebtByCustomer({ status: 'all', dateTo: baseQuery.dateTo });
       const filteredRows = rows.filter((row) => matchesSearch(row, baseQuery, ['customerCode', 'customerName', 'salesStaffName', 'deliveryStaffName']));
       return reportResult(definition, filteredRows, summaryForRows(filteredRows, ['debit', 'credit', 'remainingDebt', 'orderCount', 'ledgerCount']), resultQuery, { dateTo: baseQuery.dateTo || '', source: 'arLedgers_current' });
     }
     case 'debt-period': {
-      const debt = await DebtReportService.periodDebtReport({ ...baseQuery, full: '1', export: '1' });
+      const debt = await getDebtReportService().periodDebtReport({ ...baseQuery, full: '1', export: '1' });
       return reportResult(definition, debt.debts || [], debt.summary || {}, resultQuery, { dateFrom: debt.dateFrom, dateTo: debt.dateTo, source: debt.source });
     }
     case 'debt-ledger': {
-      const debt = await DebtReportService.arLedgerDetailReport({ ...baseQuery, full: '1', export: '1' });
+      const debt = await getDebtReportService().arLedgerDetailReport({ ...baseQuery, full: '1', export: '1' });
       return reportResult(definition, debt.ledger || [], debt.summary || {}, resultQuery, { dateFrom: debt.dateFrom, dateTo: debt.dateTo, source: debt.source });
     }
     case 'rewards-by-customer': {
-      const rewards = await RewardReportService.rewardByCustomerReport({ ...baseQuery, full: '1', export: '1' });
+      const rewards = await getRewardReportService().rewardByCustomerReport({ ...baseQuery, full: '1', export: '1' });
       return reportResult(definition, rewards.rewards || [], rewards.summary || {}, resultQuery, { dateFrom: rewards.dateFrom, dateTo: rewards.dateTo, source: rewards.source });
     }
     case 'delivery-by-staff': {
-      const delivery = await DeliveryReportService.deliveryByStaffReport({ ...baseQuery, full: '1', export: '1' });
+      const delivery = await getDeliveryReportService().deliveryByStaffReport({ ...baseQuery, full: '1', export: '1' });
       const rows = normalizeDeliveryStaffRows(delivery.byStaff || delivery.delivery || []);
       return reportResult(definition, rows, delivery.summary || summaryForRows(rows, ['tripCount', 'orderCount', 'totalAmount', 'accountingConfirmedAmount', 'collectedAmount', 'unmasteredOrderCount']), resultQuery, { dateFrom: delivery.dateFrom, dateTo: delivery.dateTo, source: delivery.source });
     }
     case 'delivery-trips': {
-      const delivery = await DeliveryReportService.deliveryTripsReport({ ...baseQuery, full: '1', export: '1' });
+      const delivery = await getDeliveryReportService().deliveryTripsReport({ ...baseQuery, full: '1', export: '1' });
       const rows = normalizeDeliveryTripRows(delivery.delivery || []);
       return reportResult(definition, rows, delivery.summary, resultQuery, { dateFrom: delivery.dateFrom, dateTo: delivery.dateTo, source: delivery.source });
     }
     case 'finance-ledger':
     case 'finance-accounts': {
-      const finance = await FinanceReportService.financeReport({ ...baseQuery, full: '1', export: '1' });
+      const finance = await getFinanceReportService().financeReport({ ...baseQuery, full: '1', export: '1' });
       const rows = definition.code === 'finance-accounts' ? finance.accounts || [] : finance.fundLedger || [];
       return reportResult(definition, rows, finance.summary || {}, resultQuery, { dateFrom: finance.dateFrom, dateTo: finance.dateTo, source: finance.source });
     }
     case 'returns-detail': {
-      const returns = await ReturnReportService.returnReport({ ...baseQuery, full: '1', export: '1' });
+      const returns = await getReturnReportService().returnReport({ ...baseQuery, full: '1', export: '1' });
       return reportResult(definition, returns.returns || [], returns.summary || {}, resultQuery, { dateFrom: returns.dateFrom, dateTo: returns.dateTo, source: returns.source });
     }
     case 'info-products': {
-      const info = await InformationReportService.productInformationReport(baseQuery);
+      const info = await getInformationReportService().productInformationReport(baseQuery);
       const rows = (info.products || []).filter((row) => matchesSearch(row, baseQuery));
       return reportResult(definition, rows, info.summary || summaryForRows(rows, []), resultQuery, { source: info.source });
     }
     case 'info-customers': {
-      const info = await InformationReportService.customerInformationReport(baseQuery);
+      const info = await getInformationReportService().customerInformationReport(baseQuery);
       const rows = (info.customers || []).filter((row) => matchesSearch(row, baseQuery));
       return reportResult(definition, rows, summaryForRows(rows, ['currentDebt', 'monthlySalesAmount']), resultQuery, { source: info.source });
     }
     case 'info-staffs': {
-      const info = await InformationReportService.staffInformationReport(baseQuery);
+      const info = await getInformationReportService().staffInformationReport(baseQuery);
       const rows = (info.staffs || []).filter((row) => matchesSearch(row, baseQuery));
       return reportResult(definition, rows, info.summary || summaryForRows(rows, []), resultQuery, { source: info.source });
     }
     case 'data-quality': {
       const [sales, inventory, delivery, returns] = await Promise.all([
-        SalesReportService.salesReport({ ...baseQuery, full: '1', export: '1' }),
-        InventoryReportService.inventoryMovementReport({ ...baseQuery, full: '1', export: '1' }),
-        DeliveryReportService.deliveryTripsReport({ ...baseQuery, full: '1', export: '1' }),
-        ReturnReportService.returnReport({ ...baseQuery, full: '1', export: '1' })
+        getSalesReportService().salesReport({ ...baseQuery, full: '1', export: '1' }),
+        getInventoryReportService().inventoryMovementReport({ ...baseQuery, full: '1', export: '1' }),
+        getDeliveryReportService().deliveryTripsReport({ ...baseQuery, full: '1', export: '1' }),
+        getReturnReportService().returnReport({ ...baseQuery, full: '1', export: '1' })
       ]);
       const rows = dataQualityRows({ sales, inventory, delivery, returns }).filter((row) => matchesSearch(row, baseQuery));
       const summary = {
@@ -839,7 +884,7 @@ async function overview(query = {}, user = {}) {
     error.code = 'REPORT_CENTER_FORBIDDEN';
     throw error;
   }
-  const dashboard = await DashboardReportService.dashboardReport(query);
+  const dashboard = await getDashboardReportService().dashboardReport(query);
   const data = dashboard.dashboard || {};
   const actualSales = toNumber(data.sales?.totalAmount);
   const returnAmount = toNumber(data.returns?.totalReturnAmount);

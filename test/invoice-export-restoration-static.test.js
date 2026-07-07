@@ -75,3 +75,25 @@ test('VAT TT78 export uses committed VNPT template and never rebuilds Sheet1 hea
   assert.doesNotMatch(`${source}\n${templateService}`, /[A-Za-z]:\\/);
   assert.doesNotMatch(source, /TyLeChietKhauHienThi|LOONo|HDSe|xVTNXHan|NVChuan|PTChuyenKhoan|HDKTTu/);
 });
+
+
+test('VAT TT78 export path lazy-loads ExcelJS/template and keeps report catalog lightweight', () => {
+  const templateService = read('src/services/invoice/VnptTt78TemplateExportService.js');
+  const importPart01 = read('src/services/importExportLegacy.service.source/part-01.jsfrag');
+  const importPart02 = read('src/services/importExportLegacy.service.source/part-02.jsfrag');
+  const reportService = read('src/services/reportService.js');
+  const reportCenter = read('src/services/reports/ReportCenterService.js');
+
+  assert.match(templateService, /function getExcelJS\(\)/);
+  assert.doesNotMatch(templateService, /^const ExcelJS\s*=\s*require\('exceljs'\);/m);
+  assert.match(templateService, /MAX_VNPT_EXPORT_ROWS/);
+  assert.match(templateService, /VNPT_EXPORT_TOO_LARGE/);
+  assert.match(templateService, /target\.style = source\.style \|\| \{\}/);
+
+  assert.doesNotMatch(importPart01, /VnptTt78TemplateExportService/);
+  assert.match(importPart02, /require\('\.\/invoice\/VnptTt78TemplateExportService'\)/);
+  assert.match(reportService, /load report modules only when a/);
+  assert.match(reportService, /Object\.defineProperty\(facade, method/);
+  assert.match(reportCenter, /function getSalesReportService\(\)/);
+  assert.doesNotMatch(reportCenter, /^const SalesReportService\s*=\s*require\('\.\/SalesReportService'\);/m);
+});

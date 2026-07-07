@@ -1,7 +1,11 @@
 'use strict';
 
 const reportService = require('../services/reportService');
-const inventoryService = require('../services/inventoryService');
+let inventoryService;
+function getInventoryService() {
+  if (!inventoryService) inventoryService = require('../services/inventoryService');
+  return inventoryService;
+}
 const { DESTRUCTIVE_INVENTORY_CONFIRMATION, isInventoryMaintenanceMode } = require('../utils/inventoryMaintenance.util');
 const asyncHandler = require('../middlewares/asyncHandler');
 const queryGuard = require('../utils/queryGuard.util');
@@ -217,7 +221,7 @@ function assertDestructiveInventoryRequest(req, operation) {
 const rebuildInventory = asyncHandler(async (req, res) => {
   const confirmation = assertDestructiveInventoryRequest(req, 'Rebuild tồn kho');
   const resetFlag = req.body?.resetTransactions ?? req.query?.resetTransactions ?? '0';
-  const result = await inventoryService.rebuildStockLedgerFromDocuments({
+  const result = await getInventoryService().rebuildStockLedgerFromDocuments({
     resetTransactions: ['1', 'true', 'yes'].includes(String(resetFlag).toLowerCase()),
     confirmDestructive: confirmation
   });
@@ -229,7 +233,7 @@ const rebuildInventory = asyncHandler(async (req, res) => {
 });
 const normalizeOneWarehouse = asyncHandler(async (req, res) => {
   const confirmation = assertDestructiveInventoryRequest(req, 'Chuẩn hóa một kho');
-  const result = await inventoryService.normalizeOneWarehouse({ confirmDestructive: confirmation });
+  const result = await getInventoryService().normalizeOneWarehouse({ confirmDestructive: confirmation });
   res.json({
     ok: true,
     message: 'Đã gom tồn kho về 1 kho chính MAIN. KHO_HC/KHO_PC chỉ còn là nhóm in/gộp đơn.',
