@@ -3,6 +3,7 @@
 const mongoose = require('mongoose');
 const dateUtil = require('../utils/date.util');
 const SalesOrder = require('../models/SalesOrder');
+const MasterOrder = require('../models/MasterOrder');
 const ReturnOrder = require('../models/ReturnOrder');
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
@@ -16,6 +17,10 @@ const {
   RETURN_STATES,
   getReturnState
 } = require('../domain/lifecycle/ReturnStateMachine');
+const {
+  compactDeliveryOrderKeys,
+  normalizeMasterSalesOrderRefs
+} = require('./master-order/masterOrderIdentity.util');
 
 const INVOICE_GROUPS = Object.freeze({
   VAT: INVOICE_TYPES.VAT,
@@ -33,11 +38,22 @@ const ORDER_PROJECTION = [
   'clientCode', 'khachHangCode',
   'salesStaffCode', 'salesStaffName', 'salesPersonCode', 'salesPersonName',
   'salesmanCode', 'salesmanName', 'nvbhCode', 'nvbhName', 'maNVBH', 'maNVBHName',
+  'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'nvghCode', 'nvghName',
   'sseCustomerCode', 'customerSseCode', 'accountingCustomerCode', 'customerAccountingCode', 'customerErpCode',
   'sseSalesmanCode', 'accountingSalesmanCode', 'salesStaffSseCode', 'salesStaffAccountingCode',
   'vatInvoiceRequired', 'status', 'lifecycleStatus', 'deliveryStatus',
   'source', 'orderSource', 'totalAmount', 'grandTotal', 'paidAmount', 'paymentAmount', 'debtAmount',
   'vatInvoiceNote', 'vatInvoiceUpdatedBy', 'vatInvoiceUpdatedAt', 'items'
+].join(' ');
+
+const MASTER_ORDER_PROJECTION = [
+  'id', '_id', 'code', 'masterOrderCode', 'documentCode',
+  'date', 'masterOrderDate', 'deliveryDate', 'createdDate', 'createdAt',
+  'deliveryStaffId', 'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName',
+  'nvghCode', 'nvghName', 'assignedDeliveryStaffCode', 'assignedDeliveryStaffName', 'staffCode', 'staffName',
+  'status', 'lifecycleStatus', 'deliveryStatus', 'deleted', 'isDeleted', 'deletedAt', 'cancelledAt',
+  'children', 'childOrders', 'orderIds', 'childOrderIds', 'salesOrderIds', 'salesOrders', 'orderCodes', 'salesOrderCodes',
+  'routeName', 'note', 'deliveryNote', 'updatedAt'
 ].join(' ');
 
 const RETURN_PROJECTION = [
@@ -101,13 +117,15 @@ function normalizeExportQuery(query = {}, options = {}) {
   }
 
   const salesStaffCode = cleanText(query.salesStaffCode || '');
+  const deliveryStaffCode = cleanText(query.deliveryStaffCode || query.deliveryCode || query.nvghCode || '');
+  const summaryBy = cleanText(query.summaryBy || query.exportMode || '').toLowerCase().replace(/[\s-]+/g, '_');
   const customerCode = cleanText(query.customerCode || query.customerId || query.customer || query.code || '');
   const limitDefault = Number(options.defaultLimit || 20000);
   const limitMax = Number(options.maxLimit || 100000);
   const parsedLimit = Number(query.limit || limitDefault);
   const limit = Math.min(Math.max(Number.isFinite(parsedLimit) ? Math.trunc(parsedLimit) : limitDefault, 1), limitMax);
 
-  return { dateFrom, dateTo, salesStaffCode, customerCode, invoiceGroup, limit };
+  return { dateFrom, dateTo, salesStaffCode, deliveryStaffCode, customerCode, invoiceGroup, limit, summaryBy }; 
 }
 
 function missingFieldClause(field) {
@@ -186,6 +204,25 @@ function buildSalesStaffMongoClause(salesStaffCode) {
 }
 
 
+
+function buildDeliveryStaffMongoClause(deliveryStaffCode) {
+  const code = cleanText(deliveryStaffCode);
+  if (!code) return null;
+  const canonicalMissing = missingFieldClause('deliveryStaffCode');
+  const deliveryCodeMissing = missingFieldClause('deliveryCode');
+  const nvghMissing = missingFieldClause('nvghCode');
+  const assignedMissing = missingFieldClause('assignedDeliveryStaffCode');
+  return {
+    $or: [
+      { deliveryStaffCode: code },
+      { $and: [canonicalMissing, { deliveryCode: code }] },
+      { $and: [canonicalMissing, deliveryCodeMissing, { nvghCode: code }] },
+      { $and: [canonicalMissing, deliveryCodeMissing, nvghMissing, { assignedDeliveryStaffCode: code }] },
+      { $and: [canonicalMissing, deliveryCodeMissing, nvghMissing, assignedMissing, { staffCode: code }] }
+    ]
+  };
+}
+
 function buildCustomerMongoClause(customerCode) {
   const code = cleanText(customerCode);
   if (!code) return null;
@@ -235,6 +272,127 @@ function buildInvoiceOrderMongoFilter(query = {}, options = {}) {
   return clauses.length === 1 ? clauses[0] : { $and: clauses };
 }
 
+
+function isDeliveryStaffSummaryMode(value) {
+  const text = cleanText(value).toLowerCase().replace(/[\s-]+/g, '_');
+  return ['delivery_staff', 'deliverystaff', 'delivery', 'nvgh', 'theo_nvgh'].includes(text);
+}
+
+function masterDateOf(masterOrder = {}) {
+  return dateUtil.toDateOnly(
+    masterOrder.deliveryDate || masterOrder.masterOrderDate || masterOrder.date || masterOrder.createdDate || masterOrder.createdAt || ''
+  );
+}
+
+function businessDeliveryStaffCodeOf(row = {}) {
+  return cleanText(
+    row.__sseDeliveryStaffCode || row.deliveryStaffCode || row.deliveryCode || row.nvghCode || row.assignedDeliveryStaffCode || row.shipperCode || row.staffCode || ''
+  );
+}
+
+function businessDeliveryStaffNameOf(row = {}) {
+  return cleanText(
+    row.__sseDeliveryStaffName || row.deliveryStaffName || row.deliveryName || row.nvghName || row.assignedDeliveryStaffName || row.shipperName || row.staffName || ''
+  );
+}
+
+function buildMasterBusinessDateMongoClause(filters = {}) {
+  const { dateFrom = '', dateTo = '' } = filters;
+  if (!dateFrom && !dateTo) return null;
+  const range = {};
+  if (dateFrom) range.$gte = dateFrom;
+  if (dateTo) range.$lte = dateTo;
+  return {
+    $or: [
+      { deliveryDate: range },
+      { masterOrderDate: range },
+      { date: range },
+      { createdDate: range },
+      createdAtRangeClause(dateFrom, dateTo)
+    ]
+  };
+}
+
+function buildMasterOrderMongoFilter(query = {}, options = {}) {
+  const filters = options.normalizedFilters || normalizeExportQuery(query, options);
+  const inactive = ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'];
+  const clauses = [
+    { status: { $nin: inactive } },
+    { lifecycleStatus: { $nin: inactive } },
+    { deleted: { $ne: true } },
+    { isDeleted: { $ne: true } },
+    missingFieldClause('deletedAt')
+  ];
+  const dateClause = buildMasterBusinessDateMongoClause(filters);
+  const deliveryClause = buildDeliveryStaffMongoClause(filters.deliveryStaffCode);
+  const tenantClause = buildTenantClause(options.currentUser || {});
+  if (dateClause) clauses.push(dateClause);
+  if (deliveryClause) clauses.push(deliveryClause);
+  if (tenantClause) clauses.push(tenantClause);
+  return { $and: clauses };
+}
+
+function orderIdentityFilterForMasterRefs(masterOrders = []) {
+  const refs = uniqueText((masterOrders || []).flatMap((master) => normalizeMasterSalesOrderRefs(master).refs));
+  if (!refs.length) return { _id: null };
+  const objectIds = refs.filter((value) => mongoose.isValidObjectId(value));
+  const clauses = [
+    { id: { $in: refs } },
+    { code: { $in: refs } },
+    { orderCode: { $in: refs } },
+    { salesOrderCode: { $in: refs } },
+    { documentCode: { $in: refs } },
+    { invoiceCode: { $in: refs } },
+    { sourceOrderCode: { $in: refs } },
+    { deliveryOrderCode: { $in: refs } },
+    { orderId: { $in: refs } },
+    { salesOrderId: { $in: refs } },
+    { sourceOrderId: { $in: refs } },
+    { deliveryOrderId: { $in: refs } }
+  ];
+  if (objectIds.length) clauses.push({ _id: { $in: objectIds } });
+  return { $or: clauses };
+}
+
+function buildMasterByChildKey(masterOrders = []) {
+  const map = new Map();
+  for (const master of masterOrders || []) {
+    const refs = normalizeMasterSalesOrderRefs(master).refs;
+    for (const ref of refs) {
+      if (!map.has(ref)) map.set(ref, master);
+    }
+  }
+  return map;
+}
+
+function attachMasterDeliveryScope(order = {}, masterByChildKey = new Map()) {
+  let master = null;
+  for (const key of compactDeliveryOrderKeys(order)) {
+    if (masterByChildKey.has(key)) {
+      master = masterByChildKey.get(key);
+      break;
+    }
+  }
+  if (!master) return order;
+  const deliveryStaffCode = businessDeliveryStaffCodeOf(master) || businessDeliveryStaffCodeOf(order);
+  const deliveryStaffName = businessDeliveryStaffNameOf(master) || businessDeliveryStaffNameOf(order);
+  const date = masterDateOf(master) || businessDateOf(order);
+  const masterCode = cleanText(master.code || master.masterOrderCode || master.documentCode || master.id || master._id);
+  return {
+    ...order,
+    __sseDeliveryStaffCode: deliveryStaffCode,
+    __sseDeliveryStaffName: deliveryStaffName,
+    __sseMasterOrderId: cleanText(master.id || master._id || ''),
+    __sseMasterOrderCode: masterCode,
+    __sseInvoiceDate: date,
+    __sseInvoiceCode: deliveryStaffCode ? `SSE-${date || 'all'}-${deliveryStaffCode}` : '',
+    masterOrderId: order.masterOrderId || master.id || cleanText(master._id || ''),
+    masterOrderCode: order.masterOrderCode || masterCode,
+    deliveryStaffCode: order.deliveryStaffCode || deliveryStaffCode,
+    deliveryStaffName: order.deliveryStaffName || deliveryStaffName
+  };
+}
+
 function businessDateOf(order = {}) {
   return dateUtil.toDateOnly(
     order.orderDate || order.documentDate || order.date || order.createdDate || order.createdAt || ''
@@ -264,6 +422,7 @@ function matchesInvoiceExportFilters(order = {}, query = {}, options = {}) {
   if (filters.dateFrom && (!date || date < filters.dateFrom)) return false;
   if (filters.dateTo && (!date || date > filters.dateTo)) return false;
   if (filters.salesStaffCode && businessSalesStaffCodeOf(order) !== filters.salesStaffCode) return false;
+  if (filters.deliveryStaffCode && businessDeliveryStaffCodeOf(order) !== filters.deliveryStaffCode) return false;
   if (filters.customerCode && businessCustomerCodeOf(order) !== filters.customerCode) return false;
   return true;
 }
@@ -399,7 +558,68 @@ function applyLimit(query, limit) {
   return query && typeof query.limit === 'function' ? query.limit(limit) : query;
 }
 
+
+async function loadDeliveryStaffInvoiceExportData({ query = {}, invoiceGroup = INVOICE_GROUPS.ALL, currentUser = {}, maxOrders = 100000 } = {}) {
+  const filters = normalizeExportQuery(query, { invoiceGroup, defaultInvoiceGroup: invoiceGroup, maxLimit: maxOrders });
+  const masterFilter = buildMasterOrderMongoFilter(query, { normalizedFilters: filters, currentUser });
+  let masterQuery = MasterOrder.find(masterFilter);
+  masterQuery = applySelect(masterQuery, MASTER_ORDER_PROJECTION);
+  masterQuery = applySort(masterQuery, { deliveryDate: 1, masterOrderDate: 1, date: 1, code: 1 });
+  masterQuery = applyLimit(masterQuery, filters.limit);
+  const masterOrders = (await leanResult(masterQuery)) || [];
+  const orderIdentityFilter = orderIdentityFilterForMasterRefs(masterOrders);
+
+  const orderClauses = [buildActiveInvoiceMongoClause(), orderIdentityFilter];
+  if (filters.invoiceGroup !== INVOICE_GROUPS.ALL) orderClauses.push(buildInvoiceTypeMongoClause(filters.invoiceGroup));
+  const tenantClause = buildTenantClause(currentUser);
+  if (tenantClause) orderClauses.push(tenantClause);
+  let orderQuery = SalesOrder.find({ $and: orderClauses });
+  orderQuery = applySelect(orderQuery, ORDER_PROJECTION);
+  orderQuery = applySort(orderQuery, { masterOrderCode: 1, code: 1 });
+  orderQuery = applyLimit(orderQuery, filters.limit);
+  const rawOrders = (await leanResult(orderQuery)) || [];
+  const masterByChildKey = buildMasterByChildKey(masterOrders);
+  const orders = rawOrders.map((order) => attachMasterDeliveryScope(order, masterByChildKey))
+    .filter((order) => businessDeliveryStaffCodeOf(order));
+
+  const productCodes = [];
+  const productIds = [];
+  for (const order of orders) {
+    for (const item of Array.isArray(order.items) ? order.items : []) {
+      const code = cleanText(item.productCode || item.code || item.sku || item.barcode);
+      const id = cleanText(item.productId || item._id);
+      if (code) productCodes.push(code);
+      if (mongoose.isValidObjectId(id)) productIds.push(id);
+    }
+  }
+  const productClauses = [];
+  const uniqueProductCodes = uniqueText(productCodes);
+  const uniqueProductIds = uniqueText(productIds);
+  if (uniqueProductCodes.length) productClauses.push({ code: { $in: uniqueProductCodes } });
+  if (uniqueProductIds.length) productClauses.push({ _id: { $in: uniqueProductIds } });
+
+  let returnQuery = ReturnOrder.find(buildReturnLinkFilter(orders, currentUser));
+  returnQuery = applySelect(returnQuery, RETURN_PROJECTION);
+  const [rawReturnOrders, products] = await Promise.all([
+    leanResult(returnQuery),
+    productClauses.length ? leanResult(Product.find({ $or: productClauses })) : []
+  ]);
+
+  return {
+    filters,
+    masterOrders,
+    orders,
+    returnOrders: (rawReturnOrders || []).filter(isEligibleReturnOrder),
+    customers: [],
+    products: products || []
+  };
+}
+
 async function loadInvoiceExportData({ query = {}, invoiceGroup = INVOICE_GROUPS.ALL, currentUser = {}, maxOrders = 100000 } = {}) {
+  const routingFilters = normalizeExportQuery(query, { invoiceGroup, defaultInvoiceGroup: invoiceGroup, maxLimit: maxOrders });
+  if (isDeliveryStaffSummaryMode(routingFilters.summaryBy)) {
+    return loadDeliveryStaffInvoiceExportData({ query, invoiceGroup, currentUser, maxOrders });
+  }
   const filters = normalizeExportQuery(query, { invoiceGroup, defaultInvoiceGroup: invoiceGroup, maxLimit: maxOrders });
   const orderFilter = buildInvoiceOrderMongoFilter(query, { normalizedFilters: filters, currentUser });
   let orderQuery = SalesOrder.find(orderFilter);
@@ -450,18 +670,24 @@ async function loadInvoiceExportData({ query = {}, invoiceGroup = INVOICE_GROUPS
 module.exports = {
   INVOICE_GROUPS,
   ORDER_PROJECTION,
+  MASTER_ORDER_PROJECTION,
   RETURN_PROJECTION,
   normalizeInvoiceGroup,
   normalizeExportQuery,
   buildBusinessDateMongoClause,
   buildSalesStaffMongoClause,
+  buildDeliveryStaffMongoClause,
   buildCustomerMongoClause,
   buildInvoiceOrderMongoFilter,
+  buildMasterOrderMongoFilter,
   businessDateOf,
   businessSalesStaffCodeOf,
+  businessDeliveryStaffCodeOf,
+  businessDeliveryStaffNameOf,
   businessCustomerCodeOf,
   matchesInvoiceExportFilters,
   buildReturnLinkFilter,
   isEligibleReturnOrder,
+  loadDeliveryStaffInvoiceExportData,
   loadInvoiceExportData
 };

@@ -1,6 +1,6 @@
 'use strict';
 
-// Ba luồng xuất dùng chung một bộ lọc ngày nghiệp vụ + mã NVBH; SSE luôn dùng invoiceType=ALL.
+// VAT/không VAT dùng bộ lọc ngày + NVBH/khách hàng; SSE dùng ngày + NVGH đã gán trên đơn tổng.
 (function initInvoiceExports(){
   const vatButton=document.getElementById('exportVatInvoiceTT78Button');
   const nonVatButton=document.getElementById('exportVatNonInvoiceOrdersButton');
@@ -9,6 +9,7 @@
   const fromInput=document.getElementById('invoiceExportFromDate');
   const toInput=document.getElementById('invoiceExportToDate');
   const salesStaffSelect=document.getElementById('invoiceExportSalesStaffCode');
+  const deliveryStaffSelect=document.getElementById('invoiceExportDeliveryStaffCode');
   const customerInput=document.getElementById('invoiceExportCustomerSearch');
   const customerCodeInput=document.getElementById('invoiceExportCustomerCode');
   const customerClearButton=document.getElementById('clearInvoiceExportCustomerButton');
@@ -16,7 +17,7 @@
   const clearFiltersButton=document.getElementById('clearInvoiceExportFiltersButton');
   const summary=document.getElementById('vatInvoiceExportSummary');
   const exportButtons=[vatButton,nonVatButton,sseButton,sseErrorButton].filter(Boolean);
-  const controls=[fromInput,toInput,salesStaffSelect,customerInput,customerClearButton,clearFiltersButton].filter(Boolean);
+  const controls=[fromInput,toInput,salesStaffSelect,deliveryStaffSelect,customerInput,customerClearButton,clearFiltersButton].filter(Boolean);
   let exportInFlight=false;
   let sseErrorReportUrl='';
   let selectedCustomer=null;
@@ -59,16 +60,21 @@
     const typedCustomer=String(customerInput?.value||'').trim();
     const customerCode=currentCustomerCode();
     if(typedCustomer&&!customerCode)throw new Error('Vui lòng chọn khách hàng từ danh sách gợi ý hoặc bấm x để bỏ chọn.');
-    return {from,to,salesStaffCode:salesStaffSelect?.value||'',customerCode};
+    return {from,to,salesStaffCode:salesStaffSelect?.value||'',deliveryStaffCode:deliveryStaffSelect?.value||'',customerCode};
   }
 
-  function exportParams(invoiceType){
+  function exportParams(invoiceType,options={}){
     const filters=validateFilters();
     const params=new URLSearchParams({invoiceType,limit:'20000'});
     if(filters.from)params.set('dateFrom',filters.from);
     if(filters.to)params.set('dateTo',filters.to);
-    if(filters.salesStaffCode)params.set('salesStaffCode',filters.salesStaffCode);
-    if(filters.customerCode)params.set('customerCode',filters.customerCode);
+    if(options.deliveryStaffExport){
+      params.set('summaryBy','deliveryStaff');
+      if(filters.deliveryStaffCode)params.set('deliveryStaffCode',filters.deliveryStaffCode);
+    }else{
+      if(filters.salesStaffCode)params.set('salesStaffCode',filters.salesStaffCode);
+      if(filters.customerCode)params.set('customerCode',filters.customerCode);
+    }
     return params;
   }
 
@@ -190,7 +196,7 @@
 
   function downloadSseExport(){
     let params;
-    try{params=exportParams('ALL');}catch(error){setSummary(error.message,true);return Promise.resolve(false);}
+    try{params=exportParams('ALL',{deliveryStaffExport:true});}catch(error){setSummary(error.message,true);return Promise.resolve(false);}
     sseErrorReportUrl='';
     if(sseErrorButton)sseErrorButton.hidden=true;
     return download(`/api/export/sse-invoice-orders.xlsx?${params.toString()}`,sseButton,'Excel SSE tất cả đơn','SSE_Hoa_don_tat_ca.xlsx');
@@ -214,6 +220,7 @@
     if(fromInput)fromInput.value='';
     if(toInput)toInput.value='';
     if(salesStaffSelect)salesStaffSelect.value='';
+    if(deliveryStaffSelect)deliveryStaffSelect.value='';
     clearCustomerSelection({silent:true});
     sseErrorReportUrl='';
     if(sseErrorButton)sseErrorButton.hidden=true;
@@ -348,6 +355,29 @@
     }
   }
 
+  async function loadDeliveryStaffOptions(){
+    if(!deliveryStaffSelect||!window.UnifiedSearchEngine?.searchDeliveryStaff)return;
+    const selected=deliveryStaffSelect.value;
+    try{
+      const rows=await window.UnifiedSearchEngine.searchDeliveryStaff('',{limit:50,minChars:0,allowEmpty:'1',showOnFocus:'1'});
+      const unique=new Map();
+      (rows||[]).forEach(item=>{
+        const code=String(item.code||item.deliveryStaffCode||item.businessStaffCode||item.staffCode||'').trim();
+        if(!code||unique.has(code))return;
+        const name=String(item.name||item.deliveryStaffName||item.businessStaffName||item.fullName||'').trim();
+        unique.set(code,{code,name});
+      });
+      deliveryStaffSelect.replaceChildren(new Option('Tất cả nhân viên giao hàng',''));
+      [...unique.values()].sort((a,b)=>a.name.localeCompare(b.name,'vi')).forEach(item=>{
+        deliveryStaffSelect.add(new Option([item.code,item.name].filter(Boolean).join(' - '),item.code));
+      });
+      deliveryStaffSelect.value=selected;
+    }catch(error){
+      console.warn('[INVOICE_EXPORT_DELIVERY_STAFF_LOAD]',error);
+      setSummary('Không tải được danh sách NVGH; SSE vẫn có thể xuất tất cả NVGH.',true);
+    }
+  }
+
   function bind(button,handler,key){
     if(!button||button.dataset[key]==='1')return;
     button.dataset[key]='1';
@@ -357,6 +387,7 @@
   initializeDateDefaults();
   bindCustomerAutocomplete();
   loadSalesStaffOptions();
+  loadDeliveryStaffOptions();
   bind(vatButton,()=>downloadInvoiceExport('VAT',vatButton),'boundInvoiceExport');
   bind(nonVatButton,()=>downloadInvoiceExport('NON_VAT',nonVatButton),'boundInvoiceExport');
   bind(sseButton,downloadSseExport,'boundSseExport');

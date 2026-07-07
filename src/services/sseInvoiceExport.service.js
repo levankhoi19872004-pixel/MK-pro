@@ -30,6 +30,11 @@ const SALESMAN_SUMMARY_HEADERS = Object.freeze([
   'STT', 'Mã NVBH', 'Tên NVBH', 'Số đơn', 'Mã hàng', 'Tên mặt hàng', 'Đvt', 'Mã kho',
   'Số lượng', 'Giá bán', 'Tiền hàng', 'Ghi chú'
 ]);
+const DELIVERY_STAFF_SUMMARY_SHEET_NAME = 'TONG_THEO_NVGH';
+const DELIVERY_STAFF_SUMMARY_HEADERS = Object.freeze([
+  'STT', 'Mã NVGH', 'Tên NVGH', 'Số đơn tổng', 'Số đơn con', 'Mã hàng', 'Tên mặt hàng', 'Đvt',
+  'Số lượng bán', 'Số lượng trả', 'Số lượng còn lại', 'Giá bán', 'Thành tiền', 'Ghi chú'
+]);
 
 function cleanText(value) { return String(value ?? '').trim(); }
 function toNumber(value, fallback = 0) {
@@ -96,7 +101,8 @@ function validateConfig(config) {
   return missing;
 }
 function orderCode(order = {}) { return firstText(order.invoiceCode, order.documentCode, order.code, order.orderCode, order.salesOrderCode, order.id, order._id); }
-function orderDate(order = {}) { return invoiceExportQueryService.businessDateOf(order); }
+function childOrderCode(order = {}) { return firstText(order.code, order.orderCode, order.salesOrderCode, order.documentCode, order.id, order._id); }
+function orderDate(order = {}) { return firstText(order.__sseInvoiceDate, invoiceExportQueryService.businessDateOf(order)); }
 function orderIdentity(order = {}) { return firstText(order._id, order.id, order.code, order.orderCode, order.salesOrderCode); }
 function customerKeyValues(order = {}) { return [order.customerCode, order.customerId].map(cleanText).filter(Boolean); }
 function productCodeOf(item = {}) { return firstText(item.productCode, item.code, item.sku, item.barcode, item.productId, item.id); }
@@ -122,6 +128,28 @@ function resolveSalesmanName(order = {}) {
     order.salesStaffName, order.salesPersonName, order.salesmanName, order.nvbhName, order.maNVBHName,
     order.sseSalesmanName, order.accountingSalesmanName
   );
+}
+function isDeliveryStaffSummaryMode(value) {
+  const text = cleanText(value).toLowerCase().replace(/[\s-]+/g, '_');
+  return ['delivery_staff', 'deliverystaff', 'delivery', 'nvgh', 'theo_nvgh'].includes(text);
+}
+function resolveDeliveryStaffCode(order = {}) {
+  return firstText(
+    order.__sseDeliveryStaffCode, order.deliveryStaffCode, order.deliveryCode, order.nvghCode,
+    order.assignedDeliveryStaffCode, order.shipperCode, order.staffCode
+  );
+}
+function resolveDeliveryStaffName(order = {}) {
+  return firstText(
+    order.__sseDeliveryStaffName, order.deliveryStaffName, order.deliveryName, order.nvghName,
+    order.assignedDeliveryStaffName, order.shipperName, order.staffName
+  );
+}
+function deliveryInvoiceDateOf(order = {}) {
+  return normalizeDateOnly(order.__sseInvoiceDate || order.deliveryDate || order.masterOrderDate || order.date || order.orderDate || order.createdAt || '');
+}
+function deliveryInvoiceCodeOf({ date, deliveryStaffCode, order = {} } = {}) {
+  return firstText(order.__sseInvoiceCode, order.sseInvoiceCode, `SSE-${date || 'all'}-${deliveryStaffCode || 'NVGH'}`);
 }
 function lineKeyOf(item = {}) { return firstText(item.lineKey, item.orderLineId, item.salesOrderItemId, item.itemId, item._id); }
 function priceKeyOf(item = {}) { const p = priceAfterPromotionOf(item); return p ? String(round(p, 6)) : ''; }
@@ -240,7 +268,182 @@ function makeSseRow({ order, customer, product, quantity, unitPrice, config }) {
   ];
   return values;
 }
-function buildSseRows({ orders = [], returnOrders = [], customers = [], products = [], invoiceType = invoiceExportQueryService.INVOICE_GROUPS.ALL, config, configByType = {} }) {
+
+function groupDeliveryStaffExportRows({ orders = [], returnOrders = [], products = [], invoiceType = invoiceExportQueryService.INVOICE_GROUPS.ALL, config, configByType = {} }) {
+  const requestedType = invoiceExportQueryService.normalizeInvoiceGroup(invoiceType, invoiceExportQueryService.INVOICE_GROUPS.ALL);
+  const productMap = buildCatalogMap(products, ['_id','id','code','productCode','sku','barcode']);
+  const rows = [];
+  const summarySourceRows = [];
+  const errors = [];
+  const warnings = [];
+  const seenOrders = new Set();
+  const selectedOrders = [];
+
+  for (const order of orders || []) {
+    const orderType = resolveInvoiceType(order);
+    if (!isActiveInvoiceOrder(order)) continue;
+    if (requestedType !== invoiceExportQueryService.INVOICE_GROUPS.ALL && orderType !== requestedType) continue;
+    const orderKey = orderIdentity(order);
+    if (!orderKey || seenOrders.has(orderKey)) continue;
+    seenOrders.add(orderKey);
+    selectedOrders.push(order);
+  }
+
+  const netDataset = invoiceNetSalesService.buildNetSaleDataset({
+    orders: selectedOrders,
+    returnOrders,
+    isEligibleReturnOrder: invoiceExportQueryService.isEligibleReturnOrder
+  });
+  warnings.push(...netDataset.warnings.map((warning) => ({
+    'Mã đơn': warning.orderCode || '',
+    'Khách hàng': '',
+    'Mã sản phẩm': warning.productCode || '',
+    'Tên sản phẩm': '',
+    'Trường bị thiếu': warning.code || 'RETURN_WARNING',
+    'Nguyên nhân': [warning.message || '', warning.returnedQty !== undefined ? `Tổng trả ${warning.returnedQty}` : '', warning.soldQty !== undefined ? `Số lượng bán ${warning.soldQty}` : ''].filter(Boolean).join(' - '),
+    'Hướng xử lý': 'Đối chiếu returnOrders; dữ liệu nguồn không bị thay đổi'
+  })));
+
+  const groups = new Map();
+  const seenLines = new Set();
+  const exportedChildOrders = new Set();
+
+  for (const netOrder of netDataset.orders) {
+    const order = netOrder.order;
+    const orderType = resolveInvoiceType(order);
+    const orderKey = orderIdentity(order);
+    const rowConfig = configByType[orderType] || config;
+    const deliveryStaffCode = resolveDeliveryStaffCode(order);
+    const deliveryStaffName = resolveDeliveryStaffName(order);
+    const invoiceDate = deliveryInvoiceDateOf(order) || orderDate(order);
+    const childCode = childOrderCode(order);
+    const masterOrderCode = firstText(order.__sseMasterOrderCode, order.masterOrderCode, order.masterCode, order.deliveryMasterCode);
+    const masterOrderId = firstText(order.__sseMasterOrderId, order.masterOrderId, order.masterId, order.deliveryMasterId);
+
+    for (const line of netOrder.exportableLines) {
+      const item = line.item;
+      const productKey = line.productCode;
+      const catalogProduct = productMap.get(productKey) || productMap.get(productIdOf(item)) || {};
+      const product = resolveProduct(item, catalogProduct, rowConfig);
+      const quantity = line.netQty;
+      const catalogSalePrice = catalogSalePriceInfo(catalogProduct);
+      const lineIdentity = [orderKey, line.itemIndex, productKey].join('@@');
+      if (seenLines.has(lineIdentity)) continue;
+      seenLines.add(lineIdentity);
+
+      const lineErrors = [];
+      if (!deliveryStaffCode) lineErrors.push(errorRow(order, item, 'Mã khách', 'Đơn tổng chưa có mã NVGH để map vào cột Mã khách SSE', 'Gán NVGH cho đơn tổng trước khi xuất SSE'));
+      if (!deliveryStaffName) lineErrors.push(errorRow(order, item, 'Tên khách hàng', 'Đơn tổng chưa có tên NVGH để map vào cột Tên khách hàng SSE', 'Gán/tải lại tên NVGH trên đơn tổng'));
+      if (!invoiceDate) lineErrors.push(errorRow(order, item, 'Ngày', 'Đơn tổng/đơn con không có ngày giao hợp lệ', 'Kiểm tra deliveryDate/masterOrderDate'));
+      if (!product.code) lineErrors.push(errorRow(order, item, 'Mã hàng', 'Sản phẩm chưa có mã SSE/kế toán hợp lệ', 'Cập nhật mã SSE hoặc bật fallback mã sản phẩm chuẩn sau khi đối chiếu'));
+      if (!product.name) lineErrors.push(errorRow(order, item, 'Tên mặt hàng', 'Thiếu tên sản phẩm chuẩn', 'Cập nhật danh mục sản phẩm'));
+      if (!product.unit) lineErrors.push(errorRow(order, item, 'Đvt', 'Thiếu đơn vị tính tương ứng số lượng cơ sở', 'Cập nhật baseUnit/đơn vị tính sản phẩm'));
+      if (!Number.isFinite(quantity) || quantity <= 0) lineErrors.push(errorRow(order, item, 'Số lượng', 'Số lượng sau khi trừ trả hàng không hợp lệ', 'Đối chiếu số lượng bán/trả'));
+      if (lineErrors.length) { errors.push(...lineErrors); continue; }
+      if (catalogSalePrice.missing) {
+        warnings.push(errorRow(order, item, 'Giá bán danh mục', 'Thiếu giá bán trong danh mục sản phẩm; sheet SSE vẫn xuất giá 0', 'Cập nhật product.salePrice'));
+      }
+
+      const key = [deliveryStaffCode, product.code].join('@@');
+      let group = groups.get(key);
+      if (!group) {
+        group = {
+          deliveryStaffCode,
+          deliveryStaffName,
+          invoiceDate,
+          invoiceCode: deliveryInvoiceCodeOf({ date: invoiceDate, deliveryStaffCode, order }),
+          orderType,
+          config: rowConfig,
+          product,
+          productCode: product.code,
+          productName: firstText(catalogProduct.name, catalogProduct.productName, product.name),
+          unit: firstText(catalogProduct.baseUnit, catalogProduct.unit, product.unit),
+          warehouseCode: rowConfig.warehouseCode,
+          soldQty: 0,
+          returnedQty: 0,
+          quantity: 0,
+          unitPrice: catalogSalePrice.price,
+          missingCatalogSalePrice: catalogSalePrice.missing,
+          catalogSalePriceField: catalogSalePrice.field,
+          orderCodes: new Set(),
+          masterOrderCodes: new Set(),
+          masterOrderIds: new Set(),
+          notes: new Set(),
+          sampleOrder: order
+        };
+        groups.set(key, group);
+      }
+      group.deliveryStaffName = group.deliveryStaffName || deliveryStaffName;
+      group.invoiceDate = group.invoiceDate || invoiceDate;
+      group.invoiceCode = group.invoiceCode || deliveryInvoiceCodeOf({ date: invoiceDate, deliveryStaffCode, order });
+      group.productName = group.productName || firstText(catalogProduct.name, catalogProduct.productName, product.name);
+      group.unit = group.unit || firstText(catalogProduct.baseUnit, catalogProduct.unit, product.unit);
+      group.soldQty = round(group.soldQty + toNumber(line.soldQty), 6);
+      group.returnedQty = round(group.returnedQty + toNumber(line.returnQty ?? line.returnedQty ?? (toNumber(line.soldQty) - toNumber(line.netQty))), 6);
+      group.quantity = round(group.quantity + quantity, 6);
+      if (!group.missingCatalogSalePrice && !catalogSalePrice.missing) group.unitPrice = catalogSalePrice.price;
+      if (catalogSalePrice.missing) {
+        group.missingCatalogSalePrice = true;
+        group.unitPrice = 0;
+        group.notes.add('Thiếu giá bán trong danh mục sản phẩm');
+      }
+      if (childCode) group.orderCodes.add(childCode);
+      if (masterOrderCode) group.masterOrderCodes.add(masterOrderCode);
+      if (masterOrderId) group.masterOrderIds.add(masterOrderId);
+      if (childCode) exportedChildOrders.add(childCode);
+    }
+  }
+
+  const sortedGroups = [...groups.values()].sort((a, b) => a.deliveryStaffCode.localeCompare(b.deliveryStaffCode, 'vi') || a.productCode.localeCompare(b.productCode, 'vi'));
+  for (const group of sortedGroups) {
+    if (group.quantity <= 0) continue;
+    const rowConfig = group.config || config;
+    const sseOrder = {
+      ...(group.sampleOrder || {}),
+      orderDate: group.invoiceDate,
+      date: group.invoiceDate,
+      invoiceCode: group.invoiceCode,
+      documentCode: group.invoiceCode,
+      code: group.invoiceCode,
+      sseSalesmanCode: rowConfig.defaultSalesmanCode
+    };
+    const customer = { code: group.deliveryStaffCode, name: group.deliveryStaffName };
+    const product = { code: group.productCode, name: group.productName, unit: group.unit };
+    const unitPrice = toNumber(group.unitPrice, 0);
+    rows.push(makeSseRow({ order: sseOrder, customer, product, quantity: group.quantity, unitPrice, config: rowConfig }));
+    summarySourceRows.push({
+      mode: 'deliveryStaff',
+      deliveryStaffCode: group.deliveryStaffCode,
+      deliveryStaffName: group.deliveryStaffName,
+      masterOrderCount: group.masterOrderCodes.size || group.masterOrderIds.size,
+      masterOrderCodes: [...group.masterOrderCodes],
+      masterOrderIds: [...group.masterOrderIds],
+      childOrderCount: group.orderCodes.size,
+      childOrderCodes: [...group.orderCodes],
+      productCode: group.productCode,
+      productName: group.productName,
+      unit: group.unit,
+      warehouseCode: group.warehouseCode,
+      soldQty: group.soldQty,
+      returnedQty: group.returnedQty,
+      quantity: group.quantity,
+      catalogSalePrice: unitPrice,
+      catalogSalePriceField: group.catalogSalePriceField,
+      missingCatalogSalePrice: group.missingCatalogSalePrice,
+      amount: round(group.quantity * unitPrice, 2),
+      note: ['Tổng hợp từ đơn tổng theo NVGH', ...group.notes].join('; ')
+    });
+    if (rows.length > rowConfig.maxRows) {
+      errors.push(errorRow(sseOrder, { productCode: group.productCode, productName: group.productName }, 'Giới hạn dòng', `Số dòng vượt giới hạn ${rowConfig.maxRows}`, 'Thu hẹp khoảng ngày và xuất lại'));
+      break;
+    }
+  }
+
+  return { rows, summarySourceRows, errors, warnings, orderCount: exportedChildOrders.size };
+}
+
+function buildSseRows({ orders = [], returnOrders = [], customers = [], products = [], invoiceType = invoiceExportQueryService.INVOICE_GROUPS.ALL, config, configByType = {}, summaryBy = '' }) {
+  if (isDeliveryStaffSummaryMode(summaryBy)) return groupDeliveryStaffExportRows({ orders, returnOrders, products, invoiceType, config, configByType });
   const requestedType = invoiceExportQueryService.normalizeInvoiceGroup(invoiceType, invoiceExportQueryService.INVOICE_GROUPS.ALL);
   const customerMap = buildCatalogMap(customers, ['_id','id','code','customerCode']);
   const productMap = buildCatalogMap(products, ['_id','id','code','productCode','sku','barcode']);
@@ -455,16 +658,96 @@ function buildSseSalesmanSummaryAoa(sourceRows = []) {
   return aoa;
 }
 
-function buildUploadWorkbook(rows, config, summarySourceRows) {
+
+function buildSseDeliveryStaffSummaryRows(sourceRows = []) {
+  const rows = [];
+  for (const source of Array.isArray(sourceRows) ? sourceRows : []) {
+    const deliveryStaffCode = cleanText(source.deliveryStaffCode);
+    const productCode = cleanText(source.productCode);
+    if (!deliveryStaffCode || !productCode) continue;
+    const quantity = toNumber(source.quantity, NaN);
+    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+    const unitPrice = toNumber(source.catalogSalePrice, 0);
+    const noteParts = ['Tổng hợp từ đơn tổng theo NVGH'];
+    if (source.missingCatalogSalePrice) noteParts.push('Thiếu giá bán trong danh mục sản phẩm');
+    if (cleanText(source.note)) noteParts.push(cleanText(source.note));
+    rows.push({
+      deliveryStaffCode,
+      deliveryStaffName: cleanText(source.deliveryStaffName),
+      masterOrderCount: toNumber(source.masterOrderCount, Array.isArray(source.masterOrderCodes) ? source.masterOrderCodes.length : 0),
+      childOrderCount: toNumber(source.childOrderCount, Array.isArray(source.childOrderCodes) ? source.childOrderCodes.length : 0),
+      productCode,
+      productName: cleanText(source.productName),
+      unit: cleanText(source.unit),
+      soldQty: toNumber(source.soldQty, quantity),
+      returnedQty: toNumber(source.returnedQty, 0),
+      quantity,
+      unitPrice,
+      amount: round(quantity * unitPrice, 2),
+      note: [...new Set(noteParts.filter(Boolean))].join('; ')
+    });
+  }
+  return rows.sort((a, b) => a.deliveryStaffCode.localeCompare(b.deliveryStaffCode, 'vi') || a.productCode.localeCompare(b.productCode, 'vi'));
+}
+
+function buildSseDeliveryStaffSummaryAoa(sourceRows = []) {
+  const rows = buildSseDeliveryStaffSummaryRows(sourceRows);
+  const aoa = [[...DELIVERY_STAFF_SUMMARY_HEADERS]];
+  let currentStaff = null;
+  let currentRows = [];
+  let stt = 1;
+  let allSoldQty = 0;
+  let allReturnedQty = 0;
+  let allNetQty = 0;
+  let allAmount = 0;
+
+  const flushStaffTotal = () => {
+    if (!currentRows.length) return;
+    const first = currentRows[0];
+    const totalSold = round(currentRows.reduce((sum, row) => sum + toNumber(row.soldQty), 0), 6);
+    const totalReturned = round(currentRows.reduce((sum, row) => sum + toNumber(row.returnedQty), 0), 6);
+    const totalNet = round(currentRows.reduce((sum, row) => sum + toNumber(row.quantity), 0), 6);
+    const totalAmount = round(currentRows.reduce((sum, row) => sum + toNumber(row.amount), 0), 2);
+    aoa.push(['', first.deliveryStaffCode, first.deliveryStaffName, '', '', '', 'TỔNG NVGH', '', totalSold, totalReturned, totalNet, '', totalAmount, '']);
+    currentRows = [];
+  };
+
+  for (const row of rows) {
+    if (currentStaff !== null && row.deliveryStaffCode !== currentStaff) flushStaffTotal();
+    currentStaff = row.deliveryStaffCode;
+    currentRows.push(row);
+    allSoldQty = round(allSoldQty + toNumber(row.soldQty), 6);
+    allReturnedQty = round(allReturnedQty + toNumber(row.returnedQty), 6);
+    allNetQty = round(allNetQty + toNumber(row.quantity), 6);
+    allAmount = round(allAmount + toNumber(row.amount), 2);
+    aoa.push([
+      stt, row.deliveryStaffCode, row.deliveryStaffName, row.masterOrderCount || '', row.childOrderCount || '', row.productCode,
+      row.productName, row.unit, row.soldQty, row.returnedQty, row.quantity, row.unitPrice, row.amount, row.note
+    ]);
+    stt += 1;
+  }
+  flushStaffTotal();
+  if (rows.length) aoa.push(['', '', '', '', '', '', 'TỔNG CỘNG', '', allSoldQty, allReturnedQty, allNetQty, '', allAmount, '']);
+  return aoa;
+}
+
+function buildUploadWorkbook(rows, config, summarySourceRows, options = {}) {
   const workbook = createWorkbook();
   appendAoaSheet(workbook, config.sheetName || 'TỔNG', [[], [], [], [], [...SSE_HEADERS], ...rows], {
     widths: [14,28,12,18,14,16,24,16,32,10,12,12,12,10,12,14,16,12,14,10,10,12,12,14,12,12,16,14,12,12,10,12,12,10,12,14]
   });
   if (Array.isArray(summarySourceRows)) {
-    appendAoaSheet(workbook, SALESMAN_SUMMARY_SHEET_NAME, buildSseSalesmanSummaryAoa(summarySourceRows), {
-      widths: [6,14,24,10,16,35,10,12,12,14,16,36],
-      autoFilter: true
-    });
+    if (isDeliveryStaffSummaryMode(options.summaryBy)) {
+      appendAoaSheet(workbook, DELIVERY_STAFF_SUMMARY_SHEET_NAME, buildSseDeliveryStaffSummaryAoa(summarySourceRows), {
+        widths: [6,14,26,12,12,16,35,10,12,12,14,14,16,38],
+        autoFilter: true
+      });
+    } else {
+      appendAoaSheet(workbook, SALESMAN_SUMMARY_SHEET_NAME, buildSseSalesmanSummaryAoa(summarySourceRows), {
+        widths: [6,14,24,10,16,35,10,12,12,14,16,36],
+        autoFilter: true
+      });
+    }
   }
   return writeWorkbook(workbook);
 }
@@ -522,7 +805,7 @@ async function buildSseInvoiceWorkbook(query = {}, currentUser = {}) {
   const data = await loadData(query, invoiceType, currentUser);
   const configErrors = validateConfigSet(data.configByType, invoiceType);
   if (configErrors.length) return { error:`Thiếu cấu hình SSE: ${configErrors.join(', ')}`, status:422, code:'SSE_CONFIG_INVALID' };
-  const built = buildSseRows({ ...data, invoiceType });
+  const built = buildSseRows({ ...data, invoiceType, summaryBy: query.summaryBy || data.filters?.summaryBy || '' });
   if (built.errors.length) {
     const params = new URLSearchParams();
     ['invoiceType','dateFrom','dateTo','fromDate','toDate','salesStaffCode','customerCode'].forEach((key)=>{ if(query[key])params.set(key,String(query[key])); });
@@ -536,7 +819,7 @@ async function buildSseInvoiceWorkbook(query = {}, currentUser = {}) {
   }
   if (!built.rows.length) return { error:'Không có dòng sản phẩm hợp lệ trong phạm vi đã chọn', status:404, code:'SSE_NO_DATA' };
   return {
-    buffer:buildUploadWorkbook(built.rows,data.config,built.summarySourceRows),
+    buffer:buildUploadWorkbook(built.rows,data.config,built.summarySourceRows,{ summaryBy: query.summaryBy || data.filters?.summaryBy || '' }),
     rows:built.rows.length,
     orderCount:built.orderCount,
     warningCount:built.warnings.length,
@@ -559,13 +842,13 @@ async function buildSseErrorReportWorkbook(query = {}, currentUser = {}) {
     'Mã đơn':'', 'Khách hàng':'', 'Mã sản phẩm':'', 'Tên sản phẩm':'', 'Trường bị thiếu':field,
     'Nguyên nhân':'Thiếu cấu hình SSE', 'Hướng xử lý':'Cập nhật config/sse-export.json hoặc biến môi trường SSE_*'
   }));
-  const built = buildSseRows({ ...data, invoiceType });
+  const built = buildSseRows({ ...data, invoiceType, summaryBy: query.summaryBy || data.filters?.summaryBy || '' });
   errors.push(...built.errors, ...built.warnings);
   if (!errors.length) return { error:'Không có lỗi hoặc cảnh báo SSE trong phạm vi đã chọn', status:404, code:'SSE_NO_MAPPING_ERRORS' };
   return buildErrorWorkbook(errors, invoiceType, query);
 }
 
 module.exports = {
-  SSE_HEADERS, ERROR_HEADERS, SALESMAN_SUMMARY_SHEET_NAME, SALESMAN_SUMMARY_HEADERS, loadConfig, validateConfig, buildSseRows, buildUploadWorkbook, buildErrorWorkbook,
-  buildSseInvoiceWorkbook, buildSseErrorReportWorkbook, sseFileName, loadData, _private:{resolveCustomer,resolveProduct,returnedQtyForLine,buildReturnMap,makeSseRow,returnOrderActive,validateConfigSet,catalogSalePriceInfo,resolveSalesmanName,makeSalesmanSummaryKey,buildSseSalesmanSummaryRows,buildSseSalesmanSummaryAoa}
+  SSE_HEADERS, ERROR_HEADERS, SALESMAN_SUMMARY_SHEET_NAME, SALESMAN_SUMMARY_HEADERS, DELIVERY_STAFF_SUMMARY_SHEET_NAME, DELIVERY_STAFF_SUMMARY_HEADERS, loadConfig, validateConfig, buildSseRows, buildUploadWorkbook, buildErrorWorkbook,
+  buildSseInvoiceWorkbook, buildSseErrorReportWorkbook, sseFileName, loadData, _private:{resolveCustomer,resolveProduct,returnedQtyForLine,buildReturnMap,makeSseRow,returnOrderActive,validateConfigSet,catalogSalePriceInfo,resolveSalesmanName,isDeliveryStaffSummaryMode,resolveDeliveryStaffCode,resolveDeliveryStaffName,makeSalesmanSummaryKey,buildSseSalesmanSummaryRows,buildSseSalesmanSummaryAoa,buildSseDeliveryStaffSummaryRows,buildSseDeliveryStaffSummaryAoa,groupDeliveryStaffExportRows}
 };

@@ -201,12 +201,15 @@ test('frontend exposes shared filters, SSE ALL action and mapping-error download
   assert.match(html, /id="invoiceExportFromDate"[^>]*type="date"/);
   assert.match(html, /id="invoiceExportToDate"[^>]*type="date"/);
   assert.match(html, /id="invoiceExportSalesStaffCode"/);
+  assert.match(html, /id="invoiceExportDeliveryStaffCode"/);
   assert.match(html, /id="clearInvoiceExportFiltersButton"/);
   assert.doesNotMatch(html, /id="sseInvoiceTypeSelect"/);
   assert.match(html, /id="exportSseInvoiceButton"[^>]*>Xuất Excel SSE</);
   assert.match(html, /id="downloadSseErrorReportButton"[^>]*hidden/);
-  assert.match(js, /exportParams\('ALL'\)/);
+  assert.match(js, /exportParams\('ALL',\{deliveryStaffExport:true\}\)/);
   assert.match(js, /salesStaffCode/);
+  assert.match(js, /deliveryStaffCode/);
+  assert.match(js, /summaryBy','deliveryStaff/);
   assert.match(js, /\/api\/export\/sse-invoice-orders\.xlsx/);
   assert.match(js, /errorReportUrl/);
   assert.match(js, /if\(exportInFlight\)return/);

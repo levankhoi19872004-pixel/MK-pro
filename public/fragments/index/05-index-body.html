@@ -231,7 +231,7 @@
           <div class="invoice-export-head">
             <div>
               <h3 id="invoiceExportTitle">Xuất hóa đơn</h3>
-              <p class="muted">Lọc theo ngày nghiệp vụ và đúng mã NVBH. SSE luôn xuất tất cả đơn VAT và không VAT sau khi trừ hàng trả đã xác nhận kế toán.</p>
+              <p class="muted">VAT/không VAT vẫn lọc theo NVBH/khách hàng. Riêng SSE xuất theo NVGH đã gán trên đơn tổng và trừ hàng trả hợp lệ.</p>
             </div>
           </div>
           <div class="invoice-export-filter-grid" role="group" aria-label="Bộ lọc xuất hóa đơn">
@@ -244,6 +244,11 @@
             <label class="invoice-export-field invoice-export-staff-field">Nhân viên bán hàng
               <select id="invoiceExportSalesStaffCode" aria-label="Lọc theo nhân viên bán hàng">
                 <option value="">Tất cả nhân viên bán hàng</option>
+              </select>
+            </label>
+            <label class="invoice-export-field invoice-export-delivery-field">Nhân viên giao hàng SSE
+              <select id="invoiceExportDeliveryStaffCode" aria-label="Lọc SSE theo nhân viên giao hàng">
+                <option value="">Tất cả nhân viên giao hàng</option>
               </select>
             </label>
             <label class="invoice-export-field invoice-export-customer-field">Khách hàng
