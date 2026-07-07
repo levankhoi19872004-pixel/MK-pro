@@ -32,3 +32,19 @@ test('readModelSyncJobs model and indexes exist', () => {
   assert.match(indexes, /idx_read_model_sync_jobs_status_next_created/);
   assert.match(indexes, /idx_read_model_sync_jobs_customer_status/);
 });
+
+
+
+test('read model sync job upsert keeps $set and $setOnInsert paths disjoint', () => {
+  const source = read(jobServicePath);
+  assert.match(source, /const\s+insertOnlyDoc\s*=\s*{/);
+  assert.match(source, /\$setOnInsert:\s*insertOnlyDoc/);
+  assert.doesNotMatch(source, /\$setOnInsert:\s*doc/);
+
+  const match = source.match(/const\s+insertOnlyDoc\s*=\s*{([\s\S]*?)\n\s*};/);
+  assert.ok(match, 'insertOnlyDoc block not found');
+  const insertOnlyBlock = match[1];
+  for (const field of ['source', 'status', 'updatedAt', 'nextRunAt', 'sourceIds', 'customerCode', 'actor', 'reason', 'metadata']) {
+    assert.doesNotMatch(insertOnlyBlock, new RegExp(`\\b${field}\\s*:`), `${field} must not appear in $setOnInsert because it is updated via $set`);
+  }
+});

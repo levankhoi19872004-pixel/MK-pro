@@ -75,8 +75,19 @@ async function enqueueArDebtSyncJobs(payload = {}, options = {}) {
     reason: normalized.reason,
     metadata: normalized.metadata
   };
+  const insertOnlyDoc = {
+    id: doc.id,
+    type: doc.type,
+    idempotencyKey: doc.idempotencyKey,
+    attempts: doc.attempts,
+    lastError: doc.lastError,
+    createdAt: doc.createdAt,
+    processedAt: doc.processedAt,
+    lockedAt: doc.lockedAt,
+    lockedBy: doc.lockedBy
+  };
   const update = {
-    $setOnInsert: doc,
+    $setOnInsert: insertOnlyDoc,
     $set: {
       status: 'pending',
       updatedAt: now,
