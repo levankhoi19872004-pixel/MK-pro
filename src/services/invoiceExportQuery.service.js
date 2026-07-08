@@ -117,7 +117,7 @@ function normalizeExportQuery(query = {}, options = {}) {
   }
 
   const salesStaffCode = cleanText(query.salesStaffCode || '');
-  const deliveryStaffCode = cleanText(query.deliveryStaffCode || query.deliveryCode || query.nvghCode || '');
+  const deliveryStaffCode = cleanText(query.deliveryStaffCode || query.deliveryCode || query.nvghCode || query.deliveryStaff || query.delivery || query.nvgh || '');
   const summaryBy = cleanText(query.summaryBy || query.exportMode || '').toLowerCase().replace(/[\s-]+/g, '_');
   const customerCode = cleanText(query.customerCode || query.customerId || query.customer || query.code || '');
   const limitDefault = Number(options.defaultLimit || 20000);
@@ -294,6 +294,16 @@ function businessDeliveryStaffNameOf(row = {}) {
   return cleanText(
     row.__sseDeliveryStaffName || row.deliveryStaffName || row.deliveryName || row.nvghName || row.assignedDeliveryStaffName || row.shipperName || row.staffName || ''
   );
+}
+
+function normalizeDeliveryStaffKey(value) {
+  return cleanText(value).toLowerCase();
+}
+
+function matchesDeliveryStaffCode(row = {}, deliveryStaffCode = '') {
+  const expected = normalizeDeliveryStaffKey(deliveryStaffCode);
+  if (!expected) return true;
+  return normalizeDeliveryStaffKey(businessDeliveryStaffCodeOf(row)) === expected;
 }
 
 function buildMasterBusinessDateMongoClause(filters = {}) {
@@ -566,7 +576,13 @@ async function loadDeliveryStaffInvoiceExportData({ query = {}, invoiceGroup = I
   masterQuery = applySelect(masterQuery, MASTER_ORDER_PROJECTION);
   masterQuery = applySort(masterQuery, { deliveryDate: 1, masterOrderDate: 1, date: 1, code: 1 });
   masterQuery = applyLimit(masterQuery, filters.limit);
-  const masterOrders = (await leanResult(masterQuery)) || [];
+  const rawMasterOrders = (await leanResult(masterQuery)) || [];
+  // SSE theo NVGH phải tuyệt đối theo NVGH đã gán trên đơn tổng.
+  // Mongo clause vẫn được giữ để giảm dữ liệu đọc, nhưng cần chốt thêm ở lớp JS
+  // để tránh case route/query alias hoặc dữ liệu legacy khiến file Excel lọt NVGH khác.
+  const masterOrders = filters.deliveryStaffCode
+    ? rawMasterOrders.filter((master) => matchesDeliveryStaffCode(master, filters.deliveryStaffCode))
+    : rawMasterOrders;
   const orderIdentityFilter = orderIdentityFilterForMasterRefs(masterOrders);
 
   const orderClauses = [buildActiveInvoiceMongoClause(), orderIdentityFilter];
@@ -579,8 +595,11 @@ async function loadDeliveryStaffInvoiceExportData({ query = {}, invoiceGroup = I
   orderQuery = applyLimit(orderQuery, filters.limit);
   const rawOrders = (await leanResult(orderQuery)) || [];
   const masterByChildKey = buildMasterByChildKey(masterOrders);
-  const orders = rawOrders.map((order) => attachMasterDeliveryScope(order, masterByChildKey))
+  const scopedOrders = rawOrders.map((order) => attachMasterDeliveryScope(order, masterByChildKey))
     .filter((order) => businessDeliveryStaffCodeOf(order));
+  const orders = filters.deliveryStaffCode
+    ? scopedOrders.filter((order) => matchesDeliveryStaffCode(order, filters.deliveryStaffCode))
+    : scopedOrders;
 
   const productCodes = [];
   const productIds = [];
@@ -684,6 +703,8 @@ module.exports = {
   businessSalesStaffCodeOf,
   businessDeliveryStaffCodeOf,
   businessDeliveryStaffNameOf,
+  normalizeDeliveryStaffKey,
+  matchesDeliveryStaffCode,
   businessCustomerCodeOf,
   matchesInvoiceExportFilters,
   buildReturnLinkFilter,

@@ -53,6 +53,18 @@
     return String(customerCodeInput?.value||selectedCustomer?.code||selectedCustomer?.customerCode||'').trim();
   }
 
+  function selectedDeliveryStaffCode(){
+    if(!deliveryStaffSelect)return '';
+    const value=String(deliveryStaffSelect.value||'').trim();
+    if(value)return value;
+    const option=deliveryStaffSelect.selectedOptions&&deliveryStaffSelect.selectedOptions[0];
+    const optionValue=String(option?.value||option?.dataset?.code||'').trim();
+    if(optionValue)return optionValue;
+    const label=String(option?.textContent||'').trim();
+    if(!label||/^Tất cả/i.test(label))return '';
+    return String(label.split('-')[0]||'').trim();
+  }
+
   function validateFilters(){
     const from=fromInput?.value||'';
     const to=toInput?.value||'';
@@ -60,7 +72,7 @@
     const typedCustomer=String(customerInput?.value||'').trim();
     const customerCode=currentCustomerCode();
     if(typedCustomer&&!customerCode)throw new Error('Vui lòng chọn khách hàng từ danh sách gợi ý hoặc bấm x để bỏ chọn.');
-    return {from,to,salesStaffCode:salesStaffSelect?.value||'',deliveryStaffCode:deliveryStaffSelect?.value||'',customerCode};
+    return {from,to,salesStaffCode:salesStaffSelect?.value||'',deliveryStaffCode:selectedDeliveryStaffCode(),customerCode};
   }
 
   function exportParams(invoiceType,options={}){
@@ -197,9 +209,11 @@
   function downloadSseExport(){
     let params;
     try{params=exportParams('ALL',{deliveryStaffExport:true});}catch(error){setSummary(error.message,true);return Promise.resolve(false);}
+    const scopedDeliveryStaffCode=params.get('deliveryStaffCode')||'';
     sseErrorReportUrl='';
     if(sseErrorButton)sseErrorButton.hidden=true;
-    return download(`/api/export/sse-invoice-orders.xlsx?${params.toString()}`,sseButton,'Excel SSE tất cả đơn','SSE_Hoa_don_tat_ca.xlsx');
+    if(scopedDeliveryStaffCode)setSummary(`Đang tạo Excel SSE cho NVGH ${scopedDeliveryStaffCode}...`);
+    return download(`/api/export/sse-invoice-orders.xlsx?${params.toString()}`,sseButton,scopedDeliveryStaffCode?`Excel SSE NVGH ${scopedDeliveryStaffCode}`:'Excel SSE tất cả đơn',scopedDeliveryStaffCode?`SSE_Hoa_don_tat_ca_NVGH_${scopedDeliveryStaffCode}.xlsx`:'SSE_Hoa_don_tat_ca.xlsx');
   }
 
   function downloadSseErrors(){

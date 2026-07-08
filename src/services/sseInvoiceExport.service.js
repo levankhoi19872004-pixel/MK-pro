@@ -538,8 +538,10 @@ function sseFileName(invoiceType, query = {}) {
   const typeLabel = normalized === INVOICE_TYPES.NON_VAT ? 'khong_VAT' : normalized === INVOICE_TYPES.VAT ? 'VAT' : 'tat_ca';
   const from = normalizeDateOnly(query.dateFrom || query.from || query.fromDate || '') || 'all';
   const to = normalizeDateOnly(query.dateTo || query.to || query.toDate || '') || dateUtil.todayVN();
+  const deliveryStaffCode = cleanText(query.deliveryStaffCode || query.deliveryCode || query.nvghCode || query.deliveryStaff || query.delivery || query.nvgh || '');
+  const deliveryScope = deliveryStaffCode ? `_NVGH_${deliveryStaffCode.replace(/[^a-zA-Z0-9_-]+/g, '_')}` : '';
   const fmt = (d) => d === 'all' ? d : d.split('-').reverse().join('-');
-  return `SSE_Hoa_don_${typeLabel}_tu_${fmt(from)}_den_${fmt(to)}.xlsx`;
+  return `SSE_Hoa_don_${typeLabel}${deliveryScope}_tu_${fmt(from)}_den_${fmt(to)}.xlsx`;
 }
 function makeSalesmanSummaryKey(row = {}) {
   return [cleanText(row.salesStaffCode), cleanText(row.productCode)].join('@@');
@@ -808,8 +810,9 @@ async function buildSseInvoiceWorkbook(query = {}, currentUser = {}) {
   const built = buildSseRows({ ...data, invoiceType, summaryBy: query.summaryBy || data.filters?.summaryBy || '' });
   if (built.errors.length) {
     const params = new URLSearchParams();
-    ['invoiceType','dateFrom','dateTo','fromDate','toDate','salesStaffCode','customerCode'].forEach((key)=>{ if(query[key])params.set(key,String(query[key])); });
+    ['invoiceType','dateFrom','dateTo','fromDate','toDate','salesStaffCode','deliveryStaffCode','deliveryCode','nvghCode','deliveryStaff','delivery','nvgh','customerCode','summaryBy'].forEach((key)=>{ if(query[key])params.set(key,String(query[key])); });
     if (!params.has('invoiceType')) params.set('invoiceType', invoiceType);
+    if (!params.has('summaryBy') && invoiceExportQueryService.isDeliveryStaffSummaryMode(query.summaryBy || data.filters?.summaryBy || '')) params.set('summaryBy', 'deliveryStaff');
     return {
       error:`Có ${built.errors.length} lỗi mapping SSE. File upload chưa được tạo để tránh dữ liệu thiếu.`,
       status:422, code:'SSE_MAPPING_INVALID', errors:built.errors.slice(0,100), totalErrors:built.errors.length,
