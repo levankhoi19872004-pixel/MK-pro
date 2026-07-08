@@ -39,3 +39,14 @@ test('frontend sends reward final state in manual adjustment payload', () => {
   assert.match(deliveryTodayUi, /rewardDeltaAmount:\s*totals\.rewardDeltaAmount/);
   assert.match(deliveryTodayUi, /paymentMethod:\s*'reward'/);
 });
+
+
+test('delivery closeout correction version debt is server-calculated, not copied from frontend/stale payload', () => {
+  const fnStart = correctionService.indexOf('function buildVersionSnapshot');
+  assert.ok(fnStart >= 0, 'missing buildVersionSnapshot');
+  const fn = correctionService.slice(fnStart, correctionService.indexOf('function correctionAllocationIdempotencyKey', fnStart));
+  assert.match(fn, /const debtCalculation = calculateDeliveryDebtAmount\(\{/);
+  assert.match(fn, /const newDebt = money\(debtCalculation\.debtAmount\)/);
+  assert.doesNotMatch(fn, /const newDebt = money\(correction\.debtAmount \?\? correction\.newDebtAmount \?\? debtCalculation\.debtAmount\)/);
+  assert.match(fn, /Debt for a closeout correction version is server-calculated from final-state amounts/);
+});

@@ -1082,7 +1082,10 @@ function buildVersionSnapshot(order = {}, baseSnapshot = {}, correction = {}, no
     rewardAmount: newReward,
     returnAmount: newReturn
   });
-  const newDebt = money(correction.debtAmount ?? correction.newDebtAmount ?? debtCalculation.debtAmount);
+  // Debt for a closeout correction version is server-calculated from final-state amounts.
+  // Do not trust UI/stale debt fields; they are only diagnostic inputs and must not
+  // drive the immutable version or downstream orderPaymentAllocation mirror.
+  const newDebt = money(debtCalculation.debtAmount);
   const version = Number(correction.newCloseoutVersion || original.version + 1);
   const cashDeltaAmount = money(newCash - previousState.cashAmount);
   const bankDeltaAmount = money(newBank - previousState.bankAmount);

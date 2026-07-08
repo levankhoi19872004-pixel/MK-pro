@@ -20,6 +20,13 @@ const CLOSEOUT_RETURN_FIELDS = ['returnedAmount', 'returnAmount', 'returnOrderAm
 const CLOSEOUT_RECEIVABLE_FIELDS = ['originalAmount', 'receivableAmount', 'totalAmount', 'finalAmount', 'payableAmount', 'debtBeforeCollection'];
 const CLOSEOUT_DEBT_FIELDS = ['finalDebtAmount', 'debtAmount', 'remainingDebt', 'remainingDebtAmount', 'debt', 'arBalance'];
 
+function hasOwnMoneyValue(source = {}, field = '') {
+  return Object.prototype.hasOwnProperty.call(source || {}, field)
+    && source[field] !== undefined
+    && source[field] !== null
+    && String(source[field]).trim() !== '';
+}
+
 function pickFirstPositiveMoney(sources = [], fields = []) {
   for (const source of Array.isArray(sources) ? sources : []) {
     if (!source || typeof source !== 'object') continue;
@@ -30,6 +37,30 @@ function pickFirstPositiveMoney(sources = [], fields = []) {
     }
   }
   return 0;
+}
+
+function pickAuthoritativeMoney(sources = [], fields = [], fallback = 0) {
+  for (const source of Array.isArray(sources) ? sources : []) {
+    if (!source || typeof source !== 'object') continue;
+    for (const field of fields) {
+      if (!hasOwnMoneyValue(source, field)) continue;
+      const amount = money(source[field]);
+      if (Number.isFinite(amount)) return amount;
+    }
+  }
+  return money(fallback);
+}
+
+function hasAuthoritativeMoney(sources = [], fields = []) {
+  for (const source of Array.isArray(sources) ? sources : []) {
+    if (!source || typeof source !== 'object') continue;
+    for (const field of fields) {
+      if (!hasOwnMoneyValue(source, field)) continue;
+      const amount = money(source[field]);
+      if (Number.isFinite(amount)) return true;
+    }
+  }
+  return false;
 }
 
 function pickFirstFiniteMoney(sources = [], fields = []) {
@@ -240,15 +271,19 @@ function buildAllocationFromCloseout(order = {}, closeout = {}, options = {}) {
   const actor = actorOf(options, clean(closeout.confirmedBy || closeout.createdBy || 'accountant'));
   const identity = allocationIdentity(order, closeout, options);
   const sourceObjects = [closeout, order];
-  const receivableAmount = pickFirstPositiveMoney(sourceObjects, CLOSEOUT_RECEIVABLE_FIELDS);
-  let cashAmount = pickFirstPositiveMoney(sourceObjects, CLOSEOUT_CASH_FIELDS);
-  const bankAmount = pickFirstPositiveMoney(sourceObjects, CLOSEOUT_BANK_FIELDS);
-  const rewardAmount = pickFirstPositiveMoney(sourceObjects, CLOSEOUT_REWARD_FIELDS);
-  const returnAmount = pickFirstPositiveMoney(sourceObjects, CLOSEOUT_RETURN_FIELDS);
+  const receivableAmount = pickAuthoritativeMoney(sourceObjects, CLOSEOUT_RECEIVABLE_FIELDS);
+  let cashAmount = pickAuthoritativeMoney(sourceObjects, CLOSEOUT_CASH_FIELDS);
+  const bankAmount = pickAuthoritativeMoney(sourceObjects, CLOSEOUT_BANK_FIELDS);
+  const rewardAmount = pickAuthoritativeMoney(sourceObjects, CLOSEOUT_REWARD_FIELDS);
+  const returnAmount = pickAuthoritativeMoney(sourceObjects, CLOSEOUT_RETURN_FIELDS);
 
-  // Legacy closeout có thể chỉ lưu collectedAmount mà không tách TM/CK. Để tránh mất số liệu,
-  // giữ collectedAmount như tiền mặt fallback; các bản mới vẫn ưu tiên cashAmount/bankAmount rõ ràng.
-  if (cashAmount <= 0 && bankAmount <= 0) {
+  // Final-state closeout/version fields are authoritative even when the value is 0.
+  // Only legacy closeouts that do not contain explicit cash/bank fields may fall back
+  // to a collectedAmount-style aggregate. This prevents correction versions with
+  // cashAmount: 0 / bankAmount: 0 from being overwritten by stale order values.
+  const closeoutHasExplicitCashOrBank = hasAuthoritativeMoney([closeout], CLOSEOUT_CASH_FIELDS)
+    || hasAuthoritativeMoney([closeout], CLOSEOUT_BANK_FIELDS);
+  if (!closeoutHasExplicitCashOrBank && cashAmount <= 0 && bankAmount <= 0) {
     cashAmount = pickFirstPositiveMoney(sourceObjects, ['collectedAmount', 'paidAmount', 'paymentAmount', 'deliveryCollectedAmount']);
   }
 
@@ -640,6 +675,8 @@ module.exports = {
     allocationIdentity,
     safeToken,
     pickFirstPositiveMoney,
+    pickAuthoritativeMoney,
+    hasAuthoritativeMoney,
     pickFirstFiniteMoney,
     baseArLedger,
     findActiveArByIdempotency
