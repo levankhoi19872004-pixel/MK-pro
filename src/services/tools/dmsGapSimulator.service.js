@@ -45,6 +45,13 @@ const DEFAULT_OPTIONS = {
     dmsGap: 0.15,
     priceFit: 0.10,
     duplicatePenalty: 0.05
+  },
+  lineStrategy: {
+    minLinesPerOrder: 3,
+    maxLinesPerOrder: 8,
+    targetAmountPerLine: 900000,
+    maxSkuValueRatio: 0.65,
+    promotionThresholdAware: true
   }
 };
 
@@ -553,13 +560,24 @@ function normalizeOptions(input = {}) {
   Object.keys(weights).forEach((key) => {
     if (!Number.isFinite(weights[key]) || weights[key] < 0) weights[key] = DEFAULT_OPTIONS.weights[key];
   });
+  const minLinesPerOrder = Math.max(1, Math.min(12, Math.trunc(Number(input.minLinesPerOrder) || DEFAULT_OPTIONS.lineStrategy.minLinesPerOrder)));
+  const maxLinesPerOrder = Math.max(minLinesPerOrder, Math.min(20, Math.trunc(Number(input.maxLinesPerOrder) || DEFAULT_OPTIONS.lineStrategy.maxLinesPerOrder)));
+  const targetAmountPerLine = Math.max(100000, Number(input.targetAmountPerLine) || DEFAULT_OPTIONS.lineStrategy.targetAmountPerLine);
+  const maxSkuValueRatio = Math.max(0.20, Math.min(1, Number(input.maxSkuValueRatio) || DEFAULT_OPTIONS.lineStrategy.maxSkuValueRatio));
   return {
     scenarioCount,
     maxScenarioCount: DEFAULT_OPTIONS.maxScenarioCount,
     toleranceAmount: Math.max(0, Number(input.toleranceAmount) || DEFAULT_OPTIONS.toleranceAmount),
     globalToleranceAmount: Math.max(0, Number(input.globalToleranceAmount) || DEFAULT_OPTIONS.globalToleranceAmount),
     temperature: Math.max(0.05, Math.min(2, Number(input.temperature) || DEFAULT_OPTIONS.temperature)),
-    weights
+    weights,
+    lineStrategy: {
+      minLinesPerOrder,
+      maxLinesPerOrder,
+      targetAmountPerLine,
+      maxSkuValueRatio,
+      promotionThresholdAware: input.promotionThresholdAware !== false && input.promotionThresholdAware !== 'false'
+    }
   };
 }
 
@@ -606,21 +624,119 @@ function groupNeedScore(product, groupMap) {
   return clamp(best);
 }
 
+function desiredLineCount(targetAmount, options) {
+  const strategy = options.lineStrategy || DEFAULT_OPTIONS.lineStrategy;
+  const amountBased = Math.ceil((Number(targetAmount) || 0) / Math.max(1, strategy.targetAmountPerLine || 900000));
+  return Math.max(strategy.minLinesPerOrder || 1, Math.min(strategy.maxLinesPerOrder || 8, amountBased || 1));
+}
+
+function orderGroupAmount(order, groupCode) {
+  if (!order || !order.groupAmounts) return 0;
+  return Number(order.groupAmounts.get(groupCode) || 0);
+}
+
+function orderProductAmount(order, productCode) {
+  const existing = order?.itemMap?.get(productCode);
+  return existing ? Number(existing.amount || 0) : 0;
+}
+
+function bestOrderGroupTopUpNeed(order, product, groupMap) {
+  let best = 0;
+  (product.groupCodes || []).forEach((groupCode) => {
+    const group = groupMap.get(groupCode);
+    if (!group || group.targetAmount <= 0) return;
+    const current = orderGroupAmount(order, groupCode);
+    if (current > 0 && current < group.targetAmount) {
+      best = Math.max(best, (group.targetAmount - current) / group.targetAmount);
+    }
+  });
+  return clamp(best);
+}
+
+function startsUnreachablePromotionGroup(order, customer, product, groupMap, options) {
+  if (!options.lineStrategy?.promotionThresholdAware) return false;
+  const orderUpperRoom = Math.max(0, customer.targetAmount + options.toleranceAmount - order.actualAmount);
+  return (product.groupCodes || []).some((groupCode) => {
+    const group = groupMap.get(groupCode);
+    if (!group || group.targetAmount <= 0) return false;
+    const current = orderGroupAmount(order, groupCode);
+    if (current > 0) return false;
+    return group.targetAmount > orderUpperRoom + options.toleranceAmount;
+  });
+}
+
+function promotionTopUpQty(order, product, groupMap) {
+  let requiredAmount = 0;
+  (product.groupCodes || []).forEach((groupCode) => {
+    const group = groupMap.get(groupCode);
+    if (!group || group.targetAmount <= 0) return;
+    const current = orderGroupAmount(order, groupCode);
+    if (current > 0 && current < group.targetAmount) {
+      requiredAmount = Math.max(requiredAmount, group.targetAmount - current);
+    }
+  });
+  if (requiredAmount <= 0 || product.price <= 0) return 0;
+  return Math.max(1, Math.ceil(requiredAmount / product.price));
+}
+
+function calculateQtyToAdd({ customer, order, selected, options, mode, totals, globalGenerated }) {
+  const strategy = options.lineStrategy || DEFAULT_OPTIONS.lineStrategy;
+  const desiredLines = desiredLineCount(customer.targetAmount, options);
+  const currentLines = order.itemMap.size;
+  const orderUpper = customer.targetAmount + options.toleranceAmount;
+  const orderRoomAmount = Math.max(0, orderUpper - order.actualAmount);
+  const orderRoomQty = selected.price > 0 ? Math.floor(orderRoomAmount / selected.price) : 0;
+  const remain = Math.max(0, customer.targetAmount - order.actualAmount);
+  const remainingLineSlots = Math.max(1, desiredLines - currentLines);
+  const lineBudget = Math.max(selected.price, remain / remainingLineSlots);
+  let qtyToAdd = Math.max(1, Math.floor(lineBudget / selected.price));
+
+  const topUpQty = promotionTopUpQty(order, selected, totals.groupMap || new Map());
+  if (topUpQty > 0) qtyToAdd = Math.max(qtyToAdd, topUpQty);
+
+  const maxSkuAmount = Math.max(selected.price, customer.targetAmount * (strategy.maxSkuValueRatio || 1));
+  const currentSkuAmount = orderProductAmount(order, selected.productCode);
+  const dominanceRoomQty = Math.floor(Math.max(0, maxSkuAmount - currentSkuAmount) / selected.price);
+  if (dominanceRoomQty > 0) qtyToAdd = Math.min(qtyToAdd, dominanceRoomQty);
+
+  if (orderRoomQty > 0) qtyToAdd = Math.min(qtyToAdd, orderRoomQty);
+  else if (order.actualAmount >= customer.targetAmount - options.toleranceAmount) qtyToAdd = 0;
+
+  if (mode === 'DMS_MORE_THAN_CUSTOMER_TARGET') {
+    const globalLimit = totals.totalCustomerTargetAmount + options.globalToleranceAmount;
+    const globalRoomQty = Math.floor(Math.max(0, globalLimit - globalGenerated) / selected.price);
+    qtyToAdd = Math.min(qtyToAdd, globalRoomQty);
+  }
+  return Math.max(0, Math.min(Math.trunc(qtyToAdd), selected.remainingQty));
+}
+
 function productScore(customer, order, product, groupMap, options) {
   const remain = Math.max(0, customer.targetAmount - order.actualAmount);
-  if (remain <= 0 || product.remainingQty <= 0) return -Infinity;
-  const customerTargetFit = clamp(Math.min(product.price, remain) / remain);
+  const upperRoom = Math.max(0, customer.targetAmount + options.toleranceAmount - order.actualAmount);
+  if ((remain <= 0 && upperRoom < product.price) || product.remainingQty <= 0) return -Infinity;
+  const safeRemain = Math.max(product.price, remain || upperRoom || product.price);
+  const customerTargetFit = clamp(Math.min(product.price, safeRemain) / safeRemain);
   const promotionGroupNeed = groupNeedScore(product, groupMap);
+  const orderGroupTopUpNeed = bestOrderGroupTopUpNeed(order, product, groupMap);
   const dmsGapPressure = product.diffQty > 0 ? clamp(product.remainingQty / product.diffQty) : 0;
-  const priceFit = clamp(1 - Math.abs(remain - product.price) / remain);
+  const priceFit = clamp(1 - Math.abs(safeRemain - product.price) / safeRemain);
   const duplicatePenalty = order.itemMap.has(product.productCode) ? 1 : 0;
+  const desiredLines = desiredLineCount(customer.targetAmount, options);
+  const lineDiversityNeed = order.itemMap.has(product.productCode) ? 0 : clamp((desiredLines - order.itemMap.size) / desiredLines);
+  const maxSkuAmount = Math.max(product.price, customer.targetAmount * (options.lineStrategy?.maxSkuValueRatio || 1));
+  const dominancePenalty = clamp((orderProductAmount(order, product.productCode) + product.price - maxSkuAmount) / Math.max(product.price, maxSkuAmount));
+  const unreachablePromotionPenalty = startsUnreachablePromotionGroup(order, customer, product, groupMap, options) ? 1 : 0;
   const w = options.weights;
   return (
     w.promotion * promotionGroupNeed +
     w.customerFit * customerTargetFit +
     w.dmsGap * dmsGapPressure +
-    w.priceFit * priceFit -
-    w.duplicatePenalty * duplicatePenalty
+    w.priceFit * priceFit +
+    0.85 * orderGroupTopUpNeed +
+    0.20 * lineDiversityNeed -
+    w.duplicatePenalty * duplicatePenalty -
+    0.35 * dominancePenalty -
+    0.75 * unreachablePromotionPenalty
   );
 }
 
@@ -663,6 +779,7 @@ function addProductToOrder(order, product, qty, groupMap) {
   (product.groupCodes || []).forEach((groupCode) => {
     const group = groupMap.get(groupCode);
     if (group) group.currentAmount = roundMoney(group.currentAmount + amount);
+    if (order.groupAmounts) order.groupAmounts.set(groupCode, roundMoney((order.groupAmounts.get(groupCode) || 0) + amount));
   });
   return safeQty;
 }
@@ -695,6 +812,7 @@ function buildCustomerOrder(customer) {
     targetAmount: customer.targetAmount,
     actualAmount: 0,
     itemMap: new Map(),
+    groupAmounts: new Map(),
     items: []
   };
 }
@@ -708,6 +826,47 @@ function orderCustomers(customers, mode) {
     });
   }
   return cloned;
+}
+
+function repairOrderPromotionThresholds(orders, products, groupMap, options, mode, totalCustomerTargetAmount) {
+  if (!options.lineStrategy?.promotionThresholdAware) return;
+  const globalLimit = totalCustomerTargetAmount + options.globalToleranceAmount;
+  let generatedAmount = roundMoney(orders.reduce((sum, order) => sum + order.actualAmount, 0));
+  for (const order of orders) {
+    let safety = 0;
+    while (safety < 200) {
+      safety += 1;
+      const deadGroups = Array.from(order.groupAmounts.entries())
+        .map(([groupCode, amount]) => ({ group: groupMap.get(groupCode), amount }))
+        .filter((row) => row.group && row.group.targetAmount > 0 && row.amount > 0 && row.amount < row.group.targetAmount)
+        .sort((a, b) => (b.group.targetAmount - b.amount) - (a.group.targetAmount - a.amount));
+      if (!deadGroups.length) break;
+      let repaired = false;
+      for (const dead of deadGroups) {
+        const needed = dead.group.targetAmount - dead.amount;
+        const orderRoom = order.targetAmount + options.toleranceAmount - order.actualAmount;
+        if (orderRoom <= 0) continue;
+        const groupProducts = products
+          .filter((product) => product.remainingQty > 0 && (product.groupCodes || []).includes(dead.group.groupCode))
+          .sort((a, b) => a.price - b.price);
+        for (const product of groupProducts) {
+          if (product.remainingQty <= 0) continue;
+          if (mode === 'DMS_MORE_THAN_CUSTOMER_TARGET' && generatedAmount + product.price > globalLimit) continue;
+          const maxByRoom = Math.floor(Math.max(0, order.targetAmount + options.toleranceAmount - order.actualAmount) / product.price);
+          if (maxByRoom <= 0) continue;
+          const qty = Math.min(product.remainingQty, maxByRoom, Math.max(1, Math.ceil(needed / product.price)));
+          const added = addProductToOrder(order, product, qty, groupMap);
+          if (added) {
+            generatedAmount = roundMoney(generatedAmount + added * product.price);
+            repaired = true;
+            break;
+          }
+        }
+        if (repaired) break;
+      }
+      if (!repaired) break;
+    }
+  }
 }
 
 function repairGroups(orders, products, groupMap, options, mode, totalCustomerTargetAmount) {
@@ -748,7 +907,7 @@ function generateScenario(parsed, options, scenarioIndex, totals, mode) {
       continue;
     }
     let safety = 0;
-    while (order.actualAmount < customer.targetAmount - options.toleranceAmount && safety < 5000) {
+    while ((order.actualAmount < customer.targetAmount - options.toleranceAmount || order.itemMap.size < desiredLineCount(customer.targetAmount, options)) && safety < 5000) {
       safety += 1;
       const candidates = candidateProducts(products, customer, order, options, mode, globalGenerated, totals.totalCustomerTargetAmount);
       if (!candidates.length) {
@@ -761,15 +920,7 @@ function generateScenario(parsed, options, scenarioIndex, totals, mode) {
         depleted = true;
         break;
       }
-      const remain = Math.max(0, customer.targetAmount - order.actualAmount);
-      let qtyToAdd = Math.floor((remain + options.toleranceAmount) / selected.price);
-      if (qtyToAdd <= 0) qtyToAdd = 1;
-      qtyToAdd = Math.min(qtyToAdd, selected.remainingQty);
-      if (mode === 'DMS_MORE_THAN_CUSTOMER_TARGET') {
-        const globalLimit = totals.totalCustomerTargetAmount + options.globalToleranceAmount;
-        const globalRoomQty = Math.floor(Math.max(0, globalLimit - globalGenerated) / selected.price);
-        qtyToAdd = Math.min(qtyToAdd, globalRoomQty);
-      }
+      const qtyToAdd = calculateQtyToAdd({ customer, order, selected, options, mode, totals: { ...totals, groupMap }, globalGenerated });
       if (qtyToAdd <= 0) {
         selected.remainingQty = 0;
         continue;
@@ -781,6 +932,7 @@ function generateScenario(parsed, options, scenarioIndex, totals, mode) {
     order.items = Array.from(order.itemMap.values());
     orders.push(order);
   }
+  repairOrderPromotionThresholds(orders, products, groupMap, options, mode, totals.totalCustomerTargetAmount);
   repairGroups(orders, products, groupMap, options, mode, totals.totalCustomerTargetAmount);
   orders.forEach((order) => { order.items = Array.from(order.itemMap.values()); });
   return buildScenarioResult({ products, groups, groupMap, orders, parsed, options, totals, mode, scenarioIndex });
@@ -800,6 +952,29 @@ function customerStatusRows(orders, options) {
       isAchieved: finalized.isAchieved
     };
   });
+}
+
+function buildPromotionOrderSummary(orders, groups) {
+  const groupMap = new Map((groups || []).map((group) => [group.groupCode, group]));
+  const rows = [];
+  for (const order of orders || []) {
+    for (const [groupCode, amount] of (order.groupAmounts || new Map()).entries()) {
+      const group = groupMap.get(groupCode);
+      if (!group || group.targetAmount <= 0 || amount <= 0) continue;
+      const missingAmount = roundMoney(Math.max(0, group.targetAmount - amount));
+      rows.push({
+        customerCode: order.customerCode,
+        customerName: order.customerName,
+        groupCode,
+        groupName: group.groupName,
+        targetAmount: group.targetAmount,
+        actualAmount: roundMoney(amount),
+        missingAmount,
+        status: missingAmount <= 0 ? 'Đạt điều kiện Ontop' : 'Chưa đủ điều kiện Ontop'
+      });
+    }
+  }
+  return rows;
 }
 
 function buildScenarioResult({ products, groups, orders, options, totals, mode, scenarioIndex, parsed }) {
@@ -823,24 +998,33 @@ function buildScenarioResult({ products, groups, orders, options, totals, mode, 
       });
     });
   });
+  const promotionOrderSummary = buildPromotionOrderSummary(orders, groups);
   const groupSummary = groups.map((group) => {
-    const currentAmount = roundMoney(group.currentAmount || 0);
-    const missingAmount = roundMoney(Math.max(0, (group.targetAmount || 0) - currentAmount));
-    let status = 'Đạt';
+    const rows = promotionOrderSummary.filter((row) => row.groupCode === group.groupCode);
+    const qualifiedRows = rows.filter((row) => row.status === 'Đạt điều kiện Ontop');
+    const unqualifiedRows = rows.filter((row) => row.status !== 'Đạt điều kiện Ontop');
+    const actualAmount = roundMoney(rows.reduce((sum, row) => sum + row.actualAmount, 0));
+    const qualifiedAmount = roundMoney(qualifiedRows.reduce((sum, row) => sum + row.actualAmount, 0));
+    const unqualifiedAmount = roundMoney(unqualifiedRows.reduce((sum, row) => sum + row.actualAmount, 0));
+    let status = 'Chưa dùng';
     if (group.targetAmount <= 0) status = 'Không có chỉ tiêu';
-    else if (missingAmount > 0) {
+    else if (!rows.length) {
       const hasAvailable = products.some((product) => product.remainingQty > 0 && (product.groupCodes || []).includes(group.groupCode));
-      status = hasAvailable ? 'Chưa đạt' : 'Không thể đạt do thiếu sản phẩm khả dụng';
-    }
-    const usedProductCount = orderItems.filter((item) => (item.groupCodes || []).includes(group.groupCode)).length;
+      status = hasAvailable ? 'Chưa dùng' : 'Không thể đạt do thiếu sản phẩm khả dụng';
+    } else if (unqualifiedRows.length) status = 'Có đơn chưa đủ Ontop';
+    else status = 'Đạt theo từng đơn';
     return {
       groupCode: group.groupCode,
       groupName: group.groupName,
       targetAmount: group.targetAmount || 0,
-      actualAmount: currentAmount,
-      missingAmount,
+      actualAmount,
+      missingAmount: roundMoney(unqualifiedRows.reduce((sum, row) => sum + row.missingAmount, 0)),
       status,
-      usedProductCount
+      qualifiedOrderCount: qualifiedRows.length,
+      unqualifiedOrderCount: unqualifiedRows.length,
+      qualifiedAmount,
+      unqualifiedAmount,
+      usedProductCount: orderItems.filter((item) => (item.groupCodes || []).includes(group.groupCode)).length
     };
   });
   const itemUsedQty = new Map();
@@ -862,7 +1046,9 @@ function buildScenarioResult({ products, groups, orders, options, totals, mode, 
   const unmetCustomerAmount = roundMoney(customerOrders.reduce((sum, row) => sum + Math.max(0, row.targetAmount - row.actualAmount), 0));
   const dmsRemainingAmount = roundMoney(productUsageSummary.reduce((sum, row) => sum + row.remainingAmount, 0));
   const achievedCustomerCount = customerOrders.filter((row) => row.status === 'Đạt').length;
-  const achievedGroupCount = groupSummary.filter((row) => row.status === 'Đạt').length;
+  const achievedGroupCount = groupSummary.filter((row) => row.status === 'Đạt theo từng đơn').length;
+  const promotionQualifiedOrderCount = promotionOrderSummary.filter((row) => row.status === 'Đạt điều kiện Ontop').length;
+  const promotionUnqualifiedOrderCount = promotionOrderSummary.filter((row) => row.status !== 'Đạt điều kiện Ontop').length;
   const summary = {
     scenarioIndex,
     generationMode: mode,
@@ -879,7 +1065,9 @@ function buildScenarioResult({ products, groups, orders, options, totals, mode, 
     achievedCustomerCount,
     notAchievedCustomerCount: customerOrders.length - achievedCustomerCount,
     achievedGroupCount,
-    notAchievedGroupCount: groupSummary.filter((row) => row.status !== 'Đạt').length,
+    notAchievedGroupCount: groupSummary.filter((row) => row.status !== 'Đạt theo từng đơn').length,
+    promotionQualifiedOrderCount,
+    promotionUnqualifiedOrderCount,
     usedUpProductCount: productUsageSummary.filter((row) => row.remainingQty <= 0).length,
     remainingProductCount: productUsageSummary.filter((row) => row.remainingQty > 0).length,
     totalLineCount: orderItems.length,
@@ -894,7 +1082,7 @@ function buildScenarioResult({ products, groups, orders, options, totals, mode, 
   if (totals.totalDmsGapAmount > totals.totalCustomerTargetAmount + options.globalToleranceAmount) {
     warnings.push({ type: 'DMS_MORE_THAN_TARGET', message: 'Tổng DMS lệch lớn hơn tổng chỉ tiêu khách. Hệ thống chỉ sinh vừa đủ theo khách, không cố dùng hết DMS lệch.', level: 'INFO' });
   }
-  return { summary, customerOrders, orderItems, groupSummary, productUsageSummary, warnings, options };
+  return { summary, customerOrders, orderItems, groupSummary, promotionOrderSummary, productUsageSummary, warnings, options };
 }
 
 function scoreScenario(result) {
@@ -902,8 +1090,11 @@ function scoreScenario(result) {
   let score = 0;
   score += 1000 * s.achievedGroupCount;
   score += 500 * s.achievedCustomerCount;
+  score += 220 * (s.promotionQualifiedOrderCount || 0);
+  score -= 380 * (s.promotionUnqualifiedOrderCount || 0);
   score -= 10 * Math.round(Math.abs(result.customerOrders.reduce((sum, row) => sum + Math.abs(row.diff || 0), 0)) / 10000);
-  score -= 5 * Math.max(0, s.totalLineCount - s.totalCustomerCount * 8);
+  score -= 35 * result.customerOrders.reduce((sum, row) => sum + Math.max(0, (DEFAULT_OPTIONS.lineStrategy.minLinesPerOrder || 3) - (row.lineCount || 0)), 0);
+  score -= 5 * Math.max(0, s.totalLineCount - s.totalCustomerCount * 10);
   if (s.generationMode === 'DMS_MORE_THAN_CUSTOMER_TARGET') {
     const overGeneratedAmount = Math.max(0, s.generatedAmount - s.totalCustomerTargetAmount);
     score -= (overGeneratedAmount / 10000) * 100;
@@ -982,8 +1173,10 @@ async function createResultWorkbook(result) {
     ['Giá trị chỉ tiêu khách chưa đáp ứng', s.unmetCustomerAmount || 0],
     ['Khách đạt', s.achievedCustomerCount || 0],
     ['Khách chưa đạt', s.notAchievedCustomerCount || 0],
-    ['Nhóm KM đạt', s.achievedGroupCount || 0],
-    ['Nhóm KM chưa đạt', s.notAchievedGroupCount || 0],
+    ['Nhóm KM đạt theo từng đơn', s.achievedGroupCount || 0],
+    ['Nhóm KM chưa đạt theo từng đơn', s.notAchievedGroupCount || 0],
+    ['Lượt đơn đủ điều kiện Ontop', s.promotionQualifiedOrderCount || 0],
+    ['Lượt đơn chưa đủ điều kiện Ontop', s.promotionUnqualifiedOrderCount || 0],
     ['Ghi chú', 'File chỉ để tham khảo. Sản phẩm lệch và nhóm KM/Ontop đọc từ MK-Pro, chỉ upload danh sách khách. Không ghi đơn thật/công nợ/tồn kho.']
   ]);
 
@@ -1015,13 +1208,30 @@ async function createResultWorkbook(result) {
   const groups = workbook.addWorksheet('NHOM_KHUYEN_MAI');
   groups.columns = [
     { header: 'Mã nhóm', key: 'groupCode', width: 18 },
-    { header: 'Tên nhóm', key: 'groupName', width: 28 },
-    { header: 'Chỉ tiêu nhóm', key: 'targetAmount', width: 18 },
-    { header: 'Đã gợi ý', key: 'actualAmount', width: 18 },
-    { header: 'Còn thiếu', key: 'missingAmount', width: 18 },
+    { header: 'Tên nhóm', key: 'groupName', width: 36 },
+    { header: 'Ngưỡng/đơn', key: 'targetAmount', width: 18 },
+    { header: 'DS gợi ý', key: 'actualAmount', width: 18 },
+    { header: 'Số đơn đạt', key: 'qualifiedOrderCount', width: 14 },
+    { header: 'Số đơn chưa đủ', key: 'unqualifiedOrderCount', width: 16 },
+    { header: 'DS đủ điều kiện', key: 'qualifiedAmount', width: 18 },
+    { header: 'DS chưa đủ', key: 'unqualifiedAmount', width: 18 },
+    { header: 'Còn thiếu theo đơn', key: 'missingAmount', width: 18 },
     { header: 'Trạng thái', key: 'status', width: 34 }
   ];
-  addRows(groups, (result.groupSummary || []).map((row) => [row.groupCode, row.groupName, row.targetAmount, row.actualAmount, row.missingAmount, row.status]));
+  addRows(groups, (result.groupSummary || []).map((row) => [row.groupCode, row.groupName, row.targetAmount, row.actualAmount, row.qualifiedOrderCount || 0, row.unqualifiedOrderCount || 0, row.qualifiedAmount || 0, row.unqualifiedAmount || 0, row.missingAmount, row.status]));
+
+  const ontopByOrder = workbook.addWorksheet('ONTOP_THEO_DON');
+  ontopByOrder.columns = [
+    { header: 'Mã KH', key: 'customerCode', width: 18 },
+    { header: 'Tên KH', key: 'customerName', width: 28 },
+    { header: 'Mã nhóm', key: 'groupCode', width: 18 },
+    { header: 'Tên nhóm', key: 'groupName', width: 36 },
+    { header: 'Ngưỡng Ontop/đơn', key: 'targetAmount', width: 20 },
+    { header: 'Đã gợi ý trong đơn', key: 'actualAmount', width: 20 },
+    { header: 'Còn thiếu để ăn Ontop', key: 'missingAmount', width: 22 },
+    { header: 'Trạng thái', key: 'status', width: 28 }
+  ];
+  addRows(ontopByOrder, (result.promotionOrderSummary || []).map((row) => [row.customerCode, row.customerName, row.groupCode, row.groupName, row.targetAmount, row.actualAmount, row.missingAmount, row.status]));
 
   const products = workbook.addWorksheet('SAN_PHAM_DMS_LECH');
   products.columns = [

@@ -54,6 +54,7 @@ function sanitizeResultPayload(payload) {
     customerOrders: Array.isArray(payload.customerOrders) ? payload.customerOrders : [],
     orderItems: Array.isArray(payload.orderItems) ? payload.orderItems : [],
     groupSummary: Array.isArray(payload.groupSummary) ? payload.groupSummary : [],
+    promotionOrderSummary: Array.isArray(payload.promotionOrderSummary) ? payload.promotionOrderSummary : [],
     productUsageSummary: Array.isArray(payload.productUsageSummary) ? payload.productUsageSummary : [],
     warnings: Array.isArray(payload.warnings) ? payload.warnings : []
   };

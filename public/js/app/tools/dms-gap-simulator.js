@@ -17,6 +17,11 @@
     weightDmsGap:Number($('dmsGapWeightDmsGap')?.value||0.15),
     weightPriceFit:Number($('dmsGapWeightPriceFit')?.value||0.10),
     weightDuplicatePenalty:Number($('dmsGapWeightDuplicatePenalty')?.value||0.05),
+    minLinesPerOrder:Number($('dmsGapMinLinesPerOrder')?.value||3),
+    maxLinesPerOrder:Number($('dmsGapMaxLinesPerOrder')?.value||8),
+    targetAmountPerLine:Number($('dmsGapTargetAmountPerLine')?.value||900000),
+    maxSkuValueRatio:Number($('dmsGapMaxSkuValueRatio')?.value||0.65),
+    promotionThresholdAware:true,
     dmsComparisonType:$('dmsGapComparisonType')?.value||'dms_greater',
     promotionDate:$('dmsGapPromotionDate')?.value||''
   }; }
@@ -30,11 +35,14 @@
     ['Đã sinh', fmt(s.generatedAmount)],
     ['DMS còn dư', fmt(s.dmsRemainingAmount)],
     ['KH đạt', fmt(s.achievedCustomerCount)+'/'+fmt(s.totalCustomerCount)],
-    ['Nhóm KM đạt', fmt(s.achievedGroupCount)+'/'+fmt((s.achievedGroupCount||0)+(s.notAchievedGroupCount||0))]
+    ['Nhóm KM đạt theo đơn', fmt(s.achievedGroupCount)+'/'+fmt((s.achievedGroupCount||0)+(s.notAchievedGroupCount||0))],
+    ['Lượt đơn đủ Ontop', fmt(s.promotionQualifiedOrderCount||0)],
+    ['Lượt đơn chưa đủ Ontop', fmt(s.promotionUnqualifiedOrderCount||0)]
   ].map(([label,value])=>'<span>'+escapeHtml(label)+': <strong>'+escapeHtml(value)+'</strong></span>').join(''); }
   function renderPreview(){ renderSummary(); const body=$('dmsGapPreviewBody'); if(!body)return; const r=state.result; if(!r){ body.innerHTML='<p class="muted">Upload file khách cần chấm và bấm Sinh đơn tham khảo để xem kết quả.</p>'; return; } document.querySelectorAll('.dms-gap-preview-tab').forEach(btn=>btn.classList.toggle('active',btn.dataset.view===state.activeTable));
     if(state.activeTable==='items'){ body.innerHTML=table([{label:'Mã KH',key:'customerCode'},{label:'Tên KH',key:'customerName'},{label:'Mã SP',key:'productCode'},{label:'Tên SP',key:'productName'},{label:'SL',key:'quantity'},{label:'Giá',value:x=>fmt(x.price)},{label:'Thành tiền',value:x=>fmt(x.amount)},{label:'Nhóm KM',key:'groupLabel'}],r.orderItems||[]); return; }
-    if(state.activeTable==='groups'){ body.innerHTML=table([{label:'Mã nhóm',key:'groupCode'},{label:'Tên nhóm',key:'groupName'},{label:'Chỉ tiêu nhóm',value:x=>fmt(x.targetAmount)},{label:'Đã gợi ý',value:x=>fmt(x.actualAmount)},{label:'Còn thiếu',value:x=>fmt(x.missingAmount)},{label:'Trạng thái',key:'status'},{label:'Số dòng SP đã dùng',key:'usedProductCount'}],r.groupSummary||[]); return; }
+    if(state.activeTable==='groups'){ body.innerHTML=table([{label:'Mã nhóm',key:'groupCode'},{label:'Tên nhóm',key:'groupName'},{label:'Ngưỡng/đơn',value:x=>fmt(x.targetAmount)},{label:'DS gợi ý',value:x=>fmt(x.actualAmount)},{label:'Số đơn đạt',key:'qualifiedOrderCount'},{label:'Số đơn chưa đủ',key:'unqualifiedOrderCount'},{label:'DS đủ điều kiện',value:x=>fmt(x.qualifiedAmount)},{label:'DS chưa đủ',value:x=>fmt(x.unqualifiedAmount)},{label:'Trạng thái',key:'status'}],r.groupSummary||[]); return; }
+    if(state.activeTable==='ontopOrders'){ body.innerHTML=table([{label:'Mã KH',key:'customerCode'},{label:'Tên KH',key:'customerName'},{label:'Mã nhóm',key:'groupCode'},{label:'Tên nhóm',key:'groupName'},{label:'Ngưỡng Ontop/đơn',value:x=>fmt(x.targetAmount)},{label:'Đã gợi ý trong đơn',value:x=>fmt(x.actualAmount)},{label:'Còn thiếu',value:x=>fmt(x.missingAmount)},{label:'Trạng thái',key:'status'}],r.promotionOrderSummary||[]); return; }
     if(state.activeTable==='products'){ body.innerHTML=table([{label:'Mã SP',key:'productCode'},{label:'Tên SP',key:'productName'},{label:'SL lệch ban đầu',key:'diffQty'},{label:'SL đã gợi ý',key:'usedQty'},{label:'SL còn lại',key:'remainingQty'},{label:'Giá',value:x=>fmt(x.price)},{label:'Giá trị còn lại',value:x=>fmt(x.remainingAmount)}],r.productUsageSummary||[]); return; }
     if(state.activeTable==='warnings'){ body.innerHTML=table([{label:'Loại',key:'type'},{label:'Nội dung',key:'message'},{label:'Dòng',key:'rowNumber'},{label:'Mức độ',key:'level'}],r.warnings||[]); return; }
     body.innerHTML=table([{label:'Mã KH',key:'customerCode'},{label:'Tên KH',key:'customerName'},{label:'Chỉ tiêu',value:x=>fmt(x.targetAmount)},{label:'Giá trị gợi ý',value:x=>fmt(x.actualAmount)},{label:'Lệch',value:x=>fmt(x.diff)},{label:'Số dòng SP',key:'lineCount'},{label:'Trạng thái',key:'status'}],r.customerOrders||[]);
