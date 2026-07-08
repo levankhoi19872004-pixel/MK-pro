@@ -120,6 +120,12 @@ const INDEX_DEFINITIONS = {
     [{ orderId: 1 }, { name: 'idx_order_payment_allocations_order_id', sparse: true }],
     [{ orderCode: 1 }, { name: 'idx_order_payment_allocations_order_code', sparse: true }]
   ],
+  orderPaymentRepairRuns: [
+    [{ runCode: 1 }, { name: 'uniq_order_payment_repair_runs_run_code', unique: true, partialFilterExpression: { runCode: { $type: 'string', $gt: '' } } }],
+    [{ createdAt: -1 }, { name: 'idx_order_payment_repair_runs_created_at' }],
+    [{ status: 1, createdAt: -1 }, { name: 'idx_order_payment_repair_runs_status_created_at' }],
+    [{ mode: 1, fromDate: 1, toDate: 1 }, { name: 'idx_order_payment_repair_runs_mode_date_range' }]
+  ],
   arLedgers: [
     [{ id: 1 }, { name: 'uniq_arLedgers_id', unique: true, sparse: true }],
     [{ code: 1 }, { name: 'uniq_arLedgers_code', unique: true, sparse: true }],

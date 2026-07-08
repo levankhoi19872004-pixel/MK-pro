@@ -95,7 +95,7 @@
     "audit:order-payment-allocations": "node scripts/backfill-order-payment-allocations.js --strict",
     "audit:order-payment-allocations:json": "node scripts/backfill-order-payment-allocations.js --json",
     "repair:order-payment-allocations:dry": "node scripts/backfill-order-payment-allocations.js --json",
-    "repair:order-payment-allocations": "node scripts/backfill-order-payment-allocations.js --apply --fix-missing-ar-ledgers --fix-missing-fund-ledgers",
+    "repair:order-payment-allocations": "node scripts/backfill-order-payment-allocations.js --apply --fix-missing-ar-ledgers --fix-missing-fund-ledgers --fix-missing-reward-ledgers",
     "repair:ar-return-duplicates:dry": "node scripts/repair-ar-return-duplicates.js --dry-run",
     "repair:ar-return-duplicates": "node scripts/repair-ar-return-duplicates.js --apply",
     "debug:delivery-accounting-order": "node scripts/debug-delivery-accounting-order.js",
@@ -113,7 +113,11 @@
     "audit:inventory-access": "node scripts/audit-inventory-access-violations.js",
     "audit:fund-access": "node scripts/audit-fund-access-violations.js",
     "audit:frontend-business-calculation": "node scripts/audit-frontend-business-calculation.js",
-    "reconcile:core-read-models": "node scripts/reconcile-core-read-models.js"
+    "reconcile:core-read-models": "node scripts/reconcile-core-read-models.js",
+    "order-payment:audit": "node scripts/backfill-order-payment-allocations.js",
+    "order-payment:audit:json": "node scripts/backfill-order-payment-allocations.js --json",
+    "order-payment:repair": "node scripts/backfill-order-payment-allocations.js --apply --fix-missing-ar-ledgers --fix-missing-fund-ledgers --fix-missing-reward-ledgers",
+    "order-payment:repair:reward": "node scripts/backfill-order-payment-allocations.js --apply --fix-missing-reward-ledgers"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

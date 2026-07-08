@@ -33,6 +33,7 @@ module.exports = {
   deliveryCloseoutCorrections: require('./DeliveryCloseoutCorrection'),
   deliveryCloseoutVersions: require('./DeliveryCloseoutVersion'),
   orderPaymentAllocations: require('./OrderPaymentAllocation'),
+  orderPaymentRepairRuns: require('./OrderPaymentRepairRun'),
   warehouseReturnChecks: require('./WarehouseReturnCheck'),
   expenseVouchers: require('./ExpenseVoucher'),
   fundTransfers: require('./FundTransfer'),
