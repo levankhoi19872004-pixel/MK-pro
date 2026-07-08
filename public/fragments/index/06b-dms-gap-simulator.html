@@ -1,0 +1,84 @@
+
+    <section id="dmsGapSimulatorTab" class="tab-content dms-gap-shell">
+      <section class="card">
+        <div class="toolbar">
+          <div>
+            <h2>Công cụ → Sinh đơn chấm DMS</h2>
+            <p class="muted">Module tham khảo ngoài luồng: chỉ upload danh sách khách cần chấm; sản phẩm lệch DMS và nhóm KM/Ontop đọc từ dữ liệu có sẵn trong MK-Pro. Không tạo đơn thật, không ghi công nợ, không trừ tồn kho.</p>
+          </div>
+        </div>
+        <div class="dms-gap-safe-note">Guard an toàn: dữ liệu sinh ra chỉ để tham khảo. Chức năng này chỉ đọc dữ liệu MK-Pro, không ghi MongoDB nghiệp vụ và không ảnh hưởng báo cáo thật.</div>
+        <div class="dms-gap-grid">
+          <aside class="dms-gap-panel">
+            <h3>1. File & cấu hình</h3>
+            <form class="dms-gap-form" onsubmit="return false;">
+              <label>File Excel khách cần chấm
+                <input id="dmsGapFile" type="file" accept=".xlsx,.xlsm,.xls" />
+                <small class="muted">File chỉ cần cột Mã KH, Tên KH, Chỉ tiêu cần chấm. Sản phẩm lệch và nhóm KM lấy từ MK-Pro.</small>
+              </label>
+              <label>Loại sản phẩm lệch DMS
+                <select id="dmsGapComparisonType">
+                  <option value="dms_greater">DMS nhiều hơn thực tế</option>
+                  <option value="internal_greater">Thực tế nhiều hơn DMS</option>
+                </select>
+              </label>
+              <label>Ngày áp dụng nhóm KM/Ontop
+                <input id="dmsGapPromotionDate" type="date" />
+              </label>
+              <details class="dms-gap-advanced">
+                <summary>Cấu hình nâng cao</summary>
+                <label>Số kịch bản chạy
+                  <input id="dmsGapScenarioCount" type="number" min="1" max="1000" step="1" value="300" />
+                </label>
+                <label>Sai lệch cho phép mỗi khách
+                  <input id="dmsGapToleranceAmount" type="number" min="0" step="1000" value="10000" />
+                </label>
+                <label>Global tolerance
+                  <input id="dmsGapGlobalToleranceAmount" type="number" min="0" step="1000" value="50000" />
+                </label>
+                <label>Temperature
+                  <input id="dmsGapTemperature" type="number" min="0.05" max="2" step="0.05" value="0.35" />
+                </label>
+                <div class="dms-gap-weight-grid">
+                  <label>Ưu tiên nhóm KM
+                    <input id="dmsGapWeightPromotion" type="number" min="0" max="1" step="0.01" value="0.45" />
+                  </label>
+                  <label>Khớp chỉ tiêu KH
+                    <input id="dmsGapWeightCustomerFit" type="number" min="0" max="1" step="0.01" value="0.25" />
+                  </label>
+                  <label>Xử lý lệch DMS
+                    <input id="dmsGapWeightDmsGap" type="number" min="0" max="1" step="0.01" value="0.15" />
+                  </label>
+                  <label>Khớp giá
+                    <input id="dmsGapWeightPriceFit" type="number" min="0" max="1" step="0.01" value="0.10" />
+                  </label>
+                  <label>Phạt trùng SP
+                    <input id="dmsGapWeightDuplicatePenalty" type="number" min="0" max="1" step="0.01" value="0.05" />
+                  </label>
+                </div>
+              </details>
+              <div class="dms-gap-actions">
+                <button type="button" id="dmsGapPreviewButton">Sinh đơn tham khảo</button>
+                <button type="button" id="dmsGapResetButton" class="secondary">Làm lại</button>
+              </div>
+            </form>
+            <p id="dmsGapStatus" class="message dms-gap-status"></p>
+          </aside>
+          <main class="dms-gap-panel">
+            <h3>2. Preview kết quả</h3>
+            <div id="dmsGapSummary" class="dms-gap-summary"><span>Chưa preview</span></div>
+            <div class="dms-gap-export-bar">
+              <button type="button" id="dmsGapExportButton" disabled>Xuất Excel kết quả</button>
+            </div>
+            <div class="dms-gap-preview-tabs">
+              <button type="button" class="dms-gap-preview-tab active" data-view="orders">Đơn tham khảo</button>
+              <button type="button" class="dms-gap-preview-tab" data-view="items">Chi tiết sản phẩm</button>
+              <button type="button" class="dms-gap-preview-tab" data-view="groups">Nhóm khuyến mại</button>
+              <button type="button" class="dms-gap-preview-tab" data-view="products">Sản phẩm lệch DMS</button>
+              <button type="button" class="dms-gap-preview-tab" data-view="warnings">Cảnh báo</button>
+            </div>
+            <div id="dmsGapPreviewBody"><p class="muted">Upload file khách cần chấm và bấm Sinh đơn tham khảo để xem kết quả.</p></div>
+          </main>
+        </div>
+      </section>
+    </section>

@@ -7,6 +7,7 @@
     "public/fragments/index/04-index-body.html",
     "public/fragments/index/05-index-body.html",
     "public/fragments/index/06-index-body.html",
+    "public/fragments/index/06b-dms-gap-simulator.html",
     "public/fragments/index/07-index-body.html"
   ]
 }

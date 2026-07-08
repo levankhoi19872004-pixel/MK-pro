@@ -45,6 +45,7 @@ const adminCorrectionRoutes = require('./adminCorrectionRoutes');
 const newOperationsRoutes = require('./newOperationsRoutes');
 const notificationRoutes = require('./notificationRoutes');
 const orderSplitToolRoutes = require('./tools/orderSplit.routes');
+const dmsGapSimulatorRoutes = require('./tools/dmsGapSimulator.routes');
 
 
 function registerApiRoutes(app) {
@@ -66,6 +67,8 @@ function registerApiRoutes(app) {
 
   // Out-of-flow Excel calculator tool. It must not touch ERP business collections.
   app.use('/api/tools/order-split', orderSplitToolRoutes);
+  // Out-of-flow DMS gap simulator: in-memory preview/export only, no ERP writes.
+  app.use('/api/tools/dms-gap-simulator', dmsGapSimulatorRoutes);
 
   // Unified search engine for web + mobile autocomplete.
   app.use('/api/search', searchRoutes);

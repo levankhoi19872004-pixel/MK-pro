@@ -104,6 +104,9 @@ async function loadTabDataOnce(tabName, options = {}){
       case 'orderSplitToolTab':
         if(typeof loadOrderSplitTool === 'function') await loadOrderSplitTool();
         break;
+      case 'dmsGapSimulatorTab':
+        if(typeof loadDmsGapSimulator === 'function') await loadDmsGapSimulator();
+        break;
       case 'systemTab':
         await Promise.allSettled([
           typeof loadSystemStatus === 'function' ? loadSystemStatus() : null,
