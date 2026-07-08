@@ -8,10 +8,10 @@ const { toNumber } = require('../utils/common.util');
 const arLedgerUtil = require('../utils/arLedger.util');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 const {
-  getMobileCustomerDebts: getPagedMobileCustomerDebts,
   loadDebtBalancesForCustomers,
   activeArFilter: buildMobileActiveArFilter
 } = require('./mobile/mobileDebtQuery.service');
+const { listMobileDebtsFromDebtNew } = require('./mobile/mobileDebtNewAdapter.service');
 const DebtCollectionPolicy = require('../policies/debtCollection.policy');
 
 const PENDING_STATUSES = ['submitted', 'under_review'];
@@ -682,7 +682,7 @@ async function checkAvailableDebt(input = {}) {
 
 module.exports = {
   getCustomerDebts,
-  getMobileCustomerDebts: getPagedMobileCustomerDebts,
+  getMobileCustomerDebts: (query = {}, options = {}) => listMobileDebtsFromDebtNew({ query, mobileUser: options.mobileUser || query.mobileUser || {}, user: options.user || {} }),
   loadDebtBalancesForCustomers,
   checkAvailableDebt,
   getDebtOrderCollectibleState,

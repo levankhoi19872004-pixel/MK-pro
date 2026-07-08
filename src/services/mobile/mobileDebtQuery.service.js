@@ -1,5 +1,8 @@
 'use strict';
 
+// Legacy mobile debt query kept for historical diagnostics.
+// Production /api/mobile/debts must use DebtNewService.listCustomers via mobileDebtNewAdapter.service.
+
 const ArLedger = require('../../models/ArLedger');
 const DebtCollection = require('../../models/DebtCollection');
 const dateUtil = require('../../utils/date.util');

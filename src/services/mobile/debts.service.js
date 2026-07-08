@@ -1,7 +1,7 @@
 'use strict';
 
 const DebtCollectionService = require('../DebtCollectionService');
-const DebtReadService = require('../DebtReadService');
+const { listMobileDebtsFromDebtNew } = require('./mobileDebtNewAdapter.service');
 
 function text(value) {
   return String(value || '').trim();
@@ -67,8 +67,12 @@ function scopeDebtQuery(query = {}, mobileUser = {}) {
 }
 
 function createMobileDebtService() {
-  async function listDebts({ query = {}, mobileUser } = {}) {
-    const result = await DebtReadService.getMobileCustomerDebts(scopeDebtQuery(query, mobileUser));
+  async function listDebts({ query = {}, mobileUser, req } = {}) {
+    const result = await listMobileDebtsFromDebtNew({
+      query: scopeDebtQuery(query, mobileUser),
+      mobileUser,
+      user: req && req.user ? req.user : {}
+    });
     return { body: result };
   }
 
