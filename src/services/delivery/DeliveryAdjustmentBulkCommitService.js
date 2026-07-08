@@ -34,7 +34,7 @@ function emptySummary(selectedOrders = 0) {
 
 function classifyItem(summary, item = {}) {
   if (item.status === 'processed') summary.processedOrders += 1;
-  else if (item.status === 'skipped') summary.skippedAlreadySynced += 1;
+  else if (item.status === 'skipped' || item.status === 'skipped_already_synced') summary.skippedAlreadySynced += 1;
   else if (item.status === 'manual_review') summary.manualReviewRequired += 1;
   else if (item.status === 'dry_run') summary.dryRunOrders += 1;
   else if (item.status === 'error') summary.errors += 1;
@@ -43,16 +43,22 @@ function classifyItem(summary, item = {}) {
 }
 
 async function commitManyAdjustments(input = {}, options = {}) {
+  const orderObjects = Array.isArray(input.orders) ? input.orders.filter((row) => row && typeof row === 'object') : [];
   const orderCodes = unique(input.orderCodes || input.selectedOrderCodes || []);
   const orderIds = unique(input.orderIds || input.selectedOrderIds || []);
-  const refs = unique([...orderCodes, ...orderIds]);
-  if (!refs.length) {
+  const objectKeys = unique(orderObjects.map((row) => row.orderCode || row.salesOrderCode || row.code || row.orderId || row.id));
+  const looseRefs = unique([...orderCodes, ...orderIds]).filter((ref) => !objectKeys.includes(ref));
+  const targets = [
+    ...orderObjects.map((row) => ({ ...row, orderCode: text(row.orderCode || row.salesOrderCode || row.code), orderId: text(row.orderId || row.salesOrderId || row.id) })),
+    ...looseRefs.map((ref) => ({ orderCode: ref, orderId: ref }))
+  ];
+  if (!targets.length) {
     const err = new Error('Vui lòng chọn ít nhất một đơn để ghi nhận điều chỉnh hàng loạt.');
     err.code = 'BULK_ADJUSTMENT_ORDER_REQUIRED';
     err.status = 400;
     throw err;
   }
-  if (refs.length > MAX_BULK_ORDERS) {
+  if (targets.length > MAX_BULK_ORDERS) {
     const err = new Error(`Chỉ được xử lý tối đa ${MAX_BULK_ORDERS} đơn mỗi lần.`);
     err.code = 'BULK_ADJUSTMENT_LIMIT_EXCEEDED';
     err.status = 400;
@@ -66,22 +72,24 @@ async function commitManyAdjustments(input = {}, options = {}) {
   const note = text(input.note || 'Bulk chạy cùng logic Lưu điều chỉnh từng đơn');
   const startedAt = dateUtil.nowIso();
   const items = [];
-  const summary = emptySummary(refs.length);
+  const summary = emptySummary(targets.length);
 
-  for (const ref of refs) {
+  for (const target of targets) {
+    const ref = text(target.orderCode || target.orderId || target.id);
     try {
       const result = await withOptionalMongoTransaction({ ...options, actor: actorText }, async (session) => (
         DeliveryAdjustmentCommitService.commitOneAdjustment({
-          orderCode: ref,
-          orderId: ref,
+          ...target,
+          orderCode: text(target.orderCode || ref),
+          orderId: text(target.orderId || ref),
           actor,
           reason,
           note,
           source: 'bulk',
           dryRun,
-          date: input.date || input.deliveryDate,
-          deliveryStaffCode: input.deliveryStaffCode,
-          salesStaffCode: input.salesStaffCode
+          date: input.date || input.deliveryDate || target.deliveryDate,
+          deliveryStaffCode: input.deliveryStaffCode || target.deliveryStaffCode,
+          salesStaffCode: input.salesStaffCode || target.salesStaffCode
         }, { ...options, actor: actorText, dryRun, session })
       ));
       const item = result.item || {

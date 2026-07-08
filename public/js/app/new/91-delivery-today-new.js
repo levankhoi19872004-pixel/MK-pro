@@ -1159,8 +1159,33 @@
     var confirmed = window.confirm('Bạn sắp ghi nhận lại điều chỉnh cho ' + rows.length + ' đơn đã chọn. Hệ thống sẽ chạy cùng logic như bấm Lưu điều chỉnh từng đơn. Tiếp tục?');
     if (!confirmed) return;
     var f = filters();
-    var orderCodes = rows.map(function (row) { return row.orderCode || row.salesOrderCode || row.code || row.displayOrderCode || rowKey(row); }).filter(Boolean).filter(function (value, index, arr) { return arr.indexOf(value) === index; });
-    var orderIds = rows.map(rowKey).filter(Boolean).filter(function (value, index, arr) { return arr.indexOf(value) === index; });
+    var orderPayloads = rows.map(function (row) {
+      return {
+        orderCode: row.orderCode || row.salesOrderCode || row.code || row.displayOrderCode || '',
+        orderId: row.orderId || row.salesOrderId || row.id || rowKey(row),
+        closeoutId: row.closeoutId || row.closeoutVersionId || row.originalCloseoutId || '',
+        closeoutCode: row.closeoutCode || row.closeoutVersionCode || row.originalCloseoutCode || '',
+        closeoutVersionId: row.closeoutVersionId || row.adjustmentId || row.correctionId || '',
+        closeoutVersionCode: row.closeoutVersionCode || row.adjustmentCode || row.correctionCode || '',
+        customerCode: row.customerCode || '',
+        customerName: row.customerName || '',
+        salesStaffCode: row.salesStaffCode || row.salesmanCode || '',
+        deliveryStaffCode: row.deliveryStaffCode || row.deliveryCode || '',
+        deliveryDate: row.deliveryDate || f.date || '',
+        sourceVersion: row.version || row.closeoutVersion || row.sourceVersion || 0,
+        receivableAmount: num(row.originalAmount),
+        originalAmount: num(row.originalAmount),
+        cashAmount: num(row.cashAmount),
+        bankAmount: num(row.bankAmount),
+        rewardAmount: num(row.rewardAmount) + num(row.offsetAmount),
+        returnAmount: num(row.returnedAmount),
+        returnedAmount: num(row.returnedAmount),
+        finalDebtAmount: num(row.finalDebtAmount),
+        debtAmount: num(row.finalDebtAmount)
+      };
+    }).filter(function (row) { return row.orderCode || row.orderId; });
+    var orderCodes = orderPayloads.map(function (row) { return row.orderCode || row.orderId; }).filter(Boolean).filter(function (value, index, arr) { return arr.indexOf(value) === index; });
+    var orderIds = orderPayloads.map(function (row) { return row.orderId || row.orderCode; }).filter(Boolean).filter(function (value, index, arr) { return arr.indexOf(value) === index; });
     state.bulkAdjustmentBusy = true;
     updateOrderSelectionToolbar(getVisibleRowsBySelectedSalesmen());
     setMessage('Đang ghi nhận điều chỉnh hàng loạt cho ' + rows.length + ' đơn...');
@@ -1173,6 +1198,7 @@
           deliveryDate: f.date,
           deliveryStaffCode: f.delivery,
           salesStaffCode: f.salesman,
+          orders: orderPayloads,
           orderCodes: orderCodes,
           orderIds: orderIds,
           reason: 'Bulk ghi nhận lại điều chỉnh công nợ',

@@ -209,15 +209,17 @@ router.post('/delivery-today/closeouts/:id/corrections', requireAuth, writeRoles
 router.post('/delivery-today/adjustments/bulk-commit', requireAuth, writeRoles, async (req, res) => {
   try {
     const body = req.body || {};
+    const orders = Array.isArray(body.orders) ? body.orders : [];
     const orderCodes = Array.isArray(body.orderCodes || body.selectedOrderCodes) ? (body.orderCodes || body.selectedOrderCodes) : [];
     const orderIds = Array.isArray(body.orderIds || body.selectedOrderIds) ? (body.orderIds || body.selectedOrderIds) : [];
-    if (!orderCodes.length && !orderIds.length) {
+    if (!orders.length && !orderCodes.length && !orderIds.length) {
       return res.status(400).json({ ok: false, success: false, code: 'BULK_ADJUSTMENT_ORDER_REQUIRED', message: 'Vui lòng chọn ít nhất một đơn để ghi nhận điều chỉnh.' });
     }
     const actor = req.user || {};
     const actorLabel = req.user?.username || req.user?.name || req.user?.email || req.user?.role || 'accountant';
     const result = await DeliveryAdjustmentBulkCommitService.commitManyAdjustments({
       ...body,
+      orders,
       orderCodes,
       orderIds,
       actor,

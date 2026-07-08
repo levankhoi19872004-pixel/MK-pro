@@ -189,44 +189,94 @@ function paymentStateHash(allocation = {}) {
   }));
 }
 
-function buildNoChangeCorrectionInput({ order, allocation, reason, note, actor, source }) {
-  const stateHash = paymentStateHash(allocation);
-  const code = orderCode(order) || allocation.orderCode || orderId(order);
-  const sourceVersion = Number(allocation.sourceVersion || 1) || 1;
-  const correctionId = `DCOC-BULK-${code}-v${sourceVersion}-${stateHash}`;
+function hasMoneyInput(value) {
+  return value !== undefined && value !== null && String(value).trim() !== '';
+}
+
+function rowMoney(input = {}, keys = [], fallback = 0) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(input || {}, key) && hasMoneyInput(input[key])) return money(input[key]);
+  }
+  return money(fallback);
+}
+
+function hasManualPaymentSnapshot(input = {}) {
+  return ['receivableAmount', 'originalAmount', 'cashAmount', 'bankAmount', 'rewardAmount', 'returnAmount', 'returnedAmount', 'finalDebtAmount', 'debtAmount'].some((key) => hasMoneyInput(input[key]));
+}
+
+function manualSnapshotFromInput(input = {}, fallbackAllocation = {}) {
+  const receivableAmount = rowMoney(input, ['receivableAmount', 'originalAmount', 'saleAmount', 'totalAmount'], fallbackAllocation.receivableAmount);
+  const cashAmount = rowMoney(input, ['cashAmount', 'currentCashAmount', 'finalCashAmount'], fallbackAllocation.cashAmount);
+  const bankAmount = rowMoney(input, ['bankAmount', 'currentBankAmount', 'finalBankAmount'], fallbackAllocation.bankAmount);
+  const rewardAmount = rowMoney(input, ['rewardAmount', 'offsetAmount', 'currentRewardAmount', 'finalRewardAmount'], fallbackAllocation.rewardAmount);
+  const returnAmount = rowMoney(input, ['returnAmount', 'returnedAmount', 'currentReturnAmount', 'finalReturnAmount'], fallbackAllocation.returnAmount);
+  const explicitDebt = rowMoney(input, ['finalDebtAmount', 'debtAmount', 'currentDebtAmount', 'newDebtAmount'], fallbackAllocation.debtAmount);
+  return { receivableAmount, cashAmount, bankAmount, rewardAmount, returnAmount, debtAmount: explicitDebt };
+}
+
+function allocationWithManualSnapshot(allocation = {}, snapshot = {}) {
+  const rawDebtAmount = money(snapshot.receivableAmount - snapshot.cashAmount - snapshot.bankAmount - snapshot.rewardAmount - snapshot.returnAmount);
+  const normalizedDebtAmount = money(snapshot.debtAmount);
   return {
-    originalCloseoutId: orderId(order) || code,
+    ...allocation,
+    receivableAmount: snapshot.receivableAmount,
+    cashAmount: snapshot.cashAmount,
+    bankAmount: snapshot.bankAmount,
+    rewardAmount: snapshot.rewardAmount,
+    returnAmount: snapshot.returnAmount,
+    rawDebtAmount,
+    normalizedDebtAmount,
+    debtAmount: normalizedDebtAmount,
+    zeroToleranceApplied: Math.abs(rawDebtAmount) <= DEFAULT_ZERO_TOLERANCE && rawDebtAmount !== normalizedDebtAmount,
+    zeroToleranceAdjustmentAmount: money(rawDebtAmount - normalizedDebtAmount)
+  };
+}
+
+function buildNoChangeCorrectionInput({ order, allocation, reason, note, actor, source, manualSnapshot, manualContext }) {
+  const code = orderCode(order) || allocation.orderCode || orderId(order);
+  const finalState = manualSnapshot || {
+    cashAmount: money(allocation.cashAmount),
+    bankAmount: money(allocation.bankAmount),
+    rewardAmount: money(allocation.rewardAmount),
+    returnAmount: money(allocation.returnAmount),
+    debtAmount: money(allocation.debtAmount)
+  };
+  const totalCollected = money(finalState.cashAmount + finalState.bankAmount + finalState.rewardAmount);
+  // Match the popup payload: when the user presses Save without changing any value,
+  // correctedCashLines is empty and paymentCorrection carries the final-state values.
+  // Do not pass a custom idempotencyKey here; createCorrection() must build the same
+  // stable idempotency key as the manual Save route.
+  return {
+    originalCloseoutId: text(orderId(order) || code),
+    closeoutId: text(manualContext && manualContext.closeoutId),
+    closeoutCode: text(manualContext && manualContext.closeoutCode),
+    closeoutVersionId: text(manualContext && manualContext.closeoutVersionId),
+    closeoutVersionCode: text(manualContext && manualContext.closeoutVersionCode),
     orderId: orderId(order),
     orderCode: code,
     salesOrderId: orderId(order),
     salesOrderCode: code,
-    id: correctionId,
-    correctionCode: correctionId,
-    idempotencyKey: `BULK-ADJ:${code}:v${sourceVersion}:${stateHash}`,
     correctedReturnItems: [],
-    correctedCashLines: [
-      { paymentMethod: 'cash', oldAmount: money(allocation.cashAmount), newAmount: money(allocation.cashAmount), adjustmentAmount: 0 },
-      { paymentMethod: 'bank', oldAmount: money(allocation.bankAmount), newAmount: money(allocation.bankAmount), adjustmentAmount: 0 },
-      { paymentMethod: 'reward', oldAmount: money(allocation.rewardAmount), newAmount: money(allocation.rewardAmount), adjustmentAmount: 0 }
-    ],
+    correctedCashLines: [],
     paymentCorrection: {
-      currentCashAmount: money(allocation.cashAmount),
-      correctedCashAmount: money(allocation.cashAmount),
+      currentCashAmount: finalState.cashAmount,
+      correctedCashAmount: finalState.cashAmount,
       cashDeltaAmount: 0,
-      currentBankAmount: money(allocation.bankAmount),
-      correctedBankAmount: money(allocation.bankAmount),
+      currentBankAmount: finalState.bankAmount,
+      correctedBankAmount: finalState.bankAmount,
       bankDeltaAmount: 0,
-      currentRewardAmount: money(allocation.rewardAmount),
-      correctedRewardAmount: money(allocation.rewardAmount),
+      currentRewardAmount: finalState.rewardAmount,
+      correctedRewardAmount: finalState.rewardAmount,
       rewardDeltaAmount: 0,
-      currentTotalCollected: money(allocation.cashAmount + allocation.bankAmount + allocation.rewardAmount),
-      correctedTotalCollected: money(allocation.cashAmount + allocation.bankAmount + allocation.rewardAmount),
+      currentTotalCollected: totalCollected,
+      correctedTotalCollected: totalCollected,
       totalCollectedDelta: 0
     },
-    reason: text(reason || 'Bulk ghi nhận lại điều chỉnh công nợ'),
-    note: text(note || 'Bulk commit dùng cùng logic Lưu điều chỉnh đơn giao'),
+    reason: text(reason || 'Bulk ghi nhận lại điều chỉnh'),
+    note: text(note || 'Bulk replay thao tác Lưu điều chỉnh đơn giao'),
     actor,
-    source: source || 'bulk'
+    source: source || 'bulk',
+    bulkReplayManualSave: true
   };
 }
 
@@ -243,6 +293,7 @@ function itemFromResult({ order, allocation, preflight, result, after, status, r
     orderCode: orderCode(order) || allocation.orderCode,
     customerCode: text(order.customerCode || allocation.customerCode),
     customerName: text(order.customerName || allocation.customerName),
+    closeoutId: text(allocation.sourceId || allocation.closeoutId),
     closeoutVersion: Number(allocation.sourceVersion || 0) || 0,
     sourceVersion: Number(allocation.sourceVersion || 0) || 0,
     receivableAmount: money(allocation.receivableAmount),
@@ -258,7 +309,13 @@ function itemFromResult({ order, allocation, preflight, result, after, status, r
     createdCorrectionVersion: Boolean(result && result.newCloseoutVersion),
     createdDebtAdjustment: Boolean(ledger && ledgerAmount(ledger) > 0),
     idempotencyKey: text((ledger && ledger.idempotencyKey) || (result && result.correction && result.correction.idempotencyKey)),
-    status,
+    payloadBuiltLikeManualSave: true,
+    manualSaveRouteUsed: true,
+    calledService: 'deliveryCloseoutCorrectionService.createCorrection',
+    correctionCreated: Boolean(result && result.correction),
+    correctionVersion: Number((result && result.newCloseoutVersion && result.newCloseoutVersion.closeoutVersion) || (result && result.correction && result.correction.newCloseoutVersion) || allocation.sourceVersion || 0) || 0,
+    createdArLedgerIds: ledger && (ledger.id || ledger._id || ledger.code) ? [text(ledger.id || ledger._id || ledger.code)] : [],
+    status: status === 'skipped' ? 'skipped_already_synced' : status,
     reason: text(reason || (result && result.message) || ''),
     error: error ? text(error.message || error) : ''
   };
@@ -312,42 +369,47 @@ async function commitOneAdjustment(input = {}, options = {}) {
   }
 
   const context = await buildContextForOrder(input, options);
-  const preflight = await preflightReconcile(context.order, context.allocation, { ...options, actor, reason: input.reason, note: input.note });
-
-  if (!preflight.needsAdjustment) {
-    return {
-      success: true,
-      skipped: true,
-      status: 'skipped',
-      reason: preflight.skipReason || 'already_synced',
-      preflight,
-      item: itemFromResult({ order: context.order, allocation: context.allocation, preflight, status: 'skipped', reason: preflight.skipReason || 'AR đã khớp công nợ kỳ vọng' })
-    };
-  }
+  const manualSnapshot = hasManualPaymentSnapshot(input) ? manualSnapshotFromInput(input, context.allocation) : null;
+  const effectiveAllocation = manualSnapshot ? allocationWithManualSnapshot(context.allocation, manualSnapshot) : context.allocation;
+  const preflight = await preflightReconcile(context.order, effectiveAllocation, { ...options, actor, reason: input.reason, note: input.note });
 
   if (input.dryRun || options.dryRun) {
     return {
       success: true,
       dryRun: true,
-      status: 'dry_run',
-      reason: 'dry_run_needs_adjustment',
+      status: preflight.needsAdjustment ? 'dry_run' : 'skipped',
+      reason: preflight.needsAdjustment ? 'dry_run_needs_manual_save_replay' : (preflight.skipReason || 'already_synced'),
+      payloadBuiltLikeManualSave: true,
+      manualSaveRouteUsed: true,
+      calledService: 'deliveryCloseoutCorrectionService.createCorrection',
       preflight,
-      item: itemFromResult({ order: context.order, allocation: context.allocation, preflight, status: 'dry_run', reason: 'Dry-run: cần ghi nhận lại điều chỉnh' })
+      item: itemFromResult({
+        order: context.order,
+        allocation: effectiveAllocation,
+        preflight,
+        status: preflight.needsAdjustment ? 'dry_run' : 'skipped',
+        reason: preflight.needsAdjustment ? 'Dry-run: sẽ replay Lưu điều chỉnh' : (preflight.skipReason || 'AR đã khớp công nợ kỳ vọng')
+      })
     };
   }
 
   const correctionInput = buildNoChangeCorrectionInput({
     order: context.order,
-    allocation: context.allocation,
+    allocation: effectiveAllocation,
     reason: input.reason,
     note: input.note,
     actor,
-    source: input.source || 'bulk'
+    source: input.source || 'bulk',
+    manualSnapshot,
+    manualContext: input
   });
+  // Critical: do not pre-skip before replaying the same manual Save correction route.
+  // The existing correction service owns the immutable correction version and AR posting behavior.
   const result = await deliveryCloseoutCorrectionService.createCorrection(correctionInput, { ...options, actor: actorText });
-  const after = await preflightReconcile(context.order, context.allocation, { ...options, actor, reason: input.reason, note: input.note });
+  const after = await preflightReconcile(context.order, effectiveAllocation, { ...options, actor, reason: input.reason, note: input.note });
   const verified = !after.needsAdjustment;
-  const status = verified ? 'processed' : 'manual_review';
+  const idempotent = Boolean(result && result.idempotent);
+  const status = verified ? (idempotent ? 'skipped' : 'processed') : 'manual_review';
   return {
     ...result,
     success: result && result.success !== false,
@@ -356,13 +418,23 @@ async function commitOneAdjustment(input = {}, options = {}) {
     after,
     item: itemFromResult({
       order: context.order,
-      allocation: context.allocation,
+      allocation: effectiveAllocation,
       preflight,
       result,
       after,
       status,
-      reason: verified ? (result && result.message) : 'AR vẫn lệch sau khi bulk commit; cần kiểm tra thủ công'
-    })
+      reason: verified ? (idempotent ? 'skipped_already_synced' : (result && result.message)) : 'AR vẫn lệch sau khi bulk replay Lưu điều chỉnh; cần kiểm tra thủ công'
+    }),
+    payloadBuiltLikeManualSave: true,
+    manualSaveRouteUsed: true,
+    calledService: 'deliveryCloseoutCorrectionService.createCorrection',
+    correctionInputDebug: {
+      originalCloseoutId: correctionInput.originalCloseoutId,
+      orderCode: correctionInput.orderCode,
+      cashAmount: correctionInput.paymentCorrection.correctedCashAmount,
+      bankAmount: correctionInput.paymentCorrection.correctedBankAmount,
+      rewardAmount: correctionInput.paymentCorrection.correctedRewardAmount
+    }
   };
 }
 
@@ -375,6 +447,9 @@ module.exports = {
     hash,
     stableJson,
     paymentStateHash,
+    hasManualPaymentSnapshot,
+    manualSnapshotFromInput,
+    allocationWithManualSnapshot,
     buildNoChangeCorrectionInput,
     preflightReconcile,
     buildAllocation,
