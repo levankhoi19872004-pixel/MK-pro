@@ -13,7 +13,12 @@ const OrderPaymentRepairRun = flexModel('OrderPaymentRepairRun', 'orderPaymentRe
   createdAllocations: Number,
   createdArLedgers: Number,
   createdFundLedgers: Number,
+  createdDebtAdjustments: Number,
   skippedAlreadyFixed: Number,
+  skippedDebtAlreadyReconciled: Number,
+  zeroToleranceApplied: Number,
+  debtAdjustmentDebitAmount: Number,
+  debtAdjustmentCreditAmount: Number,
   invalidAllocations: Number,
   manualReviewRequired: Number,
   errorRows: Array, // DB vẫn lưu field errors qua strict:false; tránh warning reserved pathname của Mongoose.

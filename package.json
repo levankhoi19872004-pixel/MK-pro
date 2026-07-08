@@ -117,7 +117,9 @@
     "order-payment:audit": "node scripts/backfill-order-payment-allocations.js",
     "order-payment:audit:json": "node scripts/backfill-order-payment-allocations.js --json",
     "order-payment:repair": "node scripts/backfill-order-payment-allocations.js --apply --fix-missing-ar-ledgers --fix-missing-fund-ledgers --fix-missing-reward-ledgers",
-    "order-payment:repair:reward": "node scripts/backfill-order-payment-allocations.js --apply --fix-missing-reward-ledgers"
+    "order-payment:repair:reward": "node scripts/backfill-order-payment-allocations.js --apply --fix-missing-reward-ledgers",
+    "order-payment:audit:debt": "node scripts/backfill-order-payment-allocations.js --only-debt-diff",
+    "order-payment:repair:debt": "node scripts/backfill-order-payment-allocations.js --apply --fix-debt-balance"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

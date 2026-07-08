@@ -82,7 +82,7 @@ test('allocation invariant rejects missing reward deduction', () => {
     returnAmount: 0,
     debtAmount: 50552883,
     idempotencyKey: 'OPA:SO-BAD:delivery_closeout:test:v1'
-  }), /Sai invariant phân bổ thanh toán/);
+  }), /Sai nợ nghiệp vụ|Sai invariant|NORMALIZED_DEBT/);
 });
 
 test('allocation builder keeps legacy cash transfer reward aliases connected', () => {
@@ -113,4 +113,96 @@ test('allocation builder keeps legacy cash transfer reward aliases connected', (
   assert.equal(allocation.returnAmount, 50000);
   assert.equal(allocation.debtAmount, 350000);
   assert.equal(balanceFromRows(OrderPaymentAllocationService.buildArLedgerRows(allocation)), 350000);
+});
+
+
+test('B0038734 zero tolerance allocation keeps raw debt and normalizes business debt to zero', () => {
+  const allocation = OrderPaymentAllocationService.buildAllocationFromCloseout({
+    id: 'SO-B0038734',
+    code: 'B0038734',
+    customerCode: '4499586',
+    customerName: 'Tuấn Yên',
+    salesStaffCode: '35095',
+    deliveryStaffCode: 'ghth',
+    deliveryDate: '2026-07-03',
+    totalAmount: 9668695
+  }, {
+    originalAmount: 9668695,
+    cashAmount: 561000,
+    bankAmount: 5807000,
+    rewardAmount: 3300000,
+    returnAmount: 0,
+    finalDebtAmount: 0,
+    status: 'accounting_confirmed',
+    version: 1
+  }, {
+    actor: 'test',
+    closeoutScopeHash: 'zero-tolerance-scope'
+  });
+
+  assert.equal(allocation.rawDebtAmount, 695);
+  assert.equal(allocation.normalizedDebtAmount, 0);
+  assert.equal(allocation.debtAmount, 0);
+  assert.equal(allocation.zeroTolerance, 1000);
+  assert.equal(allocation.zeroToleranceApplied, true);
+  assert.equal(allocation.zeroToleranceAdjustmentAmount, 695);
+  assert.doesNotThrow(() => OrderPaymentAllocationService.validateAllocation(allocation));
+
+  const rows = OrderPaymentAllocationService.buildArLedgerRows(allocation);
+  assert.equal(balanceFromRows(rows), 695, 'raw AR rows leave 695 before debt reconcile');
+});
+
+test('exact zero closeout does not apply zero tolerance and does not need debt adjustment', () => {
+  const allocation = OrderPaymentAllocationService.buildAllocationFromCloseout({
+    id: 'SO-B0038879',
+    code: 'B0038879',
+    customerCode: '4501245',
+    totalAmount: 8089480,
+    deliveryDate: '2026-07-04'
+  }, {
+    originalAmount: 8089480,
+    cashAmount: 0,
+    bankAmount: 5319480,
+    rewardAmount: 2770000,
+    returnAmount: 0,
+    finalDebtAmount: 0,
+    version: 1
+  }, {
+    actor: 'test',
+    closeoutScopeHash: 'exact-zero-scope'
+  });
+
+  assert.equal(allocation.rawDebtAmount, 0);
+  assert.equal(allocation.normalizedDebtAmount, 0);
+  assert.equal(allocation.debtAmount, 0);
+  assert.equal(allocation.zeroToleranceApplied, false);
+  assert.equal(allocation.zeroToleranceAdjustmentAmount, 0);
+  assert.doesNotThrow(() => OrderPaymentAllocationService.validateAllocation(allocation));
+});
+
+test('real debt greater than tolerance remains debt and does not zero out', () => {
+  const allocation = OrderPaymentAllocationService.buildAllocationFromCloseout({
+    id: 'SO-REAL-DEBT',
+    code: 'B-REAL-DEBT',
+    customerCode: 'C-REAL',
+    totalAmount: 14519119,
+    deliveryDate: '2026-07-04'
+  }, {
+    originalAmount: 14519119,
+    cashAmount: 0,
+    bankAmount: 0,
+    rewardAmount: 2870000,
+    returnAmount: 65076,
+    finalDebtAmount: 11584043,
+    version: 1
+  }, {
+    actor: 'test',
+    closeoutScopeHash: 'real-debt-scope'
+  });
+
+  assert.equal(allocation.rawDebtAmount, 11584043);
+  assert.equal(allocation.normalizedDebtAmount, 11584043);
+  assert.equal(allocation.debtAmount, 11584043);
+  assert.equal(allocation.zeroToleranceApplied, false);
+  assert.doesNotThrow(() => OrderPaymentAllocationService.validateAllocation(allocation));
 });

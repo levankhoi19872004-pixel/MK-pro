@@ -15,11 +15,12 @@ const dateUtil = require('../src/utils/date.util');
 const { normalizeAccountingAmount } = require('../src/domain/ar/arLedgerValidator');
 const paymentRepository = require('../src/repositories/paymentRepository');
 const OrderPaymentAllocationService = require('../src/services/accounting/OrderPaymentAllocationService');
+const OrderPaymentDebtReconcileService = require('../src/services/accounting/OrderPaymentDebtReconcileService');
 
 const TITLE = 'ORDER_PAYMENT_ALLOCATIONS_BATCH_RECONCILE_AND_REPAIR';
 const ACTIVE_EXCLUDED_STATUSES = ['reversed', 'void', 'voided', 'cancelled', 'canceled', 'deleted', 'removed', 'superseded'];
 const ACTIVE_ORDER_STATUSES = ['delivered', 'delivery_confirmed', 'delivery_closed', 'closeout', 'closeout_confirmed', 'closed', 'completed', 'accounting_confirmed', 'posted'];
-const ISSUE_GROUPS = ['missingAllocations', 'missingRewardLedgers', 'missingArLedgers', 'missingFundLedgers', 'amountConflicts', 'invalidAllocations', 'manualReviewRequired', 'errors'];
+const ISSUE_GROUPS = ['missingAllocations', 'missingRewardLedgers', 'missingArLedgers', 'missingFundLedgers', 'amountConflicts', 'invalidAllocations', 'manualReviewRequired', 'debtDiffs', 'errors'];
 
 function clean(value = '') {
   return String(value ?? '').trim();
@@ -59,6 +60,9 @@ function parseArgs(argv = process.argv.slice(2)) {
     onlyMissingAllocations: false,
     onlyMissingRewardLedgers: false,
     onlyInvalid: false,
+    onlyDebtDiff: false,
+    fixDebtBalance: false,
+    zeroTolerance: 1000,
     limit: 5000,
     batchSize: 200
   };
@@ -73,6 +77,9 @@ function parseArgs(argv = process.argv.slice(2)) {
     else if (arg === '--only-missing-allocations') out.onlyMissingAllocations = true;
     else if (arg === '--only-missing-reward-ledgers') out.onlyMissingRewardLedgers = true;
     else if (arg === '--only-invalid') out.onlyInvalid = true;
+    else if (arg === '--only-debt-diff') out.onlyDebtDiff = true;
+    else if (arg === '--fix-debt-balance') out.fixDebtBalance = true;
+    else if (arg === '--zero-tolerance' || arg === '--zeroTolerance') out.zeroTolerance = parsePositiveInt(argv[++i], out.zeroTolerance, 0, 1000000);
     else if (arg === '--order' || arg === '--orderCode') out.orderCode = argv[++i];
     else if (arg === '--customer' || arg === '--customerCode') out.customerCode = argv[++i];
     else if (arg === '--delivery' || arg === '--deliveryStaffCode') out.deliveryStaffCode = argv[++i];
@@ -308,7 +315,12 @@ function diagnosticRow(order = {}, allocation = {}, extra = {}) {
     bankAmount: money(allocation.bankAmount),
     rewardAmount: money(allocation.rewardAmount),
     returnAmount: money(allocation.returnAmount),
+    rawDebtAmount: money(allocation.rawDebtAmount),
+    normalizedDebtAmount: money(allocation.normalizedDebtAmount),
     debtAmount: money(allocation.debtAmount),
+    zeroTolerance: Number(allocation.zeroTolerance || extra.zeroTolerance || 0),
+    zeroToleranceApplied: Boolean(allocation.zeroToleranceApplied),
+    zeroToleranceAdjustmentAmount: money(allocation.zeroToleranceAdjustmentAmount),
     arBalance: money(extra.arBalance),
     expectedBalance: money(extra.expectedBalance ?? allocation.debtAmount),
     diff: money(extra.diff),
@@ -336,6 +348,7 @@ function shouldReport(group, options = {}) {
   if (options.onlyMissingAllocations) return group === 'missingAllocations';
   if (options.onlyMissingRewardLedgers) return group === 'missingRewardLedgers';
   if (options.onlyInvalid) return group === 'invalidAllocations' || group === 'manualReviewRequired' || group === 'errors';
+  if (options.onlyDebtDiff) return group === 'debtDiffs' || group === 'manualReviewRequired' || group === 'errors';
   return true;
 }
 
@@ -486,7 +499,10 @@ function runFilterPayload(options = {}) {
     deliveryStaffCode: clean(options.deliveryStaffCode),
     salesStaffCode: clean(options.salesStaffCode),
     customerCode: clean(options.customerCode),
-    orderCode: clean(options.orderCode)
+    orderCode: clean(options.orderCode),
+    onlyDebtDiff: Boolean(options.onlyDebtDiff),
+    fixDebtBalance: Boolean(options.fixDebtBalance),
+    zeroTolerance: Number(options.zeroTolerance || 1000)
   };
 }
 
@@ -499,7 +515,12 @@ async function createRunLog(options = {}) {
     createdAllocations: 0,
     createdArLedgers: 0,
     createdFundLedgers: 0,
+    createdDebtAdjustments: 0,
     skippedAlreadyFixed: 0,
+    skippedDebtAlreadyReconciled: 0,
+    zeroToleranceApplied: 0,
+    debtAdjustmentDebitAmount: 0,
+    debtAdjustmentCreditAmount: 0,
     invalidAllocations: 0,
     manualReviewRequired: 0,
     errors: [],
@@ -528,7 +549,12 @@ async function finishRunLog(run = {}, result = {}, status = 'completed') {
           createdAllocations: Number(summary.createdAllocations || 0),
           createdArLedgers: Number(summary.createdArLedgers || 0),
           createdFundLedgers: Number(summary.createdFundLedgers || 0),
+          createdDebtAdjustments: Number(summary.createdDebtAdjustments || 0),
           skippedAlreadyFixed: Number(summary.skippedAlreadyFixed || 0),
+          skippedDebtAlreadyReconciled: Number(summary.skippedDebtAlreadyReconciled || 0),
+          zeroToleranceApplied: Number(summary.zeroToleranceApplied || 0),
+          debtAdjustmentDebitAmount: Number(summary.debtAdjustmentDebitAmount || 0),
+          debtAdjustmentCreditAmount: Number(summary.debtAdjustmentCreditAmount || 0),
           invalidAllocations: Number(summary.invalidAllocations || 0),
           manualReviewRequired: Number(summary.manualReviewRequired || 0),
           errors: (result.diagnostics && result.diagnostics.errors ? result.diagnostics.errors : []).slice(0, 100),
@@ -555,7 +581,7 @@ async function processOneOrder(order = {}, context = {}) {
     built = OrderPaymentAllocationService.buildAllocationFromCloseout(order, resolved.closeout, {
       ...resolved.buildOptions,
       actor: 'backfill-order-payment-allocations',
-      tolerance: 0,
+      zeroTolerance: options.zeroTolerance,
       metadata: { batchSource: resolved.sourceLabel }
     });
   } catch (err) {
@@ -711,20 +737,55 @@ async function processOneOrder(order = {}, context = {}) {
       writes.createdFundLedgers += Array.isArray(postedFunds) ? postedFunds.length : 0;
     }
 
-    const arBalance = await sumArBalance(keys, tx);
-    const diff = money(arBalance - money(allocation.debtAmount));
-    if (diff !== 0) {
-      pushIssue(diagnostics, 'manualReviewRequired', diagnosticRow(order, allocation, {
-        issueType: 'allocation_debt_ar_diff',
-        arBalance,
-        expectedBalance: allocation.debtAmount,
-        diff,
-        suggestedFix: 'Kiểm tra ledger thiếu/trùng; với lỗi trả thưởng dùng --apply --fix-missing-reward-ledgers hoặc --fix-missing-ar-ledgers.'
-      }), options);
-      writes.manualReviewRequired += 1;
+    const shouldReconcileDebt = options.onlyDebtDiff || options.fixDebtBalance;
+    let finalDebtDiff = 0;
+    let debtAlreadyHandled = false;
+    if (shouldReconcileDebt) {
+      const reconcile = await OrderPaymentDebtReconcileService.reconcileOneOrder({
+        order,
+        allocation,
+        apply: Boolean(options.apply && options.fixDebtBalance),
+        session: tx.session,
+        zeroTolerance: options.zeroTolerance,
+        actor: 'backfill-order-payment-allocations'
+      });
+      finalDebtDiff = money(reconcile.diff);
+      if (reconcile.zeroToleranceApplied) writes.zeroToleranceApplied += 1;
+      if (reconcile.needsAdjustment || reconcile.skippedAlreadyReconciled) {
+        pushIssue(diagnostics, 'debtDiffs', {
+          ...(reconcile.diagnostic || {}),
+          issueType: reconcile.skippedAlreadyReconciled ? 'debt_already_reconciled' : 'debt_balance_diff',
+          suggestedFix: reconcile.skippedAlreadyReconciled
+            ? 'Đã có AR-DEBT-ADJUSTMENT reconcile idempotent, không tạo thêm.'
+            : 'Chạy --apply --fix-debt-balance để tạo AR-DEBT-ADJUSTMENT debit/credit theo diff.'
+        }, options);
+      }
+      if (reconcile.skippedAlreadyReconciled) {
+        writes.skippedDebtAlreadyReconciled += 1;
+        debtAlreadyHandled = true;
+      }
+      if (reconcile.posted) {
+        writes.createdDebtAdjustments += 1;
+        if (reconcile.action === 'create-credit') writes.debtAdjustmentCreditAmount += Math.abs(finalDebtDiff);
+        if (reconcile.action === 'create-debit') writes.debtAdjustmentDebitAmount += Math.abs(finalDebtDiff);
+      }
+    } else {
+      const arBalance = await sumArBalance(keys, tx);
+      const diff = money(arBalance - money(allocation.debtAmount));
+      finalDebtDiff = diff;
+      if (diff !== 0) {
+        pushIssue(diagnostics, 'manualReviewRequired', diagnosticRow(order, allocation, {
+          issueType: 'allocation_debt_ar_diff',
+          arBalance,
+          expectedBalance: allocation.debtAmount,
+          diff,
+          suggestedFix: 'Kiểm tra ledger thiếu/trùng; với lỗi trả thưởng dùng --apply --fix-missing-reward-ledgers hoặc dùng --apply --fix-debt-balance để tự tạo AR-DEBT-ADJUSTMENT.'
+        }), options);
+        writes.manualReviewRequired += 1;
+      }
     }
 
-    if (!missingArRows.length && !missingFundRows.length && diff === 0) {
+    if (!missingArRows.length && !missingFundRows.length && finalDebtDiff === 0 && !debtAlreadyHandled) {
       writes.skippedAlreadyFixed += 1;
     }
   });
@@ -744,11 +805,17 @@ function buildSummary(orders = [], diagnostics = {}, writes = {}, options = {}) 
     amountConflicts: (diagnostics.amountConflicts || []).length,
     invalidAllocations: (diagnostics.invalidAllocations || []).length,
     manualReviewRequired: (diagnostics.manualReviewRequired || []).length,
+    debtDiffs: (diagnostics.debtDiffs || []).length,
     createdAllocations: Number(writes.createdAllocations || 0),
     createdArLedgers: Number(writes.createdArLedgers || 0),
     createdFundLedgers: Number(writes.createdFundLedgers || 0),
     createdRewardLedgers: Number(writes.createdRewardLedgers || 0),
+    createdDebtAdjustments: Number(writes.createdDebtAdjustments || 0),
     skippedAlreadyFixed: Number(writes.skippedAlreadyFixed || 0),
+    skippedDebtAlreadyReconciled: Number(writes.skippedDebtAlreadyReconciled || 0),
+    zeroToleranceApplied: Number(writes.zeroToleranceApplied || 0),
+    debtAdjustmentDebitAmount: Number(writes.debtAdjustmentDebitAmount || 0),
+    debtAdjustmentCreditAmount: Number(writes.debtAdjustmentCreditAmount || 0),
     errors: (diagnostics.errors || []).length,
     mode: options.apply ? 'apply' : 'dry-run'
   };
@@ -762,7 +829,7 @@ async function auditAndMaybeApply(options = {}) {
   const orders = await orderQuery;
   const versionsByKey = await loadLatestVersionsForOrders(orders);
   const diagnostics = emptyDiagnostics();
-  const writes = { createdAllocations: 0, createdArLedgers: 0, createdRewardLedgers: 0, createdFundLedgers: 0, skippedAlreadyFixed: 0, manualReviewRequired: 0 };
+  const writes = { createdAllocations: 0, createdArLedgers: 0, createdRewardLedgers: 0, createdFundLedgers: 0, createdDebtAdjustments: 0, skippedAlreadyFixed: 0, skippedDebtAlreadyReconciled: 0, zeroToleranceApplied: 0, debtAdjustmentDebitAmount: 0, debtAdjustmentCreditAmount: 0, manualReviewRequired: 0 };
   const run = await createRunLog(options);
 
   for (let i = 0; i < orders.length; i += batchSize) {
@@ -808,7 +875,7 @@ function printText(result = {}) {
   console.log(`Mode: ${result.apply ? 'apply' : 'dry-run'}`);
   console.log(`Filters: ${JSON.stringify(result.filters || {})}`);
   console.log('Summary:');
-  for (const key of ['scannedOrders', 'missingAllocations', 'missingRewardLedgers', 'missingArLedgers', 'missingFundLedgers', 'amountConflicts', 'invalidAllocations', 'manualReviewRequired', 'createdAllocations', 'createdArLedgers', 'createdFundLedgers', 'createdRewardLedgers', 'skippedAlreadyFixed', 'errors']) {
+  for (const key of ['scannedOrders', 'missingAllocations', 'missingRewardLedgers', 'missingArLedgers', 'missingFundLedgers', 'amountConflicts', 'invalidAllocations', 'manualReviewRequired', 'debtDiffs', 'createdAllocations', 'createdArLedgers', 'createdFundLedgers', 'createdRewardLedgers', 'createdDebtAdjustments', 'skippedAlreadyFixed', 'skippedDebtAlreadyReconciled', 'zeroToleranceApplied', 'debtAdjustmentDebitAmount', 'debtAdjustmentCreditAmount', 'errors']) {
     console.log(`- ${key}: ${summary[key] || 0}`);
   }
   for (const [name, rows] of Object.entries(result.diagnostics || {})) {

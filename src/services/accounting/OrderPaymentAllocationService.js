@@ -8,7 +8,9 @@ const fundService = require('../fundService');
 const DeliveryCloseoutService = require('./DeliveryCloseoutService');
 
 const ACTIVE_LEDGER_STATUSES = ['void', 'voided', 'cancelled', 'canceled', 'deleted', 'reversed'];
-const AMOUNT_FIELDS = ['receivableAmount', 'cashAmount', 'bankAmount', 'rewardAmount', 'returnAmount', 'debtAmount'];
+const DEFAULT_ZERO_TOLERANCE = 1000;
+const NON_NEGATIVE_AMOUNT_FIELDS = ['receivableAmount', 'cashAmount', 'bankAmount', 'rewardAmount', 'returnAmount'];
+const DEBT_AMOUNT_FIELDS = ['rawDebtAmount', 'normalizedDebtAmount', 'debtAmount', 'zeroToleranceAdjustmentAmount'];
 
 
 const CLOSEOUT_CASH_FIELDS = ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount', 'paymentCashAmount', 'paidCashAmount', 'paidCash', 'collectedCash', 'deliveryCashAmount', 'collectedCashAmount', 'cashCollected', 'cash'];
@@ -58,6 +60,39 @@ function positiveMoney(value) {
   return Math.max(0, amount);
 }
 
+function normalizeZeroTolerance(value, fallback = DEFAULT_ZERO_TOLERANCE) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(0, Math.round(parsed));
+}
+
+function normalizeDebtAmount(rawDebtAmount, zeroTolerance = DEFAULT_ZERO_TOLERANCE) {
+  const raw = money(rawDebtAmount);
+  const tolerance = normalizeZeroTolerance(zeroTolerance);
+  if (Math.abs(raw) <= tolerance) return 0;
+  return Math.max(0, raw);
+}
+
+function computeDebtBreakdown(amounts = {}, options = {}) {
+  const zeroTolerance = normalizeZeroTolerance(options.zeroTolerance ?? options.tolerance ?? amounts.zeroTolerance, DEFAULT_ZERO_TOLERANCE);
+  const rawDebtAmount = money(amounts.rawDebtAmount ?? (money(amounts.receivableAmount)
+    - money(amounts.cashAmount)
+    - money(amounts.bankAmount)
+    - money(amounts.rewardAmount)
+    - money(amounts.returnAmount)));
+  const normalizedDebtAmount = money(amounts.normalizedDebtAmount ?? normalizeDebtAmount(rawDebtAmount, zeroTolerance));
+  const debtAmount = money(amounts.debtAmount ?? normalizedDebtAmount);
+  const zeroToleranceAdjustmentAmount = money(rawDebtAmount - normalizedDebtAmount);
+  return {
+    rawDebtAmount,
+    normalizedDebtAmount,
+    debtAmount,
+    zeroTolerance,
+    zeroToleranceApplied: rawDebtAmount !== normalizedDebtAmount,
+    zeroToleranceAdjustmentAmount
+  };
+}
+
 function orderId(order = {}) {
   return clean(DeliveryCloseoutService.orderId(order) || order.salesOrderId || order.orderId || order._id || order.id);
 }
@@ -104,7 +139,12 @@ function diagnosticPayload(allocation = {}, extra = {}) {
     bankAmount: money(allocation.bankAmount),
     rewardAmount: money(allocation.rewardAmount),
     returnAmount: money(allocation.returnAmount),
+    rawDebtAmount: money(allocation.rawDebtAmount),
+    normalizedDebtAmount: money(allocation.normalizedDebtAmount),
     debtAmount: money(allocation.debtAmount),
+    zeroTolerance: Number(allocation.zeroTolerance || 0),
+    zeroToleranceApplied: Boolean(allocation.zeroToleranceApplied),
+    zeroToleranceAdjustmentAmount: money(allocation.zeroToleranceAdjustmentAmount),
     sourceId: clean(allocation.sourceId),
     sourceType: clean(allocation.sourceType),
     sourceVersion: Number(allocation.sourceVersion || 0),
@@ -123,8 +163,8 @@ function allocationError(code, message, allocation = {}, extra = {}) {
 }
 
 function validateAllocation(allocation = {}, options = {}) {
-  const tolerance = Math.max(0, Number(options.tolerance ?? 0) || 0);
-  for (const field of AMOUNT_FIELDS) {
+  const zeroTolerance = normalizeZeroTolerance(options.zeroTolerance ?? options.tolerance ?? allocation.zeroTolerance, DEFAULT_ZERO_TOLERANCE);
+  for (const field of NON_NEGATIVE_AMOUNT_FIELDS) {
     const value = money(allocation[field]);
     if (!Number.isFinite(value)) {
       throw allocationError('ORDER_PAYMENT_ALLOCATION_AMOUNT_INVALID', `orderPaymentAllocation field ${field} không phải số hợp lệ.`, allocation, { field, value: allocation[field] });
@@ -134,24 +174,52 @@ function validateAllocation(allocation = {}, options = {}) {
     }
   }
 
-  const expectedDebt = money(allocation.receivableAmount)
-    - money(allocation.cashAmount)
-    - money(allocation.bankAmount)
-    - money(allocation.rewardAmount)
-    - money(allocation.returnAmount);
-  const diff = money(allocation.receivableAmount)
+  for (const field of DEBT_AMOUNT_FIELDS) {
+    if (allocation[field] === undefined || allocation[field] === null || allocation[field] === '') continue;
+    const value = money(allocation[field]);
+    if (!Number.isFinite(value)) {
+      throw allocationError('ORDER_PAYMENT_ALLOCATION_AMOUNT_INVALID', `orderPaymentAllocation field ${field} không phải số hợp lệ.`, allocation, { field, value: allocation[field] });
+    }
+  }
+
+  const expectedBreakdown = computeDebtBreakdown(allocation, { zeroTolerance });
+  const rawDebtAmount = money(allocation.rawDebtAmount ?? expectedBreakdown.rawDebtAmount);
+  const normalizedDebtAmount = money(allocation.normalizedDebtAmount ?? expectedBreakdown.normalizedDebtAmount);
+  const debtAmount = money(allocation.debtAmount);
+  const zeroToleranceAdjustmentAmount = money(allocation.zeroToleranceAdjustmentAmount ?? (rawDebtAmount - normalizedDebtAmount));
+
+  const rawDiff = money(money(allocation.receivableAmount)
     - money(allocation.cashAmount)
     - money(allocation.bankAmount)
     - money(allocation.rewardAmount)
     - money(allocation.returnAmount)
-    - money(allocation.debtAmount);
-
-  if (Math.abs(diff) > tolerance) {
+    - rawDebtAmount);
+  if (rawDiff !== 0) {
     throw allocationError(
-      'ORDER_PAYMENT_ALLOCATION_INVARIANT_FAILED',
-      'Sai invariant phân bổ thanh toán: receivableAmount phải bằng cashAmount + bankAmount + rewardAmount + returnAmount + debtAmount.',
+      'ORDER_PAYMENT_ALLOCATION_RAW_INVARIANT_FAILED',
+      'Sai invariant phân bổ thô: receivableAmount phải bằng cashAmount + bankAmount + rewardAmount + returnAmount + rawDebtAmount.',
       allocation,
-      { expectedDebtAmount: expectedDebt, diff }
+      { rawDebtAmount, normalizedDebtAmount, zeroTolerance, zeroToleranceAdjustmentAmount, diff: rawDiff }
+    );
+  }
+
+  const normalizedDiff = money(debtAmount - normalizedDebtAmount);
+  if (normalizedDiff !== 0) {
+    throw allocationError(
+      'ORDER_PAYMENT_ALLOCATION_NORMALIZED_DEBT_MISMATCH',
+      'Sai nợ nghiệp vụ: debtAmount phải bằng normalizedDebtAmount sau Debt Zero Tolerance.',
+      allocation,
+      { rawDebtAmount, normalizedDebtAmount, debtAmount, zeroTolerance, zeroToleranceAdjustmentAmount, diff: normalizedDiff }
+    );
+  }
+
+  const adjustmentDiff = money(zeroToleranceAdjustmentAmount - (rawDebtAmount - normalizedDebtAmount));
+  if (adjustmentDiff !== 0) {
+    throw allocationError(
+      'ORDER_PAYMENT_ALLOCATION_ZERO_TOLERANCE_ADJUSTMENT_MISMATCH',
+      'Sai phần điều chỉnh Debt Zero Tolerance: zeroToleranceAdjustmentAmount phải bằng rawDebtAmount - normalizedDebtAmount.',
+      allocation,
+      { rawDebtAmount, normalizedDebtAmount, debtAmount, zeroTolerance, zeroToleranceAdjustmentAmount, diff: adjustmentDiff }
     );
   }
 
@@ -184,9 +252,39 @@ function buildAllocationFromCloseout(order = {}, closeout = {}, options = {}) {
     cashAmount = pickFirstPositiveMoney(sourceObjects, ['collectedAmount', 'paidAmount', 'paymentAmount', 'deliveryCollectedAmount']);
   }
 
-  const calculatedDebtAmount = receivableAmount - cashAmount - bankAmount - rewardAmount - returnAmount;
+  const rawDebtAmount = money(receivableAmount - cashAmount - bankAmount - rewardAmount - returnAmount);
+  const zeroTolerance = normalizeZeroTolerance(options.zeroTolerance ?? options.tolerance ?? closeout.zeroTolerance, DEFAULT_ZERO_TOLERANCE);
+  const normalizedDebtAmount = normalizeDebtAmount(rawDebtAmount, zeroTolerance);
+  const debtAmount = normalizedDebtAmount;
+  const zeroToleranceAdjustmentAmount = money(rawDebtAmount - normalizedDebtAmount);
+  const zeroToleranceApplied = rawDebtAmount !== normalizedDebtAmount;
   const explicitDebtAmount = pickFirstFiniteMoney(sourceObjects, CLOSEOUT_DEBT_FIELDS);
-  const debtAmount = positiveMoney(explicitDebtAmount !== null ? explicitDebtAmount : calculatedDebtAmount);
+  if (explicitDebtAmount !== null && Math.abs(money(explicitDebtAmount) - normalizedDebtAmount) > zeroTolerance) {
+    const preview = {
+      orderCode: orderCode(order) || identity.sourceCode,
+      orderId: orderId(order) || identity.sourceId,
+      customerCode: clean(order.customerCode || closeout.customerCode),
+      sourceType: clean(options.sourceType || 'delivery_closeout'),
+      sourceId: identity.sourceId,
+      sourceVersion: identity.sourceVersion,
+      receivableAmount,
+      cashAmount,
+      bankAmount,
+      rewardAmount,
+      returnAmount,
+      rawDebtAmount,
+      normalizedDebtAmount,
+      debtAmount,
+      zeroTolerance,
+      zeroToleranceApplied,
+      zeroToleranceAdjustmentAmount,
+      idempotencyKey: identity.idempotencyKey
+    };
+    throw allocationError('ORDER_PAYMENT_ALLOCATION_EXPLICIT_DEBT_CONFLICT', 'finalDebtAmount/debtAmount trong closeout lệch với normalizedDebtAmount sau Debt Zero Tolerance.', preview, {
+      explicitDebtAmount: money(explicitDebtAmount),
+      diff: money(money(explicitDebtAmount) - normalizedDebtAmount)
+    });
+  }
   const allocation = {
     allocationCode: identity.allocationCode,
     orderId: orderId(order) || identity.sourceId,
@@ -207,7 +305,12 @@ function buildAllocationFromCloseout(order = {}, closeout = {}, options = {}) {
     bankAmount,
     rewardAmount,
     returnAmount,
+    rawDebtAmount,
+    normalizedDebtAmount,
     debtAmount,
+    zeroTolerance,
+    zeroToleranceApplied,
+    zeroToleranceAdjustmentAmount,
     status: clean(options.status || closeout.status || 'posted'),
     postedArLedgerIds: Array.isArray(options.postedArLedgerIds) ? options.postedArLedgerIds : [],
     postedFundLedgerIds: Array.isArray(options.postedFundLedgerIds) ? options.postedFundLedgerIds : [],
@@ -219,7 +322,12 @@ function buildAllocationFromCloseout(order = {}, closeout = {}, options = {}) {
     metadata: {
       ...(options.metadata && typeof options.metadata === 'object' ? options.metadata : {}),
       source: 'salesOrders.deliveryCloseout',
-      invariant: 'receivableAmount = cashAmount + bankAmount + rewardAmount + returnAmount + debtAmount'
+      invariant: 'raw: receivableAmount = cashAmount + bankAmount + rewardAmount + returnAmount + rawDebtAmount; business: debtAmount = normalizedDebtAmount',
+      rawDebtAmount,
+      normalizedDebtAmount,
+      zeroTolerance,
+      zeroToleranceApplied,
+      zeroToleranceAdjustmentAmount
     },
     createdBy: actor,
     updatedBy: actor,
@@ -322,7 +430,12 @@ function baseArLedger(allocation = {}, extra = {}, options = {}) {
     metadata: {
       allocationCode: clean(allocation.allocationCode),
       allocationIdempotencyKey: clean(allocation.idempotencyKey),
-      invariantDebtAmount: money(allocation.debtAmount)
+      rawDebtAmount: money(allocation.rawDebtAmount),
+      normalizedDebtAmount: money(allocation.normalizedDebtAmount ?? allocation.debtAmount),
+      invariantDebtAmount: money(allocation.debtAmount),
+      zeroTolerance: Number(allocation.zeroTolerance || DEFAULT_ZERO_TOLERANCE),
+      zeroToleranceApplied: Boolean(allocation.zeroToleranceApplied),
+      zeroToleranceAdjustmentAmount: money(allocation.zeroToleranceAdjustmentAmount)
     }
   };
 }
@@ -492,6 +605,9 @@ function buildAllocationLookup(allocations = []) {
 }
 
 module.exports = {
+  DEFAULT_ZERO_TOLERANCE,
+  normalizeDebtAmount,
+  computeDebtBreakdown,
   buildAllocationFromCloseout,
   validateAllocation,
   upsertAllocation,
@@ -506,6 +622,9 @@ module.exports = {
   _internal: {
     money,
     positiveMoney,
+    normalizeZeroTolerance,
+    normalizeDebtAmount,
+    computeDebtBreakdown,
     diagnosticPayload,
     allocationError,
     allocationIdentity,

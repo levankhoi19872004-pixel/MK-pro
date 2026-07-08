@@ -9,6 +9,7 @@ const { compactDeliveryOrderKeys } = require('../master-order/masterOrderIdentit
 const { findReturnOrdersForDeliveryChildren } = require('../master-order/masterOrderReturn.impl');
 const DeliveryCloseoutService = require('./DeliveryCloseoutService');
 const OrderPaymentAllocationService = require('./OrderPaymentAllocationService');
+const OrderPaymentDebtReconcileService = require('./OrderPaymentDebtReconcileService');
 const readModelSyncJobService = require('../readModelSyncJob.service');
 
 const CONFIRM_GUARD_TTL_MS = Math.max(1000, Number(process.env.CLOSEOUT_CONFIRM_GUARD_TTL_MS || 8000));
@@ -509,12 +510,27 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     closeoutScope: confirmedCloseout.closeoutScope || 'selected_orders',
     note: clean(options.note || options.reason || `Phân bổ thanh toán từ chốt giao hàng ${DeliveryCloseoutService.orderCode(order)}`)
   });
-  const arResult = {
-    posted: (allocationResult.arLedgers || []).length > 0,
-    entry: (allocationResult.arLedgers || [])[0] || null,
+  const debtReconcileResult = await OrderPaymentDebtReconcileService.reconcileOneOrder({
+    order: updatedOrderForLedger,
     allocation: allocationResult.allocation,
-    arLedgers: allocationResult.arLedgers || [],
-    fundLedgers: allocationResult.fundLedgers || []
+    apply: true,
+    zeroTolerance: OrderPaymentAllocationService.DEFAULT_ZERO_TOLERANCE || 1000,
+    actor,
+    session: options.session
+  });
+  const debtAdjustmentLedger = debtReconcileResult && debtReconcileResult.posted ? debtReconcileResult.ledger : null;
+  const arLedgers = [
+    ...(allocationResult.arLedgers || []),
+    ...(debtAdjustmentLedger ? [debtAdjustmentLedger] : [])
+  ];
+  const arResult = {
+    posted: arLedgers.length > 0,
+    entry: arLedgers[0] || null,
+    allocation: allocationResult.allocation,
+    arLedgers,
+    fundLedgers: allocationResult.fundLedgers || [],
+    debtReconcile: debtReconcileResult || null,
+    debtAdjustmentLedger
   };
   await auditService.log('ACCOUNTING_CONFIRM_DELIVERY_CLOSEOUT', {
     refType: 'SALES_ORDER',
