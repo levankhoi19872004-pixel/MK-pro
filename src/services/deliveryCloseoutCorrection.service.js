@@ -2,10 +2,12 @@
 
 const crypto = require('node:crypto');
 const dateUtil = require('../utils/date.util');
-const { toNumber } = require('../utils/common.util');
+const { toNumber, makeId } = require('../utils/common.util');
 const { calculateDeliveryDebtAmount, normalizeDebtAmount } = require('../constants/finance.constants');
 const { withOptionalMongoTransaction } = require('../utils/transaction.util');
 const SalesOrder = require('../models/SalesOrder');
+const ReturnOrder = require('../models/ReturnOrder');
+const returnOrderRepository = require('../repositories/returnOrderRepository');
 const DeliveryCloseoutCorrection = require('../models/DeliveryCloseoutCorrection');
 const DeliveryCloseoutVersion = require('../models/DeliveryCloseoutVersion');
 const ArDebtAdjustmentPostingService = require('./accounting/ArDebtAdjustmentPostingService');
@@ -19,6 +21,11 @@ function text(value = '') {
 function money(value) {
   const n = Number(toNumber(value));
   return Number.isFinite(n) ? Math.round(n) : 0;
+}
+
+function quantity(value) {
+  const n = Number(toNumber(value));
+  return Number.isFinite(n) ? n : 0;
 }
 
 
@@ -224,27 +231,39 @@ function buildFinalPaymentLines(currentState = {}, nextState = {}) {
 function itemAdjustmentAmount(item = {}) {
   if (item.adjustmentAmount !== undefined) return money(item.adjustmentAmount);
   if (item.oldAmount !== undefined || item.newAmount !== undefined) return money(item.newAmount) - money(item.oldAmount);
-  const oldQty = money(item.oldReturnQty ?? item.oldQty ?? item.oldQuantity ?? 0);
-  const newQty = money(item.newReturnQty ?? item.newQty ?? item.newQuantity ?? item.returnQty ?? item.qty ?? 0);
+  const oldQty = quantity(item.oldReturnQty ?? item.currentReturnQty ?? item.oldQty ?? item.oldQuantity ?? 0);
+  const newQty = quantity(item.newReturnQty ?? item.desiredReturnQty ?? item.newQty ?? item.newQuantity ?? item.returnQty ?? item.qty ?? oldQty);
   const price = money(item.unitPrice ?? item.salePrice ?? item.price ?? item.finalPrice ?? 0);
   return money((newQty - oldQty) * price);
 }
 
+function returnAdjustmentInputItems(input = {}) {
+  if (input.returnAdjustment && Array.isArray(input.returnAdjustment.items)) return input.returnAdjustment.items;
+  if (Array.isArray(input.returnAdjustmentItems)) return input.returnAdjustmentItems;
+  if (Array.isArray(input.correctedReturnItems)) return input.correctedReturnItems;
+  return [];
+}
+
 function normalizeReturnAdjustmentItems(items = []) {
   return (Array.isArray(items) ? items : []).map((item) => {
-    const oldQty = money(item.oldReturnQty ?? item.oldQty ?? item.oldQuantity ?? 0);
-    const newQty = money(item.newReturnQty ?? item.newQty ?? item.newQuantity ?? item.returnQty ?? item.qty ?? oldQty);
+    const oldQty = quantity(item.oldReturnQty ?? item.currentReturnQty ?? item.oldQty ?? item.oldQuantity ?? 0);
+    const newQty = quantity(item.newReturnQty ?? item.desiredReturnQty ?? item.newQty ?? item.newQuantity ?? item.returnQty ?? item.qty ?? oldQty);
     const unitPrice = money(item.unitPrice ?? item.salePrice ?? item.price ?? item.finalPrice ?? 0);
-    const adjustmentQty = item.adjustmentQty !== undefined ? money(item.adjustmentQty) : money(newQty - oldQty);
+    const adjustmentQty = item.adjustmentQty !== undefined ? quantity(item.adjustmentQty) : quantity(newQty - oldQty);
     const adjustmentAmount = itemAdjustmentAmount({ ...item, oldReturnQty: oldQty, newReturnQty: newQty, unitPrice });
     return {
       productCode: text(item.productCode || item.code || item.sku),
       productName: text(item.productName || item.name || item.description),
       oldReturnQty: oldQty,
+      currentReturnQty: oldQty,
       newReturnQty: newQty,
+      desiredReturnQty: newQty,
+      deliveredQty: quantity(item.deliveredQty ?? item.deliveryQty ?? item.shipQty ?? 0),
       unitPrice,
       adjustmentQty,
+      deltaReturnQty: adjustmentQty,
       adjustmentAmount,
+      deltaReturnAmount: adjustmentAmount,
       note: text(item.note || '')
     };
   });
@@ -308,7 +327,7 @@ function buildIdempotencyKey(input = {}, order = {}) {
   return [
     'DELIVERY_CLOSEOUT_CORRECTION',
     closeout.id,
-    hash(stableJson(input.correctedReturnItems || input.returnAdjustmentItems || [])),
+    hash(stableJson(returnAdjustmentInputItems(input))),
     hash(stableJson(input.correctedCashLines || input.cashAdjustmentLines || [])),
     hash(stableJson(input.paymentCorrection || {})),
     hash(stableJson({ returnAdjustmentAmount: money(input.returnAdjustmentAmount), cashAdjustmentAmount: money(input.cashAdjustmentAmount), debtAdjustmentAmount: input.debtAdjustmentAmount === undefined ? null : money(input.debtAdjustmentAmount) })),
@@ -576,24 +595,466 @@ function syntheticOrderFromAdjustment(adjustment = {}, version = null) {
 }
 
 async function findOrderForCorrection(input = {}, options = {}) {
-  const ref = text(input.originalCloseoutId || input.closeoutId || input.orderId || input.orderCode || input.salesOrderId || input.salesOrderCode || input.id || input.code);
-  const filter = buildOrderLookup(ref);
-  if (!filter) {
+  const refs = uniqueText([
+    input.orderId,
+    input.salesOrderId,
+    input.orderCode,
+    input.salesOrderCode,
+    input.canonicalOrderId,
+    input.originalCloseoutId,
+    input.closeoutId,
+    input.id,
+    input.code
+  ]);
+  if (!refs.length) {
     const err = new Error('Thiếu mã closeout/đơn bán để tạo điều chỉnh.');
     err.code = 'DELIVERY_CLOSEOUT_CORRECTION_MISSING_REF';
     err.status = 400;
     throw err;
   }
-  let query = SalesOrder.findOne(filter).lean();
+
+  for (const ref of refs) {
+    const filter = buildOrderLookup(ref);
+    if (!filter) continue;
+    let query = SalesOrder.findOne(filter).lean();
+    if (options.session) query = query.session(options.session);
+    const order = await query;
+    if (order) return order;
+  }
+
+  const err = new Error('Không tìm thấy đơn/closeout gốc để tạo điều chỉnh.');
+  err.code = 'DELIVERY_CLOSEOUT_CORRECTION_ORDER_NOT_FOUND';
+  err.status = 404;
+  throw err;
+}
+
+
+function orderItemProductKey(item = {}) {
+  const code = text(item.productCode || item.code || item.sku || item.itemCode || item.productId);
+  if (code) return `code:${code}`;
+  return `name:${text(item.productName || item.name || item.description || item.itemName).toLowerCase()}|price:${money(item.unitPrice ?? item.salePrice ?? item.price ?? item.finalPrice ?? item.priceAfterPromotion ?? item.actualPrice)}`;
+}
+
+function returnItemProductKey(item = {}) {
+  const code = text(item.productCode || item.code || item.sku || item.itemCode || item.productId);
+  if (code) return `code:${code}`;
+  return `name:${text(item.productName || item.name || item.description || item.itemName).toLowerCase()}|price:${money(item.unitPrice ?? item.salePrice ?? item.price ?? item.finalPrice ?? item.priceAfterPromotion ?? item.actualPrice)}`;
+}
+
+function orderDeliveredQty(item = {}) {
+  return quantity(
+    item.deliveredQty
+      ?? item.deliveryQty
+      ?? item.shipQty
+      ?? item.soldQty
+      ?? item.quantitySold
+      ?? item.orderQty
+      ?? item.saleQty
+      ?? item.totalQty
+      ?? item.quantity
+      ?? item.qty
+      ?? item.looseQty
+      ?? item.units
+  );
+}
+
+function orderUnitPrice(item = {}) {
+  return money(item.unitPrice ?? item.salePrice ?? item.price ?? item.finalPrice ?? item.priceAfterPromotion ?? item.actualPrice);
+}
+
+function orderSourceItems(order = {}) {
+  return []
+    .concat(Array.isArray(order.items) ? order.items : [])
+    .concat(Array.isArray(order.orderItems) ? order.orderItems : [])
+    .concat(Array.isArray(order.soldItems) ? order.soldItems : [])
+    .concat(Array.isArray(order.products) ? order.products : [])
+    .concat(Array.isArray(order.lines) ? order.lines : []);
+}
+
+function compactDeliveredItemsFromOrder(order = {}) {
+  const map = new Map();
+  for (const raw of orderSourceItems(order)) {
+    const productCode = text(raw.productCode || raw.code || raw.sku || raw.itemCode || raw.productId);
+    const productName = text(raw.productName || raw.name || raw.description || raw.itemName);
+    const unitPrice = orderUnitPrice(raw);
+    const deliveredQty = orderDeliveredQty(raw);
+    const key = orderItemProductKey({ ...raw, productCode, productName, unitPrice });
+    if (!productCode && !productName && !deliveredQty) continue;
+    if (!map.has(key)) {
+      map.set(key, {
+        productKey: key,
+        productCode,
+        productName,
+        unit: text(raw.unit || raw.baseUnit || raw.uom || raw.unitName),
+        deliveredQty: 0,
+        unitPrice,
+        deliveredAmount: 0,
+        source: { deliveredQtySource: 'orders.items' }
+      });
+    }
+    const row = map.get(key);
+    row.deliveredQty = quantity(row.deliveredQty + deliveredQty);
+    row.deliveredAmount = money(row.deliveredAmount + (money(raw.amount ?? raw.lineTotal ?? raw.totalAmount ?? raw.finalAmount) || deliveredQty * unitPrice));
+  }
+  return Array.from(map.values());
+}
+
+function returnOrderLookupRefs(order = {}) {
+  return uniqueText([
+    order.id, order._id, order.code, order.orderCode, order.salesOrderCode, order.documentCode, order.invoiceCode,
+    order.salesOrderId, order.sourceOrderId, order.sourceOrderCode
+  ]);
+}
+
+function buildReturnOrderLookupForOrder(order = {}) {
+  const refs = returnOrderLookupRefs(order);
+  if (!refs.length) return null;
+  return {
+    deleted: { $ne: true },
+    isDeleted: { $ne: true },
+    $or: [
+      { salesOrderId: { $in: refs } },
+      { orderId: { $in: refs } },
+      { sourceOrderId: { $in: refs } },
+      { originalOrderId: { $in: refs } },
+      { deliveryOrderId: { $in: refs } },
+      { salesOrderCode: { $in: refs } },
+      { orderCode: { $in: refs } },
+      { sourceOrderCode: { $in: refs } },
+      { originalOrderCode: { $in: refs } },
+      { deliveryOrderCode: { $in: refs } },
+      { code: { $in: refs.map((ref) => `RO-${String(ref).replace(/^RO[-_]?/i, '')}`) } }
+    ]
+  };
+}
+
+function returnOrderActive(row = {}) {
+  const status = text(row.status || row.returnStatus || row.returnState).toLowerCase();
+  return !['cancelled', 'canceled', 'void', 'voided', 'deleted', 'removed', 'rejected', 'duplicate_cancelled'].includes(status)
+    && row.deleted !== true
+    && row.isDeleted !== true;
+}
+
+function returnOrderLockedForDirectEdit(row = {}) {
+  const accountingStatus = text(row.accountingStatus || row.status || row.returnStatus || row.returnState).toLowerCase();
+  const stockInStatus = text(row.stockInStatus || row.warehouseReceiveStatus || row.stockReceiveStatus).toLowerCase();
+  return row.inventoryPosted === true
+    || row.stockPosted === true
+    || stockInStatus === 'posted'
+    || row.accountingConfirmed === true
+    || ['accounting_confirmed', 'confirmed', 'posted'].includes(accountingStatus);
+}
+
+function returnItemQty(item = {}) {
+  return quantity(item.returnQty ?? item.returnedQty ?? item.actualReturnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.quantity ?? item.qty ?? item.totalQty ?? item.units ?? item.looseQty);
+}
+
+function returnItemUnitPrice(item = {}) {
+  return money(item.unitPrice ?? item.salePrice ?? item.price ?? item.finalPrice ?? item.actualPrice ?? item.priceAfterPromotion);
+}
+
+async function loadReturnOrdersForOrder(order = {}, options = {}) {
+  const filter = buildReturnOrderLookupForOrder(order);
+  if (!filter) return [];
+  let query = ReturnOrder.find(filter).sort({ updatedAt: -1, createdAt: -1 }).lean();
   if (options.session) query = query.session(options.session);
-  const order = await query;
-  if (!order) {
-    const err = new Error('Không tìm thấy đơn/closeout gốc để tạo điều chỉnh.');
-    err.code = 'DELIVERY_CLOSEOUT_CORRECTION_ORDER_NOT_FOUND';
-    err.status = 404;
+  return query;
+}
+
+function currentReturnMapFromOrders(returnOrders = []) {
+  const map = new Map();
+  for (const ro of returnOrders || []) {
+    if (!returnOrderActive(ro)) continue;
+    for (const item of Array.isArray(ro.items) ? ro.items : []) {
+      const unitPrice = returnItemUnitPrice(item);
+      const normalized = {
+        productCode: text(item.productCode || item.code || item.sku || item.itemCode || item.productId),
+        productName: text(item.productName || item.name || item.description || item.itemName),
+        unitPrice
+      };
+      const key = returnItemProductKey(normalized);
+      if (!map.has(key)) {
+        map.set(key, { productKey: key, ...normalized, currentReturnQty: 0, currentReturnAmount: 0, source: { currentReturnQtySource: 'returnOrders.items' } });
+      }
+      const row = map.get(key);
+      const qty = returnItemQty(item);
+      row.currentReturnQty = quantity(row.currentReturnQty + qty);
+      row.currentReturnAmount = money(row.currentReturnAmount + money(item.returnAmount ?? item.amount ?? item.lineTotal ?? item.totalAmount ?? (qty * unitPrice)));
+    }
+  }
+  return map;
+}
+
+async function buildDeliveryAdjustmentReturnRows(input = {}, options = {}) {
+  const order = options.order || await findOrderForCorrection(input, options);
+  const returnOrders = await loadReturnOrdersForOrder(order, options);
+  const deliveredRows = compactDeliveredItemsFromOrder(order);
+  const returnMap = currentReturnMapFromOrders(returnOrders);
+  const rows = deliveredRows.map((item) => {
+    const ret = returnMap.get(item.productKey) || { currentReturnQty: 0, currentReturnAmount: 0 };
+    const currentReturnQty = quantity(ret.currentReturnQty);
+    const unitPrice = money(item.unitPrice || ret.unitPrice || 0);
+    return {
+      productKey: item.productKey,
+      productCode: item.productCode,
+      productName: item.productName,
+      unit: item.unit,
+      deliveredQty: quantity(item.deliveredQty),
+      unitPrice,
+      deliveredAmount: money(item.deliveredAmount || item.deliveredQty * unitPrice),
+      currentReturnQty,
+      oldReturnQty: currentReturnQty,
+      desiredReturnQty: currentReturnQty,
+      newReturnQty: currentReturnQty,
+      deltaReturnQty: 0,
+      returnAmount: money(currentReturnQty * unitPrice),
+      deltaReturnAmount: 0,
+      source: { deliveredQtySource: 'orders.items', currentReturnQtySource: 'returnOrders.items' }
+    };
+  });
+
+  for (const [key, ret] of returnMap.entries()) {
+    if (rows.some((row) => row.productKey === key)) continue;
+    const currentReturnQty = quantity(ret.currentReturnQty);
+    rows.push({
+      productKey: key,
+      productCode: ret.productCode,
+      productName: ret.productName,
+      unit: '',
+      deliveredQty: currentReturnQty,
+      unitPrice: money(ret.unitPrice),
+      deliveredAmount: money(currentReturnQty * money(ret.unitPrice)),
+      currentReturnQty,
+      oldReturnQty: currentReturnQty,
+      desiredReturnQty: currentReturnQty,
+      newReturnQty: currentReturnQty,
+      deltaReturnQty: 0,
+      returnAmount: money(ret.currentReturnAmount || currentReturnQty * money(ret.unitPrice)),
+      deltaReturnAmount: 0,
+      source: { deliveredQtySource: 'returnOrders_unmatched_fallback', currentReturnQtySource: 'returnOrders.items' },
+      warning: 'Mã hàng trả chưa khớp với orders.items; giữ dòng để tránh mất dữ liệu hiện hữu.'
+    });
+  }
+
+  return {
+    orderId: orderId(order),
+    orderCode: orderCode(order),
+    returnRows: rows,
+    rows,
+    returnOrders: returnOrders.filter(returnOrderActive),
+    source: 'orders.items + returnOrders.items',
+    diagnostics: {
+      deliveredQtySource: 'orders.items',
+      currentReturnQtySource: 'returnOrders.items',
+      returnOrderCount: returnOrders.filter(returnOrderActive).length
+    }
+  };
+}
+
+function returnLineDocumentFromRow(row = {}, desiredReturnQty = 0) {
+  const unitPrice = money(row.unitPrice ?? row.salePrice ?? row.price ?? row.finalPrice ?? 0);
+  const returnQty = quantity(desiredReturnQty);
+  const amount = money(returnQty * unitPrice);
+  return {
+    productCode: text(row.productCode || row.code || row.sku || row.itemCode || row.productId),
+    productName: text(row.productName || row.name || row.description || row.itemName),
+    unit: text(row.unit || row.baseUnit || row.uom || row.unitName),
+    deliveredQty: quantity(row.deliveredQty),
+    soldQty: quantity(row.deliveredQty),
+    returnQty,
+    qtyReturn: returnQty,
+    returnQuantity: returnQty,
+    returnedQty: returnQty,
+    quantity: returnQty,
+    qty: returnQty,
+    unitPrice,
+    salePrice: unitPrice,
+    price: unitPrice,
+    returnAmount: amount,
+    amount,
+    totalAmount: amount
+  };
+}
+
+function returnAdjustmentItemKey(item = {}) {
+  return returnItemProductKey({
+    productCode: item.productCode,
+    productName: item.productName,
+    unitPrice: item.unitPrice
+  });
+}
+
+function canonicalReturnCodeForOrder(order = {}) {
+  const clean = String(orderCode(order) || orderId(order) || '').replace(/^RO[-_]?/i, '').trim();
+  return clean ? `RO-${clean}` : makeId('RO');
+}
+
+async function applyReturnOrderAdjustment({ order = {}, items = [], actor = 'system', reason = '', note = '' } = {}, options = {}) {
+  const normalizedInput = normalizeReturnAdjustmentItems(items);
+  if (!normalizedInput.length) return { skipped: true, returnUpdated: false, reason: 'no_return_adjustment_items', updatedLines: 0, warnings: [] };
+
+  const detail = await buildDeliveryAdjustmentReturnRows({ orderId: orderId(order), orderCode: orderCode(order) }, { ...options, order });
+  const canonicalByKey = new Map(detail.returnRows.map((row) => [row.productKey || returnAdjustmentItemKey(row), row]));
+  const desiredByKey = new Map(detail.returnRows.map((row) => [row.productKey || returnAdjustmentItemKey(row), quantity(row.currentReturnQty)]));
+  const warnings = [];
+
+  for (const item of normalizedInput) {
+    const key = returnAdjustmentItemKey(item);
+    let canonical = canonicalByKey.get(key);
+    if (!canonical && item.productCode) {
+      canonical = detail.returnRows.find((row) => text(row.productCode) === text(item.productCode));
+    }
+    if (!canonical && text(item.productName)) {
+      canonical = detail.returnRows.find((row) => text(row.productName).toLowerCase() === text(item.productName).toLowerCase());
+    }
+    const deliveredQty = quantity((canonical && canonical.deliveredQty) || item.deliveredQty || 0);
+    const desiredQty = quantity(item.newReturnQty ?? item.desiredReturnQty ?? item.returnQty ?? 0);
+    if (desiredQty < 0) {
+      const err = new Error('SL trả đúng không được âm.');
+      err.code = 'RETURN_ADJUSTMENT_NEGATIVE_QTY';
+      err.status = 400;
+      throw err;
+    }
+    if (desiredQty > deliveredQty) {
+      const err = new Error('SL trả đúng không được lớn hơn SL giao.');
+      err.code = 'RETURN_ADJUSTMENT_QTY_EXCEEDS_DELIVERED';
+      err.status = 400;
+      err.data = { productCode: item.productCode, productName: item.productName, deliveredQty, desiredQty };
+      throw err;
+    }
+    if (!canonical) {
+      const err = new Error('Không tìm thấy sản phẩm trong đơn gốc để điều chỉnh hàng trả.');
+      err.code = 'RETURN_ADJUSTMENT_PRODUCT_NOT_IN_ORDER';
+      err.status = 400;
+      err.data = { productCode: item.productCode, productName: item.productName };
+      throw err;
+    }
+    desiredByKey.set(canonical.productKey || key, desiredQty);
+  }
+
+  const activeReturnOrders = (detail.returnOrders || []).filter(returnOrderActive);
+  const locked = activeReturnOrders.find(returnOrderLockedForDirectEdit);
+  const changed = detail.returnRows.some((row) => quantity(desiredByKey.get(row.productKey)) !== quantity(row.currentReturnQty));
+  if (!changed) return { skipped: true, returnUpdated: false, reason: 'no_return_quantity_delta', updatedLines: 0, warnings };
+  if (locked) {
+    const err = new Error('Phiếu trả hàng đã nhập kho/xác nhận kế toán, không thể sửa trực tiếp trong điều chỉnh đơn giao.');
+    err.code = 'RETURN_ORDER_ALREADY_POSTED_OR_CONFIRMED';
+    err.status = 409;
+    err.data = { returnOrderId: text(locked.id), returnOrderCode: text(locked.code), stockPosted: locked.stockPosted === true, stockInStatus: text(locked.stockInStatus), accountingStatus: text(locked.accountingStatus) };
     throw err;
   }
-  return order;
+
+  const primary = activeReturnOrders[0] || null;
+  const selected = primary || {};
+  const now = options.now || dateUtil.nowIso();
+  const desiredLines = detail.returnRows
+    .map((row) => returnLineDocumentFromRow(row, desiredByKey.get(row.productKey) || 0))
+    .filter((line) => quantity(line.returnQty) > 0);
+  const totalQuantity = desiredLines.reduce((sum, line) => quantity(sum + quantity(line.returnQty)), 0);
+  const totalAmount = desiredLines.reduce((sum, line) => money(sum + money(line.returnAmount ?? line.amount)), 0);
+
+  if (!primary && totalQuantity <= 0) return { skipped: true, returnUpdated: false, reason: 'no_return_order_needed', updatedLines: 0, warnings };
+
+  const returnCode = text(selected.code || selected.id || canonicalReturnCodeForOrder(order));
+  const lifecycleStatus = totalQuantity > 0 ? 'waiting_receive' : 'cancelled';
+  const payload = {
+    ...selected,
+    id: text(selected.id || returnCode),
+    code: returnCode,
+    date: dateUtil.toDateOnly(selected.date || order.deliveryDate || order.orderDate || order.date || now),
+    documentDate: dateUtil.toDateOnly(selected.documentDate || order.deliveryDate || order.orderDate || order.date || now),
+    deliveryDate: dateUtil.toDateOnly(selected.deliveryDate || order.deliveryDate || order.orderDate || order.date || now),
+    returnDate: dateUtil.toDateOnly(selected.returnDate || order.deliveryDate || order.orderDate || order.date || now),
+    salesOrderId: text(order.id || order._id || selected.salesOrderId || selected.orderId),
+    salesOrderCode: orderCode(order) || text(selected.salesOrderCode || selected.orderCode),
+    orderId: text(order.id || order._id || selected.orderId || selected.salesOrderId),
+    orderCode: orderCode(order) || text(selected.orderCode || selected.salesOrderCode),
+    sourceOrderId: text(order.id || order._id || selected.sourceOrderId),
+    sourceOrderCode: orderCode(order) || text(selected.sourceOrderCode),
+    customerId: text(order.customerId || selected.customerId),
+    customerCode: text(order.customerCode || selected.customerCode),
+    customerName: text(order.customerName || selected.customerName),
+    salesStaffId: text(order.salesStaffId || selected.salesStaffId),
+    salesStaffCode: text(order.salesStaffCode || order.salesmanCode || order.nvbhCode || selected.salesStaffCode || selected.salesmanCode || selected.nvbhCode),
+    salesStaffName: text(order.salesStaffName || order.salesmanName || order.nvbhName || selected.salesStaffName || selected.salesmanName || selected.nvbhName),
+    salesmanCode: text(order.salesStaffCode || order.salesmanCode || order.nvbhCode || selected.salesmanCode || selected.salesStaffCode),
+    salesmanName: text(order.salesStaffName || order.salesmanName || order.nvbhName || selected.salesmanName || selected.salesStaffName),
+    deliveryStaffId: text(order.deliveryStaffId || selected.deliveryStaffId),
+    deliveryStaffCode: text(order.deliveryStaffCode || order.deliveryCode || order.nvghCode || selected.deliveryStaffCode || selected.deliveryCode || selected.nvghCode),
+    deliveryStaffName: text(order.deliveryStaffName || order.deliveryName || order.nvghName || selected.deliveryStaffName || selected.deliveryName || selected.nvghName),
+    staffCode: text(order.deliveryStaffCode || order.deliveryCode || order.nvghCode || selected.staffCode),
+    staffName: text(order.deliveryStaffName || order.deliveryName || order.nvghName || selected.staffName),
+    masterOrderId: text(order.masterOrderId || selected.masterOrderId),
+    masterOrderCode: text(order.masterOrderCode || selected.masterOrderCode),
+    items: desiredLines,
+    totalQuantity,
+    totalQty: totalQuantity,
+    totalAmount,
+    amount: totalAmount,
+    returnAmount: totalAmount,
+    debtReduction: totalAmount,
+    totalReturnAmount: totalAmount,
+    status: lifecycleStatus,
+    returnStatus: lifecycleStatus,
+    returnState: lifecycleStatus,
+    returnMergeStatus: text(selected.returnMergeStatus || 'unmerged'),
+    warehouseReceiveStatus: lifecycleStatus,
+    warehouseCheckStatus: totalQuantity > 0 ? text(selected.warehouseCheckStatus || 'pending') : 'cancelled',
+    stockInStatus: totalQuantity > 0 ? text(selected.stockInStatus || 'pending') : 'cancelled',
+    stockPosted: false,
+    stockTransactionIds: Array.isArray(selected.stockTransactionIds) ? selected.stockTransactionIds : [],
+    source: text(selected.source || 'delivery_adjustment_return_correction'),
+    accountingStatus: totalQuantity > 0 ? text(selected.accountingStatus || 'pending') : 'cancelled',
+    accountingConfirmed: false,
+    note: [text(selected.note), text(note || reason)].filter(Boolean).join(' | '),
+    adjustedBy: actor,
+    adjustedAt: now,
+    updatedBy: actor,
+    updatedAt: now,
+    createdAt: selected.createdAt || now
+  };
+
+  await returnOrderRepository.upsert(payload, { session: options.session });
+
+  const clearedDuplicateReturnOrderIds = [];
+  for (const duplicate of activeReturnOrders.slice(1)) {
+    const cleared = {
+      ...duplicate,
+      items: [],
+      totalQuantity: 0,
+      totalQty: 0,
+      totalAmount: 0,
+      amount: 0,
+      returnAmount: 0,
+      debtReduction: 0,
+      totalReturnAmount: 0,
+      status: 'cancelled',
+      returnStatus: 'cancelled',
+      returnState: 'cancelled',
+      warehouseReceiveStatus: 'cancelled',
+      warehouseCheckStatus: 'cancelled',
+      stockInStatus: 'cancelled',
+      accountingStatus: 'cancelled',
+      note: [text(duplicate.note), `Auto-cancel duplicate by delivery adjustment ${orderCode(order) || orderId(order)}`].filter(Boolean).join(' | '),
+      updatedAt: now,
+      updatedBy: actor
+    };
+    await returnOrderRepository.upsert(cleared, { session: options.session });
+    clearedDuplicateReturnOrderIds.push(text(duplicate.id || duplicate.code));
+  }
+  if (clearedDuplicateReturnOrderIds.length) warnings.push(`Đã hủy ${clearedDuplicateReturnOrderIds.length} phiếu trả trùng chưa post để tránh cộng lặp số lượng trả.`);
+
+  return {
+    returnUpdated: true,
+    returnOrderId: payload.id,
+    returnOrderCode: payload.code,
+    returnUpdatedLines: desiredLines.length,
+    updatedLines: desiredLines.length,
+    totalQuantity,
+    totalAmount,
+    warnings,
+    clearedDuplicateReturnOrderIds
+  };
 }
 
 async function latestVersionForOriginal(originalCloseoutId = '', options = {}) {
@@ -721,7 +1182,8 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
   const now = options.now || dateUtil.nowIso();
   const actor = actorName(input.actor || options.actor || input.createdBy || input.correctedBy || 'accountant');
   const currentState = openOrderPaymentState(order);
-  const returnAdjustmentItems = normalizeReturnAdjustmentItems(input.correctedReturnItems || input.returnAdjustmentItems || []);
+  const rawReturnAdjustmentItems = returnAdjustmentInputItems(input);
+  const returnAdjustmentItems = normalizeReturnAdjustmentItems(rawReturnAdjustmentItems);
   const rawCashLines = input.correctedCashLines || input.cashAdjustmentLines || [];
   const explicitReturnAdjustment = input.returnAdjustmentAmount !== undefined ? money(input.returnAdjustmentAmount) : null;
   const returnAdjustmentAmount = money(explicitReturnAdjustment === null ? sumAdjustments(returnAdjustmentItems) : explicitReturnAdjustment);
@@ -847,6 +1309,14 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
     metadata: { phase: 'Phase173', preCloseoutAdjustment: true, correctionSemantics: 'final_state_value', doesNotPostLedger: true }
   };
 
+  const returnOrderAdjustment = await applyReturnOrderAdjustment({
+    order,
+    items: rawReturnAdjustmentItems,
+    actor,
+    reason: correction.reason || correction.auditReason,
+    note: correction.note
+  }, { ...options, session, now });
+
   await DeliveryCloseoutCorrection.findOneAndUpdate(
     { id: correctionId },
     { $setOnInsert: correction },
@@ -878,7 +1348,9 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
     newCloseoutVersion: null,
     arDebtAdjustmentLedger: null,
     arDebtAdjustment: { posted: false, skipped: true, reason: 'pre_closeout_no_ledger' },
-    message: 'Đã cập nhật điều chỉnh trước chốt sổ; chưa sinh AR ledger.'
+    returnOrderAdjustment,
+    returnUpdated: Boolean(returnOrderAdjustment && returnOrderAdjustment.returnUpdated),
+    message: returnOrderAdjustment && returnOrderAdjustment.returnUpdated ? 'Đã cập nhật điều chỉnh trước chốt sổ và ghi nhận hàng trả.' : 'Đã cập nhật điều chỉnh trước chốt sổ; chưa sinh AR ledger.'
   };
 }
 
@@ -897,7 +1369,8 @@ async function createCorrection(input = {}, options = {}) {
     const existing = await DeliveryCloseoutCorrection.findOne({ idempotencyKey }).lean().session(session);
     if (existing) return loadIdempotentResult(existing, { ...options, session });
 
-    const returnAdjustmentItems = normalizeReturnAdjustmentItems(input.correctedReturnItems || input.returnAdjustmentItems || []);
+    const rawReturnAdjustmentItems = returnAdjustmentInputItems(input);
+  const returnAdjustmentItems = normalizeReturnAdjustmentItems(rawReturnAdjustmentItems);
     const rawCashLines = input.correctedCashLines || input.cashAdjustmentLines || [];
 
     const latest = await latestVersionForOriginal(original.id, { ...options, session });
@@ -1018,6 +1491,14 @@ async function createCorrection(input = {}, options = {}) {
 
     const newCloseoutVersion = buildVersionSnapshot(order, baseSnapshot, correction, now);
 
+    const returnOrderAdjustment = await applyReturnOrderAdjustment({
+      order,
+      items: rawReturnAdjustmentItems,
+      actor,
+      reason: correction.reason || correction.auditReason,
+      note: correction.note
+    }, { ...options, session, now });
+
     await DeliveryCloseoutCorrection.findOneAndUpdate(
       { idempotencyKey },
       { $setOnInsert: correction },
@@ -1113,7 +1594,9 @@ async function createCorrection(input = {}, options = {}) {
       newCloseout: newCloseoutVersion,
       arDebtAdjustmentLedger: ledgerEntry,
       arDebtAdjustment: adjustment,
-      message: `Đã tạo correction version ${newCloseoutVersionNo}; ${adjustmentMessage}.`
+      returnOrderAdjustment,
+      returnUpdated: Boolean(returnOrderAdjustment && returnOrderAdjustment.returnUpdated),
+      message: `${returnOrderAdjustment && returnOrderAdjustment.returnUpdated ? 'Đã cập nhật returnOrders; ' : ''}Đã tạo correction version ${newCloseoutVersionNo}; ${adjustmentMessage}.`
     };
   });
 
@@ -1401,6 +1884,8 @@ module.exports = {
   listCorrections,
   listVersions,
   resolveAdjustmentDeepLink,
+  buildDeliveryAdjustmentReturnRows,
+  applyReturnOrderAdjustment,
   normalizeReturnAdjustmentItems,
   normalizeCashAdjustmentLines,
   createOpenOrderAdjustment,
@@ -1409,6 +1894,7 @@ module.exports = {
   assertConfirmedCloseout,
   _internal: {
     money,
+    quantity,
     text,
     stableJson,
     hash,
@@ -1428,6 +1914,9 @@ module.exports = {
     versionLookup,
     orderLookupFromResolver,
     adjustmentPublic,
-    syntheticOrderFromAdjustment
+    syntheticOrderFromAdjustment,
+    compactDeliveredItemsFromOrder,
+    currentReturnMapFromOrders,
+    returnOrderLockedForDirectEdit
   }
 };

@@ -197,6 +197,8 @@ router.post('/delivery-today/closeouts/:id/corrections', requireAuth, writeRoles
       newCloseout: result.newCloseout,
       newCloseoutVersion: result.newCloseoutVersion,
       arDebtAdjustmentLedger: result.arDebtAdjustmentLedger,
+      returnOrderAdjustment: result.returnOrderAdjustment,
+      returnUpdated: Boolean(result.returnUpdated || (result.returnOrderAdjustment && result.returnOrderAdjustment.returnUpdated)),
       data: result,
       canonicalRoute: '/api/new/delivery-today/closeouts/:id/corrections'
     });
@@ -242,6 +244,27 @@ router.post('/delivery-today/adjustments/bulk-commit', requireAuth, writeRoles, 
     });
   } catch (err) {
     return sendError(res, err, 'Không ghi nhận điều chỉnh hàng loạt');
+  }
+});
+
+
+router.get('/delivery-today/closeouts/:id/adjustment-return-rows', requireAuth, readRoles, async (req, res) => {
+  try {
+    const result = await deliveryCloseoutCorrectionService.buildDeliveryAdjustmentReturnRows({
+      ...(req.query || {}),
+      closeoutId: req.params.id,
+      originalCloseoutId: req.params.id
+    });
+    return res.json({
+      ok: true,
+      success: true,
+      message: 'Đã tải dữ liệu hàng trả từ orders + returnOrders',
+      ...result,
+      data: result,
+      canonicalRoute: '/api/new/delivery-today/closeouts/:id/adjustment-return-rows'
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không tải được dữ liệu hàng trả của đơn giao');
   }
 });
 

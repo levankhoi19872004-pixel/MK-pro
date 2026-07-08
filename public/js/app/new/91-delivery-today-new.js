@@ -1379,6 +1379,13 @@
     return '/api/new/delivery-today/closeouts/' + encodeURIComponent(rowKey(row)) + '/corrections';
   }
 
+  function adjustmentReturnRowsEndpoint(row) {
+    var params = [];
+    if (row && row.orderCode) params.push('orderCode=' + encodeURIComponent(row.orderCode));
+    if (row && row.orderId) params.push('orderId=' + encodeURIComponent(row.orderId));
+    return '/api/new/delivery-today/closeouts/' + encodeURIComponent(rowKey(row)) + '/adjustment-return-rows' + (params.length ? '?' + params.join('&') : '');
+  }
+
   function versionsEndpoint(row) {
     return '/api/new/delivery-today/closeouts/' + encodeURIComponent(rowKey(row)) + '/versions';
   }
@@ -1390,7 +1397,7 @@
 
   function itemCode(item) { return String((item && (item.productCode || item.code || item.sku || item.itemCode)) || '').trim(); }
   function itemName(item) { return String((item && (item.productName || item.name || item.description || item.itemName)) || '').trim(); }
-  function itemDeliveredQty(item) { return qty(item && (item.deliveredQty ?? item.deliveryQty ?? item.shipQty ?? item.quantity ?? item.qty ?? item.totalQty ?? item.soldQty ?? item.looseQty ?? item.units)); }
+  function itemDeliveredQty(item) { return qty(item && (item.deliveredQty ?? item.deliveryQty ?? item.shipQty ?? item.soldQty ?? item.quantitySold ?? item.orderQty ?? item.saleQty ?? item.totalQty ?? item.quantity ?? item.qty ?? item.looseQty ?? item.units)); }
   function itemUnitPrice(item) { return num(item && (item.unitPrice ?? item.salePrice ?? item.price ?? item.finalPrice ?? item.priceAfterPromotion ?? item.actualPrice)); }
   function itemAmount(item) { var q = itemDeliveredQty(item); var p = itemUnitPrice(item); return num(item && (item.amount ?? item.lineTotal ?? item.totalAmount ?? (q * p))); }
 
@@ -1442,6 +1449,47 @@
     return map;
   }
 
+  function normalizeReturnEditRows(rows) {
+    return (Array.isArray(rows) ? rows : []).map(function (item) {
+      var deliveredQty = qty(item.deliveredQty);
+      var currentReturnQty = qty(item.currentReturnQty ?? item.oldReturnQty);
+      var desiredReturnQty = qty(item.desiredReturnQty ?? item.newReturnQty ?? currentReturnQty);
+      var unitPrice = num(item.unitPrice);
+      return {
+        productKey: item.productKey || '',
+        productCode: item.productCode || '',
+        productName: item.productName || '',
+        unit: item.unit || '',
+        deliveredQty: deliveredQty,
+        unitPrice: unitPrice,
+        oldReturnQty: currentReturnQty,
+        currentReturnQty: currentReturnQty,
+        newReturnQty: desiredReturnQty,
+        desiredReturnQty: desiredReturnQty,
+        oldReturnAmount: num(item.returnAmount ?? (currentReturnQty * unitPrice)),
+        source: item.source || {}
+      };
+    });
+  }
+
+  async function loadCanonicalReturnRows(row) {
+    if (!row || state.adjustmentViewOnly) return;
+    try {
+      var res = await fetch(adjustmentReturnRowsEndpoint(row));
+      var json = await res.json();
+      if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tải được dữ liệu hàng trả');
+      var rows = json.returnRows || (json.data && json.data.returnRows) || json.rows || [];
+      if (state.adjustmentRow && rowKey(state.adjustmentRow) === rowKey(row)) {
+        state.correctionReturnItems = normalizeReturnEditRows(rows);
+        renderAdjustmentTab(row);
+      }
+    } catch (err) {
+      if (state.adjustmentRow && rowKey(state.adjustmentRow) === rowKey(row)) {
+        setModalNotice('adjustment', (err.message || 'Không tải được dữ liệu hàng trả') + '. Tạm hiển thị dữ liệu đang có trên danh sách.', 'warning');
+      }
+    }
+  }
+
   function buildReturnEditItems(row) {
     var sold = orderItemsFromRow(row);
     var returns = returnedQtyMap(row);
@@ -1485,14 +1533,19 @@
       var adjustmentQty = newQty - qty(item.oldReturnQty);
       var adjustmentAmount = Math.round(adjustmentQty * num(item.unitPrice));
       return {
+        productKey: item.productKey || '',
         productCode: item.productCode,
         productName: item.productName,
         oldReturnQty: qty(item.oldReturnQty),
+        currentReturnQty: qty(item.oldReturnQty),
         newReturnQty: newQty,
+        desiredReturnQty: newQty,
         unitPrice: num(item.unitPrice),
         deliveredQty: qty(item.deliveredQty),
         adjustmentQty: adjustmentQty,
-        adjustmentAmount: adjustmentAmount
+        deltaReturnQty: adjustmentQty,
+        adjustmentAmount: adjustmentAmount,
+        deltaReturnAmount: adjustmentAmount
       };
     });
   }
@@ -1582,9 +1635,9 @@
         '<td class="num">' + money(num(item.deliveredQty) * num(item.unitPrice)) + '</td>' +
         '<td class="num">' + esc(item.oldReturnQty) + '</td>' +
         '<td class="num"><input class="deliveryNewReturnQtyInput" data-index="' + index + '" inputmode="decimal" value="' + esc(item.newReturnQty) + '"></td>' +
-        '<td class="num" data-delta-qty="' + index + '">' + esc(deltaQty) + '</td>' +
-        '<td class="num delivery-new-return" data-return-amount="' + index + '">' + money(returnAmount) + '</td>' +
-        '<td class="num delivery-new-return" data-delta-amount="' + index + '">' + money(deltaAmount) + '</td>' +
+        '<td class="num" id="deliveryDeltaQty' + index + '">' + esc(deltaQty) + '</td>' +
+        '<td class="num delivery-new-return" id="deliveryReturnAmount' + index + '">' + money(returnAmount) + '</td>' +
+        '<td class="num delivery-new-return" id="deliveryDeltaAmount' + index + '">' + money(deltaAmount) + '</td>' +
       '</tr>';
     }).join('');
     var totalDelivered = state.correctionReturnItems.reduce(function (sum, item) { return sum + Math.round(num(item.deliveredQty) * num(item.unitPrice)); }, 0);
@@ -1716,7 +1769,7 @@
           setModalError('adjustment', 'Số lượng trả không được vượt quá số lượng giao.');
         }
         if (item) item.newReturnQty = qty(input.value);
-        renderAdjustmentTab(row);
+        updateAdjustmentPreview(row);
       });
     });
     ['deliveryAdjustCashNew', 'deliveryAdjustBankNew', 'deliveryAdjustRewardNew'].forEach(function (id) {
@@ -1742,6 +1795,8 @@
     var totals = totalsFromPopup(row);
     totals.returnItems.forEach(function (item, index) {
       setText('deliveryDeltaQty' + index, item.adjustmentQty);
+      setText('deliveryReturnAmount' + index, money(qty(item.newReturnQty) * num(item.unitPrice)));
+      setText('deliveryDeltaAmount' + index, money(item.adjustmentAmount));
     });
     setText('deliveryReturnAfterText', money(totals.returnAfter));
     setText('deliveryReturnDeltaText', money(totals.returnDelta));
@@ -1808,6 +1863,7 @@
     var save = byId('deliveryAdjustmentSave');
     if (save && !viewOnly) save.addEventListener('click', function () { submitAdjustmentPopup(row); });
     renderAdjustmentTab(row);
+    loadCanonicalReturnRows(row);
     loadVersions(row).then(function () {
       if (state.adjustmentRow && rowKey(state.adjustmentRow) === rowKey(row) && state.activeTab === 'history') {
         renderAdjustmentTab(row);
@@ -1839,6 +1895,7 @@
     if (totals.newBank < 0) { setModalError('adjustment', 'Chuyển khoản sau điều chỉnh không được âm.'); return; }
     if (totals.newReward < 0) { setModalError('adjustment', 'Trả thưởng sau điều chỉnh không được âm.'); return; }
     if (totals.correctedTotalCollected < 0) { setModalError('adjustment', 'Tổng tiền thu sau điều chỉnh không được âm.'); return; }
+    var fullReturnItems = totals.returnItems;
     var correctedReturnItems = totals.returnItems.filter(function (item) { return qty(item.adjustmentQty) !== 0; });
     var cashLines = [
       { paymentMethod: 'cash', oldAmount: totals.oldCash, newAmount: totals.newCash, adjustmentAmount: totals.newCash - totals.oldCash },
@@ -1861,6 +1918,12 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           correctedReturnItems: correctedReturnItems,
+          returnAdjustmentItems: fullReturnItems,
+          returnAdjustment: {
+            source: 'delivery-adjustment-popup',
+            items: fullReturnItems
+          },
+          returnAdjustmentAmount: totals.returnDelta,
           correctedCashLines: cashLines,
           paymentCorrection: {
             currentCashAmount: totals.oldCash,
@@ -1882,7 +1945,7 @@
       });
       var json = await res.json();
       if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tạo được điều chỉnh');
-      setModalNotice('adjustment', json.message || 'Đã lưu điều chỉnh.', 'success');
+      setModalNotice('adjustment', json.message || (json.data && json.data.returnUpdated ? 'Đã cập nhật hàng trả.' : 'Đã lưu điều chỉnh.'), 'success');
       await load({ silent: true });
     } catch (err) {
       setModalError('adjustment', err.message || 'Không tạo được điều chỉnh');

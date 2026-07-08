@@ -8,7 +8,7 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 function read(rel) { return fs.readFileSync(path.join(root, rel), 'utf8'); }
 
-test('Phase92 correction service is immutable and does not call legacy return/reversal/inventory flows', () => {
+test('Phase92 correction service stays ledger-safe and writes returnOrders only through repository boundary', () => {
   const service = read('src/services/deliveryCloseoutCorrection.service.js');
   const legacyFacade = read('src/services/accounting/DeliveryCloseoutCorrectionService.js');
   assert.match(legacyFacade, /deliveryCloseoutCorrection\.service/);
@@ -16,7 +16,6 @@ test('Phase92 correction service is immutable and does not call legacy return/re
   const forbidden = [
     'ReturnArPostingService',
     'ReturnOrderService',
-    'returnOrderRepository',
     'InventoryPostingService',
     'postReturnIn',
     'postSalesOrderAR',
@@ -32,6 +31,8 @@ test('Phase92 correction service is immutable and does not call legacy return/re
   assert.match(service, /DeliveryCloseoutCorrection/);
   assert.match(service, /DeliveryCloseoutVersion/);
   assert.match(service, /ArDebtAdjustmentPostingService\.postAdjustment/);
+  assert.match(service, /returnOrderRepository\.upsert/);
+  assert.doesNotMatch(service, /ReturnOrder\.update(?:One|Many)|ReturnOrder\.findOneAndUpdate|ReturnOrder\.bulkWrite/);
   assert.match(service, /debtAdjustmentAmount/);
   assert.match(service, /newDebtAmount - previousDebt/);
 });
@@ -40,7 +41,7 @@ test('Phase92 route exposes correction and version endpoints under /api/new deli
   const route = read('src/routes/newOperationsRoutes.js');
   assert.match(route, /delivery-today\/closeouts\/:id\/corrections/);
   assert.match(route, /delivery-today\/closeouts\/:id\/versions/);
-  assert.match(route, /deliveryCloseoutCorrectionService\.createCorrection/);
+  assert.match(route, /DeliveryAdjustmentCommitService\.commitOneAdjustment|deliveryCloseoutCorrectionService\.createCorrection/);
 });
 
 test('Phase92 AR-DEBT-ADJUSTMENT contract uses correction source and canonical debit credit', () => {
