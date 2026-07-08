@@ -95,21 +95,83 @@ function isActiveReturnOrder(row = {}) {
   return !INACTIVE_RETURN_STATUSES.has(status);
 }
 
+function inventoryImpactMode(row = {}) {
+  const impact = row && typeof row.inventoryImpact === 'object' && row.inventoryImpact !== null ? row.inventoryImpact : {};
+  return clean(impact.mode || row.inventoryImpactMode).toLowerCase();
+}
+
+function hasClearInventoryImpact(row = {}) {
+  const mode = inventoryImpactMode(row);
+  const impact = row && typeof row.inventoryImpact === 'object' && row.inventoryImpact !== null ? row.inventoryImpact : {};
+  if (mode === 'posted') return true;
+  if (mode !== 'none') return false;
+  return Boolean(clean(impact.reason || row.inventoryImpactReason || row.stockPostReason));
+}
+
+function hasValidReturnInventoryState(row = {}) {
+  return row.inventoryPosted === true
+    || row.stockPosted === true
+    || clean(row.stockInStatus).toLowerCase() === 'posted'
+    || hasClearInventoryImpact(row);
+}
+
+function returnInventoryDiagnostic(row = {}, sourceUsedForValidation = 'returnOrders') {
+  const impact = row && typeof row.inventoryImpact === 'object' && row.inventoryImpact !== null ? row.inventoryImpact : {};
+  return {
+    code: clean(row.code || row.id || row._id),
+    orderCode: clean(row.orderCode || row.sourceOrderCode || row.deliveryOrderCode),
+    salesOrderCode: clean(row.salesOrderCode),
+    orderId: clean(row.orderId || row.sourceOrderId || row.deliveryOrderId),
+    salesOrderId: clean(row.salesOrderId),
+    deliveryDate: clean(row.deliveryDate || row.date || row.documentDate),
+    deliveryStaffCode: clean(row.deliveryStaffCode || row.deliveryCode || row.nvghCode || row.staffCode),
+    amount: money(row.amount ?? row.totalAmount ?? row.totalReturnAmount ?? row.returnAmount ?? row.debtReduction),
+    status: clean(row.status),
+    returnStatus: clean(row.returnStatus),
+    returnState: clean(row.returnState),
+    warehouseReceiveStatus: clean(row.warehouseReceiveStatus),
+    stockInStatus: clean(row.stockInStatus),
+    inventoryPosted: row.inventoryPosted === true,
+    stockPosted: row.stockPosted === true,
+    inventoryImpactMode: clean(impact.mode || row.inventoryImpactMode),
+    stockTransactionIds: Array.isArray(row.stockTransactionIds) ? row.stockTransactionIds.map(clean).filter(Boolean) : (clean(row.stockTransactionId) ? [clean(row.stockTransactionId)] : []),
+    sourceUsedForValidation
+  };
+}
+
+function throwInvalidReturnInventoryState(row = {}, context = {}) {
+  const invalidReturnOrders = [returnInventoryDiagnostic(row, context.sourceUsedForValidation || 'returnOrders')];
+  const err = contractError(
+    'RETURN_ORDER_INVENTORY_IMPACT_REQUIRED',
+    'returnOrders đã xác nhận phải có inventoryPosted=true hoặc inventoryImpact rõ ràng.',
+    {
+      document: 'returnOrders',
+      id: clean(row.id || row._id),
+      returnOrderCode: clean(row.code),
+      status: clean(row.status).toLowerCase(),
+      invalidReturnOrders
+    }
+  );
+  err.status = 400;
+  err.data = { invalidReturnOrders };
+  throw err;
+}
+
 function validateReturnOrderContract(row = {}) {
   const id = clean(row.id || row._id);
   const code = clean(row.code);
   if (!id && !code) {
     throw contractError('CONTRACT_VALIDATION_ERROR', 'returnOrders phải có id hoặc code rõ ràng.', { document: 'returnOrders' });
   }
-  const hasSource = clean(row.sourceOrderId || row.salesOrderId || row.sourceOrderCode);
+  const hasSource = clean(row.sourceOrderId || row.salesOrderId || row.sourceOrderCode || row.orderId || row.orderCode || row.salesOrderCode);
   if (!hasSource) {
     throw contractError('CONTRACT_VALIDATION_ERROR', 'returnOrders phải có sourceOrderId hoặc salesOrderId hoặc sourceOrderCode.', { document: 'returnOrders', id, code });
   }
   const status = requireText(row, 'status', { label: 'returnOrders', id, code }).toLowerCase();
   if (!INACTIVE_RETURN_STATUSES.has(status)) {
     requireMoney(row, 'totalReturnAmount', { label: 'returnOrders', id, code }, { nonNegative: false });
-    if (CONFIRMED_RETURN_STATUSES.has(status) && row.inventoryPosted !== true && !clean(row.inventoryImpact)) {
-      throw contractError('CONTRACT_VALIDATION_ERROR', 'returnOrders đã xác nhận phải có inventoryPosted=true hoặc inventoryImpact rõ ràng.', { document: 'returnOrders', id, code, status });
+    if (CONFIRMED_RETURN_STATUSES.has(status) && !hasValidReturnInventoryState(row)) {
+      throwInvalidReturnInventoryState(row, { sourceUsedForValidation: row.sourceUsedForValidation || 'returnOrders' });
     }
   }
   return true;
@@ -490,6 +552,8 @@ module.exports = {
   validateSalesOrderContract,
   validateReturnOrderContract,
   validatePaymentContract,
+  hasValidReturnInventoryState,
+  returnInventoryDiagnostic,
   _internal: {
     money,
     requireMoney,
@@ -499,6 +563,9 @@ module.exports = {
     summarizeCloseoutBreakdownPayments,
     contractError,
     pickMoneyValue,
-    summarizeInlineDeliveryPayments
+    summarizeInlineDeliveryPayments,
+    inventoryImpactMode,
+    hasClearInventoryImpact,
+    throwInvalidReturnInventoryState
   }
 };

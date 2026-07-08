@@ -94,8 +94,10 @@ async function findReturnOrdersForDeliveryChildren(children = []) {
     sourceOrderId: 1, sourceOrderCode: 1, deliveryOrderId: 1, deliveryOrderCode: 1,
     masterOrderId: 1, masterOrderCode: 1, masterReturnOrderId: 1, masterReturnOrderCode: 1,
     customerId: 1, customerCode: 1, customerName: 1, totalAmount: 1, totalReturnAmount: 1, returnAmount: 1, amount: 1, debtReduction: 1,
-    items: 1, status: 1, returnStatus: 1, accountingStatus: 1, returnMergeStatus: 1, warehouseReceiveStatus: 1,
-    date: 1, documentDate: 1, deliveryDate: 1, receiveDate: 1,
+    items: 1, status: 1, returnStatus: 1, returnState: 1, accountingStatus: 1, returnMergeStatus: 1, warehouseReceiveStatus: 1,
+    date: 1, documentDate: 1, deliveryDate: 1, receiveDate: 1, receivedAt: 1, postedAt: 1,
+    // Closeout guard must validate the latest returnOrders inventory posting state from DB, not stale order/front-end payload.
+    inventoryPosted: 1, stockPosted: 1, stockInStatus: 1, inventoryImpact: 1, stockTransactionId: 1, stockTransactionIds: 1,
     // ===== SCOPED FIX: AR_RETURN_ACCOUNTING_LINEAGE_PROJECTION_START =====
     // AR-RETURN phải giữ đủ snapshot nhân sự từ returnOrders để không bị mất NVBH/NVGH khi ghi arLedgers.
     salesStaffCode: 1, salesStaffName: 1, salesmanCode: 1, salesmanName: 1, nvbhCode: 1, nvbhName: 1,
@@ -185,7 +187,11 @@ async function findReturnOrdersForDeliveryChildren(children = []) {
       debtReduction: row.debtReduction,
       totalAmount: row.totalAmount,
       returnStatus: row.returnStatus,
-      accountingStatus: row.accountingStatus
+      accountingStatus: row.accountingStatus,
+      inventoryPosted: row.inventoryPosted === true,
+      stockPosted: row.stockPosted === true,
+      stockInStatus: row.stockInStatus,
+      inventoryImpactMode: row.inventoryImpact && typeof row.inventoryImpact === 'object' ? row.inventoryImpact.mode : ''
     }))
   });
 

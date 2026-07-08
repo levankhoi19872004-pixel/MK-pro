@@ -38,6 +38,7 @@ function sendError(res, err, fallback) {
     mismatches: err && err.mismatches ? err.mismatches : undefined,
     diff: err && err.diff ? err.diff : undefined,
     scope: err && err.scope ? err.scope : undefined,
+    invalidReturnOrders: err && err.invalidReturnOrders ? err.invalidReturnOrders : undefined,
     data: err && err.data ? err.data : undefined
   });
 }

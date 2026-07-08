@@ -185,6 +185,29 @@ function returnOrdersForOrder(order = {}, returnByKey = new Map()) {
   return rows;
 }
 
+function invalidReturnInventoryRows(returnOrders = []) {
+  const confirmedStatuses = new Set(['confirmed', 'accounting_confirmed', 'warehouse_received', 'received', 'posted']);
+  const invalidRows = [];
+  for (const row of Array.isArray(returnOrders) ? returnOrders : []) {
+    const status = clean(row.status).toLowerCase();
+    if (!confirmedStatuses.has(status)) continue;
+    if (DeliveryCloseoutService.hasValidReturnInventoryState(row)) continue;
+    invalidRows.push(DeliveryCloseoutService.returnInventoryDiagnostic(row, 'returnOrders.latestDbQuery'));
+  }
+  return invalidRows;
+}
+
+function assertReturnOrdersInventoryReady(returnOrders = []) {
+  const invalidReturnOrders = invalidReturnInventoryRows(returnOrders);
+  if (!invalidReturnOrders.length) return true;
+  const err = new Error('returnOrders đã xác nhận phải có inventoryPosted=true hoặc inventoryImpact rõ ràng.');
+  err.status = 400;
+  err.code = 'RETURN_ORDER_INVENTORY_IMPACT_REQUIRED';
+  err.invalidReturnOrders = invalidReturnOrders;
+  err.data = { invalidReturnOrders };
+  throw err;
+}
+
 function compactCloseoutForOrder(closeout = {}) {
   return {
     originalAmount: closeout.originalAmount,
@@ -582,6 +605,8 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
   }
 
   const returnOrders = await findReturnOrdersForDeliveryChildren(pendingConfirmOrders);
+  // Guard phải dùng returnOrders mới nhất vừa query từ DB. Không được chặn theo payload/frontend hoặc embedded stale trong orders.
+  assertReturnOrdersInventoryReady(returnOrders);
   const returnByKey = groupReturnOrdersBySalesOrder(returnOrders, pendingConfirmOrders);
 
   const readModelSyncJobs = [];
@@ -703,6 +728,8 @@ module.exports = {
     isAccountingConfirmed,
     buildAlreadyConfirmedResult,
     buildCloseoutDiagnostic,
+    invalidReturnInventoryRows,
+    assertReturnOrdersInventoryReady,
     attachCloseoutScope,
     closeoutMismatchDiff
   }
