@@ -580,6 +580,15 @@ function allocationForOrder(order = {}, allocationsByKey = new Map()) {
   return null;
 }
 
+function allocationIsCurrentForVersion(allocation = null, latestVersion = null) {
+  if (!allocation) return false;
+  if (!latestVersion) return true;
+  const allocationVersion = Number(allocation.sourceVersion || allocation.version || 0) || 0;
+  const latestCorrectionVersion = Number(latestVersion.closeoutVersion || latestVersion.sourceVersion || latestVersion.version || 0) || 0;
+  if (latestCorrectionVersion > allocationVersion) return false;
+  return true;
+}
+
 function collectedAmount(order = {}) {
   const closeout = closeoutOf(order);
   return money(closeout.collectedAmount ?? order.collectedAmount ?? order.deliveryCollectedAmount ?? order.paidAmount ?? order.paymentAmount ?? 0);
@@ -597,7 +606,9 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
   });
   const closeout = closeoutOf(order);
   const latestVersion = latestVersionForOrder(order, versionsByKey);
-  const postedAllocation = allocationForOrder(order, allocationsByKey);
+  const rawPostedAllocation = allocationForOrder(order, allocationsByKey);
+  const postedAllocation = allocationIsCurrentForVersion(rawPostedAllocation, latestVersion) ? rawPostedAllocation : null;
+  const stalePaymentAllocation = Boolean(rawPostedAllocation && !postedAllocation && latestVersion);
   const originalAmount = postedAllocation
     ? money(postedAllocation.receivableAmount)
     : money((latestVersion && (latestVersion.originalAmount ?? latestVersion.saleAmount)) ?? closeout.originalAmount ?? orderAmount(order));
@@ -677,6 +688,8 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     correctionVersionApplied: Boolean(latestVersion),
     paymentAllocationApplied: Boolean(postedAllocation),
     paymentAllocationCode: postedAllocation ? text(postedAllocation.allocationCode) : '',
+    stalePaymentAllocationIgnored: stalePaymentAllocation,
+    stalePaymentAllocationCode: stalePaymentAllocation ? text(rawPostedAllocation.allocationCode) : '',
     correctionId: latestVersion ? text(latestVersion.correctionId) : '',
     correctionCode: latestVersion ? text(latestVersion.correctionCode) : '',
     closeoutVersionId: latestVersion ? text(latestVersion.id || latestVersion.code) : '',
@@ -716,7 +729,7 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     returnOrderIds: uniqueReturns.map((row) => row.id || row.code).filter(Boolean),
     paymentIds: Array.isArray(closeout.paymentIds) ? closeout.paymentIds : [],
     version: latestVersion ? Number(latestVersion.closeoutVersion || 0) : Number(closeout.version || (Array.isArray(closeout.versions) ? closeout.versions.length : 0) || 0),
-    source: postedAllocation ? 'orderPaymentAllocations(posted)' : (latestVersion ? 'deliveryCloseoutVersions + AR-DEBT-ADJUSTMENT' : 'salesOrders.deliveryCloseout + returnOrders'),
+    source: postedAllocation ? 'orderPaymentAllocations(posted)' : (latestVersion ? (stalePaymentAllocation ? 'deliveryCloseoutVersions(latest correction; stale orderPaymentAllocation ignored)' : 'deliveryCloseoutVersions + AR-DEBT-ADJUSTMENT') : 'salesOrders.deliveryCloseout + returnOrders'),
     correctionRequired: confirmedCloseout,
     correctionMessage: confirmedCloseout ? 'Đơn đã xác nhận kế toán: mọi sửa đổi phải qua correction flow.' : ''
   };

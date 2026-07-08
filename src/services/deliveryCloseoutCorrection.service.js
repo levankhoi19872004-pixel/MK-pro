@@ -11,6 +11,7 @@ const returnOrderRepository = require('../repositories/returnOrderRepository');
 const DeliveryCloseoutCorrection = require('../models/DeliveryCloseoutCorrection');
 const DeliveryCloseoutVersion = require('../models/DeliveryCloseoutVersion');
 const ArDebtAdjustmentPostingService = require('./accounting/ArDebtAdjustmentPostingService');
+const OrderPaymentAllocationService = require('./accounting/OrderPaymentAllocationService');
 const { emitDomainEventSafe } = require('./events/domainEventBus');
 const { EVENT_TYPES } = require('./events/domainEventTypes');
 
@@ -1156,6 +1157,46 @@ function buildVersionSnapshot(order = {}, baseSnapshot = {}, correction = {}, no
     metadata: { source: 'Phase109', immutableContract: true, correctionSemantics: 'final_state_value' }
   };
 }
+
+function correctionAllocationIdempotencyKey(order = {}, version = {}) {
+  const source = orderId(order) || orderCode(order) || text(version.orderId || version.orderCode);
+  const correction = text(version.correctionId || version.id || version.code || version.idempotencyKey || 'correction');
+  const versionNo = Number(version.closeoutVersion || version.sourceVersion || version.version || 1) || 1;
+  return `OPA:${source}:delivery_closeout_correction:${correction}:v${versionNo}`;
+}
+
+async function upsertCorrectionPaymentAllocation(order = {}, version = {}, options = {}) {
+  if (!version || typeof version !== 'object') return null;
+  const versionNo = Number(version.closeoutVersion || version.sourceVersion || version.version || 1) || 1;
+  const token = text(orderCode(order) || orderId(order) || version.orderCode || version.orderId || 'UNKNOWN').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'UNKNOWN';
+  const allocation = OrderPaymentAllocationService.buildAllocationFromCloseout(order, version, {
+    ...options,
+    sourceType: 'DELIVERY_CLOSEOUT_CORRECTION',
+    sourceId: orderId(order) || text(version.orderId || version.salesOrderId),
+    sourceCode: orderCode(order) || text(version.orderCode || version.salesOrderCode),
+    sourceVersion: versionNo,
+    allocationCode: text(`OPA-${token}-CORRECTION-v${versionNo}`),
+    idempotencyKey: correctionAllocationIdempotencyKey(order, version),
+    status: 'posted',
+    closeoutScope: 'delivery_closeout_correction',
+    closeoutScopeHash: text(version.correctionId || version.id || version.code || version.idempotencyKey),
+    metadata: {
+      source: 'deliveryCloseoutVersions',
+      correctionId: text(version.correctionId),
+      correctionCode: text(version.correctionCode),
+      closeoutVersionId: text(version.id || version.code),
+      closeoutVersion: versionNo,
+      integration: 'manual_adjustment_payment_correction',
+      postingPolicy: 'mirror_final_state_only; AR delta handled by AR-DEBT-ADJUSTMENT reconcile'
+    }
+  });
+  allocation.postedBy = actorName(options.actor || version.createdBy || 'accountant');
+  allocation.postedAt = options.now || dateUtil.nowIso();
+  allocation.updatedBy = allocation.postedBy;
+  allocation.updatedAt = allocation.postedAt;
+  const saved = await OrderPaymentAllocationService.upsertAllocation(allocation, options);
+  return saved || allocation;
+}
 async function loadIdempotentResult(correction = {}, options = {}) {
   if (!correction) return null;
   let versionQuery = DeliveryCloseoutVersion.findOne({ correctionId: correction.id }).lean();
@@ -1510,6 +1551,13 @@ async function createCorrection(input = {}, options = {}) {
       { upsert: true, new: true, setDefaultsOnInsert: true, session }
     );
 
+    const paymentAllocation = await upsertCorrectionPaymentAllocation(order, newCloseoutVersion, {
+      ...options,
+      session,
+      now,
+      actor
+    });
+
     const adjustment = await ArDebtAdjustmentPostingService.postAdjustment(order, {
       reconcileDebt: true,
       correctionId,
@@ -1594,9 +1642,12 @@ async function createCorrection(input = {}, options = {}) {
       newCloseout: newCloseoutVersion,
       arDebtAdjustmentLedger: ledgerEntry,
       arDebtAdjustment: adjustment,
+      paymentAllocation,
+      orderPaymentAllocation: paymentAllocation,
+      paymentAllocationIntegrated: Boolean(paymentAllocation),
       returnOrderAdjustment,
       returnUpdated: Boolean(returnOrderAdjustment && returnOrderAdjustment.returnUpdated),
-      message: `${returnOrderAdjustment && returnOrderAdjustment.returnUpdated ? 'Đã cập nhật returnOrders; ' : ''}Đã tạo correction version ${newCloseoutVersionNo}; ${adjustmentMessage}.`
+      message: `${paymentAllocation ? 'Đã đồng bộ orderPaymentAllocations; ' : ''}${returnOrderAdjustment && returnOrderAdjustment.returnUpdated ? 'Đã cập nhật returnOrders; ' : ''}Đã tạo correction version ${newCloseoutVersionNo}; ${adjustmentMessage}.`
     };
   });
 
@@ -1886,6 +1937,8 @@ module.exports = {
   resolveAdjustmentDeepLink,
   buildDeliveryAdjustmentReturnRows,
   applyReturnOrderAdjustment,
+  upsertCorrectionPaymentAllocation,
+  correctionAllocationIdempotencyKey,
   normalizeReturnAdjustmentItems,
   normalizeCashAdjustmentLines,
   createOpenOrderAdjustment,
@@ -1917,6 +1970,8 @@ module.exports = {
     syntheticOrderFromAdjustment,
     compactDeliveredItemsFromOrder,
     currentReturnMapFromOrders,
-    returnOrderLockedForDirectEdit
+    returnOrderLockedForDirectEdit,
+    upsertCorrectionPaymentAllocation,
+    correctionAllocationIdempotencyKey
   }
 };
