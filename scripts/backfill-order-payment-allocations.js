@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const connectDB = require('../src/config/db');
 const SalesOrder = require('../src/models/SalesOrder');
 const ArLedger = require('../src/models/ArLedger');
+const FundLedger = require('../src/models/FundLedger');
 const OrderPaymentAllocation = require('../src/models/OrderPaymentAllocation');
 const dateUtil = require('../src/utils/date.util');
 const { normalizeAccountingAmount } = require('../src/domain/ar/arLedgerValidator');
@@ -29,11 +30,13 @@ function uniq(values = []) {
 }
 
 function parseArgs(argv = process.argv.slice(2)) {
-  const out = { apply: false, fixMissingRewardLedgers: false, json: false, strict: false, limit: 5000 };
+  const out = { apply: false, fixMissingRewardLedgers: false, fixMissingArLedgers: false, fixMissingFundLedgers: false, json: false, strict: false, limit: 5000 };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--apply') out.apply = true;
     else if (arg === '--fix-missing-reward-ledgers') out.fixMissingRewardLedgers = true;
+    else if (arg === '--fix-missing-ar-ledgers') out.fixMissingArLedgers = true;
+    else if (arg === '--fix-missing-fund-ledgers') out.fixMissingFundLedgers = true;
     else if (arg === '--json') out.json = true;
     else if (arg === '--strict') out.strict = true;
     else if (arg === '--order' || arg === '--orderCode') out.orderCode = argv[++i];
@@ -142,6 +145,60 @@ async function sumArBalance(keys = []) {
   }, 0);
 }
 
+
+
+function expectedFundRows(allocation = {}) {
+  const rows = [];
+  const push = (fundType, amount) => {
+    const normalized = money(amount);
+    if (normalized <= 0) return;
+    rows.push({
+      fundType,
+      amount: normalized,
+      direction: 'in',
+      idempotencyKey: `FUND:OPA:${clean(allocation.idempotencyKey)}:${fundType}`
+    });
+  };
+  push('cash', allocation.cashAmount);
+  push('bank', allocation.bankAmount);
+  return rows;
+}
+
+async function findActiveArLedgerByExpected(row = {}) {
+  const key = clean(row.idempotencyKey);
+  if (!key) return null;
+  return ArLedger.findOne({
+    idempotencyKey: key,
+    active: { $ne: false },
+    reversed: { $ne: true },
+    isDeleted: { $ne: true },
+    deleted: { $ne: true },
+    status: { $nin: ACTIVE_EXCLUDED_STATUSES }
+  }).lean();
+}
+
+async function findActiveFundLedgerByExpected(row = {}) {
+  const key = clean(row.idempotencyKey);
+  if (!key) return null;
+  return FundLedger.findOne({
+    idempotencyKey: key,
+    isDeleted: { $ne: true },
+    deleted: { $ne: true },
+    status: { $nin: ACTIVE_EXCLUDED_STATUSES }
+  }).lean();
+}
+
+function expectedArAmount(row = {}) {
+  const normalized = normalizeAccountingAmount(row);
+  return money(Math.max(money(normalized.debit), money(normalized.credit), money(normalized.amount)));
+}
+
+function actualArAmount(row = {}) {
+  if (!row) return 0;
+  const normalized = normalizeAccountingAmount(row);
+  return money(Math.max(money(normalized.debit), money(normalized.credit), money(normalized.amount)));
+}
+
 async function hasRewardLedger(allocation = {}) {
   const keys = orderKeys(allocation);
   const idempotencyKey = clean(allocation.idempotencyKey) ? `OPA:${allocation.idempotencyKey}:AR-REWARD-ALLOWANCE` : '';
@@ -169,6 +226,11 @@ function diagnosticRow(order = {}, allocation = {}, extra = {}) {
     arBalance: money(extra.arBalance),
     expectedBalance: money(extra.expectedBalance ?? allocation.debtAmount),
     diff: money(extra.diff),
+    connectionType: clean(extra.connectionType),
+    category: clean(extra.category),
+    expectedAmount: money(extra.expectedAmount),
+    actualAmount: money(extra.actualAmount),
+    idempotencyKey: clean(extra.idempotencyKey),
     suggestedFix: clean(extra.suggestedFix)
   };
 }
@@ -177,8 +239,8 @@ async function auditAndMaybeApply(options = {}) {
   const filter = buildOrderFilter(options);
   const limit = Math.max(1, Math.min(50000, Number(options.limit || 5000)));
   const orders = await SalesOrder.find(filter).sort({ deliveryDate: -1, createdAt: -1 }).limit(limit).lean();
-  const diagnostics = { missingAllocations: [], missingRewardLedgers: [], allocationDebtArDiffs: [], invalidAllocations: [] };
-  const writes = { allocationsCreatedOrUpdated: 0, rewardLedgersFixed: 0 };
+  const diagnostics = { missingAllocations: [], missingArLedgers: [], arLedgerAmountConflicts: [], missingFundLedgers: [], fundLedgerAmountConflicts: [], missingRewardLedgers: [], allocationDebtArDiffs: [], invalidAllocations: [] };
+  const writes = { allocationsCreatedOrUpdated: 0, arLedgersFixed: 0, rewardLedgersFixed: 0, fundLedgersFixed: 0 };
 
   for (const order of orders) {
     const closeout = order.deliveryCloseout || {};
@@ -223,6 +285,78 @@ async function auditAndMaybeApply(options = {}) {
       }));
     }
 
+    const expectedArRows = OrderPaymentAllocationService.buildArLedgerRows(allocation);
+    let missingArForAllocation = false;
+    for (const expected of expectedArRows) {
+      const actual = await findActiveArLedgerByExpected(expected);
+      const expectedAmount = expectedArAmount(expected);
+      if (!actual) {
+        missingArForAllocation = true;
+        diagnostics.missingArLedgers.push(diagnosticRow(order, allocation, {
+          connectionType: 'allocation_to_arLedgers',
+          category: clean(expected.category),
+          idempotencyKey: clean(expected.idempotencyKey),
+          expectedAmount,
+          actualAmount: 0,
+          expectedBalance: allocation.debtAmount,
+          suggestedFix: expected.category === 'AR-REWARD-ALLOWANCE'
+            ? 'Chạy --apply --fix-missing-reward-ledgers hoặc --apply --fix-missing-ar-ledgers để tạo AR ledger còn thiếu.'
+            : 'Chạy --apply --fix-missing-ar-ledgers để tạo AR ledger còn thiếu.'
+        }));
+      } else {
+        const actualAmount = actualArAmount(actual);
+        if (actualAmount !== expectedAmount) {
+          diagnostics.arLedgerAmountConflicts.push(diagnosticRow(order, allocation, {
+            connectionType: 'allocation_to_arLedgers',
+            category: clean(expected.category),
+            idempotencyKey: clean(expected.idempotencyKey),
+            expectedAmount,
+            actualAmount,
+            diff: money(actualAmount - expectedAmount),
+            expectedBalance: allocation.debtAmount,
+            suggestedFix: 'Không tự ghi đè. Kiểm tra ledger trùng/sai số tiền rồi reverse/repost bằng quy trình kế toán.'
+          }));
+        }
+      }
+    }
+    if (options.apply && options.fixMissingArLedgers && missingArForAllocation) {
+      const posted = await OrderPaymentAllocationService.postArLedgersFromAllocation(allocation, { actor: 'backfill-order-payment-allocations' });
+      writes.arLedgersFixed += Array.isArray(posted) ? posted.length : 0;
+    }
+
+    const expectedFunds = expectedFundRows(allocation);
+    let missingFundForAllocation = false;
+    for (const expected of expectedFunds) {
+      const actual = await findActiveFundLedgerByExpected(expected);
+      if (!actual) {
+        missingFundForAllocation = true;
+        diagnostics.missingFundLedgers.push(diagnosticRow(order, allocation, {
+          connectionType: 'allocation_to_fundLedgers',
+          category: clean(expected.fundType).toUpperCase(),
+          idempotencyKey: clean(expected.idempotencyKey),
+          expectedAmount: expected.amount,
+          actualAmount: 0,
+          expectedBalance: allocation.debtAmount,
+          suggestedFix: 'Chạy --apply --fix-missing-fund-ledgers để tạo fundLedger còn thiếu cho TM/CK.'
+        }));
+      } else if (money(actual.amount) !== money(expected.amount)) {
+        diagnostics.fundLedgerAmountConflicts.push(diagnosticRow(order, allocation, {
+          connectionType: 'allocation_to_fundLedgers',
+          category: clean(expected.fundType).toUpperCase(),
+          idempotencyKey: clean(expected.idempotencyKey),
+          expectedAmount: expected.amount,
+          actualAmount: money(actual.amount),
+          diff: money(money(actual.amount) - expected.amount),
+          expectedBalance: allocation.debtAmount,
+          suggestedFix: 'Không tự ghi đè. Kiểm tra quỹ trùng/sai rồi reverse/repost theo quy trình quỹ.'
+        }));
+      }
+    }
+    if (options.apply && options.fixMissingFundLedgers && missingFundForAllocation) {
+      const postedFunds = await OrderPaymentAllocationService.postFundLedgersFromAllocation(allocation, { actor: 'backfill-order-payment-allocations' });
+      writes.fundLedgersFixed += Array.isArray(postedFunds) ? postedFunds.length : 0;
+    }
+
     const arBalance = await sumArBalance(keys);
     const diff = money(arBalance - money(allocation.debtAmount));
     if (diff !== 0) {
@@ -257,6 +391,8 @@ async function auditAndMaybeApply(options = {}) {
     dryRun: options.apply !== true,
     apply: options.apply === true,
     fixMissingRewardLedgers: options.fixMissingRewardLedgers === true,
+    fixMissingArLedgers: options.fixMissingArLedgers === true,
+    fixMissingFundLedgers: options.fixMissingFundLedgers === true,
     database: mongoose.connection.name || '',
     checkedOrders: orders.length,
     issueCount,

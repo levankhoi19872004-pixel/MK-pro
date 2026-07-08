@@ -10,6 +10,38 @@ const DeliveryCloseoutService = require('./DeliveryCloseoutService');
 const ACTIVE_LEDGER_STATUSES = ['void', 'voided', 'cancelled', 'canceled', 'deleted', 'reversed'];
 const AMOUNT_FIELDS = ['receivableAmount', 'cashAmount', 'bankAmount', 'rewardAmount', 'returnAmount', 'debtAmount'];
 
+
+const CLOSEOUT_CASH_FIELDS = ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount', 'paymentCashAmount', 'paidCashAmount', 'paidCash', 'collectedCash', 'deliveryCashAmount', 'collectedCashAmount', 'cashCollected', 'cash'];
+const CLOSEOUT_BANK_FIELDS = ['bankAmount', 'transferAmount', 'bankTransferAmount', 'paymentTransferAmount', 'paymentBankAmount', 'paidBankAmount', 'paidTransferAmount', 'collectedBankAmount', 'deliveryBankAmount', 'bankCollectedAmount', 'collectedTransferAmount', 'collectedTransfer', 'transferCollected', 'bankCollected', 'bank'];
+const CLOSEOUT_REWARD_FIELDS = ['offsetAmount', 'rewardAmount', 'bonusAmount', 'allowanceAmount', 'promotionRewardAmount', 'displayRewardAmount', 'bonusReturnAmount', 'rewardOffsetAmount', 'promotionOffsetAmount', 'debtOffsetAmount', 'deliveryOffsetAmount', 'otherOffsetAmount'];
+const CLOSEOUT_RETURN_FIELDS = ['returnedAmount', 'returnAmount', 'returnOrderAmount', 'actualReturnAmount', 'returnAmountFromReturnOrders', 'syncedReturnAmountFromReturnOrders'];
+const CLOSEOUT_RECEIVABLE_FIELDS = ['originalAmount', 'receivableAmount', 'totalAmount', 'finalAmount', 'payableAmount', 'debtBeforeCollection'];
+const CLOSEOUT_DEBT_FIELDS = ['finalDebtAmount', 'debtAmount', 'remainingDebt', 'remainingDebtAmount', 'debt', 'arBalance'];
+
+function pickFirstPositiveMoney(sources = [], fields = []) {
+  for (const source of Array.isArray(sources) ? sources : []) {
+    if (!source || typeof source !== 'object') continue;
+    for (const field of fields) {
+      if (!Object.prototype.hasOwnProperty.call(source, field)) continue;
+      const amount = positiveMoney(source[field]);
+      if (amount > 0) return amount;
+    }
+  }
+  return 0;
+}
+
+function pickFirstFiniteMoney(sources = [], fields = []) {
+  for (const source of Array.isArray(sources) ? sources : []) {
+    if (!source || typeof source !== 'object') continue;
+    for (const field of fields) {
+      if (!Object.prototype.hasOwnProperty.call(source, field)) continue;
+      const amount = money(source[field]);
+      if (Number.isFinite(amount)) return amount;
+    }
+  }
+  return null;
+}
+
 function clean(value = '') {
   return String(value ?? '').trim();
 }
@@ -139,12 +171,22 @@ function buildAllocationFromCloseout(order = {}, closeout = {}, options = {}) {
   const now = options.now || dateUtil.nowIso();
   const actor = actorOf(options, clean(closeout.confirmedBy || closeout.createdBy || 'accountant'));
   const identity = allocationIdentity(order, closeout, options);
-  const receivableAmount = positiveMoney(closeout.originalAmount ?? order.totalAmount ?? order.finalAmount ?? order.payableAmount ?? order.debtBeforeCollection ?? 0);
-  const cashAmount = positiveMoney(closeout.cashAmount ?? order.cashAmount ?? order.cashCollected ?? 0);
-  const bankAmount = positiveMoney(closeout.bankAmount ?? order.bankAmount ?? order.bankCollected ?? order.transferAmount ?? 0);
-  const rewardAmount = positiveMoney(closeout.offsetAmount ?? closeout.rewardAmount ?? order.rewardAmount ?? order.bonusAmount ?? order.allowanceAmount ?? 0);
-  const returnAmount = positiveMoney(closeout.returnedAmount ?? closeout.returnAmount ?? order.returnAmountFromReturnOrders ?? order.returnAmount ?? order.returnedAmount ?? 0);
-  const debtAmount = positiveMoney(closeout.finalDebtAmount ?? (receivableAmount - cashAmount - bankAmount - rewardAmount - returnAmount));
+  const sourceObjects = [closeout, order];
+  const receivableAmount = pickFirstPositiveMoney(sourceObjects, CLOSEOUT_RECEIVABLE_FIELDS);
+  let cashAmount = pickFirstPositiveMoney(sourceObjects, CLOSEOUT_CASH_FIELDS);
+  const bankAmount = pickFirstPositiveMoney(sourceObjects, CLOSEOUT_BANK_FIELDS);
+  const rewardAmount = pickFirstPositiveMoney(sourceObjects, CLOSEOUT_REWARD_FIELDS);
+  const returnAmount = pickFirstPositiveMoney(sourceObjects, CLOSEOUT_RETURN_FIELDS);
+
+  // Legacy closeout có thể chỉ lưu collectedAmount mà không tách TM/CK. Để tránh mất số liệu,
+  // giữ collectedAmount như tiền mặt fallback; các bản mới vẫn ưu tiên cashAmount/bankAmount rõ ràng.
+  if (cashAmount <= 0 && bankAmount <= 0) {
+    cashAmount = pickFirstPositiveMoney(sourceObjects, ['collectedAmount', 'paidAmount', 'paymentAmount', 'deliveryCollectedAmount']);
+  }
+
+  const calculatedDebtAmount = receivableAmount - cashAmount - bankAmount - rewardAmount - returnAmount;
+  const explicitDebtAmount = pickFirstFiniteMoney(sourceObjects, CLOSEOUT_DEBT_FIELDS);
+  const debtAmount = positiveMoney(explicitDebtAmount !== null ? explicitDebtAmount : calculatedDebtAmount);
   const allocation = {
     allocationCode: identity.allocationCode,
     orderId: orderId(order) || identity.sourceId,
@@ -468,6 +510,8 @@ module.exports = {
     allocationError,
     allocationIdentity,
     safeToken,
+    pickFirstPositiveMoney,
+    pickFirstFiniteMoney,
     baseArLedger,
     findActiveArByIdempotency
   }

@@ -84,3 +84,33 @@ test('allocation invariant rejects missing reward deduction', () => {
     idempotencyKey: 'OPA:SO-BAD:delivery_closeout:test:v1'
   }), /Sai invariant phân bổ thanh toán/);
 });
+
+test('allocation builder keeps legacy cash transfer reward aliases connected', () => {
+  const allocation = OrderPaymentAllocationService.buildAllocationFromCloseout({
+    id: 'SO-ALIAS-1',
+    code: 'B-ALIAS-1',
+    customerCode: 'C001',
+    customerName: 'Alias Customer',
+    totalAmount: 1000000,
+    deliveryDate: '2026-07-03'
+  }, {
+    originalAmount: 1000000,
+    cashCollectedAmount: 100000,
+    transferAmount: 200000,
+    rewardOffsetAmount: 300000,
+    actualReturnAmount: 50000,
+    finalDebtAmount: 350000,
+    status: 'accounting_confirmed',
+    version: 1
+  }, {
+    actor: 'test',
+    closeoutScopeHash: 'alias-scope'
+  });
+
+  assert.equal(allocation.cashAmount, 100000);
+  assert.equal(allocation.bankAmount, 200000);
+  assert.equal(allocation.rewardAmount, 300000);
+  assert.equal(allocation.returnAmount, 50000);
+  assert.equal(allocation.debtAmount, 350000);
+  assert.equal(balanceFromRows(OrderPaymentAllocationService.buildArLedgerRows(allocation)), 350000);
+});
