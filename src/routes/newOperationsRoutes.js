@@ -5,6 +5,8 @@ const { requireAuth, requireRole } = require('../middlewares/auth.middleware');
 const deliveryTodayNewService = require('../services/v2/deliveryTodayNew.service');
 const debtNewService = require('../services/v2/debtNew.service');
 const deliveryCloseoutCorrectionService = require('../services/deliveryCloseoutCorrection.service');
+const DeliveryAdjustmentCommitService = require('../services/delivery/DeliveryAdjustmentCommitService');
+const DeliveryAdjustmentBulkCommitService = require('../services/delivery/DeliveryAdjustmentBulkCommitService');
 const DebtCollectionService = require('../services/DebtCollectionService');
 const manualDebtPostingService = require('../services/accounting/manualDebtPostingService');
 const AccountingCloseoutService = require('../services/accounting/AccountingCloseoutService');
@@ -179,10 +181,13 @@ router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, 
 
 router.post('/delivery-today/closeouts/:id/corrections', requireAuth, writeRoles, async (req, res) => {
   try {
-    const result = await deliveryCloseoutCorrectionService.createCorrection({
-      ...(req.body || {}),
-      originalCloseoutId: req.params.id,
-      actor: req.user || {}
+    const result = await DeliveryAdjustmentCommitService.commitOneAdjustment({
+      passthroughInput: {
+        ...(req.body || {}),
+        originalCloseoutId: req.params.id
+      },
+      actor: req.user || {},
+      source: 'manual'
     }, { actor: req.user?.username || req.user?.name || req.user?.email || req.user?.role || 'accountant' });
     return res.json({
       ok: true,
@@ -197,6 +202,44 @@ router.post('/delivery-today/closeouts/:id/corrections', requireAuth, writeRoles
     });
   } catch (err) {
     return sendError(res, err, 'Không tạo được điều chỉnh closeout');
+  }
+});
+
+
+router.post('/delivery-today/adjustments/bulk-commit', requireAuth, writeRoles, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const orderCodes = Array.isArray(body.orderCodes || body.selectedOrderCodes) ? (body.orderCodes || body.selectedOrderCodes) : [];
+    const orderIds = Array.isArray(body.orderIds || body.selectedOrderIds) ? (body.orderIds || body.selectedOrderIds) : [];
+    if (!orderCodes.length && !orderIds.length) {
+      return res.status(400).json({ ok: false, success: false, code: 'BULK_ADJUSTMENT_ORDER_REQUIRED', message: 'Vui lòng chọn ít nhất một đơn để ghi nhận điều chỉnh.' });
+    }
+    const actor = req.user || {};
+    const actorLabel = req.user?.username || req.user?.name || req.user?.email || req.user?.role || 'accountant';
+    const result = await DeliveryAdjustmentBulkCommitService.commitManyAdjustments({
+      ...body,
+      orderCodes,
+      orderIds,
+      actor,
+      reason: body.reason || 'Bulk ghi nhận lại điều chỉnh công nợ',
+      note: body.note || '',
+      date: body.date || body.deliveryDate,
+      deliveryStaffCode: body.deliveryStaffCode || body.delivery,
+      salesStaffCode: body.salesStaffCode || body.salesman,
+      dryRun: body.dryRun === true
+    }, { actor: actorLabel });
+    return res.json({
+      ok: true,
+      success: true,
+      message: result.message || 'Đã ghi nhận điều chỉnh hàng loạt.',
+      summary: result.summary,
+      items: result.items,
+      results: result.results,
+      data: result,
+      canonicalRoute: '/api/new/delivery-today/adjustments/bulk-commit'
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không ghi nhận điều chỉnh hàng loạt');
   }
 });
 
