@@ -36,6 +36,9 @@ function normalizeArCategory(doc = {}) {
   const text = combinedIdentityText(doc);
 
   if (exact === 'AR-DEBT-OPEN' || type === 'ar_debt_open' || /AR[-_ ]?DEBT[-_ ]?OPEN/.test(text)) return 'AR-DEBT-OPEN';
+  if (exact === 'AR-RECEIPT-CASH' || type === 'ar_receipt_cash' || /AR[-_ ]?RECEIPT[-_ ]?CASH/.test(text)) return 'AR-RECEIPT-CASH';
+  if (exact === 'AR-RECEIPT-BANK' || type === 'ar_receipt_bank' || /AR[-_ ]?RECEIPT[-_ ]?BANK/.test(text)) return 'AR-RECEIPT-BANK';
+  if (exact === 'AR-REWARD-ALLOWANCE' || type === 'ar_reward_allowance' || /AR[-_ ]?REWARD[-_ ]?ALLOWANCE/.test(text)) return 'AR-REWARD-ALLOWANCE';
   if (exact === 'AR-DEBT-PAYMENT' || type === 'ar_debt_payment' || /AR[-_ ]?DEBT[-_ ]?PAYMENT/.test(text)) return 'AR-DEBT-PAYMENT';
   if (exact === 'AR-DEBT-ADJUSTMENT' || type === 'ar_debt_adjustment' || /AR[-_ ]?DEBT[-_ ]?ADJUSTMENT/.test(text)) return 'AR-DEBT-ADJUSTMENT';
   if (exact === 'AR-DEBT-VOID' || type === 'ar_debt_void' || /AR[-_ ]?DEBT[-_ ]?VOID/.test(text)) return 'AR-DEBT-VOID';
@@ -79,7 +82,7 @@ function getArLedgerCategoryEffect(doc = {}) {
   if (['AR-DEBT-OPEN', 'AR-SALE', 'AR-EXTERNAL', 'AR-EXTERNAL-DEBT', 'AR-RETURN-REVERSAL', 'AR-RECEIPT-REVERSAL'].includes(category)) {
     return { category, defaultSide: 'debit', effect: 'increase_ar' };
   }
-  if (['AR-DEBT-PAYMENT', 'AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RECEIPT', 'AR-BONUS-ALLOWANCE'].includes(category)) {
+  if (['AR-DEBT-PAYMENT', 'AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RECEIPT', 'AR-RECEIPT-CASH', 'AR-RECEIPT-BANK', 'AR-REWARD-ALLOWANCE', 'AR-BONUS-ALLOWANCE'].includes(category)) {
     return { category, defaultSide: 'credit', effect: 'decrease_ar' };
   }
   if (category === 'AR-DEBT-ADJUSTMENT' || category === 'AR-DEBT-VOID' || category === 'AR-ADJUSTMENT') {

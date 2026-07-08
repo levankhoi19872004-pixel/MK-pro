@@ -8,7 +8,7 @@ const { withMongoTransaction } = require('../../utils/transaction.util');
 const { compactDeliveryOrderKeys } = require('../master-order/masterOrderIdentity.util');
 const { findReturnOrdersForDeliveryChildren } = require('../master-order/masterOrderReturn.impl');
 const DeliveryCloseoutService = require('./DeliveryCloseoutService');
-const ArDebtOpenPostingService = require('./ArDebtOpenPostingService');
+const OrderPaymentAllocationService = require('./OrderPaymentAllocationService');
 const readModelSyncJobService = require('../readModelSyncJob.service');
 
 const CONFIRM_GUARD_TTL_MS = Math.max(1000, Number(process.env.CLOSEOUT_CONFIRM_GUARD_TTL_MS || 8000));
@@ -348,6 +348,7 @@ async function loadOrders(selectedOrderIds = []) {
       'totalAmount', 'subtotal', 'discountAmount', 'finalAmount', 'payableAmount', 'debtBeforeCollection', 'debtAmount', 'debt', 'arBalance',
       'paidAmount', 'cashCollected', 'cashAmount', 'bankCollected', 'bankAmount', 'transferAmount',
       'returnAmount', 'returnedAmount', 'returnAmountFromReturnOrders', 'syncedReturnAmountFromReturnOrders',
+      'rewardAmount', 'bonusAmount', 'allowanceAmount', 'promotionRewardAmount', 'displayRewardAmount', 'bonusReturnAmount', 'rewardOffsetAmount', 'promotionOffsetAmount', 'offsetAmount', 'debtOffsetAmount',
       'paymentAllocations', 'deliveryPayment', 'deliveryPayments', 'payments', 'items', 'lines', 'products',
       'masterOrderId', 'masterOrderCode', 'deliveryMasterId', 'deliveryMasterCode', 'masterId', 'masterCode',
       'deliveryCloseout', 'version', 'note', 'deliveryNote'
@@ -498,19 +499,29 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     ...order,
     ...patch
   };
-  const arResult = await ArDebtOpenPostingService.postDebtOpen(updatedOrderForLedger, confirmedCloseout, {
+  const allocationResult = await OrderPaymentAllocationService.buildAndPostFromCloseout(updatedOrderForLedger, confirmedCloseout, {
     ...options,
-    skipReadModelRebuild: true,
-    note: clean(options.note || options.reason || `Mở công nợ cuối cùng từ chốt giao hàng ${DeliveryCloseoutService.orderCode(order)}`),
+    actor,
+    confirmedBy: actor,
+    date: options.date,
+    accountingBatchId: `OPA-ACC-${DeliveryCloseoutService.orderId(order) || DeliveryCloseoutService.orderCode(order)}`,
     closeoutScopeHash: clean(confirmedCloseout.closeoutScopeHash || confirmedCloseout.scopeHash),
-    closeoutScope: confirmedCloseout.closeoutScope || 'selected_orders'
+    closeoutScope: confirmedCloseout.closeoutScope || 'selected_orders',
+    note: clean(options.note || options.reason || `Phân bổ thanh toán từ chốt giao hàng ${DeliveryCloseoutService.orderCode(order)}`)
   });
+  const arResult = {
+    posted: (allocationResult.arLedgers || []).length > 0,
+    entry: (allocationResult.arLedgers || [])[0] || null,
+    allocation: allocationResult.allocation,
+    arLedgers: allocationResult.arLedgers || [],
+    fundLedgers: allocationResult.fundLedgers || []
+  };
   await auditService.log('ACCOUNTING_CONFIRM_DELIVERY_CLOSEOUT', {
     refType: 'SALES_ORDER',
     refId: DeliveryCloseoutService.orderId(order),
     refCode: DeliveryCloseoutService.orderCode(order),
     user: actor,
-    note: `Xác nhận kế toán chốt giao hàng: finalDebt=${confirmedCloseout.finalDebtAmount}, AR=${arResult.posted ? 'AR-DEBT-OPEN' : arResult.reason || 'idempotent'}, reason=${clean(options.reason || options.closeoutReason || '')}`
+    note: `Xác nhận kế toán chốt giao hàng: finalDebt=${confirmedCloseout.finalDebtAmount}, allocation=${arResult.allocation?.allocationCode || ''}, AR rows=${(arResult.arLedgers || []).length}, reason=${clean(options.reason || options.closeoutReason || '')}`
   });
   await auditService.log('DELIVERY_CLOSEOUT_CONFIRMED', {
     refType: 'SALES_ORDER',
@@ -547,7 +558,8 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     selectedSalesStaffCodes: confirmedCloseout.selectedSalesStaffCodes || [],
     rebuiltFromSsot: confirmedCloseout.rebuiltFromSsot === true,
     previousCloseoutMismatches: confirmedCloseout.previousCloseoutMismatches || [],
-    arDebtOpen: arResult,
+    paymentAllocation: arResult.allocation,
+    arPosting: arResult,
     patchResult,
     diagnostic: buildCloseoutDiagnostic(order, confirmedCloseout, arResult)
   };
@@ -592,15 +604,15 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
       closeoutScopeHash: closeoutScope.scopeHash,
       selectedOrderCodes,
       selectedSalesStaffCodes,
-      architecture: 'salesOrders.deliveryCloseout -> single AR-DEBT-OPEN',
-      arPolicy: 'no AR-SALE / AR-RETURN / AR-RECEIPT from delivery accounting',
+      architecture: 'salesOrders.deliveryCloseout -> orderPaymentAllocations -> detailed arLedgers/fundLedgers',
+      arPolicy: 'AR-SALE/AR-RECEIPT-CASH/AR-RECEIPT-BANK/AR-REWARD-ALLOWANCE/AR-RETURN are posted from orderPaymentAllocations',
       results,
       diagnostics,
       warnings: [],
       readModelRebuilds: [],
       readModelSync: { mode: 'skipped', queued: 0, status: 'not_needed' },
       reason,
-      message: 'Các đơn đã được kế toán chốt trước đó. Hệ thống bỏ qua để tránh ghi lại SalesOrder, sinh trùng AR-DEBT-OPEN hoặc rebuild công nợ không cần thiết.'
+      message: 'Các đơn đã được kế toán chốt trước đó. Hệ thống bỏ qua để tránh ghi lại SalesOrder, sinh trùng orderPaymentAllocations/arLedgers hoặc rebuild công nợ không cần thiết.'
     };
   }
 
@@ -664,8 +676,8 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     closeoutScopeHash: closeoutScope.scopeHash,
     selectedOrderCodes,
     selectedSalesStaffCodes,
-    architecture: 'salesOrders.deliveryCloseout -> single AR-DEBT-OPEN',
-    arPolicy: 'no AR-SALE / AR-RETURN / AR-RECEIPT from delivery accounting',
+    architecture: 'salesOrders.deliveryCloseout -> orderPaymentAllocations -> detailed arLedgers/fundLedgers',
+    arPolicy: 'AR-SALE/AR-RECEIPT-CASH/AR-RECEIPT-BANK/AR-REWARD-ALLOWANCE/AR-RETURN are posted from orderPaymentAllocations',
     results,
     diagnostics,
     warnings,

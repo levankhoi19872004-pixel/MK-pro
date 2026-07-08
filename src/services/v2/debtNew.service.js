@@ -17,7 +17,11 @@ function buildDebtSourceNote(code, query = {}, warnings = []) {
 let modelsForDebtNew = null;
 function getDebtNewModels() {
   if (modelsForDebtNew) return modelsForDebtNew;
-  modelsForDebtNew = { ArLedger: require('../../models/ArLedger'), DebtCollection: require('../../models/DebtCollection') };
+  modelsForDebtNew = {
+    ArLedger: require('../../models/ArLedger'),
+    DebtCollection: require('../../models/DebtCollection'),
+    OrderPaymentAllocation: require('../../models/OrderPaymentAllocation')
+  };
   return modelsForDebtNew;
 }
 
@@ -25,7 +29,12 @@ const ALLOWED_CATEGORIES = Object.freeze([
   'AR-DEBT-OPEN',
   'AR-DEBT-PAYMENT',
   'AR-DEBT-ADJUSTMENT',
-  'AR-DEBT-VOID'
+  'AR-DEBT-VOID',
+  'AR-SALE',
+  'AR-RECEIPT-CASH',
+  'AR-RECEIPT-BANK',
+  'AR-REWARD-ALLOWANCE',
+  'AR-RETURN'
 ]);
 const PENDING_COLLECTION_STATUSES = Object.freeze(['submitted', 'under_review']);
 
@@ -75,7 +84,7 @@ function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {
       searchCriteriaRequired: true,
       hasSearchCriteria: hasSearchCriteria(query),
       allowedCategories: ALLOWED_CATEGORIES,
-      excludedLegacyCategories: ['AR-SALE', 'AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RECEIPT'],
+      excludedLegacyCategories: ['AR-SALE-REVERSAL', 'AR-RETURN-REVERSAL', 'AR-RECEIPT-REVERSAL'],
       writePolicy: 'read-only from AR-DEBT-* only; debt collections are submitted separately and do not reduce debt until accounting confirm'
     }
   };
@@ -313,6 +322,79 @@ function loadPendingDebtCollectionsForOrders(orders = [], options = {}) {
   return loadPendingCollectionsForOrders(orders, options);
 }
 
+
+function allocationLookupKeys(row = {}) {
+  return Array.from(new Set([
+    row.orderId,
+    row.orderCode,
+    row.salesOrderId,
+    row.salesOrderCode,
+    row.sourceId,
+    row.sourceCode,
+    row.refId,
+    row.refCode,
+    row.orderKey
+  ].map(text).filter(Boolean)));
+}
+
+async function loadPaymentAllocationsForOrders(orders = [], options = {}) {
+  const keys = Array.from(new Set((orders || []).flatMap(allocationLookupKeys).filter(Boolean)));
+  if (!keys.length) return [];
+  const { OrderPaymentAllocation } = getDebtNewModels();
+  if (!OrderPaymentAllocation || typeof OrderPaymentAllocation.find !== 'function') return [];
+  const filter = {
+    status: { $nin: ['reversed', 'void', 'voided', 'cancelled', 'canceled', 'deleted'] },
+    $or: [
+      { orderId: { $in: keys } },
+      { orderCode: { $in: keys } },
+      { sourceId: { $in: keys } },
+      { sourceCode: { $in: keys } }
+    ]
+  };
+  let query = OrderPaymentAllocation.find(filter).sort({ sourceVersion: -1, postedAt: -1, updatedAt: -1, createdAt: -1 }).limit(5000);
+  if (options.session && query && typeof query.session === 'function') query = query.session(options.session);
+  return query && typeof query.lean === 'function' ? query.lean() : query;
+}
+
+function paymentAllocationByOrder(rows = []) {
+  const map = new Map();
+  for (const row of rows || []) {
+    for (const key of allocationLookupKeys(row)) {
+      if (!map.has(key)) map.set(key, row);
+    }
+  }
+  return map;
+}
+
+function attachPaymentAllocationState(grouped = {}, allocations = []) {
+  const lookup = paymentAllocationByOrder(allocations);
+  for (const order of grouped.orders || []) {
+    const allocation = allocationLookupKeys(order).map((key) => lookup.get(key)).find(Boolean);
+    if (!allocation) continue;
+    order.paymentAllocationId = text(allocation.id || allocation._id || allocation.allocationCode);
+    order.paymentAllocationCode = text(allocation.allocationCode);
+    order.paymentAllocationSource = 'orderPaymentAllocations';
+    order.receivableAmount = money(allocation.receivableAmount);
+    order.cashAmount = money(allocation.cashAmount);
+    order.bankAmount = money(allocation.bankAmount);
+    order.rewardAmount = money(allocation.rewardAmount);
+    order.returnAmount = money(allocation.returnAmount);
+    order.allocationDebtAmount = money(allocation.debtAmount);
+    order.allocationDiff = money((order.debtAmount ?? order.debt ?? order.remainingDebt ?? 0) - money(allocation.debtAmount));
+  }
+  for (const customer of grouped.customers || []) {
+    customer.paymentAllocationSource = (customer.orders || []).some((order) => order.paymentAllocationCode) ? 'orderPaymentAllocations' : '';
+    customer.allocationDebtAmount = (customer.orders || []).reduce((sum, order) => sum + money(order.allocationDebtAmount), 0);
+    customer.allocationDiff = money(customer.debt - customer.allocationDebtAmount);
+  }
+  if (grouped.summary) {
+    grouped.summary.paymentAllocationOrderCount = (grouped.orders || []).filter((order) => order.paymentAllocationCode).length;
+    grouped.summary.allocationDebtAmount = (grouped.orders || []).reduce((sum, order) => sum + money(order.allocationDebtAmount), 0);
+    grouped.summary.allocationDiff = money(grouped.summary.totalDebt - grouped.summary.allocationDebtAmount);
+  }
+  return grouped;
+}
+
 function normalizeLedger(row = {}) {
   const amounts = normalizeAccountingAmount(row);
   return {
@@ -486,6 +568,8 @@ async function listCustomers(query = {}, options = {}) {
     status: 'all'
   }, options);
   const grouped = groupLedgers(ledgerRows, normalizedQuery);
+  const allocationRows = await loadPaymentAllocationsForOrders(grouped.orders || [], options).catch(() => []);
+  attachPaymentAllocationState(grouped, allocationRows);
   const pendingRows = await loadPendingCollectionsForOrders(grouped.orders || [], options).catch(() => []);
   await attachCollectibleState(grouped, pendingAmountByOrder(pendingRows));
   return {
@@ -497,8 +581,8 @@ async function listCustomers(query = {}, options = {}) {
       hasSearchCriteria: hasSearchCriteria(query),
       searchCriteriaRequired: false,
       allowedCategories: ALLOWED_CATEGORIES,
-      excludedLegacyCategories: ['AR-SALE', 'AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RECEIPT'],
-      writePolicy: 'read-only from AR-DEBT-* only; submitted debt collections do not reduce official debt until accounting confirm'
+      excludedLegacyCategories: ['AR-SALE-REVERSAL', 'AR-RETURN-REVERSAL', 'AR-RECEIPT-REVERSAL'],
+      writePolicy: 'read-only from canonical arLedgers; payment allocation detail is joined from orderPaymentAllocations; submitted debt collections do not reduce official debt until accounting confirm'
     }
   };
 }

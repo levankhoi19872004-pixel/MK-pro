@@ -76,6 +76,10 @@
     return match && match[1] ? match[1].trim() : '';
   }
 
+  function isCloseoutContextId(value) {
+    return /^(DCO|DTC|DCOV|DCOA|DCOC)[-_]/i.test(String(value || '').trim());
+  }
+
   function isDeliveryAdjustmentNotification(notification, fallbackActionUrl) {
     var n = notification || {};
     var metadata = n.metadata || {};
@@ -93,10 +97,19 @@
     var orderCode = firstText([
       metadata.orderCode, metadata.salesOrderCode, parsed.params.get('orderCode'), parsed.params.get('salesOrderCode'), n.entityCode, parseOrderCodeFromText(n.title, n.message)
     ]);
+    var rawOrderId = firstText([metadata.canonicalOrderId, metadata.salesOrderId, metadata.orderId, parsed.params.get('orderId')]);
+    var closeoutVersionId = firstText([
+      metadata.closeoutVersionId, metadata.newCloseoutId, metadata.originalCloseoutId, parsed.params.get('closeoutVersionId'),
+      isCloseoutContextId(rawOrderId) ? rawOrderId : '',
+      isCloseoutContextId(n.entityId) ? n.entityId : ''
+    ]);
     return {
       orderCode: orderCode,
-      orderId: firstText([metadata.orderId, metadata.salesOrderId, parsed.params.get('orderId'), n.entityId]),
+      orderId: isCloseoutContextId(rawOrderId) ? '' : rawOrderId,
+      closeoutVersionId: closeoutVersionId,
       deliveryDate: firstText([metadata.deliveryDate, metadata.orderDate, parsed.params.get('deliveryDate'), parsed.params.get('date')]),
+      deliveryStaffCode: firstText([metadata.deliveryStaffCode, parsed.params.get('deliveryStaffCode')]),
+      salesStaffCode: firstText([metadata.salesStaffCode, parsed.params.get('salesStaffCode')]),
       adjustmentId: firstText([metadata.adjustmentId, metadata.correctionId, parsed.params.get('adjustmentId'), parsed.params.get('correctionId')]),
       adjustmentCode: firstText([metadata.adjustmentCode, metadata.correctionCode, parsed.params.get('adjustmentCode'), parsed.params.get('correctionCode')]),
       source: 'notification-center',
@@ -114,17 +127,20 @@
     params.set('action', 'open-adjustment-detail');
     if (payload.orderCode) params.set('orderCode', payload.orderCode);
     if (payload.orderId) params.set('orderId', payload.orderId);
+    if (payload.closeoutVersionId) params.set('closeoutVersionId', payload.closeoutVersionId);
     if (payload.deliveryDate) params.set('deliveryDate', payload.deliveryDate);
+    if (payload.deliveryStaffCode) params.set('deliveryStaffCode', payload.deliveryStaffCode);
+    if (payload.salesStaffCode) params.set('salesStaffCode', payload.salesStaffCode);
     if (payload.adjustmentId) params.set('adjustmentId', payload.adjustmentId);
     if (payload.adjustmentCode) params.set('adjustmentCode', payload.adjustmentCode);
     window.location.hash = '/delivery-today-new?' + params.toString();
     var button = document.querySelector('.tab-button[data-tab="deliveryTodayNewTab"]');
     if (button) button.click();
-    if (!payload.orderCode && !payload.orderId) {
+    if (!payload.adjustmentCode && !payload.adjustmentId && !payload.orderCode && !payload.orderId && !payload.closeoutVersionId) {
       showCenterMessage('Không đủ dữ liệu để mở trực tiếp chi tiết điều chỉnh. Đã chuyển đến màn Đơn giao hôm nay để bạn kiểm tra.', 'warning');
       return;
     }
-    showCenterMessage('Đang mở chi tiết điều chỉnh đơn ' + (payload.orderCode || payload.orderId) + '...', 'info');
+    showCenterMessage('Đang mở chi tiết điều chỉnh đơn ' + (payload.orderCode || payload.orderId || payload.adjustmentCode || payload.closeoutVersionId) + '...', 'info');
     setTimeout(function () { dispatchDeliveryAdjustment(payload); }, 80);
   }
 

@@ -29,6 +29,10 @@ function codeOf(event = {}, ...keys) {
   return '';
 }
 
+function isCloseoutContextId(value = '') {
+  return /^(DCO|DTC|DCOV|DCOA|DCOC)[-_]/i.test(text(value));
+}
+
 function deliveryAdjustmentActionUrl(event = {}) {
   const orderCode = codeOf(event, 'orderCode', 'salesOrderCode') || event.entityCode;
   const params = new URLSearchParams();
@@ -36,6 +40,14 @@ function deliveryAdjustmentActionUrl(event = {}) {
   if (orderCode) params.set('orderCode', orderCode);
   const deliveryDate = codeOf(event, 'deliveryDate', 'orderDate', 'date');
   if (deliveryDate) params.set('deliveryDate', deliveryDate);
+  const canonicalOrderId = codeOf(event, 'canonicalOrderId', 'salesOrderId', 'orderId');
+  if (canonicalOrderId && !isCloseoutContextId(canonicalOrderId)) params.set('orderId', canonicalOrderId);
+  const closeoutVersionId = codeOf(event, 'closeoutVersionId', 'newCloseoutId', 'originalCloseoutId', 'entityId');
+  if (closeoutVersionId) params.set('closeoutVersionId', closeoutVersionId);
+  const deliveryStaffCode = codeOf(event, 'deliveryStaffCode');
+  if (deliveryStaffCode) params.set('deliveryStaffCode', deliveryStaffCode);
+  const salesStaffCode = codeOf(event, 'salesStaffCode');
+  if (salesStaffCode) params.set('salesStaffCode', salesStaffCode);
   const adjustmentId = codeOf(event, 'adjustmentId', 'correctionId');
   if (adjustmentId) params.set('adjustmentId', adjustmentId);
   const adjustmentCode = codeOf(event, 'adjustmentCode', 'correctionCode');

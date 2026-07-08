@@ -324,6 +324,24 @@ const RAW_SOURCE_CONTRACTS = Object.freeze({
     visibleForRoles: ['admin', 'manager', 'accountant', 'warehouse'],
     defaultCollapsed: true
   },
+  'delivery-adjustment-resolver': {
+    module: 'delivery',
+    title: 'Chi tiết điều chỉnh đơn giao từ thông báo',
+    primaryCollections: ['deliveryCloseoutCorrections', 'deliveryCloseoutVersions'],
+    secondaryCollections: ['orders', 'returnOrders'],
+    forbiddenCollections: ['master_orders.totalAmount', 'arLedgers', REPORTING_SNAPSHOT_COLLECTION],
+    service: 'DeliveryAdjustmentResolver.resolve',
+    endpoint: '/api/new/delivery-today/adjustments/resolve',
+    exportEndpoint: null,
+    sourceLabel: 'Chi tiết điều chỉnh được resolve theo adjustmentCode/correctionCode, sau đó mới đối chiếu orders nếu còn đơn gốc',
+    ssotRule: 'Adjustment detail = deliveryCloseoutCorrections/deliveryCloseoutVersions; orders chỉ bổ sung thông tin đơn gốc; không dùng listOrders/filter ngày làm khóa mở thông báo.',
+    amountSource: 'deliveryCloseoutCorrections',
+    deliverySource: 'deliveryCloseoutVersions',
+    visibleOnUi: true,
+    visibleInExcel: false,
+    visibleForRoles: ['admin', 'manager', 'accountant', 'warehouse'],
+    defaultCollapsed: true
+  },
   'delivery-today-by-staff': {
     module: 'delivery',
     title: 'Giao hàng hôm nay theo NVGH/NVBH',

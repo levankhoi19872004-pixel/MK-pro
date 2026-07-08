@@ -335,6 +335,246 @@ function buildOrderLookup(ref = '') {
   };
 }
 
+function isMongoObjectId(value = '') {
+  return /^[a-fA-F0-9]{24}$/.test(text(value));
+}
+
+function isCloseoutContextId(value = '') {
+  return /^(DCO|DTC|DCOV|DCOA|DCOC)[-_]/i.test(text(value));
+}
+
+function uniqueText(values = []) {
+  return [...new Set((Array.isArray(values) ? values : []).map(text).filter(Boolean))];
+}
+
+function queryWithOptionalSession(query, options = {}) {
+  return options.session && query && typeof query.session === 'function' ? query.session(options.session) : query;
+}
+
+function correctionLookup(input = {}) {
+  const directKeys = uniqueText([
+    input.adjustmentCode,
+    input.correctionCode,
+    input.adjustmentId,
+    input.correctionId,
+    input.id,
+    input.code
+  ]);
+  const or = [];
+  for (const key of directKeys) {
+    or.push(
+      { id: key },
+      { code: key },
+      { correctionCode: key },
+      { newCloseoutId: key },
+      { newCloseoutCode: key },
+      { originalCloseoutId: key },
+      { originalCloseoutCode: key },
+      { arDebtAdjustmentLedgerId: key },
+      { arDebtAdjustmentLedgerCode: key }
+    );
+    if (isMongoObjectId(key)) or.push({ _id: key });
+  }
+  if (or.length) return { $or: or };
+
+  const orderKeys = uniqueText([input.orderCode, input.salesOrderCode]);
+  if (!orderKeys.length) return null;
+  return {
+    $or: orderKeys.flatMap((key) => ([
+      { salesOrderCode: key },
+      { orderCode: key }
+    ]))
+  };
+}
+
+function versionLookup(input = {}, correction = null) {
+  const keys = uniqueText([
+    input.closeoutVersionId,
+    input.closeoutVersionCode,
+    input.adjustmentCode,
+    input.correctionCode,
+    input.adjustmentId,
+    input.correctionId,
+    input.orderId && isCloseoutContextId(input.orderId) ? input.orderId : '',
+    correction && correction.id,
+    correction && correction.code,
+    correction && correction.correctionCode,
+    correction && correction.newCloseoutId,
+    correction && correction.newCloseoutCode,
+    correction && correction.originalCloseoutId,
+    correction && correction.originalCloseoutCode
+  ]);
+  const or = [];
+  for (const key of keys) {
+    or.push(
+      { id: key },
+      { code: key },
+      { closeoutCode: key },
+      { correctionId: key },
+      { correctionCode: key },
+      { originalCloseoutId: key },
+      { originalCloseoutCode: key },
+      { correctionOfCloseoutId: key }
+    );
+    if (isMongoObjectId(key)) or.push({ _id: key });
+  }
+  if (or.length) return { $or: or };
+  return null;
+}
+
+function activeOrderGuard() {
+  return {
+    deleted: { $ne: true },
+    isDeleted: { $ne: true },
+    deleteMode: { $nin: ['hard_deleted', 'deleted'] }
+  };
+}
+
+function orderLookupFromResolver(input = {}, correction = null, version = null) {
+  const rawOrderId = text(input.orderId || input.salesOrderId);
+  const keys = uniqueText([
+    input.canonicalOrderId,
+    input.salesOrderId,
+    !isCloseoutContextId(rawOrderId) ? rawOrderId : '',
+    input.orderCode,
+    input.salesOrderCode,
+    correction && correction.salesOrderId,
+    correction && correction.orderId,
+    correction && correction.salesOrderCode,
+    correction && correction.orderCode,
+    version && version.salesOrderId,
+    version && version.orderId,
+    version && version.salesOrderCode,
+    version && version.orderCode
+  ]);
+  if (!keys.length) return null;
+  const or = [];
+  for (const key of keys) {
+    or.push(
+      { id: key },
+      { code: key },
+      { orderCode: key },
+      { salesOrderCode: key },
+      { documentCode: key },
+      { invoiceCode: key },
+      { 'deliveryCloseout.id': key },
+      { 'deliveryCloseout.code': key },
+      { 'deliveryCloseout.closeoutId': key },
+      { 'deliveryCloseout.closeoutCode': key }
+    );
+    if (isMongoObjectId(key)) or.push({ _id: key });
+  }
+  return { ...activeOrderGuard(), $or: or };
+}
+
+function adjustmentPublic(correction = {}, version = null) {
+  const source = correction && Object.keys(correction).length ? correction : (version || {});
+  return {
+    id: text(source.id || source._id),
+    code: text(source.code || source.correctionCode || source.closeoutCode),
+    adjustmentId: text(source.id || source._id),
+    adjustmentCode: text(source.correctionCode || source.code || source.id),
+    correctionId: text(source.id || source._id),
+    correctionCode: text(source.correctionCode || source.code || source.id),
+    orderId: text(source.salesOrderId || source.orderId),
+    orderCode: text(source.salesOrderCode || source.orderCode),
+    closeoutVersionId: text(source.newCloseoutId || source.id || source.code || source.closeoutCode),
+    closeoutVersionCode: text(source.newCloseoutCode || source.closeoutCode || source.code),
+    originalCloseoutId: text(source.originalCloseoutId || source.correctionOfCloseoutId),
+    originalCloseoutCode: text(source.originalCloseoutCode),
+    deliveryDate: text(source.deliveryDate),
+    deliveryStaffCode: text(source.deliveryStaffCode),
+    deliveryStaffName: text(source.deliveryStaffName),
+    salesStaffCode: text(source.salesStaffCode),
+    salesStaffName: text(source.salesStaffName),
+    customerCode: text(source.customerCode),
+    customerName: text(source.customerName),
+    previousReturnAmount: money(source.previousReturnAmount),
+    previousCashAmount: money(source.previousCashAmount),
+    previousBankAmount: money(source.previousBankAmount),
+    previousRewardAmount: money(source.previousRewardAmount),
+    previousDebtAmount: money(source.previousDebtAmount),
+    newReturnAmount: money(source.newReturnAmount ?? source.returnAmount ?? source.returnedAmount),
+    newCashAmount: money(source.newCashAmount ?? source.cashAmount),
+    newBankAmount: money(source.newBankAmount ?? source.bankAmount),
+    newRewardAmount: money(source.newRewardAmount ?? source.rewardAmount),
+    newDebtAmount: money(source.newDebtAmount ?? source.finalDebtAmount ?? source.debtAmount),
+    cashDeltaAmount: money(source.cashDeltaAmount),
+    bankDeltaAmount: money(source.bankDeltaAmount),
+    rewardDeltaAmount: money(source.rewardDeltaAmount),
+    debtDeltaAmount: money(source.debtDeltaAmount ?? source.debtAdjustmentAmount),
+    returnAdjustmentAmount: money(source.returnAdjustmentAmount),
+    returnDelta: money(source.returnAdjustmentAmount),
+    cashDelta: money(source.cashDeltaAmount),
+    bankDelta: money(source.bankDeltaAmount),
+    rewardDelta: money(source.rewardDeltaAmount),
+    debtDelta: money(source.debtDeltaAmount ?? source.debtAdjustmentAmount),
+    returnDeltaAmount: money(source.returnAdjustmentAmount),
+    totalCollectedDelta: money(source.totalCollectedDelta ?? source.cashAdjustmentAmount),
+    createdAt: text(source.createdAt),
+    createdBy: text(source.createdBy),
+    reason: text(source.reason || source.auditReason),
+    note: text(source.note),
+    status: text(source.status || 'confirmed'),
+    sourceType: text(source.sourceType || (version ? 'DELIVERY_CLOSEOUT_VERSION' : 'DELIVERY_CLOSEOUT_CORRECTION'))
+  };
+}
+
+function syntheticOrderFromAdjustment(adjustment = {}, version = null) {
+  return {
+    id: adjustment.orderId || adjustment.originalCloseoutId || adjustment.adjustmentId || adjustment.adjustmentCode,
+    orderId: adjustment.orderId || adjustment.originalCloseoutId || adjustment.adjustmentId || adjustment.adjustmentCode,
+    orderCode: adjustment.orderCode || adjustment.adjustmentCode,
+    customerCode: adjustment.customerCode,
+    customerName: adjustment.customerName,
+    deliveryDate: adjustment.deliveryDate,
+    salesStaffCode: adjustment.salesStaffCode,
+    salesStaffName: adjustment.salesStaffName,
+    deliveryStaffCode: adjustment.deliveryStaffCode,
+    deliveryStaffName: adjustment.deliveryStaffName,
+    status: adjustment.status || 'adjusted_readonly',
+    closeoutStatus: adjustment.status || 'corrected_confirmed',
+    accountingConfirmed: true,
+    viewSelectable: false,
+    closeoutEligible: false,
+    adjustmentAllowed: false,
+    closeoutLocked: true,
+    canCloseout: false,
+    canAdjust: false,
+    correctionVersionApplied: true,
+    correctionId: adjustment.correctionId,
+    correctionCode: adjustment.correctionCode,
+    closeoutVersionId: adjustment.closeoutVersionId || (version && text(version.id || version.code || version.closeoutCode)),
+    originalAmount: money((version && (version.originalAmount ?? version.saleAmount)) ?? adjustment.originalAmount ?? 0),
+    returnedAmount: money(adjustment.newReturnAmount),
+    returnOrderCount: 0,
+    returnOrderCodes: [],
+    latestReturnDate: '',
+    returnOrders: [],
+    cashAmount: money(adjustment.newCashAmount),
+    bankAmount: money(adjustment.newBankAmount),
+    rewardAmount: money(adjustment.newRewardAmount),
+    offsetAmount: 0,
+    collectedAmount: money(adjustment.newCashAmount + adjustment.newBankAmount + adjustment.newRewardAmount),
+    finalDebtAmount: money(adjustment.newDebtAmount),
+    rawFinalDebtAmount: money(adjustment.newDebtAmount),
+    closeoutFinalDebtAmount: money(adjustment.newDebtAmount),
+    closeoutDelta: 0,
+    returnAdjustmentAmount: money(adjustment.returnAdjustmentAmount),
+    cashAdjustmentAmount: money(adjustment.totalCollectedDelta),
+    cashDeltaAmount: money(adjustment.cashDeltaAmount),
+    bankDeltaAmount: money(adjustment.bankDeltaAmount),
+    rewardDeltaAmount: money(adjustment.rewardDeltaAmount),
+    debtAdjustmentAmount: money(adjustment.debtDeltaAmount),
+    returnOrderIds: [],
+    paymentIds: [],
+    version: Number((version && version.closeoutVersion) || 0),
+    source: 'deliveryCloseoutCorrections read-only resolver',
+    correctionRequired: true,
+    correctionMessage: 'Đã tìm thấy bản ghi điều chỉnh nhưng không tìm thấy đơn gốc trong orders.'
+  };
+}
+
 async function findOrderForCorrection(input = {}, options = {}) {
   const ref = text(input.originalCloseoutId || input.closeoutId || input.orderId || input.orderCode || input.salesOrderId || input.salesOrderCode || input.id || input.code);
   const filter = buildOrderLookup(ref);
@@ -871,7 +1111,14 @@ async function createCorrection(input = {}, options = {}) {
       },
       metadata: {
         orderCode: text(correction.salesOrderCode || correction.orderCode),
+        salesOrderCode: text(correction.salesOrderCode || correction.orderCode),
         orderId: text(correction.salesOrderId || correction.orderId),
+        salesOrderId: text(correction.salesOrderId || correction.orderId),
+        canonicalOrderId: text(correction.salesOrderId || correction.orderId),
+        closeoutVersionId: text(correction.newCloseoutId || correction.originalCloseoutId),
+        closeoutVersionCode: text(correction.newCloseoutCode || correction.originalCloseoutCode),
+        originalCloseoutId: text(correction.originalCloseoutId),
+        newCloseoutId: text(correction.newCloseoutId),
         deliveryDate: text(correction.deliveryDate),
         customerCode: text(correction.customerCode),
         customerName: text(correction.customerName),
@@ -885,13 +1132,164 @@ async function createCorrection(input = {}, options = {}) {
         correctionCode: text(correction.correctionCode || correction.code),
         adjustmentCode: text(correction.correctionCode || correction.code),
         targetPage: 'delivery-today-new',
-        action: 'open-adjustment-detail'
+        action: 'open-adjustment-detail',
+        source: 'deliveryCloseoutCorrections',
+        resolverContract: 'delivery-adjustment-deeplink'
       },
       idempotencyKey: `DELIVERY_CLOSEOUT_ADJUSTED:${text(correction.id || correction.correctionCode)}`
     });
   }
 
   return result;
+}
+
+async function resolveAdjustmentDeepLink(input = {}, options = {}) {
+  const modelSet = options.models || { SalesOrder, DeliveryCloseoutCorrection, DeliveryCloseoutVersion };
+  const warnings = [];
+  const filtersBefore = input.filtersBefore && typeof input.filtersBefore === 'object' ? input.filtersBefore : {};
+  const lookup = correctionLookup(input);
+  let correction = null;
+  if (lookup) {
+    let query = modelSet.DeliveryCloseoutCorrection.findOne(lookup).sort({ createdAt: -1, updatedAt: -1 }).lean();
+    correction = await queryWithOptionalSession(query, options);
+  }
+
+  const vLookup = versionLookup(input, correction);
+  let version = null;
+  if (vLookup) {
+    let query = modelSet.DeliveryCloseoutVersion.findOne(vLookup).sort({ closeoutVersion: -1, createdAt: -1 }).lean();
+    version = await queryWithOptionalSession(query, options);
+  }
+
+  if (!correction && !version) {
+    const err = new Error('Không tìm thấy bản ghi điều chỉnh theo adjustmentCode/correctionCode.');
+    err.code = 'DELIVERY_ADJUSTMENT_NOT_FOUND';
+    err.status = 404;
+    err.data = {
+      contract: 'delivery-adjustment-deeplink',
+      adjustmentCode: text(input.adjustmentCode || input.correctionCode),
+      orderCode: text(input.orderCode || input.salesOrderCode),
+      urlOrderId: text(input.orderId || input.salesOrderId),
+      adjustmentFound: false,
+      orderFound: false,
+      source: 'deliveryAdjustmentResolver'
+    };
+    throw err;
+  }
+
+  const adjustment = adjustmentPublic(correction || {}, version);
+  const oLookup = orderLookupFromResolver(input, correction, version);
+  let order = null;
+  if (oLookup) {
+    let query = modelSet.SalesOrder.findOne(oLookup).lean();
+    order = await queryWithOptionalSession(query, options);
+  }
+  if (!order) warnings.push('Không tìm thấy đơn gốc trong orders, nhưng đã tìm thấy bản ghi điều chỉnh.');
+
+  let row = null;
+  if (order) {
+    try {
+      const deliveryTodayNewService = require('./v2/deliveryTodayNew.service');
+      const returnsByKey = await deliveryTodayNewService._private.loadReturnsForOrders([order], options);
+      const versionsByKey = await deliveryTodayNewService._private.loadLatestVersionsForOrders([order], options);
+      row = deliveryTodayNewService.summarizeOrder(order, returnsByKey, versionsByKey);
+    } catch (err) {
+      warnings.push(`Không chuẩn hóa được order row bằng DeliveryTodayNewService: ${err.message || err}`);
+    }
+  }
+  if (!row) row = syntheticOrderFromAdjustment(adjustment, version);
+
+  const versionKeys = uniqueText([
+    adjustment.originalCloseoutId,
+    adjustment.originalCloseoutCode,
+    adjustment.orderId,
+    adjustment.orderCode,
+    adjustment.adjustmentId,
+    adjustment.adjustmentCode,
+    row.orderId,
+    row.orderCode
+  ]);
+  let versions = [];
+  if (versionKeys.length) {
+    const versionOr = versionKeys.flatMap((key) => ([
+      { originalCloseoutId: key },
+      { originalCloseoutCode: key },
+      { salesOrderId: key },
+      { salesOrderCode: key },
+      { orderId: key },
+      { orderCode: key },
+      { correctionId: key },
+      { correctionCode: key },
+      { id: key },
+      { code: key },
+      { closeoutCode: key }
+    ]));
+    let query = modelSet.DeliveryCloseoutVersion.find({ $or: versionOr }).sort({ closeoutVersion: -1, createdAt: -1 }).lean();
+    versions = await queryWithOptionalSession(query, options);
+  }
+  if (!versions.length && version) versions = [version];
+
+  const resolvedDeliveryDate = text(row.deliveryDate || adjustment.deliveryDate || (version && version.deliveryDate));
+  const resolvedDeliveryStaffCode = text(row.deliveryStaffCode || adjustment.deliveryStaffCode || (version && version.deliveryStaffCode));
+  const resolvedSalesStaffCode = text(row.salesStaffCode || adjustment.salesStaffCode || (version && version.salesStaffCode));
+  const diagnostics = {
+    contract: 'delivery-adjustment-deeplink',
+    action: 'open-adjustment-detail',
+    adjustmentCode: text(input.adjustmentCode || input.correctionCode || adjustment.adjustmentCode),
+    orderCode: text(input.orderCode || input.salesOrderCode || adjustment.orderCode || row.orderCode),
+    urlOrderId: text(input.orderId || input.salesOrderId),
+    resolvedOrderId: text(row.orderId || row.id || (order && (order.id || order._id))),
+    closeoutVersionId: text(adjustment.closeoutVersionId || (version && (version.id || version.code || version.closeoutCode))),
+    adjustmentFound: true,
+    orderFound: Boolean(order),
+    deliveryDate: resolvedDeliveryDate,
+    filtersBefore,
+    filtersAfter: {
+      date: resolvedDeliveryDate,
+      orderCode: text(row.orderCode || adjustment.orderCode),
+      deliveryStaffCode: resolvedDeliveryStaffCode,
+      salesStaffCode: resolvedSalesStaffCode
+    },
+    source: 'deliveryAdjustmentResolver'
+  };
+
+  return {
+    ok: true,
+    success: true,
+    source: 'deliveryAdjustmentResolver',
+    adjustmentFound: true,
+    orderFound: Boolean(order),
+    adjustment,
+    order: order ? {
+      _id: text(order._id),
+      id: text(order.id || order._id),
+      orderId: text(order.id || order._id),
+      orderCode: orderCode(order),
+      deliveryDate: text(order.deliveryDate || order.orderDate || order.date || order.documentDate),
+      deliveryStaffCode: text(order.deliveryStaffCode || order.deliveryCode || order.nvghCode),
+      deliveryStaffName: text(order.deliveryStaffName || order.deliveryName || order.nvghName),
+      salesStaffCode: text(order.salesStaffCode || order.salesmanCode || order.nvbhCode),
+      salesStaffName: text(order.salesStaffName || order.salesmanName || order.nvbhName),
+      customerCode: text(order.customerCode),
+      customerName: text(order.customerName)
+    } : null,
+    row,
+    rows: row ? [row] : [],
+    versions,
+    context: {
+      deliveryDate: resolvedDeliveryDate,
+      deliveryStaffCode: resolvedDeliveryStaffCode,
+      deliveryStaffName: text(row.deliveryStaffName || adjustment.deliveryStaffName || (version && version.deliveryStaffName)),
+      salesStaffCode: resolvedSalesStaffCode,
+      salesStaffName: text(row.salesStaffName || adjustment.salesStaffName || (version && version.salesStaffName)),
+      closeoutVersionId: diagnostics.closeoutVersionId,
+      originalCloseoutId: text(adjustment.originalCloseoutId),
+      orderCode: text(row.orderCode || adjustment.orderCode),
+      orderId: text(row.orderId || adjustment.orderId)
+    },
+    warnings,
+    diagnostics
+  };
 }
 
 async function listCorrections(originalCloseoutId = '', options = {}) {
@@ -907,7 +1305,21 @@ async function listCorrections(originalCloseoutId = '', options = {}) {
 async function listVersions(originalCloseoutId = '', options = {}) {
   const id = text(originalCloseoutId);
   if (!id) return [];
-  let query = DeliveryCloseoutVersion.find({ $or: [{ originalCloseoutId: id }, { salesOrderId: id }, { salesOrderCode: id }, { orderId: id }, { orderCode: id }] })
+  let query = DeliveryCloseoutVersion.find({
+    $or: [
+      { originalCloseoutId: id },
+      { originalCloseoutCode: id },
+      { salesOrderId: id },
+      { salesOrderCode: id },
+      { orderId: id },
+      { orderCode: id },
+      { correctionId: id },
+      { correctionCode: id },
+      { id },
+      { code: id },
+      { closeoutCode: id }
+    ]
+  })
     .sort({ closeoutVersion: -1, createdAt: -1 })
     .lean();
   if (options.session) query = query.session(options.session);
@@ -949,6 +1361,7 @@ module.exports = {
   reduceReturn,
   listCorrections,
   listVersions,
+  resolveAdjustmentDeepLink,
   normalizeReturnAdjustmentItems,
   normalizeCashAdjustmentLines,
   createOpenOrderAdjustment,
@@ -970,6 +1383,12 @@ module.exports = {
     cashLineAdjustmentAmount,
     correctionReason,
     correctionAuditReason,
-    validateCorrectionInput
+    validateCorrectionInput,
+    isCloseoutContextId,
+    correctionLookup,
+    versionLookup,
+    orderLookupFromResolver,
+    adjustmentPublic,
+    syntheticOrderFromAdjustment
   }
 };

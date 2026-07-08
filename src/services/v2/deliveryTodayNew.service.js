@@ -23,7 +23,8 @@ function getModels() {
   models = {
     SalesOrder: require('../../models/SalesOrder'),
     ReturnOrder: require('../../models/ReturnOrder'),
-    DeliveryCloseoutVersion: require('../../models/DeliveryCloseoutVersion')
+    DeliveryCloseoutVersion: require('../../models/DeliveryCloseoutVersion'),
+    OrderPaymentAllocation: require('../../models/OrderPaymentAllocation')
   };
   return models;
 }
@@ -143,7 +144,7 @@ function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {
       searchCriteriaRequired: true,
       requireFilter: true,
       hasSearchCriteria: hasSearchCriteria(query),
-      writePolicy: 'read-only list; closeout must use POST /api/new/delivery-today/closeout; confirmed orders require DeliveryCloseoutCorrectionService; latest correction comes from deliveryCloseoutVersions',
+      writePolicy: 'read-only list; closeout must use POST /api/new/delivery-today/closeout; confirmed orders require DeliveryCloseoutCorrectionService; posted payment allocation comes from orderPaymentAllocations; latest correction comes from deliveryCloseoutVersions',
       debtZeroTolerance: DEBT_ZERO_TOLERANCE,
       deliverySourceApplied: false,
       fallbackEnabled: false,
@@ -530,12 +531,61 @@ async function loadSalesOrdersFallback(query = {}, options = {}) {
   return mongoQuery;
 }
 
+
+function allocationKeysForOrder(order = {}) {
+  return Array.from(new Set([
+    order.id,
+    order._id,
+    order.code,
+    order.orderCode,
+    order.salesOrderId,
+    order.salesOrderCode,
+    order.documentCode,
+    order.invoiceCode,
+    order.sourceId,
+    order.sourceCode
+  ].map(text).filter(Boolean)));
+}
+
+async function loadAllocationsForOrders(orders = [], options = {}) {
+  const { OrderPaymentAllocation } = getModels();
+  const keys = Array.from(new Set((orders || []).flatMap(allocationKeysForOrder).filter(Boolean)));
+  if (!keys.length || !OrderPaymentAllocation || typeof OrderPaymentAllocation.find !== 'function') return new Map();
+  const filter = {
+    status: { $nin: ['reversed', 'void', 'voided', 'cancelled', 'canceled', 'deleted'] },
+    $or: [
+      { orderId: { $in: keys } },
+      { orderCode: { $in: keys } },
+      { sourceId: { $in: keys } },
+      { sourceCode: { $in: keys } }
+    ]
+  };
+  let query = OrderPaymentAllocation.find(filter).sort({ sourceVersion: -1, postedAt: -1, updatedAt: -1, createdAt: -1 }).limit(5000);
+  if (options.session && query && typeof query.session === 'function') query = query.session(options.session);
+  const rows = query && typeof query.lean === 'function' ? await query.lean() : await query;
+  const map = new Map();
+  for (const row of rows || []) {
+    for (const key of allocationKeysForOrder(row)) {
+      if (!map.has(key)) map.set(key, row);
+    }
+  }
+  return map;
+}
+
+function allocationForOrder(order = {}, allocationsByKey = new Map()) {
+  for (const key of allocationKeysForOrder(order)) {
+    const row = allocationsByKey.get(key);
+    if (row) return row;
+  }
+  return null;
+}
+
 function collectedAmount(order = {}) {
   const closeout = closeoutOf(order);
   return money(closeout.collectedAmount ?? order.collectedAmount ?? order.deliveryCollectedAmount ?? order.paidAmount ?? order.paymentAmount ?? 0);
 }
 
-function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = new Map()) {
+function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = new Map(), allocationsByKey = new Map()) {
   const ids = orderBusinessIds(order);
   const returns = ids.flatMap((id) => returnsByKey.get(id) || []);
   const seen = new Set();
@@ -547,23 +597,34 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
   });
   const closeout = closeoutOf(order);
   const latestVersion = latestVersionForOrder(order, versionsByKey);
-  const originalAmount = money((latestVersion && (latestVersion.originalAmount ?? latestVersion.saleAmount)) ?? closeout.originalAmount ?? orderAmount(order));
+  const postedAllocation = allocationForOrder(order, allocationsByKey);
+  const originalAmount = postedAllocation
+    ? money(postedAllocation.receivableAmount)
+    : money((latestVersion && (latestVersion.originalAmount ?? latestVersion.saleAmount)) ?? closeout.originalAmount ?? orderAmount(order));
   const legacyReturnedAmount = money(uniqueReturns.reduce((sum, row) => sum + money(row.amount), 0));
-  const returnedAmount = money((latestVersion && (latestVersion.returnedAmount ?? latestVersion.returnAmount)) ?? legacyReturnedAmount);
+  const returnedAmount = postedAllocation ? money(postedAllocation.returnAmount) : money((latestVersion && (latestVersion.returnedAmount ?? latestVersion.returnAmount)) ?? legacyReturnedAmount);
   const baseBreakdown = moneyBreakdownForOrder(order);
-  const adjustedCashAmount = latestVersion
-    ? money(latestVersion.cashAmount ?? latestVersion.newCashAmount ?? latestVersion.cashCollectedAmount ?? baseBreakdown.cashAmount)
-    : baseBreakdown.cashAmount;
-  const bankAmount = latestVersion
-    ? money(latestVersion.bankAmount ?? latestVersion.newBankAmount ?? baseBreakdown.bankAmount)
-    : baseBreakdown.bankAmount;
-  const rewardAmount = latestVersion
-    ? money(latestVersion.rewardAmount ?? latestVersion.newRewardAmount ?? baseBreakdown.rewardAmount)
-    : baseBreakdown.rewardAmount;
-  const offsetAmount = latestVersion ? 0 : baseBreakdown.offsetAmount;
-  const collected = latestVersion
-    ? money(latestVersion.collectedAmount ?? latestVersion.newCollectedAmount ?? (adjustedCashAmount + bankAmount + rewardAmount + offsetAmount))
-    : money(baseBreakdown.collectedAmount || collectedAmount(order));
+  const adjustedCashAmount = postedAllocation
+    ? money(postedAllocation.cashAmount)
+    : (latestVersion
+      ? money(latestVersion.cashAmount ?? latestVersion.newCashAmount ?? latestVersion.cashCollectedAmount ?? baseBreakdown.cashAmount)
+      : baseBreakdown.cashAmount);
+  const bankAmount = postedAllocation
+    ? money(postedAllocation.bankAmount)
+    : (latestVersion
+      ? money(latestVersion.bankAmount ?? latestVersion.newBankAmount ?? baseBreakdown.bankAmount)
+      : baseBreakdown.bankAmount);
+  const rewardAmount = postedAllocation
+    ? money(postedAllocation.rewardAmount)
+    : (latestVersion
+      ? money(latestVersion.rewardAmount ?? latestVersion.newRewardAmount ?? baseBreakdown.rewardAmount)
+      : baseBreakdown.rewardAmount);
+  const offsetAmount = postedAllocation ? 0 : (latestVersion ? 0 : baseBreakdown.offsetAmount);
+  const collected = postedAllocation
+    ? money(adjustedCashAmount + bankAmount + rewardAmount)
+    : (latestVersion
+      ? money(latestVersion.collectedAmount ?? latestVersion.newCollectedAmount ?? (adjustedCashAmount + bankAmount + rewardAmount + offsetAmount))
+      : money(baseBreakdown.collectedAmount || collectedAmount(order)));
   const debtCalculation = calculateDeliveryDebtAmount({
     receivableAmount: originalAmount,
     cashAmount: adjustedCashAmount,
@@ -571,10 +632,12 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     rewardAmount: money(rewardAmount + offsetAmount),
     returnAmount: returnedAmount
   });
-  const rawFinalDebtAmount = latestVersion
-    ? money(latestVersion.finalDebtAmount ?? latestVersion.debtAmount ?? debtCalculation.rawDebtAmount)
-    : money(debtCalculation.rawDebtAmount);
-  const finalDebtAmount = normalizeDebtAmount(rawFinalDebtAmount);
+  const rawFinalDebtAmount = postedAllocation
+    ? money(postedAllocation.debtAmount)
+    : (latestVersion
+      ? money(latestVersion.finalDebtAmount ?? latestVersion.debtAmount ?? debtCalculation.rawDebtAmount)
+      : money(debtCalculation.rawDebtAmount));
+  const finalDebtAmount = postedAllocation ? money(postedAllocation.debtAmount) : normalizeDebtAmount(rawFinalDebtAmount);
   const closeoutFinalDebt = latestVersion
     ? finalDebtAmount
     : (closeout.finalDebtAmount !== undefined ? normalizeDebtAmount(closeout.finalDebtAmount) : finalDebtAmount);
@@ -612,6 +675,8 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     canCloseout: closeoutEligible,
     canAdjust: viewSelectable,
     correctionVersionApplied: Boolean(latestVersion),
+    paymentAllocationApplied: Boolean(postedAllocation),
+    paymentAllocationCode: postedAllocation ? text(postedAllocation.allocationCode) : '',
     correctionId: latestVersion ? text(latestVersion.correctionId) : '',
     correctionCode: latestVersion ? text(latestVersion.correctionCode) : '',
     closeoutVersionId: latestVersion ? text(latestVersion.id || latestVersion.code) : '',
@@ -651,7 +716,7 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     returnOrderIds: uniqueReturns.map((row) => row.id || row.code).filter(Boolean),
     paymentIds: Array.isArray(closeout.paymentIds) ? closeout.paymentIds : [],
     version: latestVersion ? Number(latestVersion.closeoutVersion || 0) : Number(closeout.version || (Array.isArray(closeout.versions) ? closeout.versions.length : 0) || 0),
-    source: latestVersion ? 'deliveryCloseoutVersions + AR-DEBT-ADJUSTMENT' : 'salesOrders.deliveryCloseout + returnOrders',
+    source: postedAllocation ? 'orderPaymentAllocations(posted)' : (latestVersion ? 'deliveryCloseoutVersions + AR-DEBT-ADJUSTMENT' : 'salesOrders.deliveryCloseout + returnOrders'),
     correctionRequired: confirmedCloseout,
     correctionMessage: confirmedCloseout ? 'Đơn đã xác nhận kế toán: mọi sửa đổi phải qua correction flow.' : ''
   };
@@ -748,7 +813,8 @@ async function listOrders(query = {}, options = {}) {
     : await loadSalesOrdersFallback(query, options);
   const returnsByKey = await loadReturnsForOrders(orders, options);
   const versionsByKey = await loadLatestVersionsForOrders(orders, options);
-  const rows = orders.map((order) => summarizeOrder(order, returnsByKey, versionsByKey));
+  const allocationsByKey = await loadAllocationsForOrders(orders, options);
+  const rows = orders.map((order) => summarizeOrder(order, returnsByKey, versionsByKey, allocationsByKey));
   const summary = summarizeRows(rows);
   const groups = summarizeGroups(rows);
   return {
@@ -765,7 +831,7 @@ async function listOrders(query = {}, options = {}) {
         ? 'delivery-today-new-v2-delivery-operational-list + returnOrders + correction-versions'
         : 'delivery-today-new-v2-salesOrders-fallback',
       endpoint: '/api/new/delivery-today/orders',
-      writePolicy: 'read-only list; closeout must use POST /api/new/delivery-today/closeout; confirmed orders require DeliveryCloseoutCorrectionService; latest correction comes from deliveryCloseoutVersions',
+      writePolicy: 'read-only list; closeout must use POST /api/new/delivery-today/closeout; confirmed orders require DeliveryCloseoutCorrectionService; posted payment allocation comes from orderPaymentAllocations; latest correction comes from deliveryCloseoutVersions',
       debtZeroTolerance: DEBT_ZERO_TOLERANCE,
       deliverySourceApplied: Boolean(deliveryOrders.length || !useSalesOrderFallback),
       fallbackEnabled: useSalesOrderFallback,

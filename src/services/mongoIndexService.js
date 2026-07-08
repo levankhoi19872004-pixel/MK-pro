@@ -112,6 +112,14 @@ const INDEX_DEFINITIONS = {
     [{ method: 1, status: 1 }, { name: 'idx_receipts_method_status' }],
     [{ createdAt: -1 }, { name: 'idx_receipts_created_at' }]
   ],
+  orderPaymentAllocations: [
+    [{ idempotencyKey: 1 }, { name: 'uniq_order_payment_allocations_idempotency_key', unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string', $gt: '' } } }],
+    [{ orderCode: 1, sourceType: 1, sourceId: 1, sourceVersion: 1 }, { name: 'uniq_order_payment_allocations_order_source_version', unique: true, partialFilterExpression: { orderCode: { $type: 'string', $gt: '' }, sourceType: { $type: 'string', $gt: '' }, sourceId: { $type: 'string', $gt: '' } } }],
+    [{ customerCode: 1, status: 1, deliveryDate: -1 }, { name: 'idx_order_payment_allocations_customer_status_date' }],
+    [{ deliveryDate: -1, deliveryStaffCode: 1, salesStaffCode: 1, status: 1 }, { name: 'idx_order_payment_allocations_delivery_sales_status' }],
+    [{ orderId: 1 }, { name: 'idx_order_payment_allocations_order_id', sparse: true }],
+    [{ orderCode: 1 }, { name: 'idx_order_payment_allocations_order_code', sparse: true }]
+  ],
   arLedgers: [
     [{ id: 1 }, { name: 'uniq_arLedgers_id', unique: true, sparse: true }],
     [{ code: 1 }, { name: 'uniq_arLedgers_code', unique: true, sparse: true }],

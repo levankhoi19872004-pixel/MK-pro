@@ -205,6 +205,10 @@
     return String(value == null ? '' : value).trim();
   }
 
+  function isCloseoutContextId(value) {
+    return /^(DCO|DTC|DCOV|DCOA|DCOC)[-_]/i.test(normalizedText(value));
+  }
+
   function parseDeliveryHash(hashValue) {
     var raw = normalizedText(hashValue || window.location.hash);
     var result = { route: '', params: new URLSearchParams(), raw: raw };
@@ -223,7 +227,10 @@
     return {
       orderCode: firstText([parsed.params.get('orderCode'), parsed.params.get('salesOrderCode')]),
       orderId: firstText([parsed.params.get('orderId'), parsed.params.get('salesOrderId')]),
+      closeoutVersionId: firstText([parsed.params.get('closeoutVersionId'), parsed.params.get('closeoutId'), parsed.params.get('versionId')]),
       deliveryDate: firstText([parsed.params.get('deliveryDate'), parsed.params.get('date')]),
+      deliveryStaffCode: firstText([parsed.params.get('deliveryStaffCode'), parsed.params.get('delivery')]),
+      salesStaffCode: firstText([parsed.params.get('salesStaffCode'), parsed.params.get('salesman')]),
       adjustmentId: firstText([parsed.params.get('adjustmentId'), parsed.params.get('correctionId')]),
       adjustmentCode: firstText([parsed.params.get('adjustmentCode'), parsed.params.get('correctionCode')]),
       source: 'hash',
@@ -1827,45 +1834,121 @@
     closeAllSuggestions();
     var dateInput = byId('deliveryTodayNewDate');
     var searchInput = byId('deliveryTodayNewSearch');
-    var orderLookup = firstText([payload.orderCode, payload.orderId]);
+    var rawOrderId = normalizedText(payload.orderId);
+    var orderLookup = firstText([payload.orderCode, isCloseoutContextId(rawOrderId) ? '' : rawOrderId]);
     if (dateInput) {
       dateInput.value = payload.deliveryDate ? dateInputValue(payload.deliveryDate) : '';
       state.deliveryDateTouched = Boolean(dateInput.value);
     }
     if (searchInput) searchInput.value = orderLookup;
+    var deliveryInput = byId('deliveryTodayNewDelivery');
+    var salesmanInput = byId('deliveryTodayNewSalesman');
+    if (deliveryInput && payload.deliveryStaffCode) deliveryInput.value = payload.deliveryStaffCode;
+    if (salesmanInput && payload.salesStaffCode) salesmanInput.value = payload.salesStaffCode;
     resetSelectedFilter('search');
+    resetSelectedFilter('delivery');
+    resetSelectedFilter('salesman');
     if (payload.orderCode) state.selectedFilters.orderCode = normalizedText(payload.orderCode);
-    else if (payload.orderId) state.selectedFilters.orderCode = normalizedText(payload.orderId);
+    else if (payload.orderId && !isCloseoutContextId(payload.orderId)) state.selectedFilters.orderCode = normalizedText(payload.orderId);
+    if (payload.deliveryStaffCode) state.selectedFilters.deliveryStaffCode = normalizedText(payload.deliveryStaffCode);
+    if (payload.salesStaffCode) state.selectedFilters.salesStaffCode = normalizedText(payload.salesStaffCode);
     state.userTouchedFilters = true;
     updateClearButtons();
   }
 
+  function resolverPayloadFromResult(rawPayload, result) {
+    var context = (result && result.context) || {};
+    var adjustment = (result && result.adjustment) || {};
+    var order = (result && result.order) || {};
+    var row = (result && result.row) || null;
+    return Object.assign({}, rawPayload || {}, {
+      orderCode: firstText([context.orderCode, row && row.orderCode, order.orderCode, adjustment.orderCode, rawPayload && rawPayload.orderCode]),
+      orderId: firstText([context.orderId, row && row.orderId, order.orderId, order.id, adjustment.orderId, rawPayload && rawPayload.orderId]),
+      closeoutVersionId: firstText([context.closeoutVersionId, adjustment.closeoutVersionId, rawPayload && rawPayload.closeoutVersionId]),
+      deliveryDate: firstText([context.deliveryDate, row && row.deliveryDate, order.deliveryDate, adjustment.deliveryDate, rawPayload && rawPayload.deliveryDate]),
+      deliveryStaffCode: firstText([context.deliveryStaffCode, row && row.deliveryStaffCode, order.deliveryStaffCode, adjustment.deliveryStaffCode, rawPayload && rawPayload.deliveryStaffCode]),
+      salesStaffCode: firstText([context.salesStaffCode, row && row.salesStaffCode, order.salesStaffCode, adjustment.salesStaffCode, rawPayload && rawPayload.salesStaffCode]),
+      adjustmentId: firstText([adjustment.adjustmentId, adjustment.correctionId, rawPayload && rawPayload.adjustmentId]),
+      adjustmentCode: firstText([adjustment.adjustmentCode, adjustment.correctionCode, rawPayload && rawPayload.adjustmentCode])
+    });
+  }
+
+  function cacheResolverVersions(row, result) {
+    if (!row || !result || !Array.isArray(result.versions)) return;
+    state.versionCache[rowKey(row)] = result.versions;
+  }
+
+  async function resolveAdjustmentDeepLink(payload) {
+    payload = payload || {};
+    var params = new URLSearchParams();
+    ['adjustmentCode', 'correctionCode', 'adjustmentId', 'correctionId', 'orderCode', 'orderId', 'salesOrderId', 'closeoutVersionId', 'deliveryDate', 'deliveryStaffCode', 'salesStaffCode'].forEach(function (key) {
+      var value = normalizedText(payload[key]);
+      if (value) params.set(key, value);
+    });
+    params.set('filtersBefore', JSON.stringify(filters()));
+    var res = await fetch('/api/new/delivery-today/adjustments/resolve?' + params.toString());
+    var json = await res.json().catch(function () { return {}; });
+    if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không resolve được chi tiết điều chỉnh đơn giao.');
+    return json.data || json;
+  }
+
   async function openAdjustmentFromDeepLink(rawPayload) {
     var payload = rawPayload || {};
-    var orderLabel = firstText([payload.orderCode, payload.orderId]);
+    var orderLabel = firstText([payload.orderCode, isCloseoutContextId(payload.orderId) ? '' : payload.orderId, payload.adjustmentCode, payload.adjustmentId, payload.closeoutVersionId]);
     ensureRoot();
     var requestSeq = ++state.deepLinkRequestSeq;
     if (!orderLabel) {
-      setMessage('Không đủ dữ liệu để mở trực tiếp chi tiết điều chỉnh. Đã chuyển đến màn Đơn giao hôm nay để bạn kiểm tra.', true);
+      setMessage('Không đủ dữ liệu để mở trực tiếp chi tiết điều chỉnh. Cần adjustmentCode/correctionCode hoặc mã đơn.', true);
       return;
     }
+
+    var resolverResult = null;
+    if (payload.adjustmentCode || payload.adjustmentId || payload.closeoutVersionId) {
+      setMessage('Đang resolve chi tiết điều chỉnh theo adjustmentCode/correctionCode...');
+      try {
+        resolverResult = await resolveAdjustmentDeepLink(payload);
+        if (requestSeq !== state.deepLinkRequestSeq) return;
+        if (resolverResult && resolverResult.sourceNote) renderDeliverySourceNote(resolverResult.sourceNote);
+        payload = resolverPayloadFromResult(payload, resolverResult);
+        orderLabel = firstText([payload.orderCode, isCloseoutContextId(payload.orderId) ? '' : payload.orderId, payload.adjustmentCode, payload.closeoutVersionId]);
+      } catch (err) {
+        state.deepLinkTargetKey = '';
+        renderRows();
+        setMessage((err && err.message) || 'Không tìm thấy bản ghi điều chỉnh theo adjustmentCode/correctionCode.', true);
+        return;
+      }
+    }
+
     applyDeepLinkFilters(payload);
     state.deepLinkTargetKey = '';
     renderRows();
-    setMessage('Đang tìm và mở chi tiết điều chỉnh đơn ' + orderLabel + '...');
+    setMessage('Đang tải đúng ngữ cảnh để mở chi tiết điều chỉnh đơn ' + orderLabel + '...');
+
+    var rowFromResolver = resolverResult && resolverResult.row ? resolverResult.row : null;
+    if (rowFromResolver) cacheResolverVersions(rowFromResolver, resolverResult);
+
     await load({ silent: true });
     if (requestSeq !== state.deepLinkRequestSeq) return;
-    var row = findRowByDeepLink(payload);
+    var row = findRowByDeepLink(payload) || rowFromResolver;
     if (!row) {
       state.deepLinkTargetKey = '';
       renderRows();
-      setMessage('Không tìm thấy đơn ' + orderLabel + ' trong phạm vi đang lọc. Đã chuyển đến màn Đơn giao hôm nay để bạn kiểm tra.', true);
+      if (resolverResult && resolverResult.adjustmentFound && resolverResult.orderFound === false) {
+        setMessage('Đã tìm thấy bản ghi điều chỉnh nhưng không tìm thấy đơn gốc trong orders. Mở chi tiết điều chỉnh ở chế độ chỉ xem.', true);
+      } else if (payload.adjustmentCode || payload.adjustmentId) {
+        setMessage('Tìm thấy thông tin điều chỉnh nhưng chưa dựng được dòng đơn để mở popup. Kiểm tra lại adjustmentCode/correctionCode.', true);
+      } else {
+        setMessage('Không tìm thấy đơn ' + orderLabel + ' trong phạm vi đang lọc. Thiếu adjustmentCode nên không thể mở bằng resolver điều chỉnh.', true);
+      }
       return;
     }
+    cacheResolverVersions(row, resolverResult);
     state.deepLinkTargetKey = orderSelectionKey(row);
     renderRows();
     scrollToDeepLinkRow(row);
-    setMessage('Đã mở chi tiết điều chỉnh đơn ' + (row.orderCode || orderLabel) + '.');
+    var warnings = resolverResult && Array.isArray(resolverResult.warnings) ? resolverResult.warnings : [];
+    var warningText = warnings.length ? ' Cảnh báo: ' + warnings.join(' | ') : '';
+    setMessage('Đã mở chi tiết điều chỉnh đơn ' + (row.orderCode || orderLabel) + '.' + warningText, Boolean(warnings.length));
     openAdjustmentPopup(row, { viewOnly: true, fromNotification: true, activeTab: 'history', adjustmentId: payload.adjustmentId, adjustmentCode: payload.adjustmentCode });
     clearDeliveryDeepLinkHash();
   }

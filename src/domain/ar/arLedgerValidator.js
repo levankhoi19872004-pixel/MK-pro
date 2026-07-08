@@ -6,7 +6,13 @@ const PHASE87_READ_MODEL_CATEGORIES = Object.freeze([
   'AR-DEBT-OPEN',
   'AR-DEBT-PAYMENT',
   'AR-DEBT-ADJUSTMENT',
-  'AR-DEBT-VOID'
+  'AR-DEBT-VOID',
+  // Phase191: orderPaymentAllocations post detailed allocation rows.
+  'AR-SALE',
+  'AR-RECEIPT-CASH',
+  'AR-RECEIPT-BANK',
+  'AR-REWARD-ALLOWANCE',
+  'AR-RETURN'
 ]);
 
 // Legacy categories are retained only so legacy audit/migration and old repair tests
@@ -19,6 +25,9 @@ const DEBT_CATEGORIES = Object.freeze([
   'AR-RETURN',
   'AR-RETURN-REVERSAL',
   'AR-RECEIPT',
+  'AR-RECEIPT-CASH',
+  'AR-RECEIPT-BANK',
+  'AR-REWARD-ALLOWANCE',
   'AR-BONUS',
   'AR-ALLOWANCE',
   'AR-ADJUSTMENT'
@@ -34,6 +43,9 @@ const CATEGORY_EFFECT = Object.freeze({
   'AR-RETURN': 'credit',
   'AR-RETURN-REVERSAL': 'debit',
   'AR-RECEIPT': 'credit',
+  'AR-RECEIPT-CASH': 'credit',
+  'AR-RECEIPT-BANK': 'credit',
+  'AR-REWARD-ALLOWANCE': 'credit',
   'AR-BONUS': 'credit',
   'AR-ALLOWANCE': 'credit',
   'AR-ADJUSTMENT': 'either'

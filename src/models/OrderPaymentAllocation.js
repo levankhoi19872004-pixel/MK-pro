@@ -1,0 +1,42 @@
+const flexModel = require('./_flexModel');
+
+const OrderPaymentAllocation = flexModel('OrderPaymentAllocation', 'orderPaymentAllocations', {
+  allocationCode: String,
+  orderId: String,
+  orderCode: String,
+  customerCode: String,
+  customerName: String,
+  salesStaffCode: String,
+  salesStaffName: String,
+  deliveryStaffCode: String,
+  deliveryStaffName: String,
+  deliveryDate: String,
+  sourceType: String,
+  sourceId: String,
+  sourceCode: String,
+  sourceVersion: Number,
+  receivableAmount: Number,
+  cashAmount: Number,
+  bankAmount: Number,
+  rewardAmount: Number,
+  returnAmount: Number,
+  debtAmount: Number,
+  status: String,
+  postedArLedgerIds: Array,
+  postedFundLedgerIds: Array,
+  idempotencyKey: String,
+  closeoutScopeHash: String,
+  closeoutScope: String,
+  calculationHash: String,
+  sourceHash: String,
+  diagnostic: Object,
+  metadata: Object,
+  createdBy: String,
+  updatedBy: String,
+  postedBy: String,
+  postedAt: String,
+  createdAt: String,
+  updatedAt: String
+});
+
+module.exports = OrderPaymentAllocation;

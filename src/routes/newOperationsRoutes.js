@@ -80,6 +80,27 @@ router.get('/delivery-today/orders', requireAuth, readRoles, async (req, res) =>
   }
 });
 
+router.get('/delivery-today/adjustments/resolve', requireAuth, readRoles, async (req, res) => {
+  try {
+    const result = await deliveryCloseoutCorrectionService.resolveAdjustmentDeepLink(req.query || {});
+    const sourceWarnings = Array.isArray(result.warnings) ? result.warnings : [];
+    const sourceNote = buildApiSourceNote('delivery-adjustment-resolver', req, sourceWarnings);
+    return res.json({
+      ok: true,
+      success: true,
+      message: result.orderFound
+        ? 'Đã resolve chi tiết điều chỉnh đơn giao'
+        : 'Đã tìm thấy điều chỉnh; không tìm thấy đơn gốc trong orders',
+      ...result,
+      sourceNote,
+      diagnostics: result.diagnostics,
+      canonicalRoute: '/api/new/delivery-today/adjustments/resolve'
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không resolve được chi tiết điều chỉnh đơn giao');
+  }
+});
+
 router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, res) => {
   try {
     const body = req.body || {};
