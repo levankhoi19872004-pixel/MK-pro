@@ -741,7 +741,7 @@ async function processOneOrder(order = {}, context = {}) {
     let finalDebtDiff = 0;
     let debtAlreadyHandled = false;
     if (shouldReconcileDebt) {
-      const reconcile = await OrderPaymentDebtReconcileService.reconcileOneOrder({
+      const reconcile = await OrderPaymentDebtReconcileService.reconcileOrderDebt({
         order,
         allocation,
         apply: Boolean(options.apply && options.fixDebtBalance),

@@ -1030,6 +1030,7 @@ async function createCorrection(input = {}, options = {}) {
     );
 
     const adjustment = await ArDebtAdjustmentPostingService.postAdjustment(order, {
+      reconcileDebt: true,
       correctionId,
       correctionCode,
       sourceId: correctionId,
@@ -1046,13 +1047,48 @@ async function createCorrection(input = {}, options = {}) {
       newFinalDebtAmount: correction.newDebtAmount,
       deltaDebt: debtAdjustmentAmount,
       debtAdjustmentAmount,
+      receivableAmount: sale,
+      cashAmount: nextPaymentState.cashAmount,
+      bankAmount: nextPaymentState.bankAmount,
+      rewardAmount: nextPaymentState.rewardAmount,
+      returnAmount: newReturnAmount,
+      rawDebtAmount: debtCalculation.rawDebtAmount,
+      zeroTolerance: 1000,
+      reconcileAllocation: {
+        allocationCode: correctionId,
+        idempotencyKey: `DCO-RECONCILE:${orderCode(order) || orderId(order)}:DELIVERY_CLOSEOUT_CORRECTION:${correctionId}:v${newCloseoutVersionNo}`,
+        orderId: orderId(order),
+        orderCode: orderCode(order),
+        customerCode: text(order.customerCode),
+        customerName: text(order.customerName),
+        salesStaffCode: text(order.salesStaffCode || order.salesmanCode || order.nvbhCode),
+        salesStaffName: text(order.salesStaffName || order.salesmanName || order.nvbhName),
+        deliveryStaffCode: text(order.deliveryStaffCode || order.deliveryCode || order.nvghCode),
+        deliveryStaffName: text(order.deliveryStaffName || order.deliveryName || order.nvghName),
+        deliveryDate: text(order.deliveryDate || order.orderDate || order.date || order.documentDate),
+        sourceType: 'DELIVERY_CLOSEOUT_CORRECTION',
+        sourceId: correctionId,
+        sourceCode: correctionCode,
+        sourceVersion: newCloseoutVersionNo,
+        receivableAmount: sale,
+        cashAmount: nextPaymentState.cashAmount,
+        bankAmount: nextPaymentState.bankAmount,
+        rewardAmount: nextPaymentState.rewardAmount,
+        returnAmount: newReturnAmount,
+        rawDebtAmount: debtCalculation.rawDebtAmount,
+        normalizedDebtAmount: correction.newDebtAmount,
+        debtAmount: correction.newDebtAmount,
+        zeroTolerance: 1000,
+        zeroToleranceApplied: Math.abs(money(debtCalculation.rawDebtAmount)) <= 1000 && money(debtCalculation.rawDebtAmount) !== correction.newDebtAmount,
+        zeroToleranceAdjustmentAmount: money(debtCalculation.rawDebtAmount - correction.newDebtAmount),
+        status: 'posted'
+      },
       returnAdjustmentAmount,
       cashAdjustmentAmount,
       reason: correction.auditReason || correction.reason || 'Điều chỉnh không ghi lý do',
       correctedBy: actor,
-      correctedAt: now,
-      idempotencyKey: `AR-DEBT-ADJUSTMENT:${correctionId}`
-    }, { ...options, session, actor, sourceType: 'DELIVERY_CLOSEOUT_CORRECTION', sourceId: correctionId, sourceCode: correctionCode });
+      correctedAt: now
+    }, { ...options, session, actor, reconcileDebt: true, sourceType: 'DELIVERY_CLOSEOUT_CORRECTION', sourceId: correctionId, sourceCode: correctionCode, sourceModel: 'deliveryCloseoutCorrections' });
 
     const ledgerEntry = adjustment && (adjustment.entry || adjustment.arDebtAdjustmentLedger || adjustment);
     if (ledgerEntry && ledgerEntry.code) {
@@ -1063,8 +1099,11 @@ async function createCorrection(input = {}, options = {}) {
       );
     }
 
-    const adjustmentMessage = ledgerEntry && ledgerEntry.code
-      ? `và AR-DEBT-ADJUSTMENT ${debtAdjustmentAmount >= 0 ? 'debit' : 'credit'} ${Math.abs(debtAdjustmentAmount)}`
+    const adjustmentDirection = text(ledgerEntry && (ledgerEntry.direction || ledgerEntry.amountField))
+      || (money(ledgerEntry && ledgerEntry.debit) > 0 ? 'debit' : (money(ledgerEntry && ledgerEntry.credit) > 0 ? 'credit' : ''));
+    const adjustmentAmountForMessage = Math.max(money(ledgerEntry && ledgerEntry.debit), money(ledgerEntry && ledgerEntry.credit), money(ledgerEntry && ledgerEntry.amount));
+    const adjustmentMessage = ledgerEntry && ledgerEntry.code && adjustmentAmountForMessage > 0
+      ? `và AR-DEBT-ADJUSTMENT ${adjustmentDirection || (debtAdjustmentAmount >= 0 ? 'debit' : 'credit')} ${adjustmentAmountForMessage}`
       : 'không sinh AR-DEBT-ADJUSTMENT vì không có chênh lệch công nợ';
 
     return {

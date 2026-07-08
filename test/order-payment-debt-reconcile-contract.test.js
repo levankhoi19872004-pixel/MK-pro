@@ -135,3 +135,47 @@ test('batch repair CLI supports debt audit/repair options', () => {
   assert.equal(apply.fixDebtBalance, true);
   assert.equal(apply.deliveryStaffCode, 'ghth');
 });
+
+test('debt reconcile can compute expected debt from correction closeout final state', () => {
+  const expected = DebtReconcile.computeExpectedDebtFromCloseout({
+    originalAmount: 9668695,
+    cashAmount: 561000,
+    bankAmount: 5807000,
+    rewardAmount: 3300000,
+    returnAmount: 0
+  }, { zeroTolerance: 1000 });
+  assert.equal(expected.rawDebtAmount, 695);
+  assert.equal(expected.expectedDebtAmount, 0);
+  assert.equal(expected.zeroToleranceApplied, true);
+});
+
+test('debt adjustment ledger can carry correction source while using shared debt reconcile idempotency', () => {
+  const allocation = {
+    ...b0038734Allocation(),
+    allocationCode: 'DCOC-B0038734-v2',
+    sourceType: 'DELIVERY_CLOSEOUT_CORRECTION',
+    sourceId: 'DCOC-B0038734-v2',
+    sourceCode: 'DCOC-B0038734-v2',
+    sourceVersion: 2
+  };
+  const ledger = DebtReconcile.buildDebtAdjustmentLedger({
+    allocation,
+    currentArBalance: 3300695,
+    expectedDebtAmount: 0,
+    diff: 3300695
+  }, {
+    sourceType: 'DELIVERY_CLOSEOUT_CORRECTION',
+    sourceId: 'DCOC-B0038734-v2',
+    sourceCode: 'DCOC-B0038734-v2',
+    sourceModel: 'deliveryCloseoutCorrections',
+    refType: 'DELIVERY_CLOSEOUT_CORRECTION',
+    refId: 'DCOC-B0038734-v2',
+    refCode: 'DCOC-B0038734-v2',
+    actor: 'test'
+  });
+  assert.equal(ledger.sourceType, 'DELIVERY_CLOSEOUT_CORRECTION');
+  assert.equal(ledger.sourceModel, 'deliveryCloseoutCorrections');
+  assert.equal(ledger.refType, 'DELIVERY_CLOSEOUT_CORRECTION');
+  assert.equal(ledger.credit, 3300695);
+  assert.match(ledger.idempotencyKey, /^AR-DEBT-ADJUSTMENT:DEBT-RECONCILE:B0038734:DCOC-B0038734-v2:0:v2$/);
+});

@@ -37,6 +37,7 @@ const ALLOWED_CATEGORIES = Object.freeze([
   'AR-RETURN'
 ]);
 const PENDING_COLLECTION_STATUSES = Object.freeze(['submitted', 'under_review']);
+const LEGACY_REVERSAL_AUDIT_ORDER = Object.freeze(['AR-SALE', 'AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RETURN-REVERSAL', 'AR-RECEIPT', 'AR-RECEIPT-REVERSAL']);
 
 function setModelsForTest(nextModels) {
   modelsForDebtNew = nextModels || null;

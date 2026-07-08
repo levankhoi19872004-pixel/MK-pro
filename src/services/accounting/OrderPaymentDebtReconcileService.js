@@ -119,6 +119,68 @@ function computeExpectedDebtFromAllocation(allocation = {}, options = {}) {
   };
 }
 
+function firstMoney(source = {}, keys = [], fallback = 0) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(source || {}, key)
+      && source[key] !== undefined
+      && source[key] !== null
+      && clean(source[key]) !== '') return money(source[key]);
+  }
+  return money(fallback);
+}
+
+function computeExpectedDebtFromCloseout(closeout = {}, options = {}) {
+  const zeroTolerance = normalizeZeroTolerance(options.zeroTolerance ?? closeout.zeroTolerance, DEFAULT_ZERO_TOLERANCE);
+  const allocationLike = {
+    receivableAmount: firstMoney(closeout, ['receivableAmount', 'originalAmount', 'saleAmount', 'deliveredAmount', 'totalAmount', 'amount'], options.receivableAmount),
+    cashAmount: firstMoney(closeout, ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount', 'paidCashAmount'], options.cashAmount),
+    bankAmount: firstMoney(closeout, ['bankAmount', 'bankTransferAmount', 'transferAmount', 'paidBankAmount'], options.bankAmount),
+    rewardAmount: firstMoney(closeout, ['rewardAmount', 'offsetAmount', 'bonusAmount', 'allowanceAmount', 'rewardOffsetAmount'], options.rewardAmount),
+    returnAmount: firstMoney(closeout, ['returnAmount', 'returnedAmount', 'actualReturnAmount', 'returnAmountFromReturnOrders'], options.returnAmount),
+    zeroTolerance
+  };
+  return computeExpectedDebtFromAllocation(allocationLike, { zeroTolerance });
+}
+
+function allocationFromCloseout(order = {}, closeout = {}, options = {}) {
+  const expected = computeExpectedDebtFromCloseout(closeout, options);
+  const sourceType = clean(options.sourceType || closeout.sourceType || 'delivery_closeout');
+  const sourceId = clean(options.sourceId || closeout.sourceId || closeout.id || closeout.closeoutId || closeout.code || closeout.closeoutCode || order.orderId || order.id || order._id || order.orderCode || order.code);
+  const sourceCode = clean(options.sourceCode || closeout.sourceCode || closeout.code || closeout.closeoutCode || sourceId);
+  const sourceVersion = Number(options.sourceVersion || closeout.sourceVersion || closeout.closeoutVersion || closeout.version || 1) || 1;
+  const orderCode = orderCodeOf(closeout, order);
+  const orderId = orderIdOf(closeout, order);
+  return {
+    allocationCode: clean(options.allocationCode || closeout.allocationCode || `DCO-RECONCILE-${orderCode || orderId}-${sourceVersion}`),
+    idempotencyKey: clean(options.allocationIdempotencyKey || closeout.allocationIdempotencyKey || `DCO-RECONCILE:${orderCode || orderId}:${sourceType}:${sourceId}:v${sourceVersion}`),
+    orderId,
+    orderCode,
+    customerCode: customerCodeOf(closeout, order),
+    customerName: clean(closeout.customerName || order.customerName),
+    salesStaffCode: clean(closeout.salesStaffCode || order.salesStaffCode || order.salesmanCode),
+    salesStaffName: clean(closeout.salesStaffName || order.salesStaffName || order.salesmanName),
+    deliveryStaffCode: clean(closeout.deliveryStaffCode || order.deliveryStaffCode || order.deliveryCode),
+    deliveryStaffName: clean(closeout.deliveryStaffName || order.deliveryStaffName || order.deliveryName),
+    deliveryDate: clean(closeout.deliveryDate || order.deliveryDate || order.orderDate || order.date),
+    sourceType,
+    sourceId,
+    sourceCode,
+    sourceVersion,
+    receivableAmount: firstMoney(closeout, ['receivableAmount', 'originalAmount', 'saleAmount', 'deliveredAmount', 'totalAmount', 'amount'], order.totalAmount || order.amount || order.total),
+    cashAmount: firstMoney(closeout, ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount', 'paidCashAmount'], 0),
+    bankAmount: firstMoney(closeout, ['bankAmount', 'bankTransferAmount', 'transferAmount', 'paidBankAmount'], 0),
+    rewardAmount: firstMoney(closeout, ['rewardAmount', 'offsetAmount', 'bonusAmount', 'allowanceAmount', 'rewardOffsetAmount'], 0),
+    returnAmount: firstMoney(closeout, ['returnAmount', 'returnedAmount', 'actualReturnAmount', 'returnAmountFromReturnOrders'], 0),
+    rawDebtAmount: expected.rawDebtAmount,
+    normalizedDebtAmount: expected.expectedDebtAmount,
+    debtAmount: expected.expectedDebtAmount,
+    zeroTolerance: expected.zeroTolerance,
+    zeroToleranceApplied: expected.zeroToleranceApplied,
+    zeroToleranceAdjustmentAmount: expected.zeroToleranceAdjustmentAmount,
+    status: 'posted'
+  };
+}
+
 async function getCurrentOrderArBalance(orderCode, customerCode, options = {}) {
   const match = buildArOrderMatch(orderCode, customerCode, options);
   let query = ArLedger.find(match).limit(Math.max(1, Math.min(2000, Number(options.limit || 2000)))).lean();
@@ -168,14 +230,14 @@ function buildDebtAdjustmentLedger({ allocation = {}, order = {}, currentArBalan
     ledgerType: 'AR-DEBT-ADJUSTMENT',
     entryType: 'normal',
     type: 'ar_debt_reconcile',
-    source: 'order_payment_debt_reconcile_service',
-    sourceType: 'ORDER_PAYMENT_DEBT_RECONCILE',
-    sourceId: clean(allocationRef || orderId),
-    sourceCode: clean(orderCode || allocation.sourceCode || allocationRef),
-    sourceModel: 'orderPaymentAllocations',
-    refType: 'ORDER_PAYMENT_ALLOCATION',
-    refId: clean(allocationRef),
-    refCode: clean(allocation.allocationCode || orderCode || allocationRef),
+    source: clean(options.source || 'order_payment_debt_reconcile_service'),
+    sourceType: clean(options.sourceType || allocation.sourceType || 'ORDER_PAYMENT_DEBT_RECONCILE'),
+    sourceId: clean(options.sourceId || allocation.sourceId || allocationRef || orderId),
+    sourceCode: clean(options.sourceCode || allocation.sourceCode || orderCode || allocationRef),
+    sourceModel: clean(options.sourceModel || allocation.sourceModel || 'orderPaymentAllocations'),
+    refType: clean(options.refType || allocation.refType || 'ORDER_PAYMENT_ALLOCATION'),
+    refId: clean(options.refId || allocationRef),
+    refCode: clean(options.refCode || allocation.allocationCode || orderCode || allocationRef),
     orderId,
     orderCode,
     salesOrderId: orderId,
@@ -217,7 +279,10 @@ function buildDebtAdjustmentLedger({ allocation = {}, order = {}, currentArBalan
       zeroTolerance: normalizeZeroTolerance(options.zeroTolerance, DEFAULT_ZERO_TOLERANCE),
       rawDebtAmount: money(options.rawDebtAmount),
       normalizedDebtAmount: money(expectedDebtAmount),
-      zeroToleranceAdjustmentAmount: money(money(options.rawDebtAmount) - money(expectedDebtAmount))
+      zeroToleranceAdjustmentAmount: money(money(options.rawDebtAmount) - money(expectedDebtAmount)),
+      reconcileSourceType: clean(options.sourceType || allocation.sourceType),
+      reconcileSourceId: clean(options.sourceId || allocation.sourceId),
+      reconcileSourceCode: clean(options.sourceCode || allocation.sourceCode)
     }
   };
 }
@@ -251,12 +316,21 @@ function diagnosticFromReconcile({ order = {}, allocation = {}, expected = {}, c
   };
 }
 
-async function reconcileOneOrder({ order = {}, allocation = {}, apply = false, session = null, zeroTolerance = DEFAULT_ZERO_TOLERANCE, actor = 'backfill-order-payment-allocations' } = {}) {
-  const expected = computeExpectedDebtFromAllocation(allocation, { zeroTolerance });
-  const keys = orderLedgerKeys({ ...order, ...allocation });
-  const currentArBalance = await getCurrentOrderArBalance(orderCodeOf(allocation, order), customerCodeOf(allocation, order), { session, keys });
+async function reconcileOneOrder({ order = {}, allocation = {}, closeout = null, apply = false, session = null, zeroTolerance = DEFAULT_ZERO_TOLERANCE, actor = 'backfill-order-payment-allocations', sourceType = '', sourceId = '', sourceCode = '', sourceModel = '', refType = '', refId = '', refCode = '', idempotencyKey: forcedIdempotencyKey = '', note = '', reason = '', accountingBatchId = '' } = {}) {
+  const effectiveAllocation = allocation && Object.keys(allocation).length
+    ? { ...allocation }
+    : allocationFromCloseout(order, closeout || {}, { zeroTolerance, sourceType, sourceId, sourceCode });
+  if (sourceType && !effectiveAllocation.sourceType) effectiveAllocation.sourceType = sourceType;
+  if (sourceId && !effectiveAllocation.sourceId) effectiveAllocation.sourceId = sourceId;
+  if (sourceCode && !effectiveAllocation.sourceCode) effectiveAllocation.sourceCode = sourceCode;
+
+  const expected = closeout && !allocation
+    ? computeExpectedDebtFromCloseout(closeout, { zeroTolerance })
+    : computeExpectedDebtFromAllocation(effectiveAllocation, { zeroTolerance });
+  const keys = orderLedgerKeys({ ...order, ...effectiveAllocation });
+  const currentArBalance = await getCurrentOrderArBalance(orderCodeOf(effectiveAllocation, order), customerCodeOf(effectiveAllocation, order), { session, keys });
   const diff = money(currentArBalance - expected.expectedDebtAmount);
-  const idempotencyKey = debtAdjustmentIdempotencyKey(allocation, expected.expectedDebtAmount);
+  const idempotencyKey = clean(forcedIdempotencyKey || debtAdjustmentIdempotencyKey(effectiveAllocation, expected.expectedDebtAmount));
   const existing = await findActiveDebtAdjustmentByKey(idempotencyKey, { session });
 
   if (existing) {
@@ -269,7 +343,7 @@ async function reconcileOneOrder({ order = {}, allocation = {}, apply = false, s
       diff,
       action: 'skip',
       ledger: existing,
-      diagnostic: diagnosticFromReconcile({ order, allocation, expected, currentArBalance, diff, action: 'skip', idempotencyKey, suggestedFix: 'Đã có AR-DEBT-ADJUSTMENT debt reconcile idempotent, không tạo thêm.' })
+      diagnostic: diagnosticFromReconcile({ order, allocation: effectiveAllocation, expected, currentArBalance, diff, action: 'skip', idempotencyKey, suggestedFix: 'Đã có AR-DEBT-ADJUSTMENT debt reconcile idempotent, không tạo thêm.' })
     };
   }
 
@@ -282,11 +356,11 @@ async function reconcileOneOrder({ order = {}, allocation = {}, apply = false, s
       expectedDebtAmount: expected.expectedDebtAmount,
       diff,
       action: 'skip',
-      diagnostic: diagnosticFromReconcile({ order, allocation, expected, currentArBalance, diff, action: 'skip', idempotencyKey, suggestedFix: 'AR balance đã khớp expectedDebtAmount.' })
+      diagnostic: diagnosticFromReconcile({ order, allocation: effectiveAllocation, expected, currentArBalance, diff, action: 'skip', idempotencyKey, suggestedFix: 'AR balance đã khớp expectedDebtAmount.' })
     };
   }
 
-  const ledger = buildDebtAdjustmentLedger({ allocation, order, currentArBalance, expectedDebtAmount: expected.expectedDebtAmount, diff }, { zeroTolerance, actor, rawDebtAmount: expected.rawDebtAmount, session });
+  const ledger = buildDebtAdjustmentLedger({ allocation: effectiveAllocation, order, currentArBalance, expectedDebtAmount: expected.expectedDebtAmount, diff }, { zeroTolerance, actor, rawDebtAmount: expected.rawDebtAmount, session, sourceType, sourceId, sourceCode, sourceModel, refType, refId, refCode, note, reason, accountingBatchId, idempotencyKey });
   const action = diff > 0 ? 'create-credit' : 'create-debit';
   if (!apply) {
     return {
@@ -298,12 +372,12 @@ async function reconcileOneOrder({ order = {}, allocation = {}, apply = false, s
       diff,
       action,
       ledger,
-      diagnostic: diagnosticFromReconcile({ order, allocation, expected, currentArBalance, diff, action, idempotencyKey, suggestedFix: `${action === 'create-credit' ? 'Tạo credit' : 'Tạo debit'} AR-DEBT-ADJUSTMENT ${Math.abs(diff)} bằng --apply --fix-debt-balance.` })
+      diagnostic: diagnosticFromReconcile({ order, allocation: effectiveAllocation, expected, currentArBalance, diff, action, idempotencyKey, suggestedFix: `${action === 'create-credit' ? 'Tạo credit' : 'Tạo debit'} AR-DEBT-ADJUSTMENT ${Math.abs(diff)} bằng --apply --fix-debt-balance.` })
     };
   }
 
   const saved = await paymentRepository.upsert(ledger, { session, actor });
-  const afterBalance = await getCurrentOrderArBalance(orderCodeOf(allocation, order), customerCodeOf(allocation, order), { session, keys });
+  const afterBalance = await getCurrentOrderArBalance(orderCodeOf(effectiveAllocation, order), customerCodeOf(effectiveAllocation, order), { session, keys });
   return {
     needsAdjustment: true,
     posted: true,
@@ -314,7 +388,7 @@ async function reconcileOneOrder({ order = {}, allocation = {}, apply = false, s
     diff,
     action,
     ledger: saved || ledger,
-    diagnostic: diagnosticFromReconcile({ order, allocation, expected, currentArBalance, diff, action, idempotencyKey, suggestedFix: `Đã tạo AR-DEBT-ADJUSTMENT ${action === 'create-credit' ? 'credit' : 'debit'} ${Math.abs(diff)}.` })
+    diagnostic: diagnosticFromReconcile({ order, allocation: effectiveAllocation, expected, currentArBalance, diff, action, idempotencyKey, suggestedFix: `Đã tạo AR-DEBT-ADJUSTMENT ${action === 'create-credit' ? 'credit' : 'debit'} ${Math.abs(diff)}.` })
   };
 }
 
@@ -326,12 +400,18 @@ async function reconcileManyOrders(filters = {}, options = {}) {
   return results;
 }
 
+async function reconcileOrderDebt(input = {}) {
+  return reconcileOneOrder(input);
+}
+
 module.exports = {
   DEFAULT_ZERO_TOLERANCE,
   computeExpectedDebtFromAllocation,
+  computeExpectedDebtFromCloseout,
   getCurrentOrderArBalance,
   buildDebtAdjustmentLedger,
   reconcileOneOrder,
+  reconcileOrderDebt,
   reconcileManyOrders,
   debtAdjustmentIdempotencyKey,
   findActiveDebtAdjustmentByKey,
@@ -342,6 +422,7 @@ module.exports = {
     activeArFilter,
     buildArOrderMatch,
     orderLedgerKeys,
+    allocationFromCloseout,
     diagnosticFromReconcile,
     orderCodeOf,
     customerCodeOf

@@ -6,6 +6,7 @@ const { toNumber } = require('../../utils/common.util');
 const paymentRepository = require('../../repositories/paymentRepository');
 const arDebtReadModel = require('../arDebtReadModel.service');
 const DeliveryCloseoutService = require('./DeliveryCloseoutService');
+const OrderPaymentDebtReconcileService = require('./OrderPaymentDebtReconcileService');
 
 function clean(value = '') {
   return String(value ?? '').trim();
@@ -112,7 +113,84 @@ function buildAdjustmentLedger(order = {}, context = {}, options = {}) {
   };
 }
 
+
+function buildReconcileAllocationFromContext(order = {}, context = {}, options = {}) {
+  const salesOrderId = clean(DeliveryCloseoutService.orderId(order) || context.orderId || context.salesOrderId);
+  const salesOrderCode = clean(DeliveryCloseoutService.orderCode(order) || context.orderCode || context.salesOrderCode || salesOrderId);
+  const sourceType = clean(options.sourceType || context.sourceType || (context.correctionId ? 'DELIVERY_CLOSEOUT_CORRECTION' : 'SALES_ORDER_DELIVERY_CLOSEOUT_CORRECTION'));
+  const sourceId = clean(options.sourceId || context.sourceId || context.correctionId || salesOrderId);
+  const sourceCode = clean(options.sourceCode || context.sourceCode || context.correctionCode || salesOrderCode);
+  const sourceVersion = Number(context.deliveryCloseoutVersion || context.version || 1) || 1;
+  const allocation = context.reconcileAllocation && typeof context.reconcileAllocation === 'object'
+    ? { ...context.reconcileAllocation }
+    : {};
+  return {
+    allocationCode: clean(allocation.allocationCode || context.allocationCode || context.correctionId || sourceId || salesOrderCode),
+    idempotencyKey: clean(allocation.idempotencyKey || context.allocationIdempotencyKey || `DCO-RECONCILE:${salesOrderCode}:${sourceType}:${sourceId}:v${sourceVersion}`),
+    orderId: clean(allocation.orderId || salesOrderId),
+    orderCode: clean(allocation.orderCode || salesOrderCode),
+    customerCode: clean(allocation.customerCode || order.customerCode),
+    customerName: clean(allocation.customerName || order.customerName),
+    salesStaffCode: clean(allocation.salesStaffCode || order.salesStaffCode || order.salesmanCode || order.nvbhCode),
+    salesStaffName: clean(allocation.salesStaffName || order.salesStaffName || order.salesmanName || order.nvbhName),
+    deliveryStaffCode: clean(allocation.deliveryStaffCode || order.deliveryStaffCode || order.deliveryCode || order.nvghCode),
+    deliveryStaffName: clean(allocation.deliveryStaffName || order.deliveryStaffName || order.deliveryName || order.nvghName),
+    deliveryDate: clean(allocation.deliveryDate || order.deliveryDate || order.orderDate || order.date || context.correctedAt),
+    sourceType,
+    sourceId,
+    sourceCode,
+    sourceVersion,
+    receivableAmount: money(allocation.receivableAmount ?? context.receivableAmount ?? context.saleAmount ?? context.originalAmount ?? order.totalAmount ?? order.amount ?? order.total),
+    cashAmount: money(allocation.cashAmount ?? context.cashAmount ?? context.newCashAmount),
+    bankAmount: money(allocation.bankAmount ?? context.bankAmount ?? context.newBankAmount),
+    rewardAmount: money(allocation.rewardAmount ?? context.rewardAmount ?? context.newRewardAmount),
+    returnAmount: money(allocation.returnAmount ?? context.returnAmount ?? context.newReturnAmount),
+    rawDebtAmount: money(allocation.rawDebtAmount ?? context.rawDebtAmount),
+    normalizedDebtAmount: money(allocation.normalizedDebtAmount ?? context.newFinalDebtAmount ?? context.debtAmount),
+    debtAmount: money(allocation.debtAmount ?? context.newFinalDebtAmount ?? context.debtAmount),
+    zeroTolerance: money(allocation.zeroTolerance ?? context.zeroTolerance ?? options.zeroTolerance ?? 1000),
+    status: 'posted'
+  };
+}
+
+async function postAdjustmentByDebtReconcile(order = {}, context = {}, options = {}) {
+  const allocation = buildReconcileAllocationFromContext(order, context, options);
+  const sourceType = clean(options.sourceType || context.sourceType || allocation.sourceType || 'DELIVERY_CLOSEOUT_CORRECTION');
+  const sourceId = clean(options.sourceId || context.sourceId || context.correctionId || allocation.sourceId);
+  const sourceCode = clean(options.sourceCode || context.sourceCode || context.correctionCode || allocation.sourceCode);
+  const result = await OrderPaymentDebtReconcileService.reconcileOrderDebt({
+    order,
+    allocation,
+    apply: options.apply !== false,
+    session: options.session,
+    zeroTolerance: options.zeroTolerance || context.zeroTolerance || 1000,
+    actor: context.correctedBy || options.actor || 'accountant',
+    sourceType,
+    sourceId,
+    sourceCode,
+    sourceModel: clean(options.sourceModel || context.sourceModel || 'deliveryCloseoutCorrections'),
+    refType: sourceType,
+    refId: clean(context.correctionId || sourceId),
+    refCode: clean(context.correctionCode || sourceCode),
+    idempotencyKey: clean(context.debtReconcileIdempotencyKey || ''),
+    accountingBatchId: clean(options.accountingBatchId || `AR-DEBT-RECONCILE-${sourceId}-${allocation.sourceVersion || 1}`),
+    reason: clean(context.reason || options.reason || 'delivery closeout correction debt reconcile'),
+    note: clean(options.note || `Đối chiếu công nợ sau correction ${sourceCode}: current AR vs expected debt`)
+  });
+  return {
+    posted: result.posted === true,
+    idempotent: result.skippedAlreadyReconciled === true,
+    skipped: result.skippedAlreadyFixed === true || result.skippedAlreadyReconciled === true,
+    reason: result.skippedAlreadyFixed ? 'already_balanced' : (result.skippedAlreadyReconciled ? 'already_reconciled' : ''),
+    entry: result.ledger,
+    reconcile: result
+  };
+}
+
 async function postAdjustment(order = {}, context = {}, options = {}) {
+  if (options.reconcileDebt === true || context.reconcileDebt === true || context.reconcileAllocation) {
+    return postAdjustmentByDebtReconcile(order, context, options);
+  }
   const entry = buildAdjustmentLedger(order, context, options);
   if (!entry) return { posted: false, skipped: true, reason: 'zero_delta' };
   const existing = await paymentRepository.findAll({
@@ -132,5 +210,5 @@ async function postAdjustment(order = {}, context = {}, options = {}) {
 module.exports = {
   buildAdjustmentLedger,
   postAdjustment,
-  _internal: { money, adjustmentSide, shortHash }
+  _internal: { money, adjustmentSide, shortHash, buildReconcileAllocationFromContext }
 };

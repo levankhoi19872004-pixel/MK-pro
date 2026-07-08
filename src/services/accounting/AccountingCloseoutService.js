@@ -510,9 +510,16 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     closeoutScope: confirmedCloseout.closeoutScope || 'selected_orders',
     note: clean(options.note || options.reason || `Phân bổ thanh toán từ chốt giao hàng ${DeliveryCloseoutService.orderCode(order)}`)
   });
-  const debtReconcileResult = await OrderPaymentDebtReconcileService.reconcileOneOrder({
+  const debtReconcileResult = await OrderPaymentDebtReconcileService.reconcileOrderDebt({
     order: updatedOrderForLedger,
     allocation: allocationResult.allocation,
+    sourceType: 'delivery_closeout',
+    sourceId: allocationResult.allocation?.sourceId || confirmedCloseout.id || confirmedCloseout.code || DeliveryCloseoutService.orderId(order),
+    sourceCode: allocationResult.allocation?.sourceCode || confirmedCloseout.code || DeliveryCloseoutService.orderCode(order),
+    sourceModel: 'orderPaymentAllocations',
+    refType: 'ORDER_PAYMENT_ALLOCATION',
+    refId: allocationResult.allocation?.allocationCode || allocationResult.allocation?.id,
+    refCode: allocationResult.allocation?.allocationCode || DeliveryCloseoutService.orderCode(order),
     apply: true,
     zeroTolerance: OrderPaymentAllocationService.DEFAULT_ZERO_TOLERANCE || 1000,
     actor,
