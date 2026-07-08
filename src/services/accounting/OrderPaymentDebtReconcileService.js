@@ -334,16 +334,31 @@ async function reconcileOneOrder({ order = {}, allocation = {}, closeout = null,
   const existing = await findActiveDebtAdjustmentByKey(idempotencyKey, { session });
 
   if (existing) {
+    if (diff === 0) {
+      return {
+        needsAdjustment: false,
+        skippedAlreadyReconciled: true,
+        skipReason: 'idempotencyKeyExistsAndBalanceOk',
+        zeroToleranceApplied: expected.zeroToleranceApplied,
+        currentArBalance,
+        expectedDebtAmount: expected.expectedDebtAmount,
+        diff,
+        action: 'skip',
+        ledger: existing,
+        diagnostic: diagnosticFromReconcile({ order, allocation: effectiveAllocation, expected, currentArBalance, diff, action: 'skip', idempotencyKey, suggestedFix: 'Đã có AR-DEBT-ADJUSTMENT debt reconcile idempotent và AR balance đã khớp expectedDebtAmount.' })
+      };
+    }
     return {
       needsAdjustment: false,
-      skippedAlreadyReconciled: true,
+      manualReviewRequired: true,
+      skipReason: 'idempotencyKeyExistsButBalanceStillDiff',
       zeroToleranceApplied: expected.zeroToleranceApplied,
       currentArBalance,
       expectedDebtAmount: expected.expectedDebtAmount,
       diff,
-      action: 'skip',
+      action: 'manual-review',
       ledger: existing,
-      diagnostic: diagnosticFromReconcile({ order, allocation: effectiveAllocation, expected, currentArBalance, diff, action: 'skip', idempotencyKey, suggestedFix: 'Đã có AR-DEBT-ADJUSTMENT debt reconcile idempotent, không tạo thêm.' })
+      diagnostic: diagnosticFromReconcile({ order, allocation: effectiveAllocation, expected, currentArBalance, diff, action: 'manual-review', idempotencyKey, suggestedFix: 'Đã tồn tại idempotencyKey AR-DEBT-ADJUSTMENT nhưng AR balance vẫn lệch. Cần kiểm tra ledger trùng/sai hoặc reverse/repost theo quy trình kế toán.' })
     };
   }
 
@@ -351,6 +366,7 @@ async function reconcileOneOrder({ order = {}, allocation = {}, closeout = null,
     return {
       needsAdjustment: false,
       skippedAlreadyFixed: true,
+      skipReason: 'currentArBalanceAlreadyExpected',
       zeroToleranceApplied: expected.zeroToleranceApplied,
       currentArBalance,
       expectedDebtAmount: expected.expectedDebtAmount,

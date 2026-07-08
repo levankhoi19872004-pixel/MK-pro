@@ -751,14 +751,21 @@ async function processOneOrder(order = {}, context = {}) {
       });
       finalDebtDiff = money(reconcile.diff);
       if (reconcile.zeroToleranceApplied) writes.zeroToleranceApplied += 1;
-      if (reconcile.needsAdjustment || reconcile.skippedAlreadyReconciled) {
-        pushIssue(diagnostics, 'debtDiffs', {
+      if (reconcile.needsAdjustment || reconcile.skippedAlreadyReconciled || reconcile.manualReviewRequired) {
+        const row = {
           ...(reconcile.diagnostic || {}),
-          issueType: reconcile.skippedAlreadyReconciled ? 'debt_already_reconciled' : 'debt_balance_diff',
-          suggestedFix: reconcile.skippedAlreadyReconciled
-            ? 'Đã có AR-DEBT-ADJUSTMENT reconcile idempotent, không tạo thêm.'
-            : 'Chạy --apply --fix-debt-balance để tạo AR-DEBT-ADJUSTMENT debit/credit theo diff.'
-        }, options);
+          skipReason: reconcile.skipReason || '',
+          issueType: reconcile.manualReviewRequired
+            ? 'debt_reconcile_manual_review'
+            : (reconcile.skippedAlreadyReconciled ? 'debt_already_reconciled' : 'debt_balance_diff'),
+          suggestedFix: reconcile.manualReviewRequired
+            ? ((reconcile.diagnostic && reconcile.diagnostic.suggestedFix) || 'Debt reconcile cần kiểm tra thủ công.')
+            : (reconcile.skippedAlreadyReconciled
+              ? 'Đã có AR-DEBT-ADJUSTMENT reconcile idempotent và AR balance đã khớp expectedDebtAmount.'
+              : 'Chạy --apply --fix-debt-balance để tạo AR-DEBT-ADJUSTMENT debit/credit theo diff.')
+        };
+        pushIssue(diagnostics, reconcile.manualReviewRequired ? 'manualReviewRequired' : 'debtDiffs', row, options);
+        if (reconcile.manualReviewRequired) writes.manualReviewRequired += 1;
       }
       if (reconcile.skippedAlreadyReconciled) {
         writes.skippedDebtAlreadyReconciled += 1;

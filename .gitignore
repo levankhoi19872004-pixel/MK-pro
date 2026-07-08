@@ -1,0 +1,52 @@
+# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Build / cache
+dist/
+build/
+.cache/
+.next/
+.vite/
+coverage/
+
+# Logs
+logs/
+*.log
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Upload / temp files
+tmp/
+temp/
+uploads/
+public/uploads/
+
+# Backup / archive files
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+
+# Excel temporary files
+~$*.xlsx
+~$*.xls
+
+# Runtime/generated large files
+*.bak
+*.backup
+*.dump
+*.ldbk

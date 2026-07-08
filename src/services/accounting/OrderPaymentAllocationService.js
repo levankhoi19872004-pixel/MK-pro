@@ -341,14 +341,24 @@ function buildAllocationFromCloseout(order = {}, closeout = {}, options = {}) {
 async function upsertAllocation(allocation = {}, options = {}) {
   validateAllocation(allocation, options);
   const now = options.now || dateUtil.nowIso();
+  const actor = actorOf(options, allocation.updatedBy || allocation.createdBy || 'system');
+  const { createdAt, createdBy, _id, __v, ...businessFields } = allocation || {};
   const update = {
-    ...allocation,
+    ...businessFields,
     updatedAt: now,
-    updatedBy: actorOf(options, allocation.updatedBy || allocation.createdBy || 'system')
+    updatedBy: actor
   };
+  const insertOnly = {
+    createdAt: createdAt || now,
+    createdBy: createdBy || actor
+  };
+  // MongoDB rejects the same path being present in $set and $setOnInsert.
+  // Keep immutable audit fields insert-only and update mutable audit fields with updated*.
+  delete update.createdAt;
+  delete update.createdBy;
   const query = OrderPaymentAllocation.findOneAndUpdate(
     { idempotencyKey: allocation.idempotencyKey },
-    { $set: update, $setOnInsert: { createdAt: allocation.createdAt || now, createdBy: allocation.createdBy || actorOf(options) } },
+    { $set: update, $setOnInsert: insertOnly },
     { upsert: true, new: true, setDefaultsOnInsert: true, session: options.session }
   );
   return query.lean ? query.lean() : query;
