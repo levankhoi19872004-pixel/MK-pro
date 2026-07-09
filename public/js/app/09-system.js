@@ -6,6 +6,15 @@ function systemFormatNumber(value) {
   return Number.isFinite(n) ? n.toLocaleString('vi-VN') : '0';
 }
 
+const systemCommandLocks=new Set();
+async function runSystemCommandOnce(actionKey,fn){
+  const key=String(actionKey||'system.command');
+  if(systemCommandLocks.has(key))return false;
+  systemCommandLocks.add(key);
+  try{return await fn();}
+  finally{systemCommandLocks.delete(key);}
+}
+
 function setSystemMessage(text, type = '') {
   if (!systemMessage) return;
   systemMessage.textContent = text || '';
@@ -63,7 +72,7 @@ async function loadSystemDataSource() {
   }
 }
 
-async function createSystemBackup() {
+async function createSystemBackupCore() {
   try {
     setSystemMessage('Đang tạo backup...');
     const res = await fetch('/api/system/backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
@@ -78,7 +87,11 @@ async function createSystemBackup() {
   }
 }
 
-async function resetSystemData() {
+async function createSystemBackup() {
+  return runSystemCommandOnce('system.backup',createSystemBackupCore);
+}
+
+async function resetSystemDataCore() {
   const confirmCode = systemResetConfirm ? systemResetConfirm.value.trim() : '';
   const scope = systemResetScope ? systemResetScope.value : 'operational';
   if (confirmCode !== 'RESET_MONGO_DATA') {
@@ -101,14 +114,14 @@ async function resetSystemData() {
     setSystemMessage(`Đã reset xong (${json.scope || scope}). Đã backup trước khi reset.`, 'success');
     await loadSystemStatus();
     if (typeof loadSystemDataSource === 'function') await loadSystemDataSource();
-    if (typeof loadProducts === 'function') loadProducts();
-    if (typeof loadCustomers === 'function') loadCustomers();
-    if (typeof loadStock === 'function') loadStock();
-    if (typeof loadSalesOrders === 'function') loadSalesOrders();
-    if (typeof loadDebts === 'function') loadDebts();
+    // Phase215: không cascade reload toàn màn sau reset; người dùng bấm Tải lại từng module khi cần.
   } catch (err) {
     setSystemMessage(err.message || 'Không reset được dữ liệu', 'error');
   }
+}
+
+async function resetSystemData() {
+  return runSystemCommandOnce('system.reset',resetSystemDataCore);
 }
 
 function systemApiMonitorBadge(ms, status) {

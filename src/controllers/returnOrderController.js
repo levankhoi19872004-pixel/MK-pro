@@ -8,6 +8,7 @@ const StockTransaction = require('../models/StockTransaction');
 const ArLedger = require('../models/ArLedger');
 const User = require('../models/User');
 const { DeliveryEngine } = require('../engines/delivery.engine');
+const { createCommandTelemetry } = require('../utils/commandTelemetry');
 
 function createEngine() {
   return new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger, User });
@@ -84,6 +85,7 @@ async function updateItemsBySalesOrder(req, res) {
 }
 
 async function stockIn(req, res) {
+  const telemetry = createCommandTelemetry('return.stockIn');
   try {
     const result = await returnOrderService.stockInReturnOrder(
       req.params.id || req.params.code,
@@ -96,17 +98,20 @@ async function stockIn(req, res) {
         ok: false,
         success: false,
         message: result.error,
-        code: result.code
+        code: result.code,
+        performance: telemetry.finish()
       });
     }
 
+    telemetry.mark('stockInReturnOrder', { alreadyStockedIn: Boolean(result.alreadyStockedIn) });
     res.json({
       ok: true,
       success: true,
       message: result.message || (result.alreadyStockedIn ? 'Phiếu trả đã nhập kho.' : 'Đã nhập kho phiếu trả hàng'),
       data: result.returnOrder,
       returnOrder: result.returnOrder,
-      stockTransactions: result.stockTransactions || []
+      stockTransactions: result.stockTransactions || [],
+      performance: telemetry.finish()
     });
   } catch (err) {
     res.status(err.status || 500).json({
@@ -134,7 +139,8 @@ async function confirmAccounting(req, res) {
         ok: false,
         success: false,
         message: result.error,
-        code: result.code
+        code: result.code,
+        performance: telemetry.finish()
       });
     }
 

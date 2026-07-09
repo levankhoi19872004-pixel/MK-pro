@@ -704,6 +704,7 @@ module.exports = {
   businessDeliveryStaffCodeOf,
   businessDeliveryStaffNameOf,
   normalizeDeliveryStaffKey,
+  isDeliveryStaffSummaryMode,
   matchesDeliveryStaffCode,
   businessCustomerCodeOf,
   matchesInvoiceExportFilters,

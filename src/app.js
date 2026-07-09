@@ -41,6 +41,7 @@ const startupState = require('./services/startupState');
 const { getRuntimeConfig, validateRuntimeConfig } = require('./config/app.config');
 const { logger } = require('./observability/logger');
 const { requestContextMiddleware } = require('./observability/requestContext');
+const { createRuntimeFlowTelemetry } = require('./middlewares/runtimeFlowTelemetry');
 const { classifyError } = require('./observability/errorClassification');
 const { createHeartbeat } = require('./operations/heartbeatService');
 const { internalReleaseSummary } = require('./operations/releaseMetadata');
@@ -230,6 +231,7 @@ function createApp() {
   app.use(apiSecurity(requireAuth));
   app.use(csrfProtection);
   app.use('/api', tenantContext);
+  app.use('/api', createRuntimeFlowTelemetry({ logger }));
   // GLOBAL_API_SECURITY_BOUNDARY_APPLY_END
 
   registerApiRoutes(app);

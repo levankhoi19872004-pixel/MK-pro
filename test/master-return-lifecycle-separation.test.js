@@ -50,12 +50,15 @@ test('received child keeps canonical received lifecycle and separate merged flag
   assert.doesNotMatch(block, /warehouseReceiveStatus:\s*'posted'/);
 });
 
-test('master return UI excludes inactive rows from selection and batch receiving', () => {
+test('master return UI keeps read-only selection but retired batch receive never posts stock', () => {
   const source = read('public/js/app/debt/07d-master-return-orders.js');
   assert.match(source, /MASTER_RETURN_INACTIVE_STATES/);
   assert.match(source, /master-return-order-check:checked:not\(:disabled\)/);
   assert.match(source, /master-return-order-check:not\(:disabled\)/);
-  assert.match(source, /selected\.filter\(order=>!canReceiveMasterReturnOrder\(order\)\)/);
+  const receiveBlock = source.slice(source.indexOf('async function receiveSelectedMasterReturnOrders'), source.indexOf('// Return-order UI events'));
+  assert.match(receiveBlock, /notifyMasterReturnRetired\('nhập kho hàng loạt qua đơn tổng trả'\)/);
+  assert.doesNotMatch(receiveBlock, /fetch\(/);
+  assert.doesNotMatch(source, /\/api\/master-return-orders\/[^`'"\s]+\/receive/);
 });
 
 test('return-state migration supports dry-run and canonicalizes legacy grouped rows', () => {

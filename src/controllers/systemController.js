@@ -1,6 +1,7 @@
 'use strict';
 
 const systemService = require('../services/systemService');
+const { createCommandTelemetry } = require('../utils/commandTelemetry');
 const ReconciliationService = require('../domain/reconciliation/ReconciliationService');
 const JobSubmissionService = require('../services/background-jobs/JobSubmissionService');
 const operationsService = require('../services/operationsService');
@@ -78,8 +79,11 @@ async function saveSetting(req, res) {
 }
 
 async function backup(req, res) {
+  const telemetry = createCommandTelemetry('system.backup');
   try {
-    res.json({ ok: true, data: await systemService.createBackup() });
+    const data = await systemService.createBackup();
+    telemetry.mark('createBackup');
+    res.json({ ok: true, data, performance: telemetry.finish() });
   } catch (err) {
     sendError(res, err, 'Không tạo được backup');
   }
@@ -108,8 +112,11 @@ async function verifyBackup(req, res) {
 }
 
 async function reset(req, res) {
+  const telemetry = createCommandTelemetry('system.reset');
   try {
-    res.json(await systemService.resetOperationalData({ confirm: req.body && req.body.confirm, scope: req.body && req.body.scope }));
+    const result = await systemService.resetOperationalData({ confirm: req.body && req.body.confirm, scope: req.body && req.body.scope });
+    telemetry.mark('resetOperationalData');
+    res.json({ ...result, performance: telemetry.finish() });
   } catch (err) {
     sendError(res, err, 'Không reset được dữ liệu');
   }

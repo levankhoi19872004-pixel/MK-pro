@@ -6,6 +6,7 @@ const {
   PHASE87_READ_MODEL_CATEGORIES,
   normalizeAccountingAmount,
   isPhase87ReadModelArDebtLedger,
+  isCanonicalArDebtLedger,
   validateArLedgerContract
 } = require('./arLedgerValidator');
 
@@ -68,23 +69,42 @@ function appendAnd(match, condition) {
 }
 
 function ledgerIdentityKeys(row = {}) {
-  return [row.id, row.code, row._id, row.ledgerId].map(clean).filter(Boolean);
+  return [row.id, row.code, row._id, row.ledgerId, row.idempotencyKey].map(clean).filter(Boolean);
 }
 
-function reversalOriginalKeys() {
-  return [];
+function reversalOriginalKeys(row = {}) {
+  return [
+    row.reversedLedgerId,
+    row.originalLedgerId,
+    row.reversalOf,
+    row.refId,
+    row.originalLedgerCode
+  ].map(clean).filter(Boolean);
 }
 
-function isArDebtReversalLedger() {
-  return false;
+function isArDebtReversalLedger(row = {}) {
+  return /-REVERSAL$/i.test(clean(row.category || row.ledgerType));
+}
+
+function hasActiveOriginalForReversal(row = {}, canonicalRows = []) {
+  const keys = new Set(reversalOriginalKeys(row));
+  if (!keys.size) return false;
+  return (Array.isArray(canonicalRows) ? canonicalRows : []).some((candidate) => {
+    if (candidate === row || isArDebtReversalLedger(candidate)) return false;
+    return ledgerIdentityKeys(candidate).some((key) => keys.has(key));
+  });
 }
 
 function filterReadModelEligibleArLedgers(rows = []) {
-  return (Array.isArray(rows) ? rows : []).filter(isPhase87ReadModelArDebtLedger);
+  const canonicalRows = (Array.isArray(rows) ? rows : []).filter(isCanonicalArDebtLedger);
+  return canonicalRows.filter((row) => {
+    if (!isArDebtReversalLedger(row)) return true;
+    return hasActiveOriginalForReversal(row, canonicalRows);
+  });
 }
 
-function isOrphanReadModelReversal() {
-  return false;
+function isOrphanReadModelReversal(row = {}, rows = []) {
+  return isArDebtReversalLedger(row) && !hasActiveOriginalForReversal(row, rows);
 }
 
 function buildCanonicalArLedgerMatch(filters = {}) {

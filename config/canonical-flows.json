@@ -1,0 +1,805 @@
+{
+  "authAndRole": {
+    "status": "canonical",
+    "domain": "auth",
+    "frontendEntries": [
+      "public/login.html",
+      "public/index.html",
+      "public/mobile/sales.html",
+      "public/mobile/delivery.html",
+      "public/mobile/warehouse.html"
+    ],
+    "routes": [
+      "POST /api/auth/login",
+      "GET /api/auth/me"
+    ],
+    "services": [
+      "src/middlewares/auth.middleware.js"
+    ],
+    "ssotCollections": [
+      "users",
+      "roles"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [],
+    "forbiddenSources": [],
+    "owner": "core-auth"
+  },
+  "productCatalog": {
+    "status": "canonical",
+    "domain": "catalog",
+    "frontendEntries": [
+      "public/js/app/02-products.js"
+    ],
+    "routes": [
+      "GET /api/products",
+      "POST /api/products",
+      "PUT /api/products/:id",
+      "PATCH /api/products/:id"
+    ],
+    "services": [
+      "src/controllers/productController.js",
+      "src/services/productService.js"
+    ],
+    "ssotCollections": [
+      "products"
+    ],
+    "compatibilityRoutes": [
+      "GET /api/mobile-sales/products"
+    ],
+    "retiredAlternatives": [],
+    "forbiddenSources": [
+      "inventorySnapshots"
+    ],
+    "owner": "catalog"
+  },
+  "customerCatalog": {
+    "status": "canonical",
+    "domain": "catalog",
+    "frontendEntries": [
+      "public/js/app/03-customers-autocomplete.js"
+    ],
+    "routes": [
+      "GET /api/customers",
+      "POST /api/customers",
+      "PUT /api/customers/:id"
+    ],
+    "services": [
+      "src/controllers/customerController.js",
+      "src/services/customerService.js"
+    ],
+    "ssotCollections": [
+      "customers"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [],
+    "forbiddenSources": [],
+    "owner": "catalog"
+  },
+  "webSalesOrder": {
+    "status": "canonical",
+    "domain": "sales",
+    "frontendEntries": [
+      "public/js/app/05-sales-orders.js"
+    ],
+    "routes": [
+      "GET /api/sales-orders",
+      "POST /api/sales-orders",
+      "GET /api/sales-orders/:id",
+      "DELETE /api/sales-orders/:id"
+    ],
+    "services": [
+      "src/controllers/orderController.js",
+      "src/services/orderService.js"
+    ],
+    "ssotCollections": [
+      "salesOrders",
+      "inventories",
+      "stockTransactions"
+    ],
+    "compatibilityRoutes": [
+      "/api/orders"
+    ],
+    "retiredAlternatives": [],
+    "forbiddenSources": [
+      "inventorySnapshots"
+    ],
+    "owner": "sales"
+  },
+  "mobileSalesOrder": {
+    "status": "canonical",
+    "domain": "mobile-sales",
+    "frontendEntries": [
+      "public/mobile/js/sales.source/part-01.jsfrag"
+    ],
+    "routes": [
+      "GET /api/mobile/customers",
+      "GET /api/mobile/products",
+      "GET /api/mobile/sales/orders",
+      "POST /api/mobile/sales/orders"
+    ],
+    "services": [
+      "src/routes/mobile/sales.routes.js",
+      "src/controllers/mobileController.js"
+    ],
+    "ssotCollections": [
+      "salesOrders",
+      "customers",
+      "products",
+      "inventories"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [
+      "legacy-mobile-sales-snapshot-flow"
+    ],
+    "forbiddenSources": [
+      "inventorySnapshots",
+      "reporting_snapshots"
+    ],
+    "owner": "mobile-sales"
+  },
+  "salesImportPreviewCommit": {
+    "status": "canonical",
+    "domain": "import",
+    "frontendEntries": [
+      "public/js/app/admin/09-import.js"
+    ],
+    "routes": [
+      "POST /api/import/preview",
+      "POST /api/import/commit",
+      "GET /api/import/sessions/:id"
+    ],
+    "services": [
+      "src/routes/importExportRoutes.js",
+      "src/controllers/importRuntimeController.js",
+      "src/services/importService.js"
+    ],
+    "ssotCollections": [
+      "import_sessions",
+      "salesOrders",
+      "inventories",
+      "stockTransactions"
+    ],
+    "compatibilityRoutes": [
+      "/api/excel/*"
+    ],
+    "retiredAlternatives": [
+      "worker-only-import-commit"
+    ],
+    "forbiddenSources": [
+      "snapshotImports"
+    ],
+    "owner": "import"
+  },
+  "dmsInventoryComparison": {
+    "status": "canonical",
+    "domain": "dms",
+    "frontendEntries": [
+      "public/js/app/10-dms-inventory.js"
+    ],
+    "routes": [
+      "GET /api/dms-inventory/latest",
+      "GET /api/dms-inventory/history",
+      "POST /api/dms-inventory/preview",
+      "POST /api/dms-inventory/:id/commit"
+    ],
+    "services": [
+      "src/controllers/dmsInventoryController.js",
+      "src/services/dmsInventoryService.js"
+    ],
+    "ssotCollections": [
+      "dmsInventoryComparisons",
+      "dmsInventoryQuotas",
+      "inventories"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [
+      "dms-snapshot-quota-flow"
+    ],
+    "forbiddenSources": [
+      "inventorySnapshots"
+    ],
+    "owner": "inventory"
+  },
+  "dmsGapSimulator": {
+    "status": "canonical",
+    "domain": "tools",
+    "frontendEntries": [
+      "public/js/app/tools/dms-gap-simulator.js"
+    ],
+    "routes": [
+      "POST /api/tools/dms-gap-simulator/preview",
+      "POST /api/tools/dms-gap-simulator/export"
+    ],
+    "services": [
+      "src/routes/tools/dmsGapSimulator.routes.js"
+    ],
+    "ssotCollections": [
+      "products",
+      "customers",
+      "promotions",
+      "dmsInventoryComparisons"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [
+      "dms-gap-simulator-static-source"
+    ],
+    "forbiddenSources": [
+      "staleUploadOnlyProductSource"
+    ],
+    "owner": "tools"
+  },
+  "displayCheckManager": {
+    "status": "canonical",
+    "domain": "tools",
+    "frontendEntries": [
+      "public/js/app/tools/display-check-manager.js"
+    ],
+    "routes": [
+      "GET /api/tools/display-check/*",
+      "POST /api/tools/display-check/*"
+    ],
+    "services": [
+      "src/routes/tools/displayCheck.routes.js"
+    ],
+    "ssotCollections": [
+      "displayCheckGroups",
+      "displayCheckStores",
+      "displayCheckRuns"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [],
+    "forbiddenSources": [
+      "staleDailyState"
+    ],
+    "owner": "tools"
+  },
+  "masterOrder": {
+    "status": "canonical",
+    "domain": "delivery",
+    "frontendEntries": [
+      "public/js/app/06-master-delivery.js"
+    ],
+    "routes": [
+      "GET /api/master-orders",
+      "POST /api/master-orders",
+      "POST /api/print/master-orders/batch"
+    ],
+    "services": [
+      "src/controllers/masterOrderController.js",
+      "src/services/masterOrderService.js"
+    ],
+    "ssotCollections": [
+      "master_orders",
+      "salesOrders"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [],
+    "forbiddenSources": [
+      "master_orders.totalAmount as delivery-today SSoT"
+    ],
+    "owner": "delivery"
+  },
+  "deliveryMobilePhase23Workflow": {
+    "status": "canonical",
+    "domain": "mobile-delivery",
+    "frontendEntries": [
+      "public/mobile/js/delivery-mobile-view.source.js",
+      "public/mobile/js/delivery-mobile-view.js"
+    ],
+    "routes": [
+      "GET /api/delivery/orders",
+      "POST /api/delivery/return",
+      "POST /api/delivery/payment",
+      "GET /api/delivery/reconciliation",
+      "GET /api/mobile/debts",
+      "POST /api/mobile/debt-collections"
+    ],
+    "services": [
+      "src/routes/mobile/delivery.routes.js",
+      "src/routes/deliveryRoutes.js"
+    ],
+    "ssotCollections": [
+      "salesOrders",
+      "returnOrders",
+      "debtCollections",
+      "arLedgers"
+    ],
+    "compatibilityRoutes": [
+      "/api/mobile/delivery/*"
+    ],
+    "retiredAlternatives": [
+      "legacy-delivery-report-tab",
+      "mobile-legacy-namespace"
+    ],
+    "forbiddenSources": [
+      "deliveryReportSnapshot"
+    ],
+    "owner": "mobile-delivery"
+  },
+  "deliveryTodayNewOrders": {
+    "status": "canonical",
+    "domain": "delivery-closeout",
+    "frontendEntries": [
+      "public/js/app/new/91-delivery-today-new.js"
+    ],
+    "routes": [
+      "GET /api/new/delivery-today/orders"
+    ],
+    "services": [
+      "src/routes/newOperationsRoutes.js",
+      "src/services/deliveryTodayReadService.js"
+    ],
+    "ssotCollections": [
+      "salesOrders",
+      "returnOrders",
+      "deliveryCloseoutVersions"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [
+      "legacy-web-delivery-today-alias"
+    ],
+    "forbiddenSources": [
+      "master_orders.totalAmount",
+      "arLedgers as list SSoT",
+      "reporting_snapshots"
+    ],
+    "owner": "delivery-closeout"
+  },
+  "deliveryCloseout": {
+    "status": "canonical",
+    "domain": "delivery-closeout",
+    "frontendEntries": [
+      "public/js/app/new/91-delivery-today-new.js"
+    ],
+    "routes": [
+      "POST /api/new/delivery-today/closeout"
+    ],
+    "services": [
+      "src/services/accounting/AccountingCloseoutService.js"
+    ],
+    "ssotCollections": [
+      "salesOrders",
+      "returnOrders",
+      "arLedgers",
+      "fundLedgers",
+      "orderPaymentAllocations",
+      "readModelSyncJobs"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [
+      "legacy-web-delivery-today-alias"
+    ],
+    "forbiddenSources": [
+      "master_orders.totalAmount",
+      "reporting_snapshots"
+    ],
+    "owner": "delivery-closeout"
+  },
+  "deliveryAdjustment": {
+    "status": "canonical",
+    "domain": "delivery-closeout",
+    "frontendEntries": [
+      "public/js/app/new/91-delivery-today-new.js"
+    ],
+    "routes": [
+      "POST /api/new/delivery-today/closeouts/:id/corrections",
+      "GET /api/new/delivery-today/adjustments/resolve"
+    ],
+    "services": [
+      "src/services/deliveryCloseoutCorrection.service.js",
+      "src/services/deliveryAdjustmentResolver.service.js"
+    ],
+    "ssotCollections": [
+      "deliveryCloseoutVersions",
+      "returnOrders",
+      "orderPaymentAllocations",
+      "arLedgers"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [],
+    "forbiddenSources": [
+      "DCOC/DCOA/DCOV as salesOrderCode"
+    ],
+    "owner": "delivery-closeout"
+  },
+  "deliveryAdjustmentBulkCommit": {
+    "status": "canonical",
+    "domain": "delivery-closeout",
+    "frontendEntries": [
+      "public/js/app/new/91-delivery-today-new.js"
+    ],
+    "routes": [
+      "POST /api/new/delivery-today/adjustments/bulk-commit"
+    ],
+    "services": [
+      "src/services/deliveryAdjustmentBulkCommit.service.js"
+    ],
+    "ssotCollections": [
+      "deliveryCloseoutVersions",
+      "orderPaymentAllocations",
+      "arLedgers",
+      "readModelSyncJobs"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [],
+    "forbiddenSources": [
+      "per-order frontend replay API calls"
+    ],
+    "owner": "delivery-closeout"
+  },
+  "debtNew": {
+    "status": "canonical",
+    "domain": "debt",
+    "frontendEntries": [
+      "public/js/app/new/92-debt-new.js"
+    ],
+    "routes": [
+      "GET /api/new/debt/customers",
+      "GET /api/new/debt/customers/:customerCode/orders",
+      "POST /api/new/debt/manual"
+    ],
+    "services": [
+      "src/services/DebtReadService.js",
+      "src/services/debtNewReadService.js"
+    ],
+    "ssotCollections": [
+      "arLedgers",
+      "arDebtCustomers",
+      "arDebtOrders"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [
+      "legacy-web-debt-from-orders"
+    ],
+    "forbiddenSources": [
+      "orders as debt SSoT",
+      "master_orders as debt SSoT",
+      "legacy AR categories in strict layer"
+    ],
+    "owner": "debt"
+  },
+  "mobileDebt": {
+    "status": "canonical",
+    "domain": "debt",
+    "frontendEntries": [
+      "public/mobile/js/delivery-mobile-view.source.js",
+      "public/mobile/js/sales.source/part-01.jsfrag"
+    ],
+    "routes": [
+      "GET /api/mobile/debts",
+      "POST /api/mobile/debt-collections"
+    ],
+    "services": [
+      "src/services/mobileDebtNewAdapter.service.js",
+      "src/routes/mobile/debts.routes.js"
+    ],
+    "ssotCollections": [
+      "arLedgers",
+      "debtCollections"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [
+      "legacy-mobile-debt-from-orders"
+    ],
+    "forbiddenSources": [
+      "DCOC/DCOA/DCOV as orderCode",
+      "orders as debt SSoT"
+    ],
+    "owner": "debt"
+  },
+  "debtCollectionSubmit": {
+    "status": "canonical",
+    "domain": "debt",
+    "frontendEntries": [
+      "public/js/app/new/92-debt-new.js",
+      "public/mobile/js/delivery-mobile-view.source.js"
+    ],
+    "routes": [
+      "POST /api/mobile/debt-collections",
+      "POST /api/new/debt/collections"
+    ],
+    "services": [
+      "src/services/DebtCollectionService.js"
+    ],
+    "ssotCollections": [
+      "debtCollections",
+      "debtCollectionLocks"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [],
+    "forbiddenSources": [
+      "direct AR/Fund posting before accounting confirm"
+    ],
+    "owner": "debt"
+  },
+  "debtCollectionConfirm": {
+    "status": "canonical",
+    "domain": "debt",
+    "frontendEntries": [
+      "public/js/app/new/92-debt-new.js"
+    ],
+    "routes": [
+      "POST /api/debt-collections/:id/confirm",
+      "POST /api/new/debt/collections/:id/confirm"
+    ],
+    "services": [
+      "src/services/DebtCollectionService.js"
+    ],
+    "ssotCollections": [
+      "debtCollections",
+      "arLedgers",
+      "fundLedgers",
+      "readModelSyncJobs"
+    ],
+    "compatibilityRoutes": [
+      "/api/debt-collections"
+    ],
+    "retiredAlternatives": [],
+    "forbiddenSources": [
+      "direct route-level AR posting"
+    ],
+    "owner": "debt"
+  },
+  "fundLedger": {
+    "status": "canonical",
+    "domain": "fund",
+    "frontendEntries": [
+      "public/js/app/debt/07f-fund-ledger.js"
+    ],
+    "routes": [
+      "GET /api/funds/ledger",
+      "GET /api/funds/summary",
+      "POST /api/funds/delivery-cash-submissions",
+      "POST /api/funds/expenses",
+      "POST /api/funds/transfers"
+    ],
+    "services": [
+      "src/controllers/fundController.js",
+      "src/services/fundService.js"
+    ],
+    "ssotCollections": [
+      "fundLedgers",
+      "deliveryCashSubmissions"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [],
+    "forbiddenSources": [
+      "cashbook/bankbook as canonical fund SSoT"
+    ],
+    "owner": "fund"
+  },
+  "returnOrders": {
+    "status": "canonical",
+    "domain": "returns",
+    "frontendEntries": [
+      "public/js/app/debt/07b-return-orders.js"
+    ],
+    "routes": [
+      "GET /api/return-orders",
+      "POST /api/return-orders",
+      "POST /api/return-orders/:id/cancel"
+    ],
+    "services": [
+      "src/controllers/returnOrderController.js",
+      "src/services/returnOrderService.js"
+    ],
+    "ssotCollections": [
+      "returnOrders"
+    ],
+    "compatibilityRoutes": [
+      "/api/returns"
+    ],
+    "retiredAlternatives": [
+      "master-return-orders-write-flow"
+    ],
+    "forbiddenSources": [
+      "masterReturnOrders as operational return SSoT"
+    ],
+    "owner": "returns"
+  },
+  "warehouseReturnCheck": {
+    "status": "canonical",
+    "domain": "warehouse",
+    "frontendEntries": [
+      "public/mobile/warehouse.html",
+      "public/mobile/js/warehouse-return-check.js"
+    ],
+    "routes": [
+      "GET /api/mobile/warehouse/return-checks",
+      "GET /api/mobile/warehouse/return-checks/:id",
+      "POST /api/mobile/warehouse/return-checks/:id/save",
+      "POST /api/mobile/warehouse/return-checks/:id/confirm"
+    ],
+    "services": [
+      "src/routes/mobile/warehouse.routes.js",
+      "src/controllers/warehouseController.js"
+    ],
+    "ssotCollections": [
+      "warehouseReturnChecks",
+      "returnOrders"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [],
+    "forbiddenSources": [
+      "mobile direct inventory posting"
+    ],
+    "owner": "warehouse"
+  },
+  "returnStockInAccounting": {
+    "status": "canonical",
+    "domain": "returns",
+    "frontendEntries": [
+      "public/js/app/debt/07b-return-orders.js"
+    ],
+    "routes": [
+      "POST /api/return-orders/:id/stock-in"
+    ],
+    "services": [
+      "src/services/returnOrderStockIn.service.js",
+      "src/controllers/returnOrderController.js"
+    ],
+    "ssotCollections": [
+      "returnOrders",
+      "inventories",
+      "stockTransactions"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [
+      "master-return-orders-receive-flow"
+    ],
+    "forbiddenSources": [
+      "warehouse mobile direct stockTransactions"
+    ],
+    "owner": "returns"
+  },
+  "reportCenter": {
+    "status": "canonical",
+    "domain": "reports",
+    "frontendEntries": [
+      "public/js/app/admin/08a-reports.js"
+    ],
+    "routes": [
+      "GET /api/reports/*",
+      "POST /api/reports/export"
+    ],
+    "services": [
+      "src/controllers/reportController.js",
+      "src/services/reportCenterService.js"
+    ],
+    "ssotCollections": [
+      "arLedgers",
+      "salesOrders",
+      "returnOrders",
+      "fundLedgers",
+      "inventories"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [
+      "legacy-report-master-orders-totalAmount"
+    ],
+    "forbiddenSources": [
+      "master_orders.totalAmount as sales/debt SSoT",
+      "legacy debt math"
+    ],
+    "owner": "reports"
+  },
+  "sseExportByDeliveryStaff": {
+    "status": "canonical",
+    "domain": "export",
+    "frontendEntries": [
+      "public/js/app/admin/08b-vat-export.js"
+    ],
+    "routes": [
+      "GET /api/export/sse-invoice-orders.xlsx"
+    ],
+    "services": [
+      "src/controllers/importExportController.js",
+      "src/services/sseExportService.js"
+    ],
+    "ssotCollections": [
+      "salesOrders",
+      "returnOrders",
+      "products",
+      "customers",
+      "master_orders"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [
+      "sse-export-by-customer-store-flow"
+    ],
+    "forbiddenSources": [
+      "store-scope-only grouping"
+    ],
+    "owner": "export"
+  },
+  "vatExport": {
+    "status": "canonical",
+    "domain": "export",
+    "frontendEntries": [
+      "public/js/app/admin/08b-vat-export.js"
+    ],
+    "routes": [
+      "GET /api/export/*"
+    ],
+    "services": [
+      "src/controllers/importExportController.js"
+    ],
+    "ssotCollections": [
+      "salesOrders",
+      "returnOrders",
+      "products",
+      "customers"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [],
+    "forbiddenSources": [],
+    "owner": "export"
+  },
+  "backup": {
+    "status": "canonical",
+    "domain": "system",
+    "frontendEntries": [
+      "public/js/app/admin/12-system.js"
+    ],
+    "routes": [
+      "POST /api/system/backup"
+    ],
+    "services": [
+      "src/controllers/systemController.js",
+      "src/services/backupService.js"
+    ],
+    "ssotCollections": [
+      "allCanonicalCollections"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [],
+    "forbiddenSources": [],
+    "owner": "system"
+  },
+  "resetData": {
+    "status": "canonical",
+    "domain": "system",
+    "frontendEntries": [
+      "public/js/app/admin/12-system.js"
+    ],
+    "routes": [
+      "POST /api/system/reset"
+    ],
+    "services": [
+      "src/controllers/systemController.js"
+    ],
+    "ssotCollections": [
+      "selectedOperationalCollections"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [],
+    "forbiddenSources": [
+      "production without explicit guard"
+    ],
+    "owner": "system"
+  },
+  "enterpriseConsole": {
+    "status": "canonical",
+    "domain": "enterprise",
+    "frontendEntries": [
+      "public/enterprise.html"
+    ],
+    "routes": [
+      "GET /api/enterprise/*",
+      "POST /api/enterprise/*"
+    ],
+    "services": [
+      "src/controllers/enterpriseController.js"
+    ],
+    "ssotCollections": [
+      "backgroundJobs",
+      "outbox",
+      "analyticsProjections"
+    ],
+    "compatibilityRoutes": [],
+    "retiredAlternatives": [],
+    "forbiddenSources": [],
+    "owner": "enterprise"
+  }
+}

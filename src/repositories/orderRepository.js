@@ -72,13 +72,42 @@ async function findManyByIds(ids = [], options = {}) {
 async function findManyByIdentity(keys = [], options = {}) {
   const values = normalizeIdentityValues(keys);
   if (!values.length) return [];
-  if (values.every((value) => /^SO\d+$/i.test(value))) return findManyByIds(values, options);
-  return collectionRepository.findAll(ORDER_KEY, {
-    $or: [
-      ...identityFields().map((field) => ({ [field]: { $in: values } })),
-      ...(values.some(isMongoObjectId) ? [{ _id: { $in: values.filter(isMongoObjectId) } }] : [])
-    ]
-  }, options);
+
+  const salesOrderIds = values.filter((value) => /^SO\d+$/i.test(value));
+  const fallbackValues = values.filter((value) => !/^SO\d+$/i.test(value));
+  if (salesOrderIds.length && !fallbackValues.length) return findManyByIds(salesOrderIds, options);
+
+  // Closeout/accounting hot path: when stable SO ids exist, query them directly by indexed `id`
+  // instead of forcing one giant $or over many optional identity fields. Fallback keys are queried
+  // separately for old B-code callers and then de-duplicated in memory.
+  const rows = [];
+  if (salesOrderIds.length) {
+    rows.push(...await collectionRepository.findAll(ORDER_KEY, { id: { $in: salesOrderIds } }, {
+      ...options,
+      limit: Math.max(salesOrderIds.length, Number(options.limit || 0) || salesOrderIds.length)
+    }));
+  }
+
+  if (fallbackValues.length) {
+    const remainingLimit = options.limit
+      ? Math.max(1, Number(options.limit) - rows.length)
+      : fallbackValues.length;
+    rows.push(...await collectionRepository.findAll(ORDER_KEY, {
+      $or: [
+        ...identityFields().map((field) => ({ [field]: { $in: fallbackValues } })),
+        ...(fallbackValues.some(isMongoObjectId) ? [{ _id: { $in: fallbackValues.filter(isMongoObjectId) } }] : [])
+      ]
+    }, { ...options, limit: Math.max(1, remainingLimit) }));
+  }
+
+  const seen = new Set();
+  return rows.filter((row) => {
+    const key = normalizeIdOrCode(row && (row.id || row._id || row.code || row.orderCode));
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 async function findManyByIdentityMatches(keys = [], options = {}) {

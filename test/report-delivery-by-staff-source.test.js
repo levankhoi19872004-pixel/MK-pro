@@ -10,9 +10,9 @@ const center = fs.readFileSync(path.join(root, 'src/services/reports/ReportCente
 const delivery = fs.readFileSync(path.join(root, 'src/services/reports/DeliveryReportService.js'), 'utf8');
 const byStaff = delivery.slice(delivery.indexOf('async function deliveryByStaffReport'), delivery.indexOf('async function deliveryReport'));
 
-test('delivery-by-staff route calls DeliveryReportService.deliveryByStaffReport directly', () => {
+test('delivery-by-staff route calls the lazy DeliveryReportService deliveryByStaffReport boundary', () => {
   const caseBlock = center.slice(center.indexOf("case 'delivery-by-staff'"), center.indexOf("case 'delivery-trips'"));
-  assert.match(caseBlock, /DeliveryReportService\.deliveryByStaffReport/);
+  assert.match(caseBlock, /getDeliveryReportService\(\)\.deliveryByStaffReport/);
   assert.equal(/deliveryTripsReport|deliveryReport\(/.test(caseBlock), false);
 });
 

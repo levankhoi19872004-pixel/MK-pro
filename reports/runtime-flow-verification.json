@@ -1,0 +1,30 @@
+{
+  "generatedAt": "2026-07-09T07:30:31.969Z",
+  "ok": true,
+  "runtimeEvidenceMode": "static-verification-only",
+  "summary": {
+    "canonicalFlows": 29,
+    "retiredFlows": 9,
+    "requiredRuntimeFlows": 29,
+    "backendRouteChecks": 72,
+    "missingBackendRoutes": 0,
+    "frontendFetches": 263,
+    "unmatchedFetches": 0,
+    "retiredFrontendHits": 0,
+    "retiredMasterReturnWriteFetches": 0,
+    "masterReturnWriteFlowBlocked": 1
+  },
+  "criticalIssues": [],
+  "missingRuntimePlanFlows": [],
+  "missingCanonicalFlows": [],
+  "missingBackendRoutes": [],
+  "unmatchedFetches": [],
+  "retiredFrontendHits": [],
+  "retiredMasterReturnWriteFetches": [],
+  "compatibilityIssues": [],
+  "notes": [
+    "This script proves route/config/network-contract consistency statically.",
+    "Manual browser Network evidence is still required to claim production runtime flow is completely clean.",
+    "Set FLOW_VERIFY_MODE=1 and run the app to collect runtime-flow telemetry from real UI actions."
+  ]
+}

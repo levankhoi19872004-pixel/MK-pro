@@ -1,7 +1,7 @@
 'use strict';
 
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../../constants/finance.constants');
-const { normalizeAccountingAmount } = require('../../domain/ar/arLedgerValidator');
+const { normalizeAccountingAmount, canProjectCanonicalAccountingLedgerToDebtReadModel } = require('../../domain/ar/arLedgerValidator');
 const arLedgerReadService = require('../arLedgerRead.service');
 const searchService = require('../searchService');
 const { buildSourceNote } = require('../source-contracts/SourceNoteBuilder');
@@ -433,7 +433,13 @@ function normalizeLedger(row = {}) {
 
 function groupLedgers(ledgerRows = [], query = {}) {
   const ledgers = (Array.isArray(ledgerRows) ? ledgerRows : [])
-    .filter((row) => ALLOWED_CATEGORIES.includes(upper(row.category)) && ALLOWED_CATEGORIES.includes(upper(row.ledgerType || row.category)))
+    .filter((row) => {
+      const category = upper(row.category);
+      const ledgerType = upper(row.ledgerType || row.category);
+      if (!ALLOWED_CATEGORIES.includes(category) || !ALLOWED_CATEGORIES.includes(ledgerType)) return false;
+      if (category.startsWith('AR-DEBT-')) return true;
+      return canProjectCanonicalAccountingLedgerToDebtReadModel(row);
+    })
     .map(normalizeLedger);
 
   const orderMap = new Map();

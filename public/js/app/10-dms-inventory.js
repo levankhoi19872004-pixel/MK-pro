@@ -42,7 +42,16 @@
 
   if(!el.dmsPanel) return;
 
-  const state = { page: 1, limit: 100, hasMore: false, preview: null, loading: false, loadPromise: null, pendingLoadOptions: null, historyLoading: false };
+  const dmsCommandLocks=new Set();
+  async function runDmsCommandOnce(actionKey,fn){
+    const key=String(actionKey||'dms.command');
+    if(dmsCommandLocks.has(key))return false;
+    dmsCommandLocks.add(key);
+    try{return await fn();}
+    finally{dmsCommandLocks.delete(key);}
+  }
+
+  const state = { page: 1, limit: 100, hasMore: false, preview: null, loading: false, loadPromise: null, pendingLoadOptions: null, historyLoading: false, loadAbortController: null, historyAbortController: null };
 
   function escapeHtml(value=''){
     return String(value ?? '')
@@ -190,8 +199,11 @@
     });
     if(options.forceRefresh) params.set('refresh','1');
     state.loadPromise=(async()=>{
+      const loadController=new AbortController();
+      if(state.loadAbortController)state.loadAbortController.abort();
+      state.loadAbortController=loadController;
       try{
-        const response=await fetch(`/api/dms-inventory/latest?${params.toString()}`);
+        const response=await fetch(`/api/dms-inventory/latest?${params.toString()}`,{signal:loadController.signal});
         const payload=await response.json().catch(()=>({}));
         if(!response.ok||payload.ok===false) throw new Error(payload.message||'Không tải được đối chiếu DMS');
         const data=payload.data||payload;
@@ -208,8 +220,11 @@
           setMessage(el.message,'Hãy tải file tồn DMS buổi sáng để tạo hạn mức bán App.',true);
         }
       }catch(error){
+        if(error&&error.name==='AbortError')return;
         el.table.innerHTML=`<tr><td colspan="10">${escapeHtml(error.message||'Không tải được dữ liệu')}</td></tr>`;
         setMessage(el.message,error.message||'Không tải được dữ liệu',true);
+      }finally{
+        if(state.loadAbortController===loadController)state.loadAbortController=null;
       }
     })();
     try{
@@ -280,7 +295,7 @@
     }finally{el.preview.disabled=false;}
   }
 
-  async function commitPreview(){
+  async function commitPreviewCore(){
     if(!state.preview?.importId) return;
     el.commit.disabled=true;
     setMessage(el.uploadMessage,'Đang khóa hạn mức cũ và tạo hạn mức mới...');
@@ -304,6 +319,10 @@
     }
   }
 
+  async function commitPreview(){
+    return runDmsCommandOnce('dms.commit',commitPreviewCore);
+  }
+
   async function openHistory(){
     if(state.historyLoading)return;
     state.historyLoading=true;
@@ -311,7 +330,10 @@
     setModal(el.historyModal,true);
     el.historyTable.innerHTML='<tr><td colspan="5">Đang tải...</td></tr>';
     try{
-      const response=await fetch('/api/dms-inventory/history?limit=50');
+      const historyController=new AbortController();
+      if(state.historyAbortController)state.historyAbortController.abort();
+      state.historyAbortController=historyController;
+      const response=await fetch('/api/dms-inventory/history?limit=50',{signal:historyController.signal});
       const payload=await response.json().catch(()=>({}));
       if(!response.ok||payload.ok===false) throw new Error(payload.message||'Không tải được lịch sử');
       const data=payload.data||payload;
@@ -324,8 +346,9 @@
         <td>${escapeHtml(row.importedByName||row.importedByCode||'')}</td>
       </tr>`).join(''):'<tr><td colspan="5">Chưa có lịch sử.</td></tr>';
     }catch(error){
-      el.historyTable.innerHTML=`<tr><td colspan="5">${escapeHtml(error.message||'Không tải được lịch sử')}</td></tr>`;
+      if(error&&error.name!=='AbortError')el.historyTable.innerHTML=`<tr><td colspan="5">${escapeHtml(error.message||'Không tải được lịch sử')}</td></tr>`;
     }finally{
+      state.historyAbortController=null;
       state.historyLoading=false;
       if(el.history){el.history.disabled=false;el.history.setAttribute('aria-busy','false');}
     }

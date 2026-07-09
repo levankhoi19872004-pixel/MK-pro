@@ -70,6 +70,29 @@ sourceCode: correctionSourceCode || firstDebtIdentityValue([order.sourceCode, or
 };
 }
 var state = deliveryMobileState.createInitialState();
+state.commandLocks = state.commandLocks || {};
+function stableActionKey(value) {
+return String(value || 'command');
+}
+async function runMobileCommandOnce(key, fn) {
+var lockKey = stableActionKey(key);
+if (state.commandLocks[lockKey]) return null;
+state.commandLocks[lockKey] = true;
+try {
+return await fn();
+} finally {
+state.commandLocks[lockKey] = false;
+}
+}
+function debtFormIdempotencyKey(customer) {
+var code = (customer && customer.customerCode) || 'customer';
+var nonce = state.activeDebtCollectionNonce || '';
+if (!nonce) {
+nonce = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 8);
+state.activeDebtCollectionNonce = nonce;
+}
+return 'delivery-debt-submit-' + code + '-' + nonce;
+}
 var DELIVERY_CONTRACT = deliveryContract || {
   header: { moreMenuClass: 'm-delivery-more-menu', secondaryActionsClass: 'm-delivery-secondary-actions' },
   kpis: { pendingLegacyId: 'mKpiPendingOrders', mustCollectLabel: 'Phải thu' },
@@ -920,6 +943,7 @@ return '<div class="m-selected-order">' +
 '<label>Số tiền đã thu<input id="mDeliveryDebtAmount" name="amount" type="number" min="0" value="' + esc(debtAvailableValue(customer)) + '"></label>' +
 '<label>Hình thức<select name="paymentMethod"><option value="cash">Tiền mặt</option><option value="bank_transfer">Chuyển khoản</option><option value="other">Khác</option></select></label>' +
 '<label>Ghi chú<input name="note" placeholder="VD: Khách trả một phần"></label>' +
+'<input type="hidden" name="idempotencyKey" value="' + esc(debtFormIdempotencyKey(customer)) + '">' +
 '<div class="debt-submit-bar"><button type="submit">Gửi phiếu thu chờ KT</button></div>' +
 '</form>';
 }
@@ -939,6 +963,7 @@ if (amountInput) amountInput.value = Math.max(0, Math.round(total));
 }
 async function submitDeliveryDebtCollectionFromDebtTab(event, customer) {
 if (event && event.preventDefault) event.preventDefault();
+return runMobileCommandOnce('mobile.debtCollection.submit', async function () {
 var formElement = event.target;
 var form = new FormData(formElement);
 var amountValue = num(form.get('amount'));
@@ -1003,7 +1028,7 @@ amount: amountValue,
 paymentMethod: form.get('paymentMethod') || 'cash',
 note: form.get('note') || '',
 allocations: allocations,
-idempotencyKey: 'delivery-debt-' + (customer.customerCode || Date.now()) + '-' + Date.now()
+idempotencyKey: form.get('idempotencyKey') || debtFormIdempotencyKey(customer)
 })
 });
 state.debtFormDirty = false;
@@ -1016,6 +1041,7 @@ msg('Đã ghi nhận thu nợ, chờ kế toán xác nhận');
 window.requestAnimationFrame(function () {
 window.scrollTo({ top: state.debtListScrollTop || 0, behavior: 'auto' });
 });
+state.activeDebtCollectionNonce = '';
 } catch (err) {
 msg(err.message || 'Không gửi được phiếu thu nợ', true);
 if (submitButton) {
@@ -1023,6 +1049,8 @@ submitButton.disabled = false;
 submitButton.textContent = 'Gửi phiếu thu chờ KT';
 }
 }
+return null;
+});
 }
 function reconciliationSummaryValue(summary, key) {
 return num(summary && summary[key]);

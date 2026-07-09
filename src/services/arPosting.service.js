@@ -224,7 +224,6 @@ async function confirmSalesOrderAR(input = {}) {
       reversed: { $ne: true }
     }, options);
     if (existing && isCanonicalArDebtLedger(existing)) {
-      await arDebtReadModel.rebuildDebtForSource(sourceId, { ...options, dryRun: input.dryRunReadModel === true });
       return { ok: true, created: false, existing: true, sourceId, sourceCode, ledger: existing };
     }
 
@@ -269,7 +268,6 @@ async function confirmSalesOrderAR(input = {}) {
       }
     }, options);
 
-    await arDebtReadModel.rebuildDebtForSource(sourceId, { ...options, dryRun: input.dryRunReadModel === true });
     await auditIssue({ severity: 'INFO', code: 'AR_SALE_CANONICAL_POSTED', sourceId, sourceCode, ledgerId: saved.id || saved.code }, options);
     return { ok: true, created: true, existing: false, sourceId, sourceCode, ledger: saved, dirtyRowsIgnored: dirtyRows.length };
   });
@@ -288,6 +286,28 @@ async function findActiveCanonicalSale(sourceId, options = {}) {
   }, options);
   if (!row || !isCanonicalArDebtLedger(row)) return null;
   return row;
+}
+
+
+async function postArLedgerEntry(entry = {}, options = {}) {
+  if (!entry || typeof entry !== 'object') return null;
+  const idempotencyKey = clean(entry.idempotencyKey);
+  if (!idempotencyKey) {
+    const err = new Error('AR ledger entry thiếu idempotencyKey.');
+    err.code = 'AR_LEDGER_IDEMPOTENCY_REQUIRED';
+    err.severity = 'P0';
+    throw err;
+  }
+  const result = validateArLedgerContract(entry);
+  if (!result.ok) {
+    const err = new Error(`Invalid canonical AR ledger ${result.ledgerId}: ${result.errors.map((item) => item.code).join(', ')}`);
+    err.code = 'INVALID_AR_LEDGER_CONTRACT';
+    err.severity = 'P0';
+    err.validation = result;
+    throw err;
+  }
+  const { ArLedger } = getModels();
+  return findOneAndUpdateLean(ArLedger, { idempotencyKey }, { $setOnInsert: entry }, { ...options, upsert: true });
 }
 
 async function reverseSalesOrderAR(input = {}) {
@@ -389,5 +409,6 @@ async function reverseSalesOrderAR(input = {}) {
 module.exports = {
   confirmSalesOrderAR,
   reverseSalesOrderAR,
+  postArLedgerEntry,
   setModelsForTest
 };

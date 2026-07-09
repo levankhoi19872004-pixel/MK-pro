@@ -51,12 +51,15 @@ test('confirmOneOrder has guard before any update or AR posting for already conf
   const body = match[0];
   const guardIndex = body.indexOf('if (isAccountingConfirmed(order)) return buildAlreadyConfirmedResult(order);');
   const updateIndex = body.indexOf('patchAccountingCloseoutById');
-  const postIndex = body.indexOf('postDebtOpen');
+  const allocationPostIndex = body.indexOf('buildAndPostFromCloseout');
+  const reconcilePostIndex = body.indexOf('reconcileOrderDebt');
   assert.ok(guardIndex > -1, 'confirmed guard must exist');
   assert.ok(updateIndex > guardIndex, 'update must be after confirmed guard');
-  assert.ok(postIndex > guardIndex, 'AR posting must be after confirmed guard');
+  assert.ok(allocationPostIndex > guardIndex, 'payment allocation/AR posting must be after confirmed guard');
+  assert.ok(reconcilePostIndex > guardIndex, 'debt reconcile posting must be after confirmed guard');
   const beforeUpdate = body.slice(guardIndex, updateIndex);
-  assert.doesNotMatch(beforeUpdate, /postDebtOpen\s*\(/);
+  assert.doesNotMatch(beforeUpdate, /buildAndPostFromCloseout\s*\(/);
+  assert.doesNotMatch(beforeUpdate, /reconcileOrderDebt\s*\(/);
 });
 
 test('matchedCount zero does not continue into AR-DEBT-OPEN posting', () => {
@@ -65,7 +68,8 @@ test('matchedCount zero does not continue into AR-DEBT-OPEN posting', () => {
   assert.ok(match, 'must handle matchedCount=0 before building ledger order');
   assert.match(match[0], /buildAlreadyConfirmedResult/);
   assert.match(match[0], /ORDER_NOT_FOUND_OR_NOT_UPDATABLE/);
-  assert.doesNotMatch(match[0], /postDebtOpen\s*\(/);
+  assert.doesNotMatch(match[0], /buildAndPostFromCloseout\s*\(/);
+  assert.doesNotMatch(match[0], /reconcileOrderDebt\s*\(/);
 });
 
 test('repository closeout update returns matchedCount without throwing on zero match', () => {

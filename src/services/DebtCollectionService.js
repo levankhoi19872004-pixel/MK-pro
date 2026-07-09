@@ -13,6 +13,7 @@ const DebtCollectionPolicy = require('../policies/debtCollection.policy');
 const { emitDomainEventSafe } = require('./events/domainEventBus');
 const { EVENT_TYPES } = require('./events/domainEventTypes');
 const { canonicalDebtOrderIdentity } = require('../utils/debtOrderIdentity.util');
+const { createCommandTelemetry } = require('../utils/commandTelemetry');
 
 const ACTIVE_STATUSES = ['submitted', 'accounting_confirmed'];
 
@@ -105,6 +106,7 @@ function collectionIdentityFilter(idOrCode) {
 }
 
 async function submitDebtCollection({ body = {}, mobileUser = {} } = {}) {
+  const telemetry = createCommandTelemetry('debtCollection.submit');
   const amount = money(body.amount);
   if (amount <= 0) return fail(400, 'Số tiền thu phải lớn hơn 0');
 
@@ -128,15 +130,18 @@ async function submitDebtCollection({ body = {}, mobileUser = {} } = {}) {
   if (!orderKeys.length) return fail(400, 'Cần chọn ít nhất một đơn nợ hợp lệ');
 
   await ensureDebtCollectionLocks(orderKeys);
+  telemetry.mark('ensureDebtCollectionLocks', { orderKeyCount: orderKeys.length });
 
   return withMongoTransaction(async (session) => {
     if (idempotencyKey) {
+      telemetry.mark('idempotencyLookup');
       const existed = await DebtCollection.findOne({ idempotencyKey, status: { $in: ACTIVE_STATUSES } }).session(session).lean();
       if (existed) {
         return okBody({
           ok: true,
           message: 'Phiếu thu nợ đã được ghi nhận trước đó',
-          collection: existed
+          collection: existed,
+          performance: telemetry.finish({ idempotent: true })
         });
       }
     }
@@ -153,6 +158,8 @@ async function submitDebtCollection({ body = {}, mobileUser = {} } = {}) {
       );
     }
 
+    telemetry.mark('lockOrders', { orderKeyCount: orderKeys.length });
+
     const access = DebtCollectionPolicy.debtCollectionCreateScopeForUser(mobileUser, body, collector);
     if (!access.allowed) return fail(403, 'Bạn không có quyền lập phiếu thu công nợ');
 
@@ -167,7 +174,9 @@ async function submitDebtCollection({ body = {}, mobileUser = {} } = {}) {
       session
     });
 
-    if (!debtCheck.ok) return fail(debtCheck.status || 409, debtCheck.message || 'Công nợ không hợp lệ', { code: debtCheck.code, detail: debtCheck.detail });
+    telemetry.mark('checkAvailableDebt', { allocationCount: allocations.length });
+
+    if (!debtCheck.ok) return fail(debtCheck.status || 409, debtCheck.message || 'Công nợ không hợp lệ', { code: debtCheck.code, detail: debtCheck.detail, performance: telemetry.finish({ failed: true }) });
 
     const collection = {
       id: makeId('DC'),
@@ -203,11 +212,13 @@ async function submitDebtCollection({ body = {}, mobileUser = {} } = {}) {
     if (idempotencyKey) collection.idempotencyKey = idempotencyKey;
 
     const created = await DebtCollection.create([collection], { session });
+    telemetry.mark('createDebtCollection');
 
     return okBody({
       ok: true,
       message: 'Đã ghi nhận thu nợ, chờ kế toán xác nhận',
-      collection: created[0]
+      collection: created[0],
+      performance: telemetry.finish()
     }, 201);
   });
 }
@@ -272,6 +283,7 @@ function isAccountingConfirmedCollection(collection = {}) {
 }
 
 async function confirmDebtCollection(idOrCode, command = {}) {
+  const telemetry = createCommandTelemetry('debtCollection.confirm');
   const confirmedResult = await withMongoTransaction(async (session) => {
     ensureConfirmPostingContracts();
 
@@ -280,7 +292,9 @@ async function confirmDebtCollection(idOrCode, command = {}) {
       status: { $in: ['submitted', 'accounting_confirmed'] }
     }).session(session);
 
-    if (!collection) return fail(404, 'Không tìm thấy phiếu thu nợ chờ xác nhận');
+    telemetry.mark('loadCollection');
+
+    if (!collection) return fail(404, 'Không tìm thấy phiếu thu nợ chờ xác nhận', { performance: telemetry.finish({ failed: true }) });
 
     if (isAccountingConfirmedCollection(collection)) {
       return {
@@ -288,7 +302,8 @@ async function confirmDebtCollection(idOrCode, command = {}) {
           ok: true,
           skipped: true,
           message: 'Phiếu thu nợ đã được kế toán xác nhận trước đó',
-          collection
+          collection,
+          performance: telemetry.finish({ idempotent: true })
         }
       };
     }
@@ -304,7 +319,8 @@ async function confirmDebtCollection(idOrCode, command = {}) {
       excludeCollectionId: collection.id,
       session
     });
-    if (!debtCheck.ok) return fail(debtCheck.status || 409, debtCheck.message || 'Công nợ đã thay đổi, không thể xác nhận phiếu thu', { code: debtCheck.code, detail: debtCheck.detail });
+    telemetry.mark('checkAvailableDebt', { allocationCount: Array.isArray(collection.allocations) ? collection.allocations.length : 0 });
+    if (!debtCheck.ok) return fail(debtCheck.status || 409, debtCheck.message || 'Công nợ đã thay đổi, không thể xác nhận phiếu thu', { code: debtCheck.code, detail: debtCheck.detail, performance: telemetry.finish({ failed: true }) });
 
     const receiptDoc = {
       id: collection.id,
@@ -349,6 +365,7 @@ async function confirmDebtCollection(idOrCode, command = {}) {
     };
 
     const arPosted = await ArPostingService.postReceipt(receiptDoc, { session });
+    telemetry.mark('postArReceipt');
     const arLedgers = (Array.isArray(arPosted) ? arPosted : [arPosted]).filter(Boolean);
 
     for (const allocation of debtCheck.allocations || []) {
@@ -368,6 +385,8 @@ async function confirmDebtCollection(idOrCode, command = {}) {
         }
       }, { session });
     }
+
+    telemetry.mark('updateExternalDebtOrders');
 
     const fundLedger = await FundPostingService.postCashIn({
       amount: collection.amount,
@@ -411,12 +430,14 @@ async function confirmDebtCollection(idOrCode, command = {}) {
     collection.updatedAt = dateUtil.nowIso();
 
     await collection.save({ session });
+    telemetry.mark('postFundAndSaveCollection');
 
     return {
       body: {
         ok: true,
         message: 'Đã xác nhận thu nợ và trừ công nợ',
-        collection
+        collection,
+        performance: telemetry.finish()
       }
     };
   });

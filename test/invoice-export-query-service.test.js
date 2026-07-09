@@ -7,7 +7,7 @@ const service = require('../src/services/invoiceExportQuery.service');
 test('export filters validate date format and range while supporting one-sided ranges', () => {
   assert.deepEqual(
     service.normalizeExportQuery({ dateFrom: '2026-06-01', salesStaffCode: '35128' }, { invoiceGroup: 'ALL' }),
-    { dateFrom: '2026-06-01', dateTo: '', salesStaffCode: '35128', customerCode: '', invoiceGroup: 'ALL', limit: 20000 }
+    { dateFrom: '2026-06-01', dateTo: '', salesStaffCode: '35128', deliveryStaffCode: '', customerCode: '', invoiceGroup: 'ALL', limit: 20000, summaryBy: '' }
   );
   assert.equal(service.normalizeExportQuery({ dateTo: '2026-06-30' }, { invoiceGroup: 'VAT' }).dateTo, '2026-06-30');
   assert.throws(

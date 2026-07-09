@@ -6,6 +6,7 @@ const ReturnOrder = require('../../models/ReturnOrder');
 const Product = require('../../models/Product');
 const WarehouseReturnCheck = require('../../models/WarehouseReturnCheck');
 const auditService = require('../auditService');
+const { createCommandTelemetry } = require('../../utils/commandTelemetry');
 
 const ACTIVE_RETURN_STATUSES = new Set([
   '', 'draft', 'pending', 'active', 'waiting_receive', 'pending_warehouse_receive',
@@ -625,6 +626,7 @@ function createMobileWarehouseReturnCheckService() {
     },
 
     async confirm({ body = {}, mobileUser = {} } = {}) {
+      const telemetry = createCommandTelemetry('warehouse.returnConfirm');
       const saved = await persistCheck({
         date: body.date,
         deliveryStaffCode: body.deliveryStaffCode,
@@ -633,10 +635,12 @@ function createMobileWarehouseReturnCheckService() {
         confirm: true,
         actor: mobileUser
       });
+      telemetry.mark('persistCheck', { status: saved.status });
       return response({
         message: saved.status === 'confirmed' ? 'Đã xác nhận hàng trả khớp kho' : 'Đã xác nhận hàng trả có lệch',
         data: { check: saved },
-        check: saved
+        check: saved,
+        performance: telemetry.finish()
       });
     },
 

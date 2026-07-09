@@ -215,10 +215,14 @@ async function stockInReturnOrder(key){
 window.stockInReturnOrder=stockInReturnOrder;
 
 let returnOrderRequestSeq=0;
+let returnOrderAbortController=null;
 
 async function loadReturnOrders(){
   if(!returnOrderTable)return;
   const requestSeq=++returnOrderRequestSeq;
+  if(returnOrderAbortController&&typeof returnOrderAbortController.abort==='function')returnOrderAbortController.abort();
+  const controller=typeof AbortController!=='undefined'?new AbortController():null;
+  returnOrderAbortController=controller;
   const q=returnOrderSearchInput?returnOrderSearchInput.value.trim():'';
   const dateFrom=String(returnOrderDateFrom?.value||'').trim();
   const dateTo=String(returnOrderDateTo?.value||'').trim();
@@ -237,7 +241,7 @@ async function loadReturnOrders(){
   params.set('excludeInactive','1');
 
   try{
-    const res=await fetch(`/api/return-orders?${params.toString()}`);
+    const res=await fetch(`/api/return-orders?${params.toString()}`,controller?{signal:controller.signal}:undefined);
     const json=await res.json();
     if(!res.ok||!json.ok)throw new Error(json.message||'Không tải được đơn trả hàng');
     if(requestSeq!==returnOrderRequestSeq)return;
@@ -283,10 +287,13 @@ async function loadReturnOrders(){
     }).join('');
     if(isReturnOrderDetailModalOpen()&&selectedReturnOrderKey)selectReturnOrderByKey(selectedReturnOrderKey,{open:false});
   }catch(err){
+    if(err&&err.name==='AbortError')return;
     if(requestSeq!==returnOrderRequestSeq)return;
     if(returnOrderCount) returnOrderCount.textContent='Không tải được đơn trả hàng';
     returnOrderTable.innerHTML=`<tr><td colspan="8">${escapeHtml(err.message||'Không tải được đơn trả hàng')}</td></tr>`;
     renderReturnOrderDetail(null);
+  }finally{
+    if(returnOrderAbortController===controller)returnOrderAbortController=null;
   }
 }
 window.loadReturnOrders=loadReturnOrders;

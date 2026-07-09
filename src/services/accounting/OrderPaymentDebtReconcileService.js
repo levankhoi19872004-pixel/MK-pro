@@ -2,8 +2,8 @@
 
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
-const ArLedger = require('../../models/ArLedger');
-const paymentRepository = require('../../repositories/paymentRepository');
+const arLedgerReadService = require('../arLedgerRead.service');
+const arPostingService = require('../arPosting.service');
 const { normalizeAccountingAmount } = require('../../domain/ar/arLedgerValidator');
 const OrderPaymentAllocationService = require('./OrderPaymentAllocationService');
 
@@ -182,10 +182,15 @@ function allocationFromCloseout(order = {}, closeout = {}, options = {}) {
 }
 
 async function getCurrentOrderArBalance(orderCode, customerCode, options = {}) {
-  const match = buildArOrderMatch(orderCode, customerCode, options);
-  let query = ArLedger.find(match).limit(Math.max(1, Math.min(2000, Number(options.limit || 2000)))).lean();
-  if (options.session && typeof query.session === 'function') query = query.session(options.session);
-  const rows = await query;
+  const keys = orderLedgerKeys({ orderCode }, options.keys || []);
+  const readOptions = {
+    session: options.session,
+    limit: Math.max(1, Math.min(2000, Number(options.limit || 2000))),
+    sort: { customerCode: 1, sourceId: 1, date: 1, createdAt: 1, _id: 1 }
+  };
+  const rows = keys.length
+    ? await arLedgerReadService.getCanonicalLedgersByOrderKeys(keys, { customerCode, status: 'all' }, readOptions)
+    : [];
   return (rows || []).reduce((sum, row) => {
     const normalized = normalizeAccountingAmount(row);
     return money(sum + money(normalized.debit) - money(normalized.credit));
@@ -201,9 +206,11 @@ function debtAdjustmentIdempotencyKey(allocation = {}, expectedDebtAmount = 0) {
 
 async function findActiveDebtAdjustmentByKey(idempotencyKey, options = {}) {
   if (!clean(idempotencyKey)) return null;
-  let query = ArLedger.findOne(activeArFilter({ idempotencyKey: clean(idempotencyKey), category: 'AR-DEBT-ADJUSTMENT' })).lean();
-  if (options.session && typeof query.session === 'function') query = query.session(options.session);
-  return query;
+  const rows = await arLedgerReadService.getCanonicalLedgersByRawMatch(
+    activeArFilter({ idempotencyKey: clean(idempotencyKey), category: 'AR-DEBT-ADJUSTMENT' }),
+    { session: options.session, limit: 1, filters: { status: 'all' } }
+  );
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
 }
 
 function buildDebtAdjustmentLedger({ allocation = {}, order = {}, currentArBalance = 0, expectedDebtAmount = 0, diff = null } = {}, options = {}) {
@@ -392,7 +399,7 @@ async function reconcileOneOrder({ order = {}, allocation = {}, closeout = null,
     };
   }
 
-  const saved = await paymentRepository.upsert(ledger, { session, actor });
+  const saved = await arPostingService.postArLedgerEntry(ledger, { session, actor });
   const afterBalance = await getCurrentOrderArBalance(orderCodeOf(effectiveAllocation, order), customerCodeOf(effectiveAllocation, order), { session, keys });
   return {
     needsAdjustment: true,

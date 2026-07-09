@@ -1,10 +1,29 @@
 
 
 
+const importCommandLocks=new Set();
+let importCommitPollController=null;
+async function runImportCommandOnce(actionKey,fn){
+  const key=String(actionKey||'import.command');
+  if(importCommandLocks.has(key))return false;
+  importCommandLocks.add(key);
+  try{return await fn();}
+  finally{importCommandLocks.delete(key);}
+}
+function stopImportCommitPolling(){
+  if(importCommitPollController){
+    try{importCommitPollController.abort();}catch(_error){}
+    importCommitPollController=null;
+  }
+}
+
 async function waitForAsyncImportCommit(sessionId,jobId){
+  stopImportCommitPolling();
+  const pollController=new AbortController();
+  importCommitPollController=pollController;
   const deadline=Date.now()+Number(window.IMPORT_COMMIT_UI_TIMEOUT_MS||15*60*1000);
   while(Date.now()<deadline){
-    const response=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}`);
+    const response=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}`,{signal:pollController.signal});
     const payload=await response.json().catch(()=>({}));
     if(payload.status==='done')return {...(payload.result||{}),sessionId,importSessionId:sessionId};
     if(payload.status==='failed'||(!response.ok&&!['importing','processing'].includes(String(payload.status||'').toLowerCase()))){
@@ -12,10 +31,11 @@ async function waitForAsyncImportCommit(sessionId,jobId){
     }
     await new Promise(resolve=>setTimeout(resolve,600));
   }
+  if(importCommitPollController===pollController)importCommitPollController=null;
   throw new Error(`Import quá thời gian chờ${jobId?` (${jobId})`:''}. Vui lòng kiểm tra lại trạng thái phiên import.`);
 }
 
-async function commitImportExcel(){
+async function commitImportExcelCore(){
   if(!importDataType)return;
   let stopProgressPolling=()=>{};
   try{
@@ -117,6 +137,7 @@ async function commitImportExcel(){
     await refreshAfterImport(importDataType.value);
     if(importDataType.value==='salesOrders')await loadImportShortageReports();
   }catch(err){
+    if(err&&err.name==='AbortError')return;
     if(commitImportButton){
       commitImportButton.disabled=false;
       if(commitImportButton.dataset.originalText) commitImportButton.textContent=commitImportButton.dataset.originalText;
@@ -124,7 +145,11 @@ async function commitImportExcel(){
     showMessage(importDataMessage,err.message,true);
   }finally{
     stopProgressPolling();
+    stopImportCommitPolling();
   }
+}
+async function commitImportExcel(){
+  return runImportCommandOnce('import.commit',commitImportExcelCore);
 }
 
 

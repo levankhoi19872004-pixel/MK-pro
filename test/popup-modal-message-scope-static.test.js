@@ -77,13 +77,15 @@ test('Delivery Today New correction and closeout modals use scoped modal message
   assert.match(submitCloseout, /setModalNotice\('closeout'/);
   assert.match(submitCloseout, /setModalError\('closeout'/);
   assert.doesNotMatch(submitCloseout, /setMessage\(/);
-  assert.match(submitCloseout, /load\(\{ silent: true \}\)/);
+  assert.match(submitCloseout, /patchCloseoutRowsFromResult\(json, rows\)/);
+  assert.doesNotMatch(submitCloseout, /load\(\{ silent: true \}\)/);
 
   const submitAdjustment = functionSlice(source, 'submitAdjustmentPopup');
   assert.match(submitAdjustment, /setModalNotice\('adjustment'/);
   assert.match(submitAdjustment, /setModalError\('adjustment'/);
   assert.doesNotMatch(submitAdjustment, /setMessage\(/);
-  assert.match(submitAdjustment, /load\(\{ silent: true \}\)/);
+  assert.match(submitAdjustment, /patchAdjustmentRow\(row, json\)/);
+  assert.doesNotMatch(submitAdjustment, /load\(\{ silent: true \}\)/);
 });
 
 test('Scoped modal loading does not force main-screen message during silent refresh', () => {

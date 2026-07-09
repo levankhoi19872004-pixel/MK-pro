@@ -11,10 +11,13 @@ deliveryOrdersView.buildRouteKpi),mobileUiRuntime=(deliveryOrdersView.orderProdu
 window.MobileUiRuntime||null),deliveryLifecycle=mobileUiRuntime?mobileUiRuntime.createLifecycle():null,deliveryLoadGate=mobileUiRuntime?mobileUiRuntime.createRequestGate():null,deliveryOrderRenderer=null,deliveryDebtRenderer=null,deliveryDebtRendererContainer=null,DELIVERY_TAB_CACHE_TTL_MS=deliveryMobileState.DELIVERY_TAB_CACHE_TTL_MS,DELIVERY_REFRESH_THROTTLE_MS=deliveryMobileState.DELIVERY_REFRESH_THROTTLE_MS,DELIVERY_DEBT_PAGE_LIMIT=deliveryMobileState.DELIVERY_DEBT_PAGE_LIMIT
 ;function isCloseoutCorrectionDebtKey(value){return/^(DCO|DTC|DCOV|DCOA|DCOC)[-_]/i.test(String(value||"").trim())}function firstDebtIdentityValue(values,allowCorrection){
 for(var i=0;i<values.length;i+=1){var value=String(values[i]||"").trim();if(value&&(allowCorrection||!isCloseoutCorrectionDebtKey(value)))return value}return""}
-var state=deliveryMobileState.createInitialState(),LIST_MODE_TABS=[{key:"orders",label:"Khách giao"},{key:"reconciliation",label:"Đối soát"},{key:"debt",label:"Công nợ"}]
-;function isCustomerMode(){return"customer"===state.viewMode&&!!currentOrder()}var COMPACT_CUSTOMER_PRIMARY_TABS=[{key:"products",label:"Hàng giao"},{key:"payment",label:"Thu tiền"
-},{key:"customerReconciliation",label:"Đối soát"},{key:"debt",label:"Công nợ"}];function tabListForCurrentMode(){
-return isCustomerMode()?COMPACT_CUSTOMER_PRIMARY_TABS:LIST_MODE_TABS}function ensureTabForMode(){var tabs=tabListForCurrentMode().map(function(tab){return tab.key})
+var state=deliveryMobileState.createInitialState();function debtFormIdempotencyKey(customer){
+var code=customer&&customer.customerCode||"customer",nonce=state.activeDebtCollectionNonce||"";return nonce||(nonce=String(Date.now())+"-"+Math.random().toString(36).slice(2,8),
+state.activeDebtCollectionNonce=nonce),"delivery-debt-submit-"+code+"-"+nonce}state.commandLocks=state.commandLocks||{};var LIST_MODE_TABS=[{key:"orders",label:"Khách giao"},{
+key:"reconciliation",label:"Đối soát"},{key:"debt",label:"Công nợ"}];function isCustomerMode(){return"customer"===state.viewMode&&!!currentOrder()}
+var COMPACT_CUSTOMER_PRIMARY_TABS=[{key:"products",label:"Hàng giao"},{key:"payment",label:"Thu tiền"},{key:"customerReconciliation",label:"Đối soát"},{key:"debt",label:"Công nợ"}]
+;function tabListForCurrentMode(){return isCustomerMode()?COMPACT_CUSTOMER_PRIMARY_TABS:LIST_MODE_TABS}function ensureTabForMode(){
+var tabs=tabListForCurrentMode().map(function(tab){return tab.key})
 ;isCustomerMode()&&"customerReconciliation"===state.tab||tabs.indexOf(state.tab)<0&&(state.tab=isCustomerMode()?"products":"orders")}function switchToListMode(options){
 options=options||{},state.viewMode="list",state.productSearchKeyword="",options.clearSelected&&(state.selectedKey="",
 window.DeliveryCore&&window.DeliveryCore.state&&(window.DeliveryCore.state.selectedOrder=null)),
@@ -190,7 +193,7 @@ if(!customer)return'<div class="m-empty debt-empty-state"><b>Chưa chọn khách
 ;var rowsHtml=orders.map(function(order,index){var available=order.availableDebt;return null==available&&(available=order.debt),available=num(available||0),
 '<label class="m-debt-order-row"><input type="checkbox" class="m-debt-order-check" data-index="'+index+'" checked><div><b>'+esc(order.salesOrderCode||order.orderCode||"")+"</b><small>Ngày: "+esc(order.orderDate||order.documentDate||"")+"</small><em>Nợ: "+money(order.debt||0)+" · Chờ KT: "+money(order.pendingCollectedAmount||0)+" · Có thể thu: "+money(available)+"</em></div></label>"
 }).join("")
-;return'<div class="m-selected-order"><b>'+esc(customer.customerCode||"")+" - "+esc(customer.customerName||"")+"</b><span>Nợ: "+money(debtMoneyValue(customer))+" · Chờ KT: "+money(debtPendingValue(customer))+" · Có thể thu: "+money(debtAvailableValue(customer))+'</span></div><form id="mDeliveryDebtCollectionForm" class="m-payment-form"><h3>Gửi phiếu thu nợ chờ kế toán</h3><p class="m-help-text">Công nợ chỉ giảm sau khi kế toán xác nhận trên web.</p><div class="m-return-scroll debt-order-selection-list">'+rowsHtml+'</div><label>Số tiền đã thu<input id="mDeliveryDebtAmount" name="amount" type="number" min="0" value="'+esc(debtAvailableValue(customer))+'"></label><label>Hình thức<select name="paymentMethod"><option value="cash">Tiền mặt</option><option value="bank_transfer">Chuyển khoản</option><option value="other">Khác</option></select></label><label>Ghi chú<input name="note" placeholder="VD: Khách trả một phần"></label><div class="debt-submit-bar"><button type="submit">Gửi phiếu thu chờ KT</button></div></form>'
+;return'<div class="m-selected-order"><b>'+esc(customer.customerCode||"")+" - "+esc(customer.customerName||"")+"</b><span>Nợ: "+money(debtMoneyValue(customer))+" · Chờ KT: "+money(debtPendingValue(customer))+" · Có thể thu: "+money(debtAvailableValue(customer))+'</span></div><form id="mDeliveryDebtCollectionForm" class="m-payment-form"><h3>Gửi phiếu thu nợ chờ kế toán</h3><p class="m-help-text">Công nợ chỉ giảm sau khi kế toán xác nhận trên web.</p><div class="m-return-scroll debt-order-selection-list">'+rowsHtml+'</div><label>Số tiền đã thu<input id="mDeliveryDebtAmount" name="amount" type="number" min="0" value="'+esc(debtAvailableValue(customer))+'"></label><label>Hình thức<select name="paymentMethod"><option value="cash">Tiền mặt</option><option value="bank_transfer">Chuyển khoản</option><option value="other">Khác</option></select></label><label>Ghi chú<input name="note" placeholder="VD: Khách trả một phần"></label><input type="hidden" name="idempotencyKey" value="'+esc(debtFormIdempotencyKey(customer))+'"><div class="debt-submit-bar"><button type="submit">Gửi phiếu thu chờ KT</button></div></form>'
 }(selected)+"</div></section>";var reload=el("mReloadDebt");reload&&reload.addEventListener("click",function(){
 state.debtFormDirty&&!window.confirm("Bạn đang có phiếu thu chưa gửi. Tải lại sẽ xóa dữ liệu đang nhập.")||(state.debtFormDirty=!1,resetDeliveryDebtPaging({clearRows:!0}),
 loadDeliveryDebts(!0))});var customerTab=el("mDebtCustomersSubtab");customerTab&&customerTab.addEventListener("click",function(){setDeliveryDebtSubtab("customers")})
@@ -200,10 +203,12 @@ loadDeliveryDebts(!0))});var customerTab=el("mDebtCustomersSubtab");customerTab&
 ;var sort=el("mDebtCustomerSort");sort&&sort.addEventListener("change",function(){state.debtSort=sort.value||"debt_desc",renderDeliveryDebtCustomerList()}),
 renderDeliveryDebtCustomerList();var form=el("mDeliveryDebtCollectionForm");form&&selected&&(form.addEventListener("input",function(){state.debtFormDirty=!0}),
 form.addEventListener("change",function(){state.debtFormDirty=!0}),form.addEventListener("submit",function(event){!async function(event,customer){
-event&&event.preventDefault&&event.preventDefault();var formElement=event.target,form=new FormData(formElement),amountValue=num(form.get("amount"))
-;if(amountValue<=0)msg("Số tiền thu phải lớn hơn 0",!0);else{var orders=debtOrderRows(customer),allocations=[]
-;if(document.querySelectorAll(".m-debt-order-check:checked").forEach(function(input){var index=Number(input.getAttribute("data-index")),order=orders[index];if(order){
-var available=order.availableDebt;if(null==available&&(available=order.debt),!((available=num(available||0))<=0)){var debtIdentity=function(order){
+event&&event.preventDefault&&event.preventDefault(),async function(key,fn){var lockKey=String(key||"command");if(state.commandLocks[lockKey])return null
+;state.commandLocks[lockKey]=!0;try{return await fn()}finally{state.commandLocks[lockKey]=!1}}("mobile.debtCollection.submit",async function(){
+var formElement=event.target,form=new FormData(formElement),amountValue=num(form.get("amount"));if(amountValue<=0)msg("Số tiền thu phải lớn hơn 0",!0);else{
+var orders=debtOrderRows(customer),allocations=[];if(document.querySelectorAll(".m-debt-order-check:checked").forEach(function(input){
+var index=Number(input.getAttribute("data-index")),order=orders[index];if(order){var available=order.availableDebt;if(null==available&&(available=order.debt),
+!((available=num(available||0))<=0)){var debtIdentity=function(order){
 var correctionSourceCode=firstDebtIdentityValue([(order=order||{}).correctionSourceCode,order.correctionCode,order.sourceCode,order.refCode,order.sourceId,order.id,order.code],!0)
 ;isCloseoutCorrectionDebtKey(correctionSourceCode)||(correctionSourceCode="")
 ;var correctionSourceId=firstDebtIdentityValue([order.correctionSourceId,order.correctionId,order.sourceId,order.refId,order.sourceCode,order.id,order.code],!0)
@@ -215,17 +220,17 @@ salesOrderCode:firstDebtIdentityValue([order.salesOrderCode,order.canonicalOrder
 sourceId:correctionSourceId||firstDebtIdentityValue([order.sourceId,order.refId],!1),sourceCode:correctionSourceCode||firstDebtIdentityValue([order.sourceCode,order.refCode],!1)}
 }(order);allocations.push({salesOrderId:debtIdentity.salesOrderId||order.salesOrderId||order.orderId||"",
 salesOrderCode:debtIdentity.salesOrderCode||order.salesOrderCode||order.orderCode||"",sourceId:debtIdentity.sourceId||order.correctionSourceId||order.sourceId||"",
-sourceCode:debtIdentity.sourceCode||order.correctionSourceCode||order.sourceCode||"",availableDebt:available,allocatedAmount:available})}}}),
-allocations.length)if(amountValue>allocations.reduce(function(sum,row){return sum+num(row.allocatedAmount)},0))msg("Số tiền thu vượt tổng công nợ đã chọn",!0);else{
-var remain=amountValue;allocations=allocations.map(function(row){var allocated=Math.min(num(row.allocatedAmount),remain);return remain-=allocated,Object.assign({},row,{
-allocatedAmount:allocated})}).filter(function(row){return num(row.allocatedAmount)>0});var submitButton=formElement.querySelector('button[type="submit"]')
-;submitButton&&(submitButton.disabled=!0,submitButton.textContent="Đang gửi...");try{msg("Đang gửi phiếu thu nợ chờ kế toán..."),
-await window.DeliveryCore.api("/api/mobile/debt-collections",{method:"POST",body:JSON.stringify({collectorType:"delivery",customerId:customer.customerId||"",
-customerCode:customer.customerCode||"",customerName:customer.customerName||"",amount:amountValue,paymentMethod:form.get("paymentMethod")||"cash",note:form.get("note")||"",
-allocations:allocations,idempotencyKey:"delivery-debt-"+(customer.customerCode||Date.now())+"-"+Date.now()})}),state.debtFormDirty=!1,state.selectedDebtIndex=-1,
-state.selectedDebtKey="",state.debtSubtab="customers",resetDeliveryDebtPaging({clearRows:!0}),await loadDeliveryDebts(!0),msg("Đã ghi nhận thu nợ, chờ kế toán xác nhận"),
-window.requestAnimationFrame(function(){window.scrollTo({top:state.debtListScrollTop||0,behavior:"auto"})})}catch(err){msg(err.message||"Không gửi được phiếu thu nợ",!0),
-submitButton&&(submitButton.disabled=!1,submitButton.textContent="Gửi phiếu thu chờ KT")}}else msg("Cần chọn ít nhất một đơn nợ",!0)}}(event,selected)})),
+sourceCode:debtIdentity.sourceCode||order.correctionSourceCode||order.sourceCode||"",availableDebt:available,allocatedAmount:available})}}}),allocations.length){
+if(!(amountValue>allocations.reduce(function(sum,row){return sum+num(row.allocatedAmount)},0))){var remain=amountValue;allocations=allocations.map(function(row){
+var allocated=Math.min(num(row.allocatedAmount),remain);return remain-=allocated,Object.assign({},row,{allocatedAmount:allocated})}).filter(function(row){
+return num(row.allocatedAmount)>0});var submitButton=formElement.querySelector('button[type="submit"]');submitButton&&(submitButton.disabled=!0,
+submitButton.textContent="Đang gửi...");try{msg("Đang gửi phiếu thu nợ chờ kế toán..."),await window.DeliveryCore.api("/api/mobile/debt-collections",{method:"POST",
+body:JSON.stringify({collectorType:"delivery",customerId:customer.customerId||"",customerCode:customer.customerCode||"",customerName:customer.customerName||"",amount:amountValue,
+paymentMethod:form.get("paymentMethod")||"cash",note:form.get("note")||"",allocations:allocations,idempotencyKey:form.get("idempotencyKey")||debtFormIdempotencyKey(customer)})}),
+state.debtFormDirty=!1,state.selectedDebtIndex=-1,state.selectedDebtKey="",state.debtSubtab="customers",resetDeliveryDebtPaging({clearRows:!0}),await loadDeliveryDebts(!0),
+msg("Đã ghi nhận thu nợ, chờ kế toán xác nhận"),window.requestAnimationFrame(function(){window.scrollTo({top:state.debtListScrollTop||0,behavior:"auto"})}),
+state.activeDebtCollectionNonce=""}catch(err){msg(err.message||"Không gửi được phiếu thu nợ",!0),submitButton&&(submitButton.disabled=!1,
+submitButton.textContent="Gửi phiếu thu chờ KT")}return null}msg("Số tiền thu vượt tổng công nợ đã chọn",!0)}else msg("Cần chọn ít nhất một đơn nợ",!0)}})}(event,selected)})),
 body.querySelectorAll(".m-debt-order-check").forEach(function(input){input.addEventListener("change",function(){!function(customer){var orders=debtOrderRows(customer),total=0
 ;document.querySelectorAll(".m-debt-order-check:checked").forEach(function(input){var index=Number(input.getAttribute("data-index")),order=orders[index];if(order){
 var available=order.availableDebt;null==available&&(available=order.debt),total+=num(available||0)}});var amountInput=el("mDeliveryDebtAmount")

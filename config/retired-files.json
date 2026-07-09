@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "policy": "Phase214 retired files are disabled only after import/mount/source-bundle checks pass. Do not delete candidate files blindly.",
+  "retired": [],
+  "candidates": [
+    {
+      "path": "public/js/app/legacy-debt.js",
+      "reason": "Example placeholder: legacy debt UI must remain candidate-only until scan proves it is not mounted.",
+      "status": "candidate"
+    }
+  ]
+}

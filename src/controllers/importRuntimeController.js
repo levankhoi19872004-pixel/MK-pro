@@ -3,6 +3,7 @@
 const excelImportService = require('../services/excelImportService');
 const ImportWebDirectCommitService = require('../services/import/ImportWebDirectCommitService');
 const ImportWebDetachedCommitService = require('../services/import/ImportWebDetachedCommitService');
+const { createCommandTelemetry } = require('../utils/commandTelemetry');
 
 
 function shouldRunWebDetachedImportCommit(req = {}) {
@@ -25,6 +26,7 @@ async function preview(req, res) {
 }
 
 async function commit(req, res) {
+  const telemetry = createCommandTelemetry('import.runtime.commit');
   try {
     if (shouldRunWebDetachedImportCommit(req)) {
       const submitted = await ImportWebDetachedCommitService.submit({
@@ -32,9 +34,11 @@ async function commit(req, res) {
         sessionId: req.params?.sessionId || req.body?.sessionId || req.body?.importSessionId
       }, req.user || {});
       if (submitted.error) {
-        return res.status(submitted.status || 400).json({ ok: false, message: submitted.error, ...submitted });
+        telemetry.mark('submitDetachedFailed');
+        return res.status(submitted.status || 400).json({ ok: false, message: submitted.error, ...submitted, performance: telemetry.finish() });
       }
-      return res.status(submitted.accepted ? 202 : 200).json({ ok: true, ...submitted });
+      telemetry.mark('submitDetached');
+      return res.status(submitted.accepted ? 202 : 200).json({ ok: true, ...submitted, performance: telemetry.finish() });
     }
 
     const result = await ImportWebDirectCommitService.commitSession({
@@ -43,16 +47,20 @@ async function commit(req, res) {
     }, req.user || {});
 
     if (result.error) {
+      telemetry.mark('commitFailed');
       return res.status(result.status || 400).json({
         ok: false,
         message: result.error,
-        ...result
+        ...result,
+        performance: telemetry.finish()
       });
     }
 
-    return res.json({ ok: true, source: 'mongo-native-import-controller', ...result });
+    telemetry.mark('commitSession');
+    return res.json({ ok: true, source: 'mongo-native-import-controller', ...result, performance: telemetry.finish() });
   } catch (err) {
-    return res.status(500).json({ ok: false, message: 'Không ghi được dữ liệu import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
+    telemetry.mark('exception');
+    return res.status(500).json({ ok: false, message: 'Không ghi được dữ liệu import', performance: telemetry.finish(), error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -94,14 +102,17 @@ async function sessionStatus(req, res) {
     );
 
     if (result.error) {
+      telemetry.mark('commitFailed');
       return res.status(result.status || 400).json({
         ok: false,
         message: result.error,
-        ...result
+        ...result,
+        performance: telemetry.finish()
       });
     }
 
-    return res.json({ ok: true, source: 'mongo-native-import-controller', ...result });
+    telemetry.mark('commitSession');
+    return res.json({ ok: true, source: 'mongo-native-import-controller', ...result, performance: telemetry.finish() });
   } catch (err) {
     res.status(500).json({ ok: false, message: 'Không lấy được trạng thái import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }

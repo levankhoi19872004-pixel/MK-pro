@@ -106,11 +106,22 @@ router.get('/delivery-today/adjustments/resolve', requireAuth, readRoles, async 
 router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, res) => {
   try {
     const body = req.body || {};
-    const orderIds = [
+    const stableOrderIds = [
       ...(Array.isArray(body.orderIds) ? body.orderIds : []),
       ...(Array.isArray(body.selectedOrderIds) ? body.selectedOrderIds : []),
-      ...(Array.isArray(body.selectedOrderCodes) ? body.selectedOrderCodes : [])
+      body.orderId,
+      body.id,
+      body.salesOrderId
     ].map((value) => String(value || '').trim()).filter(Boolean);
+    const fallbackOrderCodes = [
+      ...(Array.isArray(body.selectedOrderCodes) ? body.selectedOrderCodes : []),
+      ...(Array.isArray(body.orderCodes) ? body.orderCodes : []),
+      body.orderCode,
+      body.salesOrderCode,
+      body.selectedOrderCode,
+      body.code
+    ].map((value) => String(value || '').trim()).filter(Boolean);
+    const orderIds = stableOrderIds.length ? stableOrderIds : fallbackOrderCodes;
     if (!orderIds.length) {
       return res.status(400).json({ ok: false, success: false, code: 'ORDER_SELECTION_REQUIRED', message: 'Vui lòng chọn ít nhất một đơn để chốt sổ.' });
     }
@@ -169,8 +180,9 @@ router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, 
       totalDebtPosted,
       warnings: overpaymentWarnings,
       diagnostics: result.diagnostics || [],
+      performance: result.performance,
       readModelSync,
-      data: { ...result, closeoutId, debtLedgerCreated, idempotentLedgers, skippedZeroDebt, totalDebtPosted, warnings: overpaymentWarnings, diagnostics: result.diagnostics || [] },
+      data: { ...result, closeoutId, debtLedgerCreated, idempotentLedgers, skippedZeroDebt, totalDebtPosted, warnings: overpaymentWarnings, diagnostics: result.diagnostics || [], performance: result.performance },
       canonicalRoute: '/api/new/delivery-today/closeout'
     });
   } catch (err) {

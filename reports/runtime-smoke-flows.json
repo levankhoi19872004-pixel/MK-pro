@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-07-09T07:25:31.769Z",
+  "ok": true,
+  "safeMode": true,
+  "mode": "static-smoke-no-db-writes",
+  "reason": "Không có seed/test DB trong source ZIP; script chỉ chạy static runtime-flow gate và không gọi command ghi.",
+  "runtimeFlowVerification": {
+    "canonicalFlows": 29,
+    "retiredFlows": 9,
+    "requiredRuntimeFlows": 29,
+    "backendRouteChecks": 72,
+    "missingBackendRoutes": 0,
+    "frontendFetches": 263,
+    "unmatchedFetches": 0,
+    "retiredFrontendHits": 0,
+    "retiredMasterReturnWriteFetches": 0,
+    "masterReturnWriteFlowBlocked": 1
+  },
+  "skippedCommands": [
+    "deliveryCloseout",
+    "deliveryAdjustment",
+    "debtCollectionSubmit",
+    "debtCollectionConfirm",
+    "returnStockInAccounting",
+    "resetData"
+  ]
+}

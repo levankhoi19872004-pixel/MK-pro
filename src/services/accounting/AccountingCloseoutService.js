@@ -11,6 +11,7 @@ const DeliveryCloseoutService = require('./DeliveryCloseoutService');
 const OrderPaymentAllocationService = require('./OrderPaymentAllocationService');
 const OrderPaymentDebtReconcileService = require('./OrderPaymentDebtReconcileService');
 const readModelSyncJobService = require('../readModelSyncJob.service');
+const { createCommandTelemetry } = require('../../utils/commandTelemetry');
 
 const CONFIRM_GUARD_TTL_MS = Math.max(1000, Number(process.env.CLOSEOUT_CONFIRM_GUARD_TTL_MS || 8000));
 const inFlight = new Map();
@@ -26,15 +27,23 @@ function unique(values = []) {
 }
 
 function normalizeOrderIds(body = {}) {
-  const explicit = [
+  // Closeout hot path: frontend already sends stable salesOrder ids in orderIds/selectedOrderIds.
+  // Do NOT mix selectedOrderCodes into the lookup set when ids are present; mixing SO ids + B codes
+  // forces orderRepository.findManyByIdentity() into a wide $or across many identity fields.
+  // selectedOrderCodes are still used below for closeout scope/audit, but not for loading orders.
+  const stableIds = unique([
     ...(Array.isArray(body.orderIds) ? body.orderIds : []),
     ...(Array.isArray(body.selectedOrderIds) ? body.selectedOrderIds : []),
-    ...(Array.isArray(body.selectedOrderCodes) ? body.selectedOrderCodes : [])
-  ];
-  return unique([
-    ...explicit,
     body.orderId,
     body.id,
+    body.salesOrderId
+  ]);
+  if (stableIds.length) return stableIds;
+
+  // Backward-compatible fallback for old clients that only submit order codes.
+  return unique([
+    ...(Array.isArray(body.selectedOrderCodes) ? body.selectedOrderCodes : []),
+    ...(Array.isArray(body.orderCodes) ? body.orderCodes : []),
     body.code,
     body.orderCode,
     body.salesOrderCode,
@@ -508,7 +517,8 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     accountingBatchId: `OPA-ACC-${DeliveryCloseoutService.orderId(order) || DeliveryCloseoutService.orderCode(order)}`,
     closeoutScopeHash: clean(confirmedCloseout.closeoutScopeHash || confirmedCloseout.scopeHash),
     closeoutScope: confirmedCloseout.closeoutScope || 'selected_orders',
-    note: clean(options.note || options.reason || `Phân bổ thanh toán từ chốt giao hàng ${DeliveryCloseoutService.orderCode(order)}`)
+    note: clean(options.note || options.reason || `Phân bổ thanh toán từ chốt giao hàng ${DeliveryCloseoutService.orderCode(order)}`),
+    skipReadModelRebuild: true
   });
   const debtReconcileResult = await OrderPaymentDebtReconcileService.reconcileOrderDebt({
     order: updatedOrderForLedger,
@@ -523,7 +533,8 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     apply: true,
     zeroTolerance: OrderPaymentAllocationService.DEFAULT_ZERO_TOLERANCE || 1000,
     actor,
-    session: options.session
+    session: options.session,
+    skipReadModelRebuild: true
   });
   const debtAdjustmentLedger = debtReconcileResult && debtReconcileResult.posted ? debtReconcileResult.ledger : null;
   const arLedgers = [
@@ -589,15 +600,21 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
 }
 
 async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
+  const telemetry = createCommandTelemetry('delivery.closeout');
+  const performanceStages = telemetry.stages;
+  const markPerformance = (stage, extra = {}) => telemetry.mark(stage, extra);
+
   const date = normalized.date || dateUtil.toDateOnly(body.date || dateUtil.todayVN());
   const selectedOrderIds = normalized.selectedOrderIds || normalizeOrderIds(body);
   if (!selectedOrderIds.length) return { error: 'Vui lòng chọn ít nhất một đơn để xác nhận kế toán', status: 400 };
   const actor = clean(normalized.confirmedBy || body.confirmedBy || body.userName || body.accountantName || 'accountant');
   const reason = clean(normalized.reason || body.reason || body.note || 'Chốt sổ giao hàng cuối ngày');
   const orders = await loadOrders(selectedOrderIds);
-  if (!orders.length) return { error: `Không tìm thấy đơn đã chọn trong ngày ${date} để kế toán xác nhận`, status: 404, code: 'ORDER_SELECTION_NOT_FOUND' };
+  markPerformance('loadOrders', { requestedOrderKeys: selectedOrderIds.length, orderCount: orders.length });
+  if (!orders.length) return { error: `Không tìm thấy đơn đã chọn trong ngày ${date} để kế toán xác nhận`, status: 404, code: 'ORDER_SELECTION_NOT_FOUND', performance: telemetry.finish() };
   const scopeError = validateSelectedOrderScope(orders, body, selectedOrderIds);
-  if (scopeError) return scopeError;
+  if (scopeError) return { ...scopeError, performance: telemetry.finish() };
+  markPerformance('validateSelectedOrderScope');
 
   const selectedOrderCodes = resolveSelectedOrderCodes(orders, selectedOrderIds);
   const selectedSalesStaffCodes = resolveSelectedSalesStaffCodes(orders, body);
@@ -634,14 +651,17 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
       warnings: [],
       readModelRebuilds: [],
       readModelSync: { mode: 'skipped', queued: 0, status: 'not_needed' },
+      performance: telemetry.finish(),
       reason,
       message: 'Các đơn đã được kế toán chốt trước đó. Hệ thống bỏ qua để tránh ghi lại SalesOrder, sinh trùng orderPaymentAllocations/arLedgers hoặc rebuild công nợ không cần thiết.'
     };
   }
 
   const returnOrders = await findReturnOrdersForDeliveryChildren(pendingConfirmOrders);
+  markPerformance('loadReturnOrders', { pendingConfirmOrders: pendingConfirmOrders.length, returnOrderCount: returnOrders.length });
   // Guard phải dùng returnOrders mới nhất vừa query từ DB. Không được chặn theo payload/frontend hoặc embedded stale trong orders.
   assertReturnOrdersInventoryReady(returnOrders);
+  markPerformance('validateReturnOrdersInventory');
   const returnByKey = groupReturnOrdersBySalesOrder(returnOrders, pendingConfirmOrders);
 
   const readModelSyncJobs = [];
@@ -677,6 +697,7 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
   if (readModelSyncJobs.some((row) => Number(row.queued || 0) > 0)) {
     readModelSyncJobService.scheduleDrain({ limit: 10, actor, reason });
   }
+  markPerformance('transactionAndPosting', { resultCount: results.length, readModelSyncJobs: readModelSyncJobs.length });
   const readModelSyncQueued = readModelSyncJobs.reduce((sum, row) => sum + Number(row.queued || 0), 0);
 
   const confirmedOrders = results.filter((row) => row.confirmed).length;
@@ -706,6 +727,7 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     warnings,
     readModelRebuilds: [],
     readModelSync: { mode: 'queued', queued: readModelSyncQueued, status: readModelSyncQueued > 0 ? 'pending' : 'not_needed', jobs: readModelSyncJobs.flatMap((row) => row.jobs || []) },
+    performance: telemetry.finish(),
     reason,
     message: confirmedOrders > 0
       ? `Kế toán đã xác nhận ${confirmedOrders} đơn theo deliveryCloseout. Bỏ qua ${skippedOrders} đơn đã chốt trước đó. Công nợ được đồng bộ nền.`

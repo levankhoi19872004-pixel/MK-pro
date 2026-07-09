@@ -12,10 +12,28 @@
       active: { search: -1, salesman: -1, delivery: -1 },
       loading: { search: false, salesman: false, delivery: false }
     },
-    versionCache: {}, correctionReturnItems: [], adjustmentRow: null, adjustmentViewOnly: false, activeTab: 'overview', selectedSalesmanKeys: {}, salesmanGroups: [], selectedOrderIds: new Set(), closeoutBusy: false, bulkAdjustmentBusy: false, modalNotice: { closeout: null, adjustment: null }, modalLoading: { closeout: false, adjustment: false }, deepLinkTargetKey: '', deepLinkRequestSeq: 0, deepLinkAppliedHash: ''
+    versionCache: {}, correctionReturnItems: [], adjustmentRow: null, adjustmentViewOnly: false, activeTab: 'overview', selectedSalesmanKeys: {}, salesmanGroups: [], selectedOrderIds: new Set(), closeoutBusy: false, bulkAdjustmentBusy: false, modalNotice: { closeout: null, adjustment: null }, modalLoading: { closeout: false, adjustment: false }, deepLinkTargetKey: '', deepLinkRequestSeq: 0, deepLinkAppliedHash: '', commandLocks: {}, loadAbortController: null
   };
 
   function byId(id) { return document.getElementById(id); }
+  function commandLockKey(key) { return String(key || 'command'); }
+  async function runCommandOnce(key, fn) {
+    var lockKey = commandLockKey(key);
+    if (state.commandLocks && state.commandLocks[lockKey]) return null;
+    state.commandLocks = state.commandLocks || {};
+    state.commandLocks[lockKey] = true;
+    try {
+      return await fn();
+    } finally {
+      state.commandLocks[lockKey] = false;
+    }
+  }
+  async function readJsonResponse(res, fallbackMessage) {
+    var json = await res.json().catch(function () { return {}; });
+    if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || fallbackMessage || 'Thao tác không thành công');
+    return json;
+  }
+
   function esc(value) {
     return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
@@ -1153,6 +1171,7 @@
   }
 
   async function submitBulkAdjustmentCommit() {
+    return runCommandOnce('delivery.bulkAdjustment', async function () {
     var rows = getSelectedOrders();
     if (!rows.length) { setMessage('Vui lòng chọn ít nhất một đơn để ghi nhận điều chỉnh.', true); return; }
     if (state.bulkAdjustmentBusy) return;
@@ -1206,16 +1225,91 @@
           dryRun: false
         })
       });
-      var json = await res.json().catch(function () { return {}; });
-      if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không ghi nhận được điều chỉnh hàng loạt');
+      var json = await readJsonResponse(res, 'Không ghi nhận được điều chỉnh hàng loạt');
       setMessage((json.message || 'Đã ghi nhận điều chỉnh hàng loạt.') + ' ' + summarizeBulkAdjustmentResult(json));
-      await load({ silent: true });
+      patchBulkAdjustmentRows(rows, json);
     } catch (err) {
       setMessage(err.message || 'Không ghi nhận được điều chỉnh hàng loạt', true);
     } finally {
       state.bulkAdjustmentBusy = false;
       updateOrderSelectionToolbar(getVisibleRowsBySelectedSalesmen());
     }
+    return null;
+    });
+  }
+
+  function sameOrder(row, ref) {
+    if (!row || !ref) return false;
+    var keys = [row.orderId, row.salesOrderId, row.id, row.orderCode, row.salesOrderCode, row.code, row.displayOrderCode].map(String).filter(Boolean);
+    var refs = [ref.orderId, ref.salesOrderId, ref.id, ref.orderCode, ref.salesOrderCode, ref.code, ref.displayOrderCode].map(String).filter(Boolean);
+    return keys.some(function (key) { return refs.indexOf(key) >= 0; });
+  }
+
+  function refreshDeliveryTodayDerivedState() {
+    state.salesmanGroups = buildSalesmanGroups(state.rows || []);
+    state.salesmanGroups.forEach(function (group) {
+      if (!state.selectedSalesmanKeys) state.selectedSalesmanKeys = {};
+      if (state.selectedSalesmanKeys[group.key] == null) state.selectedSalesmanKeys[group.key] = true;
+    });
+    updateTopKpisFromSelectedSalesmen();
+    renderSalesmanGroupPanel();
+    renderRows();
+  }
+
+  function patchCloseoutRowsFromResult(json, submittedRows) {
+    var data = (json && (json.data || json)) || {};
+    var results = data.results || json.results || [];
+    var refs = Array.isArray(results) && results.length ? results : submittedRows;
+    if (!Array.isArray(refs) || !refs.length) return;
+    state.rows = (state.rows || []).map(function (row) {
+      var matched = refs.find(function (ref) { return sameOrder(row, ref); });
+      if (!matched) return row;
+      return Object.assign({}, row, {
+        accountingConfirmed: true,
+        accountingStatus: 'confirmed',
+        closeoutStatus: 'accounting_confirmed',
+        deliveryCloseoutStatus: 'closed',
+        closeoutEligible: false,
+        canCloseout: false,
+        accountingConfirmedAt: matched.accountingConfirmedAt || row.accountingConfirmedAt || new Date().toISOString(),
+        closeoutPatchedLocally: true
+      });
+    });
+    refs.forEach(function (ref) {
+      state.selectedOrderIds.delete(String(ref.orderId || ref.salesOrderId || ref.id || ref.orderCode || ref.salesOrderCode || ref.code || ''));
+    });
+    closeCloseoutModal();
+    refreshDeliveryTodayDerivedState();
+  }
+
+  function patchBulkAdjustmentRows(rows, json) {
+    var now = new Date().toISOString();
+    state.rows = (state.rows || []).map(function (row) {
+      var matched = rows.find(function (ref) { return sameOrder(row, ref); });
+      return matched ? Object.assign({}, row, { bulkAdjustmentSyncedAt: now, bulkAdjustmentSyncStatus: 'synced' }) : row;
+    });
+    updateTopKpisFromSelectedSalesmen();
+    renderRows();
+  }
+
+  function patchAdjustmentRow(row, json) {
+    var data = (json && (json.data || json)) || {};
+    var correction = data.correction || json.correction || {};
+    state.rows = (state.rows || []).map(function (current) {
+      if (!sameOrder(current, row)) return current;
+      return Object.assign({}, current, {
+        hasCorrection: true,
+        lastCorrectionId: correction.id || correction.correctionId || current.lastCorrectionId,
+        lastCorrectionCode: correction.code || correction.correctionCode || current.lastCorrectionCode,
+        returnUpdated: Boolean(data.returnUpdated || current.returnUpdated),
+        adjustmentPatchedLocally: true
+      });
+    });
+    if (state.adjustmentRow && sameOrder(state.adjustmentRow, row)) {
+      state.adjustmentRow = Object.assign({}, state.adjustmentRow, { hasCorrection: true, lastCorrectionId: correction.id || correction.correctionId || '' });
+    }
+    updateTopKpisFromSelectedSalesmen();
+    renderRows();
   }
 
   function selectedCloseoutRows() {
@@ -1304,6 +1398,7 @@
   }
 
   async function submitCloseout() {
+    return runCommandOnce('delivery.closeout', async function () {
     var rows = selectedCloseoutRows();
     var reasonEl = byId('deliveryCloseoutReason');
     var reason = reasonEl ? reasonEl.value.trim() : '';
@@ -1339,8 +1434,7 @@
           closeoutScope: 'selected_orders'
         })
       });
-      var json = await res.json();
-      if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không chốt được sổ giao hàng');
+      var json = await readJsonResponse(res, 'Không chốt được sổ giao hàng');
       var posted = json.totalDebtPosted != null ? json.totalDebtPosted : (json.data && json.data.totalDebtPosted);
       var data = json.data || {};
       var closed = json.closedOrders != null ? json.closedOrders : (data.confirmedOrders || 0);
@@ -1356,13 +1450,15 @@
         successMessage = 'Đã chốt ' + closed + ' đơn, bỏ qua ' + skipped + ' đơn đã chốt trước đó. Đã chuyển ' + money(posted || 0) + ' sang công nợ.' + syncNote;
       }
       setModalNotice('closeout', successMessage, 'success');
-      await load({ silent: true });
+      patchCloseoutRowsFromResult(json, rows);
     } catch (err) {
       setModalError('closeout', err.message || 'Không chốt được sổ giao hàng');
     } finally {
       state.closeoutBusy = false;
       updateCloseoutButton();
     }
+    return null;
+    });
   }
 
   function detailCell(label, value, className) {
@@ -1886,6 +1982,7 @@
   }
 
   async function submitAdjustmentPopup(row) {
+    return runCommandOnce('delivery.adjustment.' + rowKey(row), async function () {
     var reasonEl = byId('deliveryAdjustmentReason');
     var noteEl = byId('deliveryAdjustmentNote');
     var reason = reasonEl ? reasonEl.value.trim() : '';
@@ -1943,13 +2040,14 @@
           note: note
         })
       });
-      var json = await res.json();
-      if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tạo được điều chỉnh');
+      var json = await readJsonResponse(res, 'Không tạo được điều chỉnh');
       setModalNotice('adjustment', json.message || (json.data && json.data.returnUpdated ? 'Đã cập nhật hàng trả.' : 'Đã lưu điều chỉnh.'), 'success');
-      await load({ silent: true });
+      patchAdjustmentRow(row, json);
     } catch (err) {
       setModalError('adjustment', err.message || 'Không tạo được điều chỉnh');
     }
+    return null;
+    });
   }
 
   function renderCachedVersions(row) {
@@ -2136,12 +2234,15 @@
       return;
     }
     var requestSeq = ++state.loadRequestSeq;
+    if (state.loadAbortController && typeof state.loadAbortController.abort === 'function') state.loadAbortController.abort();
+    var loadController = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    state.loadAbortController = loadController;
     if (!silent) setMessage('');
     renderEmptyState('', 'Đang tải đơn...');
     setResultSectionsVisible(false);
     try {
       var params = new URLSearchParams(filters());
-      var res = await fetch('/api/new/delivery-today/orders?' + params.toString());
+      var res = await fetch('/api/new/delivery-today/orders?' + params.toString(), loadController ? { signal: loadController.signal } : undefined);
       var json = await res.json();
       if (requestSeq !== state.loadRequestSeq) return;
       if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tải được dữ liệu');
@@ -2168,6 +2269,7 @@
       renderRows();
       if (!silent) setMessage('');
     } catch (err) {
+      if (err && err.name === 'AbortError') return;
       if (requestSeq !== state.loadRequestSeq) return;
       state.rows = [];
       state.salesmanGroups = [];

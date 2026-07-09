@@ -1,0 +1,123 @@
+[
+  {
+    "id": "legacy-web-delivery-today-alias",
+    "status": "retired",
+    "reason": "Đơn giao hôm nay cũ đã thay bằng Đơn giao hôm nay (New). /api/delivery-today hiện trả 410 qua retiredRoute.",
+    "replacementFlow": "deliveryTodayNewOrders",
+    "forbiddenFrontendRefs": [
+      "/api/delivery-today"
+    ],
+    "forbiddenRoutes": [
+      "/api/delivery-today"
+    ],
+    "evidence": [
+      "src/routes/index.js mounts retiredRoute for /api/delivery-today"
+    ]
+  },
+  {
+    "id": "mobile-legacy-namespace",
+    "status": "retired",
+    "reason": "Namespace /api/mobile-legacy đã ngừng; mobile hiện dùng /api/mobile và /api/delivery.",
+    "replacementFlow": "deliveryMobilePhase23Workflow",
+    "forbiddenFrontendRefs": [
+      "/api/mobile-legacy"
+    ],
+    "forbiddenRoutes": [
+      "/api/mobile-legacy"
+    ],
+    "evidence": [
+      "src/routes/index.js mounts retiredRoute for /api/mobile-legacy"
+    ]
+  },
+  {
+    "id": "legacy-delivery-report-tab",
+    "status": "retired",
+    "reason": "App giao hàng Phase23+ dùng workflow khách hàng, hàng giao, thu tiền, đối soát, công nợ; tab báo cáo cũ không còn là entry chuẩn.",
+    "replacementFlow": "deliveryMobilePhase23Workflow",
+    "forbiddenFrontendRefs": [
+      "deliveryReportTab"
+    ],
+    "forbiddenRoutes": [],
+    "evidence": [
+      "Phase23+ delivery workflow đã chốt"
+    ]
+  },
+  {
+    "id": "legacy-web-debt-from-orders",
+    "status": "retired",
+    "reason": "Công nợ New đọc qua AR read boundary; không tính nợ từ orders/master_orders.",
+    "replacementFlow": "debtNew",
+    "forbiddenFrontendRefs": [],
+    "forbiddenRoutes": [],
+    "forbiddenSources": [
+      "orders as debt SSoT",
+      "master_orders as debt SSoT"
+    ]
+  },
+  {
+    "id": "legacy-mobile-debt-from-orders",
+    "status": "retired",
+    "reason": "Mobile debt dùng DebtNew canonical adapter, không dùng DCOC/DCOA/DCOV làm salesOrderCode chính.",
+    "replacementFlow": "mobileDebt",
+    "forbiddenFrontendRefs": [],
+    "forbiddenRoutes": [],
+    "forbiddenSources": [
+      "DCOC as orderCode",
+      "DCOA as orderCode",
+      "DCOV as orderCode"
+    ]
+  },
+  {
+    "id": "master-return-orders-write-flow",
+    "status": "retired-write-blocked-readonly-compatibility",
+    "reason": "UI Đơn tổng trả hàng đã bỏ khỏi menu chính; operational return SSoT là returnOrders. Các write route master-return-orders phải bị chặn/retired hoặc giữ compatibility có kiểm soát.",
+    "replacementFlow": "returnOrders",
+    "forbiddenFrontendRefs": [
+      "data-tab=\"masterReturnOrdersTab\"",
+      "Đơn tổng trả hàng"
+    ],
+    "forbiddenRoutes": [
+      "POST /api/master-return-orders",
+      "PUT /api/master-return-orders/:id",
+      "POST /api/master-return-orders/:id/receive"
+    ],
+    "evidence": [
+      "return-order-warehouse-stock-in-workflow-static.test.js asserts menu/tab removed",
+      "Phase219: src/routes/masterReturnOrderRoutes.js keeps GET read-only but routes POST/PUT/PATCH/cancel to retiredRoute"
+    ]
+  },
+  {
+    "id": "master-return-orders-receive-flow",
+    "status": "retired-route-410",
+    "reason": "Kế toán nhập kho từng returnOrder qua /api/return-orders/:id/stock-in; không nhập kho qua đơn tổng trả hàng.",
+    "replacementFlow": "returnStockInAccounting",
+    "forbiddenRoutes": [
+      "POST /api/master-return-orders/:id/receive"
+    ],
+    "forbiddenSources": [
+      "masterReturnOrders as inventory posting boundary"
+    ],
+    "evidence": [
+      "Phase219: POST /api/master-return-orders/:id/receive routes to retiredRoute replacement /api/return-orders/:id/stock-in"
+    ]
+  },
+  {
+    "id": "worker-only-import-commit",
+    "status": "retired",
+    "reason": "Hiện tại chọn web-direct import, worker không bắt buộc cho commit import.",
+    "replacementFlow": "salesImportPreviewCommit",
+    "forbiddenRoutes": [],
+    "evidence": [
+      "Phase215 command governance"
+    ]
+  },
+  {
+    "id": "sse-export-by-customer-store-flow",
+    "status": "retired",
+    "reason": "Xuất SSE theo NVGH/gộp đơn tổng/trừ trả hàng, không xuất theo cửa hàng làm grouping chính.",
+    "replacementFlow": "sseExportByDeliveryStaff",
+    "forbiddenSources": [
+      "store-only grouping for SSE"
+    ]
+  }
+]

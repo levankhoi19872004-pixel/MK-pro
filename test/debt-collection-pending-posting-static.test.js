@@ -35,13 +35,15 @@ test('debt collection confirm is the only flow that posts AR and fund ledgers', 
   assert.match(block, /accounting_confirmed/);
 });
 
-test('mobile debts endpoint uses DebtReadService and mobile debt collection submit route exists', () => {
+test('mobile debts endpoint uses DebtNew canonical adapter and mobile debt collection submit route exists', () => {
   const mobileIndex = read('src/routes/mobile/index.js');
   const mobileService = read('src/services/mobile/debts.service.js');
   const routes = read('src/routes/mobile/debts.routes.js');
 
   assert.match(mobileIndex, /router\.use\('\/debts',\s*createMobileDebtRouter\(ctx\)\)/);
   assert.match(mobileIndex, /router\.use\('\/debt-collections',\s*createMobileDebtCollectionRouter\(ctx\)\)/);
-  assert.match(mobileService, /DebtReadService\.getMobileCustomerDebts/);
+  assert.match(mobileService, /listMobileDebtsFromDebtNew/);
+  assert.match(mobileService, /mobileDebtNewAdapter\.service/);
+  assert.doesNotMatch(mobileService, /DebtReadService\.getMobileCustomerDebts/);
   assert.match(routes, /router\.post\('\/'/);
 });

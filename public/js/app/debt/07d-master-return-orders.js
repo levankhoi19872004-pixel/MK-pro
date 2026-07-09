@@ -226,13 +226,29 @@ function setUnmergedReturnOrdersLoading(isLoading){
   if(reloadUnmergedReturnOrdersButton)reloadUnmergedReturnOrdersButton.textContent=isLoading?'Đang tải...':'Tải lại';
 }
 
+
+function masterReturnRetiredMessage(action=''){
+  const suffix=action?` (${action})`:'';
+  return `Luồng tổng trả cũ đã retired${suffix}. Luồng chuẩn hiện tại: returnOrders → thủ kho kiểm hàng trả → kế toán bấm Nhập kho trên từng đơn trả.`;
+}
+
+function notifyMasterReturnRetired(action=''){
+  const message=masterReturnRetiredMessage(action);
+  if(typeof showMessage==='function'&&masterReturnOrderMessage)showMessage(masterReturnOrderMessage,message,true);
+  else if(typeof alert==='function')alert(message);
+  return false;
+}
+
 function openMasterReturnOrderModal(options={}){
-  if(!masterReturnOrderModal)return;
-  masterReturnOrderModal.classList.add('show');
-  masterReturnOrderModal.setAttribute('aria-hidden','false');
-  if(masterReturnDate&&!masterReturnDate.value&&typeof today==='function')masterReturnDate.value=today();
-  renderMasterReturnPopupLists();
-  if(options.skipLoad!==true)loadUnmergedReturnOrders();
+  // Phase221 runtime verification: Tổng trả cũ write/create flow is retired.
+  // Do not open the legacy grouping modal from UI because submit would call retired write routes.
+  if(options&&options.allowReadOnlyModal===true&&masterReturnOrderModal){
+    masterReturnOrderModal.classList.add('show');
+    masterReturnOrderModal.setAttribute('aria-hidden','false');
+    notifyMasterReturnRetired('read-only modal');
+    return;
+  }
+  notifyMasterReturnRetired('tạo/gộp đơn tổng trả');
 }
 window.openMasterReturnOrderModal=openMasterReturnOrderModal;
 
@@ -394,7 +410,7 @@ function renderMasterReturnOrders(rows = []){
       ? `<span class="erp-doc-action-state">Đã hủy</span>`
       : locked
         ? `<span class="erp-doc-action-state">Đã khóa</span>`
-        : `<button class="secondary small danger" type="button" data-master-return-action="cancel" data-master-return-id="${escapeHtml(id)}">Hủy</button>`;
+        : `<span class="erp-doc-action-state" title="Luồng tổng trả cũ đã retired; dùng Đơn trả hàng → Nhập kho từng đơn trả">Retired</span>`;
     return `<article class="erp-doc-row master-return-one-line${inactive?' is-inactive':''}">
       <label class="erp-doc-check" title="${escapeHtml(checkboxTitle)}"><input type="checkbox" class="master-return-order-check" data-idx="${idx}" ${checkboxDisabled}></label>
       <strong class="erp-doc-code" title="${escapeHtml(r.code||r.id||'')}">${escapeHtml(r.code||r.id||'')}</strong>
@@ -428,79 +444,11 @@ async function loadMasterReturnOrders(){
 }
 
 async function submitMasterReturnOrder(event){
-  event.preventDefault();
-  if(!masterReturnOrderForm||masterReturnSubmitInFlight)return;
-  selectedReturnOrders=dedupeMasterReturnRows(selectedReturnOrders);
-  if(!selectedReturnOrders.length){showMessage(masterReturnOrderMessage,'Chưa có phiếu trả hàng trong danh sách gộp',true);return;}
-  const selectedCodes=[...new Set(selectedReturnOrders.map(masterReturnDeliveryCode).map(masterReturnNormalizeCode).filter(Boolean))];
-  if(selectedCodes.length!==1){showMessage(masterReturnOrderMessage,'Danh sách gộp phải thuộc đúng một mã NVGH',true);return;}
-  const deliveryStaffCode=String(masterReturnDeliveryStaff?.value||'').trim();
-  if(!deliveryStaffCode){showMessage(masterReturnOrderMessage,'Chưa chọn mã NVGH',true);return;}
-  if(masterReturnNormalizeCode(deliveryStaffCode)!==selectedCodes[0]){
-    showMessage(masterReturnOrderMessage,'Mã NVGH trên form không khớp các phiếu đã chọn',true);
-    return;
-  }
-  const returnDate=String(masterReturnDate?.value||'').trim();
-  if(!returnDate){showMessage(masterReturnOrderMessage,'Chưa chọn ngày tạo đơn tổng trả',true);return;}
-
-  const payload=Object.fromEntries(new FormData(masterReturnOrderForm).entries());
-  payload.returnOrderIds=selectedReturnOrders.map(masterReturnOrderIdentity);
-  payload.deliveryStaffCode=deliveryStaffCode;
-  payload.deliveryStaffName=String(masterReturnDeliveryStaffName?.value||'').trim();
-  masterReturnSubmitInFlight=true;
-  const oldText=submitMasterReturnOrderButton?.textContent||'Tạo đơn tổng trả';
-  if(submitMasterReturnOrderButton){submitMasterReturnOrderButton.disabled=true;submitMasterReturnOrderButton.textContent='Đang tạo...';}
-  try{
-    const res=await (window.fetchWithTimeout||fetch)('/api/master-return-orders',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(payload)
-    },20000);
-    const json=await res.json();
-    if(!res.ok||json.ok===false){
-      const error=new Error(json.message||'Không tạo được đơn tổng trả hàng');
-      error.status=res.status;
-      error.code=json.code||'';
-      throw error;
-    }
-    const successMessage=json.message||`Đã tạo đơn tổng trả hàng ${json.masterReturnOrder?.code||''}`;
-    selectedReturnOrders=[];
-    checkedAvailableReturnIds.clear();
-    checkedSelectedReturnIds.clear();
-    renderMasterReturnPopupLists();
-    alert(successMessage);
-    closeMasterReturnOrderModal();
-    await Promise.all([
-      loadUnmergedReturnOrders(),
-      loadMasterReturnOrders(),
-      typeof loadReturnOrders==='function'?loadReturnOrders():Promise.resolve()
-    ]);
-  }catch(err){
-    showMessage(masterReturnOrderMessage,err.message||'Không tạo được đơn tổng trả hàng',true);
-    if(Number(err.status)===409)await loadUnmergedReturnOrders();
-  }finally{
-    masterReturnSubmitInFlight=false;
-    if(submitMasterReturnOrderButton){submitMasterReturnOrderButton.disabled=false;submitMasterReturnOrderButton.textContent=oldText;}
-  }
+  event?.preventDefault?.();
+  return notifyMasterReturnRetired('submit tạo đơn tổng trả');
 }
-
-async function editMasterReturnOrder(idx){
-  const order=window.__masterReturnOrdersCache?.[Number(idx)];
-  if(!order)return;
-  const deliveryStaffCode=prompt('NV giao hàng', order.deliveryStaffCode||'');
-  if(deliveryStaffCode===null)return;
-  const note=prompt('Ghi chú', order.note||'');
-  if(note===null)return;
-  try{
-    const res=await fetch(`/api/master-return-orders/${encodeURIComponent(order.id||order.code)}`,{
-      method:'PATCH',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({deliveryStaffCode,note})
-    });
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không sửa được đơn tổng trả');
-    showMessage(masterReturnOrderMessage,json.message||'Đã sửa đơn tổng trả');
-    await loadMasterReturnOrders();
-  }catch(err){showMessage(masterReturnOrderMessage,err.message||'Không sửa được đơn tổng trả',true)}
+async function editMasterReturnOrder(idx){ // eslint-disable-line no-unused-vars
+  return notifyMasterReturnRetired('sửa đơn tổng trả');
 }
 window.editMasterReturnOrder=editMasterReturnOrder;
 
@@ -524,26 +472,9 @@ async function viewMasterReturnOrder(id){
   }catch(err){alert(err.message||'Không tải được chi tiết đơn tổng trả')}
 }
 
-async function receiveMasterReturnOrder(id, buttonEl){
-  if(!id)return;
-  if(!confirm('Xác nhận nhập kho toàn bộ hàng trả của đơn tổng này?\n\nSau khi xác nhận, hệ thống sẽ cộng tồn kho theo từng phiếu trả hàng con và chặn nhập kho lặp.'))return;
-  const btn=buttonEl || null;
-  const oldText=btn?btn.textContent:'';
-  if(btn){btn.disabled=true;btn.textContent='Đang nhập...';}
-  try{
-    const res=await fetch(`/api/master-return-orders/${encodeURIComponent(id)}/receive`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({receivedBy:'Kho'})});
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không nhập kho được đơn tổng trả hàng');
-    showMessage(masterReturnOrderMessage,json.message||'Đã nhập kho hàng trả');
-    await loadMasterReturnOrders();
-    await loadUnmergedReturnOrders();
-    if(typeof loadStock==='function')await loadStock();
-  }catch(err){
-    if(btn){btn.disabled=false;btn.textContent=oldText||'Nhập kho';}
-    showMessage(masterReturnOrderMessage,err.message||'Không nhập kho được đơn tổng trả hàng',true);
-  }
+async function receiveMasterReturnOrder(id, buttonEl){ // eslint-disable-line no-unused-vars
+  return notifyMasterReturnRetired('nhập kho qua đơn tổng trả');
 }
-
 async function printMasterReturnOrder(id){
   if(!id)return;
   try{
@@ -556,18 +487,10 @@ async function printMasterReturnOrder(id){
   }catch(err){alert(err.message||'Không in được đơn tổng trả')}
 }
 
-async function cancelMasterReturnOrder(id){
-  if(!id)return;
-  if(!confirm('Hủy gộp đơn tổng trả hàng này? Các phiếu trả hàng con sẽ quay về trạng thái chưa gộp.'))return;
-  try{
-    const res=await fetch(`/api/master-return-orders/${encodeURIComponent(id)}/cancel`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:'Hủy gộp từ giao diện'})});
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không hủy được đơn tổng trả hàng');
-    showMessage(masterReturnOrderMessage,json.message||'Đã hủy gộp đơn tổng trả hàng');
-    await loadUnmergedReturnOrders();
-    await loadMasterReturnOrders();
-  }catch(err){showMessage(masterReturnOrderMessage,err.message,true)}
+async function cancelMasterReturnOrder(id){ // eslint-disable-line no-unused-vars
+  return notifyMasterReturnRetired('hủy đơn tổng trả');
 }
+
 
 
 function selectedMasterReturnOrders(){
@@ -601,28 +524,9 @@ async function printSelectedMasterReturnOrders(){
   }catch(err){alert(err.message||'Không in được các đơn tổng trả đã chọn')}
 }
 async function receiveSelectedMasterReturnOrders(){
-  const selected=selectedMasterReturnOrders();
-  if(!selected.length){alert('Chưa chọn đơn tổng trả để nhập kho');return}
-  const blocked=selected.filter(order=>!canReceiveMasterReturnOrder(order));
-  if(blocked.length){
-    alert(`Có ${blocked.length} đơn đã nhập kho hoặc không còn hợp lệ. Hãy bỏ chọn các đơn này trước khi nhập kho.`);
-    return;
-  }
-  const orders=selected.filter(canReceiveMasterReturnOrder);
-  if(!confirm(`Xác nhận nhập kho ${orders.length} đơn tổng trả đã chọn?
-
-Sau khi xác nhận, hệ thống sẽ cộng tồn kho hàng trả và chặn nhập kho lặp.`))return;
-  for(const r of orders){
-    const id=r.id||r.code;
-    const result=await fetch(`/api/master-return-orders/${encodeURIComponent(id)}/receive`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({receivedBy:'Kho'})});
-    const json=await result.json();
-    if(!json.ok)throw new Error(json.message||`Không nhập kho được ${r.code||id}`);
-  }
-  showMessage(masterReturnOrderMessage,'Đã nhập kho các đơn tổng trả đã chọn');
-  await loadMasterReturnOrders();
-  await loadUnmergedReturnOrders();
-  if(typeof loadStock==='function')await loadStock();
+  return notifyMasterReturnRetired('nhập kho hàng loạt qua đơn tổng trả');
 }
+
 
 // Return-order UI events are owned by 07b-return-orders.js.
 

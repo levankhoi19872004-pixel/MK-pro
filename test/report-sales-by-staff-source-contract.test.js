@@ -27,7 +27,7 @@ test('sales-by-staff staff dimension is not limited to exact role sales only', (
 });
 
 test('sales-by-staff view and excel export use the same report center source', () => {
-  assert.match(reportCenter, /case 'sales-by-staff':[\s\S]*SalesReportService\.salesReport\(\{ \.\.\.baseQuery, full: '1', export: '1' \}\)/);
+  assert.match(reportCenter, /case 'sales-by-staff':[\s\S]*getSalesReportService\(\)\.salesReport\(\{ \.\.\.baseQuery, full: '1', export: '1' \}\)/);
   assert.match(reportCenter, /if \(definition\.code === 'sales-by-staff'\) rows = normalizeSalesStaffRows\(sales\.bySalesman \|\| \[\]\)/);
   assert.match(excel, /payload = await ReportCenterService\.run\(code, \{ \.\.\.filters, __exportAll: true \}, user\)/);
 });

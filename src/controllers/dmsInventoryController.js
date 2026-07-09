@@ -1,6 +1,7 @@
 'use strict';
 
 const dmsInventoryService = require('../services/dmsInventoryReconciliation.service');
+const { createCommandTelemetry } = require('../utils/commandTelemetry');
 
 function sendError(res, err, fallback = 'Không xử lý được dữ liệu tồn DMS') {
   const status = Number(err?.status || err?.statusCode || 500);
@@ -30,14 +31,17 @@ async function preview(req, res) {
 }
 
 async function commit(req, res) {
+  const telemetry = createCommandTelemetry('dmsInventory.commit');
   try {
     const result = await dmsInventoryService.commitImport({
       importId: req.params.importId || req.body?.importId,
       previewToken: req.body?.previewToken,
       user: req.user || {}
     });
-    return res.json({ ok: true, success: true, message: 'Đã cập nhật đối chiếu và hạn mức bán App', data: result, ...result });
+    telemetry.mark('commitImport');
+    return res.json({ ok: true, success: true, message: 'Đã cập nhật đối chiếu và hạn mức bán App', data: result, ...result, performance: telemetry.finish() });
   } catch (err) {
+    telemetry.mark('exception');
     return sendError(res, err, 'Không lưu được đối chiếu tồn DMS');
   }
 }

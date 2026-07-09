@@ -5,7 +5,7 @@ const { toNumber } = require('../utils/common.util');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 const {
   isCanonicalArDebtLedger,
-  PHASE87_READ_MODEL_CATEGORIES,
+  canProjectCanonicalAccountingLedgerToDebtReadModel,
   normalizeAccountingAmount,
   validateArLedgerContract
 } = require('../domain/ar/arLedgerValidator');
@@ -101,10 +101,10 @@ function groupCanonicalLedgers(ledgerRows = [], options = {}) {
   const rawCanonical = [];
   const rejected = [];
   for (const row of Array.isArray(ledgerRows) ? ledgerRows : []) {
-    if (isCanonicalArDebtLedger(row) && PHASE87_READ_MODEL_CATEGORIES.includes(clean(row.category).toUpperCase())) rawCanonical.push(row);
+    if (canProjectCanonicalAccountingLedgerToDebtReadModel(row)) rawCanonical.push(row);
     else rejected.push({ ledgerId: ledgerId(row), validation: validateArLedgerContract(row) });
   }
-  const eligibleRows = filterReadModelEligibleArLedgers(rawCanonical);
+  const eligibleRows = rawCanonical;
   const eligibleSet = new Set(eligibleRows);
   for (const row of rawCanonical) {
     if (!eligibleSet.has(row) && isArDebtReversalLedger(row)) {

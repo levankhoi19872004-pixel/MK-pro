@@ -8,6 +8,7 @@ const AsyncJobHttpAdapter = require('../services/background-jobs/AsyncJobHttpAda
 const ImportWebDirectCommitService = require('../services/import/ImportWebDirectCommitService');
 const ImportWebDetachedCommitService = require('../services/import/ImportWebDetachedCommitService');
 const { buildSourceNote } = require('../services/source-contracts/SourceNoteBuilder');
+const { createCommandTelemetry } = require('../utils/commandTelemetry');
 
 
 
@@ -106,6 +107,7 @@ async function previewImport(req, res) {
 }
 
 async function commitImport(req, res) {
+  const telemetry = createCommandTelemetry('import.commit');
   try {
     if (shouldRunWebDetachedImportCommit(req)) {
       const submitted = await ImportWebDetachedCommitService.submit({
@@ -113,9 +115,11 @@ async function commitImport(req, res) {
         sessionId: req.params?.sessionId || req.body?.sessionId || req.body?.importSessionId
       }, req.user || {});
       if (submitted.error) {
-        return res.status(submitted.status || 400).json({ ok: false, message: submitted.error, ...submitted });
+        telemetry.mark('submitDetachedFailed');
+        return res.status(submitted.status || 400).json({ ok: false, message: submitted.error, ...submitted, performance: telemetry.finish() });
       }
-      return res.status(submitted.accepted ? 202 : 200).json({ ok: true, ...submitted, sourceNote: submitted.sourceNote || buildImportSourceNote(req.body?.type || submitted.type, req, []) });
+      telemetry.mark('submitDetached');
+      return res.status(submitted.accepted ? 202 : 200).json({ ok: true, ...submitted, performance: telemetry.finish(), sourceNote: submitted.sourceNote || buildImportSourceNote(req.body?.type || submitted.type, req, []) });
     }
 
     const result = await ImportWebDirectCommitService.commitSession({
@@ -124,20 +128,25 @@ async function commitImport(req, res) {
     }, req.user || {});
 
     if (result.error) {
+      telemetry.mark('commitFailed');
       return res.status(result.status || 400).json({
         ok: false,
         message: result.error,
-        ...result
+        ...result,
+        performance: telemetry.finish()
       });
     }
 
+    telemetry.mark('commitSession');
     return res.json({
       ok: true,
       source: 'import-export-route',
       ...result,
+      performance: telemetry.finish(),
       sourceNote: result.sourceNote || buildImportSourceNote(req.body?.type || result.type, req, [])
     });
   } catch (err) {
+    telemetry.mark('exception');
     return sendSafeInternalError(res, '[IMPORT_COMMIT_ERROR]', 'Không ghi được dữ liệu import', err);
   }
 }
@@ -285,10 +294,18 @@ function exportAsyncEnabled() {
 }
 
 async function exportExcelDirect(req, res) {
+  const telemetry = createCommandTelemetry(req.params.type === 'sse-invoice-orders' ? 'sse.export' : 'excel.export');
   const query = { ...(req.query || {}) };
   delete query.async;
   delete query.idempotencyKey;
   const result = await importExportService.exportToExcel(req.params.type, query, req.user || {});
+  telemetry.mark('buildWorkbook', { type: String(req.params.type || '') });
+  const perf = telemetry.finish();
+  if (typeof res.setHeader === 'function') {
+    res.setHeader('X-Command-Name', perf.command);
+    res.setHeader('X-Command-Performance-Ms', String(perf.totalMs));
+  }
+  if (result && typeof result === 'object' && !result.buffer) result.performance = perf;
   return sendWorkbook(res, result);
 }
 

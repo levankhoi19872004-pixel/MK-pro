@@ -74,12 +74,13 @@ test('mobile orders use server-side facet for page rows and exact totals', () =>
   assert.match(salesService, /source:\s*'mobile-sales-paged'/);
 });
 
-test('mobile debts remain behind DebtReadService and return independent summary plus pagination', () => {
-  assert.match(salesService, /DebtReadService\.getMobileCustomerDebts\(scopedQuery\)/);
-  assert.match(debtService, /DebtReadService\.getMobileCustomerDebts/);
-  assert.match(debtReadService, /getMobileCustomerDebts:\s*getPagedMobileCustomerDebts/);
+test('mobile debts use DebtNew canonical adapter and keep independent summary plus pagination', () => {
+  assert.match(debtService, /listMobileDebtsFromDebtNew/);
+  assert.match(debtService, /mobileDebtNewAdapter\.service/);
+  assert.doesNotMatch(debtService, /DebtReadService\.getMobileCustomerDebts/);
+  assert.match(read('src/services/mobile/mobileDebtNewAdapter.service.js'), /summary:[\s\S]*pagination/);
+  assert.match(read('src/services/mobile/mobileDebtNewAdapter.service.js'), /includePendingCollections/);
   assert.match(debtReadService, /loadDebtBalancesForCustomers/);
-  assert.match(read('src/services/mobile/mobileDebtQuery.service.js'), /summary:[\s\S]*pagination/);
 });
 
 

@@ -4,6 +4,7 @@ const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
 const OrderPaymentAllocation = require('../../models/OrderPaymentAllocation');
 const paymentRepository = require('../../repositories/paymentRepository');
+const arPostingService = require('../arPosting.service');
 const fundService = require('../fundService');
 const DeliveryCloseoutService = require('./DeliveryCloseoutService');
 
@@ -532,7 +533,7 @@ async function postArLedgersFromAllocation(allocation = {}, options = {}) {
       posted.push(existed);
       continue;
     }
-    const saved = await paymentRepository.upsert(row, options);
+    const saved = await arPostingService.postArLedgerEntry(row, options);
     posted.push(saved || row);
   }
   return posted;

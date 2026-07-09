@@ -47,15 +47,14 @@ test('unmerged request uses server filters, request sequence and stable selected
   assert.doesNotMatch(block, /selectedReturnOrders=\[\]/);
 });
 
-test('submit is locked, sends only identities and reloads dependent lists', () => {
+test('submit is retired at runtime and never calls master-return write endpoint', () => {
   const source = read('public/js/app/debt/07d-master-return-orders.js');
   const block = functionBlock(source, 'async function submitMasterReturnOrder', 'async function editMasterReturnOrder');
-  assert.match(block, /masterReturnSubmitInFlight/);
-  assert.match(block, /submitMasterReturnOrderButton\.disabled=true/);
-  assert.match(block, /payload\.returnOrderIds=selectedReturnOrders\.map\(masterReturnOrderIdentity\)/);
-  assert.match(block, /payload\.deliveryStaffCode=deliveryStaffCode/);
-  assert.doesNotMatch(block, /payload\.totalAmount|payload\.totalQuantity/);
-  assert.match(block, /Promise\.all\(\[/);
+  assert.match(block, /event\?\.preventDefault\?\.\(\)/);
+  assert.match(block, /notifyMasterReturnRetired\('submit tạo đơn tổng trả'\)/);
+  assert.doesNotMatch(block, /fetch\(/);
+  assert.doesNotMatch(block, /\/api\/master-return-orders/);
+  assert.doesNotMatch(block, /payload\.returnOrderIds|payload\.totalAmount|payload\.totalQuantity/);
 });
 
 test('backend list filters in Mongo, hydrates in batches and uses projection', () => {

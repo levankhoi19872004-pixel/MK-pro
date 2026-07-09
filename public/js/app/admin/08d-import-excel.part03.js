@@ -1,13 +1,19 @@
 /* GENERATED FILE — edit public/js/app/admin/08d-import-excel.source/part-01.jsfrag, public/js/app/admin/08d-import-excel.source/part-01b.jsfrag, public/js/app/admin/08d-import-excel.source/part-02.jsfrag, public/js/app/admin/08d-import-excel.source/part-02b.jsfrag, public/js/app/admin/08d-import-excel.source/part-03.jsfrag and run npm run build:source-bundles. */
-async function waitForAsyncImportCommit(sessionId,jobId){const deadline=Date.now()+Number(window.IMPORT_COMMIT_UI_TIMEOUT_MS||15*60*1e3);while(Date.now()<deadline){
-const response=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}`);const payload=await response.json().catch(()=>({}));if(payload.status==="done")return{
-...payload.result||{},sessionId:sessionId,importSessionId:sessionId}
+const importCommandLocks=new Set;let importCommitPollController=null;async function runImportCommandOnce(actionKey,fn){const key=String(actionKey||"import.command")
+;if(importCommandLocks.has(key))return false;importCommandLocks.add(key);try{return await fn()}finally{importCommandLocks.delete(key)}}function stopImportCommitPolling(){
+if(importCommitPollController){try{importCommitPollController.abort()}catch(_error){}importCommitPollController=null}}async function waitForAsyncImportCommit(sessionId,jobId){
+stopImportCommitPolling();const pollController=new AbortController;importCommitPollController=pollController
+;const deadline=Date.now()+Number(window.IMPORT_COMMIT_UI_TIMEOUT_MS||15*60*1e3);while(Date.now()<deadline){
+const response=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}`,{signal:pollController.signal});const payload=await response.json().catch(()=>({}))
+;if(payload.status==="done")return{...payload.result||{},sessionId:sessionId,importSessionId:sessionId}
 ;if(payload.status==="failed"||!response.ok&&!["importing","processing"].includes(String(payload.status||"").toLowerCase())){
 throw new Error(payload.errorMessage||payload.message||`Import nền thất bại${jobId?` (${jobId})`:""}`)}await new Promise(resolve=>setTimeout(resolve,600))}
-throw new Error(`Import quá thời gian chờ${jobId?` (${jobId})`:""}. Vui lòng kiểm tra lại trạng thái phiên import.`)}async function commitImportExcel(){if(!importDataType)return
-;let stopProgressPolling=()=>{};try{const hasFile=Boolean(importExcelFile&&importExcelFile.files&&importExcelFile.files.length);if(!importPreviewRows.length){if(hasFile){
-await previewImportExcel();return}showMessage(importDataMessage,"Chưa có dữ liệu preview. Vui lòng chọn file Excel hoặc dán dữ liệu từ Excel rồi bấm Đọc dữ liệu.",true);return}
-if(!importPreviewSessionId){showMessage(importDataMessage,"Bản xem trước chưa có mã phiên import. Vui lòng tạo lại preview từ file Excel hoặc dữ liệu dán.",true);return}
+if(importCommitPollController===pollController)importCommitPollController=null
+;throw new Error(`Import quá thời gian chờ${jobId?` (${jobId})`:""}. Vui lòng kiểm tra lại trạng thái phiên import.`)}async function commitImportExcelCore(){
+if(!importDataType)return;let stopProgressPolling=()=>{};try{const hasFile=Boolean(importExcelFile&&importExcelFile.files&&importExcelFile.files.length)
+;if(!importPreviewRows.length){if(hasFile){await previewImportExcel();return}
+showMessage(importDataMessage,"Chưa có dữ liệu preview. Vui lòng chọn file Excel hoặc dán dữ liệu từ Excel rồi bấm Đọc dữ liệu.",true);return}if(!importPreviewSessionId){
+showMessage(importDataMessage,"Bản xem trước chưa có mã phiên import. Vui lòng tạo lại preview từ file Excel hoặc dữ liệu dán.",true);return}
 const selectedRows=getSelectedImportRows();if(!selectedRows.length){showMessage(importDataMessage,"Bạn chưa chọn đơn/dòng nào để import",true);return}if(commitImportButton){
 commitImportButton.disabled=true;commitImportButton.dataset.originalText=commitImportButton.textContent||"Import các đơn đã chọn";commitImportButton.textContent="Đang import..."}
 showMessage(importDataMessage,`Đang import ${formatNumber(selectedRows.length)} đơn/dòng đã chọn...`)
@@ -32,9 +38,10 @@ importPreviewTable.innerHTML=`<tr><td colspan="6">Import thành công. Không c�
 ;window.__importPreviewRows=importPreviewRows;window.__importPreviewSessionId=importPreviewSessionId;setCurrentImportSource("none","");if(commitImportButton){
 commitImportButton.disabled=true;commitImportButton.textContent="Import các dòng đã chọn"}if(importDataType.value==="salesOrders"){
 if(salesOrderSourceFilter)salesOrderSourceFilter.value="DMS"}await refreshAfterImport(importDataType.value)
-;if(importDataType.value==="salesOrders")await loadImportShortageReports()}catch(err){if(commitImportButton){commitImportButton.disabled=false
-;if(commitImportButton.dataset.originalText)commitImportButton.textContent=commitImportButton.dataset.originalText}showMessage(importDataMessage,err.message,true)}finally{
-stopProgressPolling()}}let activeImportShortageReport=null;function importShortageStatusLabel(status){
+;if(importDataType.value==="salesOrders")await loadImportShortageReports()}catch(err){if(err&&err.name==="AbortError")return;if(commitImportButton){
+commitImportButton.disabled=false;if(commitImportButton.dataset.originalText)commitImportButton.textContent=commitImportButton.dataset.originalText}
+showMessage(importDataMessage,err.message,true)}finally{stopProgressPolling();stopImportCommitPolling()}}async function commitImportExcel(){
+return runImportCommandOnce("import.commit",commitImportExcelCore)}let activeImportShortageReport=null;function importShortageStatusLabel(status){
 return status==="resolved"?"Đã xử lý":status==="in_review"?"Đang đối soát":"Chưa đối soát"}function importShortageItemStatusLabel(status){
 return status==="resolved"?"Đã xử lý":status==="verified"?"Đã kiểm tra":"Chưa kiểm tra"}function formatImportReportDate(value){if(!value)return"";const d=new Date(value)
 ;if(Number.isNaN(d.getTime()))return String(value)

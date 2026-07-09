@@ -39,6 +39,11 @@ const INDEX_DEFINITIONS = {
     // Hai mã import được dùng để chặn trùng và tra cứu chứng từ DMS/Excel.
     [{ documentCode: 1 }, { name: 'idx_orders_document_code', sparse: true }],
     [{ invoiceCode: 1 }, { name: 'idx_orders_invoice_code', sparse: true }],
+    // Closeout selected-orders hot path: fallback lookups by B-code / salesOrder aliases.
+    [{ orderCode: 1 }, { name: 'idx_orders_order_code', sparse: true }],
+    [{ salesOrderId: 1 }, { name: 'idx_orders_sales_order_id', sparse: true }],
+    [{ salesOrderCode: 1 }, { name: 'idx_orders_sales_order_code', sparse: true }],
+    [{ deliveryDate: -1, deliveryStaffCode: 1, salesStaffCode: 1, accountingConfirmed: 1, id: 1 }, { name: 'idx_orders_closeout_scope_status' }],
     [{ customerCode: 1, orderDate: -1 }, { name: 'idx_orders_customer_order_date' }],
     [{ salesStaffCode: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_sales_staff_order_date_status' }],
     [{ orderDate: -1, createdAt: -1 }, { name: 'idx_orders_order_date_created_desc' }],
@@ -84,9 +89,14 @@ const INDEX_DEFINITIONS = {
     [{ orderCode: 1, status: 1 }, { name: 'idx_return_orders_order_code_status', sparse: true }],
     [{ orderCode: 1, returnStatus: 1 }, { name: 'idx_return_orders_order_code_return_status', sparse: true }],
     [{ sourceOrderId: 1, status: 1 }, { name: 'idx_return_orders_source_status' }],
+    [{ sourceOrderId: 1, returnStatus: 1 }, { name: 'idx_return_orders_source_return_status', sparse: true }],
     [{ sourceOrderCode: 1, status: 1 }, { name: 'idx_return_orders_source_code_status', sparse: true }],
+    [{ sourceOrderCode: 1, returnStatus: 1 }, { name: 'idx_return_orders_source_code_return_status', sparse: true }],
     [{ deliveryOrderId: 1, status: 1 }, { name: 'idx_return_orders_delivery_order_id_status', sparse: true }],
     [{ deliveryOrderCode: 1, status: 1 }, { name: 'idx_return_orders_delivery_order_code_status', sparse: true }],
+    [{ deliveryDate: 1, deliveryStaffCode: 1, returnStatus: 1 }, { name: 'idx_return_orders_closeout_delivery_date_staff_status', sparse: true }],
+    [{ date: 1, deliveryStaffCode: 1, returnStatus: 1 }, { name: 'idx_return_orders_closeout_date_staff_status', sparse: true }],
+    [{ documentDate: 1, deliveryStaffCode: 1, returnStatus: 1 }, { name: 'idx_return_orders_closeout_document_date_staff_status', sparse: true }],
     [{ masterReturnOrderId: 1 }, { name: 'idx_return_orders_master_return_id', sparse: true }],
     [{ masterReturnOrderCode: 1 }, { name: 'idx_return_orders_master_return_code', sparse: true }],
     [{ masterReturnOrderId: 1, masterReturnOrderCode: 1, returnMergeStatus: 1 }, { name: 'idx_return_orders_master_return_merge_guard', sparse: true }],
@@ -118,7 +128,9 @@ const INDEX_DEFINITIONS = {
     [{ customerCode: 1, status: 1, deliveryDate: -1 }, { name: 'idx_order_payment_allocations_customer_status_date' }],
     [{ deliveryDate: -1, deliveryStaffCode: 1, salesStaffCode: 1, status: 1 }, { name: 'idx_order_payment_allocations_delivery_sales_status' }],
     [{ orderId: 1 }, { name: 'idx_order_payment_allocations_order_id', sparse: true }],
-    [{ orderCode: 1 }, { name: 'idx_order_payment_allocations_order_code', sparse: true }]
+    [{ orderCode: 1 }, { name: 'idx_order_payment_allocations_order_code', sparse: true }],
+    [{ sourceId: 1 }, { name: 'idx_order_payment_allocations_source_id', sparse: true }],
+    [{ sourceCode: 1 }, { name: 'idx_order_payment_allocations_source_code', sparse: true }]
   ],
   orderPaymentRepairRuns: [
     [{ runCode: 1 }, { name: 'uniq_order_payment_repair_runs_run_code', unique: true, partialFilterExpression: { runCode: { $type: 'string', $gt: '' } } }],

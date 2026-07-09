@@ -26,8 +26,8 @@ function names(collectionKey) {
 test('managed index policy is reduced and grouped by physical collection', () => {
   const plan = new Map(buildManagedIndexPlan().map((item) => [item.collectionName, item]));
 
-  assert.equal(plan.get('orders').definitions.length, 13);
-  assert.equal(plan.get('returnOrders').definitions.length, 17);
+  assert.equal(plan.get('orders').definitions.length, 17);
+  assert.equal(plan.get('returnOrders').definitions.length, 22);
   assert.equal(plan.get('master_orders').definitions.length, 9);
   assert.equal(plan.get('inventories').definitions.length, 1);
   assert.equal(plan.get('journals').definitions.length, 3);

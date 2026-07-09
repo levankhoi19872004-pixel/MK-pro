@@ -1,0 +1,2740 @@
+{
+  "generatedAt": "2026-07-09T07:29:28.432Z",
+  "ok": true,
+  "summary": {
+    "canonicalFlows": 29,
+    "retiredFlows": 9,
+    "backendRouteDeclarations": 449,
+    "frontendFetches": 263,
+    "dataActions": 5,
+    "unmatchedFetches": 0,
+    "retiredHits": 0
+  },
+  "criticalIssues": [],
+  "warnings": [],
+  "unmatchedFetches": [],
+  "retiredHits": [],
+  "routeDecls": [
+    {
+      "method": "GET",
+      "path": "/data-correction/standard",
+      "file": "src/routes/adminCorrectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/corrections",
+      "file": "src/routes/adminCorrectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/corrections/:id",
+      "file": "src/routes/adminCorrectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/corrections",
+      "file": "src/routes/adminCorrectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/corrections/:id/approve",
+      "file": "src/routes/adminCorrectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/corrections/:id/reject",
+      "file": "src/routes/adminCorrectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/corrections/:id/apply",
+      "file": "src/routes/adminCorrectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/corrections/:id/rollback",
+      "file": "src/routes/adminCorrectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/entities/:entityType/:id/edit-context",
+      "file": "src/routes/adminCorrectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/entities/:entityType/:id/validate-change",
+      "file": "src/routes/adminCorrectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/entities/:entityType/:id/request-change",
+      "file": "src/routes/adminCorrectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/audit-logs",
+      "file": "src/routes/adminCorrectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/audit-logs/:entityType/:id",
+      "file": "src/routes/adminCorrectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/projections",
+      "file": "src/routes/analyticsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/projections/rebuild",
+      "file": "src/routes/analyticsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/login",
+      "file": "src/routes/authRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/refresh",
+      "file": "src/routes/authRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/logout",
+      "file": "src/routes/authRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/me",
+      "file": "src/routes/authRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/roles",
+      "file": "src/routes/authRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "file": "src/routes/backgroundJobRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/cancel",
+      "file": "src/routes/backgroundJobRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/:id/artifact",
+      "file": "src/routes/backgroundJobRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/bankbookRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/cashbookRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "file": "src/routes/cashbookRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/products/search",
+      "file": "src/routes/catalogRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/customers/search",
+      "file": "src/routes/catalogRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/search",
+      "file": "src/routes/customerRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/customerRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "file": "src/routes/customerRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/:id",
+      "file": "src/routes/customerRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id/status",
+      "file": "src/routes/customerRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "file": "src/routes/customerRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/bulk-delete",
+      "file": "src/routes/customerRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/home",
+      "file": "src/routes/dashboardRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/overview",
+      "file": "src/routes/dashboardRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/sales-staff",
+      "file": "src/routes/dashboardRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-summary",
+      "file": "src/routes/dashboardRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/targets",
+      "file": "src/routes/dashboardRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/targets/template",
+      "file": "src/routes/dashboardRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/targets/:period",
+      "file": "src/routes/dashboardRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/targets/:period/import",
+      "file": "src/routes/dashboardRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/debtCollectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "file": "src/routes/debtCollectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/confirm",
+      "file": "src/routes/debtCollectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/reject",
+      "file": "src/routes/debtCollectionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/plans",
+      "file": "src/routes/deliveryPlanningRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/plans",
+      "file": "src/routes/deliveryPlanningRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PATCH",
+      "path": "/plans/:planId/stops/:stopId",
+      "file": "src/routes/deliveryPlanningRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/orders",
+      "file": "src/routes/deliveryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/returns",
+      "file": "src/routes/deliveryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/return",
+      "file": "src/routes/deliveryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/payment",
+      "file": "src/routes/deliveryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/confirm",
+      "file": "src/routes/deliveryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reconciliation",
+      "file": "src/routes/deliveryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/routes/live",
+      "file": "src/routes/deliveryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/routes/:sessionId",
+      "file": "src/routes/deliveryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/routes",
+      "file": "src/routes/deliveryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/latest",
+      "file": "src/routes/dmsInventoryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/history",
+      "file": "src/routes/dmsInventoryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/preview",
+      "file": "src/routes/dmsInventoryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:importId/commit",
+      "file": "src/routes/dmsInventoryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/status",
+      "file": "src/routes/enterpriseRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/readiness",
+      "file": "src/routes/enterpriseRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/outbox/drain",
+      "file": "src/routes/enterpriseRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/integrations/drain",
+      "file": "src/routes/enterpriseRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/preview",
+      "file": "src/routes/excelImportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/sessions/:sessionId/rows",
+      "file": "src/routes/excelImportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/sessions/:sessionId",
+      "file": "src/routes/excelImportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/sessions/:sessionId/commit",
+      "file": "src/routes/excelImportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/commit",
+      "file": "src/routes/excelImportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/direct",
+      "file": "src/routes/excelImportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/shortage-reports",
+      "file": "src/routes/excelImportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/shortage-reports/:id",
+      "file": "src/routes/excelImportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PATCH",
+      "path": "/shortage-reports/:id",
+      "file": "src/routes/excelImportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/logs",
+      "file": "src/routes/excelImportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/export",
+      "file": "src/routes/excelInteractionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/import/preview",
+      "file": "src/routes/excelInteractionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/products/resolve",
+      "file": "src/routes/excelInteractionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/externalDebtOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "file": "src/routes/externalDebtOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/plans",
+      "file": "src/routes/fieldOperationRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/plans",
+      "file": "src/routes/fieldOperationRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/plans/:planId/stops/:stopId/check-in",
+      "file": "src/routes/fieldOperationRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/executions/:executionId/complete",
+      "file": "src/routes/fieldOperationRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/ledger",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/summary",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/summary/export",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/summary/:personKey/transactions",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-cash-in-transit",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-cash-submissions",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/expenses",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/transfers",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/delivery-cash-submissions/preview",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/delivery-cash-submissions",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/delivery-cash-submissions/:id",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/delivery-cash-submissions/:id/confirm",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/delivery-cash-submissions/:id/shortages",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-cash-shortages/:id/history",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/delivery-cash-shortages/:id/repayments",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/delivery-shortage-repayments/:id/confirm",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/expenses",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/expenses/:id",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/expenses/:id/confirm",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/transfers",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/transfers/:id",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/transfers/:id/confirm",
+      "file": "src/routes/fundRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/importOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "file": "src/routes/importOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/:id",
+      "file": "src/routes/importOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/post",
+      "file": "src/routes/importOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/cancel",
+      "file": "src/routes/importOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/preview",
+      "file": "src/routes/importRuntimeRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/sessions/:sessionId/rows",
+      "file": "src/routes/importRuntimeRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/sessions/:sessionId",
+      "file": "src/routes/importRuntimeRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/sessions/:sessionId/commit",
+      "file": "src/routes/importRuntimeRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/commit",
+      "file": "src/routes/importRuntimeRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/logs",
+      "file": "src/routes/importRuntimeRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/custom-templates",
+      "file": "src/routes/importTemplateRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/custom-templates",
+      "file": "src/routes/importTemplateRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/custom-templates/:id",
+      "file": "src/routes/importTemplateRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/custom-template/:id/download",
+      "file": "src/routes/importTemplateRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/templates",
+      "file": "src/routes/importTemplateRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/template/:type",
+      "file": "src/routes/importTemplateRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/fields/:type",
+      "file": "src/routes/importTemplateRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "USE",
+      "path": "/api",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/admin",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/new",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/auth",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/notifications",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/tools/order-split",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/tools/dms-gap-simulator",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/tools/display-check",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/search",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/catalog",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/delivery",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/inventory",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/dms-inventory",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/excel",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/mobile-legacy",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/products",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/mobile-sales/products",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/customers",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/sales-orders",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/orders",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/master-orders",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/delivery-today",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/import-orders",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/return-orders",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/returns",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/master-return-orders",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/receipts",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/debt-collections",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/external-debt-orders",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/cashbook",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/bankbook",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/funds",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/promotions",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/import",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/export",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/background-jobs",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/print",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/dashboard",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/purchase",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/warehouse-advanced",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/analytics",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/field-operations",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/delivery-planning",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/integrations",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/platform",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "USE",
+      "path": "/api/enterprise",
+      "file": "src/routes/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "GET",
+      "path": "/jobs",
+      "file": "src/routes/integrationRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/jobs",
+      "file": "src/routes/integrationRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/jobs/:id/retry",
+      "file": "src/routes/integrationRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/current",
+      "file": "src/routes/inventoryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/check",
+      "file": "src/routes/inventoryRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/unmerged-child-orders",
+      "file": "src/routes/masterOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/print-aggregate",
+      "file": "src/routes/masterOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/masterOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "file": "src/routes/masterOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "file": "src/routes/masterOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/:id",
+      "file": "src/routes/masterOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id",
+      "file": "src/routes/masterOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/cancel",
+      "file": "src/routes/masterOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "file": "src/routes/masterOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/unmerged-return-orders",
+      "file": "src/routes/masterReturnOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/masterReturnOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "file": "src/routes/masterReturnOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "file": "src/routes/masterReturnOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/:id",
+      "file": "src/routes/masterReturnOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id",
+      "file": "src/routes/masterReturnOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/receive",
+      "file": "src/routes/masterReturnOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/cancel",
+      "file": "src/routes/masterReturnOrderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/login",
+      "file": "src/routes/mobile/auth.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/refresh",
+      "file": "src/routes/mobile/auth.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/me",
+      "file": "src/routes/mobile/auth.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/roles",
+      "file": "src/routes/mobile/auth.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/customers",
+      "file": "src/routes/mobile/catalog.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/product-groups",
+      "file": "src/routes/mobile/catalog.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/products",
+      "file": "src/routes/mobile/catalog.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/stock",
+      "file": "src/routes/mobile/catalog.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/mobile/debts.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "file": "src/routes/mobile/debts.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/orders",
+      "file": "src/routes/mobile/delivery.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/returns",
+      "file": "src/routes/mobile/delivery.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/confirm",
+      "file": "src/routes/mobile/delivery.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/return",
+      "file": "src/routes/mobile/delivery.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/payment",
+      "file": "src/routes/mobile/delivery.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reconciliation",
+      "file": "src/routes/mobile/delivery.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/location/session/start",
+      "file": "src/routes/mobile/delivery.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/location/ping",
+      "file": "src/routes/mobile/delivery.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/location/session/stop",
+      "file": "src/routes/mobile/delivery.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/location/session/current",
+      "file": "src/routes/mobile/delivery.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/cash/submit",
+      "file": "src/routes/mobile/delivery.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/customers",
+      "file": "src/routes/mobile/index.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/product-groups",
+      "file": "src/routes/mobile/index.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/products",
+      "file": "src/routes/mobile/index.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/stock",
+      "file": "src/routes/mobile/index.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/orders",
+      "file": "src/routes/mobile/index.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/delivery/save-money",
+      "file": "src/routes/mobile/index.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery/report",
+      "file": "src/routes/mobile/index.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-orders",
+      "file": "src/routes/mobile/index.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/cash/submit",
+      "file": "src/routes/mobile/index.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/runtime-config",
+      "file": "src/routes/mobile/index.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/telemetry",
+      "file": "src/routes/mobile/index.js",
+      "owner": "router"
+    },
+    {
+      "method": "USE",
+      "path": "/api/mobile",
+      "file": "src/routes/mobile/index.js",
+      "owner": "mount"
+    },
+    {
+      "method": "POST",
+      "path": "/orders",
+      "file": "src/routes/mobile/sales.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/orders/:id/print.pdf",
+      "file": "src/routes/mobile/sales.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/orders/:id/returns",
+      "file": "src/routes/mobile/sales.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/orders/:id",
+      "file": "src/routes/mobile/sales.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/orders/:id",
+      "file": "src/routes/mobile/sales.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/orders/:id",
+      "file": "src/routes/mobile/sales.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/orders",
+      "file": "src/routes/mobile/sales.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/debts",
+      "file": "src/routes/mobile/sales.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/batch",
+      "file": "src/routes/mobile/sync.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/return-checks",
+      "file": "src/routes/mobile/warehouse.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/return-checks/detail",
+      "file": "src/routes/mobile/warehouse.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/return-checks/item-sources",
+      "file": "src/routes/mobile/warehouse.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/return-checks/save",
+      "file": "src/routes/mobile/warehouse.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/return-checks/confirm",
+      "file": "src/routes/mobile/warehouse.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-today/suggestions",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-today/orders",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-today/adjustments/resolve",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/delivery-today/closeout",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/delivery-today/closeouts/:id/corrections",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/delivery-today/adjustments/bulk-commit",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-today/closeouts/:id/adjustment-return-rows",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-today/closeouts/:id/corrections",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-today/closeouts/:id/versions",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/debt/suggestions",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/debt/customers",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/debt/customers/:customerCode/detail",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/debt/manual",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/debt/collections",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/debt/collections",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/debt/collections/:id/confirm",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/debt/collections/:id/reject",
+      "file": "src/routes/newOperationsRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/summary",
+      "file": "src/routes/notificationRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/notificationRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/read-all",
+      "file": "src/routes/notificationRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/read",
+      "file": "src/routes/notificationRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "file": "src/routes/notificationRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/search",
+      "file": "src/routes/orderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/orderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "file": "src/routes/orderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "file": "src/routes/orderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/:id",
+      "file": "src/routes/orderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id/vat-invoice-setting",
+      "file": "src/routes/orderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id",
+      "file": "src/routes/orderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/cancel",
+      "file": "src/routes/orderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/delete",
+      "file": "src/routes/orderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "file": "src/routes/orderRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/tenants",
+      "file": "src/routes/platformRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/tenants",
+      "file": "src/routes/platformRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/tenants/:tenantId/subscription",
+      "file": "src/routes/platformRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/types",
+      "file": "src/routes/printRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/render",
+      "file": "src/routes/printRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/orders/batch",
+      "file": "src/routes/printRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/master-orders/batch",
+      "file": "src/routes/printRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/import-orders/aggregate",
+      "file": "src/routes/printRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/master-return-orders/batch",
+      "file": "src/routes/printRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/orders/:id",
+      "file": "src/routes/printRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/master-orders/:id",
+      "file": "src/routes/printRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/import-orders/:id",
+      "file": "src/routes/printRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/master-return-orders/:id",
+      "file": "src/routes/printRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/receipts/:id",
+      "file": "src/routes/printRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/:type/:id",
+      "file": "src/routes/printRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/search",
+      "file": "src/routes/productRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/productRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "file": "src/routes/productRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/:id",
+      "file": "src/routes/productRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id/status",
+      "file": "src/routes/productRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/quantity-group-discounts",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/quantity-group-discounts",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/quantity-group-discounts/:id",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/quantity-group-discounts/:id",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/customer-order-value-discounts",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/customer-order-value-discounts",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/customer-order-value-discounts/:id",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/customer-order-value-discounts/:id",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/product-rules",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/product-rules",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/product-rules/:id",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/group-items",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/group-items",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/group-items/:id",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/group-rules",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/group-rules",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/group-rules/:id",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/programs",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/programs/:programCode",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/programs/:programCode",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/programs/:programCode/cancel",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/programs/:programCode/products",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/programs/:programCode/products/:id",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/programs/:programCode/products/:id",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/programs/:programCode/group-products",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/programs/:programCode/group-products/:id",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/programs/:programCode/group-products/:id",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/programs/:programCode/tiers",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/programs/:programCode/tiers/:id",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/programs/:programCode/tiers/:id",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/calculate",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "file": "src/routes/promotionRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/orders",
+      "file": "src/routes/purchaseRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/orders/:id",
+      "file": "src/routes/purchaseRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/orders",
+      "file": "src/routes/purchaseRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/orders/:id/approve",
+      "file": "src/routes/purchaseRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/orders/:id/receive",
+      "file": "src/routes/purchaseRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/receipts",
+      "file": "src/routes/purchaseRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/returns",
+      "file": "src/routes/purchaseRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/payables",
+      "file": "src/routes/purchaseRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/payments",
+      "file": "src/routes/purchaseRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/returns",
+      "file": "src/routes/purchaseRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/receiptRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "file": "src/routes/receiptRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "file": "src/routes/receiptRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/stock",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/inventory-movement",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/stock-card",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/inventory/rebuild",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/inventory/normalize-one-warehouse",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/debts/init",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/debts/customers",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/debts/customers/:customerCode/orders",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/debts/customer-detail/:customerCode?",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/debts/ar-ledger",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/debts",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/debts/by-salesman",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/debts/by-delivery",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/dashboard",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/catalog",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/overview",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/run/:code",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/stock",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/inventory-movement",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/stock-card",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/reports/inventory/rebuild",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/reports/inventory/normalize-one-warehouse",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/debts/init",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/debts/customers",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/debts/customers/:customerCode/orders",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/debts/customer-detail/:customerCode?",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/debts/ar-ledger",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/debts",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/debts/by-salesman",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/debts/by-delivery",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/dashboard",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/sales",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/finance",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/delivery",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reports/returns",
+      "file": "src/routes/reportRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/routes/returnRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "file": "src/routes/returnRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/by-sales-order/:salesOrderId",
+      "file": "src/routes/returnRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/by-sales-order/:salesOrderId/items",
+      "file": "src/routes/returnRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/:id/items",
+      "file": "src/routes/returnRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/stock-in",
+      "file": "src/routes/returnRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/confirm-accounting",
+      "file": "src/routes/returnRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/cancel",
+      "file": "src/routes/returnRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/customers",
+      "file": "src/routes/searchRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/products",
+      "file": "src/routes/searchRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/sales-staff",
+      "file": "src/routes/searchRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-staff",
+      "file": "src/routes/searchRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/orders",
+      "file": "src/routes/searchRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/master-orders",
+      "file": "src/routes/searchRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/ar-ledger",
+      "file": "src/routes/searchRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/staffs",
+      "file": "src/routes/searchRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/users",
+      "file": "src/routes/searchRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/:type",
+      "file": "src/routes/searchRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/docs/openapi.json",
+      "file": "src/routes/swaggerRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/docs",
+      "file": "src/routes/swaggerRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/data",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/system/data-source",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/system/status",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/system/api-monitor",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/system/operations",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/system/release",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/system/api-monitor/reset",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/system/reconciliation-reports",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/system/reconciliation/run",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/system/health",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/system/health/db",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/system/settings",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/system/settings/:key",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/system/settings/:key",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/system/backup",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/system/backups",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/system/backups/:fileName/verify",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/system/reset",
+      "file": "src/routes/systemRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/bootstrap",
+      "file": "src/routes/tools/displayCheck.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/groups",
+      "file": "src/routes/tools/displayCheck.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/groups",
+      "file": "src/routes/tools/displayCheck.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/groups/:id",
+      "file": "src/routes/tools/displayCheck.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/groups/:id",
+      "file": "src/routes/tools/displayCheck.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/store-setups",
+      "file": "src/routes/tools/displayCheck.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/store-setups",
+      "file": "src/routes/tools/displayCheck.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "PUT",
+      "path": "/store-setups/:id",
+      "file": "src/routes/tools/displayCheck.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/store-setups/:id",
+      "file": "src/routes/tools/displayCheck.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/generate-preview",
+      "file": "src/routes/tools/displayCheck.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/confirm-plan",
+      "file": "src/routes/tools/displayCheck.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/plans",
+      "file": "src/routes/tools/displayCheck.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/plans/:id",
+      "file": "src/routes/tools/displayCheck.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/plans/:id/cancel",
+      "file": "src/routes/tools/displayCheck.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/preview",
+      "file": "src/routes/tools/dmsGapSimulator.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/export",
+      "file": "src/routes/tools/dmsGapSimulator.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/template",
+      "file": "src/routes/tools/orderSplit.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/preview",
+      "file": "src/routes/tools/orderSplit.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/export",
+      "file": "src/routes/tools/orderSplit.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/export-vat",
+      "file": "src/routes/tools/orderSplit.routes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/users",
+      "file": "src/routes/userRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/users",
+      "file": "src/routes/userRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/:id",
+      "file": "src/routes/userRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/staffs",
+      "file": "src/routes/userRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/roles",
+      "file": "src/routes/userRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/permissions",
+      "file": "src/routes/userRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/reservations",
+      "file": "src/routes/warehouseAdvancedRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/reservations",
+      "file": "src/routes/warehouseAdvancedRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/reservations/:id/release",
+      "file": "src/routes/warehouseAdvancedRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "GET",
+      "path": "/stock-counts",
+      "file": "src/routes/warehouseAdvancedRoutes.js",
+      "owner": "router"
+    },
+    {
+      "method": "POST",
+      "path": "/stock-counts",
+      "file": "src/routes/warehouseAdvancedRoutes.js",
+      "owner": "router"
+    }
+  ],
+  "dataActions": [
+    {
+      "action": "${escapeHtml(action)}",
+      "file": "public/js/components/excel-interaction/ContextExport.js",
+      "type": "attribute"
+    },
+    {
+      "action": "primary",
+      "file": "public/mobile/js/delivery-mobile-view.js",
+      "type": "attribute"
+    },
+    {
+      "action": "primary",
+      "file": "public/mobile/js/delivery-mobile-view.js",
+      "type": "attribute"
+    },
+    {
+      "action": "primary",
+      "file": "public/mobile/js/delivery-mobile-view.source.js",
+      "type": "attribute"
+    },
+    {
+      "action": "primary",
+      "file": "public/mobile/js/delivery-mobile-view.source.js",
+      "type": "attribute"
+    }
+  ]
+}
