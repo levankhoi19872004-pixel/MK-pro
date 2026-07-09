@@ -1,0 +1,143 @@
+    <section id="displayCheckManagerTab" class="tab-content display-check-shell">
+      <section class="card display-check-card">
+        <div class="toolbar display-check-toolbar">
+          <div>
+            <h2>Công cụ → Quản lý chấm Trưng bày</h2>
+            <p class="muted">Quản lý danh sách chấm trưng bày theo ngày. Module chỉ lưu dữ liệu chấm vào collection riêng, không tạo đơn bán thật, không ghi công nợ và không trừ tồn kho.</p>
+          </div>
+          <label>Ngày chấm
+            <input id="displayCheckWorkingDate" type="date" />
+          </label>
+        </div>
+        <div class="display-check-safe-note">Nguồn sản phẩm lấy từ hàng lệch DMS trong MK-Pro; nhóm/chương trình KM và nhóm hàng lấy từ danh mục hiện có. Mỗi sản phẩm không được dùng vượt số lượng lệch DMS còn khả dụng trong ngày.</div>
+
+        <div class="display-check-tabs">
+          <button type="button" class="display-check-tab active" data-display-check-tab="groups">1. Cài đặt chấm Trưng bày</button>
+          <button type="button" class="display-check-tab" data-display-check-tab="stores">2. Cài đặt cửa hàng chấm</button>
+          <button type="button" class="display-check-tab" data-display-check-tab="plans">3. Quản lý danh sách chấm</button>
+        </div>
+
+        <section class="display-check-panel active" data-display-check-panel="groups">
+          <div class="display-check-grid display-check-grid--form-list">
+            <form id="displayCheckGroupForm" class="display-check-form" onsubmit="return false;">
+              <h3 id="displayCheckGroupFormTitle">Tạo nhóm chấm</h3>
+              <input id="displayCheckGroupId" type="hidden" />
+              <label>Mã nhóm chấm <input id="displayCheckGroupCode" placeholder="OMO_DISPLAY" autocomplete="off" /></label>
+              <label>Tên nhóm chấm <input id="displayCheckGroupName" placeholder="Trưng bày OMO" autocomplete="off" /></label>
+              <label>Loại nguồn
+                <select id="displayCheckSourceType">
+                  <option value="product_group">Nhóm hàng sản phẩm</option>
+                  <option value="promotion_group">Nhóm khuyến mại</option>
+                  <option value="promotion_program">Chương trình KM/Ontop</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </label>
+              <label>Nguồn liên kết
+                <select id="displayCheckSourceCode"></select>
+              </label>
+              <label>Loại điều kiện
+                <select id="displayCheckConditionType">
+                  <option value="amount">Lấy đủ tiền</option>
+                  <option value="quantity">Lấy đủ số lượng</option>
+                </select>
+              </label>
+              <div class="display-check-two-cols">
+                <label>Ngưỡng tiền <input id="displayCheckThresholdAmount" type="number" min="0" step="1000" value="0" /></label>
+                <label>Ngưỡng SL <input id="displayCheckThresholdQty" type="number" min="0" step="1" value="0" /></label>
+              </div>
+              <label>Ghi chú <textarea id="displayCheckGroupNote" rows="2"></textarea></label>
+              <label class="inline-check"><input id="displayCheckGroupActive" type="checkbox" checked /> Đang dùng</label>
+              <div class="display-check-actions">
+                <button id="displayCheckSaveGroupButton" type="button">Lưu nhóm</button>
+                <button id="displayCheckResetGroupButton" type="button" class="secondary">Làm mới</button>
+              </div>
+            </form>
+            <div class="display-check-table-wrap">
+              <div class="display-check-section-head"><h3>Danh sách nhóm chấm</h3><button id="displayCheckReloadGroupsButton" type="button" class="secondary">Tải lại</button></div>
+              <table class="display-check-table">
+                <thead><tr><th>Mã nhóm</th><th>Tên nhóm</th><th>Nguồn</th><th>Điều kiện</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                <tbody id="displayCheckGroupsTable"><tr><td colspan="6">Đang tải...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="display-check-panel" data-display-check-panel="stores">
+          <div class="display-check-grid display-check-grid--form-list">
+            <form id="displayCheckStoreForm" class="display-check-form" onsubmit="return false;">
+              <h3 id="displayCheckStoreFormTitle">Cài đặt cửa hàng chấm</h3>
+              <input id="displayCheckStoreId" type="hidden" />
+              <label>Mã cửa hàng <input id="displayCheckCustomerCode" placeholder="Nhập mã KH" autocomplete="off" /></label>
+              <label>Tên cửa hàng <input id="displayCheckCustomerName" readonly placeholder="Tự lấy từ mã cửa hàng khi lưu" /></label>
+              <label>Doanh số cần chấm <input id="displayCheckTargetAmount" type="number" min="0" step="1000" /></label>
+              <label>Số dòng cần sinh <input id="displayCheckTargetLineCount" type="number" min="1" max="50" step="1" value="5" /></label>
+              <label>Ghi chú <textarea id="displayCheckStoreNote" rows="2"></textarea></label>
+              <div>
+                <strong>Chấm trưng bày</strong>
+                <div id="displayCheckStoreGroupChoices" class="display-check-choice-box"><span class="muted">Chưa có nhóm active.</span></div>
+              </div>
+              <details>
+                <summary>Cấu hình nâng cao</summary>
+                <label>Loại lệch DMS
+                  <select id="displayCheckDmsGapType">
+                    <option value="dms_greater">DMS nhiều hơn thực tế</option>
+                    <option value="internal_greater">Thực tế nhiều hơn DMS</option>
+                  </select>
+                </label>
+                <label>Sai lệch cho phép <input id="displayCheckToleranceAmount" type="number" min="0" step="1000" value="10000" /></label>
+                <label>Vượt tối đa <input id="displayCheckMaxOverAmount" type="number" min="0" step="1000" value="50000" /></label>
+                <label class="inline-check"><input id="displayCheckAllowOverTarget" type="checkbox" /> Cho phép vượt doanh số để đạt trưng bày</label>
+              </details>
+              <div class="display-check-actions">
+                <button id="displayCheckSaveStoreButton" type="button">Lưu cửa hàng</button>
+                <button id="displayCheckResetStoreButton" type="button" class="secondary">Làm mới</button>
+              </div>
+            </form>
+            <div class="display-check-table-wrap">
+              <div class="display-check-section-head"><h3>Cửa hàng cần chấm trong ngày</h3><button id="displayCheckReloadStoresButton" type="button" class="secondary">Tải lại</button></div>
+              <table class="display-check-table">
+                <thead><tr><th>Mã KH</th><th>Tên KH</th><th>DS cần chấm</th><th>Số dòng</th><th>Nhóm chấm</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                <tbody id="displayCheckStoresTable"><tr><td colspan="7">Đang tải...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="display-check-panel" data-display-check-panel="plans">
+          <div class="display-check-section-head"><h3>Danh sách chấm đã xác nhận</h3><button id="displayCheckReloadPlansButton" type="button" class="secondary">Tải lại</button></div>
+          <div class="display-check-table-wrap">
+            <table class="display-check-table">
+              <thead><tr><th>Ngày</th><th>Mã KH</th><th>Tên KH</th><th>DS cần chấm</th><th>DS đã sinh</th><th>Dòng</th><th>Nhóm chấm</th><th>Trạng thái</th><th>Người xác nhận</th><th>Thao tác</th></tr></thead>
+              <tbody id="displayCheckPlansTable"><tr><td colspan="10">Đang tải...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <p id="displayCheckStatus" class="message display-check-status"></p>
+      </section>
+
+      <div id="displayCheckPreviewModal" class="display-check-modal" hidden>
+        <div class="display-check-modal-card">
+          <div class="display-check-modal-head">
+            <div><h3>Preview danh sách sản phẩm phải chấm</h3><p id="displayCheckPreviewSummary" class="muted"></p></div>
+            <button id="displayCheckClosePreviewButton" type="button" class="secondary small">Đóng</button>
+          </div>
+          <div id="displayCheckPreviewAlerts"></div>
+          <h4>Điều kiện nhóm</h4>
+          <div class="display-check-table-wrap"><table class="display-check-table"><thead><tr><th>Mã nhóm</th><th>Tên nhóm</th><th>Loại</th><th>Ngưỡng</th><th>Đã sinh</th><th>Còn thiếu</th><th>Trạng thái</th></tr></thead><tbody id="displayCheckPreviewGroups"></tbody></table></div>
+          <h4>Sản phẩm phải chấm</h4>
+          <div class="display-check-table-wrap"><table class="display-check-table"><thead><tr><th>Mã SP</th><th>Tên SP</th><th>Nhóm</th><th>SL</th><th>Giá</th><th>Thành tiền</th><th>Điều kiện</th></tr></thead><tbody id="displayCheckPreviewItems"></tbody></table></div>
+          <div class="display-check-modal-foot">
+            <button id="displayCheckSkipPreviewButton" type="button" class="secondary">Bỏ qua</button>
+            <button id="displayCheckConfirmPreviewButton" type="button">Xác nhận chấm</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="displayCheckDetailModal" class="display-check-modal" hidden>
+        <div class="display-check-modal-card">
+          <div class="display-check-modal-head"><h3>Chi tiết danh sách chấm</h3><button id="displayCheckCloseDetailButton" type="button" class="secondary small">Đóng</button></div>
+          <div id="displayCheckDetailBody"></div>
+        </div>
+      </div>
+    </section>

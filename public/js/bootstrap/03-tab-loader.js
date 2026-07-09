@@ -107,6 +107,9 @@ async function loadTabDataOnce(tabName, options = {}){
       case 'dmsGapSimulatorTab':
         if(typeof loadDmsGapSimulator === 'function') await loadDmsGapSimulator();
         break;
+      case 'displayCheckManagerTab':
+        if(typeof loadDisplayCheckManager === 'function') await loadDisplayCheckManager();
+        break;
       case 'systemTab':
         await Promise.allSettled([
           typeof loadSystemStatus === 'function' ? loadSystemStatus() : null,

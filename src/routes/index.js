@@ -46,6 +46,7 @@ const newOperationsRoutes = require('./newOperationsRoutes');
 const notificationRoutes = require('./notificationRoutes');
 const orderSplitToolRoutes = require('./tools/orderSplit.routes');
 const dmsGapSimulatorRoutes = require('./tools/dmsGapSimulator.routes');
+const displayCheckRoutes = require('./tools/displayCheck.routes');
 
 
 function registerApiRoutes(app) {
@@ -69,6 +70,8 @@ function registerApiRoutes(app) {
   app.use('/api/tools/order-split', orderSplitToolRoutes);
   // Out-of-flow DMS gap simulator: in-memory preview/export only, no ERP writes.
   app.use('/api/tools/dms-gap-simulator', dmsGapSimulatorRoutes);
+  // Display check manager: writes only display-check planning collections, never ERP business data.
+  app.use('/api/tools/display-check', displayCheckRoutes);
 
   // Unified search engine for web + mobile autocomplete.
   app.use('/api/search', searchRoutes);

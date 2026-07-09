@@ -8,6 +8,7 @@
     "public/fragments/index/05-index-body.html",
     "public/fragments/index/06-index-body.html",
     "public/fragments/index/06b-dms-gap-simulator.html",
+    "public/fragments/index/06d-display-check-manager.html",
     "public/fragments/index/06c-system-start.html",
     "public/fragments/index/07-index-body.html"
   ]
