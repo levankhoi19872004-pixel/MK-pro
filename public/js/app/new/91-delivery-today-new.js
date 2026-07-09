@@ -538,7 +538,7 @@
     var salesmanText = byId('deliveryTodayNewSalesman') ? byId('deliveryTodayNewSalesman').value.trim() : '';
     var selectedSearch = firstText([state.selectedFilters.orderCode, state.selectedFilters.customerCode]);
     return {
-      date: byId('deliveryTodayNewDate') ? byId('deliveryTodayNewDate').value : '',
+      date: canonicalDateInput(byId('deliveryTodayNewDate') ? byId('deliveryTodayNewDate').value : ''),
       q: selectedSearch !== '' ? selectedSearch : searchText,
       orderCode: normalizedText(state.selectedFilters.orderCode),
       customerCode: normalizedText(state.selectedFilters.customerCode),
@@ -567,10 +567,12 @@
       var warnings = [];
       if (sourceMeta && Array.isArray(sourceMeta.warnings)) warnings = warnings.concat(sourceMeta.warnings);
       if (sourceBreakdown && sourceBreakdown.readerDiagnostics && Array.isArray(sourceBreakdown.readerDiagnostics.warnings)) warnings = warnings.concat(sourceBreakdown.readerDiagnostics.warnings);
+      var dateFilter = sourceBreakdown && sourceBreakdown.dateFilter ? sourceBreakdown.dateFilter : (sourceBreakdown && sourceBreakdown.readerDiagnostics && sourceBreakdown.readerDiagnostics.dateFilter ? sourceBreakdown.readerDiagnostics.dateFilter : null);
       html += '<details class="delivery-new-runtime-source"><summary>Chi tiết nguồn runtime</summary>' +
         '<div>Primary: <b>' + esc(primary || 'unknown') + '</b></div>' +
         '<div>Reader: <b>' + esc(reader || 'unknown') + '</b></div>' +
         '<div>MasterOrders: <b>' + esc(masterRole || 'metadata-only') + '</b></div>' +
+        (dateFilter ? '<div>Ngày lọc: <b>' + esc(dateFilter.requestedDate || '') + '</b> · Field: <b>' + esc(dateFilter.canonicalField || 'orders.deliveryDate') + '</b></div>' : '') +
         '<div>Warnings: ' + esc(warnings.length ? warnings.join(', ') : 'không có') + '</div>' +
         '</details>';
     }
@@ -641,6 +643,18 @@
     var raw = normalizedText(value);
     var match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (match) return match[3] + '/' + match[2] + '/' + match[1];
+    return raw;
+  }
+
+
+
+  function canonicalDateInput(value) {
+    var raw = normalizedText(value);
+    if (!raw) return '';
+    var iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (iso) return raw;
+    var vn = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+    if (vn) return vn[3] + '-' + String(vn[2]).padStart(2, '0') + '-' + String(vn[1]).padStart(2, '0');
     return raw;
   }
 
@@ -2255,7 +2269,11 @@
     renderEmptyState('', 'Đang tải đơn...');
     setResultSectionsVisible(false);
     try {
-      var params = new URLSearchParams(filters());
+      var f = filters();
+      if (window.console && typeof window.console.debug === 'function') {
+        window.console.debug('[DeliveryTodayNew] loadOrders', { date: f.date, deliveryStaffCode: f.deliveryStaffCode || f.delivery, salesStaffCode: f.salesStaffCode || f.salesman });
+      }
+      var params = new URLSearchParams(f);
       var res = await fetch('/api/new/delivery-today/orders?' + params.toString(), loadController ? { signal: loadController.signal } : undefined);
       var json = await res.json();
       if (requestSeq !== state.loadRequestSeq) return;
@@ -2268,6 +2286,10 @@
         return;
       }
       state.rows = data.rows || data.orders || json.rows || [];
+      var requestedDate = canonicalDateInput((data.sourceBreakdown && data.sourceBreakdown.dateFilter && data.sourceBreakdown.dateFilter.requestedDate) || filters().date);
+      var dateMismatches = requestedDate ? state.rows.filter(function (row) { return row && (row.dateFilterMatched === false || (row.deliveryDate && canonicalDateInput(row.deliveryDate) !== requestedDate)); }) : [];
+      var dateMismatchWarning = dateMismatches.length ? ('Cảnh báo: API trả ' + dateMismatches.length + ' đơn không khớp ngày lọc ' + requestedDate + '. Không nên chốt sổ khi còn cảnh báo nguồn ngày.') : '';
+      if (dateMismatchWarning) setMessage(dateMismatchWarning, true);
       state.salesmanGroups = buildSalesmanGroups(state.rows);
       state.selectedSalesmanKeys = {};
       state.selectedOrderIds = new Set();
@@ -2283,7 +2305,7 @@
       updateTopKpisFromSelectedSalesmen();
       renderSalesmanGroupPanel();
       renderRows();
-      if (!silent) setMessage('');
+      if (!silent && !dateMismatchWarning) setMessage('');
     } catch (err) {
       if (err && err.name === 'AbortError') return;
       if (requestSeq !== state.loadRequestSeq) return;

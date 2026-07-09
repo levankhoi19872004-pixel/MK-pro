@@ -13,7 +13,29 @@ function money(value) {
 }
 
 function dateOnly(value) {
+  if (value instanceof Date) return dateUtil.dateKeyInTimeZone(value, dateUtil.VIETNAM_TIME_ZONE);
   return dateUtil.toDateOnly(value || '', '');
+}
+
+function normalizeDeliveryDateInput(input) {
+  return dateUtil.normalizeDeliveryDateInput(input, dateUtil.VIETNAM_TIME_ZONE);
+}
+
+function displayDateFromDateKey(dateKey) {
+  return dateUtil.displayDateFromDateKey(dateKey);
+}
+
+function buildDateFilterDiagnostics(input) {
+  const normalized = normalizeDeliveryDateInput(input);
+  return {
+    requestedDate: normalized.selectedDateKey || '',
+    timezone: normalized.timezone,
+    canonicalField: 'orders.deliveryDate',
+    startInclusive: normalized.startInclusive || '',
+    endExclusive: normalized.endExclusive || '',
+    fallbackDateFieldsUsed: [],
+    warnings: []
+  };
 }
 
 function escapeRegExp(value = '') {
@@ -33,23 +55,34 @@ function pushAnd(match, condition) {
   match.$and.push(condition);
 }
 
+function buildCanonicalDateCondition(dateFilter) {
+  if (!dateFilter || !dateFilter.selectedDateKey) return null;
+  const key = dateFilter.selectedDateKey;
+  const display = displayDateFromDateKey(key);
+  const keyPrefix = new RegExp(`^${escapeRegExp(key)}(?:T|\\s|$)`);
+  const displayRx = display ? new RegExp(`^${escapeRegExp(display)}$`) : null;
+  const or = [
+    { deliveryDate: key },
+    { deliveryDate: keyPrefix },
+    { deliveryDateKey: key }
+  ];
+  if (displayRx) or.push({ deliveryDate: displayRx });
+  if (dateFilter.startOfDayVN && dateFilter.endOfDayVN) {
+    or.push({ deliveryDate: { $gte: dateFilter.startOfDayVN, $lt: dateFilter.endOfDayVN } });
+  }
+  return { $or: or };
+}
+
 function buildCanonicalSalesOrderMatch(query = {}, options = {}) {
   const match = activeOrderMatch();
-  const deliveryDate = dateOnly(query.date || query.deliveryDate || query.orderDate);
-  if (deliveryDate) {
-    const rx = new RegExp(`^${escapeRegExp(deliveryDate)}$`);
-    match.$or = [
-      { deliveryDate: rx },
-      { orderDate: rx },
-      { documentDate: rx },
-      { date: rx }
-    ];
-  }
+  const dateFilter = normalizeDeliveryDateInput(query.date || query.deliveryDate);
+  const dateCondition = buildCanonicalDateCondition(dateFilter);
+  if (dateCondition) pushAnd(match, dateCondition);
 
   const q = text(query.q || query.search || query.keyword || query.orderCode || query.customerCode || query.customerName);
   if (q) {
     const rx = new RegExp(escapeRegExp(q), 'i');
-    const condition = {
+    pushAnd(match, {
       $or: [
         { id: rx },
         { code: rx },
@@ -65,13 +98,7 @@ function buildCanonicalSalesOrderMatch(query = {}, options = {}) {
         { salesStaffCode: rx },
         { salesStaffName: rx }
       ]
-    };
-    if (match.$or) {
-      match.$and = [{ $or: match.$or }, condition];
-      delete match.$or;
-    } else {
-      Object.assign(match, condition);
-    }
+    });
   }
 
   const salesman = text(query.salesman || query.salesStaffCode || query.salesStaff || query.nvbh);
@@ -86,7 +113,7 @@ function buildCanonicalSalesOrderMatch(query = {}, options = {}) {
   // keeps orders/salesOrders as the primary source while allowing metadata-only
   // assignment support.
   const delivery = text(query.delivery || query.deliveryStaffCode || query.deliveryStaff || query.nvgh);
-  const hasOtherScope = Boolean(deliveryDate || q || salesman || options.allowBroadDeliveryScan);
+  const hasOtherScope = Boolean(dateFilter.selectedDateKey || q || salesman || options.allowBroadDeliveryScan);
   if (delivery && !hasOtherScope) {
     const rx = new RegExp(escapeRegExp(delivery), 'i');
     pushAnd(match, { $or: [{ deliveryStaffCode: rx }, { deliveryStaffName: rx }, { deliveryCode: rx }, { nvghCode: rx }] });
@@ -218,7 +245,17 @@ function deliveryMatches(order = {}, query = {}) {
     .some((value) => fieldMatches(value, delivery));
 }
 
-function normalizeCanonicalOrder(row = {}) {
+function canonicalDeliveryDateKey(row = {}) {
+  return dateOnly(row.deliveryDate ?? row.deliveryDateKey ?? '');
+}
+
+function normalizeCanonicalOrder(row = {}, dateFilter = null) {
+  const deliveryDateKey = canonicalDeliveryDateKey(row);
+  const dateWarnings = [];
+  if (!deliveryDateKey) dateWarnings.push('ORDER_MISSING_CANONICAL_DELIVERY_DATE');
+  const requested = dateFilter && dateFilter.selectedDateKey ? dateFilter.selectedDateKey : '';
+  const dateFilterMatched = requested ? deliveryDateKey === requested : true;
+  if (requested && !dateFilterMatched) dateWarnings.push('ORDER_DELIVERY_DATE_MISMATCH');
   return {
     ...row,
     _canonicalPrimarySource: 'orders',
@@ -227,7 +264,11 @@ function normalizeCanonicalOrder(row = {}) {
     code: text(row.code || row.orderCode || row.salesOrderCode || row.id || row._id),
     orderCode: text(row.orderCode || row.code || row.salesOrderCode || row.id || row._id),
     salesOrderCode: text(row.salesOrderCode || row.orderCode || row.code || row.id || row._id),
-    deliveryDate: dateOnly(row.deliveryDate || row.orderDate || row.date || row.documentDate),
+    deliveryDate: deliveryDateKey,
+    deliveryDateDisplay: displayDateFromDateKey(deliveryDateKey),
+    deliveryDateSource: deliveryDateKey ? 'orders.deliveryDate' : '',
+    dateFilterMatched,
+    dateWarnings,
     totalAmount: money(row.totalAmount ?? row.amount ?? row.total ?? row.finalAmount ?? row.orderAmount)
   };
 }
@@ -236,15 +277,24 @@ async function listSalesOrders(query = {}, models = {}, options = {}) {
   const SalesOrder = models.SalesOrder;
   const limit = Math.max(1, Math.min(500, Number(query.limit || options.limit || 100)));
   const hasDeliveryFilter = Boolean(text(query.delivery || query.deliveryStaffCode || query.deliveryStaff || query.nvgh));
+  const dateFilter = normalizeDeliveryDateInput(query.date || query.deliveryDate);
   const dbLimit = hasDeliveryFilter ? Math.min(2000, Math.max(limit * 5, 500)) : limit;
-  const match = buildCanonicalSalesOrderMatch(query, { allowBroadDeliveryScan: Boolean(dateOnly(query.date || query.deliveryDate || query.orderDate)) });
+  const match = buildCanonicalSalesOrderMatch(query, { allowBroadDeliveryScan: Boolean(dateFilter.selectedDateKey) });
   let q = queryChain(SalesOrder, match);
-  q = applySortLimit(q, { deliveryDate: -1, orderDate: -1, createdAt: -1 }, dbLimit, options.session);
+  q = applySortLimit(q, { deliveryDate: -1, createdAt: -1 }, dbLimit, options.session);
   const rawRows = await executeLean(q);
-  const normalizedRows = (Array.isArray(rawRows) ? rawRows : []).map(normalizeCanonicalOrder);
-  const metadata = await loadMasterOrderMetadata(normalizedRows, models, options);
-  const enriched = normalizedRows.map((row) => enrichOrderWithMasterMetadata(row, metadataForOrder(row, metadata.metadataByOrderKey)));
+  const normalizedRows = (Array.isArray(rawRows) ? rawRows : []).map((row) => normalizeCanonicalOrder(row, dateFilter));
+  const dateFilteredRows = dateFilter.selectedDateKey
+    ? normalizedRows.filter((row) => row.dateFilterMatched)
+    : normalizedRows;
+  const dateMismatchCount = normalizedRows.length - dateFilteredRows.length;
+  const metadata = await loadMasterOrderMetadata(dateFilteredRows, models, options);
+  const enriched = dateFilteredRows.map((row) => enrichOrderWithMasterMetadata(row, metadataForOrder(row, metadata.metadataByOrderKey)));
   const filtered = enriched.filter((row) => deliveryMatches(row, query)).slice(0, limit);
+  const dateDiagnostics = buildDateFilterDiagnostics(query.date || query.deliveryDate);
+  if (dateMismatchCount > 0) dateDiagnostics.warnings.push('ORDER_DELIVERY_DATE_MISMATCH_FILTERED');
+  const missingDateCount = normalizedRows.filter((row) => Array.isArray(row.dateWarnings) && row.dateWarnings.includes('ORDER_MISSING_CANONICAL_DELIVERY_DATE')).length;
+  if (missingDateCount > 0) dateDiagnostics.warnings.push('ORDER_MISSING_CANONICAL_DELIVERY_DATE');
   return {
     orders: filtered,
     diagnostics: {
@@ -256,10 +306,14 @@ async function listSalesOrders(query = {}, models = {}, options = {}) {
       dbLimit,
       limit,
       rawOrderCount: normalizedRows.length,
+      dateFilteredOrderCount: dateFilteredRows.length,
+      dateMismatchCount,
+      missingCanonicalDeliveryDateCount: missingDateCount,
       returnedOrderCount: filtered.length,
       masterMetadataRows: metadata.masterRows.length,
       masterMetadataAppliedCount: filtered.filter((row) => row._masterOrdersMetadataApplied).length,
-      warnings: []
+      dateFilter: dateDiagnostics,
+      warnings: Array.from(new Set([...(dateDiagnostics.warnings || [])]))
     }
   };
 }
@@ -270,5 +324,8 @@ module.exports = {
   loadMasterOrderMetadata,
   enrichOrderWithMasterMetadata,
   orderKeys,
-  deliveryMatches
+  deliveryMatches,
+  normalizeDeliveryDateInput,
+  buildCanonicalDateCondition,
+  canonicalDeliveryDateKey
 };

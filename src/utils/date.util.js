@@ -99,6 +99,60 @@ function addDaysToDateOnly(value, days) {
   return formatDateOnly(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
 }
 
+
+function dateKeyInTimeZone(value, timezone = VIETNAM_TIME_ZONE) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone || VIETNAM_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(value).reduce((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value;
+    return acc;
+  }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function displayDateFromDateKey(dateKey) {
+  const normalized = toDateOnly(dateKey, '');
+  if (!normalized) return '';
+  const [year, month, day] = normalized.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+function dateKeyToVietnamUtcRange(dateKey) {
+  const normalized = toDateOnly(dateKey, '');
+  if (!normalized) return { startOfDayVN: null, endOfDayVN: null, startInclusive: '', endExclusive: '' };
+  const [year, month, day] = normalized.split('-').map(Number);
+  // Asia/Ho_Chi_Minh is UTC+07 and does not use DST. Store boundaries as UTC Date objects.
+  const startMs = Date.UTC(year, month - 1, day) - (7 * 60 * 60 * 1000);
+  const endMs = startMs + MS_PER_DAY;
+  const startOfDayVN = new Date(startMs);
+  const endOfDayVN = new Date(endMs);
+  return {
+    startOfDayVN,
+    endOfDayVN,
+    startInclusive: startOfDayVN.toISOString(),
+    endExclusive: endOfDayVN.toISOString()
+  };
+}
+
+function normalizeDeliveryDateInput(input, timezone = VIETNAM_TIME_ZONE) {
+  const selectedDateKey = input instanceof Date ? dateKeyInTimeZone(input, timezone) : toDateOnly(input, '');
+  const range = dateKeyToVietnamUtcRange(selectedDateKey);
+  return {
+    requestedDate: selectedDateKey,
+    selectedDateKey,
+    timezone: timezone || VIETNAM_TIME_ZONE,
+    displayDate: displayDateFromDateKey(selectedDateKey),
+    canonicalField: 'orders.deliveryDate',
+    fallbackDateFieldsUsed: [],
+    warnings: [],
+    ...range
+  };
+}
+
 // Ngày giao mặc định: thứ 2-thứ 6 cộng 1 ngày; thứ 7 cộng 2 ngày để sang thứ 2.
 // Chủ nhật không phải ngày tạo thông thường nhưng vẫn trả về thứ 2 để dữ liệu an toàn.
 function nextDeliveryDateVN(baseDate = todayVN()) {
@@ -129,5 +183,9 @@ module.exports = {
   addDaysToDateOnly,
   nextDeliveryDateVN,
   isDateInRange,
-  excelSerialToDate
+  excelSerialToDate,
+  dateKeyInTimeZone,
+  displayDateFromDateKey,
+  dateKeyToVietnamUtcRange,
+  normalizeDeliveryDateInput
 };

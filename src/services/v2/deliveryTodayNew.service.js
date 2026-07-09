@@ -97,6 +97,7 @@ function compactOrderItems(items = []) {
 }
 
 function dateOnly(value) {
+  if (value instanceof Date) return dateUtil.dateKeyInTimeZone(value, dateUtil.VIETNAM_TIME_ZONE);
   return dateUtil.toDateOnly(value || '', '');
 }
 
@@ -121,7 +122,7 @@ function hasSearchCriteria(query = {}) {
   const q = text(query.q || query.search || query.keyword || query.orderCode || query.customerCode || query.customerName);
   const delivery = text(query.delivery || query.deliveryStaffCode || query.deliveryStaff || query.nvgh);
   const salesman = text(query.salesman || query.salesStaffCode || query.salesStaff || query.nvbh);
-  const deliveryDate = dateOnly(query.date || query.deliveryDate || query.orderDate);
+  const deliveryDate = dateOnly(query.date || query.deliveryDate);
   const explicitDateSearch = Boolean(deliveryDate) && truthyFlag(query.deliveryDateChangedByUser || query.dateChangedByUser || query.userSelectedDate);
   return Boolean(q.length >= 2 || delivery || salesman || explicitDateSearch);
 }
@@ -154,15 +155,15 @@ function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {
 
 function buildOrderMatch(query = {}) {
   const match = activeOrderMatch();
-  const deliveryDate = dateOnly(query.date || query.deliveryDate || query.orderDate);
+  const deliveryDate = dateOnly(query.date || query.deliveryDate);
   if (deliveryDate) {
-    const rx = new RegExp(`^${escapeRegExp(deliveryDate)}$`);
-    match.$or = [
+    const rx = new RegExp(`^${escapeRegExp(deliveryDate)}(?:T|\\s|$)`);
+    match.$and = Array.isArray(match.$and) ? match.$and : [];
+    match.$and.push({ $or: [
+      { deliveryDate },
       { deliveryDate: rx },
-      { orderDate: rx },
-      { documentDate: rx },
-      { date: rx }
-    ];
+      { deliveryDateKey: deliveryDate }
+    ] });
   }
 
   const q = text(query.q || query.search || query.keyword);
@@ -484,7 +485,7 @@ function normalizeDeliveryOperationalRow(row = {}) {
     salesStaffName: text(row.salesStaffName || row.salesmanName || row.nvbhName),
     deliveryStaffCode: text(row.deliveryStaffCode || row.deliveryCode || row.nvghCode),
     deliveryStaffName: text(row.deliveryStaffName || row.deliveryName || row.nvghName),
-    deliveryDate: dateOnly(row.deliveryDate || row.date || row.orderDate || row.documentDate),
+    deliveryDate: dateOnly(row.deliveryDate),
     totalAmount: money(row.totalReceivable ?? row.originalAmount ?? row.totalAmount ?? row.amount),
     items: compactOrderItems(row.items || row.orderItems || row.soldItems || row.products || row.lines || []),
     orderItems: compactOrderItems(row.orderItems || row.items || row.soldItems || row.products || row.lines || []),
@@ -672,7 +673,11 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     masterOrderCode: text(order.masterOrderCode || order.masterCode),
     customerCode: text(order.customerCode),
     customerName: text(order.customerName),
-    deliveryDate: dateOnly(order.deliveryDate || order.orderDate || order.date || order.documentDate),
+    deliveryDate: dateOnly(order.deliveryDate),
+    deliveryDateDisplay: text(order.deliveryDateDisplay || dateUtil.displayDateFromDateKey(dateOnly(order.deliveryDate))),
+    deliveryDateSource: text(order.deliveryDateSource || (dateOnly(order.deliveryDate) ? 'orders.deliveryDate' : '')),
+    dateFilterMatched: order.dateFilterMatched !== false,
+    dateWarnings: Array.isArray(order.dateWarnings) ? order.dateWarnings : (dateOnly(order.deliveryDate) ? [] : ['ORDER_MISSING_CANONICAL_DELIVERY_DATE']),
     salesStaffCode: text(order.salesStaffCode || order.salesmanCode || order.nvbhCode),
     salesStaffName: text(order.salesStaffName || order.salesmanName || order.nvbhName),
     deliveryStaffCode: text(order.deliveryStaffCode || order.deliveryCode || order.nvghCode),
@@ -864,6 +869,7 @@ async function listOrders(query = {}, options = {}) {
     allocationPolicy: 'current-only; mismatched debt displays computed formula with warning',
     closeoutVersionPolicy: 'latest-only',
     returnPolicy: 'valid-returnOrders-only',
+    dateFilter: readerDiagnostics.dateFilter || null,
     readerDiagnostics
   };
   const sourceNote = buildSourceNote('delivery-today-orders', { filters: query, sourceWarnings });
@@ -1015,7 +1021,7 @@ async function findSuggestionOrders(match = {}, limit = 80, options = {}) {
 
 function buildSuggestionQuery(query = {}, q = '') {
   return {
-    date: query.deliveryDate || query.date || query.orderDate,
+    date: query.deliveryDate || query.date,
     delivery: query.deliveryStaffCode || query.delivery || query.nvgh,
     q
   };
