@@ -70,7 +70,7 @@ const READ_ENDPOINT_BUDGETS = Object.freeze({
     readOnly: true,
     forbiddenWrites: true,
     maxLimit: 500,
-    projection: 'delivery-today-list-summary',
+    projection: 'orders-primary-delivery-today-list-summary-with-masterorders-metadata-only',
     reloadPolicy: 'single-list-request',
     cachePolicy: 'none-for-closeout-state'
   }),
@@ -147,6 +147,21 @@ const READ_ENDPOINT_BUDGETS = Object.freeze({
     projection: 'fund-summary-list',
     reloadPolicy: 'single-list-request',
     cachePolicy: 'none-for-fund'
+  }),
+  reportCatalog: Object.freeze({
+    screen: 'Báo cáo - Danh mục báo cáo',
+    endpoint: 'GET /api/reports/catalog',
+    frontendFiles: Object.freeze(['public/js/app/admin/08a-reports.js']),
+    maxRequestsPerUserAction: 1,
+    requiresPagination: true,
+    requiresAbortableFrontend: false,
+    acceptsSequenceGuard: true,
+    readOnly: true,
+    forbiddenWrites: true,
+    maxLimit: 100,
+    projection: 'report-catalog-definition-only',
+    reloadPolicy: 'single-catalog-request',
+    cachePolicy: 'session-catalog-cache'
   }),
   reports: Object.freeze({
     screen: 'Báo cáo',

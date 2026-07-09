@@ -328,12 +328,16 @@
     ],
     "services": [
       "src/routes/newOperationsRoutes.js",
-      "src/services/deliveryTodayReadService.js"
+      "src/services/v2/deliveryTodayNew.service.js",
+      "src/services/delivery/deliveryTodayCanonicalOrderReader.js",
+      "src/services/delivery/deliveryTodayKpiCalculator.js"
     ],
     "ssotCollections": [
-      "salesOrders",
-      "returnOrders",
-      "deliveryCloseoutVersions"
+      "orders/salesOrders(primary)",
+      "masterOrders(metadata-only)",
+      "returnOrders(returns-only)",
+      "deliveryCloseoutVersions(latest-correction-only)",
+      "orderPaymentAllocations(current-payment-state-only)"
     ],
     "compatibilityRoutes": [],
     "retiredAlternatives": [
@@ -344,7 +348,8 @@
       "arLedgers as list SSoT",
       "reporting_snapshots"
     ],
-    "owner": "delivery-closeout"
+    "owner": "delivery-closeout",
+    "sourceContract": "primary source = orders/salesOrders; masterOrders = metadata-only; returnOrders = returns only; deliveryCloseoutVersions = correction only; orderPaymentAllocations = current final payment only"
   },
   "deliveryCloseout": {
     "status": "canonical",
@@ -665,7 +670,7 @@
     ],
     "services": [
       "src/controllers/reportController.js",
-      "src/services/reportCenterService.js"
+      "src/services/reports/ReportCenterService.js"
     ],
     "ssotCollections": [
       "arLedgers",

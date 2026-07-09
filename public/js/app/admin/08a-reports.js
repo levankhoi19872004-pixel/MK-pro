@@ -165,15 +165,38 @@ function setReportDefaults(){
 }
 
 async function fetchJson(url,options={}){
-  const res=await fetch(url,{headers:{Accept:'application/json'},signal:options.signal});
+  const endpoint=String(url||'');
+  const res=await fetch(endpoint,{headers:{Accept:'application/json'},signal:options.signal});
   let json={};
   try{json=await res.json();}catch(_error){json={};}
   if(!res.ok||!json.ok){
+    const requestId=res.headers?.get?.('x-request-id')||json.requestId||json.traceId||'';
     const error=new Error(json.message||`Không tải được dữ liệu (${res.status})`);
     error.status=res.status;
+    error.endpoint=endpoint;
+    error.code=json.code||json.errorCode||'';
+    error.requestId=requestId;
     throw error;
   }
   return json;
+}
+
+function reportErrorMessage(error, fallback='Không tải được dữ liệu. Vui lòng thử lại hoặc liên hệ quản trị.'){
+  const status=Number(error?.status||0);
+  if(status===401)return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+  if(status===403)return 'Bạn không có quyền xem dữ liệu báo cáo này.';
+  if(status===404)return 'Không tìm thấy API báo cáo. Vui lòng liên hệ quản trị.';
+  if(status>=500)return fallback;
+  return error?.message||fallback;
+}
+
+function logReportFetchError(scope,error){
+  console.warn(scope,{
+    endpoint:error?.endpoint||'',
+    status:error?.status||0,
+    code:error?.code||'',
+    requestId:error?.requestId||''
+  });
 }
 
 function reportRequestWasAborted(error){
@@ -300,8 +323,10 @@ async function loadReportCatalog(options={}){
       reportDirectoryState(`Đã tải ${reportFormatNumber(reportCenterState.catalog.reports.length)} báo cáo`);
       return reportCenterState.catalog;
     }catch(error){
-      reportDirectoryState(error.message||'Không tải được danh mục','error');
-      if(reportCatalog)reportCatalog.innerHTML=`<div class="report-catalog-loading">${reportEscape(error.message||'Không tải được danh mục báo cáo.')}</div>`;
+      const message=reportErrorMessage(error,'Không tải được danh mục báo cáo. Vui lòng thử lại hoặc liên hệ quản trị.');
+      logReportFetchError('[ReportCenter] loadCatalog failed',error);
+      reportDirectoryState(message,'error');
+      if(reportCatalog)reportCatalog.innerHTML=`<div class="report-catalog-loading">${reportEscape(message)}</div>`;
       throw error;
     }finally{
       setReportCatalogLoading(false);
@@ -728,9 +753,10 @@ async function loadActiveReport(options={}){
     return payload;
   }catch(error){
     if(reportRequestWasAborted(error)||requestSeq!==reportCenterState.requestSeq)return null;
-    console.error('[REPORT_CENTER_LOAD_ERROR]',error);
-    setReportLoading(false,error.message||'Không tải được báo cáo');
-    if(reportTableBody)reportTableBody.innerHTML=`<tr><td class="empty-cell">${reportEscape(error.message||'Không tải được báo cáo')}</td></tr>`;
+    const message=reportErrorMessage(error,'Không tải được báo cáo. Vui lòng thử lại hoặc liên hệ quản trị.');
+    logReportFetchError('[ReportCenter] loadReport failed',error);
+    setReportLoading(false,message);
+    if(reportTableBody)reportTableBody.innerHTML=`<tr><td class="empty-cell">${reportEscape(message)}</td></tr>`;
     return null;
   }finally{
     if(reportCenterState.activeRequestController===controller)reportCenterState.activeRequestController=null;
@@ -742,7 +768,7 @@ async function loadReports(options={}){
   try{
     await loadReportCatalog(options.forceCatalog===true?{force:true}:{});
   }catch(error){
-    if(reportModalIsOpen())setReportLoading(false,error.message||'Không tải được danh mục');
+    if(reportModalIsOpen())setReportLoading(false,reportErrorMessage(error,'Không tải được danh mục báo cáo. Vui lòng thử lại hoặc liên hệ quản trị.'));
     return null;
   }
 

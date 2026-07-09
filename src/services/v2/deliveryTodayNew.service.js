@@ -5,6 +5,8 @@ const { toNumber } = require('../../utils/common.util');
 const { normalizeDebtAmount, calculateDeliveryDebtAmount, DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
 const searchService = require('../searchService');
 const { buildSourceNote } = require('../source-contracts/SourceNoteBuilder');
+const deliveryTodayCanonicalOrderReader = require('../delivery/deliveryTodayCanonicalOrderReader');
+const { calculateDeliveryTodayKpi } = require('../delivery/deliveryTodayKpiCalculator');
 
 
 function buildDeliveryTodaySourceNotes(query = {}) {
@@ -17,14 +19,15 @@ function buildDeliveryTodaySourceNotes(query = {}) {
 }
 
 let models = null;
-let deliveryListService = null;
+let deliveryListServiceForTest = null;
 function getModels() {
   if (models) return models;
   models = {
     SalesOrder: require('../../models/SalesOrder'),
     ReturnOrder: require('../../models/ReturnOrder'),
     DeliveryCloseoutVersion: require('../../models/DeliveryCloseoutVersion'),
-    OrderPaymentAllocation: require('../../models/OrderPaymentAllocation')
+    OrderPaymentAllocation: require('../../models/OrderPaymentAllocation'),
+    MasterOrder: require('../../models/MasterOrder')
   };
   return models;
 }
@@ -33,14 +36,10 @@ function setModelsForTest(nextModels) {
   models = nextModels || null;
 }
 
-function getDeliveryListService() {
-  if (deliveryListService) return deliveryListService;
-  deliveryListService = require('../master-order/masterOrderLegacy.service');
-  return deliveryListService;
-}
-
+// Legacy test hook kept for compatibility only. Delivery Today New no longer
+// reads masterOrderLegacy.service.listDeliveryToday as the primary source.
 function setDeliveryListServiceForTest(nextService) {
-  deliveryListService = nextService || null;
+  deliveryListServiceForTest = nextService || null;
 }
 
 function text(value = '') {
@@ -500,35 +499,22 @@ function normalizeDeliveryOperationalRow(row = {}) {
   };
 }
 
+async function loadCanonicalSalesOrders(query = {}, options = {}) {
+  const modelSet = getModels();
+  const result = await deliveryTodayCanonicalOrderReader.listSalesOrders(query, modelSet, options);
+  return result;
+}
+
 async function loadDeliveryOperationalOrders(query = {}, options = {}) {
-  const service = options.deliveryListService || getDeliveryListService();
-  if (!service || typeof service.listDeliveryToday !== 'function') return [];
-  const limit = Math.max(1, Math.min(500, Number(query.limit || 100)));
-  const result = await service.listDeliveryToday({
-    date: query.date || query.deliveryDate || query.orderDate,
-    q: query.q || query.search || query.keyword,
-    delivery: query.delivery || query.deliveryStaffCode || query.nvgh,
-    deliveryStaff: query.delivery || query.deliveryStaffCode || query.nvgh,
-    deliveryStaffCode: query.delivery || query.deliveryStaffCode || query.nvgh,
-    salesman: query.salesman || query.salesStaffCode || query.nvbh,
-    salesStaff: query.salesman || query.salesStaffCode || query.nvbh,
-    salesStaffCode: query.salesman || query.salesStaffCode || query.nvbh,
-    route: query.route || query.routeName,
-    status: query.status,
-    page: query.page || 1,
-    limit
-  });
-  const rows = Array.isArray(result && result.orders) ? result.orders : [];
-  return rows.map(normalizeDeliveryOperationalRow);
+  // Compatibility wrapper for older tests/importers. The returned rows now come
+  // from orders/salesOrders through the canonical reader, not from masterOrders.
+  const result = await loadCanonicalSalesOrders(query, options);
+  return result.orders || [];
 }
 
 async function loadSalesOrdersFallback(query = {}, options = {}) {
-  const { SalesOrder } = getModels();
-  const limit = Math.max(1, Math.min(500, Number(query.limit || 100)));
-  const match = buildOrderMatch(query);
-  const mongoQuery = SalesOrder.find(match).sort({ deliveryDate: -1, orderDate: -1, createdAt: -1 }).limit(limit).lean();
-  if (options.session) mongoQuery.session(options.session);
-  return mongoQuery;
+  const result = await loadCanonicalSalesOrders(query, options);
+  return result.orders || [];
 }
 
 
@@ -636,22 +622,39 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     : (latestVersion
       ? money(latestVersion.collectedAmount ?? latestVersion.newCollectedAmount ?? (adjustedCashAmount + bankAmount + rewardAmount + offsetAmount))
       : money(baseBreakdown.collectedAmount || collectedAmount(order)));
-  const debtCalculation = calculateDeliveryDebtAmount({
+  const preferredDebtAmount = postedAllocation
+    ? money(postedAllocation.debtAmount ?? postedAllocation.normalizedDebtAmount ?? postedAllocation.rawDebtAmount)
+    : (latestVersion
+      ? money(latestVersion.finalDebtAmount ?? latestVersion.debtAmount)
+      : (closeout.finalDebtAmount !== undefined ? money(closeout.finalDebtAmount) : undefined));
+  const preferredDebtSource = postedAllocation
+    ? 'orderPaymentAllocations.current'
+    : (latestVersion ? 'deliveryCloseoutVersions.latest' : (closeout.finalDebtAmount !== undefined ? 'salesOrders.deliveryCloseout' : 'computed-formula'));
+  const kpi = calculateDeliveryTodayKpi({
     receivableAmount: originalAmount,
     cashAmount: adjustedCashAmount,
     bankAmount,
-    rewardAmount: money(rewardAmount + offsetAmount),
-    returnAmount: returnedAmount
+    rewardAmount,
+    offsetAmount,
+    returnAmount: returnedAmount,
+    preferredDebtAmount,
+    preferredDebtSource,
+    returnHandling: 'subtractReturnInDebtFormula',
+    warnings: stalePaymentAllocation ? [{ code: 'STALE_PAYMENT_ALLOCATION_IGNORED', allocationCode: text(rawPostedAllocation && rawPostedAllocation.allocationCode) }] : []
   });
-  const rawFinalDebtAmount = postedAllocation
-    ? money(postedAllocation.debtAmount)
-    : (latestVersion
-      ? money(latestVersion.finalDebtAmount ?? latestVersion.debtAmount ?? debtCalculation.rawDebtAmount)
-      : money(debtCalculation.rawDebtAmount));
-  const finalDebtAmount = postedAllocation ? money(postedAllocation.debtAmount) : normalizeDebtAmount(rawFinalDebtAmount);
-  const closeoutFinalDebt = latestVersion
-    ? finalDebtAmount
-    : (closeout.finalDebtAmount !== undefined ? normalizeDebtAmount(closeout.finalDebtAmount) : finalDebtAmount);
+  const debtCalculation = {
+    receivableAmount: kpi.receivableAmount,
+    cashAmount: kpi.cashAmount,
+    bankAmount: kpi.bankAmount,
+    rewardAmount: money(kpi.rewardAmount + kpi.offsetAmount),
+    returnAmount: kpi.returnAmount,
+    rawDebtAmount: kpi.rawComputedDebtAmount,
+    debtAmount: kpi.computedDebtAmount
+  };
+  const rawFinalDebtAmount = kpi.rawComputedDebtAmount;
+  const finalDebtAmount = kpi.finalDebtAmount;
+  const computedDebtAmount = kpi.computedDebtAmount;
+  const closeoutFinalDebt = finalDebtAmount;
   const confirmedCloseout = isConfirmedCloseout(order);
   const orderStatus = text(order.status || order.deliveryStatus || order.lifecycleStatus).toLowerCase();
   const cancelledOrDeleted = order.deleted === true
@@ -665,6 +668,8 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     id: text(order.id || order._id),
     orderId: text(order.id || order._id),
     orderCode: orderCode(order),
+    masterOrderId: text(order.masterOrderId || order.masterId),
+    masterOrderCode: text(order.masterOrderCode || order.masterCode),
     customerCode: text(order.customerCode),
     customerName: text(order.customerName),
     deliveryDate: dateOnly(order.deliveryDate || order.orderDate || order.date || order.documentDate),
@@ -724,12 +729,17 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     collectedAmount: collected,
     finalDebtAmount,
     rawFinalDebtAmount,
+    computedDebtAmount,
+    debtReconcileDiff: kpi.sourceBreakdown.debtReconcileDiff || 0,
+    kpiWarnings: kpi.warnings || [],
+    sourceBreakdown: kpi.sourceBreakdown,
+    rawKpiSourceBreakdown: kpi.sourceBreakdown,
     closeoutFinalDebtAmount: closeoutFinalDebt,
     closeoutDelta: money(closeoutFinalDebt - finalDebtAmount),
     returnOrderIds: uniqueReturns.map((row) => row.id || row.code).filter(Boolean),
     paymentIds: Array.isArray(closeout.paymentIds) ? closeout.paymentIds : [],
     version: latestVersion ? Number(latestVersion.closeoutVersion || 0) : Number(closeout.version || (Array.isArray(closeout.versions) ? closeout.versions.length : 0) || 0),
-    source: postedAllocation ? 'orderPaymentAllocations(posted)' : (latestVersion ? (stalePaymentAllocation ? 'deliveryCloseoutVersions(latest correction; stale orderPaymentAllocation ignored)' : 'deliveryCloseoutVersions + AR-DEBT-ADJUSTMENT') : 'salesOrders.deliveryCloseout + returnOrders'),
+    source: postedAllocation ? 'orderPaymentAllocations(current) + orders + returnOrders' : (latestVersion ? (stalePaymentAllocation ? 'deliveryCloseoutVersions(latest correction; stale orderPaymentAllocation ignored) + orders + returnOrders' : 'deliveryCloseoutVersions(latest correction) + orders + returnOrders') : 'orders + returnOrders'),
     correctionRequired: confirmedCloseout,
     correctionMessage: confirmedCloseout ? 'Đơn đã xác nhận kế toán: mọi sửa đổi phải qua correction flow.' : ''
   };
@@ -819,17 +829,44 @@ async function listOrders(query = {}, options = {}) {
   if (!hasSearchCriteria(query)) {
     return emptyListResult(query);
   }
-  const useSalesOrderFallback = query.includeUnassignedSalesOrders === '1' || options.includeUnassignedSalesOrders === true;
-  const deliveryOrders = await loadDeliveryOperationalOrders(query, options);
-  const orders = deliveryOrders.length || !useSalesOrderFallback
-    ? deliveryOrders
-    : await loadSalesOrdersFallback(query, options);
+  const canonicalResult = await loadCanonicalSalesOrders(query, options);
+  const orders = canonicalResult.orders || [];
+  const readerDiagnostics = canonicalResult.diagnostics || {};
   const returnsByKey = await loadReturnsForOrders(orders, options);
   const versionsByKey = await loadLatestVersionsForOrders(orders, options);
   const allocationsByKey = await loadAllocationsForOrders(orders, options);
   const rows = orders.map((order) => summarizeOrder(order, returnsByKey, versionsByKey, allocationsByKey));
   const summary = summarizeRows(rows);
   const groups = summarizeGroups(rows);
+  const rowWarnings = rows.flatMap((row) => Array.isArray(row.kpiWarnings) ? row.kpiWarnings : []);
+  const sourceWarnings = [
+    ...(Array.isArray(readerDiagnostics.warnings) ? readerDiagnostics.warnings : []),
+    ...rowWarnings.map((warning) => warning && warning.code ? warning.code : warning).filter(Boolean)
+  ];
+  const source = {
+    primary: 'orders',
+    service: 'DeliveryTodayNewService.listOrders',
+    reader: 'deliveryTodayCanonicalOrderReader',
+    metadataSources: ['masterOrders'],
+    correctionSources: ['deliveryCloseoutVersions'],
+    paymentSources: ['orderPaymentAllocations'],
+    returnSources: ['returnOrders'],
+    forbiddenSourcesUsed: [],
+    warnings: Array.from(new Set(sourceWarnings.map((item) => String(item)).filter(Boolean)))
+  };
+  const sourceBreakdown = {
+    kpiFormulaVersion: 'delivery-today-kpi-v3',
+    debtFormula: 'CN = PT - TM - CK - TT - HT',
+    orderSource: 'orders',
+    primarySource: 'orders',
+    reader: 'deliveryTodayCanonicalOrderReader',
+    masterOrdersRole: 'metadata-only',
+    allocationPolicy: 'current-only; mismatched debt displays computed formula with warning',
+    closeoutVersionPolicy: 'latest-only',
+    returnPolicy: 'valid-returnOrders-only',
+    readerDiagnostics
+  };
+  const sourceNote = buildSourceNote('delivery-today-orders', { filters: query, sourceWarnings });
   return {
     rows,
     orders: rows,
@@ -837,20 +874,24 @@ async function listOrders(query = {}, options = {}) {
     totals: summary,
     groups,
     requireFilter: false,
-    sourceNote: buildSourceNote('delivery-today-orders', { filters: query }),
+    source,
+    sourceBreakdown,
+    sourceNote,
     sourceNotes: buildDeliveryTodaySourceNotes(query),
     diagnostics: {
-      source: deliveryOrders.length || !useSalesOrderFallback
-        ? 'delivery-today-new-v2-delivery-operational-list + returnOrders + correction-versions'
-        : 'delivery-today-new-v2-salesOrders-fallback',
+      source: 'delivery-today-new-v3-orders-canonical + masterOrders(metadata-only) + returnOrders + correction-versions + current-payment-allocations',
       endpoint: '/api/new/delivery-today/orders',
-      writePolicy: 'read-only list; closeout must use POST /api/new/delivery-today/closeout; confirmed orders require DeliveryCloseoutCorrectionService; posted payment allocation comes from orderPaymentAllocations; latest correction comes from deliveryCloseoutVersions',
+      primarySource: 'orders',
+      reader: 'deliveryTodayCanonicalOrderReader',
+      writePolicy: 'read-only list; closeout must use POST /api/new/delivery-today/closeout; confirmed orders require DeliveryCloseoutCorrectionService; current payment allocation comes from orderPaymentAllocations; latest correction comes from deliveryCloseoutVersions',
       debtZeroTolerance: DEBT_ZERO_TOLERANCE,
-      deliverySourceApplied: Boolean(deliveryOrders.length || !useSalesOrderFallback),
-      fallbackEnabled: useSalesOrderFallback,
+      deliverySourceApplied: false,
+      fallbackEnabled: false,
       hasSearchCriteria: hasSearchCriteria(query),
       requireFilter: false,
-      matchKeys: Object.keys(buildOrderMatch(query))
+      matchKeys: Object.keys(buildOrderMatch(query)),
+      source,
+      sourceBreakdown
     }
   };
 }
@@ -1101,5 +1142,5 @@ module.exports = {
   summarizeGroups,
   setModelsForTest,
   setDeliveryListServiceForTest,
-  _private: { money, suggestionLimit, staffSuggestionLimit, allowEmptySuggestion, emptySuggestionResult, normalizeDebtAmount, calculateDeliveryDebtAmount, DEBT_ZERO_TOLERANCE, truthyFlag, hasSearchCriteria, emptyListResult, normalizeQty, normalizeOrderItem, compactOrderItems, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
+  _private: { money, suggestionLimit, staffSuggestionLimit, allowEmptySuggestion, emptySuggestionResult, normalizeDebtAmount, calculateDeliveryDebtAmount, DEBT_ZERO_TOLERANCE, truthyFlag, hasSearchCriteria, emptyListResult, normalizeQty, normalizeOrderItem, compactOrderItems, numberValue, orderBusinessIds, returnAmountFromItems, normalizeReturnItem, compactReturnItems, isValidReturn, normalizeReturn, normalizeDeliveryOperationalRow, loadCanonicalSalesOrders, loadDeliveryOperationalOrders, loadSalesOrdersFallback, loadReturnsForOrders, loadLatestVersionsForOrders, latestVersionForOrder, closeoutMoneyBreakdown, deliveryOperationalMoneyBreakdown, moneyBreakdownForOrder }
 };

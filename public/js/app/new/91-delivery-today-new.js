@@ -12,7 +12,7 @@
       active: { search: -1, salesman: -1, delivery: -1 },
       loading: { search: false, salesman: false, delivery: false }
     },
-    versionCache: {}, correctionReturnItems: [], adjustmentRow: null, adjustmentViewOnly: false, activeTab: 'overview', selectedSalesmanKeys: {}, salesmanGroups: [], selectedOrderIds: new Set(), closeoutBusy: false, bulkAdjustmentBusy: false, modalNotice: { closeout: null, adjustment: null }, modalLoading: { closeout: false, adjustment: false }, deepLinkTargetKey: '', deepLinkRequestSeq: 0, deepLinkAppliedHash: '', commandLocks: {}, loadAbortController: null
+    versionCache: {}, correctionReturnItems: [], adjustmentRow: null, adjustmentViewOnly: false, activeTab: 'overview', selectedSalesmanKeys: {}, salesmanGroups: [], selectedOrderIds: new Set(), closeoutBusy: false, bulkAdjustmentBusy: false, modalNotice: { closeout: null, adjustment: null }, modalLoading: { closeout: false, adjustment: false }, deepLinkTargetKey: '', deepLinkRequestSeq: 0, deepLinkAppliedHash: '', commandLocks: {}, loadAbortController: null, sourceMeta: null, sourceBreakdown: null
   };
 
   function byId(id) { return document.getElementById(id); }
@@ -551,16 +551,30 @@
   }
 
 
-  function renderDeliverySourceNote(sourceNote) {
+  function renderDeliverySourceNote(sourceNote, sourceMeta, sourceBreakdown) {
     var target = byId('deliveryTodayNewSourceNote');
     if (!target) return;
+    var html = '';
     if (window.SourceNoteUi && typeof window.SourceNoteUi.renderSourceNote === 'function') {
-      target.innerHTML = window.SourceNoteUi.renderSourceNote(sourceNote, { compact: true, collapsible: true, defaultOpen: false });
+      html = window.SourceNoteUi.renderSourceNote(sourceNote, { compact: true, collapsible: true, defaultOpen: false });
     } else if (sourceNote && sourceNote.primaryCollections) {
-      target.textContent = 'Nguồn số liệu: ' + sourceNote.primaryCollections.join(', ') + ' · Service: ' + (sourceNote.service || '');
-    } else {
-      target.textContent = '';
+      html = '<span>Nguồn số liệu: ' + esc(sourceNote.primaryCollections.join(', ')) + ' · Service: ' + esc(sourceNote.service || '') + '</span>';
     }
+    if (sourceMeta || sourceBreakdown) {
+      var primary = sourceMeta && sourceMeta.primary ? sourceMeta.primary : (sourceBreakdown && sourceBreakdown.primarySource) || '';
+      var reader = sourceMeta && sourceMeta.reader ? sourceMeta.reader : (sourceBreakdown && sourceBreakdown.reader) || '';
+      var masterRole = sourceBreakdown && sourceBreakdown.masterOrdersRole ? sourceBreakdown.masterOrdersRole : '';
+      var warnings = [];
+      if (sourceMeta && Array.isArray(sourceMeta.warnings)) warnings = warnings.concat(sourceMeta.warnings);
+      if (sourceBreakdown && sourceBreakdown.readerDiagnostics && Array.isArray(sourceBreakdown.readerDiagnostics.warnings)) warnings = warnings.concat(sourceBreakdown.readerDiagnostics.warnings);
+      html += '<details class="delivery-new-runtime-source"><summary>Chi tiết nguồn runtime</summary>' +
+        '<div>Primary: <b>' + esc(primary || 'unknown') + '</b></div>' +
+        '<div>Reader: <b>' + esc(reader || 'unknown') + '</b></div>' +
+        '<div>MasterOrders: <b>' + esc(masterRole || 'metadata-only') + '</b></div>' +
+        '<div>Warnings: ' + esc(warnings.length ? warnings.join(', ') : 'không có') + '</div>' +
+        '</details>';
+    }
+    target.innerHTML = html;
   }
 
   function setMessage(text, isError) {
@@ -2157,7 +2171,7 @@
       try {
         resolverResult = await resolveAdjustmentDeepLink(payload);
         if (requestSeq !== state.deepLinkRequestSeq) return;
-        if (resolverResult && resolverResult.sourceNote) renderDeliverySourceNote(resolverResult.sourceNote);
+        if (resolverResult && resolverResult.sourceNote) renderDeliverySourceNote(resolverResult.sourceNote, resolverResult.source, resolverResult.sourceBreakdown);
         payload = resolverPayloadFromResult(payload, resolverResult);
         orderLabel = firstText([payload.orderCode, isCloseoutContextId(payload.orderId) ? '' : payload.orderId, payload.adjustmentCode, payload.closeoutVersionId]);
       } catch (err) {
@@ -2263,7 +2277,9 @@
       state.loaded = true;
       state.hasSearched = true;
       setResultSectionsVisible(true);
-      renderDeliverySourceNote(data.sourceNote || json.sourceNote || (data.sourceNotes && data.sourceNotes.orders) || null);
+      state.sourceMeta = data.source || json.source || null;
+      state.sourceBreakdown = data.sourceBreakdown || json.sourceBreakdown || (json.diagnostics && json.diagnostics.sourceBreakdown) || null;
+      renderDeliverySourceNote(data.sourceNote || json.sourceNote || (data.sourceNotes && data.sourceNotes.orders) || null, state.sourceMeta, state.sourceBreakdown);
       updateTopKpisFromSelectedSalesmen();
       renderSalesmanGroupPanel();
       renderRows();
