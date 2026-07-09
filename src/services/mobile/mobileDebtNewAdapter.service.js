@@ -3,6 +3,10 @@
 const dateUtil = require('../../utils/date.util');
 const { normalizeDebtAmount } = require('../../constants/finance.constants');
 const { parseMobilePagination, buildPagination } = require('./mobilePagination.util');
+const {
+  isCloseoutCorrectionKey,
+  canonicalDebtOrderIdentity
+} = require('../../utils/debtOrderIdentity.util');
 
 function text(value) {
   return String(value ?? '').trim();
@@ -123,15 +127,27 @@ function mapDebtNewOrderToMobile(order = {}, customer = {}) {
   const debtAmount = debtValue(order);
   const pendingCollectedAmount = pendingValue(order);
   const availableDebtAmount = Math.max(0, availableValue(order));
-  const orderCode = text(order.salesOrderCode || order.orderCode || order.sourceCode || order.refCode || order.orderId || order.salesOrderId);
-  const orderId = text(order.salesOrderId || order.orderId || order.sourceId || order.refId || order.id);
+  const identity = canonicalDebtOrderIdentity(order);
+  const orderCode = text(identity.salesOrderCode || identity.canonicalOrderCode || order.salesOrderCode || order.orderCode || order.refCode || order.orderId || order.salesOrderId);
+  const orderId = text(identity.salesOrderId || identity.canonicalOrderId || order.salesOrderId || order.orderId || order.refId || order.id);
+  const rawSourceCode = text(order.sourceCode || order.refCode || '');
+  const rawSourceId = text(order.sourceId || order.refId || '');
+  const sourceCode = isCloseoutCorrectionKey(rawSourceCode) ? orderCode : text(rawSourceCode || orderCode);
+  const sourceId = isCloseoutCorrectionKey(rawSourceId) ? orderId : text(rawSourceId || orderId);
   return {
     orderId,
     salesOrderId: orderId,
     orderCode,
     salesOrderCode: orderCode,
-    sourceCode: text(order.sourceCode || orderCode),
-    refCode: text(order.refCode || orderCode),
+    canonicalOrderKey: text(identity.canonicalOrderKey || orderId || orderCode),
+    canonicalOrderId: text(identity.canonicalOrderId || orderId),
+    canonicalOrderCode: text(identity.canonicalOrderCode || orderCode),
+    sourceId,
+    sourceCode,
+    correctionSourceId: text(identity.correctionSourceId),
+    correctionSourceCode: text(identity.correctionSourceCode),
+    identityWarning: identity.warning || '',
+    refCode: isCloseoutCorrectionKey(order.refCode) ? orderCode : text(order.refCode || orderCode),
     orderDate: dateUtil.toDateOnly(order.orderDate || order.documentDate || order.date || order.lastDebtDate || ''),
     documentDate: dateUtil.toDateOnly(order.documentDate || order.orderDate || order.date || order.lastDebtDate || ''),
     debit: money(order.debit),

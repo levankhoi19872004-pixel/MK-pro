@@ -12,6 +12,7 @@ const { withMongoTransaction } = require('../utils/transaction.util');
 const DebtCollectionPolicy = require('../policies/debtCollection.policy');
 const { emitDomainEventSafe } = require('./events/domainEventBus');
 const { EVENT_TYPES } = require('./events/domainEventTypes');
+const { canonicalDebtOrderIdentity } = require('../utils/debtOrderIdentity.util');
 
 const ACTIVE_STATUSES = ['submitted', 'accounting_confirmed'];
 
@@ -118,7 +119,10 @@ async function submitDebtCollection({ body = {}, mobileUser = {} } = {}) {
   if (!collector.collectorCode) return fail(403, 'Không xác định được mã nhân viên thực tế thu tiền');
 
   const orderKeys = [...new Set(allocations
-    .map((row) => text(row.salesOrderCode || row.orderCode || row.salesOrderId || row.orderId))
+    .map((row) => {
+      const identity = canonicalDebtOrderIdentity(row);
+      return text(identity.canonicalOrderKey || identity.canonicalOrderCode || identity.canonicalOrderId || row.salesOrderCode || row.orderCode || row.salesOrderId || row.orderId);
+    })
     .filter(Boolean))]
     .sort();
   if (!orderKeys.length) return fail(400, 'Cần chọn ít nhất một đơn nợ hợp lệ');

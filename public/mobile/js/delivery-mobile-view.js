@@ -8,11 +8,13 @@
 deliveryMobileUi.selectedOrderSummary,
 deliveryMobileUi.copyText),openDeliveryMapExternal=deliveryMobileUi.openDeliveryMapExternal,debounce=deliveryMobileUi.debounce,msg=deliveryMobileUi.msg,buildRouteKpi=(deliveryOrdersView.buildOrderKpi,
 deliveryOrdersView.buildRouteKpi),mobileUiRuntime=(deliveryOrdersView.orderProductSummary,
-window.MobileUiRuntime||null),deliveryLifecycle=mobileUiRuntime?mobileUiRuntime.createLifecycle():null,deliveryLoadGate=mobileUiRuntime?mobileUiRuntime.createRequestGate():null,deliveryOrderRenderer=null,deliveryDebtRenderer=null,deliveryDebtRendererContainer=null,DELIVERY_TAB_CACHE_TTL_MS=deliveryMobileState.DELIVERY_TAB_CACHE_TTL_MS,DELIVERY_REFRESH_THROTTLE_MS=deliveryMobileState.DELIVERY_REFRESH_THROTTLE_MS,DELIVERY_DEBT_PAGE_LIMIT=deliveryMobileState.DELIVERY_DEBT_PAGE_LIMIT,state=deliveryMobileState.createInitialState(),LIST_MODE_TABS=[{
-key:"orders",label:"Khách giao"},{key:"reconciliation",label:"Đối soát"},{key:"debt",label:"Công nợ"}];function isCustomerMode(){return"customer"===state.viewMode&&!!currentOrder()
-}var COMPACT_CUSTOMER_PRIMARY_TABS=[{key:"products",label:"Hàng giao"},{key:"payment",label:"Thu tiền"},{key:"customerReconciliation",label:"Đối soát"},{key:"debt",label:"Công nợ"
-}];function tabListForCurrentMode(){return isCustomerMode()?COMPACT_CUSTOMER_PRIMARY_TABS:LIST_MODE_TABS}function ensureTabForMode(){
-var tabs=tabListForCurrentMode().map(function(tab){return tab.key})
+window.MobileUiRuntime||null),deliveryLifecycle=mobileUiRuntime?mobileUiRuntime.createLifecycle():null,deliveryLoadGate=mobileUiRuntime?mobileUiRuntime.createRequestGate():null,deliveryOrderRenderer=null,deliveryDebtRenderer=null,deliveryDebtRendererContainer=null,DELIVERY_TAB_CACHE_TTL_MS=deliveryMobileState.DELIVERY_TAB_CACHE_TTL_MS,DELIVERY_REFRESH_THROTTLE_MS=deliveryMobileState.DELIVERY_REFRESH_THROTTLE_MS,DELIVERY_DEBT_PAGE_LIMIT=deliveryMobileState.DELIVERY_DEBT_PAGE_LIMIT
+;function isCloseoutCorrectionDebtKey(value){return/^(DCO|DTC|DCOV|DCOA|DCOC)[-_]/i.test(String(value||"").trim())}function firstDebtIdentityValue(values,allowCorrection){
+for(var i=0;i<values.length;i+=1){var value=String(values[i]||"").trim();if(value&&(allowCorrection||!isCloseoutCorrectionDebtKey(value)))return value}return""}
+var state=deliveryMobileState.createInitialState(),LIST_MODE_TABS=[{key:"orders",label:"Khách giao"},{key:"reconciliation",label:"Đối soát"},{key:"debt",label:"Công nợ"}]
+;function isCustomerMode(){return"customer"===state.viewMode&&!!currentOrder()}var COMPACT_CUSTOMER_PRIMARY_TABS=[{key:"products",label:"Hàng giao"},{key:"payment",label:"Thu tiền"
+},{key:"customerReconciliation",label:"Đối soát"},{key:"debt",label:"Công nợ"}];function tabListForCurrentMode(){
+return isCustomerMode()?COMPACT_CUSTOMER_PRIMARY_TABS:LIST_MODE_TABS}function ensureTabForMode(){var tabs=tabListForCurrentMode().map(function(tab){return tab.key})
 ;isCustomerMode()&&"customerReconciliation"===state.tab||tabs.indexOf(state.tab)<0&&(state.tab=isCustomerMode()?"products":"orders")}function switchToListMode(options){
 options=options||{},state.viewMode="list",state.productSearchKeyword="",options.clearSelected&&(state.selectedKey="",
 window.DeliveryCore&&window.DeliveryCore.state&&(window.DeliveryCore.state.selectedOrder=null)),
@@ -201,21 +203,33 @@ form.addEventListener("change",function(){state.debtFormDirty=!0}),form.addEvent
 event&&event.preventDefault&&event.preventDefault();var formElement=event.target,form=new FormData(formElement),amountValue=num(form.get("amount"))
 ;if(amountValue<=0)msg("Số tiền thu phải lớn hơn 0",!0);else{var orders=debtOrderRows(customer),allocations=[]
 ;if(document.querySelectorAll(".m-debt-order-check:checked").forEach(function(input){var index=Number(input.getAttribute("data-index")),order=orders[index];if(order){
-var available=order.availableDebt;null==available&&(available=order.debt),(available=num(available||0))<=0||allocations.push({salesOrderId:order.salesOrderId||order.orderId||"",
-salesOrderCode:order.salesOrderCode||order.orderCode||"",allocatedAmount:available})}}),allocations.length)if(amountValue>allocations.reduce(function(sum,row){
-return sum+num(row.allocatedAmount)},0))msg("Số tiền thu vượt tổng công nợ đã chọn",!0);else{var remain=amountValue;allocations=allocations.map(function(row){
-var allocated=Math.min(num(row.allocatedAmount),remain);return remain-=allocated,Object.assign({},row,{allocatedAmount:allocated})}).filter(function(row){
-return num(row.allocatedAmount)>0});var submitButton=formElement.querySelector('button[type="submit"]');submitButton&&(submitButton.disabled=!0,
-submitButton.textContent="Đang gửi...");try{msg("Đang gửi phiếu thu nợ chờ kế toán..."),await window.DeliveryCore.api("/api/mobile/debt-collections",{method:"POST",
-body:JSON.stringify({collectorType:"delivery",customerId:customer.customerId||"",customerCode:customer.customerCode||"",customerName:customer.customerName||"",amount:amountValue,
-paymentMethod:form.get("paymentMethod")||"cash",note:form.get("note")||"",allocations:allocations,idempotencyKey:"delivery-debt-"+(customer.customerCode||Date.now())+"-"+Date.now()
-})}),state.debtFormDirty=!1,state.selectedDebtIndex=-1,state.selectedDebtKey="",state.debtSubtab="customers",resetDeliveryDebtPaging({clearRows:!0}),await loadDeliveryDebts(!0),
-msg("Đã ghi nhận thu nợ, chờ kế toán xác nhận"),window.requestAnimationFrame(function(){window.scrollTo({top:state.debtListScrollTop||0,behavior:"auto"})})}catch(err){
-msg(err.message||"Không gửi được phiếu thu nợ",!0),submitButton&&(submitButton.disabled=!1,submitButton.textContent="Gửi phiếu thu chờ KT")}
-}else msg("Cần chọn ít nhất một đơn nợ",!0)}}(event,selected)})),body.querySelectorAll(".m-debt-order-check").forEach(function(input){input.addEventListener("change",function(){
-!function(customer){var orders=debtOrderRows(customer),total=0;document.querySelectorAll(".m-debt-order-check:checked").forEach(function(input){
-var index=Number(input.getAttribute("data-index")),order=orders[index];if(order){var available=order.availableDebt;null==available&&(available=order.debt),total+=num(available||0)}
-});var amountInput=el("mDeliveryDebtAmount");amountInput&&(amountInput.value=Math.max(0,Math.round(total)))}(selected),state.debtFormDirty=!0})})}else{
+var available=order.availableDebt;if(null==available&&(available=order.debt),!((available=num(available||0))<=0)){var debtIdentity=function(order){
+var correctionSourceCode=firstDebtIdentityValue([(order=order||{}).correctionSourceCode,order.correctionCode,order.sourceCode,order.refCode,order.sourceId,order.id,order.code],!0)
+;isCloseoutCorrectionDebtKey(correctionSourceCode)||(correctionSourceCode="")
+;var correctionSourceId=firstDebtIdentityValue([order.correctionSourceId,order.correctionId,order.sourceId,order.refId,order.sourceCode,order.id,order.code],!0)
+;isCloseoutCorrectionDebtKey(correctionSourceId)||(correctionSourceId=correctionSourceCode);var parsedSo=function(value){var raw=String(value||"").trim()
+;if(!isCloseoutCorrectionDebtKey(raw))return"";var match=raw.match(/(?:^|[-_:])(SO\d{8,})(?=$|[-_:])/i);return match?String(match[1]).toUpperCase():""
+}(correctionSourceCode||correctionSourceId),salesOrderId=firstDebtIdentityValue([order.salesOrderId,order.canonicalOrderId,order.orderId,order.refId,order.sourceOrderId],!1)||parsedSo
+;return{salesOrderId:salesOrderId,
+salesOrderCode:firstDebtIdentityValue([order.salesOrderCode,order.canonicalOrderCode,order.orderCode,order.sourceOrderCode,order.refCode,order.sourceCode],!1)||parsedSo||salesOrderId,
+sourceId:correctionSourceId||firstDebtIdentityValue([order.sourceId,order.refId],!1),sourceCode:correctionSourceCode||firstDebtIdentityValue([order.sourceCode,order.refCode],!1)}
+}(order);allocations.push({salesOrderId:debtIdentity.salesOrderId||order.salesOrderId||order.orderId||"",
+salesOrderCode:debtIdentity.salesOrderCode||order.salesOrderCode||order.orderCode||"",sourceId:debtIdentity.sourceId||order.correctionSourceId||order.sourceId||"",
+sourceCode:debtIdentity.sourceCode||order.correctionSourceCode||order.sourceCode||"",availableDebt:available,allocatedAmount:available})}}}),
+allocations.length)if(amountValue>allocations.reduce(function(sum,row){return sum+num(row.allocatedAmount)},0))msg("Số tiền thu vượt tổng công nợ đã chọn",!0);else{
+var remain=amountValue;allocations=allocations.map(function(row){var allocated=Math.min(num(row.allocatedAmount),remain);return remain-=allocated,Object.assign({},row,{
+allocatedAmount:allocated})}).filter(function(row){return num(row.allocatedAmount)>0});var submitButton=formElement.querySelector('button[type="submit"]')
+;submitButton&&(submitButton.disabled=!0,submitButton.textContent="Đang gửi...");try{msg("Đang gửi phiếu thu nợ chờ kế toán..."),
+await window.DeliveryCore.api("/api/mobile/debt-collections",{method:"POST",body:JSON.stringify({collectorType:"delivery",customerId:customer.customerId||"",
+customerCode:customer.customerCode||"",customerName:customer.customerName||"",amount:amountValue,paymentMethod:form.get("paymentMethod")||"cash",note:form.get("note")||"",
+allocations:allocations,idempotencyKey:"delivery-debt-"+(customer.customerCode||Date.now())+"-"+Date.now()})}),state.debtFormDirty=!1,state.selectedDebtIndex=-1,
+state.selectedDebtKey="",state.debtSubtab="customers",resetDeliveryDebtPaging({clearRows:!0}),await loadDeliveryDebts(!0),msg("Đã ghi nhận thu nợ, chờ kế toán xác nhận"),
+window.requestAnimationFrame(function(){window.scrollTo({top:state.debtListScrollTop||0,behavior:"auto"})})}catch(err){msg(err.message||"Không gửi được phiếu thu nợ",!0),
+submitButton&&(submitButton.disabled=!1,submitButton.textContent="Gửi phiếu thu chờ KT")}}else msg("Cần chọn ít nhất một đơn nợ",!0)}}(event,selected)})),
+body.querySelectorAll(".m-debt-order-check").forEach(function(input){input.addEventListener("change",function(){!function(customer){var orders=debtOrderRows(customer),total=0
+;document.querySelectorAll(".m-debt-order-check:checked").forEach(function(input){var index=Number(input.getAttribute("data-index")),order=orders[index];if(order){
+var available=order.availableDebt;null==available&&(available=order.debt),total+=num(available||0)}});var amountInput=el("mDeliveryDebtAmount")
+;amountInput&&(amountInput.value=Math.max(0,Math.round(total)))}(selected),state.debtFormDirty=!0})})}else{
 body.innerHTML='<div class="m-empty danger"><b>Không tải được công nợ</b><span>'+esc(state.debtError)+'</span><button id="mRetryDebt" type="button">Thử lại</button></div>'
 ;var retryDebtButton=el("mRetryDebt");retryDebtButton&&retryDebtButton.addEventListener("click",function(){state.debtError="",loadDeliveryDebts(!0)})
 }else mobileUiRuntime?mobileUiRuntime.renderState(body,{state:"loading",className:"m-delivery-body",title:"Đang tải công nợ..."

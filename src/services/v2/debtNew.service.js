@@ -5,6 +5,11 @@ const { normalizeAccountingAmount } = require('../../domain/ar/arLedgerValidator
 const arLedgerReadService = require('../arLedgerRead.service');
 const searchService = require('../searchService');
 const { buildSourceNote } = require('../source-contracts/SourceNoteBuilder');
+const {
+  isCloseoutCorrectionKey,
+  canonicalDebtOrderIdentity,
+  debtOrderAliasKeys
+} = require('../../utils/debtOrderIdentity.util');
 
 
 function buildDebtSourceNote(code, query = {}, warnings = []) {
@@ -176,6 +181,8 @@ function ledgerEffect(row = {}) {
 }
 
 function orderKey(row = {}) {
+  const identity = canonicalDebtOrderIdentity(row);
+  if (identity.canonicalOrderKey && !isCloseoutCorrectionKey(identity.canonicalOrderKey)) return identity.canonicalOrderKey;
   const sourceType = upper(row.sourceType || row.refType);
   if (sourceType === 'DELIVERY_CLOSEOUT_CORRECTION') {
     return text(row.salesOrderId || row.orderId || row.salesOrderCode || row.orderCode || row.originalCloseoutId || row.newCloseoutId || row.sourceId || row.sourceCode || row.code || row.id);
@@ -184,23 +191,12 @@ function orderKey(row = {}) {
 }
 
 function debtNewOrderKeys(row = {}) {
-  return Array.from(new Set([
-    row.orderCode,
-    row.salesOrderCode,
-    row.sourceCode,
-    row.refCode,
-    row.orderId,
-    row.salesOrderId,
-    row.sourceId,
-    row.refId,
-    row.id,
-    row.code,
-    row.orderKey
-  ].map(text).filter(Boolean)));
+  return debtOrderAliasKeys(row);
 }
 
 function pendingAllocationOrderKey(row = {}) {
-  return text(row.salesOrderCode || row.orderCode || row.sourceOrderCode || row.refCode || row.salesOrderId || row.orderId || row.sourceOrderId || row.refId || row.id || row.code);
+  const identity = canonicalDebtOrderIdentity(row);
+  return text(identity.canonicalOrderKey || identity.canonicalOrderCode || row.salesOrderCode || row.orderCode || row.sourceOrderCode || row.refCode || row.salesOrderId || row.orderId || row.sourceOrderId || row.refId || row.id || row.code);
 }
 
 function pendingAmountByOrder(rows = []) {
@@ -398,6 +394,9 @@ function attachPaymentAllocationState(grouped = {}, allocations = []) {
 
 function normalizeLedger(row = {}) {
   const amounts = normalizeAccountingAmount(row);
+  const identity = canonicalDebtOrderIdentity(row);
+  const rawSourceId = text(row.sourceId || row.salesOrderId || row.orderId || row.refId);
+  const rawSourceCode = text(row.sourceCode || row.salesOrderCode || row.orderCode || row.refCode);
   return {
     id: text(row.id || row.code || row._id),
     code: text(row.code || row.id || row._id),
@@ -405,12 +404,21 @@ function normalizeLedger(row = {}) {
     ledgerType: upper(row.ledgerType || row.category),
     customerCode: text(row.customerCode),
     customerName: text(row.customerName),
-    sourceId: text(row.sourceId || row.salesOrderId || row.orderId || row.refId),
-    sourceCode: text(row.sourceCode || row.salesOrderCode || row.orderCode || row.refCode),
+    sourceId: rawSourceId,
+    sourceCode: rawSourceCode,
     sourceType: upper(row.sourceType || row.refType),
-    correctionId: text(row.correctionId),
-    correctionCode: text(row.correctionCode),
+    correctionId: text(row.correctionId || identity.correctionSourceId),
+    correctionCode: text(row.correctionCode || identity.correctionSourceCode),
+    correctionSourceId: text(identity.correctionSourceId),
+    correctionSourceCode: text(identity.correctionSourceCode),
+    orderId: text(identity.orderId || identity.canonicalOrderId),
+    orderCode: text(identity.orderCode || identity.canonicalOrderCode),
+    salesOrderId: text(identity.salesOrderId || identity.canonicalOrderId),
+    salesOrderCode: text(identity.salesOrderCode || identity.canonicalOrderCode),
+    canonicalOrderId: text(identity.canonicalOrderId),
+    canonicalOrderCode: text(identity.canonicalOrderCode),
     orderKey: orderKey(row),
+    identityWarning: identity.warning,
     salesStaffCode: text(row.salesStaffCode || row.salesmanCode || row.nvbhCode),
     salesStaffName: text(row.salesStaffName || row.salesmanName || row.nvbhName),
     deliveryStaffCode: text(row.deliveryStaffCode || row.deliveryCode || row.nvghCode),
@@ -436,8 +444,18 @@ function groupLedgers(ledgerRows = [], query = {}) {
         id: `DEBTNEW-ORDER:${key}`,
         customerCode: ledger.customerCode,
         customerName: ledger.customerName,
-        orderId: ledger.sourceId || ledger.orderKey,
-        orderCode: ledger.sourceCode || ledger.orderKey,
+        orderId: ledger.salesOrderId || ledger.orderId || ledger.orderKey,
+        salesOrderId: ledger.salesOrderId || ledger.orderId || ledger.orderKey,
+        orderCode: ledger.salesOrderCode || ledger.orderCode || ledger.orderKey,
+        salesOrderCode: ledger.salesOrderCode || ledger.orderCode || ledger.orderKey,
+        canonicalOrderKey: ledger.orderKey,
+        canonicalOrderId: ledger.canonicalOrderId || ledger.salesOrderId || ledger.orderId || ledger.orderKey,
+        canonicalOrderCode: ledger.canonicalOrderCode || ledger.salesOrderCode || ledger.orderCode || ledger.orderKey,
+        sourceId: isCloseoutCorrectionKey(ledger.sourceId) ? '' : ledger.sourceId,
+        sourceCode: isCloseoutCorrectionKey(ledger.sourceCode) ? '' : ledger.sourceCode,
+        correctionSourceId: ledger.correctionSourceId || (isCloseoutCorrectionKey(ledger.sourceId) ? ledger.sourceId : ''),
+        correctionSourceCode: ledger.correctionSourceCode || (isCloseoutCorrectionKey(ledger.sourceCode) ? ledger.sourceCode : ''),
+        identityWarning: ledger.identityWarning || '',
         orderDate: ledger.date,
         salesStaffCode: ledger.salesStaffCode,
         salesStaffName: ledger.salesStaffName,
@@ -457,6 +475,13 @@ function groupLedgers(ledgerRows = [], query = {}) {
     if (!order.salesStaffName && ledger.salesStaffName) order.salesStaffName = ledger.salesStaffName;
     if (!order.deliveryStaffCode && ledger.deliveryStaffCode) order.deliveryStaffCode = ledger.deliveryStaffCode;
     if (!order.deliveryStaffName && ledger.deliveryStaffName) order.deliveryStaffName = ledger.deliveryStaffName;
+    if (!order.salesOrderId && ledger.salesOrderId) order.salesOrderId = ledger.salesOrderId;
+    if (!order.orderId && ledger.orderId) order.orderId = ledger.orderId;
+    if (!order.salesOrderCode && ledger.salesOrderCode) order.salesOrderCode = ledger.salesOrderCode;
+    if (!order.orderCode && ledger.orderCode) order.orderCode = ledger.orderCode;
+    if (!order.correctionSourceId && ledger.correctionSourceId) order.correctionSourceId = ledger.correctionSourceId;
+    if (!order.correctionSourceCode && ledger.correctionSourceCode) order.correctionSourceCode = ledger.correctionSourceCode;
+    if (!order.identityWarning && ledger.identityWarning) order.identityWarning = ledger.identityWarning;
     order.debit += ledger.debit;
     order.credit += ledger.credit;
     order.ledgerCount += 1;

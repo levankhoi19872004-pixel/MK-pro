@@ -183,11 +183,11 @@
     {
       "target": "public/mobile/js/delivery-mobile-view.js",
       "mode": "classic-single",
-      "sourceSha256": "7d37e4a1cb2cbb0cf7ea9179a4c5b850a74c960a48fe292d78be97c349912729",
+      "sourceSha256": "7f90bd8b189c9828db19783e58b96ad4bb6324de8757d24bf4557e814c37b742",
       "canonicalSource": "public/mobile/js/delivery-mobile-view.source.js",
       "sourceMap": true,
       "sourceMapTarget": "public/mobile/js/delivery-mobile-view.js.map",
-      "executableSha256": "700413ffecb8aba0e0d7b145ae9f02ec7fa29ab33b79c3fdc971d913c1a9f5a4"
+      "executableSha256": "dd802117f158e5048707ac3e182cd229f859f31dea241011045fa3b5cba63184"
     },
     {
       "target": "public/mobile/mobile.css",

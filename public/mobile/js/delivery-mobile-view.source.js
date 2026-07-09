@@ -35,6 +35,40 @@ var deliveryDebtRendererContainer = null;
 var DELIVERY_TAB_CACHE_TTL_MS = deliveryMobileState.DELIVERY_TAB_CACHE_TTL_MS;
 var DELIVERY_REFRESH_THROTTLE_MS = deliveryMobileState.DELIVERY_REFRESH_THROTTLE_MS;
 var DELIVERY_DEBT_PAGE_LIMIT = deliveryMobileState.DELIVERY_DEBT_PAGE_LIMIT;
+function isCloseoutCorrectionDebtKey(value) {
+return /^(DCO|DTC|DCOV|DCOA|DCOC)[-_]/i.test(String(value || '').trim());
+}
+function extractSalesOrderIdFromCorrectionKey(value) {
+var raw = String(value || '').trim();
+if (!isCloseoutCorrectionDebtKey(raw)) return '';
+var match = raw.match(/(?:^|[-_:])(SO\d{8,})(?=$|[-_:])/i);
+return match ? String(match[1]).toUpperCase() : '';
+}
+function firstDebtIdentityValue(values, allowCorrection) {
+for (var i = 0; i < values.length; i += 1) {
+var value = String(values[i] || '').trim();
+if (!value) continue;
+if (!allowCorrection && isCloseoutCorrectionDebtKey(value)) continue;
+return value;
+}
+return '';
+}
+function mobileDebtOrderIdentity(order) {
+order = order || {};
+var correctionSourceCode = firstDebtIdentityValue([order.correctionSourceCode, order.correctionCode, order.sourceCode, order.refCode, order.sourceId, order.id, order.code], true);
+if (!isCloseoutCorrectionDebtKey(correctionSourceCode)) correctionSourceCode = '';
+var correctionSourceId = firstDebtIdentityValue([order.correctionSourceId, order.correctionId, order.sourceId, order.refId, order.sourceCode, order.id, order.code], true);
+if (!isCloseoutCorrectionDebtKey(correctionSourceId)) correctionSourceId = correctionSourceCode;
+var parsedSo = extractSalesOrderIdFromCorrectionKey(correctionSourceCode || correctionSourceId);
+var salesOrderId = firstDebtIdentityValue([order.salesOrderId, order.canonicalOrderId, order.orderId, order.refId, order.sourceOrderId], false) || parsedSo;
+var salesOrderCode = firstDebtIdentityValue([order.salesOrderCode, order.canonicalOrderCode, order.orderCode, order.sourceOrderCode, order.refCode, order.sourceCode], false) || parsedSo || salesOrderId;
+return {
+salesOrderId: salesOrderId,
+salesOrderCode: salesOrderCode,
+sourceId: correctionSourceId || firstDebtIdentityValue([order.sourceId, order.refId], false),
+sourceCode: correctionSourceCode || firstDebtIdentityValue([order.sourceCode, order.refCode], false)
+};
+}
 var state = deliveryMobileState.createInitialState();
 var DELIVERY_CONTRACT = deliveryContract || {
   header: { moreMenuClass: 'm-delivery-more-menu', secondaryActionsClass: 'm-delivery-secondary-actions' },
@@ -922,9 +956,13 @@ var available = order.availableDebt;
 if (available == null) available = order.debt;
 available = num(available || 0);
 if (available <= 0) return;
+var debtIdentity = mobileDebtOrderIdentity(order);
 allocations.push({
-salesOrderId: order.salesOrderId || order.orderId || '',
-salesOrderCode: order.salesOrderCode || order.orderCode || '',
+salesOrderId: debtIdentity.salesOrderId || order.salesOrderId || order.orderId || '',
+salesOrderCode: debtIdentity.salesOrderCode || order.salesOrderCode || order.orderCode || '',
+sourceId: debtIdentity.sourceId || order.correctionSourceId || order.sourceId || '',
+sourceCode: debtIdentity.sourceCode || order.correctionSourceCode || order.sourceCode || '',
+availableDebt: available,
 allocatedAmount: available
 });
 });

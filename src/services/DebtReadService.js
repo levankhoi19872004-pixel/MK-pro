@@ -13,6 +13,12 @@ const {
 } = require('./mobile/mobileDebtQuery.service');
 const { listMobileDebtsFromDebtNew } = require('./mobile/mobileDebtNewAdapter.service');
 const DebtCollectionPolicy = require('../policies/debtCollection.policy');
+const {
+  isCloseoutCorrectionKey,
+  extractSalesOrderIdFromCloseoutCorrectionKey,
+  canonicalDebtOrderIdentity,
+  debtOrderAliasKeys
+} = require('../utils/debtOrderIdentity.util');
 
 const PENDING_STATUSES = ['submitted', 'under_review'];
 const INACTIVE_AR_STATUSES = ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed'];
@@ -48,6 +54,8 @@ function expandOrderKeys(values = []) {
     out.add(key);
     const upper = canonicalKey(key);
     out.add(upper);
+    const fromCloseoutCorrection = extractSalesOrderIdFromCloseoutCorrectionKey(key);
+    if (fromCloseoutCorrection) out.add(fromCloseoutCorrection);
     const fromReturn = extractSalesOrderCodeFromReturnToken(key);
     if (fromReturn) out.add(fromReturn);
     if (/^[A-Z0-9]+$/i.test(key) && !/^RO-/i.test(key)) {
@@ -63,23 +71,7 @@ function expandOrderKeys(values = []) {
 }
 
 function rowOrderKeys(row = {}) {
-  return expandOrderKeys([
-    row.orderCode,
-    row.salesOrderCode,
-    row.sourceOrderCode,
-    row.refCode,
-    row.orderId,
-    row.salesOrderId,
-    row.sourceOrderId,
-    row.refId,
-    row.sourceCode,
-    row.sourceId,
-    row.returnOrderCode,
-    row.returnOrderId,
-    row.idempotencyKey,
-    row.code,
-    row.id
-  ]);
+  return expandOrderKeys(debtOrderAliasKeys(row));
 }
 
 function money(value) {
@@ -91,7 +83,8 @@ function withSession(query, session) {
 }
 
 function cleanOrderCode(row = {}) {
-  return text(row.salesOrderCode || row.orderCode || row.sourceOrderCode || row.refCode || extractSalesOrderCodeFromReturnToken(row.idempotencyKey || row.returnOrderCode || row.sourceCode || row.code) || row.code);
+  const identity = canonicalDebtOrderIdentity(row);
+  return text(identity.salesOrderCode || identity.canonicalOrderCode || extractSalesOrderCodeFromReturnToken(row.idempotencyKey || row.returnOrderCode || row.sourceCode || row.code) || row.code);
 }
 
 function collectionDateFilter(query = {}) {
@@ -217,14 +210,23 @@ function collectibleStateFromRows(rows = [], pendingByOrder = new Map(), collect
 }
 
 function normalizeDebtOrder(order = {}, pending = {}) {
+  const identity = canonicalDebtOrderIdentity(order);
   const salesOrderCode = cleanOrderCode(order);
+  const salesOrderId = text(identity.salesOrderId || identity.canonicalOrderId || order.salesOrderId || order.orderId || order.id);
   const debt = normalizeDebtAmount(order.debt ?? order.debtAmount ?? order.remainingDebt ?? 0);
   const orderType = text(order.orderType) || (/^NDNBLH/i.test(salesOrderCode) ? 'external_debt' : 'sales_order');
-  const state = collectibleStateFromRows({ ...order, salesOrderCode, debt, remainingDebt: debt }, pending.byOrder || pending || new Map(), pending.collectionsByOrder || new Map());
+  const state = collectibleStateFromRows({ ...order, salesOrderId, salesOrderCode, debt, remainingDebt: debt }, pending.byOrder || pending || new Map(), pending.collectionsByOrder || new Map());
 
   return {
-    salesOrderId: text(order.salesOrderId || order.orderId || order.id),
+    salesOrderId,
+    orderId: salesOrderId,
     salesOrderCode,
+    orderCode: salesOrderCode,
+    canonicalOrderKey: text(identity.canonicalOrderKey || salesOrderId || salesOrderCode),
+    canonicalOrderId: text(identity.canonicalOrderId || salesOrderId),
+    canonicalOrderCode: text(identity.canonicalOrderCode || salesOrderCode),
+    correctionSourceId: text(identity.correctionSourceId),
+    correctionSourceCode: text(identity.correctionSourceCode),
     orderType,
     orderDate: dateUtil.toDateOnly(order.documentDate || order.dueDate || order.orderDate || order.date || ''),
     documentDate: dateUtil.toDateOnly(order.documentDate || order.dueDate || order.orderDate || order.date || ''),
@@ -540,9 +542,15 @@ async function getDebtOrderCollectibleState(input = {}) {
         submittedAt: text(collection.submittedAt || collection.createdAt),
         collectorCode: text(collection.collectorCode || collection.submittedByCode || collection.createdBy)
       })));
+    const sourceIdentity = canonicalDebtOrderIdentity(source);
     return {
-      salesOrderCode: text(source.salesOrderCode || source.orderCode || source.refCode || key),
-      salesOrderId: text(source.salesOrderId || source.orderId || source.refId),
+      salesOrderCode: text(sourceIdentity.salesOrderCode || sourceIdentity.canonicalOrderCode || source.salesOrderCode || source.orderCode || source.refCode || key),
+      salesOrderId: text(sourceIdentity.salesOrderId || sourceIdentity.canonicalOrderId || source.salesOrderId || source.orderId || source.refId),
+      orderCode: text(sourceIdentity.salesOrderCode || sourceIdentity.canonicalOrderCode || source.salesOrderCode || source.orderCode || source.refCode || key),
+      orderId: text(sourceIdentity.salesOrderId || sourceIdentity.canonicalOrderId || source.salesOrderId || source.orderId || source.refId),
+      canonicalOrderKey: text(sourceIdentity.canonicalOrderKey || key),
+      correctionSourceId: text(sourceIdentity.correctionSourceId),
+      correctionSourceCode: text(sourceIdentity.correctionSourceCode),
       customerCode: text(source.customerCode || source.customerId || input.customerCode || input.customerId),
       customerName: text(source.customerName || input.customerName),
       remainingDebt,
@@ -561,17 +569,37 @@ async function getDebtOrderCollectibleState(input = {}) {
   });
 }
 
+
+function normalizeAllocationIdentity(row = {}) {
+  const identity = canonicalDebtOrderIdentity(row);
+  const requestedKey = text(row.salesOrderCode || row.orderCode || row.sourceOrderCode || row.refCode || row.code || row.salesOrderId || row.orderId || row.sourceOrderId || row.id || row.sourceCode || row.sourceId);
+  const key = text(identity.canonicalOrderKey || identity.canonicalOrderId || identity.canonicalOrderCode || extractSalesOrderCodeFromReturnToken(row.idempotencyKey || row.returnOrderCode || row.sourceCode || row.code) || requestedKey);
+  const aliases = expandOrderKeys(debtOrderAliasKeys({ ...row, ...identity, sourceCode: row.sourceCode, sourceId: row.sourceId }));
+  if (requestedKey) aliases.push(...expandOrderKeys([requestedKey]));
+  return {
+    key,
+    requestedKey,
+    requestedOrderId: text(row.salesOrderId || row.orderId || row.id),
+    frontendAvailableDebt: money(row.availableDebt ?? row.availableDebtAmount ?? row.availableToCollect ?? 0),
+    allocatedAmount: money(row.allocatedAmount ?? row.amount ?? row.paymentAmount),
+    aliases: [...new Set(aliases.map(text).filter(Boolean))],
+    correctionSourceId: text(identity.correctionSourceId || (isCloseoutCorrectionKey(row.sourceId) ? row.sourceId : '')),
+    correctionSourceCode: text(identity.correctionSourceCode || (isCloseoutCorrectionKey(row.sourceCode) ? row.sourceCode : '')),
+    identityWarning: identity.warning || ''
+  };
+}
+
+function matchedLedgerIds(rows = []) {
+  return rows.map((ledger) => text(ledger.id || ledger.code || ledger._id)).filter(Boolean);
+}
+
 async function checkAvailableDebt(input = {}) {
   const customerCode = text(input.customerCode || input.customerId);
   const allocations = Array.isArray(input.allocations) ? input.allocations : [];
   if (!customerCode) return { ok: false, status: 400, message: 'Thiếu mã khách hàng' };
   if (!allocations.length) return { ok: false, status: 400, message: 'Cần chọn ít nhất một đơn nợ' };
 
-  const normalized = allocations.map((row) => ({
-    key: text(row.salesOrderCode || row.orderCode || row.sourceOrderCode || row.refCode || extractSalesOrderCodeFromReturnToken(row.idempotencyKey || row.returnOrderCode || row.sourceCode || row.code) || row.code || row.salesOrderId || row.orderId || row.sourceOrderId || row.id),
-    requestedOrderId: text(row.salesOrderId || row.orderId || row.id),
-    allocatedAmount: money(row.allocatedAmount ?? row.amount ?? row.paymentAmount)
-  }));
+  const normalized = allocations.map(normalizeAllocationIdentity);
 
   if (normalized.some((row) => !row.key || row.allocatedAmount <= 0)) {
     return { ok: false, status: 400, message: 'Dòng phân bổ thiếu đơn nợ hoặc số tiền' };
@@ -588,7 +616,7 @@ async function checkAvailableDebt(input = {}) {
     return { ok: false, status: 400, message: `Đơn nợ ${duplicateKey} bị phân bổ trùng` };
   }
 
-  const keys = normalized.map((row) => row.key);
+  const keys = [...new Set(normalized.flatMap((row) => [row.key, ...(row.aliases || [])]).map(text).filter(Boolean))];
   const options = {
     session: input.session,
     excludeCollectionId: input.excludeCollectionId || ''
@@ -606,7 +634,19 @@ async function checkAvailableDebt(input = {}) {
   for (const row of normalized) {
     const matching = ledgerRows.filter((ledger) => rowMatchesOrder(ledger, row.key));
     const source = pickDebtSourceRow(matching);
-    if (!source) return { ok: false, status: 409, message: `Không tìm thấy đơn nợ ${row.key}` };
+    if (!source) {
+      return {
+        ok: false,
+        status: 409,
+        code: 'DEBT_COLLECTION_ORDER_NOT_FOUND',
+        message: `Không tìm thấy đơn nợ ${row.key}`,
+        detail: {
+          requestedKey: row.requestedKey,
+          canonicalOrderKey: row.key,
+          aliases: row.aliases || []
+        }
+      };
+    }
 
     const sourceCustomerCode = text(source.customerCode || source.customerId);
     if (sourceCustomerCode && sourceCustomerCode !== customerCode) {
@@ -633,15 +673,19 @@ async function checkAvailableDebt(input = {}) {
         code: 'DEBT_COLLECTION_ALLOCATION_EXCEEDS_AVAILABLE',
         message: `Số tiền thu vượt công nợ còn có thể thu của đơn ${row.key}`,
         detail: {
+          requestedKey: row.requestedKey,
+          canonicalOrderKey: row.key,
           salesOrderCode: row.key,
           orderCode: row.key,
           requestedAmount: row.allocatedAmount,
+          frontendAvailableDebt: row.frontendAvailableDebt || undefined,
           remainingDebt: officialDebt,
           officialDebt,
           pendingCollectionAmount: pendingAmount,
           pendingAmount,
           availableToCollect: availableDebt,
-          availableDebt
+          availableDebt,
+          matchedLedgerIds: matchedLedgerIds(matching)
         }
       };
     }
@@ -653,9 +697,15 @@ async function checkAvailableDebt(input = {}) {
     }
 
     total += row.allocatedAmount;
+    const sourceIdentity = canonicalDebtOrderIdentity(source);
     checkedAllocations.push({
-      salesOrderId: text(source.salesOrderId || source.orderId || source.refId || row.requestedOrderId),
-      salesOrderCode: text(source.salesOrderCode || source.orderCode || source.refCode || row.key),
+      salesOrderId: text(sourceIdentity.salesOrderId || sourceIdentity.canonicalOrderId || source.salesOrderId || source.orderId || source.refId || row.requestedOrderId),
+      salesOrderCode: text(sourceIdentity.salesOrderCode || sourceIdentity.canonicalOrderCode || source.salesOrderCode || source.orderCode || source.refCode || row.key),
+      orderId: text(sourceIdentity.salesOrderId || sourceIdentity.canonicalOrderId || source.salesOrderId || source.orderId || source.refId || row.requestedOrderId),
+      orderCode: text(sourceIdentity.salesOrderCode || sourceIdentity.canonicalOrderCode || source.salesOrderCode || source.orderCode || source.refCode || row.key),
+      canonicalOrderKey: text(sourceIdentity.canonicalOrderKey || row.key),
+      correctionSourceId: text(row.correctionSourceId || sourceIdentity.correctionSourceId),
+      correctionSourceCode: text(row.correctionSourceCode || sourceIdentity.correctionSourceCode),
       orderType: text(source.orderType) || (lower(source.type) === 'ar_external_debt' ? 'external_debt' : 'sales_order'),
       orderDate: dateUtil.toDateOnly(source.date || source.documentDate || source.createdAt || ''),
       beforeDebt: officialDebt,
