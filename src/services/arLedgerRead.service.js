@@ -20,6 +20,10 @@ const {
   isArDebtReversalLedger,
   reversalOriginalKeys
 } = require('../domain/ar/arLedgerQueryPolicy');
+const {
+  ACTIVE_DEBT_READ_MODEL_CATEGORIES,
+  canProjectDetailedAccountingCategoryBySource
+} = require('../domain/ar/arDebtCategoryRegistry');
 
 let models = null;
 function getModels() {
@@ -178,6 +182,138 @@ function appendOrderKeyCondition(match, keys = []) {
   return match;
 }
 
+function buildRawArOrderLookupMatch(orderKeys = [], filters = {}) {
+  const values = uniqueClean(orderKeys);
+  const normalized = normalizeArDebtFilters({ ...filters, status: 'all' });
+  const match = { account: 'AR' };
+  if (clean(filters.tenantId)) match.tenantId = clean(filters.tenantId);
+  if (normalized.customerCode) {
+    const escaped = normalized.customerCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rx = new RegExp(`^${escaped}$`, 'i');
+    match.$and = [{ $or: [{ customerCode: rx }, { customerId: rx }] }];
+  }
+  appendOrderKeyCondition(match, values);
+  return match;
+}
+
+function activeConfirmedExclusionReasons(row = {}) {
+  const reasons = [];
+  const status = clean(row.status).toLowerCase();
+  if (clean(row.account || 'AR').toUpperCase() !== 'AR') reasons.push('NOT_AR_ACCOUNT');
+  if (row.accountingConfirmed !== true) reasons.push('ACCOUNTING_NOT_CONFIRMED');
+  if (clean(row.accountingStatus).toLowerCase() !== 'confirmed') reasons.push('ACCOUNTING_STATUS_NOT_CONFIRMED');
+  if (row.active !== true) reasons.push('LEDGER_INACTIVE');
+  if (row.reversed === true) reasons.push('LEDGER_REVERSED');
+  if (row.isDeleted === true || row.deleted === true || clean(row.deletedAt)) reasons.push('LEDGER_DELETED');
+  if (['void', 'voided', 'cancelled', 'canceled', 'deleted', 'reversed', 'removed', 'superseded'].includes(status)) reasons.push(`STATUS_${status.toUpperCase()}`);
+  return reasons;
+}
+
+function debtReadModelExclusionReasons(row = {}, filters = {}) {
+  const reasons = activeConfirmedExclusionReasons(row);
+  const category = clean(row.category).toUpperCase();
+  const ledgerType = clean(row.ledgerType || row.category).toUpperCase();
+  if (!ACTIVE_DEBT_READ_MODEL_CATEGORIES.includes(category)) reasons.push('CATEGORY_NOT_ACTIVE_DEBT_READ_MODEL');
+  if (!ACTIVE_DEBT_READ_MODEL_CATEGORIES.includes(ledgerType)) reasons.push('LEDGER_TYPE_NOT_ACTIVE_DEBT_READ_MODEL');
+  if (ACTIVE_DEBT_READ_MODEL_CATEGORIES.includes(category)
+    && !String(category).startsWith('AR-DEBT-')
+    && !canProjectDetailedAccountingCategoryBySource(row)) {
+    reasons.push('DETAILED_ACCOUNTING_PROVENANCE_REJECTED');
+  }
+  const validation = validateArLedgerContract(row);
+  if (!validation.ok) {
+    for (const error of validation.errors || []) reasons.push(clean(error.code || 'AR_LEDGER_CONTRACT_INVALID'));
+  }
+  if (!canonicalRowMatchesFilters(row, normalizeArDebtFilters({ ...filters, status: 'all' }))) reasons.push('FILTER_MISMATCH');
+  return Array.from(new Set(reasons.filter(Boolean)));
+}
+
+function ledgerSummary(row = {}, exclusionReasons = []) {
+  return {
+    ledgerId: clean(row.id || row.code || row._id),
+    category: clean(row.category).toUpperCase(),
+    ledgerType: clean(row.ledgerType || row.category).toUpperCase(),
+    sourceType: clean(row.sourceType),
+    sourceId: clean(row.sourceId),
+    sourceCode: clean(row.sourceCode),
+    orderId: clean(row.orderId || row.salesOrderId),
+    orderCode: clean(row.orderCode || row.salesOrderCode),
+    debit: Math.round(Number(row.debit || 0) || 0),
+    credit: Math.round(Number(row.credit || 0) || 0),
+    accountingConfirmed: row.accountingConfirmed === true,
+    accountingStatus: clean(row.accountingStatus),
+    active: row.active === true,
+    reversed: row.reversed === true,
+    status: clean(row.status),
+    exclusionReason: exclusionReasons[0] || '',
+    exclusionReasons
+  };
+}
+
+async function getActiveDebtReadModelLedgersByOrderKeys(orderKeys = [], filters = {}, options = {}) {
+  const { ArLedger } = getModels();
+  const values = uniqueClean(orderKeys);
+  if (!values.length) return options.includeRejected ? { canonicalLedgers: [], rejectedLedgers: [] } : [];
+  const normalized = normalizeArDebtFilters({ ...filters, status: 'all' });
+  const match = buildActiveDebtReadModelLedgerMatch(normalized);
+  appendOrderKeyCondition(match, values);
+  const rows = await queryRows(ArLedger, match, options);
+  const result = normalizeAndValidateActiveDebtRows(rows, normalized);
+  return options.includeRejected ? result : result.canonicalLedgers;
+}
+
+async function inspectActiveDebtReadModelLedgersByOrderKeys(orderKeys = [], filters = {}, options = {}) {
+  const { ArLedger } = getModels();
+  const values = uniqueClean(orderKeys);
+  if (!values.length) {
+    return {
+      lookupKeys: [],
+      rawMatch: buildRawArOrderLookupMatch([], filters),
+      canonicalMatch: buildActiveDebtReadModelLedgerMatch(filters),
+      rawMatchedLedgerCount: 0,
+      rawActiveConfirmedLedgerCount: 0,
+      canonicalMatchedLedgerCount: 0,
+      excludedLedgerCount: 0,
+      canonicalLedgers: [],
+      rawActiveConfirmedLedgers: [],
+      excludedLedgers: []
+    };
+  }
+
+  const normalized = normalizeArDebtFilters({ ...filters, status: 'all' });
+  const rawMatch = buildRawArOrderLookupMatch(values, normalized);
+  const canonicalMatch = buildActiveDebtReadModelLedgerMatch(normalized);
+  appendOrderKeyCondition(canonicalMatch, values);
+
+  // Keep queries sequential: MongoDB transactions do not support parallel
+  // operations on the same session reliably.
+  const rawRows = await queryRows(ArLedger, rawMatch, options);
+  const canonicalRows = await queryRows(ArLedger, canonicalMatch, options);
+  const canonicalResult = normalizeAndValidateActiveDebtRows(canonicalRows, normalized);
+  const canonicalIds = new Set(canonicalResult.canonicalLedgers.map((row) => clean(row.id || row.code || row._id)));
+  const rawActiveConfirmedRows = (rawRows || []).filter((row) => activeConfirmedExclusionReasons(row).length === 0);
+  const excludedLedgers = [];
+  for (const row of rawRows || []) {
+    const id = clean(row.id || row.code || row._id);
+    if (canonicalIds.has(id) && canProjectCanonicalAccountingLedgerToDebtReadModel(row)) continue;
+    const reasons = debtReadModelExclusionReasons(row, normalized);
+    if (reasons.length) excludedLedgers.push(ledgerSummary(row, reasons));
+  }
+
+  return {
+    lookupKeys: values,
+    rawMatch,
+    canonicalMatch,
+    rawMatchedLedgerCount: (rawRows || []).length,
+    rawActiveConfirmedLedgerCount: rawActiveConfirmedRows.length,
+    canonicalMatchedLedgerCount: canonicalResult.canonicalLedgers.length,
+    excludedLedgerCount: excludedLedgers.length,
+    canonicalLedgers: canonicalResult.canonicalLedgers,
+    rawActiveConfirmedLedgers: rawActiveConfirmedRows.map((row) => ledgerSummary(row, [])),
+    excludedLedgers
+  };
+}
+
 function createOrderBucket(ledger = {}, rebuiltAt = dateUtil.nowIso()) {
   return {
     id: `AR-DEBT-ORDER:${ledger.customerCode}:${ledger.sourceId}`,
@@ -333,8 +469,20 @@ module.exports = {
   getCanonicalLedgersBySource,
   getCanonicalLedgersByCustomerCodes,
   getCanonicalLedgersByOrderKeys,
+  getActiveDebtReadModelLedgersByOrderKeys,
+  inspectActiveDebtReadModelLedgersByOrderKeys,
   aggregateDebtByCustomer,
   aggregateDebtByOrder,
   aggregateDebtByStaff,
-  _internal: { normalizeAndValidateRows, aggregateRowsByOrder, aggregateRowsByCustomer }
+  _internal: {
+    normalizeAndValidateRows,
+    normalizeAndValidateActiveDebtRows,
+    aggregateRowsByOrder,
+    aggregateRowsByCustomer,
+    appendOrderKeyCondition,
+    buildRawArOrderLookupMatch,
+    activeConfirmedExclusionReasons,
+    debtReadModelExclusionReasons,
+    ledgerSummary
+  }
 };

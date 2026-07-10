@@ -5,6 +5,11 @@ const { toNumber } = require('../../utils/common.util');
 const arLedgerReadService = require('../arLedgerRead.service');
 const arPostingService = require('../arPosting.service');
 const { normalizeAccountingAmount } = require('../../domain/ar/arLedgerValidator');
+const { ACTIVE_DEBT_INCREASE_CATEGORIES } = require('../../domain/ar/arDebtCategoryRegistry');
+const {
+  resolveCanonicalArOrderIdentity,
+  buildCanonicalArOrderLookupKeys
+} = require('../../domain/ar/arOrderIdentity');
 const OrderPaymentAllocationService = require('./OrderPaymentAllocationService');
 
 const ACTIVE_EXCLUDED_STATUSES = ['reversed', 'void', 'voided', 'cancelled', 'canceled', 'deleted', 'removed', 'superseded'];
@@ -62,18 +67,11 @@ function customerCodeOf(allocation = {}, order = {}) {
 }
 
 function orderLedgerKeys(allocationOrOrder = {}, extraKeys = []) {
-  return Array.from(new Set([
-    allocationOrOrder.orderId,
-    allocationOrOrder.orderCode,
-    allocationOrOrder.salesOrderId,
-    allocationOrOrder.salesOrderCode,
-    allocationOrOrder.sourceId,
-    allocationOrOrder.sourceCode,
-    allocationOrOrder.id,
-    allocationOrOrder._id,
-    allocationOrOrder.code,
-    ...((Array.isArray(extraKeys) ? extraKeys : []) || [])
-  ].map(clean).filter(Boolean)));
+  return buildCanonicalArOrderLookupKeys({
+    order: allocationOrOrder,
+    allocation: allocationOrOrder,
+    extraOrderKeys: extraKeys
+  });
 }
 
 function buildArOrderMatch(orderCode, customerCode, options = {}) {
@@ -181,20 +179,72 @@ function allocationFromCloseout(order = {}, closeout = {}, options = {}) {
   };
 }
 
-async function getCurrentOrderArBalance(orderCode, customerCode, options = {}) {
-  const keys = orderLedgerKeys({ orderCode }, options.keys || []);
-  const readOptions = {
-    session: options.session,
-    limit: Math.max(1, Math.min(2000, Number(options.limit || 2000))),
-    sort: { customerCode: 1, sourceId: 1, date: 1, createdAt: 1, _id: 1 }
-  };
-  const rows = keys.length
-    ? await arLedgerReadService.getCanonicalLedgersByOrderKeys(keys, { customerCode, status: 'all' }, readOptions)
-    : [];
+function sumCanonicalArBalance(rows = []) {
   return (rows || []).reduce((sum, row) => {
     const normalized = normalizeAccountingAmount(row);
     return money(sum + money(normalized.debit) - money(normalized.credit));
   }, 0);
+}
+
+function excludedOpeningDebit(details = {}) {
+  return (details.excludedLedgers || []).find((row) => (
+    ACTIVE_DEBT_INCREASE_CATEGORIES.includes(upper(row.category || row.ledgerType))
+    && money(row.debit) > money(row.credit)
+    && row.accountingConfirmed === true
+    && clean(row.accountingStatus).toLowerCase() === 'confirmed'
+    && row.active === true
+    && row.reversed !== true
+  )) || null;
+}
+
+function hasCanonicalLookupAnomaly(details = {}, expectedDebtAmount = 0, zeroTolerance = DEFAULT_ZERO_TOLERANCE) {
+  return money(details.currentArBalance) === 0
+    && money(expectedDebtAmount) > normalizeZeroTolerance(zeroTolerance, DEFAULT_ZERO_TOLERANCE)
+    && Boolean(excludedOpeningDebit(details));
+}
+
+async function getCurrentOrderArBalanceDetails(identityInput = {}, customerCode = '', options = {}) {
+  const identity = resolveCanonicalArOrderIdentity({
+    ...(identityInput && typeof identityInput === 'object' ? identityInput : {}),
+    extraOrderKeys: options.extraOrderKeys || options.keys || identityInput.extraOrderKeys || []
+  });
+  const readOptions = {
+    session: options.session,
+    limit: Math.max(1, Math.min(2000, Number(options.limit || 2000))),
+    sort: { customerCode: 1, orderCode: 1, date: 1, createdAt: 1, _id: 1 }
+  };
+  const inspection = identity.lookupKeys.length
+    ? await arLedgerReadService.inspectActiveDebtReadModelLedgersByOrderKeys(
+      identity.lookupKeys,
+      { customerCode, status: 'all' },
+      readOptions
+    )
+    : {
+      lookupKeys: [],
+      rawMatchedLedgerCount: 0,
+      rawActiveConfirmedLedgerCount: 0,
+      canonicalMatchedLedgerCount: 0,
+      excludedLedgerCount: 0,
+      canonicalLedgers: [],
+      rawActiveConfirmedLedgers: [],
+      excludedLedgers: []
+    };
+  const currentArBalance = sumCanonicalArBalance(inspection.canonicalLedgers || []);
+  return {
+    ...inspection,
+    identity,
+    lookupKeys: identity.lookupKeys,
+    ignoredSourceAliases: identity.ignoredSourceAliases,
+    currentArBalance
+  };
+}
+
+async function getCurrentOrderArBalance(orderCode, customerCode, options = {}) {
+  const identityInput = options.identityInput && typeof options.identityInput === 'object'
+    ? options.identityInput
+    : { identity: { orderCode }, extraOrderKeys: options.keys || [] };
+  const details = await getCurrentOrderArBalanceDetails(identityInput, customerCode, options);
+  return options.includeDiagnostics ? details : details.currentArBalance;
 }
 
 function debtAdjustmentIdempotencyKey(allocation = {}, expectedDebtAmount = 0) {
@@ -213,11 +263,16 @@ async function findActiveDebtAdjustmentByKey(idempotencyKey, options = {}) {
   return Array.isArray(rows) && rows.length ? rows[0] : null;
 }
 
-function buildDebtAdjustmentLedger({ allocation = {}, order = {}, currentArBalance = 0, expectedDebtAmount = 0, diff = null } = {}, options = {}) {
-  const amountDiff = money(diff === null || diff === undefined ? money(currentArBalance) - money(expectedDebtAmount) : diff);
-  const amount = Math.abs(amountDiff);
+function buildDebtAdjustmentLedger({ allocation = {}, order = {}, currentArBalance = 0, expectedDebtAmount = 0, diff = null, deltaDebt = null } = {}, options = {}) {
+  const resolvedDeltaDebt = money(deltaDebt === null || deltaDebt === undefined
+    ? (diff === null || diff === undefined
+      ? money(expectedDebtAmount) - money(currentArBalance)
+      : -money(diff))
+    : deltaDebt);
+  const amountDiff = money(currentArBalance) - money(expectedDebtAmount);
+  const amount = Math.abs(resolvedDeltaDebt);
   if (amount <= 0) return null;
-  const isCredit = amountDiff > 0;
+  const isDebit = resolvedDeltaDebt > 0;
   const now = options.now || dateUtil.nowIso();
   const orderCode = orderCodeOf(allocation, order);
   const orderId = orderIdOf(allocation, order);
@@ -226,7 +281,7 @@ function buildDebtAdjustmentLedger({ allocation = {}, order = {}, currentArBalan
   const allocationRef = allocationIdentity(allocation);
   const idempotencyKey = clean(options.idempotencyKey || debtAdjustmentIdempotencyKey(allocation, expectedDebtAmount));
   const token = safeToken(`${orderCode || orderId}-${allocationRef}-${money(expectedDebtAmount)}-v${sourceVersion}`);
-  const direction = isCredit ? 'credit' : 'debit';
+  const direction = isDebit ? 'debit' : 'credit';
   return {
     id: `AR-DEBT-ADJUSTMENT-DEBT-RECONCILE-${token}`,
     code: `AR-DEBT-ADJUSTMENT-${safeToken(orderCode || orderId)}-${safeToken(allocationRef)}-v${sourceVersion}`,
@@ -258,8 +313,8 @@ function buildDebtAdjustmentLedger({ allocation = {}, order = {}, currentArBalan
     deliveryStaffCode: clean(allocation.deliveryStaffCode || order.deliveryStaffCode || order.deliveryCode),
     deliveryStaffName: clean(allocation.deliveryStaffName || order.deliveryStaffName || order.deliveryName),
     deliveryDate: dateUtil.toDateOnly(allocation.deliveryDate || order.deliveryDate || now),
-    debit: isCredit ? 0 : amount,
-    credit: isCredit ? amount : 0,
+    debit: isDebit ? amount : 0,
+    credit: isDebit ? 0 : amount,
     amount,
     direction,
     amountField: direction,
@@ -283,6 +338,7 @@ function buildDebtAdjustmentLedger({ allocation = {}, order = {}, currentArBalan
       currentArBalance: money(currentArBalance),
       expectedDebtAmount: money(expectedDebtAmount),
       diff: amountDiff,
+      deltaDebt: resolvedDeltaDebt,
       zeroTolerance: normalizeZeroTolerance(options.zeroTolerance, DEFAULT_ZERO_TOLERANCE),
       rawDebtAmount: money(options.rawDebtAmount),
       normalizedDebtAmount: money(expectedDebtAmount),
@@ -294,14 +350,40 @@ function buildDebtAdjustmentLedger({ allocation = {}, order = {}, currentArBalan
   };
 }
 
-function diagnosticFromReconcile({ order = {}, allocation = {}, expected = {}, currentArBalance = 0, diff = 0, action = '', idempotencyKey = '', suggestedFix = '' } = {}) {
+function diagnosticFromReconcile({
+  order = {},
+  allocation = {},
+  expected = {},
+  balanceDetails = {},
+  currentArBalance = 0,
+  deltaDebt = 0,
+  action = '',
+  skipReason = '',
+  idempotencyKey = '',
+  suggestedFix = ''
+} = {}) {
+  const identity = balanceDetails.identity || resolveCanonicalArOrderIdentity({ order, allocation });
   return {
-    orderCode: orderCodeOf(allocation, order),
+    orderCode: identity.orderCode || orderCodeOf(allocation, order),
+    orderId: identity.orderId || orderIdOf(allocation, order),
     customerCode: customerCodeOf(allocation, order),
     customerName: clean(allocation.customerName || order.customerName),
     salesStaffCode: clean(allocation.salesStaffCode || order.salesStaffCode || order.salesmanCode),
     deliveryStaffCode: clean(allocation.deliveryStaffCode || order.deliveryStaffCode || order.deliveryCode),
     deliveryDate: dateUtil.toDateOnly(allocation.deliveryDate || order.deliveryDate || order.orderDate || order.date),
+    lookupKeys: balanceDetails.lookupKeys || identity.lookupKeys || [],
+    ignoredSourceAliases: balanceDetails.ignoredSourceAliases || identity.ignoredSourceAliases || [],
+    rawMatchedLedgerCount: Number(balanceDetails.rawMatchedLedgerCount || 0),
+    rawActiveConfirmedLedgerCount: Number(balanceDetails.rawActiveConfirmedLedgerCount || 0),
+    canonicalMatchedLedgerCount: Number(balanceDetails.canonicalMatchedLedgerCount || 0),
+    excludedLedgerCount: Number(balanceDetails.excludedLedgerCount || 0),
+    excludedLedgers: (balanceDetails.excludedLedgers || []).map((row) => ({
+      ledgerId: clean(row.ledgerId),
+      category: clean(row.category),
+      sourceType: clean(row.sourceType),
+      exclusionReason: clean(row.exclusionReason),
+      exclusionReasons: Array.isArray(row.exclusionReasons) ? row.exclusionReasons : []
+    })),
     receivableAmount: money(allocation.receivableAmount),
     cashAmount: money(allocation.cashAmount),
     bankAmount: money(allocation.bankAmount),
@@ -313,8 +395,11 @@ function diagnosticFromReconcile({ order = {}, allocation = {}, expected = {}, c
     debtAmount: money(expected.debtAmount ?? expected.expectedDebtAmount),
     zeroToleranceAdjustmentAmount: money(expected.zeroToleranceAdjustmentAmount),
     currentArBalance: money(currentArBalance),
-    diff: money(diff),
+    currentArBalanceBeforePosting: money(currentArBalance),
+    deltaDebt: money(deltaDebt),
+    diff: money(currentArBalance) - money(expected.expectedDebtAmount),
     action: clean(action),
+    skipReason: clean(skipReason),
     idempotencyKey: clean(idempotencyKey),
     zeroTolerance: Number(expected.zeroTolerance || 0),
     zeroToleranceApplied: Boolean(expected.zeroToleranceApplied),
@@ -323,7 +408,34 @@ function diagnosticFromReconcile({ order = {}, allocation = {}, expected = {}, c
   };
 }
 
-async function reconcileOneOrder({ order = {}, allocation = {}, closeout = null, apply = false, session = null, zeroTolerance = DEFAULT_ZERO_TOLERANCE, actor = 'backfill-order-payment-allocations', sourceType = '', sourceId = '', sourceCode = '', sourceModel = '', refType = '', refId = '', refCode = '', idempotencyKey: forcedIdempotencyKey = '', note = '', reason = '', accountingBatchId = '' } = {}) {
+function emitReconcileDiagnostic(result = {}, logger) {
+  if (typeof logger === 'function' && result && result.diagnostic) {
+    try { logger(result.diagnostic); } catch (_) { /* diagnostics must never break accounting */ }
+  }
+  return result;
+}
+
+async function reconcileOneOrder({
+  order = {},
+  allocation = {},
+  closeout = null,
+  apply = false,
+  session = null,
+  zeroTolerance = DEFAULT_ZERO_TOLERANCE,
+  actor = 'backfill-order-payment-allocations',
+  sourceType = '',
+  sourceId = '',
+  sourceCode = '',
+  sourceModel = '',
+  refType = '',
+  refId = '',
+  refCode = '',
+  idempotencyKey: forcedIdempotencyKey = '',
+  note = '',
+  reason = '',
+  accountingBatchId = '',
+  diagnosticLogger = null
+} = {}) {
   const effectiveAllocation = allocation && Object.keys(allocation).length
     ? { ...allocation }
     : allocationFromCloseout(order, closeout || {}, { zeroTolerance, sourceType, sourceId, sourceCode });
@@ -334,85 +446,202 @@ async function reconcileOneOrder({ order = {}, allocation = {}, closeout = null,
   const expected = closeout && !allocation
     ? computeExpectedDebtFromCloseout(closeout, { zeroTolerance })
     : computeExpectedDebtFromAllocation(effectiveAllocation, { zeroTolerance });
-  const keys = orderLedgerKeys({ ...order, ...effectiveAllocation });
-  const currentArBalance = await getCurrentOrderArBalance(orderCodeOf(effectiveAllocation, order), customerCodeOf(effectiveAllocation, order), { session, keys });
-  const diff = money(currentArBalance - expected.expectedDebtAmount);
+  const normalizedTolerance = normalizeZeroTolerance(zeroTolerance, DEFAULT_ZERO_TOLERANCE);
+  const identityInput = { order, allocation: effectiveAllocation };
+  let balanceDetails = await getCurrentOrderArBalanceDetails(
+    identityInput,
+    customerCodeOf(effectiveAllocation, order),
+    { session }
+  );
+  let currentArBalance = money(balanceDetails.currentArBalance);
+  let deltaDebt = money(expected.expectedDebtAmount - currentArBalance);
   const idempotencyKey = clean(forcedIdempotencyKey || debtAdjustmentIdempotencyKey(effectiveAllocation, expected.expectedDebtAmount));
   const existing = await findActiveDebtAdjustmentByKey(idempotencyKey, { session });
 
+  const buildDiagnostic = (action, skipReason = '', suggestedFix = '') => diagnosticFromReconcile({
+    order,
+    allocation: effectiveAllocation,
+    expected,
+    balanceDetails,
+    currentArBalance,
+    deltaDebt,
+    action,
+    skipReason,
+    idempotencyKey,
+    suggestedFix
+  });
+
+  if (hasCanonicalLookupAnomaly(balanceDetails, expected.expectedDebtAmount, normalizedTolerance)) {
+    return emitReconcileDiagnostic({
+      needsAdjustment: false,
+      manualReviewRequired: true,
+      skipReason: 'CANONICAL_AR_LOOKUP_EXCLUDED_EXISTING_LEDGER',
+      zeroToleranceApplied: expected.zeroToleranceApplied,
+      currentArBalance,
+      expectedDebtAmount: expected.expectedDebtAmount,
+      deltaDebt,
+      diff: -deltaDebt,
+      action: 'manual-review',
+      diagnostic: buildDiagnostic('manual-review', 'CANONICAL_AR_LOOKUP_EXCLUDED_EXISTING_LEDGER', 'Raw AR lookup thấy opening debit hợp lệ nhưng canonical lookup loại ledger. Không post full expected debt; cần sửa contract hoặc reversal/repost theo quy trình kế toán.')
+    }, diagnosticLogger);
+  }
+
   if (existing) {
-    if (diff === 0) {
-      return {
+    if (Math.abs(deltaDebt) <= normalizedTolerance) {
+      return emitReconcileDiagnostic({
         needsAdjustment: false,
         skippedAlreadyReconciled: true,
-        skipReason: 'idempotencyKeyExistsAndBalanceOk',
+        skipReason: 'IDEMPOTENCY_KEY_EXISTS_AND_BALANCE_OK',
         zeroToleranceApplied: expected.zeroToleranceApplied,
         currentArBalance,
         expectedDebtAmount: expected.expectedDebtAmount,
-        diff,
+        deltaDebt,
+        diff: -deltaDebt,
         action: 'skip',
         ledger: existing,
-        diagnostic: diagnosticFromReconcile({ order, allocation: effectiveAllocation, expected, currentArBalance, diff, action: 'skip', idempotencyKey, suggestedFix: 'Đã có AR-DEBT-ADJUSTMENT debt reconcile idempotent và AR balance đã khớp expectedDebtAmount.' })
-      };
+        diagnostic: buildDiagnostic('skip', 'IDEMPOTENCY_KEY_EXISTS_AND_BALANCE_OK', 'Đã có AR-DEBT-ADJUSTMENT idempotent và AR balance nằm trong tolerance.')
+      }, diagnosticLogger);
     }
-    return {
+    return emitReconcileDiagnostic({
       needsAdjustment: false,
       manualReviewRequired: true,
-      skipReason: 'idempotencyKeyExistsButBalanceStillDiff',
+      skipReason: 'IDEMPOTENCY_KEY_EXISTS_BUT_BALANCE_STILL_DIFF',
       zeroToleranceApplied: expected.zeroToleranceApplied,
       currentArBalance,
       expectedDebtAmount: expected.expectedDebtAmount,
-      diff,
+      deltaDebt,
+      diff: -deltaDebt,
       action: 'manual-review',
       ledger: existing,
-      diagnostic: diagnosticFromReconcile({ order, allocation: effectiveAllocation, expected, currentArBalance, diff, action: 'manual-review', idempotencyKey, suggestedFix: 'Đã tồn tại idempotencyKey AR-DEBT-ADJUSTMENT nhưng AR balance vẫn lệch. Cần kiểm tra ledger trùng/sai hoặc reverse/repost theo quy trình kế toán.' })
-    };
+      diagnostic: buildDiagnostic('manual-review', 'IDEMPOTENCY_KEY_EXISTS_BUT_BALANCE_STILL_DIFF', 'Đã tồn tại idempotencyKey AR-DEBT-ADJUSTMENT nhưng AR balance vẫn lệch. Cần kiểm tra ledger trùng/sai hoặc reverse/repost theo quy trình kế toán.')
+    }, diagnosticLogger);
   }
 
-  if (diff === 0) {
-    return {
+  if (Math.abs(deltaDebt) <= normalizedTolerance) {
+    return emitReconcileDiagnostic({
       needsAdjustment: false,
       skippedAlreadyFixed: true,
-      skipReason: 'currentArBalanceAlreadyExpected',
+      skipped: true,
+      skipReason: 'NO_DEBT_DELTA',
       zeroToleranceApplied: expected.zeroToleranceApplied,
       currentArBalance,
       expectedDebtAmount: expected.expectedDebtAmount,
-      diff,
+      deltaDebt,
+      diff: -deltaDebt,
       action: 'skip',
-      diagnostic: diagnosticFromReconcile({ order, allocation: effectiveAllocation, expected, currentArBalance, diff, action: 'skip', idempotencyKey, suggestedFix: 'AR balance đã khớp expectedDebtAmount.' })
-    };
+      diagnostic: buildDiagnostic('skip', 'NO_DEBT_DELTA', 'Canonical AR balance đã khớp expectedDebtAmount trong Debt Zero Tolerance.')
+    }, diagnosticLogger);
   }
 
-  const ledger = buildDebtAdjustmentLedger({ allocation: effectiveAllocation, order, currentArBalance, expectedDebtAmount: expected.expectedDebtAmount, diff }, { zeroTolerance, actor, rawDebtAmount: expected.rawDebtAmount, session, sourceType, sourceId, sourceCode, sourceModel, refType, refId, refCode, note, reason, accountingBatchId, idempotencyKey });
-  const action = diff > 0 ? 'create-credit' : 'create-debit';
+  const actionForDelta = () => (deltaDebt > 0 ? 'create-debit' : 'create-credit');
   if (!apply) {
-    return {
+    const ledger = buildDebtAdjustmentLedger({
+      allocation: effectiveAllocation,
+      order,
+      currentArBalance,
+      expectedDebtAmount: expected.expectedDebtAmount,
+      deltaDebt
+    }, { zeroTolerance: normalizedTolerance, actor, rawDebtAmount: expected.rawDebtAmount, session, sourceType, sourceId, sourceCode, sourceModel, refType, refId, refCode, note, reason, accountingBatchId, idempotencyKey });
+    const action = actionForDelta();
+    return emitReconcileDiagnostic({
       needsAdjustment: true,
       dryRun: true,
       zeroToleranceApplied: expected.zeroToleranceApplied,
       currentArBalance,
       expectedDebtAmount: expected.expectedDebtAmount,
-      diff,
+      deltaDebt,
+      diff: -deltaDebt,
       action,
       ledger,
-      diagnostic: diagnosticFromReconcile({ order, allocation: effectiveAllocation, expected, currentArBalance, diff, action, idempotencyKey, suggestedFix: `${action === 'create-credit' ? 'Tạo credit' : 'Tạo debit'} AR-DEBT-ADJUSTMENT ${Math.abs(diff)} bằng --apply --fix-debt-balance.` })
-    };
+      diagnostic: buildDiagnostic(action, '', `${action === 'create-credit' ? 'Tạo credit' : 'Tạo debit'} AR-DEBT-ADJUSTMENT delta ${Math.abs(deltaDebt)}.`)
+    }, diagnosticLogger);
   }
 
+  // Accounting safety guard: re-read in the same Mongo session immediately
+  // before posting so a stale preflight cannot create a full target-debt entry.
+  balanceDetails = await getCurrentOrderArBalanceDetails(
+    identityInput,
+    customerCodeOf(effectiveAllocation, order),
+    { session }
+  );
+  currentArBalance = money(balanceDetails.currentArBalance);
+  deltaDebt = money(expected.expectedDebtAmount - currentArBalance);
+
+  if (hasCanonicalLookupAnomaly(balanceDetails, expected.expectedDebtAmount, normalizedTolerance)) {
+    return emitReconcileDiagnostic({
+      needsAdjustment: false,
+      manualReviewRequired: true,
+      skipReason: 'CANONICAL_AR_LOOKUP_EXCLUDED_EXISTING_LEDGER',
+      zeroToleranceApplied: expected.zeroToleranceApplied,
+      currentArBalance,
+      expectedDebtAmount: expected.expectedDebtAmount,
+      deltaDebt,
+      diff: -deltaDebt,
+      action: 'manual-review',
+      diagnostic: buildDiagnostic('manual-review', 'CANONICAL_AR_LOOKUP_EXCLUDED_EXISTING_LEDGER', 'Safety re-read thấy opening debit bị canonical policy loại. Đã chặn post AR-DEBT-ADJUSTMENT.')
+    }, diagnosticLogger);
+  }
+
+  if (Math.abs(deltaDebt) <= normalizedTolerance) {
+    return emitReconcileDiagnostic({
+      needsAdjustment: false,
+      skippedAlreadyFixed: true,
+      skipped: true,
+      skipReason: 'NO_DEBT_DELTA',
+      zeroToleranceApplied: expected.zeroToleranceApplied,
+      currentArBalance,
+      expectedDebtAmount: expected.expectedDebtAmount,
+      deltaDebt,
+      diff: -deltaDebt,
+      action: 'skip',
+      diagnostic: buildDiagnostic('skip', 'NO_DEBT_DELTA', 'Safety re-read xác nhận canonical AR balance đã khớp expectedDebtAmount.')
+    }, diagnosticLogger);
+  }
+
+  const existingBeforePost = await findActiveDebtAdjustmentByKey(idempotencyKey, { session });
+  if (existingBeforePost) {
+    return emitReconcileDiagnostic({
+      needsAdjustment: false,
+      manualReviewRequired: true,
+      skipReason: 'IDEMPOTENCY_KEY_APPEARED_BEFORE_POST',
+      currentArBalance,
+      expectedDebtAmount: expected.expectedDebtAmount,
+      deltaDebt,
+      diff: -deltaDebt,
+      action: 'manual-review',
+      ledger: existingBeforePost,
+      diagnostic: buildDiagnostic('manual-review', 'IDEMPOTENCY_KEY_APPEARED_BEFORE_POST', 'Một reconcile khác đã tạo cùng idempotencyKey trong lúc xử lý. Không post thêm ledger.')
+    }, diagnosticLogger);
+  }
+
+  const ledger = buildDebtAdjustmentLedger({
+    allocation: effectiveAllocation,
+    order,
+    currentArBalance,
+    expectedDebtAmount: expected.expectedDebtAmount,
+    deltaDebt
+  }, { zeroTolerance: normalizedTolerance, actor, rawDebtAmount: expected.rawDebtAmount, session, sourceType, sourceId, sourceCode, sourceModel, refType, refId, refCode, note, reason, accountingBatchId, idempotencyKey });
+  const action = actionForDelta();
   const saved = await arPostingService.postArLedgerEntry(ledger, { session, actor });
-  const afterBalance = await getCurrentOrderArBalance(orderCodeOf(effectiveAllocation, order), customerCodeOf(effectiveAllocation, order), { session, keys });
-  return {
+  const afterDetails = await getCurrentOrderArBalanceDetails(
+    identityInput,
+    customerCodeOf(effectiveAllocation, order),
+    { session }
+  );
+  const afterBalance = money(afterDetails.currentArBalance);
+  return emitReconcileDiagnostic({
     needsAdjustment: true,
     posted: true,
     zeroToleranceApplied: expected.zeroToleranceApplied,
     currentArBalance,
     afterBalance,
     expectedDebtAmount: expected.expectedDebtAmount,
-    diff,
+    deltaDebt,
+    diff: -deltaDebt,
     action,
     ledger: saved || ledger,
-    diagnostic: diagnosticFromReconcile({ order, allocation: effectiveAllocation, expected, currentArBalance, diff, action, idempotencyKey, suggestedFix: `Đã tạo AR-DEBT-ADJUSTMENT ${action === 'create-credit' ? 'credit' : 'debit'} ${Math.abs(diff)}.` })
-  };
+    diagnostic: buildDiagnostic(action, '', `Đã tạo AR-DEBT-ADJUSTMENT ${action === 'create-credit' ? 'credit' : 'debit'} delta ${Math.abs(deltaDebt)}.`)
+  }, diagnosticLogger);
 }
 
 async function reconcileManyOrders(filters = {}, options = {}) {
@@ -432,6 +661,7 @@ module.exports = {
   computeExpectedDebtFromAllocation,
   computeExpectedDebtFromCloseout,
   getCurrentOrderArBalance,
+  getCurrentOrderArBalanceDetails,
   buildDebtAdjustmentLedger,
   reconcileOneOrder,
   reconcileOrderDebt,
@@ -445,6 +675,11 @@ module.exports = {
     activeArFilter,
     buildArOrderMatch,
     orderLedgerKeys,
+    sumCanonicalArBalance,
+    excludedOpeningDebit,
+    hasCanonicalLookupAnomaly,
+    resolveCanonicalArOrderIdentity,
+    buildCanonicalArOrderLookupKeys,
     allocationFromCloseout,
     diagnosticFromReconcile,
     orderCodeOf,
