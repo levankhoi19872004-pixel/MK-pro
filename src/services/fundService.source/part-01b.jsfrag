@@ -1,0 +1,159 @@
+async function buildDeliverySubmissionDraft(query = {}) {
+  const deliveryDate = dateOnly(query.deliveryDate || query.date);
+  const deliveryStaffCode = String(pickDeliveryStaffCode(query) || query.delivery || '').trim();
+  if (!deliveryStaffCode) return { error: 'Thiếu nhân viên giao hàng để tạo phiếu nộp quỹ', status: 400 };
+  const deliveryService = getMasterOrderDeliveryService();
+  const listDeliveryOrders = typeof deliveryService.listDeliveryTodayOrdersCompact === 'function'
+    ? deliveryService.listDeliveryTodayOrdersCompact
+    : deliveryService.listDeliveryToday;
+  const data = await listDeliveryOrders({ date: deliveryDate, delivery: deliveryStaffCode, deliveryStaffCode, page: 1, limit: 5000 });
+  const selectedStaffCode = normalizeText(deliveryStaffCode);
+  const orders = (data.orders || data.rows || []).filter((row) => (
+    normalizeText(pickDeliveryStaffCode(row) || row.deliveryStaffCode) === selectedStaffCode
+  ));
+  if (!orders.length) return { error: 'Không có đơn giao để tạo phiếu nộp quỹ', status: 404 };
+  const deliveryStaffName = orders.find((row) => row.deliveryStaffName)?.deliveryStaffName || deliveryStaffCode;
+  const reportCurrentOrderCashAmount = orders.reduce((sum, row) => sum + numberFromRow(row, ['cashAmount', 'cashCollected']), 0);
+  const reportCurrentOrderBankAmount = orders.reduce((sum, row) => sum + numberFromRow(row, ['bankAmount', 'bankCollected', 'transferAmount']), 0);
+  const reportOldDebtCashAmount = orders.reduce((sum, row) => sum + numberFromRow(row, ['oldDebtCashCollected', 'debtCashCollected', 'arCashCollected']), 0);
+  const reportOldDebtBankAmount = orders.reduce((sum, row) => sum + numberFromRow(row, ['oldDebtBankCollected', 'debtBankCollected', 'arBankCollected']), 0);
+  const reportCashAmount = reportCurrentOrderCashAmount + reportOldDebtCashAmount;
+  const reportBankAmount = reportCurrentOrderBankAmount + reportOldDebtBankAmount;
+  const code = deliverySubmissionCode(deliveryDate, deliveryStaffCode);
+  const submissionId = String(query.id || makeId('NQGH')).trim();
+  const defaultRemittanceDate = dateOnly(query.remittanceDate || dateUtil.todayVN());
+  const hasExplicitLines = Array.isArray(query.remittanceLines);
+  const remittanceLines = hasExplicitLines
+    ? normalizeRemittanceLines(query.remittanceLines, { submissionIdentity: submissionId || code, makeId })
+    : linesFromLegacyAmounts({
+      submittedCashAmount: query.submittedCashAmount ?? reportCashAmount,
+      submittedBankAmount: query.submittedBankAmount ?? reportBankAmount,
+      remittanceDate: defaultRemittanceDate,
+      bankAccountCode: query.bankAccountCode,
+      bankReference: query.bankReference
+    }, { submissionIdentity: submissionId || code, makeId, defaultRemittanceDate, defaultStatus: 'draft' });
+
+  const baseDraft = {
+    id: submissionId,
+    code,
+    deliveryDate,
+    deliveryStaffCode,
+    deliveryStaffName,
+    reportCashAmount,
+    reportBankAmount,
+    reportCurrentOrderCashAmount,
+    reportCurrentOrderBankAmount,
+    reportOldDebtCashAmount,
+    reportOldDebtBankAmount,
+    orderCodes: orders.map((row) => row.orderCode || row.code || '').filter(Boolean),
+    orderIds: orders.map((row) => row.id || '').filter(Boolean),
+    note: String(query.note || '').trim(),
+    createdBy: String(query.createdBy || '').trim(),
+    createdAt: query.createdAt || dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
+  };
+  const draft = applyLineSummary(baseDraft, remittanceLines, { makeId });
+  draft.matchStatus = draft.differenceCashAmount === 0 && draft.differenceBankAmount === 0 ? 'matched' : 'mismatch';
+  draft.status = String(query.status || draft.status || 'pending').trim();
+  draft.fundPosted = false;
+  draft.hasPostedLines = false;
+  return { draft, orders, deliverySummary: data.summary || data.kpi || {} };
+}
+
+async function createDeliveryCashSubmission(body = {}) {
+  const built = await buildDeliverySubmissionDraft(body);
+  if (built.error) return built;
+  const draft = built.draft;
+  const existed = await deliveryCashSubmissionRepository.findByIdOrCode(draft.code);
+  if (existed && !['cancelled', 'canceled', 'void', 'deleted'].includes(String(existed.status || '').toLowerCase())) {
+    return { error: `Đã có phiếu nộp quỹ ${existed.code} cho ngày/NVGH này`, status: 409, submission: existed };
+  }
+  await deliveryCashSubmissionRepository.upsert(draft);
+  return { submission: draft, orders: built.orders };
+}
+
+async function listDeliveryCashSubmissions(query = {}) {
+  const filter = {};
+  if (query.deliveryDate || query.date) filter.deliveryDate = dateOnly(query.deliveryDate || query.date);
+  if (pickDeliveryStaffCode(query) || query.delivery) filter.deliveryStaffCode = String(pickDeliveryStaffCode(query) || query.delivery).trim();
+  let rows = await deliveryCashSubmissionRepository.findAll(filter, { sort: { deliveryDate: -1, createdAt: -1, code: -1 }, limit: query.limit || 500 });
+  const q = normalizeText(query.q || query.search || '');
+  if (q) rows = rows.filter((row) => matchQuery(row, q));
+  if (!rows.length) return { submissions: [] };
+
+  const ids = rows.map((row) => String(row.id || '').trim()).filter(Boolean);
+  const codes = rows.map((row) => String(row.code || '').trim()).filter(Boolean);
+  const sourceFilter = [];
+  if (ids.length) sourceFilter.push({ sourceSubmissionId: { $in: ids } });
+  if (codes.length) sourceFilter.push({ sourceSubmissionCode: { $in: codes } });
+  const shortageRows = sourceFilter.length
+    ? await deliveryCashShortageRepository.findAll({ $or: sourceFilter }, { limit: Math.min(1000, rows.length * 3) })
+    : [];
+  const shortageBySource = new Map();
+  for (const shortage of shortageRows) {
+    const keys = [shortageMapKey(shortage.sourceSubmissionId, ''), shortageMapKey('', shortage.sourceSubmissionCode)].filter(Boolean);
+    for (const key of keys) {
+      if (!shortageBySource.has(key)) shortageBySource.set(key, {});
+      shortageBySource.get(key)[canonicalFundType(shortage.fundType)] = shortage;
+    }
+  }
+
+  const ledgerOr = [];
+  if (ids.length) ledgerOr.push({ sourceId: { $in: ids } }, { referenceId: { $in: ids } });
+  if (codes.length) ledgerOr.push({ sourceCode: { $in: codes } }, { referenceCode: { $in: codes } });
+  const relatedLedgers = ledgerOr.length
+    ? await fundLedgerRepository.findAll({ sourceType: 'DELIVERY_CASH_SUBMISSION', $or: ledgerOr }, { limit: Math.min(2000, rows.length * 8) })
+    : [];
+  const ledgersBySubmission = new Map();
+  for (const ledger of relatedLedgers) {
+    for (const identity of [ledger.sourceId, ledger.sourceCode, ledger.referenceId, ledger.referenceCode].map((value) => String(value || '').trim()).filter(Boolean)) {
+      if (!ledgersBySubmission.has(identity)) ledgersBySubmission.set(identity, []);
+      ledgersBySubmission.get(identity).push(ledger);
+    }
+  }
+
+  rows = rows.map((row) => {
+    const shortages = shortageBySource.get(shortageMapKey(row.id, '')) || shortageBySource.get(shortageMapKey('', row.code)) || {};
+    const persistedLines = normalizeRemittanceLines(row.remittanceLines, { submissionIdentity: row.id || row.code, makeId });
+    const legacyLedgers = ledgersBySubmission.get(String(row.id || '').trim()) || ledgersBySubmission.get(String(row.code || '').trim()) || [];
+    let remittanceLines = persistedLines;
+    let legacyDerived = false;
+    if (!remittanceLines.length && legacyLedgers.length) {
+      legacyDerived = true;
+      remittanceLines = normalizeRemittanceLines(legacyLedgers.map((ledger, index) => ({
+        lineId: ledger.sourceLineId || `LEGACY-${ledger.id || ledger.code || index + 1}`,
+        method: ledger.fundType,
+        amount: ledger.amount,
+        remittanceDate: ledger.remittanceDate || ledger.accountingDate || ledger.date,
+        status: 'confirmed',
+        confirmedAt: ledger.createdAt,
+        confirmedBy: ledger.createdBy,
+        fundLedgerId: ledger.id || ledger.code,
+        idempotencyKey: ledger.idempotencyKey,
+        bankAccountCode: ledger.bankAccountCode || ledger.account,
+        bankReference: ledger.bankReference,
+        legacyDerived: true
+      })), { submissionIdentity: row.id || row.code, makeId });
+    } else if (!remittanceLines.length && !row.fundPosted) {
+      legacyDerived = true;
+      remittanceLines = linesFromLegacyAmounts(row, {
+        submissionIdentity: row.id || row.code,
+        makeId,
+        defaultRemittanceDate: '',
+        defaultStatus: 'draft'
+      });
+    }
+    const enriched = applyLineSummary(row, remittanceLines, {
+      makeId,
+      forceStatus: row.status,
+      forceFundPosted: row.fundPosted
+    });
+    return {
+      ...enriched,
+      legacyDerived,
+      cashShortage: shortages.cash || null,
+      bankShortage: shortages.bank || null
+    };
+  });
+  return { submissions: rows };
+}

@@ -1,0 +1,244 @@
+async function classifyConfirmedDeliveryShortages(idOrCode, body = {}) {
+  const submission = await deliveryCashSubmissionRepository.findByIdOrCode(idOrCode);
+  if (!submission) return { error: 'Không tìm thấy phiếu nộp quỹ', status: 404 };
+  if (!submission.fundPosted && String(submission.status || '').toLowerCase() !== 'confirmed') {
+    return { error: 'Chỉ phân loại bổ sung cho phiếu đã xác nhận', status: 409 };
+  }
+  const shortagePlanResult = prepareDeliveryShortagePlans(submission, body);
+  if (shortagePlanResult.error) return shortagePlanResult;
+  if (!shortagePlanResult.plans.length) return { error: 'Phiếu không có khoản thiếu cần phân loại', status: 400 };
+  const actor = String(body.classifiedBy || body.updatedBy || body.actorCode || '').trim();
+  let shortages = [];
+  const updated = {
+    ...submission,
+    shortageClassifiedAt: dateUtil.nowIso(),
+    shortageClassifiedBy: actor,
+    updatedAt: dateUtil.nowIso()
+  };
+  await withMongoTransaction(async (session) => {
+    shortages = await persistDeliveryShortagePlans(updated, shortagePlanResult.plans, actor, { session });
+    await deliveryCashSubmissionRepository.patchByIdOrCode(idOrCode, {
+      shortageClassifiedAt: updated.shortageClassifiedAt,
+      shortageClassifiedBy: updated.shortageClassifiedBy,
+      updatedAt: updated.updatedAt
+    }, { session });
+  });
+  await auditService.log('DELIVERY_CASH_SHORTAGE_CLASSIFIED', {
+    refType: 'DELIVERY_CASH_SUBMISSION',
+    refId: submission.id,
+    refCode: submission.code,
+    user: actor,
+    summary: { shortageCodes: shortages.map((row) => row.code) },
+    note: `Phân loại khoản thiếu cho phiếu ${submission.code}`
+  });
+  return { submission: updated, shortages, message: 'Đã lưu phân loại khoản thiếu của phiếu đã xác nhận' };
+}
+
+async function getDeliveryCashShortageHistory(idOrCode) {
+  const shortage = await deliveryCashShortageRepository.findByIdOrCode(idOrCode);
+  if (!shortage) return { error: 'Không tìm thấy khoản thiếu quỹ', status: 404 };
+  const repayments = await deliveryShortageRepaymentRepository.findAll(
+    { $or: [{ shortageId: shortage.id }, { shortageCode: shortage.code }] },
+    { sort: { createdAt: -1, code: -1 }, limit: 500 }
+  );
+  const pendingAmount = repayments
+    .filter((row) => String(row.status || '').toLowerCase() === 'pending')
+    .reduce((sum, row) => sum + money(row.amount), 0);
+  return {
+    shortage,
+    repayments,
+    summary: {
+      originalShortageAmount: money(shortage.originalShortageAmount),
+      settledAmount: money(shortage.settledAmount),
+      adjustedAmount: money(shortage.adjustedAmount),
+      outstandingAmount: money(shortage.outstandingAmount),
+      pendingAmount,
+      availableToRepay: Math.max(0, money(shortage.outstandingAmount) - pendingAmount)
+    }
+  };
+}
+
+async function createDeliveryShortageRepayment(idOrCode, body = {}) {
+  const amount = money(body.amount);
+  if (amount <= 0) return { error: 'Số tiền nộp bù phải lớn hơn 0', status: 400 };
+  const actor = String(body.createdBy || body.actorCode || '').trim();
+  let repayment = null;
+  let shortage = null;
+  await withMongoTransaction(async (session) => {
+    shortage = await deliveryCashShortageRepository.findByIdOrCode(idOrCode, { session });
+    if (!shortage) throw Object.assign(new Error('Không tìm thấy khoản thiếu quỹ'), { status: 404 });
+    if (String(shortage.responsibleType || '') !== 'delivery_staff') {
+      throw Object.assign(new Error('Khoản thiếu này không được ghi nhận là công nợ của NVGH'), { status: 409 });
+    }
+    if (!['open', 'partial'].includes(String(shortage.status || '').toLowerCase()) || money(shortage.outstandingAmount) <= 0) {
+      throw Object.assign(new Error('Khoản thiếu đã tất toán hoặc không còn được phép nộp bù'), { status: 409 });
+    }
+    const reservedShortage = await deliveryCashShortageRepository.reservePendingRepayment(
+      shortage.id || shortage.code,
+      amount,
+      dateUtil.nowIso(),
+      { session }
+    );
+    if (!reservedShortage) {
+      const pendingRows = await deliveryShortageRepaymentRepository.findAll(
+        { $or: [{ shortageId: shortage.id }, { shortageCode: shortage.code }], status: 'pending' },
+        { session, limit: 500 }
+      );
+      const pendingAmount = pendingRows.reduce((sum, row) => sum + money(row.amount), 0);
+      const available = Math.max(0, money(shortage.outstandingAmount) - pendingAmount);
+      throw Object.assign(new Error(`Số tiền nộp bù vượt số còn có thể lập phiếu (${available})`), { status: 409 });
+    }
+    shortage = reservedShortage;
+    const now = dateUtil.nowIso();
+    repayment = {
+      id: makeId('DSR'),
+      code: deliveryShortageRepaymentCode(shortage, body.repaymentDate || body.date),
+      shortageId: shortage.id,
+      shortageCode: shortage.code,
+      sourceSubmissionId: shortage.sourceSubmissionId,
+      sourceSubmissionCode: shortage.sourceSubmissionCode,
+      deliveryDate: shortage.deliveryDate,
+      deliveryStaffCode: shortage.deliveryStaffCode,
+      deliveryStaffName: shortage.deliveryStaffName,
+      repaymentDate: dateOnly(body.repaymentDate || body.date),
+      fundType: canonicalFundType(body.fundType || body.paymentMethod),
+      amount,
+      status: 'pending',
+      fundPosted: false,
+      note: String(body.note || '').trim(),
+      createdBy: actor,
+      createdAt: now,
+      updatedAt: now
+    };
+    await deliveryShortageRepaymentRepository.upsert(repayment, { session });
+  });
+  await auditService.log('DELIVERY_SHORTAGE_REPAYMENT_CREATED', {
+    refType: 'DELIVERY_CASH_SHORTAGE',
+    refId: shortage.id,
+    refCode: shortage.code,
+    user: actor,
+    summary: repayment,
+    note: `Tạo phiếu nộp bù ${repayment.code}`
+  });
+  return { shortage, repayment, message: 'Đã tạo phiếu nộp bù, chờ kế toán xác nhận ghi quỹ' };
+}
+
+async function confirmDeliveryShortageRepayment(idOrCode, body = {}) {
+  let repayment = await deliveryShortageRepaymentRepository.findByIdOrCode(idOrCode);
+  if (!repayment) return { error: 'Không tìm thấy phiếu nộp bù', status: 404 };
+  if (repayment.fundPosted || String(repayment.status || '').toLowerCase() === 'confirmed') {
+    const shortage = await deliveryCashShortageRepository.findByIdOrCode(repayment.shortageId || repayment.shortageCode);
+    return { repayment, shortage, ledger: null, message: 'Phiếu nộp bù đã ghi quỹ trước đó' };
+  }
+  if (String(repayment.status || '').toLowerCase() !== 'pending') return { error: 'Phiếu nộp bù không ở trạng thái chờ xác nhận', status: 409 };
+  const amount = money(repayment.amount);
+  if (amount <= 0) return { error: 'Số tiền nộp bù không hợp lệ', status: 400 };
+  const actor = String(body.confirmedBy || body.updatedBy || body.actorCode || '').trim();
+  let shortage = null;
+  let ledger = null;
+  await withMongoTransaction(async (session) => {
+    const currentRepayment = await deliveryShortageRepaymentRepository.findByIdOrCode(idOrCode, { session });
+    if (!currentRepayment || currentRepayment.fundPosted || String(currentRepayment.status || '') !== 'pending') {
+      throw Object.assign(new Error('Phiếu nộp bù đã được xử lý bởi phiên khác'), { status: 409 });
+    }
+    shortage = await deliveryCashShortageRepository.applyConfirmedRepayment(
+      currentRepayment.shortageId || currentRepayment.shortageCode,
+      amount,
+      dateUtil.nowIso(),
+      { session }
+    );
+    if (!shortage) throw Object.assign(new Error('Số tiền nộp bù vượt khoản còn thiếu hoặc khoản thiếu đã khóa'), { status: 409 });
+    const now = dateUtil.nowIso();
+    repayment = await deliveryShortageRepaymentRepository.markConfirmedIfPending(idOrCode, {
+      status: 'confirmed',
+      fundPosted: true,
+      postedAt: now,
+      confirmedAt: now,
+      confirmedBy: actor,
+      updatedAt: now
+    }, { session });
+    if (!repayment) throw Object.assign(new Error('Phiếu nộp bù đã được xác nhận trước đó'), { status: 409 });
+    ledger = await postFundLedger({
+      date: repayment.repaymentDate,
+      fundType: repayment.fundType,
+      direction: 'in',
+      amount,
+      sourceType: 'DELIVERY_SHORTAGE_REPAYMENT',
+      sourceId: repayment.id,
+      sourceCode: repayment.code,
+      deliveryDate: repayment.deliveryDate,
+      deliveryStaffCode: repayment.deliveryStaffCode,
+      deliveryStaffName: repayment.deliveryStaffName,
+      createdBy: actor,
+      note: repayment.note || `NVGH ${repayment.deliveryStaffName || repayment.deliveryStaffCode} nộp bù thiếu quỹ ${repayment.shortageCode}`
+    }, { session });
+  });
+  await auditService.log('DELIVERY_SHORTAGE_REPAYMENT_CONFIRMED', {
+    refType: 'DELIVERY_CASH_SHORTAGE',
+    refId: shortage.id,
+    refCode: shortage.code,
+    user: actor,
+    summary: { repaymentCode: repayment.code, amount, outstandingAmount: shortage.outstandingAmount },
+    note: `Xác nhận phiếu nộp bù ${repayment.code}`
+  });
+  return { repayment, shortage, ledger, message: 'Đã xác nhận nộp bù, tăng quỹ và giảm công nợ thiếu quỹ NVGH' };
+}
+
+
+async function createExpenseVoucher(body = {}) {
+  const amount = money(body.amount);
+  if (amount <= 0) return { error: 'Số tiền chi phải lớn hơn 0', status: 400 };
+  const voucher = {
+    id: String(body.id || makeId('PC')).trim(),
+    code: String(body.code || await nextExpenseCode()).trim(),
+    date: dateOnly(body.date),
+    fundType: String(body.fundType || 'cash').toLowerCase() === 'bank' ? 'bank' : 'cash',
+    amount,
+    expenseType: String(body.expenseType || 'other').trim(),
+    receiverCode: String(body.receiverCode || '').trim(),
+    receiverName: String(body.receiverName || '').trim(),
+    receiverRole: String(body.receiverRole || '').trim(),
+    note: String(body.note || '').trim(),
+    status: 'pending',
+    fundPosted: false,
+    createdBy: String(body.createdBy || '').trim(),
+    createdAt: dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
+  };
+  await expenseVoucherRepository.upsert(voucher);
+  return { voucher, message: 'Đã tạo phiếu chi, chờ xác nhận ghi sổ quỹ' };
+}
+
+async function updateExpenseVoucher(idOrCode, body = {}) {
+  const current = await expenseVoucherRepository.findByIdOrCode(idOrCode);
+  if (!current) return { error: 'Không tìm thấy phiếu chi', status: 404 };
+  if (isLockedVoucher(current)) return lockedError('Phiếu chi');
+  const amount = money(body.amount ?? current.amount);
+  if (amount <= 0) return { error: 'Số tiền chi phải lớn hơn 0', status: 400 };
+  const updated = {
+    ...current,
+    date: dateOnly(body.date || current.date),
+    fundType: String(body.fundType || current.fundType || 'cash').toLowerCase() === 'bank' ? 'bank' : 'cash',
+    amount,
+    expenseType: String(body.expenseType ?? current.expenseType ?? 'other').trim(),
+    receiverCode: String(body.receiverCode ?? current.receiverCode ?? '').trim(),
+    receiverName: String(body.receiverName ?? current.receiverName ?? '').trim(),
+    receiverRole: String(body.receiverRole ?? current.receiverRole ?? '').trim(),
+    note: String(body.note ?? current.note ?? '').trim(),
+    status: 'pending',
+    updatedAt: dateUtil.nowIso()
+  };
+  await expenseVoucherRepository.upsert(updated);
+  return { voucher: updated, message: 'Đã cập nhật phiếu chi' };
+}
+
+async function confirmExpenseVoucher(idOrCode, body = {}) {
+  const voucher = await expenseVoucherRepository.findByIdOrCode(idOrCode);
+  if (!voucher) return { error: 'Không tìm thấy phiếu chi', status: 404 };
+  if (['cancelled', 'canceled', 'void', 'deleted'].includes(String(voucher.status || '').toLowerCase())) return { error: 'Phiếu chi đã hủy', status: 400 };
+  if (voucher.fundPosted || String(voucher.status || '').toLowerCase() === 'confirmed') return { voucher, ledger: null, message: 'Phiếu chi đã ghi sổ quỹ trước đó' };
+  const amount = money(voucher.amount);
+  if (amount <= 0) return { error: 'Số tiền chi phải lớn hơn 0', status: 400 };
+  const updated = { ...voucher, status: 'confirmed', fundPosted: true, postedAt: dateUtil.nowIso(), confirmedAt: dateUtil.nowIso(), confirmedBy: String(body.confirmedBy || body.updatedBy || '').trim(), updatedAt: dateUtil.nowIso() };
+  let ledger = null;
+  await withMongoTransaction(async (session) => {

@@ -24,6 +24,7 @@ router.post('/delivery-cash-submissions/preview', manageFund, fundController.pre
 router.post('/delivery-cash-submissions', manageFund, fundController.createDeliverySubmission);
 router.put('/delivery-cash-submissions/:id', manageFund, fundController.updateDeliverySubmission);
 router.post('/delivery-cash-submissions/:id/confirm', manageFund, fundController.confirmDeliverySubmission);
+router.post('/delivery-cash-submissions/:id/lines/:lineId/confirm', manageFund, fundController.confirmDeliveryRemittanceLine);
 router.post('/delivery-cash-submissions/:id/shortages', manageFund, fundController.classifyDeliveryShortages);
 router.get('/delivery-cash-shortages/:id/history', viewFund, fundController.getDeliveryShortageHistory);
 router.post('/delivery-cash-shortages/:id/repayments', manageFund, fundController.createDeliveryShortageRepayment);

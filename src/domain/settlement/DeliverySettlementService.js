@@ -105,7 +105,8 @@ async function submitCashToFund(idOrCode, body = {}) {
   const payload = {
     ...body,
     submittedCashAmount,
-    submittedBankAmount
+    submittedBankAmount,
+    remittanceDate: body.remittanceDate || dateUtil.todayVN()
   };
 
   if (target) {

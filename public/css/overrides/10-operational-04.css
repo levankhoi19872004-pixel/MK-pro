@@ -651,3 +651,20 @@
 .report-source-note__grid{display:grid;grid-template-columns:minmax(120px,180px) 1fr;gap:4px 10px;margin:8px 0 0;}
 .report-source-note__grid dt{font-weight:700;color:#475569;}
 .report-source-note__grid dd{margin:0;word-break:break-word;}
+
+/* Phase230: line-level delivery remittance accounting dates */
+.delivery-remittance-lines{border:1px solid #dbe6f5;border-radius:12px;padding:12px;background:#f8fbff}
+.delivery-remittance-lines-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.delivery-remittance-lines-head>div:first-child{display:flex;flex-direction:column;gap:3px}
+.delivery-remittance-line-actions{display:flex;gap:8px;flex-wrap:wrap}
+.delivery-remittance-lines-scroll{max-height:260px}
+.delivery-remittance-lines-table input,.delivery-remittance-lines-table select{min-width:118px;width:100%}
+.delivery-remittance-lines-table td:nth-child(4) input+input{margin-top:6px}
+.delivery-remittance-help{margin:8px 0 0}
+.fund-remittance-line-status{display:inline-flex;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:700}
+.fund-remittance-line-status.confirmed{background:#dcfce7;color:#166534}
+.fund-remittance-line-status.draft{background:#fef3c7;color:#92400e}
+.fund-remittance-date-details summary{cursor:pointer;font-weight:700;color:#1d4ed8}
+.fund-remittance-date-line{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:260px;padding:6px 0;border-top:1px solid #e5e7eb}
+.fund-remittance-date-line:first-of-type{margin-top:5px}
+@media (max-width:760px){.delivery-remittance-lines-head{flex-direction:column}.delivery-remittance-line-actions{width:100%}.delivery-remittance-lines-table{min-width:760px}}

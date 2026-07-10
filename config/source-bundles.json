@@ -80,10 +80,12 @@
       "mode": "commonjs",
       "parts": [
         "src/services/fundService.source/part-01.jsfrag",
+        "src/services/fundService.source/part-01b.jsfrag",
         "src/services/fundService.source/part-02.jsfrag",
+        "src/services/fundService.source/part-02b.jsfrag",
         "src/services/fundService.source/part-03.jsfrag"
       ],
-      "sourceSha256": "ca9484e52f0d0cbc13a1192c969bd50d8425ff5a34bd7be116be887c1f875f94"
+      "sourceSha256": "b2ab9c7f7b5016cce8d8ed0dfc2dda9d230e95ea705faa3d3e781d38ca0143c5"
     },
     {
       "target": "src/services/inventoryService.js",
@@ -170,14 +172,18 @@
       "mode": "classic-chunks",
       "parts": [
         "public/js/app/debt/07f-fund-ledger.source/part-01.jsfrag",
+        "public/js/app/debt/07f-fund-ledger.source/part-01b.jsfrag",
         "public/js/app/debt/07f-fund-ledger.source/part-02.jsfrag",
+        "public/js/app/debt/07f-fund-ledger.source/part-02b.jsfrag",
         "public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag"
       ],
-      "sourceSha256": "c78e413f34a0d854602151113ecf9382b9df521af10f98a2cbd2eb230dd9d7eb",
+      "sourceSha256": "ff5b2db2a258f9b974212d801f5f117d4a45db2316a3f563209690b170a01aeb",
       "runtimeFiles": [
         "public/js/app/debt/07f-fund-ledger.js",
         "public/js/app/debt/07f-fund-ledger.part02.js",
-        "public/js/app/debt/07f-fund-ledger.part03.js"
+        "public/js/app/debt/07f-fund-ledger.part03.js",
+        "public/js/app/debt/07f-fund-ledger.part04.js",
+        "public/js/app/debt/07f-fund-ledger.part05.js"
       ]
     },
     {

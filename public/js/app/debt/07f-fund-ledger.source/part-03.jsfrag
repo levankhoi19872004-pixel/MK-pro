@@ -85,6 +85,7 @@ if(!document.documentElement.dataset.fundSecurityDelegationBound){
     if(action==='classify-shortage')classifyDeliveryCashShortages(code);
     if(action==='open-shortage')openDeliveryShortageRepayment(button.dataset.shortageKey||'');
     if(action==='confirm-repayment')confirmDeliveryShortageRepayment(code,button);
+    if(action==='confirm-remittance-line')confirmDeliveryRemittanceLine(code,button.dataset.lineId||'',button);
   });
 }
 if(fundTabButtons)fundTabButtons.forEach(btn=>btn.addEventListener('click',()=>setActiveFundTab(btn.dataset.fundTab)));
@@ -112,7 +113,27 @@ if(deliveryCashSubmissionStaffCode){
   deliveryCashSubmissionStaffCode.addEventListener('change',()=>scheduleDeliveryCashSubmissionPreview({immediate:true}));
   deliveryCashSubmissionStaffCode.addEventListener('blur',()=>scheduleDeliveryCashSubmissionPreview({immediate:true}));
 }
-[deliveryCashSubmissionCashInput,deliveryCashSubmissionBankInput].forEach(el=>{if(el)el.addEventListener('input',updateDeliveryCashSubmissionDifference);});
+if(addDeliveryCashLineButton)addDeliveryCashLineButton.addEventListener('click',()=>addDeliveryRemittanceLine('cash'));
+if(addDeliveryBankLineButton)addDeliveryBankLineButton.addEventListener('click',()=>addDeliveryRemittanceLine('bank'));
+if(deliveryRemittanceLineTable){
+  deliveryRemittanceLineTable.addEventListener('input',event=>{
+    if(!event.target.closest('[data-remittance-field]'))return;
+    collectDeliveryRemittanceLines(); updateDeliveryCashSubmissionDifference();
+  });
+  deliveryRemittanceLineTable.addEventListener('change',event=>{
+    if(!event.target.closest('[data-remittance-field]'))return;
+    const methodChanged=event.target.dataset.remittanceField==='method';
+    collectDeliveryRemittanceLines();
+    if(methodChanged)renderDeliveryRemittanceLineEditor();
+    updateDeliveryCashSubmissionDifference();
+  });
+  deliveryRemittanceLineTable.addEventListener('click',event=>{
+    const button=event.target.closest('[data-remittance-remove]'); if(!button)return;
+    const index=Number(button.dataset.remittanceRemove); const line=deliveryRemittanceLines[index];
+    if(line&&(line.status==='confirmed'||line.fundLedgerId)){alert('Dòng đã ghi quỹ không được xóa');return;}
+    deliveryRemittanceLines.splice(index,1); renderDeliveryRemittanceLineEditor(); updateDeliveryCashSubmissionDifference();
+  });
+}
 if(deliveryCashSubmissionForm)deliveryCashSubmissionForm.addEventListener('submit',submitDeliveryCashSubmission);
 if(deliveryShortageResolutionForm)deliveryShortageResolutionForm.addEventListener('submit',submitDeliveryShortageResolution);
 if(deliveryShortageRepaymentForm)deliveryShortageRepaymentForm.addEventListener('submit',submitDeliveryShortageRepayment);

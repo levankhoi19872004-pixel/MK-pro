@@ -71,7 +71,9 @@ test('index cache-busts các script Sổ quỹ đã sửa', () => {
   const file = path.join(ROOT, 'public/index.html');
   const source = require('./helpers/sourceBundle.util').readSource(file);
   assert.match(source, /01-utils-print-tabs\.js\?v=phase62-picking-zone-v1/);
-  assert.match(source, /07f-fund-ledger\.js\?v=phase79b-source-shards-v1/);
-  assert.match(source, /07f-fund-ledger\.part02\.js\?v=phase79b-source-shards-v1/);
-  assert.match(source, /07f-fund-ledger\.part03\.js\?v=phase79b-source-shards-v1/);
+  assert.match(source, /07f-fund-ledger\.js\?v=phase230-remittance-lines-v1/);
+  assert.match(source, /07f-fund-ledger\.part02\.js\?v=phase230-remittance-lines-v1/);
+  assert.match(source, /07f-fund-ledger\.part03\.js\?v=phase230-remittance-lines-v1/);
+  assert.match(source, /07f-fund-ledger\.part04\.js\?v=phase230-remittance-lines-v1/);
+  assert.match(source, /07f-fund-ledger\.part05\.js\?v=phase230-remittance-lines-v1/);
 });

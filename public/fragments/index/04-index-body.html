@@ -326,8 +326,8 @@
               <div class="delivery-subtab-panel active" data-delivery-subpanel="cash" role="tabpanel">
                 <div class="table-scroll funds-sub-table-scroll">
                   <table>
-                    <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TM</th><th>Thực nộp TM</th><th>Chênh TM</th><th>Còn thiếu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
-                    <tbody id="deliveryCashSubmissionTable"><tr><td colspan="9">Chưa tải danh sách tiền mặt.</td></tr></tbody>
+                    <thead><tr><th>Mã phiếu</th><th>Ngày giao</th><th>Ngày nộp/nhận</th><th>NVGH</th><th>Báo cáo TM</th><th>Đã nhận TM / Thực nộp TM</th><th>Kế hoạch TM</th><th>Còn thiếu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                    <tbody id="deliveryCashSubmissionTable"><tr><td colspan="10">Chưa tải danh sách tiền mặt.</td></tr></tbody>
                   </table>
                 </div>
               </div>
@@ -335,8 +335,8 @@
               <div class="delivery-subtab-panel" data-delivery-subpanel="bank" role="tabpanel" hidden>
                 <div class="table-scroll funds-sub-table-scroll">
                   <table>
-                    <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TK</th><th>Thực nhận TK</th><th>Chênh TK</th><th>Còn thiếu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
-                    <tbody id="deliveryBankSubmissionTable"><tr><td colspan="9">Chưa tải danh sách chuyển khoản.</td></tr></tbody>
+                    <thead><tr><th>Mã phiếu</th><th>Ngày giao</th><th>Ngày nộp/nhận</th><th>NVGH</th><th>Báo cáo TK</th><th>Đã nhận TK / Thực nhận TK</th><th>Kế hoạch TK</th><th>Còn thiếu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                    <tbody id="deliveryBankSubmissionTable"><tr><td colspan="10">Chưa tải danh sách chuyển khoản.</td></tr></tbody>
                   </table>
                 </div>
               </div>
@@ -388,7 +388,7 @@
               <div class="modal-head">
                 <div>
                   <h3 id="deliveryCashSubmissionModalTitle">Tạo phiếu nộp quỹ giao hàng</h3>
-                  <p class="muted">Tạo phiếu theo ngày giao + NVGH. Xác nhận phiếu mới ghi fundLedgers.</p>
+                  <p class="muted">Ngày giao dùng để tính nghĩa vụ; từng dòng ngày nộp mới là ngày ghi tăng fundLedgers.</p>
                 </div>
                 <button id="closeDeliveryCashSubmissionModalButton" class="secondary" type="button">Đóng</button>
               </div>

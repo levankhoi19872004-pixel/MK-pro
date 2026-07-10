@@ -1,0 +1,91 @@
+{
+  "readOnly": true,
+  "generatedAt": "2026-07-10T10:53:23.382Z",
+  "filters": {
+    "deliveryDate": "",
+    "deliveryStaffCode": "",
+    "submissionCode": ""
+  },
+  "submissionCount": 3,
+  "lineCount": 3,
+  "countsBySeverity": {
+    "OK": 1,
+    "P0_FUND_LEDGER_POSTED_ON_DELIVERY_DATE": 1,
+    "WARNING_MISSING_REMITTANCE_DATE": 1
+  },
+  "severity": "P0_REMITTANCE_ACCOUNTING_DATE_MISMATCH",
+  "rows": [
+    {
+      "remittanceCode": "NQGH-20260709-ghtp-CORRECT",
+      "remittanceId": "SUB-CORRECT",
+      "deliveryStaffCode": "ghtp",
+      "deliveryDate": "2026-07-09",
+      "remittanceLineId": "CASH-CORRECT",
+      "method": "cash",
+      "amount": 15533000,
+      "declaredRemittanceDate": "2026-07-10",
+      "fundLedgerId": "FL-CORRECT",
+      "fundLedgerDate": "2026-07-10",
+      "fundLedgerAccountingDate": "2026-07-10",
+      "confirmedAt": "2026-07-10T02:00:00.000Z",
+      "dateMatchesRemittance": true,
+      "dateMatchesDelivery": false,
+      "suspectedBackdatedPosting": false,
+      "mismatchReason": "",
+      "severity": "OK",
+      "readOnly": true,
+      "remediationPlan": null
+    },
+    {
+      "remittanceCode": "NQGH-20260709-ghtp-WRONG",
+      "remittanceId": "SUB-WRONG",
+      "deliveryStaffCode": "ghtp",
+      "deliveryDate": "2026-07-09",
+      "remittanceLineId": "CASH-WRONG",
+      "method": "cash",
+      "amount": 15533000,
+      "declaredRemittanceDate": "2026-07-10",
+      "fundLedgerId": "FL-WRONG",
+      "fundLedgerDate": "2026-07-09",
+      "fundLedgerAccountingDate": "2026-07-09",
+      "confirmedAt": "2026-07-10T02:10:00.000Z",
+      "dateMatchesRemittance": false,
+      "dateMatchesDelivery": true,
+      "suspectedBackdatedPosting": true,
+      "mismatchReason": "FUND_LEDGER_DATE_EQUALS_DELIVERY_DATE_INSTEAD_OF_REMITTANCE_DATE",
+      "severity": "P0_FUND_LEDGER_POSTED_ON_DELIVERY_DATE",
+      "readOnly": true,
+      "remediationPlan": {
+        "applyAutomatically": false,
+        "steps": [
+          "Create accounting-safe reversal for the original fund ledger on its original accounting date.",
+          "Create one replacement fund ledger on the declared remittanceDate.",
+          "Link reversal and replacement to the original submission, line and ledger.",
+          "Never hard-delete or directly mutate the posted ledger date."
+        ]
+      }
+    },
+    {
+      "remittanceCode": "NQGH-20260709-ghtp-LEGACY",
+      "remittanceId": "SUB-LEGACY",
+      "deliveryStaffCode": "ghtp",
+      "deliveryDate": "2026-07-09",
+      "remittanceLineId": "LEGACY-FL-LEGACY",
+      "method": "cash",
+      "amount": 1000000,
+      "declaredRemittanceDate": "",
+      "fundLedgerId": "FL-LEGACY",
+      "fundLedgerDate": "2026-07-09",
+      "fundLedgerAccountingDate": "2026-07-09",
+      "confirmedAt": "2026-07-10T03:00:00.000Z",
+      "dateMatchesRemittance": false,
+      "dateMatchesDelivery": true,
+      "suspectedBackdatedPosting": true,
+      "mismatchReason": "LEGACY_LINE_MISSING_REMITTANCE_DATE_AND_POSTED_ON_DELIVERY_DATE",
+      "severity": "WARNING_MISSING_REMITTANCE_DATE",
+      "readOnly": true,
+      "remediationPlan": null
+    }
+  ],
+  "writesPerformed": 0
+}

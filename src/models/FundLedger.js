@@ -5,6 +5,8 @@ const FundLedger = flexModel('FundLedger', 'fundLedgers', {
   tenantId: String,
   code: String,
   date: String,
+  accountingDate: String,
+  remittanceDate: String,
   fundType: String, // cash | bank
   direction: String, // in | out
   account: String, // CASH | BANK or accounting sub-account
@@ -17,6 +19,7 @@ const FundLedger = flexModel('FundLedger', 'fundLedgers', {
   sourceType: String,
   sourceId: String,
   sourceCode: String,
+  sourceLineId: String,
   refType: String,
   refId: String,
   refCode: String,
@@ -24,6 +27,8 @@ const FundLedger = flexModel('FundLedger', 'fundLedgers', {
   referenceId: String,
   referenceCode: String,
   deliveryDate: String,
+  bankAccountCode: String,
+  bankReference: String,
   deliveryStaffCode: String,
   deliveryStaffName: String,
   salesStaffCode: String,

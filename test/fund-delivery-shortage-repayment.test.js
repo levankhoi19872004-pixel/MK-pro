@@ -73,7 +73,7 @@ test('phiếu thiếu không được xác nhận khi chưa phân loại trách 
     'src/repositories/deliveryShortageRepaymentRepository.js': {}
   });
   try {
-    const result = await harness.service.confirmDeliveryCashSubmission(submission.code, {});
+    const result = await harness.service.confirmDeliveryCashSubmission(submission.code, { remittanceDate: '2026-06-17' });
     assert.equal(result.status, 422);
     assert.equal(result.requiresShortageResolution, true);
     assert.equal(submissionWrites, 0);
@@ -114,6 +114,7 @@ test('xác nhận thiếu do NVGH tạo công nợ thiếu quỹ riêng và ch�
   try {
     const result = await harness.service.confirmDeliveryCashSubmission(submission.code, {
       confirmedBy: 'admin',
+      remittanceDate: '2026-06-17',
       shortageResolution: { cash: { reasonType: 'collected_not_remitted', note: 'NVGH hẹn nộp bù' } }
     });
     assert.equal(result.error, undefined);

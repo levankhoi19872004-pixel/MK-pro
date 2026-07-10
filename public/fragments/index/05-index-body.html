@@ -28,10 +28,29 @@
                     </div>
                   </section>
 
-                  <label>Thực nộp tiền mặt<input id="deliveryCashSubmissionCashInput" name="submittedCashAmount" type="number" min="0" step="1" placeholder="Tự điền theo báo cáo" /></label>
-                  <label>Thực nhận tài khoản<input id="deliveryCashSubmissionBankInput" name="submittedBankAmount" type="number" min="0" step="1" placeholder="Tự điền theo báo cáo" /></label>
+                  <input id="deliveryCashSubmissionCashInput" name="submittedCashAmount" type="hidden" />
+                  <input id="deliveryCashSubmissionBankInput" name="submittedBankAmount" type="hidden" />
+                  <section class="delivery-remittance-lines full-span" aria-labelledby="deliveryRemittanceLinesTitle">
+                    <div class="delivery-remittance-lines-head">
+                      <div>
+                        <strong id="deliveryRemittanceLinesTitle">Các lần thực nhận tiền</strong>
+                        <span class="muted">Mỗi dòng có phương thức, số tiền và ngày thực nhận riêng; thay cho ô Thực nộp tiền mặt / Thực nhận tài khoản cũ.</span>
+                      </div>
+                      <div class="delivery-remittance-line-actions">
+                        <button id="addDeliveryCashLineButton" class="secondary" type="button">+ Tiền mặt</button>
+                        <button id="addDeliveryBankLineButton" class="secondary" type="button">+ Chuyển khoản</button>
+                      </div>
+                    </div>
+                    <div class="table-scroll delivery-remittance-lines-scroll">
+                      <table class="delivery-remittance-lines-table">
+                        <thead><tr><th>Phương thức</th><th>Số tiền</th><th>Ngày nộp/nhận</th><th>Tài khoản / tham chiếu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                        <tbody id="deliveryRemittanceLineTable"><tr><td colspan="6">Chưa có dòng nộp tiền.</td></tr></tbody>
+                      </table>
+                    </div>
+                    <p class="muted delivery-remittance-help">Ngày nộp mặc định là hôm nay. Dòng đã xác nhận không được sửa; nếu sai phải reversal và tạo dòng thay thế.</p>
+                  </section>
                   <label class="full-span">Ghi chú<input name="note" placeholder="Ghi chú nộp quỹ" /></label>
-                  <div class="form-actions full-span"><button type="submit">Tạo phiếu nộp quỹ</button></div>
+                  <div class="form-actions full-span"><button type="submit">Lưu phiếu nộp quỹ</button></div>
                   <p id="deliveryCashSubmissionMessage" class="message full-span"></p>
                 </form>
               </div>

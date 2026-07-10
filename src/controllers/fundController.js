@@ -127,6 +127,22 @@ async function confirmDeliverySubmission(req, res) {
   }
 }
 
+async function confirmDeliveryRemittanceLine(req, res) {
+  try {
+    sendResult(
+      res,
+      await fundService.confirmDeliveryRemittanceLine(
+        req.params.id,
+        req.params.lineId,
+        { ...(req.body || {}), confirmedBy: actorCode(req) }
+      ),
+      'Đã xác nhận dòng nộp tiền'
+    );
+  } catch (err) {
+    res.status(err.status || 400).json({ ok: false, success: false, code: err.code, message: err.message || 'Không xác nhận được dòng nộp tiền' });
+  }
+}
+
 async function classifyDeliveryShortages(req, res) {
   try {
     sendResult(
@@ -202,4 +218,4 @@ async function confirmTransfer(req, res) {
   catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không xác nhận được phiếu chuyển quỹ' }); }
 }
 
-module.exports = { listLedger, getSummary, getSummaryTransactions, exportSummary, listDeliverySubmissions, deliveryCashInTransit, listExpenses, listTransfers, previewDeliverySubmission, createDeliverySubmission, updateDeliverySubmission, confirmDeliverySubmission, classifyDeliveryShortages, getDeliveryShortageHistory, createDeliveryShortageRepayment, confirmDeliveryShortageRepayment, createExpense, updateExpense, confirmExpense, createTransfer, updateTransfer, confirmTransfer };
+module.exports = { listLedger, getSummary, getSummaryTransactions, exportSummary, listDeliverySubmissions, deliveryCashInTransit, listExpenses, listTransfers, previewDeliverySubmission, createDeliverySubmission, updateDeliverySubmission, confirmDeliverySubmission, confirmDeliveryRemittanceLine, classifyDeliveryShortages, getDeliveryShortageHistory, createDeliveryShortageRepayment, confirmDeliveryShortageRepayment, createExpense, updateExpense, confirmExpense, createTransfer, updateTransfer, confirmTransfer };

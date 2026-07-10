@@ -1,60 +1,90 @@
-/* GENERATED FILE — edit public/js/app/debt/07f-fund-ledger.source/part-01.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-02.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag and run npm run build:source-bundles. */
-function renderFundLedgerSummary(s={}){const cashEnding=Number(s.cashEndingBalance??s.cashBalance??0);const bankEnding=Number(s.bankEndingBalance??s.bankBalance??0)
-;const totalInPeriod=Number(s.totalInPeriod??s.totalIn??0);const totalOutPeriod=Number(s.totalOutPeriod??s.totalOut??0)
-;const dateFrom=String(s.period&&s.period.dateFrom||fundDateFrom&&fundDateFrom.value||"");const dateTo=String(s.period&&s.period.dateTo||fundDateTo&&fundDateTo.value||"")
-;if(fundCashBalanceKpi)fundCashBalanceKpi.textContent=money(cashEnding);if(fundBankBalanceKpi)fundBankBalanceKpi.textContent=money(bankEnding)
-;if(fundTotalInKpi)fundTotalInKpi.textContent=money(totalInPeriod);if(fundTotalOutKpi)fundTotalOutKpi.textContent=money(totalOutPeriod)
-;if(fundCashBalanceLabel)fundCashBalanceLabel.textContent=`Tồn tiền mặt cuối ngày ${dateTo||""}`.trim()
-;if(fundBankBalanceLabel)fundBankBalanceLabel.textContent=`Tồn ngân hàng cuối ngày ${dateTo||""}`.trim();const period=`${dateFrom||""}${dateTo&&dateTo!==dateFrom?"–"+dateTo:""}`
-;if(fundTotalInLabel)fundTotalInLabel.textContent=`Tổng thu trong kỳ ${period}`.trim();if(fundTotalOutLabel)fundTotalOutLabel.textContent=`Tổng chi trong kỳ ${period}`.trim()
-;if(fundSummary)fundSummary.textContent=`Tiền mặt: đầu kỳ ${money(s.cashOpeningBalance||0)} · thu kỳ ${money(s.cashInPeriod??s.cashIn??0)} · chi kỳ ${money(s.cashOutPeriod??s.cashOut??0)} · cuối ngày ${money(cashEnding)} | Ngân hàng: đầu kỳ ${money(s.bankOpeningBalance||0)} · thu kỳ ${money(s.bankInPeriod??s.bankIn??0)} · chi kỳ ${money(s.bankOutPeriod??s.bankOut??0)} · cuối ngày ${money(bankEnding)}`
-}async function submitExpenseVoucher(event){event.preventDefault();const payload=Object.fromEntries(new FormData(expenseVoucherForm).entries())
-;payload.amount=Number(payload.amount||0);try{const editing=fundEditing.type==="expense"&&fundEditing.id
-;const url=editing?`/api/funds/expenses/${encodeURIComponent(fundEditing.id)}`:"/api/funds/expenses";const res=await fetch(url,{method:editing?"PUT":"POST",headers:{
-"Content-Type":"application/json"},body:JSON.stringify(payload)});const json=await fundReadJsonResponse(res,editing?"Không cập nhật được phiếu chi":"Không ghi được phiếu chi")
-;if(!json.ok)throw new Error(json.message||"Không lưu được phiếu chi");expenseVoucherForm.reset();if(expenseVoucherForm.elements.date)expenseVoucherForm.elements.date.value=today()
-;fundResetEditing("expense");showMessage(expenseVoucherMessage,json.message||"Đã lưu phiếu chi");await loadExpenseVouchers();await loadFundLedger();closeFundVoucherModal("expense")
-}catch(err){showMessage(expenseVoucherMessage,err.message,true)}}async function submitFundTransfer(event){event.preventDefault()
-;const payload=Object.fromEntries(new FormData(fundTransferForm).entries());payload.amount=Number(payload.amount||0);try{const editing=fundEditing.type==="transfer"&&fundEditing.id
-;const url=editing?`/api/funds/transfers/${encodeURIComponent(fundEditing.id)}`:"/api/funds/transfers";const res=await fetch(url,{method:editing?"PUT":"POST",headers:{
-"Content-Type":"application/json"},body:JSON.stringify(payload)});const json=await fundReadJsonResponse(res,editing?"Không cập nhật được chuyển quỹ":"Không ghi được chuyển quỹ")
-;if(!json.ok)throw new Error(json.message||"Không lưu được chuyển quỹ");fundTransferForm.reset();if(fundTransferForm.elements.date)fundTransferForm.elements.date.value=today()
-;fundResetEditing("transfer");showMessage(fundTransferMessage,json.message||"Đã lưu chuyển quỹ");await loadFundTransfers();await loadFundLedger();closeFundVoucherModal("transfer")
-}catch(err){showMessage(fundTransferMessage,err.message,true)}}function reloadActiveFundTab(){if(activeFundTab==="fundLedger")return loadFundLedger()
-;if(activeFundTab==="fundSummaryBook"&&window.FundSummaryBook)return window.FundSummaryBook.load();if(activeFundTab==="deliverySubmission")return loadDeliveryCashSubmissions()
-;if(activeFundTab==="expenseVoucher")return loadExpenseVouchers();if(activeFundTab==="bankTransfer")return loadFundTransfers();return Promise.resolve()}function resetFundFilters(){
-if(fundSearchInput)fundSearchInput.value="";if(fundDateFrom)fundDateFrom.value="";if(fundDateTo)fundDateTo.value="";if(fundTypeFilter)fundTypeFilter.value="all"
-;if(fundDirectionFilter)fundDirectionFilter.value="all";return reloadActiveFundTab()}if(!document.documentElement.dataset.fundSecurityDelegationBound){
-document.documentElement.dataset.fundSecurityDelegationBound="1";document.addEventListener("click",event=>{const button=event.target.closest("[data-fund-action]");if(!button)return
-;const action=button.dataset.fundAction;const type=button.dataset.fundType||"";const code=button.dataset.fundCode||"";if(action==="edit")editFundVoucher(type,code)
-;if(action==="confirm")confirmFundVoucher(type,code,button);if(action==="classify-shortage")classifyDeliveryCashShortages(code)
-;if(action==="open-shortage")openDeliveryShortageRepayment(button.dataset.shortageKey||"");if(action==="confirm-repayment")confirmDeliveryShortageRepayment(code,button)})}
-if(fundTabButtons)fundTabButtons.forEach(btn=>btn.addEventListener("click",()=>setActiveFundTab(btn.dataset.fundTab)))
-;if(deliverySubmissionTabButtons)deliverySubmissionTabButtons.forEach(btn=>btn.addEventListener("click",()=>setActiveDeliverySubmissionTab(btn.dataset.deliverySubtab)))
-;bindFundVoucherModal("delivery",createDeliveryCashSubmissionButton,closeDeliveryCashSubmissionModalButton)
-;bindFundVoucherModal("expense",createExpenseVoucherButton,closeExpenseVoucherModalButton);bindFundVoucherModal("transfer",createFundTransferButton,closeFundTransferModalButton)
-;document.addEventListener("keydown",event=>{if(event.key!=="Escape")return
-;if(deliveryShortageResolutionModal&&deliveryShortageResolutionModal.classList.contains("show"))return closeDeliveryShortageResolutionModal()
-;if(deliveryShortageRepaymentModal&&deliveryShortageRepaymentModal.classList.contains("show"))return closeDeliveryShortageRepaymentModal()
-;if(activeFundVoucherModalType)closeFundVoucherModal(activeFundVoucherModalType)});if(applyFundFiltersButton)applyFundFiltersButton.addEventListener("click",reloadActiveFundTab)
-;if(clearFundFiltersButton)clearFundFiltersButton.addEventListener("click",resetFundFilters)
-;if(reloadFundLedgerButton)reloadFundLedgerButton.addEventListener("click",reloadActiveFundTab);if(fundSearchInput)fundSearchInput.addEventListener("keydown",event=>{
-if(event.key!=="Enter")return;event.preventDefault();reloadActiveFundTab()})
-;if(deliveryCashSubmissionDate)deliveryCashSubmissionDate.addEventListener("change",()=>scheduleDeliveryCashSubmissionPreview({immediate:true}))
-;if(deliveryCashSubmissionStaffCode){deliveryCashSubmissionStaffCode.addEventListener("input",()=>scheduleDeliveryCashSubmissionPreview())
-;deliveryCashSubmissionStaffCode.addEventListener("change",()=>scheduleDeliveryCashSubmissionPreview({immediate:true}))
-;deliveryCashSubmissionStaffCode.addEventListener("blur",()=>scheduleDeliveryCashSubmissionPreview({immediate:true}))}
-[deliveryCashSubmissionCashInput,deliveryCashSubmissionBankInput].forEach(el=>{if(el)el.addEventListener("input",updateDeliveryCashSubmissionDifference)})
-;if(deliveryCashSubmissionForm)deliveryCashSubmissionForm.addEventListener("submit",submitDeliveryCashSubmission)
-;if(deliveryShortageResolutionForm)deliveryShortageResolutionForm.addEventListener("submit",submitDeliveryShortageResolution)
-;if(deliveryShortageRepaymentForm)deliveryShortageRepaymentForm.addEventListener("submit",submitDeliveryShortageRepayment)
-;if(closeDeliveryShortageResolutionModalButton)closeDeliveryShortageResolutionModalButton.addEventListener("click",closeDeliveryShortageResolutionModal)
-;if(closeDeliveryShortageRepaymentModalButton)closeDeliveryShortageRepaymentModalButton.addEventListener("click",closeDeliveryShortageRepaymentModal)
-;if(deliveryShortageResolutionModal)deliveryShortageResolutionModal.addEventListener("click",event=>{
-if(event.target===deliveryShortageResolutionModal)closeDeliveryShortageResolutionModal()})
-;if(deliveryShortageRepaymentModal)deliveryShortageRepaymentModal.addEventListener("click",event=>{
-if(event.target===deliveryShortageRepaymentModal)closeDeliveryShortageRepaymentModal()});if(expenseVoucherForm)expenseVoucherForm.addEventListener("submit",submitExpenseVoucher)
-;if(fundTransferForm)fundTransferForm.addEventListener("submit",submitFundTransfer)
-;[deliveryCashSubmissionForm,expenseVoucherForm,fundTransferForm,deliveryShortageRepaymentForm].forEach(form=>{if(form&&form.elements.date)form.elements.date.value=today()
-;if(form&&form.elements.deliveryDate)form.elements.deliveryDate.value=today();if(form&&form.elements.repaymentDate)form.elements.repaymentDate.value=today()})
-;clearDeliveryCashSubmissionPreview();setActiveDeliverySubmissionTab("cash");loadFundLedger();
+/* GENERATED FILE — edit public/js/app/debt/07f-fund-ledger.source/part-01.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-01b.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-02.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-02b.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag and run npm run build:source-bundles. */
+function setActiveDeliverySubmissionTab(tab="cash"){activeDeliverySubmissionTab=tab==="bank"?"bank":"cash"
+;if(deliverySubmissionTabButtons)deliverySubmissionTabButtons.forEach(button=>{const active=button.dataset.deliverySubtab===activeDeliverySubmissionTab
+;button.classList.toggle("active",active);button.setAttribute("aria-selected",active?"true":"false")});if(deliverySubmissionTabPanels)deliverySubmissionTabPanels.forEach(panel=>{
+const active=panel.dataset.deliverySubpanel===activeDeliverySubmissionTab;panel.classList.toggle("active",active);panel.hidden=!active})}
+function renderDeliveryRemittanceDates(row,fundType){
+const lines=(Array.isArray(row.remittanceLines)?row.remittanceLines:[]).filter(line=>String(line.method||line.fundType||"cash")===fundType&&!["cancelled","reversed"].includes(String(line.status||"").toLowerCase()))
+;if(!lines.length)return'<span class="muted">Chưa khai báo</span>';const dates=[...new Set(lines.map(line=>String(line.remittanceDate||"")).filter(Boolean))].sort()
+;const label=!dates.length?"Cần chọn ngày":dates.length===1?dates[0]:`${dates[0]}–${dates[dates.length-1]}`
+;return`<details class="fund-remittance-date-details"><summary>${escapeHtml(label)}</summary>${lines.map(line=>{
+const confirmed=String(line.status||"").toLowerCase()==="confirmed"||Boolean(line.fundLedgerId);const rawCode=String(row.code||row.id||"");const rawLineId=String(line.lineId||"")
+;const methodLabel=fundType==="bank"?"CK":"TM"
+;const confirmButton=confirmed?'<span class="muted">Đã ghi quỹ</span>':`<button type="button" class="secondary compact-action" data-fund-action-key="${escapeHtml(`confirm-line:${rawCode}:${rawLineId}`)}" data-fund-action="confirm-remittance-line" data-fund-code="${escapeHtml(rawCode)}" data-line-id="${escapeHtml(rawLineId)}">Xác nhận dòng</button>`
+;return`<div class="fund-remittance-date-line"><span>${methodLabel} ${money(line.amount||0)} · ${escapeHtml(line.remittanceDate||"Chưa chọn ngày")}</span>${confirmButton}</div>`
+}).join("")}</details>`}function renderDeliverySubmissionRows(rows,{fundType:fundType="cash"}={}){const isBank=fundType==="bank"
+;const reportField=isBank?"reportBankAmount":"reportCashAmount";const submittedField=isBank?"submittedBankAmount":"submittedCashAmount"
+;const differenceField=isBank?"differenceBankAmount":"differenceCashAmount";const actualField=isBank?"totalActualBankAmount":"totalActualCashAmount"
+;const remainingField=isBank?"remainingBankAmount":"remainingCashAmount";const shortageField=isBank?"bankShortage":"cashShortage"
+;const emptyText=isBank?"Chưa có phiếu nộp quỹ chuyển khoản.":"Chưa có phiếu nộp quỹ tiền mặt.";if(!rows.length)return`<tr><td colspan="10">${emptyText}</td></tr>`
+;return rows.map(r=>{const planned=Number(r[submittedField]||0);const actual=Number((r[actualField]??(r.fundPosted?r[submittedField]:0))||0);const report=Number(r[reportField]||0)
+;const diff=Number(r[differenceField]??planned-report);const shortage=r[shortageField]||null;const remaining=Number(r[remainingField]??Math.max(0,report-actual))||0
+;const key=String(r.code||r.id||"");fundRowCache.delivery[key]=r;const shortageState=deliveryShortageStatusText(shortage,r,diff);const baseActions=fundActionButtons("delivery",r)
+;return`<tr><td><strong>${escapeHtml(r.code||"")}</strong></td><td>${escapeHtml(r.deliveryDate||"")}</td><td>${renderDeliveryRemittanceDates(r,fundType)}</td><td>${escapeHtml(((r.deliveryStaffCode||"")+" "+(r.deliveryStaffName||"")).trim())}</td><td class="price">${money(report)}</td><td class="price cash-in">${money(actual)}</td><td class="price">${money(planned)}</td><td class="price ${remaining>0?"cash-out":""}">${money(remaining)}</td><td>${fundStatusLabel(diff)} ${escapeHtml(fundStatusText(r))}${shortageState?`<div class="fund-shortage-state-wrap">${shortageState}</div>`:""}</td><td>${deliverySubmissionActions(r,{
+fundType:fundType,baseActions:baseActions})}</td></tr>`}).join("")}function loadDeliveryCashSubmissions(){
+if(!deliveryCashSubmissionTable&&!deliveryBankSubmissionTable)return Promise.resolve();return runFundListRequest("delivery",async()=>{try{const params=new URLSearchParams({
+limit:"500"});const q=fundSearchInput?fundSearchInput.value.trim():"";if(q)params.set("q",q);const res=await fetch(`/api/funds/delivery-cash-submissions?${params.toString()}`)
+;const json=await fundReadJsonResponse(res,"Không tải được phiếu nộp quỹ");if(!json.ok)throw new Error(json.message||"Không tải được phiếu nộp quỹ");const rows=json.submissions||[]
+;if(deliveryCashSubmissionTable)deliveryCashSubmissionTable.innerHTML=renderDeliverySubmissionRows(rows,{fundType:"cash"})
+;if(deliveryBankSubmissionTable)deliveryBankSubmissionTable.innerHTML=renderDeliverySubmissionRows(rows,{fundType:"bank"})}catch(err){
+const message=escapeHtml(err.message||"Lỗi tải phiếu nộp quỹ");if(deliveryCashSubmissionTable)deliveryCashSubmissionTable.innerHTML=`<tr><td colspan="10">${message}</td></tr>`
+;if(deliveryBankSubmissionTable)deliveryBankSubmissionTable.innerHTML=`<tr><td colspan="10">${message}</td></tr>`}})}function loadExpenseVouchers(){
+if(!expenseVoucherTable)return Promise.resolve();return runFundListRequest("expense",async()=>{try{const params=new URLSearchParams({limit:"500"})
+;const q=fundSearchInput?fundSearchInput.value.trim():"";if(q)params.set("q",q);const res=await fetch(`/api/funds/expenses?${params.toString()}`)
+;const json=await fundReadJsonResponse(res,"Không tải được phiếu chi");if(!json.ok)throw new Error(json.message||"Không tải được phiếu chi");const rows=json.vouchers||[]
+;expenseVoucherTable.innerHTML=rows.length?rows.map(r=>{const key=String(r.code||r.id||"");fundRowCache.expense[key]=r
+;return`<tr><td><strong>${escapeHtml(r.code||"")}</strong></td><td>${escapeHtml(r.date||"")}</td><td>${escapeHtml(fundTypeName(r.fundType))}</td><td>${escapeHtml(r.expenseType||"")}</td><td>${escapeHtml(r.receiverName||"")}</td><td class="price cash-out">${money(r.amount||0)}</td><td>${escapeHtml(fundStatusText(r))}</td><td><span class="fund-row-actions">${fundActionButtons("expense",r)}</span></td></tr>`
+}).join(""):'<tr><td colspan="8">Chưa có phiếu chi.</td></tr>'}catch(err){
+expenseVoucherTable.innerHTML=`<tr><td colspan="8">${escapeHtml(err.message||"Lỗi tải phiếu chi")}</td></tr>`}})}function loadFundTransfers(){
+if(!fundTransferTable)return Promise.resolve();return runFundListRequest("transfer",async()=>{try{const params=new URLSearchParams({limit:"500"})
+;const q=fundSearchInput?fundSearchInput.value.trim():"";if(q)params.set("q",q);const res=await fetch(`/api/funds/transfers?${params.toString()}`)
+;const json=await fundReadJsonResponse(res,"Không tải được phiếu chuyển quỹ");if(!json.ok)throw new Error(json.message||"Không tải được phiếu chuyển quỹ")
+;const rows=json.transfers||[];fundTransferTable.innerHTML=rows.length?rows.map(r=>{const key=String(r.code||r.id||"");fundRowCache.transfer[key]=r
+;return`<tr><td><strong>${escapeHtml(r.code||"")}</strong></td><td>${escapeHtml(r.date||"")}</td><td>${escapeHtml(fundTypeName(r.fromFund))}</td><td>${escapeHtml(fundTypeName(r.toFund))}</td><td>${escapeHtml(r.bankName||"")}</td><td class="price">${money(r.amount||0)}</td><td>${escapeHtml(fundStatusText(r))}</td><td><span class="fund-row-actions">${fundActionButtons("transfer",r)}</span></td></tr>`
+}).join(""):'<tr><td colspan="8">Chưa có phiếu chuyển quỹ.</td></tr>'}catch(err){
+fundTransferTable.innerHTML=`<tr><td colspan="8">${escapeHtml(err.message||"Lỗi tải phiếu chuyển quỹ")}</td></tr>`}})}async function submitDeliveryCashSubmission(event){
+event.preventDefault();collectDeliveryRemittanceLines();updateDeliveryCashSubmissionDifference()
+;const payload=Object.fromEntries(new FormData(deliveryCashSubmissionForm).entries())
+;payload.remittanceLines=deliveryRemittanceLines.map(normalizeDeliveryRemittanceLine).filter(line=>line.amount>0);["submittedCashAmount","submittedBankAmount"].forEach(k=>{
+if(payload[k]!==""&&payload[k]!=null)payload[k]=Number(payload[k]||0);else delete payload[k]});if(!payload.remittanceLines.length){
+showMessage(deliveryCashSubmissionMessage,"Cần thêm ít nhất một dòng nộp tiền",true);return}try{const editing=fundEditing.type==="delivery"&&fundEditing.id
+;const url=editing?`/api/funds/delivery-cash-submissions/${encodeURIComponent(fundEditing.id)}`:"/api/funds/delivery-cash-submissions";const res=await fetch(url,{
+method:editing?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
+;const json=await fundReadJsonResponse(res,editing?"Không cập nhật được phiếu nộp quỹ":"Không tạo được phiếu nộp quỹ")
+;if(!json.ok)throw new Error(json.message||"Không lưu được phiếu nộp quỹ");fundResetEditing("delivery")
+;showMessage(deliveryCashSubmissionMessage,json.message||"Đã lưu phiếu nộp quỹ");await loadDeliveryCashSubmissions();await loadFundLedger();closeFundVoucherModal("delivery")
+}catch(err){showMessage(deliveryCashSubmissionMessage,err.message,true)}}function setFundAuxModal(modal,show){if(!modal)return;modal.classList.toggle("show",Boolean(show))
+;modal.setAttribute("aria-hidden",show?"false":"true")
+;if(show)document.body.classList.add("modal-open");else if(!document.querySelector(".modal-backdrop.show"))document.body.classList.remove("modal-open")}
+function closeDeliveryShortageResolutionModal(){setFundAuxModal(deliveryShortageResolutionModal,false);shortageResolutionContext={mode:"",submissionCode:""}
+;if(deliveryShortageResolutionForm)deliveryShortageResolutionForm.reset();if(deliveryShortageResolutionMessage)showMessage(deliveryShortageResolutionMessage,"")}
+function openDeliveryShortageResolution(row,{mode:mode="confirm"}={}){if(!row)return;const cashShortage=Math.max(0,-Number(row.differenceCashAmount||0))
+;const bankShortage=Math.max(0,-Number(row.differenceBankAmount||0));if(cashShortage<=0&&bankShortage<=0){
+if(mode==="confirm")return executeDeliveryCashSubmissionConfirmation(row.code||row.id,{});alert("Phiếu không có khoản thiếu cần phân loại");return}shortageResolutionContext={
+mode:mode,submissionCode:String(row.code||row.id||"")};if(deliveryShortageResolutionForm)deliveryShortageResolutionForm.reset()
+;if(deliveryShortageResolutionSubmissionCode)deliveryShortageResolutionSubmissionCode.value=shortageResolutionContext.submissionCode
+;if(deliveryShortageResolutionMode)deliveryShortageResolutionMode.value=mode;if(deliveryCashShortageResolutionSection)deliveryCashShortageResolutionSection.hidden=cashShortage<=0
+;if(deliveryBankShortageResolutionSection)deliveryBankShortageResolutionSection.hidden=bankShortage<=0
+;if(deliveryCashShortageResolutionAmount)deliveryCashShortageResolutionAmount.textContent=money(cashShortage)
+;if(deliveryBankShortageResolutionAmount)deliveryBankShortageResolutionAmount.textContent=money(bankShortage);if(deliveryShortageResolutionSummary){
+deliveryShortageResolutionSummary.innerHTML=`<strong>${escapeHtml(row.code||"")}</strong><span>${escapeHtml(((row.deliveryStaffCode||"")+" · "+(row.deliveryStaffName||"")).replace(/ · $/,""))}</span><span>Ngày giao ${escapeHtml(row.deliveryDate||"")}</span>`
+}if(submitDeliveryShortageResolutionButton)submitDeliveryShortageResolutionButton.textContent=mode==="classify"?"Lưu phân loại khoản thiếu":"Xác nhận phiếu và ghi quỹ"
+;if(deliveryShortageResolutionMessage)showMessage(deliveryShortageResolutionMessage,"");setFundAuxModal(deliveryShortageResolutionModal,true)}
+async function executeDeliveryCashSubmissionConfirmation(code,payload={}){const res=await fetch(`/api/funds/delivery-cash-submissions/${encodeURIComponent(code)}/confirm`,{
+method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const json=await fundReadJsonResponse(res,"Không xác nhận được phiếu nộp quỹ")
+;if(!json.ok)throw new Error(json.message||"Không xác nhận được phiếu nộp quỹ");await loadDeliveryCashSubmissions();await loadFundLedger();return json}
+async function confirmDeliveryCashSubmission(code,triggerButton){if(!code)return;const row=fundRowCache.delivery[code];if(!row){alert("Không tìm thấy dữ liệu phiếu để xác nhận")
+;return}const hasShortage=Number(row.differenceCashAmount||0)<0||Number(row.differenceBankAmount||0)<0;if(hasShortage){openDeliveryShortageResolution(row,{mode:"confirm"});return}
+if(!confirm(`Xác nhận phiếu nộp quỹ ${code} và ghi vào fundLedgers?`))return;const actionKey=`confirm:delivery:${code}`;try{
+const json=await runFundActionRequest(actionKey,triggerButton,()=>executeDeliveryCashSubmissionConfirmation(code,{}));alert(json.message||"Đã ghi sổ quỹ")}catch(err){
+alert(err.message||"Không xác nhận được phiếu nộp quỹ")}}window.confirmDeliveryCashSubmission=confirmDeliveryCashSubmission
+;async function confirmDeliveryRemittanceLine(code,lineId,triggerButton){if(!code||!lineId)return;const row=fundRowCache.delivery[code]
+;const line=(row&&Array.isArray(row.remittanceLines)?row.remittanceLines:[]).find(item=>String(item.lineId)===String(lineId));if(!line){alert("Không tìm thấy dòng nộp tiền");return
+}if(!line.remittanceDate){alert("Cần chọn ngày nộp thực tế trong phiếu trước khi xác nhận dòng");return}
+if(!confirm(`Xác nhận dòng ${fundTypeName(line.method)} ${money(line.amount||0)} ngày ${line.remittanceDate}?`))return;const actionKey=`confirm-line:${code}:${lineId}`;try{
+const json=await runFundActionRequest(actionKey,triggerButton,async()=>{
+const res=await fetch(`/api/funds/delivery-cash-submissions/${encodeURIComponent(code)}/lines/${encodeURIComponent(lineId)}/confirm`,{method:"POST",headers:{
+"Content-Type":"application/json"},body:"{}"});const payload=await fundReadJsonResponse(res,"Không xác nhận được dòng nộp tiền")
+;if(!payload.ok)throw new Error(payload.message||"Không xác nhận được dòng nộp tiền");await loadDeliveryCashSubmissions();await loadFundLedger();return payload})
+;alert(json.message||"Đã xác nhận dòng nộp tiền")}catch(err){alert(err.message||"Không xác nhận được dòng nộp tiền")}}
+window.confirmDeliveryRemittanceLine=confirmDeliveryRemittanceLine;
