@@ -133,6 +133,27 @@ const READ_ENDPOINT_BUDGETS = Object.freeze({
     reloadPolicy: 'single-list-request',
     cachePolicy: 'none-for-fund'
   }),
+  fundsDashboard: Object.freeze({
+    screen: 'Quỹ tiền - Tổng quan quỹ',
+    endpoint: 'GET /api/funds/dashboard',
+    frontendFiles: Object.freeze(['public/js/app/debt/07f-fund-ledger.source/part-01b.jsfrag']),
+    maxRequestsPerUserAction: 1,
+    requiresPagination: false,
+    boundedAggregate: true,
+    defaultLimit: 20,
+    maxReturnedRows: 100,
+    summaryOnlySections: Object.freeze(['balances', 'pendingRemittances', 'unresolvedShortages']),
+    itemSections: Object.freeze(['cashInTransit', 'recentTransactions']),
+    requiresAbortableFrontend: true,
+    acceptsSequenceGuard: true,
+    readOnly: true,
+    forbiddenWrites: true,
+    maxLimit: 100,
+    projection: 'fund-dashboard-summary-and-limited-items',
+    reloadPolicy: 'lazy-load-active-fund-dashboard-tab',
+    cachePolicy: 'short-session-memory-only-no-localStorage',
+    reason: 'Dashboard summaries aggregate server-side; returned item sections are clamped and DB-aggregation limited.'
+  }),
   fundsSummary: Object.freeze({
     screen: 'Quỹ tiền - Tổng hợp',
     endpoint: 'GET /api/funds/summary',

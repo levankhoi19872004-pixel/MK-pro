@@ -48,6 +48,7 @@
     "build:source-bundles": "node scripts/build-source-bundles.js",
     "check:source-bundles": "node scripts/build-source-bundles.js --check",
     "source-bundles:refresh": "node scripts/build-source-bundles.js --refresh-hashes",
+    "test:artifact-clean": "node scripts/verify-source-artifact-clean.js",
     "build:canonical-source-pilot": "node scripts/build-source-bundles.js --target=public/mobile/js/delivery-mobile-view.js",
     "check:canonical-source-pilot": "node scripts/build-source-bundles.js --check --target=public/mobile/js/delivery-mobile-view.js",
     "check:lock-registry": "node scripts/check-package-lock-registry.js",

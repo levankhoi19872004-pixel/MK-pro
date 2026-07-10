@@ -26,8 +26,15 @@ test('Phase117 New tabs remain isolated and legacy web screens are not mounted',
   assert.match(body, /id="debtNewRoot"/);
   assert.doesNotMatch(body, /id="deliveryTodayTab"/);
   assert.doesNotMatch(body, /id="debtTab"/);
-  assert.match(scripts, /\/js\/app\/new\/91-delivery-today-new\.js/);
-  assert.match(scripts, /\/js\/app\/new\/92-debt-new\.js/);
+  assert.match(scripts, /\/js\/app\/core\/feature-module-loader\.js/);
+  assert.match(scripts, /\/js\/app\/core\/desktop-feature-facades\.js/);
+  assert.doesNotMatch(scripts, /<script src="\/js\/app\/new\/91-delivery-today-new\.js/);
+  assert.doesNotMatch(scripts, /<script src="\/js\/app\/new\/92-debt-new\.js/);
+  const facades = read('public/js/app/core/desktop-feature-facades.js');
+  assert.match(facades, /deliveryTodayNew/);
+  assert.match(facades, /\/js\/app\/new\/91-delivery-today-new\.js/);
+  assert.match(facades, /debtNew/);
+  assert.match(facades, /\/js\/app\/new\/92-debt-new\.js/);
   assert.doesNotMatch(scripts, /\/js\/delivery\/delivery-core\.js/);
   assert.doesNotMatch(scripts, /\/js\/delivery\/delivery-web-view\.js/);
   assert.doesNotMatch(scripts, /\/js\/ui\/delivery-toolbar\.js/);

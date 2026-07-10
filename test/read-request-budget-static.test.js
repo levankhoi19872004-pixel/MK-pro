@@ -75,7 +75,34 @@ test('large collection read endpoints require pagination or an explicit bounded 
   const boundedWithoutPagination = new Set(['deliveryTodayOrders', 'deliveryReconciliation', 'dmsGapSimulatorPreview']);
   Object.entries(READ_ENDPOINT_BUDGETS).forEach(([key, item]) => {
     if (boundedWithoutPagination.has(key)) return;
+    if (item.boundedAggregate === true) {
+      assert.equal(item.requiresPagination, false, `${key} bounded aggregate should not pretend to be a paginated list`);
+      assert.ok(Number(item.maxLimit) > 0, `${key} should define a maxLimit`);
+      assert.ok(Number(item.maxReturnedRows) > 0, `${key} should define maxReturnedRows`);
+      assert.ok(Number(item.defaultLimit) > 0, `${key} should define defaultLimit`);
+      assert.ok(Array.isArray(item.summaryOnlySections) && item.summaryOnlySections.length > 0, `${key} should name summary-only sections`);
+      assert.ok(Array.isArray(item.itemSections) && item.itemSections.length > 0, `${key} should name bounded item sections`);
+      assert.ok(item.reason && item.reason.length >= 40, `${key} should document why bounded aggregate is safe`);
+      return;
+    }
     assert.equal(item.requiresPagination, true, `${key} should require pagination/limit`);
     assert.ok(Number(item.maxLimit) > 0, `${key} should define a maxLimit`);
   });
+});
+
+test('fund dashboard bounded aggregate contract has source-level evidence', () => {
+  const budget = READ_ENDPOINT_BUDGETS.fundsDashboard;
+  const dashboardService = read('src/services/accounting/FundDashboardReadService.js');
+  const cashInTransitService = read('src/domain/settlement/DeliveryCashInTransitReportService.js');
+
+  assert.equal(budget.boundedAggregate, true);
+  assert.match(dashboardService, /loadPendingRemittances[\s\S]*DeliveryCashSubmission\.aggregate\(\[/);
+  assert.match(dashboardService, /\$group:\s*\{[\s\S]*count:\s*\{\s*\$sum:\s*1\s*\}[\s\S]*amount:\s*\{\s*\$sum:\s*'\$pendingAmount'\s*\}/);
+  assert.doesNotMatch(dashboardService, /const ledgersBySubmission = await loadRelatedSubmissionLedgers\(rows\)/);
+  assert.doesNotMatch(dashboardService, /\.map\(\(row\) => \(\{ row, pending: pendingFromSubmission/);
+  assert.match(cashInTransitService, /\$facet:\s*\{/);
+  assert.match(cashInTransitService, /\$unionWith:\s*\{/);
+  assert.match(cashInTransitService, /\$limit:\s*limit/);
+  assert.match(cashInTransitService, /truncated:\s*includeItems&&limit>0&&Number\(summary\.totalRows\|\|0\)>rows\.length|truncated:\s*includeItems && limit > 0 && Number\(summary\.totalRows \|\| 0\) > rows\.length/);
+  assert.match(dashboardService, /fundLedgerRepository\.findAll\(match,[\s\S]*limit:\s*filters\.recentLimit/);
 });

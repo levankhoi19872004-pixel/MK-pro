@@ -3776,6 +3776,123 @@
         ]
       }
     },
+    "/api/funds/dashboard": {
+      "get": {
+        "tags": [
+          "Funds"
+        ],
+        "summary": "GET /api/funds/dashboard",
+        "operationId": "getFundsDashboard",
+        "parameters": [
+          {
+            "name": "asOf",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cashInTransitLimit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "recentLimit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fund dashboard read model. status can be ok or partial; null queue values mean unavailable, not zero.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "status": "partial",
+                  "data": {
+                    "contractVersion": "fund-dashboard-v1",
+                    "status": "partial",
+                    "asOf": "2026-07-10",
+                    "balances": {
+                      "cash": {
+                        "closing": 12000000
+                      },
+                      "bank": {
+                        "closing": 8000000
+                      },
+                      "total": {
+                        "closing": 20000000
+                      }
+                    },
+                    "workQueues": {
+                      "pendingRemittances": {
+                        "count": 4,
+                        "amount": 6500000
+                      },
+                      "overdueDeliveryCash": {
+                        "count": null,
+                        "amount": null,
+                        "oldestAgeDays": null
+                      },
+                      "unresolvedShortages": {
+                        "count": 2,
+                        "amount": 300000
+                      }
+                    },
+                    "sections": {
+                      "balances": {
+                        "status": "ok"
+                      },
+                      "cashInTransit": {
+                        "status": "error",
+                        "error": "CASH_IN_TRANSIT_UNAVAILABLE"
+                      }
+                    }
+                  },
+                  "errors": [
+                    {
+                      "section": "cashInTransit",
+                      "code": "CASH_IN_TRANSIT_UNAVAILABLE"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/funds/delivery-cash-in-transit": {
       "get": {
         "tags": [

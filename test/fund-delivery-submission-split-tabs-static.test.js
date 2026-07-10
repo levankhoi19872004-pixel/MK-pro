@@ -17,10 +17,9 @@ test('danh sách nộp quỹ được tách thành tab tiền mặt và chuyển
   assert.match(html, /data-delivery-subpanel="bank"/);
   assert.match(html, /id="deliveryCashSubmissionTable"/);
   assert.match(html, /id="deliveryBankSubmissionTable"/);
-  assert.match(html, /Báo cáo TM/);
-  assert.match(html, /Thực nộp TM/);
-  assert.match(html, /Báo cáo TK/);
-  assert.match(html, /Thực nhận TK/);
+  assert.match(html, /data-delivery-subpanel="cash"[\s\S]*?<th>Phải nộp<\/th>[\s\S]*?<th>Đã khai báo nộp<\/th>[\s\S]*?<th>Đã xác nhận nhận<\/th>[\s\S]*?<th>Còn thiếu\/thừa<\/th>[\s\S]*?<th>Đối soát<\/th>[\s\S]*?<th>Ghi quỹ<\/th>[\s\S]*?id="deliveryCashSubmissionTable"/);
+  assert.match(html, /data-delivery-subpanel="bank"[\s\S]*?<th>Phải nộp<\/th>[\s\S]*?<th>Đã khai báo nộp<\/th>[\s\S]*?<th>Đã xác nhận nhận<\/th>[\s\S]*?<th>Còn thiếu\/thừa<\/th>[\s\S]*?<th>Đối soát<\/th>[\s\S]*?<th>Ghi quỹ<\/th>[\s\S]*?id="deliveryBankSubmissionTable"/);
+  assert.doesNotMatch(html, /Báo cáo TM|Thực nộp TM|Báo cáo TK|Thực nhận TK/);
 });
 
 test('frontend render chênh lệch độc lập theo tiền mặt và chuyển khoản', () => {

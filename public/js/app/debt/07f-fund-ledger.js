@@ -1,5 +1,6 @@
 /* GENERATED FILE — edit public/js/app/debt/07f-fund-ledger.source/part-01.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-01b.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-02.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-02b.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag and run npm run build:source-bundles. */
-"use strict";let activeFundTab="fundDashboard";let activeDeliverySubmissionTab="cash";let fundConfirmPreviewContext=null;function fundStatusLabel(diff){const n=Number(diff||0)
+"use strict";let activeFundTab="fundDashboard";let activeDeliverySubmissionTab="cash";let fundConfirmPreviewContext=null;let fundDashboardRequestSeq=0
+;let fundDashboardAbortController=null;let fundDashboardLoaded=false;let fundDashboardActiveFilter="";function fundStatusLabel(diff){const n=Number(diff||0)
 ;if(n===0)return'<span class="fund-status ok">Khớp</span>';if(n>0)return'<span class="fund-status warn">Thừa</span>';return'<span class="fund-status bad">Thiếu</span>'}
 function fundTypeName(value){return String(value)==="bank"?"Ngân hàng":"Tiền mặt"}function directionName(value){return String(value)==="out"?"Chi":"Thu"}
 async function fundReadJsonResponse(res,fallbackMessage){const contentType=String(res&&res.headers&&res.headers.get?res.headers.get("content-type")||"":"")
@@ -18,18 +19,19 @@ const buttons=[...document.querySelectorAll("[data-fund-action-key]")].filter(bu
 ;if(triggerButton&&!buttons.includes(triggerButton))buttons.push(triggerButton);buttons.forEach(button=>{if(!button)return;button.disabled=loading
 ;button.setAttribute("aria-busy",loading?"true":"false")})}function runFundActionRequest(key,triggerButton,task){if(fundActionRequests.has(key))return fundActionRequests.get(key)
 ;setFundRowActionLoading(key,true,triggerButton);const request=Promise.resolve().then(task).finally(()=>{fundActionRequests.delete(key)
-;setFundRowActionLoading(key,false,triggerButton)});fundActionRequests.set(key,request);return request}function fundRefreshAfterMutation(){
-return Promise.all([loadFundDashboard(),activeFundTab==="fundLedger"?loadFundLedger():Promise.resolve()])}function fundPreviewRows(rows=[]){
+;setFundRowActionLoading(key,false,triggerButton)});fundActionRequests.set(key,request);return request}function fundRefreshAfterMutation(){return Promise.all([loadFundDashboard({
+force:true}),activeFundTab==="fundLedger"?loadFundLedger():Promise.resolve()])}function fundPreviewRows(rows=[]){
 return`<dl>${rows.map(row=>`<div><dt>${escapeHtml(row[0]||"")}</dt><dd>${escapeHtml(row[1]||"")}</dd></div>`).join("")}</dl>`}
 function openFundConfirmPreview({title:title="Xác nhận ghi quỹ",rows:rows=[],message:message="",actionKey:actionKey="",triggerButton:triggerButton=null,onConfirm:onConfirm}={}){
-if(!fundConfirmPreviewModal||!fundConfirmPreviewBody||!fundConfirmPreviewSubmitButton||typeof onConfirm!=="function"){return Promise.resolve().then(onConfirm)}
-fundConfirmPreviewContext={actionKey:actionKey,triggerButton:triggerButton,onConfirm:onConfirm};const titleEl=document.getElementById("fundConfirmPreviewTitle")
-;if(titleEl)titleEl.textContent=title;fundConfirmPreviewBody.innerHTML=fundPreviewRows(rows);if(fundConfirmPreviewMessage)showMessage(fundConfirmPreviewMessage,message||"")
-;fundConfirmPreviewSubmitButton.disabled=false;fundConfirmPreviewModal.classList.add("show");fundConfirmPreviewModal.setAttribute("aria-hidden","false")
-;document.body.classList.add("modal-open");window.requestAnimationFrame(()=>fundConfirmPreviewSubmitButton.focus())}function closeFundConfirmPreview(){
-if(!fundConfirmPreviewModal)return;fundConfirmPreviewModal.classList.remove("show");fundConfirmPreviewModal.setAttribute("aria-hidden","true");fundConfirmPreviewContext=null
-;if(!document.querySelector(".modal-backdrop.show"))document.body.classList.remove("modal-open")}async function submitFundConfirmPreview(){const ctx=fundConfirmPreviewContext
-;if(!ctx||typeof ctx.onConfirm!=="function")return;try{if(fundConfirmPreviewSubmitButton)fundConfirmPreviewSubmitButton.disabled=true
+if(!fundConfirmPreviewModal||!fundConfirmPreviewBody||!fundConfirmPreviewSubmitButton||typeof onConfirm!=="function"){
+const error=new Error("Không mở được màn xác nhận ghi quỹ. Hãy tải lại trang.");if(fundConfirmPreviewMessage)showMessage(fundConfirmPreviewMessage,error.message,true)
+;alert(error.message);throw error}fundConfirmPreviewContext={actionKey:actionKey,triggerButton:triggerButton,onConfirm:onConfirm}
+;const titleEl=document.getElementById("fundConfirmPreviewTitle");if(titleEl)titleEl.textContent=title;fundConfirmPreviewBody.innerHTML=fundPreviewRows(rows)
+;if(fundConfirmPreviewMessage)showMessage(fundConfirmPreviewMessage,message||"");fundConfirmPreviewSubmitButton.disabled=false;fundConfirmPreviewModal.classList.add("show")
+;fundConfirmPreviewModal.setAttribute("aria-hidden","false");document.body.classList.add("modal-open");window.requestAnimationFrame(()=>fundConfirmPreviewSubmitButton.focus())}
+function closeFundConfirmPreview(){if(!fundConfirmPreviewModal)return;fundConfirmPreviewModal.classList.remove("show");fundConfirmPreviewModal.setAttribute("aria-hidden","true")
+;fundConfirmPreviewContext=null;if(!document.querySelector(".modal-backdrop.show"))document.body.classList.remove("modal-open")}async function submitFundConfirmPreview(){
+const ctx=fundConfirmPreviewContext;if(!ctx||typeof ctx.onConfirm!=="function")return;try{if(fundConfirmPreviewSubmitButton)fundConfirmPreviewSubmitButton.disabled=true
 ;const json=await runFundActionRequest(ctx.actionKey||"fund-confirm-preview",ctx.triggerButton,ctx.onConfirm);closeFundConfirmPreview()
 ;alert(json&&json.message||"Đã xác nhận và ghi quỹ")}catch(err){
 if(fundConfirmPreviewMessage)showMessage(fundConfirmPreviewMessage,err.message||"Không xác nhận được giao dịch quỹ",true)

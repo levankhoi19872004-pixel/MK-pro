@@ -1,5 +1,118 @@
 
 
+function deliveryCashSubmissionOrderMoney(order,keyList){
+  for(const key of keyList){
+    const value=Number(order&&order[key]||0);
+    if(Number.isFinite(value)&&value>0)return Math.round(value);
+  }
+  return 0;
+}
+
+function updateDeliveryCashSubmissionDifference(){
+  const draft=deliveryCashPreviewDraft;
+  if(!draft||!deliveryCashSubmissionInputDifference)return;
+  const reportCash=Number(draft.reportCashAmount||0);
+  const reportBank=Number(draft.reportBankAmount||0);
+  const totals=deliveryRemittanceLineTotals();
+  const submittedCash=totals.cash;
+  const submittedBank=totals.bank;
+  if(deliveryCashSubmissionCashInput)deliveryCashSubmissionCashInput.value=String(submittedCash);
+  if(deliveryCashSubmissionBankInput)deliveryCashSubmissionBankInput.value=String(submittedBank);
+  const cashDifference=Math.round(submittedCash-reportCash);
+  const bankDifference=Math.round(submittedBank-reportBank);
+  const difference=cashDifference+bankDifference;
+  const signed=value=>`${value>0?'+':''}${money(value)}`;
+  deliveryCashSubmissionInputDifference.textContent=`TM ${signed(cashDifference)} · TK ${signed(bankDifference)}`;
+  deliveryCashSubmissionInputDifference.title=`Tổng chênh: ${signed(difference)}`;
+  deliveryCashSubmissionInputDifference.classList.toggle('is-positive',cashDifference>0||bankDifference>0);
+  deliveryCashSubmissionInputDifference.classList.toggle('is-negative',cashDifference<0||bankDifference<0);
+  deliveryCashSubmissionInputDifference.classList.toggle('is-matched',cashDifference===0&&bankDifference===0);
+}
+
+function renderDeliveryCashSubmissionPreview(payload={}){
+  const draft=payload.draft||{};
+  const orders=Array.isArray(payload.orders)?payload.orders:[];
+  deliveryCashPreviewDraft=draft;
+  const reportCash=Math.round(Number(draft.reportCashAmount||0));
+  const reportBank=Math.round(Number(draft.reportBankAmount||0));
+  const reportTotal=reportCash+reportBank;
+  if(deliveryCashSubmissionPreviewStatus)deliveryCashSubmissionPreviewStatus.hidden=true;
+  if(deliveryCashSubmissionPreviewContent)deliveryCashSubmissionPreviewContent.hidden=false;
+  if(deliveryCashSubmissionPreview)deliveryCashSubmissionPreview.setAttribute('aria-busy','false');
+  if(deliveryCashSubmissionPreviewStaff)deliveryCashSubmissionPreviewStaff.textContent=`${draft.deliveryStaffCode||''}${draft.deliveryStaffName&&draft.deliveryStaffName!==draft.deliveryStaffCode?' · '+draft.deliveryStaffName:''}`;
+  if(deliveryCashSubmissionPreviewDate)deliveryCashSubmissionPreviewDate.textContent=draft.deliveryDate?`Ngày giao ${draft.deliveryDate}`:'';
+  if(deliveryCashSubmissionPreviewOrderCount)deliveryCashSubmissionPreviewOrderCount.textContent=`${orders.length} đơn`;
+  if(deliveryCashSubmissionReportCash)deliveryCashSubmissionReportCash.textContent=money(reportCash);
+  if(deliveryCashSubmissionReportBank)deliveryCashSubmissionReportBank.textContent=money(reportBank);
+  if(deliveryCashSubmissionReportTotal)deliveryCashSubmissionReportTotal.textContent=money(reportTotal);
+  if(deliveryCashSubmissionPreviewCashTotal)deliveryCashSubmissionPreviewCashTotal.textContent=money(reportCash);
+  if(deliveryCashSubmissionPreviewBankTotal)deliveryCashSubmissionPreviewBankTotal.textContent=money(reportBank);
+  if(deliveryCashSubmissionPreviewGrandTotal)deliveryCashSubmissionPreviewGrandTotal.textContent=money(reportTotal);
+
+  if(deliveryCashSubmissionPreviewTable){
+    const rows=orders.map(order=>{
+      const cash=deliveryCashSubmissionOrderMoney(order,['cashAmount','cashCollected']);
+      const bank=deliveryCashSubmissionOrderMoney(order,['bankAmount','bankCollected','transferAmount']);
+      const customer=[order.customerCode,order.customerName].filter(Boolean).join(' · ');
+      return `<tr><td><strong>${escapeHtml(order.orderCode||order.code||'')}</strong></td><td>${escapeHtml(customer||'')}</td><td class="price">${money(cash)}</td><td class="price">${money(bank)}</td><td class="price">${money(cash+bank)}</td></tr>`;
+    });
+    const oldDebtCash=Math.round(Number(draft.reportOldDebtCashAmount||0));
+    const oldDebtBank=Math.round(Number(draft.reportOldDebtBankAmount||0));
+    if(oldDebtCash>0||oldDebtBank>0){
+      rows.push(`<tr class="delivery-cash-preview-extra"><td><strong>THU NỢ CŨ</strong></td><td>Khoản thu nợ được ghi nhận trong ngày</td><td class="price">${money(oldDebtCash)}</td><td class="price">${money(oldDebtBank)}</td><td class="price">${money(oldDebtCash+oldDebtBank)}</td></tr>`);
+    }
+    deliveryCashSubmissionPreviewTable.innerHTML=rows.length?rows.join(''):'<tr><td colspan="5">Không có khoản tiền mặt hoặc tài khoản cần thu.</td></tr>';
+  }
+  updateDeliveryCashSubmissionDifference();
+}
+
+async function loadDeliveryCashSubmissionPreview({syncSubmitted=true}={}){
+  const filters=deliveryCashSubmissionSelectedFilters();
+  if(!filters.deliveryDate||!filters.deliveryStaffCode){
+    clearDeliveryCashSubmissionPreview();
+    return;
+  }
+  const requestSeq=++deliveryCashPreviewRequestSeq;
+  deliveryCashPreviewDraft=null;
+  if(syncSubmitted)setDeliveryRemittanceLines([]);
+  if(deliveryCashPreviewAbortController)deliveryCashPreviewAbortController.abort();
+  deliveryCashPreviewAbortController=typeof AbortController!=='undefined'?new AbortController():null;
+  setDeliveryCashSubmissionPreviewStatus('Đang tải tiền mặt và tài khoản cần thu theo ngày giao và NVGH...',{loading:true});
+  try{
+    const res=await fetch('/api/funds/delivery-cash-submissions/preview',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(filters),
+      ...(deliveryCashPreviewAbortController?{signal:deliveryCashPreviewAbortController.signal}:{})
+    });
+    const json=await fundReadJsonResponse(res,'Không tải được tiền cần thu của NVGH');
+    if(requestSeq!==deliveryCashPreviewRequestSeq)return;
+    if(!json.ok||!json.draft)throw new Error(json.message||'Không có dữ liệu tiền cần thu');
+    if(syncSubmitted){
+      if(deliveryCashSubmissionCashInput)deliveryCashSubmissionCashInput.value=Math.round(Number(json.draft.reportCashAmount||0));
+      if(deliveryCashSubmissionBankInput)deliveryCashSubmissionBankInput.value=Math.round(Number(json.draft.reportBankAmount||0));
+      setDeliveryRemittanceLines(json.draft.remittanceLines||[]);
+    }
+    renderDeliveryCashSubmissionPreview(json);
+  }catch(err){
+    if(err&&err.name==='AbortError')return;
+    if(requestSeq!==deliveryCashPreviewRequestSeq)return;
+    deliveryCashPreviewDraft=null;
+    setDeliveryCashSubmissionPreviewStatus(err.message||'Không tải được tiền cần thu',{error:true});
+  }finally{
+    if(requestSeq===deliveryCashPreviewRequestSeq)deliveryCashPreviewAbortController=null;
+  }
+}
+
+function scheduleDeliveryCashSubmissionPreview({syncSubmitted=fundEditing.type!=='delivery',immediate=false}={}){
+  if(deliveryCashPreviewTimer)clearTimeout(deliveryCashPreviewTimer);
+  if(immediate)return loadDeliveryCashSubmissionPreview({syncSubmitted});
+  deliveryCashPreviewTimer=setTimeout(()=>{
+    deliveryCashPreviewTimer=null;
+    loadDeliveryCashSubmissionPreview({syncSubmitted});
+  },350);
+}
+
 function setActiveDeliverySubmissionTab(tab='cash'){
   activeDeliverySubmissionTab=tab==='bank'?'bank':'cash';
   if(deliverySubmissionTabButtons)deliverySubmissionTabButtons.forEach(button=>{
@@ -64,7 +177,21 @@ function loadDeliveryCashSubmissions(){
     const res=await fetch(`/api/funds/delivery-cash-submissions?${params.toString()}`);
     const json=await fundReadJsonResponse(res,'Không tải được phiếu nộp quỹ');
     if(!json.ok)throw new Error(json.message||'Không tải được phiếu nộp quỹ');
-    const rows=json.submissions||[];
+    let rows=json.submissions||[];
+    if(fundDashboardActiveFilter==='pendingRemittances'){
+      rows=rows.filter(row=>fundCanConfirm(row));
+      if(fundSummary)fundSummary.textContent='Đang lọc: phiếu/dòng nộp quỹ chờ xác nhận. Bấm Xóa lọc để bỏ lọc.';
+    }else if(fundDashboardActiveFilter==='overdueDeliveryCash'){
+      const asOf=fundDashboardAsOf&&fundDashboardAsOf.value?fundDashboardAsOf.value:today();
+      rows=rows.filter(row=>{
+        const age=(new Date(`${asOf}T00:00:00Z`)-new Date(`${row.deliveryDate||asOf}T00:00:00Z`))/(24*60*60*1000);
+        return age>1&&(Number(row.remainingCashAmount||0)>0||Number(row.remainingBankAmount||0)>0||fundCanConfirm(row));
+      });
+      if(fundSummary)fundSummary.textContent='Đang lọc: tiền giao hàng quá hạn/còn cần xử lý. Bấm Xóa lọc để bỏ lọc.';
+    }else if(fundDashboardActiveFilter==='unresolvedShortages'||fundDashboardActiveFilter==='unclassifiedShortages'){
+      rows=rows.filter(row=>row.cashShortage||row.bankShortage||Number(row.differenceCashAmount||0)<0||Number(row.differenceBankAmount||0)<0);
+      if(fundSummary)fundSummary.textContent='Đang lọc: khoản thiếu quỹ còn tồn. Bấm Xóa lọc để bỏ lọc.';
+    }
     if(deliveryCashSubmissionTable)deliveryCashSubmissionTable.innerHTML=renderDeliverySubmissionRows(rows,{fundType:'cash'});
     if(deliveryBankSubmissionTable)deliveryBankSubmissionTable.innerHTML=renderDeliverySubmissionRows(rows,{fundType:'bank'});
   }catch(err){

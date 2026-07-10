@@ -4,6 +4,10 @@
 let activeFundTab='fundDashboard';
 let activeDeliverySubmissionTab='cash';
 let fundConfirmPreviewContext=null;
+let fundDashboardRequestSeq=0;
+let fundDashboardAbortController=null;
+let fundDashboardLoaded=false;
+let fundDashboardActiveFilter='';
 
 function fundStatusLabel(diff){
   const n=Number(diff||0);
@@ -78,7 +82,7 @@ function runFundActionRequest(key,triggerButton,task){
 
 function fundRefreshAfterMutation(){
   return Promise.all([
-    loadFundDashboard(),
+    loadFundDashboard({force:true}),
     activeFundTab==='fundLedger'?loadFundLedger():Promise.resolve()
   ]);
 }
@@ -89,7 +93,10 @@ function fundPreviewRows(rows=[]){
 
 function openFundConfirmPreview({title='Xác nhận ghi quỹ',rows=[],message='',actionKey='',triggerButton=null,onConfirm}={}){
   if(!fundConfirmPreviewModal||!fundConfirmPreviewBody||!fundConfirmPreviewSubmitButton||typeof onConfirm!=='function'){
-    return Promise.resolve().then(onConfirm);
+    const error=new Error('Không mở được màn xác nhận ghi quỹ. Hãy tải lại trang.');
+    if(fundConfirmPreviewMessage)showMessage(fundConfirmPreviewMessage,error.message,true);
+    alert(error.message);
+    throw error;
   }
   fundConfirmPreviewContext={actionKey,triggerButton,onConfirm};
   const titleEl=document.getElementById('fundConfirmPreviewTitle');

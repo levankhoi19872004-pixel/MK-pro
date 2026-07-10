@@ -24,16 +24,18 @@ function renderFundLedgerSummary(s={}){const cashEnding=Number(s.cashEndingBalan
 if(activeFundTab==="fundDashboard")return loadFundDashboard();if(activeFundTab==="fundLedger")return loadFundLedger()
 ;if(activeFundTab==="fundSummaryBook"&&window.FundSummaryBook)return window.FundSummaryBook.load();if(activeFundTab==="deliverySubmission")return loadDeliveryCashSubmissions()
 ;if(activeFundTab==="expenseVoucher")return loadExpenseVouchers();if(activeFundTab==="bankTransfer")return loadFundTransfers();return Promise.resolve()}function resetFundFilters(){
-if(fundSearchInput)fundSearchInput.value="";if(fundDateFrom)fundDateFrom.value="";if(fundDateTo)fundDateTo.value="";if(fundTypeFilter)fundTypeFilter.value="all"
-;if(fundDirectionFilter)fundDirectionFilter.value="all";return reloadActiveFundTab()}if(!document.documentElement.dataset.fundSecurityDelegationBound){
-document.documentElement.dataset.fundSecurityDelegationBound="1";document.addEventListener("click",event=>{const button=event.target.closest("[data-fund-action]");if(!button)return
-;const action=button.dataset.fundAction;const type=button.dataset.fundType||"";const code=button.dataset.fundCode||"";if(action==="edit")editFundVoucher(type,code)
-;if(action==="confirm")confirmFundVoucher(type,code,button);if(action==="classify-shortage")classifyDeliveryCashShortages(code)
-;if(action==="open-shortage")openDeliveryShortageRepayment(button.dataset.shortageKey||"");if(action==="confirm-repayment")confirmDeliveryShortageRepayment(code,button)
+fundDashboardActiveFilter="";if(fundSearchInput)fundSearchInput.value="";if(fundDateFrom)fundDateFrom.value="";if(fundDateTo)fundDateTo.value=""
+;if(fundTypeFilter)fundTypeFilter.value="all";if(fundDirectionFilter)fundDirectionFilter.value="all";return reloadActiveFundTab()}
+if(!document.documentElement.dataset.fundSecurityDelegationBound){document.documentElement.dataset.fundSecurityDelegationBound="1";document.addEventListener("click",event=>{
+const button=event.target.closest("[data-fund-action]");if(!button)return;const action=button.dataset.fundAction;const type=button.dataset.fundType||""
+;const code=button.dataset.fundCode||"";if(action==="edit")editFundVoucher(type,code);if(action==="confirm")confirmFundVoucher(type,code,button)
+;if(action==="classify-shortage")classifyDeliveryCashShortages(code);if(action==="open-shortage")openDeliveryShortageRepayment(button.dataset.shortageKey||"")
+;if(action==="confirm-repayment")confirmDeliveryShortageRepayment(code,button)
 ;if(action==="confirm-remittance-line")confirmDeliveryRemittanceLine(code,button.dataset.lineId||"",button)})}document.addEventListener("click",event=>{
 const button=event.target.closest("[data-fund-dashboard-jump]");if(button)handleFundDashboardJump(button)})
 ;if(fundTabButtons)fundTabButtons.forEach(btn=>btn.addEventListener("click",()=>setActiveFundTab(btn.dataset.fundTab)))
-;if(deliverySubmissionTabButtons)deliverySubmissionTabButtons.forEach(btn=>btn.addEventListener("click",()=>setActiveDeliverySubmissionTab(btn.dataset.deliverySubtab)))
+;document.querySelector('.tab-button[data-tab="fundsTab"]')?.addEventListener("click",()=>{if(activeFundTab==="fundDashboard"&&!fundDashboardLoaded)loadFundDashboard({force:true})
+});if(deliverySubmissionTabButtons)deliverySubmissionTabButtons.forEach(btn=>btn.addEventListener("click",()=>setActiveDeliverySubmissionTab(btn.dataset.deliverySubtab)))
 ;bindFundVoucherModal("delivery",createDeliveryCashSubmissionButton,closeDeliveryCashSubmissionModalButton)
 ;bindFundVoucherModal("expense",createExpenseVoucherButton,closeExpenseVoucherModalButton);bindFundVoucherModal("transfer",createFundTransferButton,closeFundTransferModalButton)
 ;document.addEventListener("keydown",event=>{if(event.key!=="Escape")return
@@ -43,8 +45,8 @@ const button=event.target.closest("[data-fund-dashboard-jump]");if(button)handle
 ;if(activeFundVoucherModalType)closeFundVoucherModal(activeFundVoucherModalType)});if(applyFundFiltersButton)applyFundFiltersButton.addEventListener("click",reloadActiveFundTab)
 ;if(clearFundFiltersButton)clearFundFiltersButton.addEventListener("click",resetFundFilters)
 ;if(reloadFundLedgerButton)reloadFundLedgerButton.addEventListener("click",reloadActiveFundTab)
-;if(fundDashboardRefreshButton)fundDashboardRefreshButton.addEventListener("click",loadFundDashboard)
-;if(fundDashboardAsOf)fundDashboardAsOf.addEventListener("change",loadFundDashboard)
+;if(fundDashboardRefreshButton)fundDashboardRefreshButton.addEventListener("click",()=>loadFundDashboard({force:true}))
+;if(fundDashboardAsOf)fundDashboardAsOf.addEventListener("change",()=>loadFundDashboard({force:true}))
 ;if(fundConfirmPreviewCancelButton)fundConfirmPreviewCancelButton.addEventListener("click",closeFundConfirmPreview)
 ;if(fundConfirmPreviewSubmitButton)fundConfirmPreviewSubmitButton.addEventListener("click",submitFundConfirmPreview)
 ;if(fundConfirmPreviewModal)fundConfirmPreviewModal.addEventListener("click",event=>{if(event.target===fundConfirmPreviewModal)closeFundConfirmPreview()})
@@ -74,4 +76,4 @@ if(event.target===deliveryShortageRepaymentModal)closeDeliveryShortageRepaymentM
 ;[deliveryCashSubmissionForm,expenseVoucherForm,fundTransferForm,deliveryShortageRepaymentForm].forEach(form=>{if(form&&form.elements.date)form.elements.date.value=today()
 ;if(form&&form.elements.deliveryDate)form.elements.deliveryDate.value=today();if(form&&form.elements.repaymentDate)form.elements.repaymentDate.value=today()})
 ;clearDeliveryCashSubmissionPreview();setActiveDeliverySubmissionTab("cash");if(fundDashboardAsOf&&!fundDashboardAsOf.value)fundDashboardAsOf.value=today()
-;setActiveFundTab("fundDashboard");
+;setActiveFundTab("fundDashboard",{reload:document.getElementById("fundsTab")?.classList.contains("active")});

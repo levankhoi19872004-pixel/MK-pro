@@ -15,6 +15,11 @@ function markTabLoading(tabName, isLoading){
   if(!tab) return;
   tab.dataset.loading = isLoading ? '1' : '0';
 }
+async function loadDesktopFeature(featureName){
+  if(window.MKDesktopFeatures && typeof window.MKDesktopFeatures.load === 'function'){
+    await window.MKDesktopFeatures.load(featureName);
+  }
+}
 async function loadTabDataOnce(tabName, options = {}){
   if(!tabName) return;
   const force = options.force === true;
@@ -57,6 +62,7 @@ async function loadTabDataOnce(tabName, options = {}){
         }, 50);
         break;
       case 'masterOrdersTab':
+        await loadDesktopFeature('masterOrders');
         await Promise.allSettled([
           typeof loadUsers === 'function' ? loadUsers() : null,
           typeof loadMasterOrderModule === 'function' ? loadMasterOrderModule() : null
@@ -70,6 +76,7 @@ async function loadTabDataOnce(tabName, options = {}){
         document.querySelector('.tab-button[data-tab="returnOrdersTab"]')?.click();
         break;
       case 'deliveryTodayNewTab':
+        await loadDesktopFeature('deliveryTodayNew');
         await Promise.allSettled([
           typeof loadUsers === 'function' ? loadUsers() : null,
           typeof loadDeliveryTodayNew === 'function' ? loadDeliveryTodayNew() : null
@@ -79,6 +86,7 @@ async function loadTabDataOnce(tabName, options = {}){
         if(typeof loadStock === 'function') await loadStock();
         break;
       case 'debtNewTab':
+        await loadDesktopFeature('debtNew');
         await Promise.allSettled([
           typeof loadUsers === 'function' ? loadUsers() : null,
           typeof loadDebtNew === 'function' ? loadDebtNew() : null
@@ -88,14 +96,17 @@ async function loadTabDataOnce(tabName, options = {}){
         if(typeof loadDebtCollections === 'function') await loadDebtCollections();
         break;
       case 'reportsTab':
+        await loadDesktopFeature('reports');
         // Phase 76: chỉ tải danh mục ở cửa sổ chính; popup chỉ mở khi bấm Xem báo cáo.
         if(typeof loadReports === 'function') await loadReports({ openModal: false });
         break;
       case 'usersTab':
       case 'promotionsTab':
+        if(tabName === 'promotionsTab') await loadDesktopFeature('promotionPrograms');
         await Promise.allSettled([
           typeof loadUsers === 'function' ? loadUsers() : null,
-          typeof loadPromotions === 'function' ? loadPromotions() : null
+          typeof loadPromotions === 'function' ? loadPromotions() : null,
+          tabName === 'promotionsTab' && typeof loadPromotionPrograms === 'function' ? loadPromotionPrograms() : null
         ]);
         break;
       case 'notificationCenterTab':
@@ -125,7 +136,7 @@ async function loadTabDataOnce(tabName, options = {}){
 }
 window.V45LoadTabDataOnce = loadTabDataOnce;
 
-if(typeof setReportDefaults === 'function') setReportDefaults();
+if(typeof setReportDefaults === 'function' && !(window.MKDesktopFeatures && window.MKDesktopFeatures.isFacade(setReportDefaults))) setReportDefaults();
 if(typeof renderImportItems === 'function') renderImportItems();
 if(typeof renderSalesItems === 'function') renderSalesItems();
 

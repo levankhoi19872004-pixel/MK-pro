@@ -66,6 +66,15 @@ function buildKey(row = {}) {
   return `${normalizeStaffCode(row.deliveryStaffCode)}|${dateOnly(row.date || row.deliveryDate)}`;
 }
 
+function dayDiff(fromDate, toDate) {
+  const from = dateUtil.toDateOnly(fromDate, '');
+  const to = dateUtil.toDateOnly(toDate, '');
+  if (!from || !to) return 0;
+  const [fy, fm, fd] = from.split('-').map(Number);
+  const [ty, tm, td] = to.split('-').map(Number);
+  return Math.max(0, Math.floor((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / (24 * 60 * 60 * 1000)));
+}
+
 async function aggregateCollectedCash(query = {}) {
   const staffCode = normalizeStaffCode(query.deliveryStaffCode || query.staffCode || query.delivery || '');
 
@@ -189,90 +198,248 @@ async function aggregateSubmittedCash(query = {}) {
   return FundLedger.aggregate(pipeline);
 }
 
-async function listDeliveryCashInTransit(query = {}) {
-  const [collectedRows, submittedRows] = await Promise.all([
-    aggregateCollectedCash(query),
-    aggregateSubmittedCash(query)
-  ]);
+function moneyExpression(path) {
+  return {
+    $convert: {
+      input: path,
+      to: 'double',
+      onError: 0,
+      onNull: 0
+    }
+  };
+}
 
-  const map = new Map();
+function pipelineDateMatch(query = {}) {
+  return dateMatch(query, 'date');
+}
 
-  for (const row of collectedRows) {
-    const record = {
-      deliveryStaffCode: row._id.deliveryStaffCode,
-      deliveryStaffName: normalizeStaffName(row.deliveryStaffName),
-      date: row._id.date,
-      collectedCash: Math.round(toNumber(row.collectedCash)),
-      submittedCash: 0,
-      difference: 0,
-      masterOrderCodes: mergeUnique(row.masterOrderCodes),
-      submissionCodes: [],
-      status: 'pending'
-    };
-    map.set(buildKey(record), record);
-  }
+function rowAgeExpression(asOf) {
+  return {
+    $max: [
+      0,
+      {
+        $dateDiff: {
+          startDate: {
+            $dateFromString: {
+              dateString: { $substrBytes: [{ $toString: '$date' }, 0, 10] },
+              format: '%Y-%m-%d',
+              onError: new Date('1970-01-01T00:00:00.000Z'),
+              onNull: new Date('1970-01-01T00:00:00.000Z')
+            }
+          },
+          endDate: new Date(`${asOf}T00:00:00.000Z`),
+          unit: 'day'
+        }
+      }
+    ]
+  };
+}
 
-  for (const row of submittedRows) {
-    const key = buildKey({
-      deliveryStaffCode: row._id.deliveryStaffCode,
-      date: row._id.date
-    });
+function statusExpression() {
+  return {
+    $switch: {
+      branches: [
+        { case: { $lte: [{ $abs: '$difference' }, MONEY_TOLERANCE] }, then: 'settled' },
+        { case: { $gt: ['$difference', MONEY_TOLERANCE] }, then: 'pending' }
+      ],
+      default: 'mismatch'
+    }
+  };
+}
 
-    const current = map.get(key) || {
-      deliveryStaffCode: row._id.deliveryStaffCode,
-      deliveryStaffName: normalizeStaffName(row.deliveryStaffName),
-      date: row._id.date,
-      collectedCash: 0,
-      submittedCash: 0,
-      difference: 0,
-      masterOrderCodes: [],
-      submissionCodes: [],
-      status: 'mismatch'
-    };
-
-    current.deliveryStaffName = current.deliveryStaffName || normalizeStaffName(row.deliveryStaffName);
-    current.submittedCash += Math.round(toNumber(row.submittedCash));
-    current.submissionCodes = mergeUnique([current.submissionCodes, row.submissionCodes]);
-
-    map.set(key, current);
-  }
-
-  let rows = Array.from(map.values()).map((row) => {
-    const collectedCash = Math.round(toNumber(row.collectedCash));
-    const submittedCash = Math.round(toNumber(row.submittedCash));
-    const difference = collectedCash - submittedCash;
-
-    return {
-      deliveryStaffCode: row.deliveryStaffCode,
-      deliveryStaffName: row.deliveryStaffName || row.deliveryStaffCode,
-      date: row.date,
-      collectedCash,
-      submittedCash,
-      difference,
-      masterOrderCodes: mergeUnique(row.masterOrderCodes),
-      submissionCodes: mergeUnique(row.submissionCodes),
-      status: statusOf(collectedCash, submittedCash)
-    };
-  });
-
+function deliveryCashInTransitPipeline(query = {}) {
+  const staffCode = normalizeStaffCode(query.deliveryStaffCode || query.staffCode || query.delivery || '');
   const statusFilter = String(query.status || '').trim().toLowerCase();
-  if (statusFilter && statusFilter !== 'all') {
-    rows = rows.filter((row) => row.status === statusFilter);
-  }
+  const asOf = dateUtil.toDateOnly(query.dateTo || query.to || query.date || query.deliveryDate || dateUtil.todayVN(), dateUtil.todayVN());
+  const limit = Math.max(0, Math.trunc(Number(query.limit || 0)) || 0);
+  const includeItems = query.includeItems !== false && query.summaryOnly !== true;
+  const dateFilter = pipelineDateMatch(query);
+  const collectedStaffMatch = staffCode ? [{ $match: { deliveryStaffCode: staffCode } }] : [];
+  const submittedStaffMatch = staffCode ? [{ $match: { deliveryStaffCode: staffCode } }] : [];
+  const statusStages = statusFilter && statusFilter !== 'all' ? [{ $match: { status: statusFilter } }] : [];
+  const itemStages = includeItems
+    ? [
+        { $sort: { date: -1, deliveryStaffCode: 1 } },
+        ...(limit > 0 ? [{ $limit: limit }] : []),
+        {
+          $project: {
+            _id: 0,
+            deliveryStaffCode: 1,
+            deliveryStaffName: 1,
+            date: 1,
+            collectedCash: 1,
+            submittedCash: 1,
+            difference: 1,
+            masterOrderCodes: 1,
+            submissionCodes: 1,
+            status: 1
+          }
+        }
+      ]
+    : [];
 
-  rows.sort((a, b) => {
-    if (a.date !== b.date) return a.date < b.date ? 1 : -1;
-    return String(a.deliveryStaffCode).localeCompare(String(b.deliveryStaffCode));
-  });
+  return {
+    limit,
+    includeItems,
+    pipeline: [
+      {
+        $match: {
+          type: 'ar_receipt',
+          account: 'AR',
+          ...activeLedgerMatch(),
+          $and: [
+            {
+              $or: [
+                { source: { $in: ['delivery_settlement', 'mobile_delivery_accounting_confirmed'] } },
+                { refType: { $in: ['MOBILE_DELIVERY_ACCOUNTING', 'DELIVERY_SETTLEMENT'] } },
+                { id: /MOBILE-DELIVERY-CASH/i },
+                { code: /MOBILE-DELIVERY-CASH/i },
+                { id: /DELIVERY-CASH/i },
+                { code: /DELIVERY-CASH/i }
+              ]
+            },
+            {
+              $or: [
+                { method: { $in: ['cash', 'CASH'] } },
+                { paymentMethod: { $in: ['cash', 'CASH'] } },
+                { id: /CASH/i },
+                { code: /CASH/i }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        $project: {
+          date: { $ifNull: ['$deliveryDate', '$date'] },
+          deliveryStaffCode: { $ifNull: ['$deliveryStaffCode', '$staffCode'] },
+          deliveryStaffName: { $ifNull: ['$deliveryStaffName', '$staffName'] },
+          masterOrderCode: { $ifNull: ['$masterOrderCode', '$deliveryMasterCode'] },
+          collectedCash: moneyExpression({ $ifNull: ['$credit', '$amount'] }),
+          submittedCash: { $literal: 0 },
+          submissionCode: { $literal: '' }
+        }
+      },
+      { $match: { deliveryStaffCode: { $nin: [null, ''] }, ...dateFilter } },
+      ...collectedStaffMatch,
+      {
+        $unionWith: {
+          coll: FundLedger.collection.name,
+          pipeline: [
+            {
+              $match: {
+                sourceType: 'DELIVERY_CASH_SUBMISSION',
+                fundType: 'cash',
+                direction: 'in',
+                ...activeLedgerMatch()
+              }
+            },
+            {
+              $project: {
+                date: { $ifNull: ['$deliveryDate', '$date'] },
+                deliveryStaffCode: { $ifNull: ['$deliveryStaffCode', '$staffCode'] },
+                deliveryStaffName: { $ifNull: ['$deliveryStaffName', '$staffName'] },
+                masterOrderCode: { $literal: '' },
+                collectedCash: { $literal: 0 },
+                submittedCash: moneyExpression('$amount'),
+                submissionCode: { $ifNull: ['$sourceCode', '$code'] }
+              }
+            },
+            { $match: { deliveryStaffCode: { $nin: [null, ''] }, ...dateFilter } },
+            ...submittedStaffMatch
+          ]
+        }
+      },
+      {
+        $group: {
+          _id: {
+            deliveryStaffCode: '$deliveryStaffCode',
+            date: '$date'
+          },
+          deliveryStaffName: { $max: '$deliveryStaffName' },
+          collectedCash: { $sum: '$collectedCash' },
+          submittedCash: { $sum: '$submittedCash' },
+          masterOrderCodes: { $addToSet: '$masterOrderCode' },
+          submissionCodes: { $addToSet: '$submissionCode' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          deliveryStaffCode: '$_id.deliveryStaffCode',
+          deliveryStaffName: { $ifNull: ['$deliveryStaffName', '$_id.deliveryStaffCode'] },
+          date: '$_id.date',
+          collectedCash: { $round: ['$collectedCash', 0] },
+          submittedCash: { $round: ['$submittedCash', 0] },
+          difference: { $round: [{ $subtract: ['$collectedCash', '$submittedCash'] }, 0] },
+          masterOrderCodes: {
+            $filter: { input: '$masterOrderCodes', as: 'code', cond: { $ne: ['$$code', ''] } }
+          },
+          submissionCodes: {
+            $filter: { input: '$submissionCodes', as: 'code', cond: { $ne: ['$$code', ''] } }
+          }
+        }
+      },
+      { $addFields: { status: statusExpression() } },
+      ...statusStages,
+      { $addFields: { ageDays: rowAgeExpression(asOf) } },
+      {
+        $facet: {
+          rows: itemStages,
+          summary: [
+            {
+              $group: {
+                _id: null,
+                totalRows: { $sum: 1 },
+                collectedCash: { $sum: '$collectedCash' },
+                submittedCash: { $sum: '$submittedCash' },
+                difference: { $sum: '$difference' },
+                pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+                settled: { $sum: { $cond: [{ $eq: ['$status', 'settled'] }, 1, 0] } },
+                mismatch: { $sum: { $cond: [{ $eq: ['$status', 'mismatch'] }, 1, 0] } },
+                staffCodes: { $addToSet: '$deliveryStaffCode' },
+                overdueCount: {
+                  $sum: { $cond: [{ $and: [{ $eq: ['$status', 'pending'] }, { $gt: ['$ageDays', 1] }] }, 1, 0] }
+                },
+                overdueAmount: {
+                  $sum: { $cond: [{ $and: [{ $eq: ['$status', 'pending'] }, { $gt: ['$ageDays', 1] }] }, { $max: [0, '$difference'] }, 0] }
+                },
+                oldestAgeDays: {
+                  $max: { $cond: [{ $and: [{ $eq: ['$status', 'pending'] }, { $gt: ['$ageDays', 1] }] }, '$ageDays', 0] }
+                }
+              }
+            },
+            {
+              $project: {
+                _id: 0,
+                totalRows: 1,
+                collectedCash: 1,
+                submittedCash: 1,
+                difference: 1,
+                pending: 1,
+                settled: 1,
+                mismatch: 1,
+                staffCount: { $size: '$staffCodes' },
+                tolerance: { $literal: MONEY_TOLERANCE },
+                overdueSummary: {
+                  count: '$overdueCount',
+                  amount: '$overdueAmount',
+                  oldestAgeDays: '$oldestAgeDays'
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  };
+}
 
-  const summary = rows.reduce((acc, row) => {
-    acc.collectedCash += row.collectedCash;
-    acc.submittedCash += row.submittedCash;
-    acc.difference += row.difference;
-    acc.totalRows += 1;
-    acc[row.status] = (acc[row.status] || 0) + 1;
-    return acc;
-  }, {
+async function listDeliveryCashInTransit(query = {}) {
+  const { pipeline, limit, includeItems } = deliveryCashInTransitPipeline(query);
+  const [result = {}] = await ArLedger.aggregate(pipeline);
+  const rows = Array.isArray(result.rows) ? result.rows : [];
+  const summary = result.summary && result.summary[0] ? result.summary[0] : {
     totalRows: 0,
     collectedCash: 0,
     submittedCash: 0,
@@ -280,12 +447,20 @@ async function listDeliveryCashInTransit(query = {}) {
     pending: 0,
     settled: 0,
     mismatch: 0,
-    tolerance: MONEY_TOLERANCE
-  });
+    staffCount: new Set(rows.map((row) => row.deliveryStaffCode).filter(Boolean)).size,
+    tolerance: MONEY_TOLERANCE,
+    overdueSummary: {
+      count: 0,
+      amount: 0,
+      oldestAgeDays: 0
+    }
+  };
 
   return {
     report: 'delivery_cash_in_transit',
     rows,
+    truncated: includeItems && limit > 0 && Number(summary.totalRows || 0) > rows.length,
+    limit: limit || null,
     summary
   };
 }

@@ -33,9 +33,9 @@ test('Phase231 fund UI opens on dashboard and dashboard uses a single read API',
   assert.match(state, /const fundDashboardAsOf=/);
   assert.match(state, /const fundConfirmPreviewModal=/);
   assert.match(js, /let activeFundTab='fundDashboard'/);
-  assert.match(js, /fetch\(`\/api\/funds\/dashboard\?\$\{params\.toString\(\)\}`\)/);
+  assert.match(js, /fetch\(`\/api\/funds\/dashboard\?\$\{params\.toString\(\)\}`,\s*fundDashboardAbortController\?\{signal:fundDashboardAbortController\.signal\}:\{\}\)/);
   assert.match(js, /if\(activeFundTab==='fundDashboard'\)return loadFundDashboard\(\)/);
-  assert.match(js, /setActiveFundTab\('fundDashboard'\)/);
+  assert.match(js, /setActiveFundTab\('fundDashboard'/);
 });
 
 test('Phase231 fund UI has financial confirmation preview and no browser confirm in fund source', () => {
