@@ -103,18 +103,20 @@ const RAW_REPORT_SOURCE_REGISTRY = {
   },
   'rewards-by-customer': {
     primaryCollections: ['orders'],
-    secondaryCollections: ['deliveryCloseoutVersions', 'deliveryCloseoutCorrections'],
+    secondaryCollections: ['orderPaymentAllocations.current', 'deliveryCloseoutVersions.latest', 'deliveryCloseoutCorrections'],
     service: 'RewardReportService.rewardByCustomerReport',
     exportService: 'ReportCenterService.run',
-    sourceLabel: 'Trả thưởng/cấn trừ từ salesOrders.deliveryCloseout và các field reward/offset trên đơn đã xác nhận kế toán',
-    ssotRule: 'Trả thưởng vận hành giao hàng = orders/salesOrders.deliveryCloseout.rewardAmount hoặc reward/offset fields trên đơn đã accounting_confirmed; arLedgers chỉ dùng cho công nợ AR, không là nguồn chính của trả thưởng.',
-    amountSource: 'orders.deliveryCloseout.rewardAmount | orders.rewardAmount | orders.offsetAmount fallback legacy',
+    sourceLabel: 'Trả thưởng final/current từ orders + orderPaymentAllocations current + deliveryCloseoutVersions latest',
+    ssotRule: 'Trả thưởng vận hành giao hàng = final reward theo priority: orderPaymentAllocations.current.rewardAmount → deliveryCloseoutVersions.latest.rewardAmount → orders.deliveryCloseout.rewardAmount → orders.rewardAmount fallback. Mỗi salesOrder chỉ tính một lần; arLedgers không là nguồn operational reward.',
+    amountSource: 'orderPaymentAllocations.current.rewardAmount | deliveryCloseoutVersions.latest.rewardAmount | orders.deliveryCloseout.rewardAmount | orders.rewardAmount fallback',
+    rewardSources: ['orderPaymentAllocations.current', 'deliveryCloseoutVersions.latest', 'orders.deliveryCloseout', 'orders.rewardAmount fallback'],
+    rewardSourcePriority: ['orderPaymentAllocations.current.rewardAmount', 'deliveryCloseoutVersions.latest.rewardAmount', 'orders.deliveryCloseout.rewardAmount', 'orders.rewardAmount fallback'],
     debtSource: null,
     inventorySource: null,
     fundSource: null,
-    deliverySource: 'orders.deliveryCloseout',
+    deliverySource: 'orders + orderPaymentAllocations.current + deliveryCloseoutVersions.latest',
     allowedLegacyExportTypes: [],
-    forbiddenCollections: ['arLedgers', REPORTING_SNAPSHOT_COLLECTION, 'salesOrders.debtAmount', 'salesOrders.remainingDebt']
+    forbiddenCollections: ['arLedgers', REPORTING_SNAPSHOT_COLLECTION, 'salesOrders.debtAmount', 'salesOrders.remainingDebt', 'master_orders.totalAmount']
   },
   'delivery-by-staff': {
     primaryCollections: ['orders', 'fundLedgers'],

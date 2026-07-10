@@ -19,16 +19,17 @@ test('RewardReportService does not query AR ledger or AR bonus as report source'
   assert.match(source, /accountingConfirmedFilter\(\)/);
 });
 
-test('rewards-by-customer definition and registry describe order closeout source', () => {
+test('rewards-by-customer definition and registry describe final reward source priority', () => {
   const center = read('src/services/reports/ReportCenterService.js');
   const registry = read('src/services/reports/ReportSourceRegistry.js');
   const rewardDefinition = center.slice(center.indexOf("code: 'rewards-by-customer'"), center.indexOf("code: 'delivery-by-staff'"));
   assert.doesNotMatch(rewardDefinition, /AR-BONUS|bút toán AR/);
-  assert.match(rewardDefinition, /salesOrders\.deliveryCloseout/);
+  assert.match(rewardDefinition, /orderPaymentAllocations|deliveryCloseoutVersions|orders/);
 
   const rewardRegistry = registry.slice(registry.indexOf("'rewards-by-customer'"), registry.indexOf("'delivery-by-staff'"));
   assert.match(rewardRegistry, /primaryCollections:\s*\['orders'\]/);
   assert.doesNotMatch(rewardRegistry, /primaryCollections:\s*\[[^\]]*arLedgers/);
   assert.match(rewardRegistry, /forbiddenCollections:\s*\[[^\]]*'arLedgers'/s);
-  assert.match(rewardRegistry, /deliveryCloseout\.rewardAmount/);
+  assert.match(rewardRegistry, /orderPaymentAllocations\.current\.rewardAmount/);
+  assert.match(rewardRegistry, /deliveryCloseoutVersions\.latest\.rewardAmount/);
 });

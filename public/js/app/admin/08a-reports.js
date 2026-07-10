@@ -599,12 +599,13 @@ function renderReportSourceNote(sourceNote={}){
   const status=String(sourceNote.sourceStatus||'OK').toUpperCase();
   const service=[sourceNote.service,sourceNote.serviceMethod].filter(Boolean).join('.');
   const primary=sourceNoteJoin(sourceNote.primaryCollections)||'—';
+  const primarySummary=sourceNote.rewardSources?`${primary} + ${sourceNoteJoin(sourceNote.rewardSources)}`:primary;
   const warnings=[...(sourceNote.sourceWarnings||[]),...(sourceNote.dataQualityWarnings||[])].filter(Boolean);
   box.hidden=false;
   box.dataset.sourceStatus=status;
   box.innerHTML=`
     <div class="report-source-note__summary">
-      <strong>Nguồn dữ liệu:</strong> ${reportEscape(primary)} · Service: ${reportEscape(service||'—')} · Xuất Excel: ${sourceNote.viewAndExportSameSource?'cùng nguồn':'khác nguồn'} · Trạng thái nguồn: <span class="report-source-note__status">${reportEscape(status)}</span>
+      <strong>Nguồn dữ liệu:</strong> ${reportEscape(primarySummary)} · Service: ${reportEscape(service||'—')} · Xuất Excel: ${sourceNote.viewAndExportSameSource?'cùng nguồn':'khác nguồn'} · Trạng thái nguồn: <span class="report-source-note__status">${reportEscape(status)}</span>
     </div>
     <details>
       <summary>Chi tiết nguồn</summary>
@@ -616,6 +617,9 @@ function renderReportSourceNote(sourceNote={}){
         <dt>Nguồn chính</dt><dd>${reportEscape(primary)}</dd>
         <dt>Nguồn phụ</dt><dd>${reportEscape(sourceNoteJoin(sourceNote.secondaryCollections)||'—')}</dd>
         <dt>Nguồn bị cấm</dt><dd>${reportEscape(sourceNoteJoin(sourceNote.forbiddenCollections)||'—')}</dd>
+        ${sourceNote.rewardSources?`<dt>Nguồn trả thưởng</dt><dd>${reportEscape(sourceNoteJoin(sourceNote.rewardSources))}</dd>`:''}
+        ${sourceNote.rewardSourcePriority?`<dt>Ưu tiên nguồn trả thưởng</dt><dd>${reportEscape(sourceNoteJoin(sourceNote.rewardSourcePriority))}</dd>`:''}
+        ${sourceNote.sourceKey?`<dt>Source key</dt><dd>${reportEscape(sourceNote.sourceKey)}</dd>`:''}
         <dt>Quy tắc SSoT</dt><dd>${reportEscape(sourceNote.ssotRule||sourceNote.sourceLabel||'')}</dd>
         <dt>Bộ lọc</dt><dd>${reportEscape(sourceNoteJoin(sourceNote.filters||{}))}</dd>
         <dt>Sinh lúc</dt><dd>${reportEscape(sourceNote.generatedAt||'')}</dd>

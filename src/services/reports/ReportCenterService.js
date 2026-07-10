@@ -223,7 +223,7 @@ const REPORT_DEFINITIONS = Object.freeze([
   },
   {
     code: 'rewards-by-customer', category: 'debt', title: 'Khách hàng đã trả thưởng',
-    description: 'Lọc các khách hàng có trả thưởng/cấn trừ trên salesOrders.deliveryCloseout trong kỳ đã xác nhận kế toán.',
+    description: 'Lọc các khách hàng có trả thưởng/cấn trừ final/current từ orderPaymentAllocations, deliveryCloseoutVersions và orders trong kỳ đã xác nhận kế toán.',
     roles: BUSINESS_ROLES, dateMode: 'range', exportType: '',
     columns: [
       ['customerCode', 'Mã KH'], ['customerName', 'Khách hàng'],
@@ -507,6 +507,10 @@ function buildSourceNote(definition, query = {}, extra = {}, user = {}) {
     deliverySource: contract.deliverySource ?? null,
     tripSource: contract.tripSource ?? (definition.code === 'delivery-trips' ? 'master_orders' : null),
     snapshotUsedForAmount: contract.snapshotUsedForAmount ?? (definition.code === 'delivery-trips' ? false : null),
+    rewardSources: extra.rewardSources || contract.rewardSources || null,
+    rewardSourcePriority: extra.rewardSourcePriority || contract.rewardSourcePriority || null,
+    sourceKey: extra.sourceKey || extra.sourceInfo?.sourceKey || null,
+    sourceBreakdown: extra.sourceBreakdown || null,
 
     filters: sanitizeSourceFilters(query),
     dateMode: definition.dateMode,
@@ -813,7 +817,17 @@ async function run(code, query = {}, user = {}) {
     }
     case 'rewards-by-customer': {
       const rewards = await getRewardReportService().rewardByCustomerReport({ ...baseQuery, full: '1', export: '1' });
-      return reportResult(definition, rewards.rewards || [], rewards.summary || {}, resultQuery, { dateFrom: rewards.dateFrom, dateTo: rewards.dateTo, source: rewards.source });
+      return reportResult(definition, rewards.rewards || [], rewards.summary || {}, resultQuery, {
+        dateFrom: rewards.dateFrom,
+        dateTo: rewards.dateTo,
+        source: rewards.source,
+        sourceInfo: rewards.sourceInfo,
+        sourceWarnings: rewards.sourceWarnings || rewards.sourceInfo?.warnings || [],
+        rewardSources: rewards.sourceInfo?.rewardSources || rewards.sourceContract?.rewardSources,
+        rewardSourcePriority: rewards.sourceBreakdown?.rewardPolicy?.priority,
+        sourceKey: rewards.sourceInfo?.sourceKey,
+        sourceBreakdown: rewards.sourceBreakdown
+      });
     }
     case 'delivery-by-staff': {
       const delivery = await getDeliveryReportService().deliveryByStaffReport({ ...baseQuery, full: '1', export: '1' });

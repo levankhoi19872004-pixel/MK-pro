@@ -81,7 +81,7 @@ test('reward report returns only rewarded customers with summary and pagination 
       page: 1,
       limit: 1
     });
-    assert.equal(result.source, 'orders_delivery_closeout_reward');
+    assert.equal(result.source, 'reward_final_state_current');
     assert.equal(result.rewardCollection, 'orders');
     assert.equal(result.summary.customerCount, 2);
     assert.equal(result.summary.totalRewardAmount, 200000);
