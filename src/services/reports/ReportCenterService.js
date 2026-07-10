@@ -532,6 +532,8 @@ function reportResult(definition, rows, summary, query, extra = {}, user = {}) {
   const reportUser = user && Object.keys(user).length ? user : (query && query.__reportUser) || {};
   const sourceNote = buildSourceNote(definition, query, { ...extra, summary: summary || {} }, reportUser);
   const sourceContract = getReportSourceContract(definition.code);
+  const prePagedMeta = extra.prePagedMeta || null;
+  const { prePagedMeta: _omitPrePagedMeta, ...publicExtra } = extra || {};
   // Chỉ service nội bộ được truyền boolean true. Query string "true" từ HTTP
   // không thể kích hoạt nhánh này, tránh trả hàng chục nghìn dòng ra trình duyệt.
   if (query && query.__exportAll === true) {
@@ -552,7 +554,20 @@ function reportResult(definition, rows, summary, query, extra = {}, user = {}) {
         exportAll: true
       },
       summary: summary || {},
-      ...extra
+      ...publicExtra
+    };
+  }
+
+  if (prePagedMeta) {
+    return {
+      definition: publicDefinition(definition),
+      sourceContract,
+      sourceNote,
+      rows: Array.isArray(rows) ? rows : [],
+      items: Array.isArray(rows) ? rows : [],
+      meta: prePagedMeta,
+      summary: summary || {},
+      ...publicExtra
     };
   }
 
@@ -565,7 +580,7 @@ function reportResult(definition, rows, summary, query, extra = {}, user = {}) {
     items: paged.rows,
     meta: paged.meta,
     summary: summary || {},
-    ...extra
+    ...publicExtra
   };
 }
 
@@ -850,9 +865,15 @@ async function run(code, query = {}, user = {}) {
       return reportResult(definition, returns.returns || [], returns.summary || {}, resultQuery, { dateFrom: returns.dateFrom, dateTo: returns.dateTo, source: returns.source });
     }
     case 'info-products': {
-      const info = await getInformationReportService().productInformationReport(baseQuery);
+      const info = resultQuery.__exportAll === true
+        ? await getInformationReportService().productInformationReport(baseQuery)
+        : await getInformationReportService().productInformationReportPage(baseQuery);
       const rows = (info.products || []).filter((row) => matchesSearch(row, baseQuery));
-      return reportResult(definition, rows, info.summary || summaryForRows(rows, []), resultQuery, { source: info.source });
+      return reportResult(definition, rows, info.summary || summaryForRows(rows, []), resultQuery, {
+        source: info.source,
+        prePagedMeta: info.meta,
+        performance: info.performance
+      });
     }
     case 'info-customers': {
       const info = await getInformationReportService().customerInformationReport(baseQuery);

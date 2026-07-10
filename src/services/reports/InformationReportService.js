@@ -11,8 +11,18 @@ const SalesReportService = require('./SalesReportService');
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
 const { text } = require('./ReportDomainUtils');
+const { parsePagination, buildPageMeta } = require('./report-center/ReportPagination');
 
 const MAX_ROWS = 10000;
+const PRODUCT_INFO_PROJECTION = [
+  'code', 'productCode', 'sku',
+  'name', 'productName',
+  'category', 'groupName', 'brand',
+  'conversionRate', 'packing', 'packingQty', 'unitsPerCase',
+  'unit', 'baseUnit',
+  'salePrice', 'costPrice',
+  'isActive', 'createdAt', 'updatedAt'
+].join(' ');
 const INACTIVE_ORDER_STATUSES = ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'];
 
 function regex(value) {
@@ -183,6 +193,39 @@ async function productInformationReport(query = {}) {
   return { products, summary: { rowCount: products.length, activeCount: products.filter((row) => row.status === 'Hoạt động').length }, source: 'products' };
 }
 
+async function productInformationReportPage(query = {}) {
+  const filter = productFilter(query);
+  const pagination = parsePagination(query, { defaultLimit: 50, maxLimit: 200 });
+  const findQuery = Product.find(filter)
+    .select(PRODUCT_INFO_PROJECTION)
+    .sort({ code: 1, name: 1 })
+    .skip(pagination.skip)
+    .limit(pagination.limit);
+  const [total, activeTotal, rows] = await Promise.all([
+    Product.countDocuments(filter),
+    Product.countDocuments(withAnd([filter, { isActive: { $ne: false } }])),
+    findQuery.lean()
+  ]);
+  const products = rows.map(productRow);
+  return {
+    products,
+    summary: {
+      rowCount: total,
+      returnedRows: products.length,
+      activeCount: activeTotal
+    },
+    meta: buildPageMeta(total, pagination),
+    performance: {
+      queryCount: 3,
+      boundedRead: true,
+      sourceRows: products.length,
+      returnedRows: products.length,
+      projection: 'product-information-report-v1'
+    },
+    source: 'products'
+  };
+}
+
 async function customerInformationReport(query = {}) {
   const rows = await Customer.find(customerFilter(query)).sort({ code: 1, name: 1 }).limit(MAX_ROWS).lean();
   const codes = rows.map((row) => row.code || row.customerCode);
@@ -225,6 +268,7 @@ async function staffInformationReport(query = {}) {
 
 module.exports = {
   productInformationReport,
+  productInformationReportPage,
   customerInformationReport,
   staffInformationReport
 };

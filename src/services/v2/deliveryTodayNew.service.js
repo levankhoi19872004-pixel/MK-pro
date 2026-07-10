@@ -42,6 +42,44 @@ function setDeliveryListServiceForTest(nextService) {
   deliveryListServiceForTest = nextService || null;
 }
 
+const RETURN_ORDER_HOT_PATH_PROJECTION = [
+  '_id', 'id', 'code',
+  'salesOrderId', 'orderId', 'sourceOrderId',
+  'salesOrderCode', 'orderCode', 'sourceOrderCode',
+  'amount', 'totalAmount', 'returnAmount', 'refundAmount', 'netAmount', 'receivableAmount',
+  'items', 'returnItems', 'products', 'lines',
+  'status', 'returnStatus', 'returnState',
+  'accountingStatus', 'warehouseStatus', 'warehouseReceiveStatus', 'stockReceiveStatus', 'stockPosted',
+  'note', 'accountingNote', 'returnDate', 'date', 'documentDate', 'createdAt',
+  'deleted', 'isDeleted'
+].join(' ');
+
+const CLOSEOUT_VERSION_HOT_PATH_PROJECTION = [
+  '_id', 'id', 'code',
+  'salesOrderId', 'salesOrderCode', 'orderId', 'orderCode', 'originalCloseoutId', 'originalCloseoutCode',
+  'closeoutVersion', 'sourceVersion', 'version', 'status', 'createdAt',
+  'originalAmount', 'saleAmount', 'returnedAmount', 'returnAmount',
+  'cashAmount', 'newCashAmount', 'cashCollectedAmount',
+  'bankAmount', 'newBankAmount', 'rewardAmount', 'newRewardAmount',
+  'collectedAmount', 'newCollectedAmount', 'finalDebtAmount', 'debtAmount',
+  'correctionId', 'correctionCode', 'returnAdjustmentAmount',
+  'totalCollectedDelta', 'cashAdjustmentAmount', 'cashDeltaAmount', 'bankDeltaAmount',
+  'rewardDeltaAmount', 'debtDeltaAmount', 'debtAdjustmentAmount'
+].join(' ');
+
+const PAYMENT_ALLOCATION_HOT_PATH_PROJECTION = [
+  '_id', 'id', 'allocationCode',
+  'orderId', 'orderCode', 'sourceId', 'sourceCode',
+  'status', 'sourceVersion', 'version', 'postedAt', 'updatedAt', 'createdAt',
+  'receivableAmount', 'cashAmount', 'bankAmount', 'rewardAmount', 'returnAmount',
+  'debtAmount', 'normalizedDebtAmount', 'rawDebtAmount'
+].join(' ');
+
+function applyProjection(query, projection) {
+  if (query && projection && typeof query.select === 'function') return query.select(projection);
+  return query;
+}
+
 function text(value = '') {
   return String(value ?? '').trim();
 }
@@ -415,9 +453,10 @@ async function loadReturnsForOrders(orders = [], options = {}) {
       { sourceOrderCode: { $in: ids } }
     ]
   };
-  const query = ReturnOrder.find(match).lean();
-  if (options.session) query.session(options.session);
-  const rows = await query;
+  let query = ReturnOrder.find(match);
+  query = applyProjection(query, RETURN_ORDER_HOT_PATH_PROJECTION);
+  if (options.session && query && typeof query.session === 'function') query = query.session(options.session);
+  const rows = query && typeof query.lean === 'function' ? await query.lean() : await query;
   const map = new Map();
   for (const row of rows || []) {
     if (!isValidReturn(row)) continue;
@@ -446,9 +485,11 @@ async function loadLatestVersionsForOrders(orders = [], options = {}) {
       { originalCloseoutCode: { $in: ids } }
     ]
   };
-  const query = DeliveryCloseoutVersion.find(match).sort({ closeoutVersion: -1, createdAt: -1 }).lean();
-  if (options.session) query.session(options.session);
-  const rows = await query;
+  let query = DeliveryCloseoutVersion.find(match);
+  query = applyProjection(query, CLOSEOUT_VERSION_HOT_PATH_PROJECTION);
+  if (query && typeof query.sort === 'function') query = query.sort({ closeoutVersion: -1, createdAt: -1 });
+  if (options.session && query && typeof query.session === 'function') query = query.session(options.session);
+  const rows = query && typeof query.lean === 'function' ? await query.lean() : await query;
   const map = new Map();
   for (const row of rows || []) {
     const keys = [row.salesOrderId, row.salesOrderCode, row.orderId, row.orderCode, row.originalCloseoutId, row.originalCloseoutCode].map(text).filter(Boolean);
@@ -547,7 +588,10 @@ async function loadAllocationsForOrders(orders = [], options = {}) {
       { sourceCode: { $in: keys } }
     ]
   };
-  let query = OrderPaymentAllocation.find(filter).sort({ sourceVersion: -1, postedAt: -1, updatedAt: -1, createdAt: -1 }).limit(5000);
+  let query = OrderPaymentAllocation.find(filter);
+  query = applyProjection(query, PAYMENT_ALLOCATION_HOT_PATH_PROJECTION);
+  if (query && typeof query.sort === 'function') query = query.sort({ sourceVersion: -1, postedAt: -1, updatedAt: -1, createdAt: -1 });
+  if (query && typeof query.limit === 'function') query = query.limit(5000);
   if (options.session && query && typeof query.session === 'function') query = query.session(options.session);
   const rows = query && typeof query.lean === 'function' ? await query.lean() : await query;
   const map = new Map();
@@ -831,15 +875,18 @@ function summarizeGroups(rows = []) {
 }
 
 async function listOrders(query = {}, options = {}) {
+  const startedAt = Date.now();
   if (!hasSearchCriteria(query)) {
     return emptyListResult(query);
   }
   const canonicalResult = await loadCanonicalSalesOrders(query, options);
   const orders = canonicalResult.orders || [];
   const readerDiagnostics = canonicalResult.diagnostics || {};
-  const returnsByKey = await loadReturnsForOrders(orders, options);
-  const versionsByKey = await loadLatestVersionsForOrders(orders, options);
-  const allocationsByKey = await loadAllocationsForOrders(orders, options);
+  const [returnsByKey, versionsByKey, allocationsByKey] = await Promise.all([
+    loadReturnsForOrders(orders, options),
+    loadLatestVersionsForOrders(orders, options),
+    loadAllocationsForOrders(orders, options)
+  ]);
   const rows = orders.map((order) => summarizeOrder(order, returnsByKey, versionsByKey, allocationsByKey));
   const summary = summarizeRows(rows);
   const groups = summarizeGroups(rows);
@@ -895,6 +942,20 @@ async function listOrders(query = {}, options = {}) {
       fallbackEnabled: false,
       hasSearchCriteria: hasSearchCriteria(query),
       requireFilter: false,
+      performance: {
+        durationMs: Math.max(0, Date.now() - startedAt),
+        queryCount: Number(readerDiagnostics.queryCount || 0) + (orders.length ? 3 : 0),
+        fixedQueryCount: true,
+        nPlusOneGuard: 'orders-first plus three independent batch joins; no per-order query',
+        parallelBatchReads: orders.length ? ['returnOrders', 'deliveryCloseoutVersions', 'orderPaymentAllocations'] : [],
+        projections: [
+          'sales-order-delivery-today-hot-path-v1',
+          'master-order-delivery-metadata-v1',
+          'return-order-delivery-today-hot-path-v1',
+          'delivery-closeout-version-hot-path-v1',
+          'order-payment-allocation-hot-path-v1'
+        ]
+      },
       matchKeys: Object.keys(buildOrderMatch(query)),
       source,
       sourceBreakdown

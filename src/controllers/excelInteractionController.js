@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('node:fs/promises');
 const ExcelInteractionService = require('../services/excel/ExcelInteractionService');
 const excelImportService = require('../services/excelImportService');
 
@@ -7,6 +8,20 @@ function sendWorkbook(res, result) {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(result.fileName || 'export.xlsx')}`);
   res.setHeader('X-Export-Row-Count', String(result.rowCount || 0));
+  if (result.outputBytes !== undefined) res.setHeader('X-Export-Output-Bytes', String(result.outputBytes || 0));
+  if (result.filePath) {
+    return res.sendFile(result.filePath, (err) => {
+      fs.unlink(result.filePath).catch(() => {});
+      if (err && !res.headersSent) {
+        return res.status(500).json({
+          ok: false,
+          code: 'EXCEL_CONTEXT_EXPORT_STREAM_FAILED',
+          message: 'Không xuất được dữ liệu Excel'
+        });
+      }
+      return undefined;
+    });
+  }
   return res.send(result.buffer);
 }
 

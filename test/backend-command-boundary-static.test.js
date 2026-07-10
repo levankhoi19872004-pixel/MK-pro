@@ -45,5 +45,5 @@ test('Closeout and debt collection services expose command telemetry without syn
   assert.match(debtCollection, /createCommandTelemetry\('debtCollection\.submit'\)/);
   assert.match(debtCollection, /createCommandTelemetry\('debtCollection\.confirm'\)/);
   assert.doesNotMatch(closeout, /rebuildDebtReadModel\(|rebuildCustomerDebtReadModel\(|deleteMany\(.*arDebt/i);
-  assert.match(closeout, /readModelSyncJobService\.enqueueArDebtSyncJobs/);
+  assert.match(closeout, /CloseoutPostCommitHandler\.enqueueReadModelSync/);
 });

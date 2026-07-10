@@ -403,13 +403,31 @@ async function loadDmsGapProducts({ workingDate, dmsGapType = DEFAULTS.dmsGapTyp
   };
 }
 
-async function resolveDisplayGroupProducts(group, { targetDate = todayVN(), catalogProducts = null } = {}) {
+async function loadPreviewSourceContext() {
+  const [catalogProducts, promotionGroupItems, promotions] = await Promise.all([
+    Product.find({ isActive: { $ne: false } })
+      .select('code productCode sku category brand brandCode groupCode groupName productGroup productGroupCode productGroupName line family printGroup printGroupName')
+      .lean()
+      .catch(() => []),
+    PromotionGroupItem.find({ isActive: { $ne: false } })
+      .select('programCode groupCode productCode startDate endDate cancelledAt isActive')
+      .lean()
+      .catch(() => []),
+    Promotion.find({ isActive: { $ne: false } })
+      .select('code programCode productCodes productGroupCode startDate endDate isActive active')
+      .lean()
+      .catch(() => [])
+  ]);
+  return { catalogProducts, promotionGroupItems, promotions };
+}
+
+async function resolveDisplayGroupProducts(group, { targetDate = todayVN(), catalogProducts = null, promotionGroupItems = null, promotions = null } = {}) {
   const sourceType = clean(group.sourceType || 'custom');
   const sourceCode = upper(group.sourceCode || group.sourceName || group.groupCode);
   const manualCodes = Array.isArray(group.productCodes) ? group.productCodes.map(upper).filter(Boolean) : [];
   if (sourceType === 'custom') return Array.from(new Set(manualCodes));
   if (sourceType === 'promotion_group' || sourceType === 'promotion_program') {
-    const [items, promos] = await Promise.all([
+    const [items, promos] = promotionGroupItems && promotions ? [promotionGroupItems, promotions] : await Promise.all([
       PromotionGroupItem.find({ isActive: { $ne: false } }).select('programCode groupCode productCode startDate endDate cancelledAt isActive').lean().catch(() => []),
       Promotion.find({ isActive: { $ne: false } }).select('code programCode productCodes productGroupCode startDate endDate isActive active').lean().catch(() => [])
     ]);
@@ -438,16 +456,16 @@ async function resolveDisplayGroupProducts(group, { targetDate = todayVN(), cata
   return Array.from(new Set(manualCodes));
 }
 
-async function loadSelectedGroups(groupCodes = [], targetDate = todayVN()) {
+async function loadSelectedGroups(groupCodes = [], targetDate = todayVN(), sourceContext = {}) {
   const codes = groupCodes.map(upper).filter(Boolean);
   const rows = codes.length ? await DisplayCheckGroup.find({ groupCode: { $in: codes }, isActive: { $ne: false } }).lean() : [];
   const groups = rows.map(publicGroup);
   const found = new Set(groups.map((group) => group.groupCode));
   const missing = codes.filter((code) => !found.has(code));
   if (missing.length) throw new Error(`Nhóm trưng bày không tồn tại hoặc đang tắt: ${missing.join(', ')}`);
-  const catalogProducts = await Product.find({ isActive: { $ne: false } }).select('code productCode sku category brand brandCode groupCode groupName productGroup productGroupCode productGroupName line family printGroup printGroupName').lean().catch(() => []);
+  const catalogProducts = sourceContext.catalogProducts || await Product.find({ isActive: { $ne: false } }).select('code productCode sku category brand brandCode groupCode groupName productGroup productGroupCode productGroupName line family printGroup printGroupName').lean().catch(() => []);
   for (const group of groups) {
-    group.resolvedProductCodes = await resolveDisplayGroupProducts(group, { targetDate, catalogProducts });
+    group.resolvedProductCodes = await resolveDisplayGroupProducts(group, { targetDate, ...sourceContext, catalogProducts });
   }
   return groups;
 }
@@ -614,12 +632,13 @@ async function generatePreview(input = {}) {
   if (targetAmount <= 0) throw new Error('Doanh số cần chấm phải > 0.');
   const customer = await findCustomerByCode(customerCode);
   if (!customer) throw new Error(`Không tìm thấy cửa hàng ${customerCode}.`);
+  const sourceContext = await loadPreviewSourceContext();
   const [selectedGroups, activeDisplayGroups, dms] = await Promise.all([
-    loadSelectedGroups(selectedGroupCodes, workingDate),
+    loadSelectedGroups(selectedGroupCodes, workingDate, sourceContext),
     DisplayCheckGroup.find({ isActive: { $ne: false } }).lean().then((rows) => rows.map(publicGroup)).catch(() => []),
     loadDmsGapProducts({ workingDate, dmsGapType: options.dmsGapType, forceRefresh: input.forceRefresh === true || input.forceRefresh === 'true' })
   ]);
-  for (const group of activeDisplayGroups) group.resolvedProductCodes = await resolveDisplayGroupProducts(group, { targetDate: workingDate }).catch(() => []);
+  for (const group of activeDisplayGroups) group.resolvedProductCodes = await resolveDisplayGroupProducts(group, { targetDate: workingDate, ...sourceContext }).catch(() => []);
   const products = dms.products.map((product) => ({ ...product }));
   const preview = makePreviewSkeleton({
     workingDate,

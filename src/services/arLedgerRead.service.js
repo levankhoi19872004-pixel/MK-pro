@@ -43,6 +43,7 @@ function clean(value = '') {
 async function queryRows(Model, match, options = {}) {
   const query = Model.find(match);
   if (options.session && typeof query.session === 'function') query.session(options.session);
+  if (options.projection && typeof query.select === 'function') query.select(options.projection);
   if (typeof query.sort === 'function') query.sort(options.sort || { customerCode: 1, sourceId: 1, date: 1, createdAt: 1, _id: 1 });
   if (options.limit && typeof query.limit === 'function') query.limit(Math.max(1, Math.min(1000, Number(options.limit) || 100)));
   if (typeof query.lean === 'function') query.lean();

@@ -21,9 +21,9 @@ test('AccountingCloseoutService hot path does not rebuild AR debt read-model syn
   assert.doesNotMatch(source, /rebuildDebtForSource\s*\(/);
   assert.doesNotMatch(source, /ArDebtOrder\.find\s*\(/);
   assert.doesNotMatch(source, /ArDebtCustomer\.deleteMany\s*\(/);
-  assert.match(source, /readModelSyncJobService/);
-  assert.match(source, /enqueueArDebtSyncJobs\s*\(/);
-  assert.match(source, /scheduleDrain\s*\(/);
+  assert.match(source, /CloseoutPostCommitHandler/);
+  assert.match(source, /enqueueReadModelSync\s*\(/);
+  assert.match(source, /postCommitReadModelSync/);
 });
 
 test('projector owns heavy read-model rebuild work outside closeout request', () => {

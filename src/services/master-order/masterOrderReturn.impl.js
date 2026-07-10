@@ -8,7 +8,7 @@ const { makeId, normalizeText, toNumber } = require('../../utils/common.util');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../../constants/finance.constants');
 const { debugLog } = require('../../utils/debug.util');
 
-async function findReturnOrdersForDeliveryChildren(children = []) {
+async function findReturnOrdersForDeliveryChildren(children = [], options = {}) {
   const childRows = Array.isArray(children) ? children.filter(Boolean) : [];
   const orderIds = [...new Set(childRows.flatMap((order) => [
     order.id,
@@ -106,7 +106,7 @@ async function findReturnOrdersForDeliveryChildren(children = []) {
     // ===== SCOPED FIX: AR_RETURN_ACCOUNTING_LINEAGE_PROJECTION_END =====
   };
 
-  let rows = await returnOrderRepository.findAll(query, { projection });
+  let rows = await returnOrderRepository.findAll(query, { ...options, projection });
 
   // Fallback có kiểm soát: nếu query theo mã/id chưa bắt được, lấy theo ngày giao + NVGH rồi lọc lại ở JS.
   // Điều này xử lý trường hợp dữ liệu returnOrders cũ thiếu key nhưng vẫn thuộc đúng ngày/NVGH.
@@ -163,7 +163,7 @@ async function findReturnOrdersForDeliveryChildren(children = []) {
         fallbackQuery
       }, null, 2));
 
-      const fallbackRows = await returnOrderRepository.findAll(fallbackQuery, { projection, limit: 500 });
+      const fallbackRows = await returnOrderRepository.findAll(fallbackQuery, { ...options, projection, limit: 500 });
       const orderIdSet = new Set(orderIds);
       const orderCodeSet = new Set(orderCodes);
       rows = (fallbackRows || []).filter((row) => {

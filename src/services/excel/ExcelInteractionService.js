@@ -13,6 +13,7 @@ const importSessionService = require('../importSessionService');
 const auditService = require('../auditService');
 const inventoryStockService = require('../inventoryStock.service');
 const ProductExcelEnrichmentService = require('./ProductExcelEnrichmentService');
+const ImportPreviewStreamingWorkbook = require('./ImportPreviewStreamingWorkbook');
 const { compareProductNameAsc } = require('../../utils/productSort');
 const { getCurrentPickingZone } = require('../../utils/productHydration');
 const { pickingZoneLabel } = require('../../utils/pickingZone.util');
@@ -606,37 +607,41 @@ async function exportImportPreview(params = {}) {
   const rows = selectedRowNumbers.size
     ? allRows.filter((row) => selectedRowNumbers.has(Number(row.rowNo || row.__rowNo)))
     : allRows;
-  const validRows = rows.filter((row) => row.valid !== false && (!Array.isArray(row.errors) || row.errors.length === 0));
-  const invalidRows = rows.filter((row) => !validRows.includes(row));
   const enrichedAll = await enrichProductRows(rows);
-  const enrichedValid = enrichedAll.hasProducts
-    ? ProductExcelEnrichmentService.enrichRowsWithProductCatalog(validRows, enrichedAll.productMap)
-    : validRows;
-  const enrichedInvalid = enrichedAll.hasProducts
-    ? ProductExcelEnrichmentService.enrichRowsWithProductCatalog(invalidRows, enrichedAll.productMap)
-    : invalidRows;
+  const validRows = [];
+  const invalidRows = [];
+  for (const row of enrichedAll.rows) {
+    if (row.valid !== false && (!Array.isArray(row.errors) || row.errors.length === 0)) validRows.push(row);
+    else invalidRows.push(row);
+  }
   const keys = collectDynamicKeys(enrichedAll.rows);
   const columns = ensureProductCatalogColumns(
     keys.filter((key) => !['catalogPackingQty', 'catalogSalePrice'].includes(key))
       .map((key) => ({ label: key, key, width: key.length > 20 ? 35 : 18 })),
     enrichedAll.hasProducts
   );
-  const workbook = createWorkbook();
-  appendFilterSheet(workbook, 'Kết quả import', {
-    sessionId,
-    type: session.type,
-    importMode: session.importMode,
-    fileName: session.fileName
-  }, {
-    'Tổng dòng xuất': rows.length,
-    'Hợp lệ': validRows.length,
-    'Lỗi': invalidRows.length
+  const infoRows = [
+    ['Tên dữ liệu', 'Kết quả import'],
+    ['Thời điểm xuất', new Date().toLocaleString('vi-VN')],
+    ['sessionId', sanitizeExcelValue(sessionId)],
+    ['type', sanitizeExcelValue(session.type)],
+    ['importMode', sanitizeExcelValue(session.importMode)],
+    ['fileName', sanitizeExcelValue(session.fileName)],
+    ['Tổng dòng xuất', rows.length],
+    ['Hợp lệ', validRows.length],
+    ['Lỗi', invalidRows.length]
+  ];
+  const streamed = await ImportPreviewStreamingWorkbook.writeImportPreviewWorkbook({
+    infoRows,
+    columns,
+    allRows: enrichedAll.rows,
+    validRows,
+    invalidRows
   });
-  appendObjectSheet(workbook, 'TatCa', columns, enrichedAll.rows);
-  appendObjectSheet(workbook, 'HopLe', columns, enrichedValid);
-  appendObjectSheet(workbook, 'Loi', columns, enrichedInvalid);
   return {
-    buffer: writeWorkbook(workbook),
+    filePath: streamed.filePath,
+    outputBytes: streamed.outputBytes,
+    streaming: true,
     rowCount: rows.length,
     fileName: `Ket_qua_import_${session.type || 'data'}_${dateUtil.todayVN()}.xlsx`
   };

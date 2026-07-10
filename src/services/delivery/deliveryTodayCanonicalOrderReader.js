@@ -25,6 +25,29 @@ function displayDateFromDateKey(dateKey) {
   return dateUtil.displayDateFromDateKey(dateKey);
 }
 
+const SALES_ORDER_HOT_PATH_PROJECTION = [
+  '_id', 'id', 'code', 'orderCode', 'salesOrderCode', 'documentCode', 'invoiceCode', 'sourceId', 'sourceCode',
+  'customerCode', 'customerName', 'phone', 'customerPhone', 'phoneNumber',
+  'salesStaffCode', 'salesStaffName', 'salesmanCode', 'salesmanName', 'nvbhCode', 'nvbhName',
+  'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'nvghCode', 'nvghName',
+  'deliveryDate', 'deliveryDateKey', 'orderDate', 'createdAt', 'updatedAt',
+  'masterOrderId', 'masterOrderCode', 'masterId', 'masterCode',
+  'totalAmount', 'amount', 'total', 'finalAmount', 'orderAmount',
+  'cashAmount', 'cashCollected', 'bankAmount', 'bankCollected', 'transferAmount',
+  'rewardAmount', 'bonusAmount', 'displayRewardAmount', 'offsetAmount',
+  'status', 'deliveryStatus', 'lifecycleStatus', 'accountingStatus', 'accountingConfirmed',
+  'deliveryCloseoutStatus', 'closeout', 'deliveryCloseout',
+  'items', 'orderItems', 'soldItems', 'products', 'lines',
+  'deleted', 'isDeleted', 'deleteMode', 'cancelled', 'canceled'
+].join(' ');
+
+const MASTER_ORDER_METADATA_PROJECTION = [
+  '_id', 'id', 'code', 'masterOrderCode',
+  'childOrderIds', 'childOrderCodes', 'orderCodes', 'salesOrderCodes',
+  'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'nvghCode', 'nvghName',
+  'updatedAt', 'createdAt', 'deleted', 'isDeleted'
+].join(' ');
+
 function buildDateFilterDiagnostics(input) {
   const normalized = normalizeDeliveryDateInput(input);
   return {
@@ -164,6 +187,11 @@ function applySortLimit(query, sort, limit, session) {
   return q;
 }
 
+function applyProjection(query, projection) {
+  if (query && projection && typeof query.select === 'function') return query.select(projection);
+  return query;
+}
+
 async function loadMasterOrderMetadata(orders = [], models = {}, options = {}) {
   const MasterOrder = models.MasterOrder;
   if (!MasterOrder || typeof MasterOrder.find !== 'function' || !orders.length) return { metadataByOrderKey: new Map(), masterRows: [] };
@@ -184,6 +212,7 @@ async function loadMasterOrderMetadata(orders = [], models = {}, options = {}) {
     filter.$or.push({ id: { $in: directMasterKeys } }, { code: { $in: directMasterKeys } }, { masterOrderCode: { $in: directMasterKeys } });
   }
   let q = MasterOrder.find(filter);
+  q = applyProjection(q, MASTER_ORDER_METADATA_PROJECTION);
   q = applySortLimit(q, { updatedAt: -1, createdAt: -1 }, Math.max(1000, childKeys.length * 2), options.session);
   const rows = await executeLean(q);
   const map = new Map();
@@ -281,6 +310,7 @@ async function listSalesOrders(query = {}, models = {}, options = {}) {
   const dbLimit = hasDeliveryFilter ? Math.min(2000, Math.max(limit * 5, 500)) : limit;
   const match = buildCanonicalSalesOrderMatch(query, { allowBroadDeliveryScan: Boolean(dateFilter.selectedDateKey) });
   let q = queryChain(SalesOrder, match);
+  q = applyProjection(q, SALES_ORDER_HOT_PATH_PROJECTION);
   q = applySortLimit(q, { deliveryDate: -1, createdAt: -1 }, dbLimit, options.session);
   const rawRows = await executeLean(q);
   const normalizedRows = (Array.isArray(rawRows) ? rawRows : []).map((row) => normalizeCanonicalOrder(row, dateFilter));
@@ -305,6 +335,9 @@ async function listSalesOrders(query = {}, models = {}, options = {}) {
       match,
       dbLimit,
       limit,
+      queryCount: 1 + (dateFilteredRows.length ? 1 : 0),
+      projection: 'sales-order-delivery-today-hot-path-v1',
+      metadataProjection: 'master-order-delivery-metadata-v1',
       rawOrderCount: normalizedRows.length,
       dateFilteredOrderCount: dateFilteredRows.length,
       dateMismatchCount,

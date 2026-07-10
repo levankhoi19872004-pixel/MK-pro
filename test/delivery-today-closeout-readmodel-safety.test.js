@@ -46,12 +46,12 @@ test('customer read-model refresh avoids destructive customer/order deleteMany b
 
 test('delivery closeout only enqueues AR debt read-model sync instead of rebuilding in hot path', () => {
   const source = read(closeoutPath);
-  const transactionIndex = source.indexOf('await withMongoTransaction');
+  const transactionIndex = source.indexOf('CloseoutTransactionRunner.runCloseoutTransaction');
   assert.ok(transactionIndex > -1, 'closeout must still use transaction for business writes');
   assert.doesNotMatch(source, /rebuildDebtForSource\s*\(/);
   assert.doesNotMatch(source, /refreshDebtCustomerFromOrders\s*\(/);
   assert.doesNotMatch(source, /rebuildDebtForCustomer\s*\(/);
-  assert.match(source, /enqueueArDebtSyncJobs\s*\(/);
+  assert.match(source, /CloseoutPostCommitHandler\.enqueueReadModelSync/);
   assert.match(source, /readModelSyncNeeded/);
-  assert.match(source, /readModelSync:\s*{\s*mode:\s*'queued'/);
+  assert.match(source, /markPerformance\('postCommitReadModelSync'/);
 });

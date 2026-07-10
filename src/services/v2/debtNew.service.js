@@ -38,6 +38,38 @@ function getDebtNewModels() {
 const ALLOWED_CATEGORIES = ACTIVE_DEBT_READ_MODEL_CATEGORIES;
 const PENDING_COLLECTION_STATUSES = Object.freeze(['submitted', 'under_review']);
 const LEGACY_REVERSAL_AUDIT_ORDER = Object.freeze(['AR-SALE', 'AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RETURN-REVERSAL', 'AR-RECEIPT', 'AR-RECEIPT-REVERSAL']);
+const AR_LEDGER_DEBT_HOT_PATH_PROJECTION = [
+  '_id', 'id', 'code',
+  'account', 'category', 'ledgerType', 'entryType',
+  'sourceType', 'sourceId', 'sourceCode', 'sourceOrderId', 'sourceOrderCode',
+  'refType', 'refId', 'refCode',
+  'orderId', 'orderCode', 'salesOrderId', 'salesOrderCode',
+  'canonicalOrderId', 'canonicalOrderCode', 'canonicalOrderKey', 'orderKey',
+  'correctionId', 'correctionCode', 'correctionSourceId', 'correctionSourceCode',
+  'returnOrderId', 'returnOrderCode',
+  'customerCode', 'customerName',
+  'salesStaffCode', 'salesStaffName', 'salesmanCode', 'salesmanName', 'nvbhCode', 'nvbhName',
+  'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'nvghCode', 'nvghName',
+  'date', 'documentDate', 'createdAt',
+  'debit', 'credit', 'amount', 'direction', 'amountField',
+  'accountingConfirmed', 'accountingStatus', 'active', 'reversed', 'isDeleted', 'deleted', 'deletedAt',
+  'status', 'idempotencyKey', 'source'
+].join(' ');
+const DEBT_COLLECTION_PENDING_HOT_PATH_PROJECTION = [
+  '_id', 'id', 'code', 'status', 'amount', 'submittedAt', 'createdAt',
+  'collectorCode', 'submittedByCode', 'createdBy', 'allocations'
+].join(' ');
+const DEBT_PAYMENT_ALLOCATION_HOT_PATH_PROJECTION = [
+  '_id', 'id', 'allocationCode',
+  'orderId', 'orderCode', 'salesOrderId', 'salesOrderCode', 'sourceId', 'sourceCode', 'refId', 'refCode', 'orderKey',
+  'status', 'sourceVersion', 'version', 'postedAt', 'updatedAt', 'createdAt',
+  'receivableAmount', 'cashAmount', 'bankAmount', 'rewardAmount', 'returnAmount', 'debtAmount'
+].join(' ');
+
+function applyProjection(query, projection) {
+  if (query && projection && typeof query.select === 'function') return query.select(projection);
+  return query;
+}
 
 function setModelsForTest(nextModels) {
   modelsForDebtNew = nextModels || null;
@@ -239,6 +271,7 @@ async function loadPendingCollectionsForOrders(orders = [], options = {}) {
     }
   };
   let query = DebtCollection.find(filter);
+  query = applyProjection(query, DEBT_COLLECTION_PENDING_HOT_PATH_PROJECTION);
   if (query && typeof query.limit === 'function') query = query.limit(5000);
   const scoped = options.session && query && typeof query.session === 'function' ? query.session(options.session) : query;
   return scoped && typeof scoped.lean === 'function' ? scoped.lean() : scoped;
@@ -285,7 +318,10 @@ async function loadPaymentAllocationsForOrders(orders = [], options = {}) {
       { sourceCode: { $in: keys } }
     ]
   };
-  let query = OrderPaymentAllocation.find(filter).sort({ sourceVersion: -1, postedAt: -1, updatedAt: -1, createdAt: -1 }).limit(5000);
+  let query = OrderPaymentAllocation.find(filter);
+  query = applyProjection(query, DEBT_PAYMENT_ALLOCATION_HOT_PATH_PROJECTION);
+  if (query && typeof query.sort === 'function') query = query.sort({ sourceVersion: -1, postedAt: -1, updatedAt: -1, createdAt: -1 });
+  if (query && typeof query.limit === 'function') query = query.limit(5000);
   if (options.session && query && typeof query.session === 'function') query = query.session(options.session);
   return query && typeof query.lean === 'function' ? query.lean() : query;
 }
@@ -525,6 +561,7 @@ function groupLedgers(ledgerRows = [], query = {}) {
 }
 
 async function listCustomers(query = {}, options = {}) {
+  const startedAt = Date.now();
   if (!hasSearchCriteria(query)) {
     return emptyListResult(query);
   }
@@ -538,11 +575,17 @@ async function listCustomers(query = {}, options = {}) {
     ...normalizedQuery,
     limit,
     status: 'all'
-  }, options);
+  }, {
+    ...options,
+    limit,
+    projection: AR_LEDGER_DEBT_HOT_PATH_PROJECTION
+  });
   const grouped = groupLedgers(ledgerRows, normalizedQuery);
-  const allocationRows = await loadPaymentAllocationsForOrders(grouped.orders || [], options).catch(() => []);
+  const [allocationRows, pendingRows] = await Promise.all([
+    loadPaymentAllocationsForOrders(grouped.orders || [], options).catch(() => []),
+    loadPendingCollectionsForOrders(grouped.orders || [], options).catch(() => [])
+  ]);
   attachPaymentAllocationState(grouped, allocationRows);
-  const pendingRows = await loadPendingCollectionsForOrders(grouped.orders || [], options).catch(() => []);
   await attachCollectibleState(grouped, pendingAmountByOrder(pendingRows));
   return {
     ...grouped,
@@ -554,6 +597,21 @@ async function listCustomers(query = {}, options = {}) {
       searchCriteriaRequired: false,
       allowedCategories: ALLOWED_CATEGORIES,
       excludedLegacyCategories: EXCLUDED_DEBT_READ_MODEL_CATEGORIES,
+      performance: {
+        durationMs: Math.max(0, Date.now() - startedAt),
+        queryCount: ((grouped.orders || []).length ? 3 : 1),
+        fixedQueryCount: true,
+        boundedLedgerRead: true,
+        ledgerLimit: limit,
+        ledgerRowsRead: ledgerRows.length,
+        nPlusOneGuard: 'single arLedgers read plus two independent batch joins; no per-order query',
+        parallelBatchReads: grouped.orders && grouped.orders.length ? ['orderPaymentAllocations', 'debtCollections'] : [],
+        projections: [
+          'ar-ledger-debt-hot-path-v1',
+          'order-payment-allocation-debt-hot-path-v1',
+          'debt-collection-pending-hot-path-v1'
+        ]
+      },
       writePolicy: 'read-only from canonical arLedgers; payment allocation detail is joined from orderPaymentAllocations; submitted debt collections do not reduce official debt until accounting confirm'
     }
   };

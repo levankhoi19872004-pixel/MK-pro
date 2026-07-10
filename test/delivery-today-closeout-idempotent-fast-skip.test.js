@@ -21,7 +21,7 @@ test('closeout has fast idempotent skip before transaction when all orders are a
   assert.match(source, /alreadyConfirmedOrders\s*=\s*orders\.filter\(isAccountingConfirmed\)/);
   assert.match(source, /pendingConfirmOrders\s*=\s*orders\.filter\(\(order\)\s*=>\s*!isAccountingConfirmed\(order\)\)/);
   const fastSkipIndex = source.indexOf('if (!pendingConfirmOrders.length)');
-  const txIndex = source.indexOf('await withMongoTransaction', source.indexOf('async function confirmDeliveryAccountingInternal'));
+  const txIndex = source.indexOf('CloseoutTransactionRunner.runCloseoutTransaction', source.indexOf('async function confirmDeliveryAccountingInternal'));
   assert.ok(fastSkipIndex > -1, 'must have all-confirmed fast skip branch');
   assert.ok(txIndex > -1, 'must still use transaction for pending writes');
   assert.ok(fastSkipIndex < txIndex, 'fast skip must happen before opening transaction');
@@ -37,11 +37,11 @@ test('confirmed orders are not passed to confirmOneOrder in mixed batch', () => 
   const source = read(closeoutPath);
   const internalStart = source.indexOf('async function confirmDeliveryAccountingInternal');
   const internal = source.slice(internalStart, source.indexOf('async function confirmDeliveryAccounting', internalStart + 1));
-  assert.match(internal, /for\s*\(const order of pendingConfirmOrders\)/);
+  assert.match(internal, /pendingConfirmOrders,/);
+  assert.match(internal, /CloseoutTransactionRunner\.runCloseoutTransaction/);
   assert.doesNotMatch(internal, /for\s*\(const order of orders\)/);
-  assert.match(internal, /const\s+readModelAffectedResults\s*=\s*results\.filter\(\(row\)\s*=>\s*row\s*&&\s*row\.confirmed\s*&&\s*row\.readModelSyncNeeded\)/);
-  assert.match(internal, /enqueueArDebtSyncJobs\s*\(/);
-  assert.match(internal, /readModelSyncJobs/);
+  assert.match(internal, /CloseoutPostCommitHandler\.enqueueReadModelSync/);
+  assert.match(internal, /postCommitReadModelSync/);
 });
 
 test('confirmOneOrder has guard before any update or AR posting for already confirmed orders', () => {

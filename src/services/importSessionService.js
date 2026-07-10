@@ -175,6 +175,22 @@ async function insertRowsInBatches(docs = []) {
   }
 }
 
+async function insertPreviewRowsInBatches(sessionId, type, rows = []) {
+  let inserted = 0;
+  for (let i = 0; i < rows.length; i += IMPORT_SESSION_ROW_BATCH_SIZE) {
+    const sliceEnd = Math.min(i + IMPORT_SESSION_ROW_BATCH_SIZE, rows.length);
+    const batch = [];
+    for (let index = i; index < sliceEnd; index += 1) {
+      batch.push(buildSessionRowDoc(sessionId, type, rows[index], index));
+    }
+    if (batch.length) {
+      await ImportSessionRow.insertMany(batch, { ordered: false });
+      inserted += batch.length;
+    }
+  }
+  return inserted;
+}
+
 async function createUploadedSession({ type, fileName = '', fileNames = [], createdBy = '', importMode = 'create' }) {
   const id = makeId('IMP');
 
@@ -282,11 +298,7 @@ async function savePreviewResult(id, { rows = [], previewRows = [], fileNames = 
 
   await ImportSessionRow.deleteMany({ sessionId });
 
-  const rowDocs = rows.map((row, index) =>
-    buildSessionRowDoc(sessionId, session.type, row, index)
-  );
-
-  await insertRowsInBatches(rowDocs);
+  const storedRows = await insertPreviewRowsInBatches(sessionId, session.type, rows);
 
   return ImportSession.findOneAndUpdate(
     { $or: [{ id: value }, { sessionId: value }] },
@@ -305,7 +317,7 @@ async function savePreviewResult(id, { rows = [], previewRows = [], fileNames = 
           .slice(0, IMPORT_PREVIEW_LIMIT)
           .map(compactPreviewRow),
         rowStorage: 'collection',
-        storedRows: rowDocs.length,
+        storedRows,
         fileNames,
         finishedAt: new Date(),
         progress: {

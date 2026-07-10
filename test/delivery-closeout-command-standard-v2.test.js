@@ -14,8 +14,8 @@ function read(file) { return fs.readFileSync(file, 'utf8'); }
 
 test('closeout command response exposes queued read-model sync contract', () => {
   const source = read(closeoutPath);
-  assert.match(source, /readModelSync:\s*{\s*mode:\s*'queued'/);
-  assert.match(source, /status:\s*readModelSyncQueued\s*>\s*0\s*\?\s*'pending'\s*:\s*'not_needed'/);
+  assert.match(source, /CloseoutPostCommitHandler\.enqueueReadModelSync/);
+  assert.match(source, /markPerformance\('postCommitReadModelSync'/);
   assert.match(source, /readModelSync:\s*{\s*mode:\s*'skipped'/);
 });
 

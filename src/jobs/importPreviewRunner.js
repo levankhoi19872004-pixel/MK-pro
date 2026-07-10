@@ -17,6 +17,10 @@ function normalizePreviewFileName(value) {
   return text;
 }
 
+function pushRows(target = [], source = []) {
+  for (const row of source || []) target.push(row);
+}
+
 async function runImportPreviewPipeline({ sessionId, type, files = [], userName = '', importMode = 'create', buildPreviewFromRows }) {
   if (typeof buildPreviewFromRows !== 'function') throw new TypeError('Thiếu buildPreviewFromRows');
   const parsingSession = await importSessionService.markParsing(sessionId);
@@ -30,6 +34,7 @@ async function runImportPreviewPipeline({ sessionId, type, files = [], userName 
   try {
     const rows = [];
     const fileNames = [];
+    const fileStats = new Map();
     for (const file of files) {
       const currentFileName = normalizePreviewFileName(file.fileName || file.originalname || 'import.xlsx');
       const buffer = file.buffer || await fs.readFile(file.path);
@@ -42,7 +47,8 @@ async function runImportPreviewPipeline({ sessionId, type, files = [], userName 
         __rowNo: row.__rowNo || row.rowNo || index + 2
       }));
       fileNames.push(currentFileName);
-      rows.push(...fileRows);
+      fileStats.set(currentFileName, { totalRows: fileRows.length, totalOrders: 0, errors: [] });
+      pushRows(rows, fileRows);
     }
 
     await importSessionService.updateProgress(sessionId, { percent: 60, step: 'validating' });
@@ -57,13 +63,26 @@ async function runImportPreviewPipeline({ sessionId, type, files = [], userName 
       rows: result.rows || [], previewRows: result.rows || [], fileNames
     });
 
+    for (const row of result.rows || []) {
+      const fileName = row.fileName || row.sourceFile;
+      const stats = fileStats.get(fileName);
+      if (!stats) continue;
+      stats.totalOrders += 1;
+      if (row.valid === false && stats.errors.length < 20) {
+        for (const error of row.errors || []) {
+          if (stats.errors.length >= 20) break;
+          stats.errors.push(error);
+        }
+      }
+    }
+
     return {
       ...result,
       files: fileNames.map((fileName) => ({
         fileName,
-        totalRows: rows.filter((row) => row.fileName === fileName).length,
-        totalOrders: (result.rows || []).filter((row) => row.fileName === fileName || row.sourceFile === fileName).length,
-        errors: (result.rows || []).filter((row) => (row.fileName === fileName || row.sourceFile === fileName) && row.valid === false).flatMap((row) => row.errors || []).slice(0, 20)
+        totalRows: fileStats.get(fileName)?.totalRows || 0,
+        totalOrders: fileStats.get(fileName)?.totalOrders || 0,
+        errors: fileStats.get(fileName)?.errors || []
       })),
       totalFiles: fileNames.length
     };

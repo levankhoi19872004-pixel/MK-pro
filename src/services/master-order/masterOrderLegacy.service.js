@@ -65,7 +65,7 @@ const deliverySalesSummary = require('./deliverySalesSummary.impl');
 const deliveryCompact = require('./deliveryOrdersCompact.impl');
 const deliveryCommand = require('./deliveryOrderCommand.impl');
 const accountingCommand = require('./deliveryAccountingCommand.impl');
-const printLegacy = require('./masterOrderPrintLegacy.impl');
+const print = require('./masterOrderPrint.service');
 const command = require('./masterOrderCommand.impl');
 const returns = require('./masterOrderReturn.impl');
 const assignment = require('../../utils/masterOrderAssignment.util');
@@ -82,7 +82,7 @@ module.exports = {
   updateDeliveryTodayOrder: deliveryCommand.updateDeliveryTodayOrder,
   confirmDeliveryAccounting: accountingCommand.confirmDeliveryAccounting,
   adminUnlockDeliveryAccounting: accountingCommand.adminUnlockDeliveryAccounting,
-  buildAggregateMasterPrintDocument: printLegacy.buildAggregateMasterPrintDocument,
+  buildAggregateMasterPrintDocument: print.buildAggregateMasterPrintDocument,
   createMasterOrder: command.createMasterOrder,
   updateMasterOrder: command.updateMasterOrder,
   cancelMasterOrder: command.cancelMasterOrder,

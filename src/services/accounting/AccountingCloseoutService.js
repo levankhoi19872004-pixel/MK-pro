@@ -4,14 +4,14 @@ const crypto = require('node:crypto');
 const dateUtil = require('../../utils/date.util');
 const orderRepository = require('../../repositories/orderRepository');
 const auditService = require('../auditService');
-const { withMongoTransaction } = require('../../utils/transaction.util');
 const { compactDeliveryOrderKeys } = require('../master-order/masterOrderIdentity.util');
 const { findReturnOrdersForDeliveryChildren } = require('../master-order/masterOrderReturn.impl');
 const DeliveryCloseoutService = require('./DeliveryCloseoutService');
 const OrderPaymentAllocationService = require('./OrderPaymentAllocationService');
 const OrderPaymentDebtReconcileService = require('./OrderPaymentDebtReconcileService');
-const readModelSyncJobService = require('../readModelSyncJob.service');
 const { createCommandTelemetry } = require('../../utils/commandTelemetry');
+const CloseoutTransactionRunner = require('./closeout/CloseoutTransactionRunner');
+const CloseoutPostCommitHandler = require('./closeout/CloseoutPostCommitHandler');
 
 const CONFIRM_GUARD_TTL_MS = Math.max(1000, Number(process.env.CLOSEOUT_CONFIRM_GUARD_TTL_MS || 8000));
 const inFlight = new Map();
@@ -662,43 +662,35 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
   // Guard phải dùng returnOrders mới nhất vừa query từ DB. Không được chặn theo payload/frontend hoặc embedded stale trong orders.
   assertReturnOrdersInventoryReady(returnOrders);
   markPerformance('validateReturnOrdersInventory');
-  const returnByKey = groupReturnOrdersBySalesOrder(returnOrders, pendingConfirmOrders);
-
-  const readModelSyncJobs = [];
-  await withMongoTransaction(async (session) => {
-    for (const order of pendingConfirmOrders) {
-      const rows = returnOrdersForOrder(order, returnByKey);
-      const result = await confirmOneOrder(order, rows, { session, actor, confirmedBy: actor, reason, note: reason, date, closeoutScope, closeoutScopeHash: closeoutScope.scopeHash, selectedOrderCodes, selectedSalesStaffCodes });
-      results.push(result);
-    }
-
-    const readModelAffectedResults = results.filter((row) => row && row.confirmed && row.readModelSyncNeeded);
-    const syncGroups = new Map();
-    for (const row of readModelAffectedResults) {
-      const customerCode = clean(row.affectedCustomerCode);
-      const sourceId = clean(row.affectedSourceId || row.orderId);
-      if (!customerCode && !sourceId) continue;
-      const key = customerCode || '(missing-customer)';
-      if (!syncGroups.has(key)) syncGroups.set(key, { customerCode, sourceIds: [] });
-      if (sourceId) syncGroups.get(key).sourceIds.push(sourceId);
-    }
-    for (const group of syncGroups.values()) {
-      readModelSyncJobs.push(await readModelSyncJobService.enqueueArDebtSyncJobs({
-        customerCode: group.customerCode,
-        sourceIds: unique(group.sourceIds),
-        reason,
-        actor,
-        source: 'DELIVERY_CLOSEOUT',
-        metadata: { route: 'POST /api/new/delivery-today/closeout' }
-      }, { session }));
+  const transactionResult = await CloseoutTransactionRunner.runCloseoutTransaction({
+    pendingConfirmOrders,
+    results,
+    confirmOneOrder,
+    assertReturnOrdersInventoryReady,
+    perOrderOptions: {
+      actor,
+      confirmedBy: actor,
+      reason,
+      note: reason,
+      date,
+      closeoutScope,
+      closeoutScopeHash: closeoutScope.scopeHash,
+      selectedOrderCodes,
+      selectedSalesStaffCodes
     }
   });
-
-  if (readModelSyncJobs.some((row) => Number(row.queued || 0) > 0)) {
-    readModelSyncJobService.scheduleDrain({ limit: 10, actor, reason });
-  }
-  markPerformance('transactionAndPosting', { resultCount: results.length, readModelSyncJobs: readModelSyncJobs.length });
-  const readModelSyncQueued = readModelSyncJobs.reduce((sum, row) => sum + Number(row.queued || 0), 0);
+  markPerformance('transactionAndPosting', {
+    resultCount: results.length,
+    criticalReads: transactionResult.criticalReads.length,
+    readModelSyncGroups: transactionResult.syncGroups.length
+  });
+  const readModelSync = await CloseoutPostCommitHandler.enqueueReadModelSync(transactionResult.syncGroups, {
+    actor,
+    reason,
+    source: 'DELIVERY_CLOSEOUT',
+    metadata: { route: 'POST /api/new/delivery-today/closeout' }
+  });
+  markPerformance('postCommitReadModelSync', { queued: readModelSync.queued, warnings: readModelSync.warnings.length });
 
   const confirmedOrders = results.filter((row) => row.confirmed).length;
   const skippedOrders = results.filter((row) => row.skipped).length;
@@ -706,6 +698,10 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
   const warnings = diagnostics
     .filter((row) => row.normalizedDebtAmount < 0)
     .map((row) => ({ code: 'OVERPAID_OR_NEGATIVE_DEBT', orderCode: row.orderCode, customerCode: row.customerCode, normalizedDebtAmount: row.normalizedDebtAmount }));
+  warnings.push(...(readModelSync.warnings || []).map((row) => ({
+    ...row,
+    code: row.code || 'ACCOUNTING_POST_COMMIT_WARNING'
+  })));
   const status = confirmedOrders > 0 ? (skippedOrders > 0 ? 'partial' : 'confirmed') : 'idempotent';
   return {
     ok: true,
@@ -726,7 +722,7 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     diagnostics,
     warnings,
     readModelRebuilds: [],
-    readModelSync: { mode: 'queued', queued: readModelSyncQueued, status: readModelSyncQueued > 0 ? 'pending' : 'not_needed', jobs: readModelSyncJobs.flatMap((row) => row.jobs || []) },
+    readModelSync,
     performance: telemetry.finish(),
     reason,
     message: confirmedOrders > 0
