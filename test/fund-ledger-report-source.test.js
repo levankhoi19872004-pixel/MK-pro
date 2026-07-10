@@ -16,11 +16,12 @@ test('finance report derives cash and bank balances from FundLedger', () => {
   assert.doesNotMatch(block, /const bankIn = sum\(bankRows/);
 });
 
-test('fund ledger list calculates summary over the full filtered result using facet', () => {
+test('fund ledger list delegates balance and running-balance logic to canonical FundBalanceReadService', () => {
   const block = fundSource.match(/async function listFundLedgers[\s\S]*?\nasync function findExistingFundLedger/)?.[0] || '';
-  assert.match(block, /\$facet/);
-  assert.match(block, /totals:/);
-  assert.match(block, /count:/);
-  assert.match(block, /meta:/);
-  assert.doesNotMatch(block, /summarizeFundLedgers\(rows\)/);
+  assert.match(block, /FundBalanceReadService\.listFundLedgers\(query\)/);
+  assert.doesNotMatch(block, /cashBalance\s*=|bankBalance\s*=|\$facet/);
+  const canonical = fs.readFileSync('src/services/accounting/FundBalanceReadService.js', 'utf8');
+  assert.match(canonical, /\$setWindowFields/);
+  assert.match(canonical, /buildSummaryPipeline/);
+  assert.match(canonical, /buildRowsPipeline/);
 });

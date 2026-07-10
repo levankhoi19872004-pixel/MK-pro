@@ -83,7 +83,7 @@
         "src/services/fundService.source/part-02.jsfrag",
         "src/services/fundService.source/part-03.jsfrag"
       ],
-      "sourceSha256": "aa7bfaede45afc6989b8bb2e624d65de422990e671299cbb9d4429a671570dde"
+      "sourceSha256": "ca9484e52f0d0cbc13a1192c969bd50d8425ff5a34bd7be116be887c1f875f94"
     },
     {
       "target": "src/services/inventoryService.js",
@@ -173,7 +173,7 @@
         "public/js/app/debt/07f-fund-ledger.source/part-02.jsfrag",
         "public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag"
       ],
-      "sourceSha256": "8af929500fbefb67424d8bf7f4b467abd9db717994aa5f4a7c05ad14fb217ee4",
+      "sourceSha256": "c78e413f34a0d854602151113ecf9382b9df521af10f98a2cbd2eb230dd9d7eb",
       "runtimeFiles": [
         "public/js/app/debt/07f-fund-ledger.js",
         "public/js/app/debt/07f-fund-ledger.part02.js",

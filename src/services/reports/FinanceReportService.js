@@ -1,69 +1,34 @@
 'use strict';
 
-const FundLedger = require('../../models/FundLedger');
 const ReturnReportService = require('./ReturnReportService');
-const {
-  activeDocumentFilter,
-  businessDateStages,
-  businessDate,
-  dateRange,
-  firstText,
-  lower,
-  paginate,
-  text,
-  toNumber
-} = require('./ReportDomainUtils');
+const FundBalanceReadService = require('../accounting/FundBalanceReadService');
+const { firstText, paginate, text, toNumber } = require('./ReportDomainUtils');
 
 function fundTypeOf(row = {}) {
-  const explicit = lower(row.fundType || row.fund || row.accountType);
-  if (explicit.includes('bank') || explicit.includes('ngan')) return 'bank';
-  if (explicit.includes('cash') || explicit.includes('tien') || explicit.includes('quy')) return 'cash';
-  const account = lower(row.account);
-  return account.includes('bank') || account.startsWith('112') ? 'bank' : 'cash';
+  return FundBalanceReadService.fundTypeOfRow(row);
 }
 
 function directionOf(row = {}) {
-  const explicit = lower(row.direction);
-  if (explicit === 'in' || explicit === 'out') return explicit;
-  const value = [row.type, row.transactionType, row.sourceType, row.note].map(lower).join(' ');
-  if (/(out|payment|chi|withdraw|transfer[_\s-]*out)/i.test(value)) return 'out';
-  return 'in';
+  return FundBalanceReadService.directionOfRow(row);
 }
 
 function accountKeyOf(row = {}) {
   const fundType = fundTypeOf(row);
-  const account = firstText(row, ['account', 'fundCode', 'bankAccountCode']) || (fundType === 'bank' ? 'BANK' : 'CASH');
+  const account = FundBalanceReadService.accountOfRow(row, fundType);
   return `${fundType}:${account}`;
 }
 
-
 function fundLedgerCanonicalFilter(extra = {}) {
-  return {
-    ...activeDocumentFilter(),
-    active: { $ne: false },
-    isDeleted: { $ne: true },
-    deletedAt: { $in: [null, ''] },
-    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'] },
-    reversed: { $ne: true },
-    isReversal: { $ne: true },
-    reversalOf: { $in: [null, ''] },
-    $or: [
-      { accountingConfirmed: true },
-      { accountingStatus: { $in: ['confirmed', 'posted', 'locked'] } },
-      { posted: true }
-    ],
-    ...extra
-  };
+  return FundBalanceReadService.fundLedgerCanonicalFilter(extra);
 }
 
 async function loadFundLedgersUntil(query = {}) {
-  const { dateFrom, dateTo } = dateRange(query);
-  const rows = await FundLedger.aggregate([
-    { $match: fundLedgerCanonicalFilter() },
-    ...businessDateStages('0000-01-01', dateTo, ['date'], '_reportBusinessDate'),
-    { $sort: { fundType: 1, account: 1, _reportBusinessDate: 1, createdAt: 1, _id: 1 } }
-  ]).allowDiskUse(true).exec();
-  return { rows, dateFrom, dateTo };
+  const result = await FundBalanceReadService.listFundLedgers({ ...query, full: '1', limit: 50000 });
+  return {
+    rows: result.rows || [],
+    dateFrom: result.summary?.period?.dateFrom || '',
+    dateTo: result.summary?.period?.dateTo || ''
+  };
 }
 
 function summarizeAccounts(accounts = []) {
@@ -82,20 +47,24 @@ function summarizeAccounts(accounts = []) {
     bankBalance: 0
   };
   for (const account of accounts) {
-    summary.openingBalance += account.openingBalance;
-    summary.fundIn += account.inAmount;
-    summary.fundOut += account.outAmount;
-    summary.endingBalance += account.endingBalance;
+    const openingBalance = toNumber(account.openingBalance);
+    const inAmount = toNumber(account.inAmount ?? account.inPeriod);
+    const outAmount = toNumber(account.outAmount ?? account.outPeriod);
+    const endingBalance = toNumber(account.endingBalance);
+    summary.openingBalance += openingBalance;
+    summary.fundIn += inAmount;
+    summary.fundOut += outAmount;
+    summary.endingBalance += endingBalance;
     if (account.fundType === 'bank') {
-      summary.bankOpeningBalance += account.openingBalance;
-      summary.bankIn += account.inAmount;
-      summary.bankOut += account.outAmount;
-      summary.bankBalance += account.endingBalance;
+      summary.bankOpeningBalance += openingBalance;
+      summary.bankIn += inAmount;
+      summary.bankOut += outAmount;
+      summary.bankBalance += endingBalance;
     } else {
-      summary.cashOpeningBalance += account.openingBalance;
-      summary.cashIn += account.inAmount;
-      summary.cashOut += account.outAmount;
-      summary.cashBalance += account.endingBalance;
+      summary.cashOpeningBalance += openingBalance;
+      summary.cashIn += inAmount;
+      summary.cashOut += outAmount;
+      summary.cashBalance += endingBalance;
     }
   }
   summary.totalFundIn = summary.fundIn;
@@ -104,86 +73,77 @@ function summarizeAccounts(accounts = []) {
   return summary;
 }
 
+function reportRowFromFundLedger(ledger = {}) {
+  const amount = Math.abs(toNumber(ledger.amount));
+  const direction = directionOf(ledger);
+  const endingBalance = toNumber(ledger.runningBalanceAfterTransaction);
+  const openingBalance = endingBalance - (direction === 'out' ? -amount : amount);
+  return {
+    id: text(ledger.id || ledger._id),
+    date: text(ledger.date),
+    code: firstText(ledger, ['code', 'referenceCode', 'refCode', 'sourceCode']),
+    type: firstText(ledger, ['sourceType', 'type', 'refType']),
+    fundType: fundTypeOf(ledger),
+    account: FundBalanceReadService.accountOfRow(ledger),
+    counterparty: firstText(ledger, ['customerName', 'deliveryStaffName', 'staffName', 'partnerName', 'counterpartyName']),
+    direction,
+    openingBalance,
+    inAmount: direction === 'in' ? amount : 0,
+    outAmount: direction === 'out' ? amount : 0,
+    endingBalance,
+    runningBalanceAfterTransaction: endingBalance,
+    note: firstText(ledger, ['note'])
+  };
+}
+
 async function financeReport(query = {}) {
-  const { rows: ledgers, dateFrom, dateTo } = await loadFundLedgersUntil(query);
-  const accountMap = new Map();
-  const periodRows = [];
-
-  for (const ledger of ledgers) {
-    const key = accountKeyOf(ledger);
-    const fundType = fundTypeOf(ledger);
-    const account = firstText(ledger, ['account', 'fundCode', 'bankAccountCode']) || (fundType === 'bank' ? 'BANK' : 'CASH');
-    if (!accountMap.has(key)) {
-      accountMap.set(key, { key, fundType, account, openingBalance: 0, inAmount: 0, outAmount: 0, endingBalance: 0, transactionCount: 0 });
-    }
-    const target = accountMap.get(key);
-    const ledgerDate = ledger._reportBusinessDate || businessDate(ledger, ['date']);
-    const amount = Math.abs(toNumber(ledger.amount));
-    const direction = directionOf(ledger);
-    const signed = direction === 'out' ? -amount : amount;
-    if (ledgerDate < dateFrom) {
-      target.openingBalance += signed;
-      target.endingBalance += signed;
-      continue;
-    }
-    target.transactionCount += 1;
-    target.endingBalance += signed;
-    if (direction === 'out') target.outAmount += amount;
-    else target.inAmount += amount;
-    periodRows.push({ ledger, ledgerDate, key, fundType, account, direction, amount });
-  }
-
-  const accounts = Array.from(accountMap.values()).map((row) => ({
+  const fundData = await FundBalanceReadService.listFundLedgers(query);
+  const canonicalSummary = fundData.summary || {};
+  const accounts = (canonicalSummary.accounts || []).map((row) => ({
     ...row,
-    endingBalance: row.openingBalance + row.inAmount - row.outAmount
-  })).sort((a, b) => a.fundType.localeCompare(b.fundType) || a.account.localeCompare(b.account));
-
-  const running = new Map(accounts.map((row) => [row.key, row.openingBalance]));
-  periodRows.sort((a, b) => a.key.localeCompare(b.key)
-    || a.ledgerDate.localeCompare(b.ledgerDate)
-    || text(a.ledger.createdAt).localeCompare(text(b.ledger.createdAt))
-    || text(a.ledger._id).localeCompare(text(b.ledger._id)));
-  const rows = periodRows.map(({ ledger, ledgerDate, key, fundType, account, direction, amount }) => {
-    const openingBalance = toNumber(running.get(key));
-    const endingBalance = openingBalance + (direction === 'out' ? -amount : amount);
-    running.set(key, endingBalance);
-    return {
-      id: text(ledger.id || ledger._id),
-      date: ledgerDate,
-      code: firstText(ledger, ['code', 'referenceCode', 'refCode', 'sourceCode']),
-      type: firstText(ledger, ['sourceType', 'type', 'refType']),
-      fundType,
-      account,
-      counterparty: firstText(ledger, ['customerName', 'deliveryStaffName', 'staffName', 'partnerName']),
-      direction,
-      openingBalance,
-      inAmount: direction === 'in' ? amount : 0,
-      outAmount: direction === 'out' ? amount : 0,
-      endingBalance,
-      note: firstText(ledger, ['note'])
-    };
-  });
-
+    inAmount: toNumber(row.inPeriod),
+    outAmount: toNumber(row.outPeriod),
+    transactionCount: toNumber(row.periodLedgerCount)
+  }));
+  const rows = (fundData.rows || []).map(reportRowFromFundLedger);
   const returnData = await ReturnReportService.returnReport({ ...query, full: '1', export: '1' });
+  const groupCounts = canonicalSummary.groups || [];
+  const receiptCount = groupCounts
+    .filter((row) => row.direction === 'in')
+    .reduce((sum, row) => sum + toNumber(row.count), 0);
 
   const summary = {
     ...summarizeAccounts(accounts),
-    receiptCount: rows.filter((row) => row.direction === 'in').length,
+    cashOpeningBalance: toNumber(canonicalSummary.cashOpeningBalance),
+    cashIn: toNumber(canonicalSummary.cashInPeriod),
+    cashOut: toNumber(canonicalSummary.cashOutPeriod),
+    cashBalance: toNumber(canonicalSummary.cashEndingBalance),
+    bankOpeningBalance: toNumber(canonicalSummary.bankOpeningBalance),
+    bankIn: toNumber(canonicalSummary.bankInPeriod),
+    bankOut: toNumber(canonicalSummary.bankOutPeriod),
+    bankBalance: toNumber(canonicalSummary.bankEndingBalance),
+    openingBalance: toNumber(canonicalSummary.totalOpeningBalance),
+    fundIn: toNumber(canonicalSummary.totalInPeriod),
+    fundOut: toNumber(canonicalSummary.totalOutPeriod),
+    endingBalance: toNumber(canonicalSummary.totalEndingBalance),
+    totalFundIn: toNumber(canonicalSummary.totalInPeriod),
+    totalFundOut: toNumber(canonicalSummary.totalOutPeriod),
+    totalFundBalance: toNumber(canonicalSummary.totalEndingBalance),
+    receiptCount,
     returnCount: toNumber(returnData.summary?.returnCount),
     totalReturns: toNumber(returnData.summary?.totalReturnAmount)
   };
-  const paged = paginate(rows, query, { defaultLimit: 50, maxLimit: 200 });
+
   return {
-    source: 'mongo_fund_ledgers_period',
+    source: 'mongo_fund_ledgers_canonical_balance_service',
     fundSource: 'fundLedgers',
-    dateFrom,
-    dateTo,
+    dateFrom: canonicalSummary.period?.dateFrom || '',
+    dateTo: canonicalSummary.period?.dateTo || '',
     accounts,
-    fundLedger: paged.rows,
-    items: paged.rows,
-    meta: paged.meta,
+    fundLedger: rows,
+    items: rows,
+    meta: fundData.meta,
     summary,
-    // Compatibility payloads đều lấy từ ledger chuẩn, không đọc cashbooks/bankbooks.
     receipts: rows.filter((row) => row.direction === 'in'),
     cashbook: rows.filter((row) => row.fundType === 'cash'),
     bankbook: rows.filter((row) => row.fundType === 'bank'),
@@ -197,5 +157,7 @@ module.exports = {
   accountKeyOf,
   fundLedgerCanonicalFilter,
   loadFundLedgersUntil,
-  financeReport
+  summarizeAccounts,
+  financeReport,
+  reportRowFromFundLedger
 };

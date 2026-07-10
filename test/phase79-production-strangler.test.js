@@ -40,6 +40,8 @@ test('assembled index page matches the approved Phase80 characterization snapsho
   const expectedHash = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'test/fixtures/index-page/phase79-assembled.sha256')).trim();
   assert.equal(sha256(html), expectedHash);
   assert.match(html, /id="salesTab"/);
+  assert.match(html, /id="fundCashBalanceLabel"/);
+  assert.match(html, /id="fundBankBalanceLabel"/);
   assert.match(html, /\/js\/bootstrap\/03-tab-loader\.js/);
 });
 

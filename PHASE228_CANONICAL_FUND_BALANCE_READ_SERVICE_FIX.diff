@@ -1,0 +1,2274 @@
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/config/source-bundles.json mkpro_phase228_work/config/source-bundles.json
+--- mkpro_phase227_baseline/config/source-bundles.json	2026-07-09 06:10:08.000000000 +0000
++++ mkpro_phase228_work/config/source-bundles.json	2026-07-10 09:22:28.772302343 +0000
+@@ -83,7 +83,7 @@
+         "src/services/fundService.source/part-02.jsfrag",
+         "src/services/fundService.source/part-03.jsfrag"
+       ],
+-      "sourceSha256": "aa7bfaede45afc6989b8bb2e624d65de422990e671299cbb9d4429a671570dde"
++      "sourceSha256": "ca9484e52f0d0cbc13a1192c969bd50d8425ff5a34bd7be116be887c1f875f94"
+     },
+     {
+       "target": "src/services/inventoryService.js",
+@@ -173,7 +173,7 @@
+         "public/js/app/debt/07f-fund-ledger.source/part-02.jsfrag",
+         "public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag"
+       ],
+-      "sourceSha256": "8af929500fbefb67424d8bf7f4b467abd9db717994aa5f4a7c05ad14fb217ee4",
++      "sourceSha256": "c78e413f34a0d854602151113ecf9382b9df521af10f98a2cbd2eb230dd9d7eb",
+       "runtimeFiles": [
+         "public/js/app/debt/07f-fund-ledger.js",
+         "public/js/app/debt/07f-fund-ledger.part02.js",
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/package.json mkpro_phase228_work/package.json
+--- mkpro_phase227_baseline/package.json	2026-07-10 02:50:54.000000000 +0000
++++ mkpro_phase228_work/package.json	2026-07-10 09:18:10.216142455 +0000
+@@ -126,7 +126,8 @@
+     "debt-new:audit-vs-ar:json": "node scripts/audit-debt-new-vs-ar-ledgers.js --json",
+     "audit:dead-code": "node scripts/audit-dead-code.js",
+     "audit:confirmed-debt-collection-receipts": "node scripts/audit-confirmed-debt-collections-missing-from-debt-read-model.js --json",
+-    "audit:bulk-debt-reconcile-balance-lookup": "node scripts/audit-bulk-debt-reconcile-balance-lookup.js --json"
++    "audit:bulk-debt-reconcile-balance-lookup": "node scripts/audit-bulk-debt-reconcile-balance-lookup.js --json",
++    "audit:fund-ending-balance": "node scripts/audit-fund-ending-balance-consistency.js --json"
+   },
+   "dependencies": {
+     "bcryptjs": "^3.0.3",
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/public/fragments/index/04-index-body.html mkpro_phase228_work/public/fragments/index/04-index-body.html
+--- mkpro_phase227_baseline/public/fragments/index/04-index-body.html	2026-07-07 08:52:10.000000000 +0000
++++ mkpro_phase228_work/public/fragments/index/04-index-body.html	2026-07-10 09:14:51.152274694 +0000
+@@ -200,10 +200,10 @@
+ 
+           <div class="fund-tab-panel active" data-fund-panel="fundLedger">
+             <div class="kpi-row debt-v2-kpis debt-v2-kpis-4 funds-kpi-row">
+-              <div><span>Tồn tiền mặt</span><b id="fundCashBalanceKpi">0</b></div>
+-              <div><span>Tồn ngân hàng</span><b id="fundBankBalanceKpi">0</b></div>
+-              <div><span>Tổng thu</span><b id="fundTotalInKpi">0</b></div>
+-              <div><span>Tổng chi</span><b id="fundTotalOutKpi">0</b></div>
++              <div><span id="fundCashBalanceLabel">Tồn tiền mặt cuối ngày</span><b id="fundCashBalanceKpi">0</b></div>
++              <div><span id="fundBankBalanceLabel">Tồn ngân hàng cuối ngày</span><b id="fundBankBalanceKpi">0</b></div>
++              <div><span id="fundTotalInLabel">Tổng thu trong kỳ</span><b id="fundTotalInKpi">0</b></div>
++              <div><span id="fundTotalOutLabel">Tổng chi trong kỳ</span><b id="fundTotalOutKpi">0</b></div>
+             </div>
+             <div class="table-scroll funds-main-table-scroll">
+               <table>
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/public/js/app/debt/07f-fund-ledger.js mkpro_phase228_work/public/js/app/debt/07f-fund-ledger.js
+--- mkpro_phase227_baseline/public/js/app/debt/07f-fund-ledger.js	2026-07-09 06:10:07.000000000 +0000
++++ mkpro_phase228_work/public/js/app/debt/07f-fund-ledger.js	2026-07-10 09:22:28.552648037 +0000
+@@ -132,17 +132,11 @@
+ const params=new URLSearchParams;const q=fundSearchInput?fundSearchInput.value.trim():"";if(q)params.set("q",q)
+ ;if(fundDateFrom&&fundDateFrom.value)params.set("dateFrom",fundDateFrom.value);if(fundDateTo&&fundDateTo.value)params.set("dateTo",fundDateTo.value)
+ ;if(fundTypeFilter&&fundTypeFilter.value&&fundTypeFilter.value!=="all")params.set("fundType",fundTypeFilter.value)
+-;if(fundDirectionFilter&&fundDirectionFilter.value&&fundDirectionFilter.value!=="all")params.set("direction",fundDirectionFilter.value);params.set("limit","1000");return params}
++;if(fundDirectionFilter&&fundDirectionFilter.value&&fundDirectionFilter.value!=="all")params.set("direction",fundDirectionFilter.value);params.set("limit","200");return params}
+ function loadFundLedger(){if(!fundLedgerTable&&!fundSummary)return Promise.resolve();return runFundListRequest("ledger",async()=>{try{
+ const res=await fetch(`/api/funds/ledger?${buildFundLedgerParams().toString()}`);const json=await fundReadJsonResponse(res,"Không tải được fundLedgers")
+-;if(!json.ok)throw new Error(json.message||"Không tải được fundLedgers");const rows=json.fundLedgers||[];const s=json.summary||{}
+-;if(fundCashBalanceKpi)fundCashBalanceKpi.textContent=money(s.cashBalance||0);if(fundBankBalanceKpi)fundBankBalanceKpi.textContent=money(s.bankBalance||0)
+-;if(fundTotalInKpi)fundTotalInKpi.textContent=money(s.totalIn||0);if(fundTotalOutKpi)fundTotalOutKpi.textContent=money(s.totalOut||0)
+-;if(fundSummary)fundSummary.textContent=`Tiền mặt: thu ${money(s.cashIn||0)} · chi ${money(s.cashOut||0)} · tồn ${money(s.cashBalance||0)} | Ngân hàng: thu ${money(s.bankIn||0)} · chi ${money(s.bankOut||0)} · tồn ${money(s.bankBalance||0)}`
+-;const balances={cash:0,bank:0};const balanceAfter={};[...rows].reverse().forEach(e=>{const fund=String(e.fundType)==="bank"?"bank":"cash";const amount=Number(e.amount||0)
+-;balances[fund]+=String(e.direction)==="out"?-amount:amount;balanceAfter[e.id||e.code||`${e.date}-${e.sourceCode}-${amount}`]=balances[fund]});if(fundLedgerTable){
+-fundLedgerTable.innerHTML=rows.length?rows.map(e=>{const isIn=String(e.direction)==="in";const key=e.id||e.code||`${e.date}-${e.sourceCode}-${e.amount}`
+-;const counterpartyLabel=canonicalFundCounterpartyLabel(e)
+-;return`<tr><td>${escapeHtml(e.date||"")}</td><td><strong>${escapeHtml(e.code||"")}</strong></td><td>${escapeHtml(fundTypeName(e.fundType))}</td><td class="price cash-in">${isIn?money(e.amount):""}</td><td class="price cash-out">${!isIn?money(e.amount):""}</td><td class="price">${money(balanceAfter[key]||0)}</td><td>${escapeHtml(e.sourceType||e.refType||"")}</td><td>${escapeHtml(counterpartyLabel)}</td><td>${escapeHtml(e.note||"")}</td></tr>`
++;if(!json.ok)throw new Error(json.message||"Không tải được fundLedgers");const rows=json.fundLedgers||[];const s=json.summary||{};renderFundLedgerSummary(s);if(fundLedgerTable){
++fundLedgerTable.innerHTML=rows.length?rows.map(e=>{const isIn=String(e.direction)==="in";const counterpartyLabel=canonicalFundCounterpartyLabel(e)
++;return`<tr><td>${escapeHtml(e.date||"")}</td><td><strong>${escapeHtml(e.code||"")}</strong></td><td>${escapeHtml(fundTypeName(e.fundType))}</td><td class="price cash-in">${isIn?money(e.amount):""}</td><td class="price cash-out">${!isIn?money(e.amount):""}</td><td class="price">${money(e.runningBalanceAfterTransaction||0)}</td><td>${escapeHtml(e.sourceType||e.refType||"")}</td><td>${escapeHtml(counterpartyLabel)}</td><td>${escapeHtml(e.note||"")}</td></tr>`
+ }).join(""):'<tr><td colspan="9">Chưa có phát sinh fundLedgers.</td></tr>'}}catch(err){if(fundSummary)fundSummary.textContent="Lỗi tải sổ quỹ fundLedgers"
+ ;if(fundLedgerTable)fundLedgerTable.innerHTML=`<tr><td colspan="9">${escapeHtml(err.message||"Lỗi tải fundLedgers")}</td></tr>`}})}
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/public/js/app/debt/07f-fund-ledger.part03.js mkpro_phase228_work/public/js/app/debt/07f-fund-ledger.part03.js
+--- mkpro_phase227_baseline/public/js/app/debt/07f-fund-ledger.part03.js	2026-07-09 06:10:07.000000000 +0000
++++ mkpro_phase228_work/public/js/app/debt/07f-fund-ledger.part03.js	2026-07-10 09:22:28.553110135 +0000
+@@ -1,5 +1,14 @@
+ /* GENERATED FILE — edit public/js/app/debt/07f-fund-ledger.source/part-01.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-02.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag and run npm run build:source-bundles. */
+-async function submitExpenseVoucher(event){event.preventDefault();const payload=Object.fromEntries(new FormData(expenseVoucherForm).entries())
++function renderFundLedgerSummary(s={}){const cashEnding=Number(s.cashEndingBalance??s.cashBalance??0);const bankEnding=Number(s.bankEndingBalance??s.bankBalance??0)
++;const totalInPeriod=Number(s.totalInPeriod??s.totalIn??0);const totalOutPeriod=Number(s.totalOutPeriod??s.totalOut??0)
++;const dateFrom=String(s.period&&s.period.dateFrom||fundDateFrom&&fundDateFrom.value||"");const dateTo=String(s.period&&s.period.dateTo||fundDateTo&&fundDateTo.value||"")
++;if(fundCashBalanceKpi)fundCashBalanceKpi.textContent=money(cashEnding);if(fundBankBalanceKpi)fundBankBalanceKpi.textContent=money(bankEnding)
++;if(fundTotalInKpi)fundTotalInKpi.textContent=money(totalInPeriod);if(fundTotalOutKpi)fundTotalOutKpi.textContent=money(totalOutPeriod)
++;if(fundCashBalanceLabel)fundCashBalanceLabel.textContent=`Tồn tiền mặt cuối ngày ${dateTo||""}`.trim()
++;if(fundBankBalanceLabel)fundBankBalanceLabel.textContent=`Tồn ngân hàng cuối ngày ${dateTo||""}`.trim();const period=`${dateFrom||""}${dateTo&&dateTo!==dateFrom?"–"+dateTo:""}`
++;if(fundTotalInLabel)fundTotalInLabel.textContent=`Tổng thu trong kỳ ${period}`.trim();if(fundTotalOutLabel)fundTotalOutLabel.textContent=`Tổng chi trong kỳ ${period}`.trim()
++;if(fundSummary)fundSummary.textContent=`Tiền mặt: đầu kỳ ${money(s.cashOpeningBalance||0)} · thu kỳ ${money(s.cashInPeriod??s.cashIn??0)} · chi kỳ ${money(s.cashOutPeriod??s.cashOut??0)} · cuối ngày ${money(cashEnding)} | Ngân hàng: đầu kỳ ${money(s.bankOpeningBalance||0)} · thu kỳ ${money(s.bankInPeriod??s.bankIn??0)} · chi kỳ ${money(s.bankOutPeriod??s.bankOut??0)} · cuối ngày ${money(bankEnding)}`
++}async function submitExpenseVoucher(event){event.preventDefault();const payload=Object.fromEntries(new FormData(expenseVoucherForm).entries())
+ ;payload.amount=Number(payload.amount||0);try{const editing=fundEditing.type==="expense"&&fundEditing.id
+ ;const url=editing?`/api/funds/expenses/${encodeURIComponent(fundEditing.id)}`:"/api/funds/expenses";const res=await fetch(url,{method:editing?"PUT":"POST",headers:{
+ "Content-Type":"application/json"},body:JSON.stringify(payload)});const json=await fundReadJsonResponse(res,editing?"Không cập nhật được phiếu chi":"Không ghi được phiếu chi")
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/public/js/app/debt/07f-fund-ledger.source/part-01.jsfrag mkpro_phase228_work/public/js/app/debt/07f-fund-ledger.source/part-01.jsfrag
+--- mkpro_phase227_baseline/public/js/app/debt/07f-fund-ledger.source/part-01.jsfrag	2026-07-07 08:52:10.000000000 +0000
++++ mkpro_phase228_work/public/js/app/debt/07f-fund-ledger.source/part-01.jsfrag	2026-07-10 09:22:21.276786739 +0000
+@@ -395,7 +395,7 @@
+   if(fundDateTo&&fundDateTo.value)params.set('dateTo',fundDateTo.value);
+   if(fundTypeFilter&&fundTypeFilter.value&&fundTypeFilter.value!=='all')params.set('fundType',fundTypeFilter.value);
+   if(fundDirectionFilter&&fundDirectionFilter.value&&fundDirectionFilter.value!=='all')params.set('direction',fundDirectionFilter.value);
+-  params.set('limit','1000');
++  params.set('limit','200');
+   return params;
+ }
+ 
+@@ -408,25 +408,12 @@
+     if(!json.ok)throw new Error(json.message||'Không tải được fundLedgers');
+     const rows=json.fundLedgers||[];
+     const s=json.summary||{};
+-    if(fundCashBalanceKpi)fundCashBalanceKpi.textContent=money(s.cashBalance||0);
+-    if(fundBankBalanceKpi)fundBankBalanceKpi.textContent=money(s.bankBalance||0);
+-    if(fundTotalInKpi)fundTotalInKpi.textContent=money(s.totalIn||0);
+-    if(fundTotalOutKpi)fundTotalOutKpi.textContent=money(s.totalOut||0);
+-    if(fundSummary)fundSummary.textContent=`Tiền mặt: thu ${money(s.cashIn||0)} · chi ${money(s.cashOut||0)} · tồn ${money(s.cashBalance||0)} | Ngân hàng: thu ${money(s.bankIn||0)} · chi ${money(s.bankOut||0)} · tồn ${money(s.bankBalance||0)}`;
+-    const balances={cash:0,bank:0};
+-    const balanceAfter={};
+-    [...rows].reverse().forEach(e=>{
+-      const fund=String(e.fundType)==='bank'?'bank':'cash';
+-      const amount=Number(e.amount||0);
+-      balances[fund]+=String(e.direction)==='out'?-amount:amount;
+-      balanceAfter[e.id||e.code||`${e.date}-${e.sourceCode}-${amount}`]=balances[fund];
+-    });
++    renderFundLedgerSummary(s);
+     if(fundLedgerTable){
+       fundLedgerTable.innerHTML=rows.length?rows.map(e=>{
+         const isIn=String(e.direction)==='in';
+-        const key=e.id||e.code||`${e.date}-${e.sourceCode}-${e.amount}`;
+         const counterpartyLabel=canonicalFundCounterpartyLabel(e);
+-        return `<tr><td>${escapeHtml(e.date||'')}</td><td><strong>${escapeHtml(e.code||'')}</strong></td><td>${escapeHtml(fundTypeName(e.fundType))}</td><td class="price cash-in">${isIn?money(e.amount):''}</td><td class="price cash-out">${!isIn?money(e.amount):''}</td><td class="price">${money(balanceAfter[key]||0)}</td><td>${escapeHtml(e.sourceType||e.refType||'')}</td><td>${escapeHtml(counterpartyLabel)}</td><td>${escapeHtml(e.note||'')}</td></tr>`;
++        return `<tr><td>${escapeHtml(e.date||'')}</td><td><strong>${escapeHtml(e.code||'')}</strong></td><td>${escapeHtml(fundTypeName(e.fundType))}</td><td class="price cash-in">${isIn?money(e.amount):''}</td><td class="price cash-out">${!isIn?money(e.amount):''}</td><td class="price">${money(e.runningBalanceAfterTransaction||0)}</td><td>${escapeHtml(e.sourceType||e.refType||'')}</td><td>${escapeHtml(counterpartyLabel)}</td><td>${escapeHtml(e.note||'')}</td></tr>`;
+       }).join(''):'<tr><td colspan="9">Chưa có phát sinh fundLedgers.</td></tr>';
+     }
+   }catch(err){
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag mkpro_phase228_work/public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag
+--- mkpro_phase227_baseline/public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag	2026-07-07 08:52:10.000000000 +0000
++++ mkpro_phase228_work/public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag	2026-07-10 09:22:21.277152281 +0000
+@@ -1,3 +1,22 @@
++function renderFundLedgerSummary(s={}){
++  const cashEnding=Number(s.cashEndingBalance??s.cashBalance??0);
++  const bankEnding=Number(s.bankEndingBalance??s.bankBalance??0);
++  const totalInPeriod=Number(s.totalInPeriod??s.totalIn??0);
++  const totalOutPeriod=Number(s.totalOutPeriod??s.totalOut??0);
++  const dateFrom=String(s.period&&s.period.dateFrom||fundDateFrom&&fundDateFrom.value||'');
++  const dateTo=String(s.period&&s.period.dateTo||fundDateTo&&fundDateTo.value||'');
++  if(fundCashBalanceKpi)fundCashBalanceKpi.textContent=money(cashEnding);
++  if(fundBankBalanceKpi)fundBankBalanceKpi.textContent=money(bankEnding);
++  if(fundTotalInKpi)fundTotalInKpi.textContent=money(totalInPeriod);
++  if(fundTotalOutKpi)fundTotalOutKpi.textContent=money(totalOutPeriod);
++  if(fundCashBalanceLabel)fundCashBalanceLabel.textContent=`Tồn tiền mặt cuối ngày ${dateTo||''}`.trim();
++  if(fundBankBalanceLabel)fundBankBalanceLabel.textContent=`Tồn ngân hàng cuối ngày ${dateTo||''}`.trim();
++  const period=`${dateFrom||''}${dateTo&&dateTo!==dateFrom?'–'+dateTo:''}`;
++  if(fundTotalInLabel)fundTotalInLabel.textContent=`Tổng thu trong kỳ ${period}`.trim();
++  if(fundTotalOutLabel)fundTotalOutLabel.textContent=`Tổng chi trong kỳ ${period}`.trim();
++  if(fundSummary)fundSummary.textContent=`Tiền mặt: đầu kỳ ${money(s.cashOpeningBalance||0)} · thu kỳ ${money(s.cashInPeriod??s.cashIn??0)} · chi kỳ ${money(s.cashOutPeriod??s.cashOut??0)} · cuối ngày ${money(cashEnding)} | Ngân hàng: đầu kỳ ${money(s.bankOpeningBalance||0)} · thu kỳ ${money(s.bankInPeriod??s.bankIn??0)} · chi kỳ ${money(s.bankOutPeriod??s.bankOut??0)} · cuối ngày ${money(bankEnding)}`;
++}
++
+ 
+ 
+ async function submitExpenseVoucher(event){
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/public/js/app/state/00b-debt-return-fund-state.js mkpro_phase228_work/public/js/app/state/00b-debt-return-fund-state.js
+--- mkpro_phase227_baseline/public/js/app/state/00b-debt-return-fund-state.js	2026-07-07 08:52:10.000000000 +0000
++++ mkpro_phase228_work/public/js/app/state/00b-debt-return-fund-state.js	2026-07-10 09:14:51.152717037 +0000
+@@ -137,6 +137,10 @@
+ const fundToolbarGrid=document.querySelector('#fundsTab .fund-toolbar-grid');
+ const fundLedgerOnlyFields=document.querySelectorAll('#fundsTab .fund-ledger-only-field');
+ const fundLedgerTable=document.getElementById('fundLedgerTable');
++const fundCashBalanceLabel=document.getElementById('fundCashBalanceLabel');
++const fundBankBalanceLabel=document.getElementById('fundBankBalanceLabel');
++const fundTotalInLabel=document.getElementById('fundTotalInLabel');
++const fundTotalOutLabel=document.getElementById('fundTotalOutLabel');
+ const fundCashBalanceKpi=document.getElementById('fundCashBalanceKpi');
+ const fundBankBalanceKpi=document.getElementById('fundBankBalanceKpi');
+ const fundTotalInKpi=document.getElementById('fundTotalInKpi');
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/scripts/audit-fund-ending-balance-consistency.js mkpro_phase228_work/scripts/audit-fund-ending-balance-consistency.js
+--- mkpro_phase227_baseline/scripts/audit-fund-ending-balance-consistency.js	1970-01-01 00:00:00.000000000 +0000
++++ mkpro_phase228_work/scripts/audit-fund-ending-balance-consistency.js	2026-07-10 09:16:24.696637307 +0000
+@@ -0,0 +1,246 @@
++#!/usr/bin/env node
++'use strict';
++
++/**
++ * Phase228 read-only audit.
++ *
++ * Verifies that cash/bank ending balances depend on dateTo and balance scope,
++ * not on dateFrom or listing-only filters. This script never updates/deletes
++ * fundLedgers and defaults to fixture mode when --fixture is supplied.
++ */
++
++const mongoose = require('mongoose');
++const connectDB = require('../src/config/db');
++const FundLedger = require('../src/models/FundLedger');
++const FundBalanceReadService = require('../src/services/accounting/FundBalanceReadService');
++
++function text(value) {
++  return String(value ?? '').trim();
++}
++
++function number(value) {
++  const parsed = Number(value || 0);
++  return Number.isFinite(parsed) ? Math.round(parsed) : 0;
++}
++
++function parseArgs(argv = process.argv.slice(2)) {
++  const value = (name, fallback = '') => {
++    const item = argv.find((arg) => arg.startsWith(`${name}=`));
++    return item ? item.slice(name.length + 1) : fallback;
++  };
++  return {
++    fixture: argv.includes('--fixture'),
++    json: argv.includes('--json'),
++    dateFromA: value('--date-from-a', '2026-07-09'),
++    dateFromB: value('--date-from-b', '2026-07-10'),
++    dateTo: value('--date-to', '2026-07-10'),
++    timezone: value('--timezone', 'Asia/Ho_Chi_Minh'),
++    fundType: value('--fund-type', ''),
++    account: value('--account', '')
++  };
++}
++
++function fixtureRows() {
++  const confirmed = {
++    accountingConfirmed: true,
++    accountingStatus: 'confirmed',
++    active: true,
++    reversed: false,
++    isReversal: false,
++    status: 'posted'
++  };
++  return [
++    { ...confirmed, id: 'CASH-0901', date: '2026-07-09', createdAt: '2026-07-09T01:00:00.000Z', fundType: 'cash', account: 'CASH', direction: 'in', amount: 185855730 },
++    { ...confirmed, id: 'CASH-0902', date: '2026-07-09', createdAt: '2026-07-09T02:00:00.000Z', fundType: 'cash', account: 'CASH', direction: 'out', amount: 100000 },
++    { ...confirmed, id: 'BANK-0901', date: '2026-07-09', createdAt: '2026-07-09T03:00:00.000Z', fundType: 'bank', account: 'BANK', direction: 'in', amount: 172610381 },
++    { ...confirmed, id: 'CASH-1001', date: '2026-07-10', createdAt: '2026-07-10T01:00:00.000Z', fundType: 'cash', account: 'CASH', direction: 'in', amount: 43831719 },
++    { ...confirmed, id: 'CASH-1002', date: '2026-07-10', createdAt: '2026-07-10T02:00:00.000Z', fundType: 'cash', account: 'CASH', direction: 'out', amount: 400000 },
++    { ...confirmed, id: 'BANK-1001', date: '2026-07-10', createdAt: '2026-07-10T03:00:00.000Z', fundType: 'bank', account: 'BANK', direction: 'in', amount: 19435318 }
++  ];
++}
++
++function legacyRangeNet(rows = [], dateFrom, dateTo, fundType) {
++  return rows
++    .filter((row) => row.date >= dateFrom && row.date <= dateTo)
++    .filter((row) => row.fundType === fundType)
++    .reduce((sum, row) => sum + (row.direction === 'out' ? -number(row.amount) : number(row.amount)), 0);
++}
++
++function buildResult({ options, summaryA, summaryB, legacyA, legacyB, invalidLedgerCount = 0, excludedLedgerCount = 0, exclusionReasons = [] }) {
++  const cashEndingA = number(summaryA.cashEndingBalance);
++  const cashEndingB = number(summaryB.cashEndingBalance);
++  const bankEndingA = number(summaryA.bankEndingBalance);
++  const bankEndingB = number(summaryB.bankEndingBalance);
++  const cashEndingMatch = cashEndingA === cashEndingB;
++  const bankEndingMatch = bankEndingA === bankEndingB;
++  let severity = 'OK';
++  if (!cashEndingMatch || !bankEndingMatch) severity = 'P0_BALANCE_INCONSISTENCY';
++  else if (number(legacyA.cash) !== number(legacyB.cash) || number(legacyA.bank) !== number(legacyB.bank) || invalidLedgerCount || excludedLedgerCount) severity = 'WARNING';
++
++  return {
++    readOnly: true,
++    dateFromA: options.dateFromA,
++    dateFromB: options.dateFromB,
++    dateTo: options.dateTo,
++    timezone: options.timezone,
++    balanceScope: { fundType: options.fundType || 'all', account: options.account || 'all' },
++
++    cashOpeningA: number(summaryA.cashOpeningBalance),
++    cashInA: number(summaryA.cashInPeriod),
++    cashOutA: number(summaryA.cashOutPeriod),
++    cashEndingA,
++    cashOpeningB: number(summaryB.cashOpeningBalance),
++    cashInB: number(summaryB.cashInPeriod),
++    cashOutB: number(summaryB.cashOutPeriod),
++    cashEndingB,
++
++    bankOpeningA: number(summaryA.bankOpeningBalance),
++    bankInA: number(summaryA.bankInPeriod),
++    bankOutA: number(summaryA.bankOutPeriod),
++    bankEndingA,
++    bankOpeningB: number(summaryB.bankOpeningBalance),
++    bankInB: number(summaryB.bankInPeriod),
++    bankOutB: number(summaryB.bankOutPeriod),
++    bankEndingB,
++
++    cashEndingMatch,
++    bankEndingMatch,
++    cashEndingDifference: cashEndingA - cashEndingB,
++    bankEndingDifference: bankEndingA - bankEndingB,
++
++    legacyRangeNetCashA: number(legacyA.cash),
++    legacyRangeNetCashB: number(legacyB.cash),
++    legacyRangeNetBankA: number(legacyA.bank),
++    legacyRangeNetBankB: number(legacyB.bank),
++    canonicalCashEnding: cashEndingA,
++    canonicalBankEnding: bankEndingA,
++
++    invalidLedgerCount: number(invalidLedgerCount),
++    excludedLedgerCount: number(excludedLedgerCount),
++    exclusionReasons,
++    severity
++  };
++}
++
++function runFixture(options) {
++  const rows = fixtureRows();
++  const queryA = { dateFrom: options.dateFromA, dateTo: options.dateTo, timezone: options.timezone, fundType: options.fundType, account: options.account, full: true };
++  const queryB = { dateFrom: options.dateFromB, dateTo: options.dateTo, timezone: options.timezone, fundType: options.fundType, account: options.account, full: true };
++  const resultA = FundBalanceReadService.calculateFixture(rows, queryA);
++  const resultB = FundBalanceReadService.calculateFixture(rows, queryB);
++  return buildResult({
++    options,
++    summaryA: resultA.summary,
++    summaryB: resultB.summary,
++    legacyA: {
++      cash: legacyRangeNet(rows, options.dateFromA, options.dateTo, 'cash'),
++      bank: legacyRangeNet(rows, options.dateFromA, options.dateTo, 'bank')
++    },
++    legacyB: {
++      cash: legacyRangeNet(rows, options.dateFromB, options.dateTo, 'cash'),
++      bank: legacyRangeNet(rows, options.dateFromB, options.dateTo, 'bank')
++    },
++    invalidLedgerCount: 0,
++    excludedLedgerCount: 0,
++    exclusionReasons: []
++  });
++}
++
++async function legacyRangeAggregate(dateFrom, dateTo) {
++  const rows = await FundLedger.aggregate([
++    {
++      $match: {
++        status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] },
++        date: { $gte: dateFrom, $lte: dateTo }
++      }
++    },
++    {
++      $group: {
++        _id: { fundType: '$fundType', direction: '$direction' },
++        amount: { $sum: { $ifNull: ['$amount', 0] } }
++      }
++    }
++  ]).option({ comment: 'phase228.audit.legacy-range-net' }).exec();
++  const result = { cash: 0, bank: 0 };
++  for (const row of rows || []) {
++    const fundType = row._id?.fundType === 'bank' ? 'bank' : 'cash';
++    result[fundType] += row._id?.direction === 'out' ? -number(row.amount) : number(row.amount);
++  }
++  return result;
++}
++
++async function exclusionAudit(dateTo) {
++  const rawMatch = {
++    $or: [
++      { date: { $lte: dateTo } },
++      {
++        $and: [
++          { $or: [{ date: { $exists: false } }, { date: '' }, { date: null }] },
++          { createdAt: { $lte: `${dateTo}T16:59:59.999Z` } }
++        ]
++      }
++    ]
++  };
++  const rows = await FundLedger.find(rawMatch)
++    .select('date createdAt amount debit credit status active isDeleted deleted deletedAt reversed isReversal reversalOf accountingConfirmed accountingStatus posted')
++    .lean();
++  const invalid = [];
++  const excluded = [];
++  for (const row of rows || []) {
++    const amount = Math.abs(number(row.amount ?? row.debit ?? row.credit));
++    if (!amount || !FundBalanceReadService.canonicalDateOfRow(row)) invalid.push(row);
++    else if (!FundBalanceReadService.isCanonicalFundLedgerRow(row)) excluded.push(row);
++  }
++  const reasonCounts = {};
++  for (const row of excluded) {
++    let reason = 'NOT_CANONICAL_ACTIVE_CONFIRMED';
++    if (row.isDeleted === true || row.deleted === true || text(row.deletedAt)) reason = 'DELETED';
++    else if (row.reversed === true || row.isReversal === true || text(row.reversalOf)) reason = 'REVERSAL_EXCLUDED_BY_CURRENT_POLICY';
++    else if (['draft', 'pending', 'submitted'].includes(text(row.status).toLowerCase())) reason = 'UNCONFIRMED_STATUS';
++    else if (row.accountingConfirmed !== true && !['confirmed', 'posted', 'locked', 'accounting_confirmed'].includes(text(row.accountingStatus).toLowerCase()) && row.posted !== true) reason = 'NOT_ACCOUNTING_CONFIRMED';
++    reasonCounts[reason] = (reasonCounts[reason] || 0) + 1;
++  }
++  return {
++    invalidLedgerCount: invalid.length,
++    excludedLedgerCount: excluded.length,
++    exclusionReasons: Object.entries(reasonCounts).map(([reason, count]) => ({ reason, count }))
++  };
++}
++
++async function runProduction(options) {
++  await connectDB();
++  const common = { dateTo: options.dateTo, timezone: options.timezone, fundType: options.fundType, account: options.account };
++  const summaryA = await FundBalanceReadService.getFundBalanceSummary({ ...common, dateFrom: options.dateFromA });
++  const summaryB = await FundBalanceReadService.getFundBalanceSummary({ ...common, dateFrom: options.dateFromB });
++  const legacyA = await legacyRangeAggregate(options.dateFromA, options.dateTo);
++  const legacyB = await legacyRangeAggregate(options.dateFromB, options.dateTo);
++  const exclusions = await exclusionAudit(options.dateTo);
++  return buildResult({ options, summaryA, summaryB, legacyA, legacyB, ...exclusions });
++}
++
++async function main() {
++  const options = parseArgs();
++  let result;
++  try {
++    result = options.fixture ? runFixture(options) : await runProduction(options);
++    process.stdout.write(`${JSON.stringify(result, null, options.json ? 2 : 2)}\n`);
++    if (result.severity === 'P0_BALANCE_INCONSISTENCY') process.exitCode = 2;
++  } finally {
++    if (mongoose.connection.readyState) await mongoose.disconnect();
++  }
++}
++
++if (require.main === module) {
++  main().catch((error) => {
++    console.error(JSON.stringify({ ok: false, readOnly: true, error: error.message, code: error.code || 'AUDIT_FAILED' }, null, 2));
++    process.exitCode = 1;
++  });
++}
++
++module.exports = {
++  parseArgs,
++  fixtureRows,
++  legacyRangeNet,
++  buildResult,
++  runFixture
++};
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/src/services/accounting/FundBalanceReadService.js mkpro_phase228_work/src/services/accounting/FundBalanceReadService.js
+--- mkpro_phase227_baseline/src/services/accounting/FundBalanceReadService.js	1970-01-01 00:00:00.000000000 +0000
++++ mkpro_phase228_work/src/services/accounting/FundBalanceReadService.js	2026-07-10 09:17:53.032801882 +0000
+@@ -0,0 +1,851 @@
++'use strict';
++
++const fundLedgerRepository = require('../../repositories/fundLedgerRepository');
++const dateUtil = require('../../utils/date.util');
++const {
++  activeDocumentFilter,
++  firstNonBlankExpression,
++  normalizedDateFieldExpression,
++  stringExpression
++} = require('../dashboard/DashboardMongoExpressions');
++
++const DEFAULT_TIMEZONE = dateUtil.VIETNAM_TIME_ZONE || 'Asia/Ho_Chi_Minh';
++const DEFAULT_LIMIT = 50;
++const MAX_LIMIT = 200;
++const MAX_EXPORT_LIMIT = 50000;
++const BLOCKED_STATUSES = Object.freeze([
++  'draft',
++  'pending',
++  'submitted',
++  'void',
++  'voided',
++  'cancelled',
++  'canceled',
++  'deleted',
++  'removed',
++  'duplicate_cancelled',
++  'superseded',
++  'reversed'
++]);
++const CONFIRMED_ACCOUNTING_STATUSES = Object.freeze([
++  'confirmed',
++  'posted',
++  'locked',
++  'accounting_confirmed'
++]);
++
++function text(value) {
++  return String(value ?? '').trim();
++}
++
++function lower(value) {
++  return text(value).toLowerCase();
++}
++
++function upper(value) {
++  return text(value).toUpperCase();
++}
++
++function number(value) {
++  const parsed = Number(value || 0);
++  return Number.isFinite(parsed) ? Math.round(parsed) : 0;
++}
++
++function truthy(value) {
++  return value === true || value === 1 || ['true', '1', 'yes', 'y'].includes(lower(value));
++}
++
++function escapeRegex(value) {
++  return text(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
++}
++
++function normalizeDateOnly(value, fallback = '') {
++  return dateUtil.toDateOnly(value || '', fallback);
++}
++
++function normalizeQuery(query = {}) {
++  const timezone = text(query.timezone || DEFAULT_TIMEZONE) || DEFAULT_TIMEZONE;
++  const dateTo = normalizeDateOnly(query.dateTo || query.toDate || query.to || query.date || '', dateUtil.todayVN());
++  const dateFrom = normalizeDateOnly(query.dateFrom || query.fromDate || query.from || query.date || '', dateTo);
++  if (!dateFrom || !dateTo) {
++    const error = new Error('Khoảng ngày sổ quỹ không hợp lệ');
++    error.status = 400;
++    error.code = 'INVALID_FUND_DATE_RANGE';
++    throw error;
++  }
++  if (dateFrom > dateTo) {
++    const error = new Error('Từ ngày phải nhỏ hơn hoặc bằng Đến ngày');
++    error.status = 400;
++    error.code = 'INVALID_FUND_DATE_RANGE';
++    throw error;
++  }
++
++  const requestedLimit = Math.max(1, Math.trunc(Number(query.limit || DEFAULT_LIMIT)) || DEFAULT_LIMIT);
++  const full = truthy(query.full || query.export);
++  const limitCap = full ? MAX_EXPORT_LIMIT : MAX_LIMIT;
++  const limit = Math.min(requestedLimit, limitCap);
++  const page = full ? 1 : Math.max(1, Math.trunc(Number(query.page || 1)) || 1);
++  const fundType = ['cash', 'bank'].includes(lower(query.fundType)) ? lower(query.fundType) : '';
++  const account = upper(query.bankAccountCode || query.fundAccountCode || query.account || '');
++  const direction = ['in', 'out'].includes(lower(query.direction)) ? lower(query.direction) : '';
++
++  return {
++    dateFrom,
++    dateTo,
++    timezone,
++    fundType,
++    account,
++    direction,
++    sourceType: text(query.sourceType || query.refType || ''),
++    q: text(query.q || query.search || ''),
++    tenantId: text(query.tenantId || ''),
++    page,
++    limit,
++    requestedLimit,
++    limitCapped: requestedLimit > limitCap,
++    full,
++    debug: truthy(query.debug) || process.env.FUND_BALANCE_DIAGNOSTICS === '1'
++  };
++}
++
++/**
++ * Canonical read policy for posted fundLedgers.
++ * Reversal rows remain excluded according to the current MK-Pro fund contract:
++ * the original row is marked reversed/voided and both sides are removed from the
++ * active balance projection. This phase does not alter posting/reversal semantics.
++ */
++function fundLedgerCanonicalFilter(extra = {}) {
++  const canonical = {
++    ...activeDocumentFilter(),
++    active: { $ne: false },
++    isDeleted: { $ne: true },
++    deletedAt: { $in: [null, ''] },
++    status: { $nin: BLOCKED_STATUSES },
++    reversed: { $ne: true },
++    isReversal: { $ne: true },
++    reversalOf: { $in: [null, ''] },
++    $or: [
++      { accountingConfirmed: true },
++      { accountingStatus: { $in: CONFIRMED_ACCOUNTING_STATUSES } },
++      { posted: true }
++    ]
++  };
++  return Object.keys(extra || {}).length ? { $and: [canonical, extra] } : canonical;
++}
++
++function normalizedAmountExpression() {
++  const raw = { $ifNull: ['$amount', { $ifNull: ['$debit', '$credit'] }] };
++  const rawText = stringExpression('amount');
++  const stripped = {
++    $replaceAll: {
++      input: {
++        $replaceAll: {
++          input: { $replaceAll: { input: rawText, find: ' ', replacement: '' } },
++          find: '.',
++          replacement: ''
++        }
++      },
++      find: ',',
++      replacement: ''
++    }
++  };
++  return {
++    $abs: {
++      $round: [
++        {
++          $cond: [
++            { $isNumber: raw },
++            { $convert: { input: raw, to: 'double', onError: 0, onNull: 0 } },
++            { $convert: { input: stripped, to: 'double', onError: 0, onNull: 0 } }
++          ]
++        },
++        0
++      ]
++    }
++  };
++}
++
++function normalizedFundTypeExpression() {
++  const explicit = { $toLower: stringExpression('fundType') };
++  const account = { $toLower: firstNonBlankExpression(['account', 'fundCode', 'bankAccountCode'], '') };
++  return {
++    $cond: [
++      {
++        $or: [
++          { $eq: [explicit, 'bank'] },
++          { $regexMatch: { input: account, regex: 'bank|ngan|^112' } }
++        ]
++      },
++      'bank',
++      'cash'
++    ]
++  };
++}
++
++function normalizedDirectionExpression() {
++  const explicit = { $toLower: stringExpression('direction') };
++  const fallback = {
++    $toLower: firstNonBlankExpression(['type', 'transactionType', 'sourceType', 'category'], '')
++  };
++  return {
++    $switch: {
++      branches: [
++        { case: { $in: [explicit, ['out', 'chi', 'expense', 'payment']] }, then: 'out' },
++        { case: { $in: [explicit, ['in', 'thu', 'receipt', 'income']] }, then: 'in' },
++        { case: { $regexMatch: { input: fallback, regex: 'out|expense|payment|chi|withdraw|transfer[_\\s-]*out' } }, then: 'out' }
++      ],
++      default: 'in'
++    }
++  };
++}
++
++function canonicalBusinessDateExpression(timezone = DEFAULT_TIMEZONE) {
++  return {
++    $let: {
++      vars: {
++        explicitDate: normalizedDateFieldExpression('date'),
++        createdAtDate: { $convert: { input: '$createdAt', to: 'date', onError: null, onNull: null } }
++      },
++      in: {
++        $cond: [
++          { $gt: [{ $strLenCP: '$$explicitDate' }, 0] },
++          '$$explicitDate',
++          {
++            $dateToString: {
++              date: '$$createdAtDate',
++              format: '%Y-%m-%d',
++              timezone: timezone || DEFAULT_TIMEZONE,
++              onNull: ''
++            }
++          }
++        ]
++      }
++    }
++  };
++}
++
++function normalizationStages(timezone = DEFAULT_TIMEZONE) {
++  return [
++    {
++      $set: {
++        _fundBusinessDate: canonicalBusinessDateExpression(timezone),
++        _fundType: normalizedFundTypeExpression(),
++        _fundDirection: normalizedDirectionExpression(),
++        _fundAmount: normalizedAmountExpression(),
++        _fundCreatedAtSort: {
++          $convert: {
++            input: '$createdAt',
++            to: 'date',
++            onError: new Date(0),
++            onNull: new Date(0)
++          }
++        }
++      }
++    },
++    {
++      $set: {
++        _fundAccount: {
++          $toUpper: {
++            $let: {
++              vars: { explicit: firstNonBlankExpression(['account', 'fundCode', 'bankAccountCode'], '') },
++              in: {
++                $cond: [
++                  { $gt: [{ $strLenCP: '$$explicit' }, 0] },
++                  '$$explicit',
++                  { $cond: [{ $eq: ['$_fundType', 'bank'] }, 'BANK', 'CASH'] }
++                ]
++              }
++            }
++          }
++        },
++        _fundSignedAmount: {
++          $cond: [
++            { $eq: ['$_fundDirection', 'out'] },
++            { $multiply: ['$_fundAmount', -1] },
++            '$_fundAmount'
++          ]
++        }
++      }
++    },
++    {
++      $set: {
++        _fundPartitionKey: { $concat: ['$_fundType', ':', '$_fundAccount'] }
++      }
++    }
++  ];
++}
++
++function buildBalanceScopeMatch(filters = {}) {
++  const clauses = [];
++  if (filters.fundType) clauses.push({ fundType: filters.fundType });
++  if (filters.account) {
++    clauses.push({
++      $or: [
++        { account: filters.account },
++        { fundCode: filters.account },
++        { bankAccountCode: filters.account }
++      ]
++    });
++  }
++  if (filters.tenantId) clauses.push({ tenantId: filters.tenantId });
++  if (!clauses.length) return {};
++  return clauses.length === 1 ? clauses[0] : { $and: clauses };
++}
++
++function buildNormalizedScopeMatch(filters = {}) {
++  const match = {
++    _fundBusinessDate: { $ne: '' },
++    _fundAmount: { $gt: 0 },
++    _fundDirection: { $in: ['in', 'out'] }
++  };
++  if (filters.fundType) match._fundType = filters.fundType;
++  if (filters.account) match._fundAccount = filters.account;
++  return match;
++}
++
++function buildEarlyDateMatch(filters = {}) {
++  const range = dateUtil.dateKeyToVietnamUtcRange(filters.dateTo);
++  const dateMissing = { $or: [{ date: { $exists: false } }, { date: null }, { date: '' }] };
++  const createdAtBranches = [];
++  if (range.endExclusive) createdAtBranches.push({ createdAt: { $lt: range.endExclusive } });
++  if (range.endOfDayVN) createdAtBranches.push({ createdAt: { $lt: range.endOfDayVN } });
++  return {
++    $or: [
++      { date: { $lte: filters.dateTo } },
++      { $and: [dateMissing, { $or: createdAtBranches.length ? createdAtBranches : [{ createdAt: { $exists: true } }] }] }
++    ]
++  };
++}
++
++function combineScopeAndDate(filters = {}) {
++  const scope = buildBalanceScopeMatch(filters);
++  const date = buildEarlyDateMatch(filters);
++  return Object.keys(scope).length ? { $and: [scope, date] } : date;
++}
++
++function buildListingMatch(filters = {}) {
++  const clauses = [];
++  if (filters.direction) clauses.push({ _fundDirection: filters.direction });
++  if (filters.sourceType) {
++    clauses.push({
++      $or: [
++        { sourceType: filters.sourceType },
++        { refType: filters.sourceType },
++        { referenceType: filters.sourceType }
++      ]
++    });
++  }
++  if (filters.q) {
++    const rx = new RegExp(escapeRegex(filters.q), 'i');
++    clauses.push({
++      $or: [
++        'code', 'sourceCode', 'sourceType', 'deliveryStaffCode', 'deliveryStaffName',
++        'customerCode', 'customerName', 'staffCode', 'staffName', 'counterpartyCode',
++        'counterpartyName', 'note', 'status'
++      ].map((field) => ({ [field]: rx }))
++    });
++  }
++  if (!clauses.length) return {};
++  return clauses.length === 1 ? clauses[0] : { $and: clauses };
++}
++
++function buildSummaryPipeline(filters = {}) {
++  const scope = combineScopeAndDate(filters);
++  return [
++    { $match: fundLedgerCanonicalFilter(scope) },
++    ...normalizationStages(filters.timezone),
++    { $match: buildNormalizedScopeMatch(filters) },
++    { $match: { _fundBusinessDate: { $lte: filters.dateTo } } },
++    {
++      $group: {
++        _id: { fundType: '$_fundType', account: '$_fundAccount' },
++        openingBalance: {
++          $sum: {
++            $cond: [{ $lt: ['$_fundBusinessDate', filters.dateFrom] }, '$_fundSignedAmount', 0]
++          }
++        },
++        inPeriod: {
++          $sum: {
++            $cond: [
++              {
++                $and: [
++                  { $gte: ['$_fundBusinessDate', filters.dateFrom] },
++                  { $lte: ['$_fundBusinessDate', filters.dateTo] },
++                  { $eq: ['$_fundDirection', 'in'] }
++                ]
++              },
++              '$_fundAmount',
++              0
++            ]
++          }
++        },
++        outPeriod: {
++          $sum: {
++            $cond: [
++              {
++                $and: [
++                  { $gte: ['$_fundBusinessDate', filters.dateFrom] },
++                  { $lte: ['$_fundBusinessDate', filters.dateTo] },
++                  { $eq: ['$_fundDirection', 'out'] }
++                ]
++              },
++              '$_fundAmount',
++              0
++            ]
++          }
++        },
++        cumulativeBalanceThroughDateTo: { $sum: '$_fundSignedAmount' },
++        canonicalLedgerCount: { $sum: 1 },
++        periodLedgerCount: {
++          $sum: {
++            $cond: [
++              {
++                $and: [
++                  { $gte: ['$_fundBusinessDate', filters.dateFrom] },
++                  { $lte: ['$_fundBusinessDate', filters.dateTo] }
++                ]
++              },
++              1,
++              0
++            ]
++          }
++        }
++      }
++    },
++    { $sort: { '_id.fundType': 1, '_id.account': 1 } }
++  ];
++}
++
++function buildRowsPipeline(filters = {}) {
++  const scope = combineScopeAndDate(filters);
++  const skip = filters.full ? 0 : (filters.page - 1) * filters.limit;
++  const listingMatch = buildListingMatch(filters);
++  const postWindowMatch = {
++    _fundBusinessDate: { $gte: filters.dateFrom, $lte: filters.dateTo },
++    ...listingMatch
++  };
++
++  return [
++    { $match: fundLedgerCanonicalFilter(scope) },
++    ...normalizationStages(filters.timezone),
++    { $match: buildNormalizedScopeMatch(filters) },
++    { $match: { _fundBusinessDate: { $lte: filters.dateTo } } },
++    {
++      $setWindowFields: {
++        partitionBy: '$_fundPartitionKey',
++        sortBy: { _fundBusinessDate: 1, _fundCreatedAtSort: 1, _id: 1 },
++        output: {
++          _runningBalanceAfterTransaction: {
++            $sum: '$_fundSignedAmount',
++            window: { documents: ['unbounded', 'current'] }
++          }
++        }
++      }
++    },
++    { $match: postWindowMatch },
++    {
++      $facet: {
++        rows: [
++          { $sort: { _fundBusinessDate: -1, _fundCreatedAtSort: -1, _id: -1 } },
++          ...(filters.full ? [] : [{ $skip: skip }]),
++          { $limit: filters.limit }
++        ],
++        count: [{ $count: 'total' }],
++        filteredTotals: [
++          {
++            $group: {
++              _id: { fundType: '$_fundType', direction: '$_fundDirection' },
++              amount: { $sum: '$_fundAmount' },
++              count: { $sum: 1 }
++            }
++          }
++        ]
++      }
++    }
++  ];
++}
++
++function emptyBucket() {
++  return { openingBalance: 0, inPeriod: 0, outPeriod: 0, endingBalance: 0 };
++}
++
++function addBucket(target, source) {
++  target.openingBalance += number(source.openingBalance);
++  target.inPeriod += number(source.inPeriod);
++  target.outPeriod += number(source.outPeriod);
++  target.endingBalance += number(source.endingBalance);
++}
++
++function summarizeAccountRows(rows = [], filters = {}) {
++  const cash = emptyBucket();
++  const bank = emptyBucket();
++  const accounts = [];
++  let canonicalLedgerCount = 0;
++  let periodLedgerCount = 0;
++
++  for (const row of rows) {
++    const openingBalance = number(row.openingBalance);
++    const inPeriod = number(row.inPeriod);
++    const outPeriod = number(row.outPeriod);
++    const endingBalance = openingBalance + inPeriod - outPeriod;
++    const cumulativeBalanceThroughDateTo = number(row.cumulativeBalanceThroughDateTo);
++    if (endingBalance !== cumulativeBalanceThroughDateTo) {
++      const error = new Error(`Fund balance invariant failed for ${row._id?.fundType || ''}:${row._id?.account || ''}`);
++      error.code = 'FUND_BALANCE_RECONCILIATION_FAILED';
++      error.details = { openingBalance, inPeriod, outPeriod, endingBalance, cumulativeBalanceThroughDateTo };
++      throw error;
++    }
++    const account = {
++      fundType: row._id?.fundType === 'bank' ? 'bank' : 'cash',
++      account: text(row._id?.account || (row._id?.fundType === 'bank' ? 'BANK' : 'CASH')),
++      openingBalance,
++      inPeriod,
++      outPeriod,
++      endingBalance,
++      cumulativeBalanceThroughDateTo,
++      canonicalLedgerCount: number(row.canonicalLedgerCount),
++      periodLedgerCount: number(row.periodLedgerCount)
++    };
++    accounts.push(account);
++    addBucket(account.fundType === 'bank' ? bank : cash, account);
++    canonicalLedgerCount += account.canonicalLedgerCount;
++    periodLedgerCount += account.periodLedgerCount;
++  }
++
++  const total = emptyBucket();
++  addBucket(total, cash);
++  addBucket(total, bank);
++
++  const summary = {
++    period: {
++      dateFrom: filters.dateFrom,
++      dateTo: filters.dateTo,
++      timezone: filters.timezone,
++      canonicalDateField: 'date',
++      legacyFallbackDateField: 'createdAt'
++    },
++    cash,
++    bank,
++    total,
++    accounts,
++    canonicalLedgerCount,
++    periodLedgerCount,
++
++    cashOpeningBalance: cash.openingBalance,
++    cashInPeriod: cash.inPeriod,
++    cashOutPeriod: cash.outPeriod,
++    cashEndingBalance: cash.endingBalance,
++    bankOpeningBalance: bank.openingBalance,
++    bankInPeriod: bank.inPeriod,
++    bankOutPeriod: bank.outPeriod,
++    bankEndingBalance: bank.endingBalance,
++    totalOpeningBalance: total.openingBalance,
++    totalInPeriod: total.inPeriod,
++    totalOutPeriod: total.outPeriod,
++    totalEndingBalance: total.endingBalance,
++
++    // Compatibility aliases. They all map to the canonical calculation above.
++    cashIn: cash.inPeriod,
++    cashOut: cash.outPeriod,
++    cashBalance: cash.endingBalance,
++    bankIn: bank.inPeriod,
++    bankOut: bank.outPeriod,
++    bankBalance: bank.endingBalance,
++    totalIn: total.inPeriod,
++    totalOut: total.outPeriod,
++    totalBalance: total.endingBalance
++  };
++  return summary;
++}
++
++function mapRuntimeRow(row = {}) {
++  const plain = { ...row };
++  for (const key of [
++    '_fundBusinessDate', '_fundType', '_fundDirection', '_fundAmount', '_fundSignedAmount',
++    '_fundAccount', '_fundPartitionKey', '_fundCreatedAtSort', '_runningBalanceAfterTransaction'
++  ]) delete plain[key];
++  const amount = number(row._fundAmount);
++  const direction = row._fundDirection === 'out' ? 'out' : 'in';
++  return {
++    ...plain,
++    date: text(row._fundBusinessDate || row.date),
++    fundType: row._fundType === 'bank' ? 'bank' : 'cash',
++    account: text(row._fundAccount || row.account),
++    direction,
++    amount,
++    inAmount: direction === 'in' ? amount : 0,
++    outAmount: direction === 'out' ? amount : 0,
++    runningBalanceAfterTransaction: number(row._runningBalanceAfterTransaction)
++  };
++}
++
++async function getFundBalanceSummary(query = {}, options = {}) {
++  const filters = query.dateFrom && query.dateTo && query.timezone ? query : normalizeQuery(query);
++  const rows = await fundLedgerRepository.aggregate(buildSummaryPipeline(filters), options);
++  return summarizeAccountRows(rows || [], filters);
++}
++
++async function listFundLedgers(query = {}, options = {}) {
++  const filters = normalizeQuery(query);
++  // Two bounded aggregation queries: one summary and one windowed/paginated row query.
++  const summaryRows = await fundLedgerRepository.aggregate(buildSummaryPipeline(filters), options);
++  const rowResult = await fundLedgerRepository.aggregate(buildRowsPipeline(filters), options);
++  const summary = summarizeAccountRows(summaryRows || [], filters);
++  const facet = rowResult?.[0] || { rows: [], count: [], filteredTotals: [] };
++  const rows = (facet.rows || []).map(mapRuntimeRow);
++  const total = number(facet.count?.[0]?.total);
++  const filteredGroups = (facet.filteredTotals || []).map((row) => ({
++    fundType: row._id?.fundType === 'bank' ? 'bank' : 'cash',
++    direction: row._id?.direction === 'out' ? 'out' : 'in',
++    amount: number(row.amount),
++    count: number(row.count)
++  }));
++  const filteredRowsTotalIn = filteredGroups
++    .filter((row) => row.direction === 'in')
++    .reduce((sum, row) => sum + row.amount, 0);
++  const filteredRowsTotalOut = filteredGroups
++    .filter((row) => row.direction === 'out')
++    .reduce((sum, row) => sum + row.amount, 0);
++
++  const response = {
++    fundLedgers: rows,
++    rows,
++    items: rows,
++    summary: {
++      ...summary,
++      groups: filteredGroups,
++      filteredRowsTotalIn,
++      filteredRowsTotalOut
++    },
++    pagination: {
++      page: filters.page,
++      limit: filters.limit,
++      requestedLimit: filters.requestedLimit,
++      limitCapped: filters.limitCapped,
++      totalRows: total,
++      totalPages: total ? Math.ceil(total / filters.limit) : 0,
++      hasMore: filters.full ? false : filters.page * filters.limit < total
++    },
++    meta: {
++      page: filters.page,
++      limit: filters.limit,
++      requestedLimit: filters.requestedLimit,
++      limitCapped: filters.limitCapped,
++      total,
++      totalPages: total ? Math.ceil(total / filters.limit) : 0,
++      hasMore: filters.full ? false : filters.page * filters.limit < total
++    }
++  };
++
++  if (filters.debug && process.env.NODE_ENV !== 'production') {
++    response.diagnostics = {
++      dateFrom: filters.dateFrom,
++      dateTo: filters.dateTo,
++      timezone: filters.timezone,
++      canonicalDateField: 'date',
++      legacyFallbackDateField: 'createdAt',
++      openingQueryRange: `< ${filters.dateFrom}`,
++      periodQueryRange: `${filters.dateFrom}..${filters.dateTo}`,
++      endingQueryRange: `<= ${filters.dateTo}`,
++      balanceScope: { fundType: filters.fundType || 'all', account: filters.account || 'all' },
++      listingFilters: { q: filters.q, direction: filters.direction, sourceType: filters.sourceType },
++      canonicalLedgerCount: summary.canonicalLedgerCount,
++      periodLedgerCount: summary.periodLedgerCount,
++      queryCount: 2,
++      cashOpeningBalance: summary.cashOpeningBalance,
++      cashInPeriod: summary.cashInPeriod,
++      cashOutPeriod: summary.cashOutPeriod,
++      cashEndingBalance: summary.cashEndingBalance,
++      bankOpeningBalance: summary.bankOpeningBalance,
++      bankInPeriod: summary.bankInPeriod,
++      bankOutPeriod: summary.bankOutPeriod,
++      bankEndingBalance: summary.bankEndingBalance
++    };
++  }
++  return response;
++}
++
++function canonicalDateOfRow(row = {}, timezone = DEFAULT_TIMEZONE) {
++  const explicit = normalizeDateOnly(row.date || row.accountingDate || row.postingDate || row.transactionDate || row.occurredAt || '');
++  if (explicit) return explicit;
++  const createdAt = row.createdAt;
++  if (createdAt instanceof Date && !Number.isNaN(createdAt.getTime())) return dateUtil.dateKeyInTimeZone(createdAt, timezone);
++  const raw = text(createdAt);
++  if (!raw) return '';
++  const parsed = new Date(raw);
++  if (!Number.isNaN(parsed.getTime()) && /[T ]\d{2}:\d{2}/.test(raw)) return dateUtil.dateKeyInTimeZone(parsed, timezone);
++  return normalizeDateOnly(raw);
++}
++
++function fundTypeOfRow(row = {}) {
++  const explicit = lower(row.fundType || row.fund || row.accountType);
++  if (explicit === 'bank') return 'bank';
++  const account = lower(row.account || row.fundCode || row.bankAccountCode);
++  return account.includes('bank') || account.includes('ngan') || account.startsWith('112') ? 'bank' : 'cash';
++}
++
++function directionOfRow(row = {}) {
++  const explicit = lower(row.direction);
++  if (['out', 'chi', 'expense', 'payment'].includes(explicit)) return 'out';
++  if (['in', 'thu', 'receipt', 'income'].includes(explicit)) return 'in';
++  const fallback = lower([row.type, row.transactionType, row.sourceType, row.category].filter(Boolean).join(' '));
++  return /(out|expense|payment|chi|withdraw|transfer[_\s-]*out)/i.test(fallback) ? 'out' : 'in';
++}
++
++function accountOfRow(row = {}, fundType = fundTypeOfRow(row)) {
++  return upper(row.account || row.fundCode || row.bankAccountCode || (fundType === 'bank' ? 'BANK' : 'CASH'));
++}
++
++function isCanonicalFundLedgerRow(row = {}) {
++  const status = lower(row.status);
++  if (BLOCKED_STATUSES.includes(status)) return false;
++  if (row.active === false || row.isDeleted === true || truthy(row.deleted) || text(row.deletedAt)) return false;
++  if (row.reversed === true || row.isReversal === true || text(row.reversalOf)) return false;
++  const confirmed = row.accountingConfirmed === true
++    || CONFIRMED_ACCOUNTING_STATUSES.includes(lower(row.accountingStatus))
++    || row.posted === true;
++  if (!confirmed) return false;
++  return Math.abs(number(row.amount ?? row.debit ?? row.credit)) > 0 && Boolean(canonicalDateOfRow(row));
++}
++
++function fixtureMatchesScope(row = {}, filters = {}) {
++  const fundType = fundTypeOfRow(row);
++  const account = accountOfRow(row, fundType);
++  if (filters.fundType && fundType !== filters.fundType) return false;
++  if (filters.account && account !== filters.account) return false;
++  if (filters.tenantId && text(row.tenantId) !== filters.tenantId) return false;
++  return true;
++}
++
++function fixtureMatchesListing(row = {}, normalized = {}, filters = {}) {
++  if (filters.direction && normalized.direction !== filters.direction) return false;
++  if (filters.sourceType) {
++    const sourceTypes = [row.sourceType, row.refType, row.referenceType].map(text);
++    if (!sourceTypes.includes(filters.sourceType)) return false;
++  }
++  if (filters.q) {
++    const haystack = [
++      row.code, row.sourceCode, row.sourceType, row.deliveryStaffCode, row.deliveryStaffName,
++      row.customerCode, row.customerName, row.staffCode, row.staffName, row.counterpartyCode,
++      row.counterpartyName, row.note, row.status
++    ].map(lower).join(' ');
++    if (!haystack.includes(lower(filters.q))) return false;
++  }
++  return true;
++}
++
++/**
++ * Pure fixture evaluator used by unit tests and dry-run evidence. Runtime queries
++ * still use Mongo aggregation/window functions and never load the whole collection.
++ */
++function calculateFixture(rows = [], query = {}) {
++  const filters = normalizeQuery(query);
++  const canonicalRows = rows
++    .filter(isCanonicalFundLedgerRow)
++    .filter((row) => fixtureMatchesScope(row, filters))
++    .map((row) => {
++      const fundType = fundTypeOfRow(row);
++      const account = accountOfRow(row, fundType);
++      const direction = directionOfRow(row);
++      const amount = Math.abs(number(row.amount ?? row.debit ?? row.credit));
++      const date = canonicalDateOfRow(row, filters.timezone);
++      return {
++        original: row,
++        fundType,
++        account,
++        direction,
++        amount,
++        signedAmount: direction === 'out' ? -amount : amount,
++        date,
++        createdAt: text(row.createdAt),
++        identity: text(row._id || row.id || row.code || row.idempotencyKey)
++      };
++    })
++    .filter((row) => row.date && row.date <= filters.dateTo)
++    .sort((a, b) => a.fundType.localeCompare(b.fundType)
++      || a.account.localeCompare(b.account)
++      || a.date.localeCompare(b.date)
++      || a.createdAt.localeCompare(b.createdAt)
++      || a.identity.localeCompare(b.identity));
++
++  const accountMap = new Map();
++  const running = new Map();
++  for (const row of canonicalRows) {
++    const key = `${row.fundType}:${row.account}`;
++    const account = accountMap.get(key) || {
++      _id: { fundType: row.fundType, account: row.account },
++      openingBalance: 0,
++      inPeriod: 0,
++      outPeriod: 0,
++      cumulativeBalanceThroughDateTo: 0,
++      canonicalLedgerCount: 0,
++      periodLedgerCount: 0
++    };
++    if (row.date < filters.dateFrom) account.openingBalance += row.signedAmount;
++    else {
++      account.periodLedgerCount += 1;
++      if (row.direction === 'in') account.inPeriod += row.amount;
++      else account.outPeriod += row.amount;
++    }
++    account.cumulativeBalanceThroughDateTo += row.signedAmount;
++    account.canonicalLedgerCount += 1;
++    accountMap.set(key, account);
++
++    const balance = number(running.get(key)) + row.signedAmount;
++    running.set(key, balance);
++    row.runningBalanceAfterTransaction = balance;
++  }
++
++  const summary = summarizeAccountRows(Array.from(accountMap.values()), filters);
++  const listed = canonicalRows
++    .filter((row) => row.date >= filters.dateFrom && row.date <= filters.dateTo)
++    .filter((row) => fixtureMatchesListing(row.original, row, filters));
++  const filteredRowsTotalIn = listed.filter((row) => row.direction === 'in').reduce((sum, row) => sum + row.amount, 0);
++  const filteredRowsTotalOut = listed.filter((row) => row.direction === 'out').reduce((sum, row) => sum + row.amount, 0);
++  const desc = [...listed].sort((a, b) => b.date.localeCompare(a.date)
++    || b.createdAt.localeCompare(a.createdAt)
++    || b.identity.localeCompare(a.identity));
++  const skip = filters.full ? 0 : (filters.page - 1) * filters.limit;
++  const paged = desc.slice(skip, skip + filters.limit).map((row) => ({
++    ...row.original,
++    date: row.date,
++    fundType: row.fundType,
++    account: row.account,
++    direction: row.direction,
++    amount: row.amount,
++    inAmount: row.direction === 'in' ? row.amount : 0,
++    outAmount: row.direction === 'out' ? row.amount : 0,
++    runningBalanceAfterTransaction: row.runningBalanceAfterTransaction
++  }));
++  return {
++    filters,
++    summary: { ...summary, filteredRowsTotalIn, filteredRowsTotalOut },
++    rows: paged,
++    totalRows: desc.length,
++    excludedLedgerCount: rows.length - canonicalRows.length
++  };
++}
++
++module.exports = {
++  DEFAULT_TIMEZONE,
++  BLOCKED_STATUSES,
++  CONFIRMED_ACCOUNTING_STATUSES,
++  normalizeQuery,
++  fundLedgerCanonicalFilter,
++  canonicalBusinessDateExpression,
++  normalizationStages,
++  buildBalanceScopeMatch,
++  buildEarlyDateMatch,
++  buildListingMatch,
++  buildSummaryPipeline,
++  buildRowsPipeline,
++  summarizeAccountRows,
++  getFundBalanceSummary,
++  listFundLedgers,
++  calculateFixture,
++  canonicalDateOfRow,
++  fundTypeOfRow,
++  directionOfRow,
++  accountOfRow,
++  isCanonicalFundLedgerRow
++};
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/src/services/fundService.js mkpro_phase228_work/src/services/fundService.js
+--- mkpro_phase227_baseline/src/services/fundService.js	2026-07-09 06:10:07.000000000 +0000
++++ mkpro_phase228_work/src/services/fundService.js	2026-07-10 09:22:28.026018608 +0000
+@@ -1,61 +1,51 @@
+ /* GENERATED FILE — edit src/services/fundService.source/part-01.jsfrag, src/services/fundService.source/part-02.jsfrag, src/services/fundService.source/part-03.jsfrag and run npm run build:source-bundles. */
+ "use strict"
+-;const e=require("../utils/date.util"),{makeId:t,normalizeText:r,toNumber:n}=require("../utils/common.util"),{withMongoTransaction:o}=require("../utils/transaction.util"),i=require("../repositories/fundLedgerRepository"),a=require("../repositories/deliveryCashSubmissionRepository"),s=require("../repositories/expenseVoucherRepository"),d=require("../repositories/fundTransferRepository"),u=require("../repositories/deliveryCashShortageRepository"),c=require("../repositories/deliveryShortageRepaymentRepository"),m=require("./auditService")
+-;function f(){return require("./master-order/masterOrderDelivery.service")}const{pickDeliveryStaffCode:l}=require("../domain/staff/staffIdentity");function p(t){
+-return e.toDateOnly(t||e.todayVN())}function h(e){return Math.max(0,Math.round(n(e)))}function y(e={}){
+-return!["void","voided","cancelled","canceled","deleted","removed","reversed","superseded"].includes(String(e.status||"").toLowerCase())}function g(e){
+-return"bank"===String(e||"cash").toLowerCase()?"bank":"cash"}function S(e){return"out"===String(e||"in").toLowerCase()?"out":"in"}function C(e,t){
+-return(String(e||"").trim()||String(t||"cash")).toUpperCase()}function A(e){return String(e||"").trim().toUpperCase()}function v(e={}){
+-const t=g(e.fundType),r=S(e.direction),n=C(e.account,t),o=String(e.sourceType||"MANUAL_FUND").trim()||"MANUAL_FUND",i=String(e.sourceId||e.sourceCode||e.referenceId||e.referenceCode||e.refId||e.refCode||e.id||e.code||"").trim()
+-;return i?[o,i,t,r,n].map(A).join("|"):""}function T(e="",t=""){return"FUND_TRANSFER"===A(e)?"TRANSFER":"out"===S(t)?"EXPENSE":"RECEIPT"}function b(e="",t=""){const r=T(e,t)
+-;return"TRANSFER"===r?"fund_transfer":"EXPENSE"===r?"fund_expense":"fund_receipt"}function w(e,t=[]){const r=t.reduce((e,t)=>{const r=String(t.code||"").match(/(\d+)$/)
+-;return Math.max(e,r?Number(r[1]):0)},0);return`${e}${String(r+1).padStart(5,"0")}`}async function I(){return w("FL",await i.findAll({code:{$regex:"^FL\\d+$"}},{projection:"code",
+-sort:{code:-1},limit:1}))}async function N(){return w("PC",await s.findAll())}async function B(){return w("CQ",await d.findAll())}function k(e,t){
+-return`NQGH-${String(p(e)).replace(/-/g,"")}-${String(t||"NO_NVGH").trim().replace(/[^a-zA-Z0-9_-]/g,"").slice(0,24)||"NO_NVGH"}`}function R(e,t){const r="bank"===g(t)?"TK":"TM"
+-;return`DCSH-${String(e||"").trim()}-${r}`}function D(e={},t){
++;const e=require("../utils/date.util"),{makeId:t,normalizeText:r,toNumber:n}=require("../utils/common.util"),{withMongoTransaction:o}=require("../utils/transaction.util"),i=require("../repositories/fundLedgerRepository"),s=require("../repositories/deliveryCashSubmissionRepository"),a=require("../repositories/expenseVoucherRepository"),d=require("../repositories/fundTransferRepository"),u=require("../repositories/deliveryCashShortageRepository"),c=require("../repositories/deliveryShortageRepaymentRepository"),m=require("./auditService"),f=require("./accounting/FundBalanceReadService")
++;function l(){return require("./master-order/masterOrderDelivery.service")}const{pickDeliveryStaffCode:h}=require("../domain/staff/staffIdentity");function p(t){
++return e.toDateOnly(t||e.todayVN())}function y(e){return Math.max(0,Math.round(n(e)))}function g(e={}){
++return!["void","voided","cancelled","canceled","deleted","removed","reversed","superseded"].includes(String(e.status||"").toLowerCase())}function S(e){
++return"bank"===String(e||"cash").toLowerCase()?"bank":"cash"}function C(e){return"out"===String(e||"in").toLowerCase()?"out":"in"}function A(e,t){
++return(String(e||"").trim()||String(t||"cash")).toUpperCase()}function v(e){return String(e||"").trim().toUpperCase()}function b(e={}){
++const t=S(e.fundType),r=C(e.direction),n=A(e.account,t),o=String(e.sourceType||"MANUAL_FUND").trim()||"MANUAL_FUND",i=String(e.sourceId||e.sourceCode||e.referenceId||e.referenceCode||e.refId||e.refCode||e.id||e.code||"").trim()
++;return i?[o,i,t,r,n].map(v).join("|"):""}function w(e="",t=""){return"FUND_TRANSFER"===v(e)?"TRANSFER":"out"===C(t)?"EXPENSE":"RECEIPT"}function T(e="",t=""){const r=w(e,t)
++;return"TRANSFER"===r?"fund_transfer":"EXPENSE"===r?"fund_expense":"fund_receipt"}function I(e,t=[]){const r=t.reduce((e,t)=>{const r=String(t.code||"").match(/(\d+)$/)
++;return Math.max(e,r?Number(r[1]):0)},0);return`${e}${String(r+1).padStart(5,"0")}`}async function N(){return I("FL",await i.findAll({code:{$regex:"^FL\\d+$"}},{projection:"code",
++sort:{code:-1},limit:1}))}async function B(){return I("PC",await a.findAll())}async function k(){return I("CQ",await d.findAll())}function R(e,t){
++return`NQGH-${String(p(e)).replace(/-/g,"")}-${String(t||"NO_NVGH").trim().replace(/[^a-zA-Z0-9_-]/g,"").slice(0,24)||"NO_NVGH"}`}function D(e,t){const r="bank"===S(t)?"TK":"TM"
++;return`DCSH-${String(e||"").trim()}-${r}`}function E(e={},t){
+ return`NQBU-${String(p(t)).replace(/-/g,"")}-${String(e.deliveryStaffCode||"NVGH").replace(/[^a-zA-Z0-9_-]/g,"").slice(0,20)||"NVGH"}-${String(Date.now()).slice(-7)+String(Math.floor(100*Math.random())).padStart(2,"0")}`
+-}const E={cash:{collected_not_remitted:{responsibleType:"delivery_staff",status:"open"},customer_not_paid:{responsibleType:"customer",status:"customer_outstanding"},
++}const _={cash:{collected_not_remitted:{responsibleType:"delivery_staff",status:"open"},customer_not_paid:{responsibleType:"customer",status:"customer_outstanding"},
+ approved_expense:{responsibleType:"adjustment",status:"adjusted",requireNote:!0},pending_review:{responsibleType:"pending",status:"disputed",requireNote:!0}},bank:{
+ pending_bank_reconciliation:{responsibleType:"pending",status:"pending_reconciliation"},delivery_staff_liability:{responsibleType:"delivery_staff",status:"open"},
+-customer_not_paid:{responsibleType:"customer",status:"customer_outstanding"},approved_adjustment:{responsibleType:"adjustment",status:"adjusted",requireNote:!0}}};function _(e){
+-return Math.max(0,-Math.round(n(e)))}function q(e={},t){
+-return(e.shortageResolution&&"object"==typeof e.shortageResolution?e.shortageResolution[t]:null)||e[`${t}ShortageResolution`]||null}function $(e={},t,r){if(r<=0)return null
+-;const n=q(e,t),o="string"==typeof n?{reasonType:n}:n||{},i=String(o.reasonType||o.reason||"").trim(),a=E[t]?.[i];if(!a)return{
++customer_not_paid:{responsibleType:"customer",status:"customer_outstanding"},approved_adjustment:{responsibleType:"adjustment",status:"adjusted",requireNote:!0}}};function q(e){
++return Math.max(0,-Math.round(n(e)))}function F(e={},t){
++return(e.shortageResolution&&"object"==typeof e.shortageResolution?e.shortageResolution[t]:null)||e[`${t}ShortageResolution`]||null}function L(e={},t,r){if(r<=0)return null
++;const n=F(e,t),o="string"==typeof n?{reasonType:n}:n||{},i=String(o.reasonType||o.reason||"").trim(),s=_[t]?.[i];if(!s)return{
+ error:"bank"===t?"Cần chọn cách xử lý khoản thiếu chuyển khoản trước khi xác nhận":"Cần chọn cách xử lý khoản thiếu tiền mặt trước khi xác nhận",fundType:t,shortageAmount:r}
+-;const s=String(o.note||e.shortageNote||"").trim();if(a.requireNote&&!s)return{error:"Cần nhập ghi chú giải trình cho cách xử lý khoản thiếu đã chọn",fundType:t,shortageAmount:r}
+-;const d="adjustment"===a.responsibleType?r:0;return{fundType:t,reasonType:i,responsibleType:a.responsibleType,status:a.status,originalShortageAmount:r,settledAmount:0,
+-adjustedAmount:d,outstandingAmount:Math.max(0,r-d),note:s}}function F(e={},t={}){const r={
+-cash:_(t.differenceCashAmount??e.differenceCashAmount??h(t.submittedCashAmount??e.submittedCashAmount)-h(e.reportCashAmount)),
+-bank:_(t.differenceBankAmount??e.differenceBankAmount??h(t.submittedBankAmount??e.submittedBankAmount)-h(e.reportBankAmount))},n=[],o=[];for(const e of["cash","bank"]){
+-if(r[e]<=0)continue;const i=$(t,e,r[e]);i?.error?o.push(i):n.push(i)}return o.length?{error:o.map(e=>e.error).join(". "),status:422,requiresShortageResolution:!0,shortages:o}:{
+-plans:n,amounts:r}}function L(t={},r={},n=""){const o=e.nowIso();return{id:R(t.code,r.fundType),code:R(t.code,r.fundType),sourceSubmissionId:String(t.id||"").trim(),
++;const a=String(o.note||e.shortageNote||"").trim();if(s.requireNote&&!a)return{error:"Cần nhập ghi chú giải trình cho cách xử lý khoản thiếu đã chọn",fundType:t,shortageAmount:r}
++;const d="adjustment"===s.responsibleType?r:0;return{fundType:t,reasonType:i,responsibleType:s.responsibleType,status:s.status,originalShortageAmount:r,settledAmount:0,
++adjustedAmount:d,outstandingAmount:Math.max(0,r-d),note:a}}function O(e={},t={}){const r={
++cash:q(t.differenceCashAmount??e.differenceCashAmount??y(t.submittedCashAmount??e.submittedCashAmount)-y(e.reportCashAmount)),
++bank:q(t.differenceBankAmount??e.differenceBankAmount??y(t.submittedBankAmount??e.submittedBankAmount)-y(e.reportBankAmount))},n=[],o=[];for(const e of["cash","bank"]){
++if(r[e]<=0)continue;const i=L(t,e,r[e]);i?.error?o.push(i):n.push(i)}return o.length?{error:o.map(e=>e.error).join(". "),status:422,requiresShortageResolution:!0,shortages:o}:{
++plans:n,amounts:r}}function P(t={},r={},n=""){const o=e.nowIso();return{id:D(t.code,r.fundType),code:D(t.code,r.fundType),sourceSubmissionId:String(t.id||"").trim(),
+ sourceSubmissionCode:String(t.code||"").trim(),deliveryDate:String(t.deliveryDate||"").trim(),deliveryStaffCode:String(t.deliveryStaffCode||"").trim(),
+-deliveryStaffName:String(t.deliveryStaffName||"").trim(),fundType:g(r.fundType),reasonType:String(r.reasonType||"").trim(),responsibleType:String(r.responsibleType||"").trim(),
+-originalShortageAmount:h(r.originalShortageAmount),settledAmount:h(r.settledAmount),adjustedAmount:h(r.adjustedAmount),pendingRepaymentAmount:0,
+-outstandingAmount:h(r.outstandingAmount),status:String(r.status||"open").trim(),note:String(r.note||"").trim(),classifiedBy:String(n||"").trim(),classifiedAt:o,
+-createdBy:String(n||"").trim(),createdAt:o,updatedAt:o}}async function O(e,t=[],r="",n={}){const o=[];for(const i of t){
+-const t=await u.findBySourceAndFundType(e.id,e.code,i.fundType,n);if(t){o.push(t);continue}const a=L(e,i,r);await u.upsert(a,n),o.push(a)}return o}function P(e,t){
+-return String(e||t||"").trim()}function x(e,t){
++deliveryStaffName:String(t.deliveryStaffName||"").trim(),fundType:S(r.fundType),reasonType:String(r.reasonType||"").trim(),responsibleType:String(r.responsibleType||"").trim(),
++originalShortageAmount:y(r.originalShortageAmount),settledAmount:y(r.settledAmount),adjustedAmount:y(r.adjustedAmount),pendingRepaymentAmount:0,
++outstandingAmount:y(r.outstandingAmount),status:String(r.status||"open").trim(),note:String(r.note||"").trim(),classifiedBy:String(n||"").trim(),classifiedAt:o,
++createdBy:String(n||"").trim(),createdAt:o,updatedAt:o}}async function $(e,t=[],r="",n={}){const o=[];for(const i of t){
++const t=await u.findBySourceAndFundType(e.id,e.code,i.fundType,n);if(t){o.push(t);continue}const s=P(e,i,r);await u.upsert(s,n),o.push(s)}return o}function x(e,t){
++return String(e||t||"").trim()}function H(e,t){
+ return!t||[e.code,e.sourceCode,e.sourceType,e.deliveryStaffCode,e.deliveryStaffName,e.customerCode,e.customerName,e.staffName,e.note,e.status].some(e=>r(e).includes(t))}
+-function M(e=[]){
+-const t=e.filter(y),r=t.filter(e=>"cash"===e.fundType&&"in"===e.direction).reduce((e,t)=>e+n(t.amount),0),o=t.filter(e=>"cash"===e.fundType&&"out"===e.direction).reduce((e,t)=>e+n(t.amount),0),i=t.filter(e=>"bank"===e.fundType&&"in"===e.direction).reduce((e,t)=>e+n(t.amount),0),a=t.filter(e=>"bank"===e.fundType&&"out"===e.direction).reduce((e,t)=>e+n(t.amount),0)
+-;return{cashIn:r,cashOut:o,cashBalance:r-o,bankIn:i,bankOut:a,bankBalance:i-a,totalIn:r+i,totalOut:o+a,totalBalance:r+i-o-a}}async function H(e={}){const t={status:{
+-$nin:["void","cancelled","canceled","deleted"]}};e.fundType&&"all"!==e.fundType&&(t.fundType=String(e.fundType)),e.direction&&"all"!==e.direction&&(t.direction=String(e.direction))
+-;const r=e.dateFrom?p(e.dateFrom):"",o=e.dateTo?p(e.dateTo):"";(r||o)&&(t.date={...r?{$gte:r}:{},...o?{$lte:o}:{}});const a=String(e.q||e.search||"").trim();if(a){
+-const e=a.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),r=new RegExp(e,"i")
+-;t.$or=["code","sourceCode","sourceType","deliveryStaffCode","deliveryStaffName","customerCode","customerName","staffName","note","status"].map(e=>({[e]:r}))}
+-const s=Math.max(Number(e.page||1),1),d=Math.min(Math.max(Number(e.limit||50),1),200),u=(s-1)*d,c=(await i.aggregate([{$match:t},{$facet:{rows:[{$sort:{date:-1,createdAt:-1,code:-1
+-}},{$skip:u},{$limit:d}],totals:[{$group:{_id:{fundType:"$fundType",direction:"$direction"},amount:{$sum:{$ifNull:["$amount",0]}},count:{$sum:1}}}],count:[{$count:"total"}]}
+-}]))[0]||{rows:[],totals:[],count:[]},m=(c.totals||[]).map(e=>({fundType:e._id?.fundType,direction:e._id?.direction,amount:n(e.amount),count:n(e.count)})),f=M(m.map(e=>({
+-fundType:e.fundType,direction:e.direction,amount:e.amount,status:"posted"}))),l=n(c.count?.[0]?.total);return{fundLedgers:c.rows||[],items:c.rows||[],summary:{...f,groups:m},meta:{
+-page:s,limit:d,total:l,totalPages:Math.ceil(l/d),hasMore:u+(c.rows||[]).length<l}}}async function V(e,t,r,n,o="",a=""){const s=v({sourceType:e,sourceCode:t,sourceId:o,fundType:r,
+-direction:n,account:a});if(s){const e=await i.findByIdempotencyKey(s);if(e)return e}const d={fundType:r,direction:n,$or:[{sourceType:e,sourceCode:t},{referenceType:e,
+-referenceCode:t}]};return a&&(d.account=a),o&&d.$or.push({sourceType:e,sourceId:o},{referenceType:e,referenceId:o}),(await i.findAll(d,{limit:1}))[0]||null}
+-async function U(r={},n={}){const o=h(r.amount);if(o<=0)return null
+-;const a=g(r.fundType),s=S(r.direction),d=C(r.account,a),u=String(r.sourceType||"MANUAL_FUND").trim(),c=String(r.sourceId||r.refId||r.referenceId||"").trim(),m=String(r.sourceCode||r.refCode||r.referenceCode||"").trim(),f=String(r.idempotencyKey||v({
+-...r,sourceType:u,sourceId:c,sourceCode:m,fundType:a,direction:s,account:d})).trim();if(!f)throw new Error("Thiếu sourceId/sourceCode để tạo idempotencyKey cho fund ledger")
+-;const l=await i.findByIdempotencyKey(f,n);if(l)return{ok:!0,skipped:!0,ledger:l,reason:"DUPLICATE_FUND_LEDGER"};const y={id:String(r.id||t("FL")).trim(),
+-code:String(r.code||await I()).trim(),date:p(r.date),fundType:a,direction:s,account:d,category:String(r.category||T(u,s)).trim(),type:String(r.type||b(u,s)).trim(),
++function V(t=[]){const r=t.map(e=>p(e.date||e.createdAt)).filter(Boolean).sort(),n=r[0]||e.todayVN(),o=r[r.length-1]||n;return f.calculateFixture(t,{dateFrom:n,dateTo:o,full:!0
++}).summary}async function M(e={}){return f.listFundLedgers(e)}async function U(e,t,r,n,o="",s=""){const a=b({sourceType:e,sourceCode:t,sourceId:o,fundType:r,direction:n,account:s})
++;if(a){const e=await i.findByIdempotencyKey(a);if(e)return e}const d={fundType:r,direction:n,$or:[{sourceType:e,sourceCode:t},{referenceType:e,referenceCode:t}]}
++;return s&&(d.account=s),o&&d.$or.push({sourceType:e,sourceId:o},{referenceType:e,referenceId:o}),(await i.findAll(d,{limit:1}))[0]||null}async function j(r={},n={}){
++const o=y(r.amount);if(o<=0)return null
++;const s=S(r.fundType),a=C(r.direction),d=A(r.account,s),u=String(r.sourceType||"MANUAL_FUND").trim(),c=String(r.sourceId||r.refId||r.referenceId||"").trim(),m=String(r.sourceCode||r.refCode||r.referenceCode||"").trim(),f=String(r.idempotencyKey||b({
++...r,sourceType:u,sourceId:c,sourceCode:m,fundType:s,direction:a,account:d})).trim();if(!f)throw new Error("Thiếu sourceId/sourceCode để tạo idempotencyKey cho fund ledger")
++;const l=await i.findByIdempotencyKey(f,n);if(l)return{ok:!0,skipped:!0,ledger:l,reason:"DUPLICATE_FUND_LEDGER"};const h={id:String(r.id||t("FL")).trim(),
++code:String(r.code||await N()).trim(),date:p(r.date),fundType:s,direction:a,account:d,category:String(r.category||w(u,a)).trim(),type:String(r.type||T(u,a)).trim(),
+ idempotencyKey:f,amount:o,sourceType:u,sourceId:c,sourceCode:m,refType:String(r.refType||u).trim(),refId:String(r.refId||c).trim(),refCode:String(r.refCode||m).trim(),
+ referenceType:String(r.referenceType||r.refType||u).trim(),referenceId:String(r.referenceId||r.refId||c).trim(),referenceCode:String(r.referenceCode||r.refCode||m).trim(),
+ deliveryDate:String(r.deliveryDate||"").trim(),deliveryStaffCode:String(r.deliveryStaffCode||"").trim(),deliveryStaffName:String(r.deliveryStaffName||"").trim(),
+@@ -69,128 +59,128 @@
+ counterpartyRole:String(r.counterpartyRole||"").trim(),isReversal:!0===r.isReversal,reversalOf:String(r.reversalOf||"").trim(),
+ originalSourceId:String(r.originalSourceId||"").trim(),note:String(r.note||"").trim(),status:String(r.status||"posted").trim(),accountingConfirmed:!1!==r.accountingConfirmed,
+ accountingStatus:String(r.accountingStatus||"confirmed").trim(),createdBy:String(r.createdBy||"").trim(),createdAt:r.createdAt||e.nowIso(),updatedAt:e.nowIso()};try{
+-return await i.upsert(y,n),y}catch(e){if(e&&(11e3===e.code||String(e.message||"").includes("duplicate key"))){const e=await i.findByIdempotencyKey(f,n);if(e)return{ok:!0,
+-skipped:!0,ledger:e,reason:"DUPLICATE_FUND_LEDGER"}}throw e}}function j(e,t=[]){for(const r of t){const t=n(e[r]);if(t>0)return t}return 0}async function G(n={}){
+-const o=p(n.deliveryDate||n.date),i=String(l(n)||n.delivery||"").trim();if(!i)return{error:"Thiếu nhân viên giao hàng để tạo phiếu nộp quỹ",status:400}
+-;const a=f(),s="function"==typeof a.listDeliveryTodayOrdersCompact?a.listDeliveryTodayOrdersCompact:a.listDeliveryToday,d=await s({date:o,delivery:i,deliveryStaffCode:i,page:1,
+-limit:5e3}),u=r(i),c=(d.orders||d.rows||[]).filter(e=>r(l(e)||e.deliveryStaffCode)===u);if(!c.length)return{error:"Không có đơn giao để tạo phiếu nộp quỹ",status:404}
+-;const m=c.find(e=>e.deliveryStaffName)?.deliveryStaffName||i,y=c.reduce((e,t)=>e+j(t,["cashAmount","cashCollected"]),0),g=c.reduce((e,t)=>e+j(t,["bankAmount","bankCollected","transferAmount"]),0),S=c.reduce((e,t)=>e+j(t,["oldDebtCashCollected","debtCashCollected","arCashCollected"]),0),C=c.reduce((e,t)=>e+j(t,["oldDebtBankCollected","debtBankCollected","arBankCollected"]),0),A=y+S,v=g+C,T=k(o,i),b=h(n.submittedCashAmount??A),w=h(n.submittedBankAmount??v)
+-;return{draft:{id:String(n.id||t("NQGH")).trim(),code:T,deliveryDate:o,deliveryStaffCode:i,deliveryStaffName:m,reportCashAmount:A,reportBankAmount:v,reportCurrentOrderCashAmount:y,
+-reportCurrentOrderBankAmount:g,reportOldDebtCashAmount:S,reportOldDebtBankAmount:C,submittedCashAmount:b,submittedBankAmount:w,differenceCashAmount:b-A,differenceBankAmount:w-v,
++return await i.upsert(h,n),h}catch(e){if(e&&(11e3===e.code||String(e.message||"").includes("duplicate key"))){const e=await i.findByIdempotencyKey(f,n);if(e)return{ok:!0,
++skipped:!0,ledger:e,reason:"DUPLICATE_FUND_LEDGER"}}throw e}}function G(e,t=[]){for(const r of t){const t=n(e[r]);if(t>0)return t}return 0}async function K(n={}){
++const o=p(n.deliveryDate||n.date),i=String(h(n)||n.delivery||"").trim();if(!i)return{error:"Thiếu nhân viên giao hàng để tạo phiếu nộp quỹ",status:400}
++;const s=l(),a="function"==typeof s.listDeliveryTodayOrdersCompact?s.listDeliveryTodayOrdersCompact:s.listDeliveryToday,d=await a({date:o,delivery:i,deliveryStaffCode:i,page:1,
++limit:5e3}),u=r(i),c=(d.orders||d.rows||[]).filter(e=>r(h(e)||e.deliveryStaffCode)===u);if(!c.length)return{error:"Không có đơn giao để tạo phiếu nộp quỹ",status:404}
++;const m=c.find(e=>e.deliveryStaffName)?.deliveryStaffName||i,f=c.reduce((e,t)=>e+G(t,["cashAmount","cashCollected"]),0),g=c.reduce((e,t)=>e+G(t,["bankAmount","bankCollected","transferAmount"]),0),S=c.reduce((e,t)=>e+G(t,["oldDebtCashCollected","debtCashCollected","arCashCollected"]),0),C=c.reduce((e,t)=>e+G(t,["oldDebtBankCollected","debtBankCollected","arBankCollected"]),0),A=f+S,v=g+C,b=R(o,i),w=y(n.submittedCashAmount??A),T=y(n.submittedBankAmount??v)
++;return{draft:{id:String(n.id||t("NQGH")).trim(),code:b,deliveryDate:o,deliveryStaffCode:i,deliveryStaffName:m,reportCashAmount:A,reportBankAmount:v,reportCurrentOrderCashAmount:f,
++reportCurrentOrderBankAmount:g,reportOldDebtCashAmount:S,reportOldDebtBankAmount:C,submittedCashAmount:w,submittedBankAmount:T,differenceCashAmount:w-A,differenceBankAmount:T-v,
+ orderCodes:c.map(e=>e.orderCode||e.code||"").filter(Boolean),orderIds:c.map(e=>e.id||"").filter(Boolean),status:String(n.status||"pending").trim(),
+-matchStatus:b===A&&w===v?"matched":"mismatch",fundPosted:!1,note:String(n.note||"").trim(),createdBy:String(n.createdBy||"").trim(),createdAt:e.nowIso(),updatedAt:e.nowIso()},
+-orders:c,deliverySummary:d.summary||d.kpi||{}}}async function K(e={}){const t=await G(e);if(t.error)return t;const r=t.draft,n=await a.findByIdOrCode(r.code)
++matchStatus:w===A&&T===v?"matched":"mismatch",fundPosted:!1,note:String(n.note||"").trim(),createdBy:String(n.createdBy||"").trim(),createdAt:e.nowIso(),updatedAt:e.nowIso()},
++orders:c,deliverySummary:d.summary||d.kpi||{}}}async function Y(e={}){const t=await K(e);if(t.error)return t;const r=t.draft,n=await s.findByIdOrCode(r.code)
+ ;return n&&!["cancelled","canceled","void","deleted"].includes(String(n.status||"").toLowerCase())?{error:`Đã có phiếu nộp quỹ ${n.code} cho ngày/NVGH này`,status:409,submission:n
+-}:(await a.upsert(r),{submission:r,orders:t.orders})}async function Y(e={}){const t={};(e.deliveryDate||e.date)&&(t.deliveryDate=p(e.deliveryDate||e.date)),
+-(l(e)||e.delivery)&&(t.deliveryStaffCode=String(l(e)||e.delivery).trim());let n=await a.findAll(t,{sort:{deliveryDate:-1,createdAt:-1,code:-1},limit:e.limit||500})
+-;const o=r(e.q||e.search||"");if(o&&(n=n.filter(e=>x(e,o))),!n.length)return{submissions:[]}
+-;const i=n.map(e=>String(e.id||"").trim()).filter(Boolean),s=n.map(e=>String(e.code||"").trim()).filter(Boolean),d=[];i.length&&d.push({sourceSubmissionId:{$in:i}}),
+-s.length&&d.push({sourceSubmissionCode:{$in:s}});const c=d.length?await u.findAll({$or:d},{limit:Math.min(1e3,3*n.length)}):[],m=new Map;for(const e of c){
+-const t=[P(e.sourceSubmissionId,""),P("",e.sourceSubmissionCode)].filter(Boolean);for(const r of t)m.has(r)||m.set(r,{}),m.get(r)[g(e.fundType)]=e}return n=n.map(e=>{
+-const t=m.get(P(e.id,""))||m.get(P("",e.code))||{};return{...e,cashShortage:t.cash||null,bankShortage:t.bank||null}}),{submissions:n}}function Q(e={}){
+-return["confirmed","matched","posted"].includes(String(e.status||"").toLowerCase())||!0===e.fundPosted}function X(e){return{error:`${e} đã xác nhận, không được sửa nghiệp vụ`,
+-status:409}}function z(e={},t={}){const r=String(e.id||"").trim(),n=String(t.id||"").trim();if(r&&n)return r===n;const o=String(e.code||"").trim(),i=String(t.code||"").trim()
+-;return Boolean(o&&i&&o===i)}async function Z(t,r={}){const n=await a.findByIdOrCode(t);if(!n)return{error:"Không tìm thấy phiếu nộp quỹ",status:404}
+-;if(Q(n))return X("Phiếu nộp quỹ")
+-;const o=h(r.submittedCashAmount??n.submittedCashAmount??n.reportCashAmount),i=h(r.submittedBankAmount??n.submittedBankAmount??n.reportBankAmount),s=r.deliveryDate??r.date??n.deliveryDate,d=String(l(r)||r.delivery||n.deliveryStaffCode||"").trim(),u=await G({
+-...n,...r,id:n.id,deliveryDate:s,deliveryStaffCode:d,submittedCashAmount:o,submittedBankAmount:i,status:"pending",note:String(r.note??n.note??"").trim(),
+-createdBy:n.createdBy||r.createdBy||""});if(u.error)return u;const c=u.draft;if(String(c.code||"")!==String(n.code||"")){const e=await a.findByIdOrCode(c.code)
+-;if(e&&!z(n,e))return{error:`Đã có phiếu nộp quỹ ${c.code} cho ngày/NVGH này`,status:409,submission:e}}const m={...n,...c,id:n.id||c.id,createdBy:n.createdBy||c.createdBy||"",
+-createdAt:n.createdAt||c.createdAt,status:"pending",fundPosted:!1,postedAt:"",confirmedAt:"",confirmedBy:"",updatedAt:e.nowIso()},f=await a.patchByIdOrCode(t,m);return f?{
++}:(await s.upsert(r),{submission:r,orders:t.orders})}async function Q(e={}){const t={};(e.deliveryDate||e.date)&&(t.deliveryDate=p(e.deliveryDate||e.date)),
++(h(e)||e.delivery)&&(t.deliveryStaffCode=String(h(e)||e.delivery).trim());let n=await s.findAll(t,{sort:{deliveryDate:-1,createdAt:-1,code:-1},limit:e.limit||500})
++;const o=r(e.q||e.search||"");if(o&&(n=n.filter(e=>H(e,o))),!n.length)return{submissions:[]}
++;const i=n.map(e=>String(e.id||"").trim()).filter(Boolean),a=n.map(e=>String(e.code||"").trim()).filter(Boolean),d=[];i.length&&d.push({sourceSubmissionId:{$in:i}}),
++a.length&&d.push({sourceSubmissionCode:{$in:a}});const c=d.length?await u.findAll({$or:d},{limit:Math.min(1e3,3*n.length)}):[],m=new Map;for(const e of c){
++const t=[x(e.sourceSubmissionId,""),x("",e.sourceSubmissionCode)].filter(Boolean);for(const r of t)m.has(r)||m.set(r,{}),m.get(r)[S(e.fundType)]=e}return n=n.map(e=>{
++const t=m.get(x(e.id,""))||m.get(x("",e.code))||{};return{...e,cashShortage:t.cash||null,bankShortage:t.bank||null}}),{submissions:n}}function X(e={}){
++return["confirmed","matched","posted"].includes(String(e.status||"").toLowerCase())||!0===e.fundPosted}function z(e){return{error:`${e} đã xác nhận, không được sửa nghiệp vụ`,
++status:409}}function Z(e={},t={}){const r=String(e.id||"").trim(),n=String(t.id||"").trim();if(r&&n)return r===n;const o=String(e.code||"").trim(),i=String(t.code||"").trim()
++;return Boolean(o&&i&&o===i)}async function J(t,r={}){const n=await s.findByIdOrCode(t);if(!n)return{error:"Không tìm thấy phiếu nộp quỹ",status:404}
++;if(X(n))return z("Phiếu nộp quỹ")
++;const o=y(r.submittedCashAmount??n.submittedCashAmount??n.reportCashAmount),i=y(r.submittedBankAmount??n.submittedBankAmount??n.reportBankAmount),a=r.deliveryDate??r.date??n.deliveryDate,d=String(h(r)||r.delivery||n.deliveryStaffCode||"").trim(),u=await K({
++...n,...r,id:n.id,deliveryDate:a,deliveryStaffCode:d,submittedCashAmount:o,submittedBankAmount:i,status:"pending",note:String(r.note??n.note??"").trim(),
++createdBy:n.createdBy||r.createdBy||""});if(u.error)return u;const c=u.draft;if(String(c.code||"")!==String(n.code||"")){const e=await s.findByIdOrCode(c.code)
++;if(e&&!Z(n,e))return{error:`Đã có phiếu nộp quỹ ${c.code} cho ngày/NVGH này`,status:409,submission:e}}const m={...n,...c,id:n.id||c.id,createdBy:n.createdBy||c.createdBy||"",
++createdAt:n.createdAt||c.createdAt,status:"pending",fundPosted:!1,postedAt:"",confirmedAt:"",confirmedBy:"",updatedAt:e.nowIso()},f=await s.patchByIdOrCode(t,m);return f?{
+ submission:f,orders:u.orders,message:"Đã cập nhật phiếu nộp quỹ và đồng bộ lại số báo cáo theo ngày/NVGH"}:{error:"Phiếu nộp quỹ đã thay đổi hoặc không còn tồn tại",status:409}}
+-async function J(e={}){const t={};if(e.dateFrom||e.dateTo){const r=e.dateFrom?p(e.dateFrom):"",n=e.dateTo?p(e.dateTo):"";t.date={...r?{$gte:r}:{},...n?{$lte:n}:{}}}
+-e.fundType&&"all"!==e.fundType&&(t.fundType=String(e.fundType));let n=await s.findAll(t,{sort:{date:-1,createdAt:-1,code:-1},limit:e.limit||500});const o=r(e.q||e.search||"")
+-;return o&&(n=n.filter(e=>[e.code,e.expenseType,e.receiverCode,e.receiverName,e.receiverRole,e.note,e.status].some(e=>r(e).includes(o)))),{vouchers:n}}async function W(e={}){
++async function W(e={}){const t={};if(e.dateFrom||e.dateTo){const r=e.dateFrom?p(e.dateFrom):"",n=e.dateTo?p(e.dateTo):"";t.date={...r?{$gte:r}:{},...n?{$lte:n}:{}}}
++e.fundType&&"all"!==e.fundType&&(t.fundType=String(e.fundType));let n=await a.findAll(t,{sort:{date:-1,createdAt:-1,code:-1},limit:e.limit||500});const o=r(e.q||e.search||"")
++;return o&&(n=n.filter(e=>[e.code,e.expenseType,e.receiverCode,e.receiverName,e.receiverRole,e.note,e.status].some(e=>r(e).includes(o)))),{vouchers:n}}async function ee(e={}){
+ const t={};if(e.dateFrom||e.dateTo){const r=e.dateFrom?p(e.dateFrom):"",n=e.dateTo?p(e.dateTo):"";t.date={...r?{$gte:r}:{},...n?{$lte:n}:{}}}let n=await d.findAll(t,{sort:{date:-1,
+ createdAt:-1,code:-1},limit:e.limit||500});const o=r(e.q||e.search||"")
+-;return o&&(n=n.filter(e=>[e.code,e.fromFund,e.toFund,e.bankName,e.note,e.status].some(e=>r(e).includes(o)))),{transfers:n}}async function ee(t,r={}){
+-const n=await a.findByIdOrCode(t);if(!n)return{error:"Không tìm thấy phiếu nộp quỹ",status:404}
++;return o&&(n=n.filter(e=>[e.code,e.fromFund,e.toFund,e.bankName,e.note,e.status].some(e=>r(e).includes(o)))),{transfers:n}}async function te(t,r={}){
++const n=await s.findByIdOrCode(t);if(!n)return{error:"Không tìm thấy phiếu nộp quỹ",status:404}
+ ;if(["cancelled","canceled","void","deleted"].includes(String(n.status||"").toLowerCase()))return{error:"Phiếu nộp quỹ đã hủy",status:400}
+ ;if(n.fundPosted||"confirmed"===String(n.status||"").toLowerCase())return{submission:n,ledgers:[],message:"Phiếu đã ghi sổ quỹ trước đó"}
+-;const i=h(r.submittedCashAmount??n.submittedCashAmount??n.reportCashAmount),s=h(r.submittedBankAmount??n.submittedBankAmount??n.reportBankAmount),d=i-h(n.reportCashAmount),u=s-h(n.reportBankAmount),c=String(r.confirmedBy||r.updatedBy||r.actorCode||"").trim(),f=F({
+-...n,submittedCashAmount:i,submittedBankAmount:s,differenceCashAmount:d,differenceBankAmount:u},{...r,submittedCashAmount:i,submittedBankAmount:s,differenceCashAmount:d,
+-differenceBankAmount:u});if(f.error)return f;const l={...n,submittedCashAmount:i,submittedBankAmount:s,differenceCashAmount:d,differenceBankAmount:u,
++;const i=y(r.submittedCashAmount??n.submittedCashAmount??n.reportCashAmount),a=y(r.submittedBankAmount??n.submittedBankAmount??n.reportBankAmount),d=i-y(n.reportCashAmount),u=a-y(n.reportBankAmount),c=String(r.confirmedBy||r.updatedBy||r.actorCode||"").trim(),f=O({
++...n,submittedCashAmount:i,submittedBankAmount:a,differenceCashAmount:d,differenceBankAmount:u},{...r,submittedCashAmount:i,submittedBankAmount:a,differenceCashAmount:d,
++differenceBankAmount:u});if(f.error)return f;const l={...n,submittedCashAmount:i,submittedBankAmount:a,differenceCashAmount:d,differenceBankAmount:u,
+ matchStatus:0===d&&0===u?"matched":"mismatch",status:"confirmed",fundPosted:!0,postedAt:e.nowIso(),confirmedAt:e.nowIso(),confirmedBy:c,
+-shortageClassifiedAt:f.plans.length?e.nowIso():"",shortageClassifiedBy:f.plans.length?c:"",note:String(r.note??n.note??"").trim(),updatedAt:e.nowIso()},p=[];let y=[]
+-;return await o(async e=>{await a.upsert(l,{session:e}),i>0&&p.push(await U({date:l.deliveryDate,fundType:"cash",direction:"in",amount:i,sourceType:"DELIVERY_CASH_SUBMISSION",
++shortageClassifiedAt:f.plans.length?e.nowIso():"",shortageClassifiedBy:f.plans.length?c:"",note:String(r.note??n.note??"").trim(),updatedAt:e.nowIso()},h=[];let p=[]
++;return await o(async e=>{await s.upsert(l,{session:e}),i>0&&h.push(await j({date:l.deliveryDate,fundType:"cash",direction:"in",amount:i,sourceType:"DELIVERY_CASH_SUBMISSION",
+ sourceId:l.id,sourceCode:l.code,deliveryDate:l.deliveryDate,deliveryStaffCode:l.deliveryStaffCode,deliveryStaffName:l.deliveryStaffName,createdBy:c,
+-note:`NVGH ${l.deliveryStaffName||l.deliveryStaffCode} nộp tiền mặt giao hàng ngày ${l.deliveryDate}`},{session:e})),s>0&&p.push(await U({date:l.deliveryDate,fundType:"bank",
+-direction:"in",amount:s,sourceType:"DELIVERY_CASH_SUBMISSION",sourceId:l.id,sourceCode:l.code,deliveryDate:l.deliveryDate,deliveryStaffCode:l.deliveryStaffCode,
++note:`NVGH ${l.deliveryStaffName||l.deliveryStaffCode} nộp tiền mặt giao hàng ngày ${l.deliveryDate}`},{session:e})),a>0&&h.push(await j({date:l.deliveryDate,fundType:"bank",
++direction:"in",amount:a,sourceType:"DELIVERY_CASH_SUBMISSION",sourceId:l.id,sourceCode:l.code,deliveryDate:l.deliveryDate,deliveryStaffCode:l.deliveryStaffCode,
+ deliveryStaffName:l.deliveryStaffName,createdBy:c,note:`NVGH ${l.deliveryStaffName||l.deliveryStaffCode} đối soát chuyển khoản giao hàng ngày ${l.deliveryDate}`},{session:e})),
+-y=await O(l,f.plans,c,{session:e})}),await m.log("DELIVERY_CASH_SUBMISSION_CONFIRMED",{refType:"DELIVERY_CASH_SUBMISSION",refId:l.id,refCode:l.code,user:c,summary:{
+-submittedCashAmount:i,submittedBankAmount:s,differenceCashAmount:d,differenceBankAmount:u,shortageCodes:y.map(e=>e.code)},note:`Xác nhận phiếu nộp quỹ ${l.code}`}),{submission:l,
+-ledgers:p.filter(Boolean),shortages:y,message:"Đã xác nhận phiếu nộp quỹ, ghi fundLedgers và quản lý khoản thiếu"}}async function te(t,r={}){const n=await a.findByIdOrCode(t)
++p=await $(l,f.plans,c,{session:e})}),await m.log("DELIVERY_CASH_SUBMISSION_CONFIRMED",{refType:"DELIVERY_CASH_SUBMISSION",refId:l.id,refCode:l.code,user:c,summary:{
++submittedCashAmount:i,submittedBankAmount:a,differenceCashAmount:d,differenceBankAmount:u,shortageCodes:p.map(e=>e.code)},note:`Xác nhận phiếu nộp quỹ ${l.code}`}),{submission:l,
++ledgers:h.filter(Boolean),shortages:p,message:"Đã xác nhận phiếu nộp quỹ, ghi fundLedgers và quản lý khoản thiếu"}}async function re(t,r={}){const n=await s.findByIdOrCode(t)
+ ;if(!n)return{error:"Không tìm thấy phiếu nộp quỹ",status:404};if(!n.fundPosted&&"confirmed"!==String(n.status||"").toLowerCase())return{
+-error:"Chỉ phân loại bổ sung cho phiếu đã xác nhận",status:409};const i=F(n,r);if(i.error)return i;if(!i.plans.length)return{error:"Phiếu không có khoản thiếu cần phân loại",
+-status:400};const s=String(r.classifiedBy||r.updatedBy||r.actorCode||"").trim();let d=[];const u={...n,shortageClassifiedAt:e.nowIso(),shortageClassifiedBy:s,updatedAt:e.nowIso()}
+-;return await o(async e=>{d=await O(u,i.plans,s,{session:e}),await a.patchByIdOrCode(t,{shortageClassifiedAt:u.shortageClassifiedAt,shortageClassifiedBy:u.shortageClassifiedBy,
+-updatedAt:u.updatedAt},{session:e})}),await m.log("DELIVERY_CASH_SHORTAGE_CLASSIFIED",{refType:"DELIVERY_CASH_SUBMISSION",refId:n.id,refCode:n.code,user:s,summary:{
++error:"Chỉ phân loại bổ sung cho phiếu đã xác nhận",status:409};const i=O(n,r);if(i.error)return i;if(!i.plans.length)return{error:"Phiếu không có khoản thiếu cần phân loại",
++status:400};const a=String(r.classifiedBy||r.updatedBy||r.actorCode||"").trim();let d=[];const u={...n,shortageClassifiedAt:e.nowIso(),shortageClassifiedBy:a,updatedAt:e.nowIso()}
++;return await o(async e=>{d=await $(u,i.plans,a,{session:e}),await s.patchByIdOrCode(t,{shortageClassifiedAt:u.shortageClassifiedAt,shortageClassifiedBy:u.shortageClassifiedBy,
++updatedAt:u.updatedAt},{session:e})}),await m.log("DELIVERY_CASH_SHORTAGE_CLASSIFIED",{refType:"DELIVERY_CASH_SUBMISSION",refId:n.id,refCode:n.code,user:a,summary:{
+ shortageCodes:d.map(e=>e.code)},note:`Phân loại khoản thiếu cho phiếu ${n.code}`}),{submission:u,shortages:d,message:"Đã lưu phân loại khoản thiếu của phiếu đã xác nhận"}}
+-async function re(e){const t=await u.findByIdOrCode(e);if(!t)return{error:"Không tìm thấy khoản thiếu quỹ",status:404};const r=await c.findAll({$or:[{shortageId:t.id},{
+-shortageCode:t.code}]},{sort:{createdAt:-1,code:-1},limit:500}),n=r.filter(e=>"pending"===String(e.status||"").toLowerCase()).reduce((e,t)=>e+h(t.amount),0);return{shortage:t,
+-repayments:r,summary:{originalShortageAmount:h(t.originalShortageAmount),settledAmount:h(t.settledAmount),adjustedAmount:h(t.adjustedAmount),
+-outstandingAmount:h(t.outstandingAmount),pendingAmount:n,availableToRepay:Math.max(0,h(t.outstandingAmount)-n)}}}async function ne(r,n={}){const i=h(n.amount);if(i<=0)return{
+-error:"Số tiền nộp bù phải lớn hơn 0",status:400};const a=String(n.createdBy||n.actorCode||"").trim();let s=null,d=null;return await o(async o=>{if(d=await u.findByIdOrCode(r,{
++async function ne(e){const t=await u.findByIdOrCode(e);if(!t)return{error:"Không tìm thấy khoản thiếu quỹ",status:404};const r=await c.findAll({$or:[{shortageId:t.id},{
++shortageCode:t.code}]},{sort:{createdAt:-1,code:-1},limit:500}),n=r.filter(e=>"pending"===String(e.status||"").toLowerCase()).reduce((e,t)=>e+y(t.amount),0);return{shortage:t,
++repayments:r,summary:{originalShortageAmount:y(t.originalShortageAmount),settledAmount:y(t.settledAmount),adjustedAmount:y(t.adjustedAmount),
++outstandingAmount:y(t.outstandingAmount),pendingAmount:n,availableToRepay:Math.max(0,y(t.outstandingAmount)-n)}}}async function oe(r,n={}){const i=y(n.amount);if(i<=0)return{
++error:"Số tiền nộp bù phải lớn hơn 0",status:400};const s=String(n.createdBy||n.actorCode||"").trim();let a=null,d=null;return await o(async o=>{if(d=await u.findByIdOrCode(r,{
+ session:o}),!d)throw Object.assign(new Error("Không tìm thấy khoản thiếu quỹ"),{status:404})
+ ;if("delivery_staff"!==String(d.responsibleType||""))throw Object.assign(new Error("Khoản thiếu này không được ghi nhận là công nợ của NVGH"),{status:409})
+-;if(!["open","partial"].includes(String(d.status||"").toLowerCase())||h(d.outstandingAmount)<=0)throw Object.assign(new Error("Khoản thiếu đã tất toán hoặc không còn được phép nộp bù"),{
++;if(!["open","partial"].includes(String(d.status||"").toLowerCase())||y(d.outstandingAmount)<=0)throw Object.assign(new Error("Khoản thiếu đã tất toán hoặc không còn được phép nộp bù"),{
+ status:409});const m=await u.reservePendingRepayment(d.id||d.code,i,e.nowIso(),{session:o});if(!m){const e=(await c.findAll({$or:[{shortageId:d.id},{shortageCode:d.code}],
+-status:"pending"},{session:o,limit:500})).reduce((e,t)=>e+h(t.amount),0),t=Math.max(0,h(d.outstandingAmount)-e)
+-;throw Object.assign(new Error(`Số tiền nộp bù vượt số còn có thể lập phiếu (${t})`),{status:409})}d=m;const f=e.nowIso();s={id:t("DSR"),code:D(d,n.repaymentDate||n.date),
++status:"pending"},{session:o,limit:500})).reduce((e,t)=>e+y(t.amount),0),t=Math.max(0,y(d.outstandingAmount)-e)
++;throw Object.assign(new Error(`Số tiền nộp bù vượt số còn có thể lập phiếu (${t})`),{status:409})}d=m;const f=e.nowIso();a={id:t("DSR"),code:E(d,n.repaymentDate||n.date),
+ shortageId:d.id,shortageCode:d.code,sourceSubmissionId:d.sourceSubmissionId,sourceSubmissionCode:d.sourceSubmissionCode,deliveryDate:d.deliveryDate,
+-deliveryStaffCode:d.deliveryStaffCode,deliveryStaffName:d.deliveryStaffName,repaymentDate:p(n.repaymentDate||n.date),fundType:g(n.fundType||n.paymentMethod),amount:i,
+-status:"pending",fundPosted:!1,note:String(n.note||"").trim(),createdBy:a,createdAt:f,updatedAt:f},await c.upsert(s,{session:o})}),
+-await m.log("DELIVERY_SHORTAGE_REPAYMENT_CREATED",{refType:"DELIVERY_CASH_SHORTAGE",refId:d.id,refCode:d.code,user:a,summary:s,note:`Tạo phiếu nộp bù ${s.code}`}),{shortage:d,
+-repayment:s,message:"Đã tạo phiếu nộp bù, chờ kế toán xác nhận ghi quỹ"}}async function oe(t,r={}){let n=await c.findByIdOrCode(t);if(!n)return{error:"Không tìm thấy phiếu nộp bù",
++deliveryStaffCode:d.deliveryStaffCode,deliveryStaffName:d.deliveryStaffName,repaymentDate:p(n.repaymentDate||n.date),fundType:S(n.fundType||n.paymentMethod),amount:i,
++status:"pending",fundPosted:!1,note:String(n.note||"").trim(),createdBy:s,createdAt:f,updatedAt:f},await c.upsert(a,{session:o})}),
++await m.log("DELIVERY_SHORTAGE_REPAYMENT_CREATED",{refType:"DELIVERY_CASH_SHORTAGE",refId:d.id,refCode:d.code,user:s,summary:a,note:`Tạo phiếu nộp bù ${a.code}`}),{shortage:d,
++repayment:a,message:"Đã tạo phiếu nộp bù, chờ kế toán xác nhận ghi quỹ"}}async function ie(t,r={}){let n=await c.findByIdOrCode(t);if(!n)return{error:"Không tìm thấy phiếu nộp bù",
+ status:404};if(n.fundPosted||"confirmed"===String(n.status||"").toLowerCase()){const e=await u.findByIdOrCode(n.shortageId||n.shortageCode);return{repayment:n,shortage:e,
+ ledger:null,message:"Phiếu nộp bù đã ghi quỹ trước đó"}}if("pending"!==String(n.status||"").toLowerCase())return{error:"Phiếu nộp bù không ở trạng thái chờ xác nhận",status:409}
+-;const i=h(n.amount);if(i<=0)return{error:"Số tiền nộp bù không hợp lệ",status:400};const a=String(r.confirmedBy||r.updatedBy||r.actorCode||"").trim();let s=null,d=null
++;const i=y(n.amount);if(i<=0)return{error:"Số tiền nộp bù không hợp lệ",status:400};const s=String(r.confirmedBy||r.updatedBy||r.actorCode||"").trim();let a=null,d=null
+ ;return await o(async r=>{const o=await c.findByIdOrCode(t,{session:r})
+ ;if(!o||o.fundPosted||"pending"!==String(o.status||""))throw Object.assign(new Error("Phiếu nộp bù đã được xử lý bởi phiên khác"),{status:409})
+-;if(s=await u.applyConfirmedRepayment(o.shortageId||o.shortageCode,i,e.nowIso(),{session:r}),
+-!s)throw Object.assign(new Error("Số tiền nộp bù vượt khoản còn thiếu hoặc khoản thiếu đã khóa"),{status:409});const m=e.nowIso();if(n=await c.markConfirmedIfPending(t,{
+-status:"confirmed",fundPosted:!0,postedAt:m,confirmedAt:m,confirmedBy:a,updatedAt:m},{session:r}),!n)throw Object.assign(new Error("Phiếu nộp bù đã được xác nhận trước đó"),{
+-status:409});d=await U({date:n.repaymentDate,fundType:n.fundType,direction:"in",amount:i,sourceType:"DELIVERY_SHORTAGE_REPAYMENT",sourceId:n.id,sourceCode:n.code,
+-deliveryDate:n.deliveryDate,deliveryStaffCode:n.deliveryStaffCode,deliveryStaffName:n.deliveryStaffName,createdBy:a,
++;if(a=await u.applyConfirmedRepayment(o.shortageId||o.shortageCode,i,e.nowIso(),{session:r}),
++!a)throw Object.assign(new Error("Số tiền nộp bù vượt khoản còn thiếu hoặc khoản thiếu đã khóa"),{status:409});const m=e.nowIso();if(n=await c.markConfirmedIfPending(t,{
++status:"confirmed",fundPosted:!0,postedAt:m,confirmedAt:m,confirmedBy:s,updatedAt:m},{session:r}),!n)throw Object.assign(new Error("Phiếu nộp bù đã được xác nhận trước đó"),{
++status:409});d=await j({date:n.repaymentDate,fundType:n.fundType,direction:"in",amount:i,sourceType:"DELIVERY_SHORTAGE_REPAYMENT",sourceId:n.id,sourceCode:n.code,
++deliveryDate:n.deliveryDate,deliveryStaffCode:n.deliveryStaffCode,deliveryStaffName:n.deliveryStaffName,createdBy:s,
+ note:n.note||`NVGH ${n.deliveryStaffName||n.deliveryStaffCode} nộp bù thiếu quỹ ${n.shortageCode}`},{session:r})}),await m.log("DELIVERY_SHORTAGE_REPAYMENT_CONFIRMED",{
+-refType:"DELIVERY_CASH_SHORTAGE",refId:s.id,refCode:s.code,user:a,summary:{repaymentCode:n.code,amount:i,outstandingAmount:s.outstandingAmount},
+-note:`Xác nhận phiếu nộp bù ${n.code}`}),{repayment:n,shortage:s,ledger:d,message:"Đã xác nhận nộp bù, tăng quỹ và giảm công nợ thiếu quỹ NVGH"}}async function ie(r={}){
+-const n=h(r.amount);if(n<=0)return{error:"Số tiền chi phải lớn hơn 0",status:400};const o={id:String(r.id||t("PC")).trim(),code:String(r.code||await N()).trim(),date:p(r.date),
++refType:"DELIVERY_CASH_SHORTAGE",refId:a.id,refCode:a.code,user:s,summary:{repaymentCode:n.code,amount:i,outstandingAmount:a.outstandingAmount},
++note:`Xác nhận phiếu nộp bù ${n.code}`}),{repayment:n,shortage:a,ledger:d,message:"Đã xác nhận nộp bù, tăng quỹ và giảm công nợ thiếu quỹ NVGH"}}async function se(r={}){
++const n=y(r.amount);if(n<=0)return{error:"Số tiền chi phải lớn hơn 0",status:400};const o={id:String(r.id||t("PC")).trim(),code:String(r.code||await B()).trim(),date:p(r.date),
+ fundType:"bank"===String(r.fundType||"cash").toLowerCase()?"bank":"cash",amount:n,expenseType:String(r.expenseType||"other").trim(),receiverCode:String(r.receiverCode||"").trim(),
+ receiverName:String(r.receiverName||"").trim(),receiverRole:String(r.receiverRole||"").trim(),note:String(r.note||"").trim(),status:"pending",fundPosted:!1,
+-createdBy:String(r.createdBy||"").trim(),createdAt:e.nowIso(),updatedAt:e.nowIso()};return await s.upsert(o),{voucher:o,message:"Đã tạo phiếu chi, chờ xác nhận ghi sổ quỹ"}}
+-async function ae(t,r={}){const n=await s.findByIdOrCode(t);if(!n)return{error:"Không tìm thấy phiếu chi",status:404};if(Q(n))return X("Phiếu chi");const o=h(r.amount??n.amount)
++createdBy:String(r.createdBy||"").trim(),createdAt:e.nowIso(),updatedAt:e.nowIso()};return await a.upsert(o),{voucher:o,message:"Đã tạo phiếu chi, chờ xác nhận ghi sổ quỹ"}}
++async function ae(t,r={}){const n=await a.findByIdOrCode(t);if(!n)return{error:"Không tìm thấy phiếu chi",status:404};if(X(n))return z("Phiếu chi");const o=y(r.amount??n.amount)
+ ;if(o<=0)return{error:"Số tiền chi phải lớn hơn 0",status:400};const i={...n,date:p(r.date||n.date),
+ fundType:"bank"===String(r.fundType||n.fundType||"cash").toLowerCase()?"bank":"cash",amount:o,expenseType:String(r.expenseType??n.expenseType??"other").trim(),
+ receiverCode:String(r.receiverCode??n.receiverCode??"").trim(),receiverName:String(r.receiverName??n.receiverName??"").trim(),
+-receiverRole:String(r.receiverRole??n.receiverRole??"").trim(),note:String(r.note??n.note??"").trim(),status:"pending",updatedAt:e.nowIso()};return await s.upsert(i),{voucher:i,
+-message:"Đã cập nhật phiếu chi"}}async function se(t,r={}){const n=await s.findByIdOrCode(t);if(!n)return{error:"Không tìm thấy phiếu chi",status:404}
++receiverRole:String(r.receiverRole??n.receiverRole??"").trim(),note:String(r.note??n.note??"").trim(),status:"pending",updatedAt:e.nowIso()};return await a.upsert(i),{voucher:i,
++message:"Đã cập nhật phiếu chi"}}async function de(t,r={}){const n=await a.findByIdOrCode(t);if(!n)return{error:"Không tìm thấy phiếu chi",status:404}
+ ;if(["cancelled","canceled","void","deleted"].includes(String(n.status||"").toLowerCase()))return{error:"Phiếu chi đã hủy",status:400}
+-;if(n.fundPosted||"confirmed"===String(n.status||"").toLowerCase())return{voucher:n,ledger:null,message:"Phiếu chi đã ghi sổ quỹ trước đó"};const i=h(n.amount);if(i<=0)return{
+-error:"Số tiền chi phải lớn hơn 0",status:400};const a={...n,status:"confirmed",fundPosted:!0,postedAt:e.nowIso(),confirmedAt:e.nowIso(),
+-confirmedBy:String(r.confirmedBy||r.updatedBy||"").trim(),updatedAt:e.nowIso()};let d=null;return await o(async e=>{d=await U({date:a.date,fundType:a.fundType,direction:"out",
+-amount:i,sourceType:"EXPENSE_VOUCHER",sourceId:a.id,sourceCode:a.code,referenceType:"EXPENSE_VOUCHER",referenceId:a.id,referenceCode:a.code,receiverCode:a.receiverCode,
+-receiverName:a.receiverName,receiverRole:a.receiverRole,note:a.note||`Phiếu chi ${a.code}`},{session:e}),await s.upsert(a,{session:e})}),{voucher:a,ledger:d,
+-message:"Đã xác nhận phiếu chi và ghi fundLedgers"}}async function de(r={}){const n=h(r.amount);if(n<=0)return{error:"Số tiền chuyển quỹ phải lớn hơn 0",status:400}
++;if(n.fundPosted||"confirmed"===String(n.status||"").toLowerCase())return{voucher:n,ledger:null,message:"Phiếu chi đã ghi sổ quỹ trước đó"};const i=y(n.amount);if(i<=0)return{
++error:"Số tiền chi phải lớn hơn 0",status:400};const s={...n,status:"confirmed",fundPosted:!0,postedAt:e.nowIso(),confirmedAt:e.nowIso(),
++confirmedBy:String(r.confirmedBy||r.updatedBy||"").trim(),updatedAt:e.nowIso()};let d=null;return await o(async e=>{d=await j({date:s.date,fundType:s.fundType,direction:"out",
++amount:i,sourceType:"EXPENSE_VOUCHER",sourceId:s.id,sourceCode:s.code,referenceType:"EXPENSE_VOUCHER",referenceId:s.id,referenceCode:s.code,receiverCode:s.receiverCode,
++receiverName:s.receiverName,receiverRole:s.receiverRole,note:s.note||`Phiếu chi ${s.code}`},{session:e}),await a.upsert(s,{session:e})}),{voucher:s,ledger:d,
++message:"Đã xác nhận phiếu chi và ghi fundLedgers"}}async function ue(r={}){const n=y(r.amount);if(n<=0)return{error:"Số tiền chuyển quỹ phải lớn hơn 0",status:400}
+ ;const o="bank"===String(r.fromFund||"cash").toLowerCase()?"bank":"cash",i="cash"===String(r.toFund||"bank").toLowerCase()?"cash":"bank";if(o===i)return{
+-error:"Quỹ nguồn và quỹ đích không được trùng nhau",status:400};const a={id:String(r.id||t("CQ")).trim(),code:String(r.code||await B()).trim(),date:p(r.date),fromFund:o,toFund:i,
++error:"Quỹ nguồn và quỹ đích không được trùng nhau",status:400};const s={id:String(r.id||t("CQ")).trim(),code:String(r.code||await k()).trim(),date:p(r.date),fromFund:o,toFund:i,
+ amount:n,bankName:String(r.bankName||"").trim(),accountNumber:String(r.accountNumber||"").trim(),note:String(r.note||"").trim(),status:"pending",fundPosted:!1,
+-createdBy:String(r.createdBy||"").trim(),createdAt:e.nowIso(),updatedAt:e.nowIso()};return await d.upsert(a),{transfer:a,message:"Đã tạo phiếu chuyển quỹ, chờ xác nhận ghi sổ quỹ"}
+-}async function ue(t,r={}){const n=await d.findByIdOrCode(t);if(!n)return{error:"Không tìm thấy phiếu chuyển quỹ",status:404};if(Q(n))return X("Phiếu chuyển quỹ")
+-;const o=h(r.amount??n.amount);if(o<=0)return{error:"Số tiền chuyển quỹ phải lớn hơn 0",status:400}
+-;const i="bank"===String(r.fromFund||n.fromFund||"cash").toLowerCase()?"bank":"cash",a="cash"===String(r.toFund||n.toFund||"bank").toLowerCase()?"cash":"bank";if(i===a)return{
+-error:"Quỹ nguồn và quỹ đích không được trùng nhau",status:400};const s={...n,date:p(r.date||n.date),fromFund:i,toFund:a,amount:o,
++createdBy:String(r.createdBy||"").trim(),createdAt:e.nowIso(),updatedAt:e.nowIso()};return await d.upsert(s),{transfer:s,message:"Đã tạo phiếu chuyển quỹ, chờ xác nhận ghi sổ quỹ"}
++}async function ce(t,r={}){const n=await d.findByIdOrCode(t);if(!n)return{error:"Không tìm thấy phiếu chuyển quỹ",status:404};if(X(n))return z("Phiếu chuyển quỹ")
++;const o=y(r.amount??n.amount);if(o<=0)return{error:"Số tiền chuyển quỹ phải lớn hơn 0",status:400}
++;const i="bank"===String(r.fromFund||n.fromFund||"cash").toLowerCase()?"bank":"cash",s="cash"===String(r.toFund||n.toFund||"bank").toLowerCase()?"cash":"bank";if(i===s)return{
++error:"Quỹ nguồn và quỹ đích không được trùng nhau",status:400};const a={...n,date:p(r.date||n.date),fromFund:i,toFund:s,amount:o,
+ bankName:String(r.bankName??n.bankName??"").trim(),accountNumber:String(r.accountNumber??n.accountNumber??"").trim(),note:String(r.note??n.note??"").trim(),status:"pending",
+-updatedAt:e.nowIso()};return await d.upsert(s),{transfer:s,message:"Đã cập nhật phiếu chuyển quỹ"}}async function ce(t,r={}){const n=await d.findByIdOrCode(t);if(!n)return{
++updatedAt:e.nowIso()};return await d.upsert(a),{transfer:a,message:"Đã cập nhật phiếu chuyển quỹ"}}async function me(t,r={}){const n=await d.findByIdOrCode(t);if(!n)return{
+ error:"Không tìm thấy phiếu chuyển quỹ",status:404};if(["cancelled","canceled","void","deleted"].includes(String(n.status||"").toLowerCase()))return{
+ error:"Phiếu chuyển quỹ đã hủy",status:400};if(n.fundPosted||"confirmed"===String(n.status||"").toLowerCase())return{transfer:n,ledgers:[],
+-message:"Phiếu chuyển quỹ đã ghi sổ quỹ trước đó"};const i=h(n.amount);if(i<=0)return{error:"Số tiền chuyển quỹ phải lớn hơn 0",status:400};const a={...n,status:"confirmed",
+-fundPosted:!0,postedAt:e.nowIso(),confirmedAt:e.nowIso(),confirmedBy:String(r.confirmedBy||r.updatedBy||"").trim(),updatedAt:e.nowIso()},s=[];return await o(async e=>{
+-s.push(await U({date:a.date,fundType:a.fromFund,direction:"out",amount:i,sourceType:"FUND_TRANSFER",sourceId:a.id,sourceCode:a.code,referenceType:"FUND_TRANSFER",referenceId:a.id,
+-referenceCode:a.code,note:a.note||`Chuyển quỹ ${a.fromFund} sang ${a.toFund}`},{session:e})),s.push(await U({date:a.date,fundType:a.toFund,direction:"in",amount:i,
+-sourceType:"FUND_TRANSFER",sourceId:a.id,sourceCode:a.code,referenceType:"FUND_TRANSFER",referenceId:a.id,referenceCode:a.code,note:a.note||`Nhận chuyển quỹ từ ${a.fromFund}`},{
+-session:e})),await d.upsert(a,{session:e})}),{transfer:a,ledgers:s.filter(Boolean),message:"Đã xác nhận chuyển quỹ và ghi fundLedgers"}}module.exports={listFundLedgers:H,
+-summarizeFundLedgers:M,buildDeliverySubmissionDraft:G,createDeliveryCashSubmission:K,listDeliveryCashSubmissions:Y,listExpenseVouchers:J,listFundTransfers:W,
+-confirmDeliveryCashSubmission:ee,classifyConfirmedDeliveryShortages:te,getDeliveryCashShortageHistory:re,createDeliveryShortageRepayment:ne,confirmDeliveryShortageRepayment:oe,
+-updateDeliveryCashSubmission:Z,createExpenseVoucher:ie,updateExpenseVoucher:ae,confirmExpenseVoucher:se,createFundTransfer:de,updateFundTransfer:ue,confirmFundTransfer:ce,
+-postFundLedger:U,buildFundLedgerIdempotencyKey:v,fundLedgerCategory:T,fundLedgerType:b};
++message:"Phiếu chuyển quỹ đã ghi sổ quỹ trước đó"};const i=y(n.amount);if(i<=0)return{error:"Số tiền chuyển quỹ phải lớn hơn 0",status:400};const s={...n,status:"confirmed",
++fundPosted:!0,postedAt:e.nowIso(),confirmedAt:e.nowIso(),confirmedBy:String(r.confirmedBy||r.updatedBy||"").trim(),updatedAt:e.nowIso()},a=[];return await o(async e=>{
++a.push(await j({date:s.date,fundType:s.fromFund,direction:"out",amount:i,sourceType:"FUND_TRANSFER",sourceId:s.id,sourceCode:s.code,referenceType:"FUND_TRANSFER",referenceId:s.id,
++referenceCode:s.code,note:s.note||`Chuyển quỹ ${s.fromFund} sang ${s.toFund}`},{session:e})),a.push(await j({date:s.date,fundType:s.toFund,direction:"in",amount:i,
++sourceType:"FUND_TRANSFER",sourceId:s.id,sourceCode:s.code,referenceType:"FUND_TRANSFER",referenceId:s.id,referenceCode:s.code,note:s.note||`Nhận chuyển quỹ từ ${s.fromFund}`},{
++session:e})),await d.upsert(s,{session:e})}),{transfer:s,ledgers:a.filter(Boolean),message:"Đã xác nhận chuyển quỹ và ghi fundLedgers"}}module.exports={listFundLedgers:M,
++summarizeFundLedgers:V,buildDeliverySubmissionDraft:K,createDeliveryCashSubmission:Y,listDeliveryCashSubmissions:Q,listExpenseVouchers:W,listFundTransfers:ee,
++confirmDeliveryCashSubmission:te,classifyConfirmedDeliveryShortages:re,getDeliveryCashShortageHistory:ne,createDeliveryShortageRepayment:oe,confirmDeliveryShortageRepayment:ie,
++updateDeliveryCashSubmission:J,createExpenseVoucher:se,updateExpenseVoucher:ae,confirmExpenseVoucher:de,createFundTransfer:ue,updateFundTransfer:ce,confirmFundTransfer:me,
++postFundLedger:j,buildFundLedgerIdempotencyKey:b,fundLedgerCategory:w,fundLedgerType:T};
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/src/services/fundService.source/part-01.jsfrag mkpro_phase228_work/src/services/fundService.source/part-01.jsfrag
+--- mkpro_phase227_baseline/src/services/fundService.source/part-01.jsfrag	2026-07-07 08:52:10.000000000 +0000
++++ mkpro_phase228_work/src/services/fundService.source/part-01.jsfrag	2026-07-10 09:14:24.875427902 +0000
+@@ -10,6 +10,7 @@
+ const deliveryCashShortageRepository = require('../repositories/deliveryCashShortageRepository');
+ const deliveryShortageRepaymentRepository = require('../repositories/deliveryShortageRepaymentRepository');
+ const auditService = require('./auditService');
++const FundBalanceReadService = require('./accounting/FundBalanceReadService');
+ function getMasterOrderDeliveryService() {
+   return require('./master-order/masterOrderDelivery.service');
+ }
+@@ -256,87 +257,14 @@
+ }
+ 
+ function summarizeFundLedgers(rows = []) {
+-  const active = rows.filter(activeStatus);
+-  const cashIn = active.filter((e) => e.fundType === 'cash' && e.direction === 'in').reduce((sum, e) => sum + toNumber(e.amount), 0);
+-  const cashOut = active.filter((e) => e.fundType === 'cash' && e.direction === 'out').reduce((sum, e) => sum + toNumber(e.amount), 0);
+-  const bankIn = active.filter((e) => e.fundType === 'bank' && e.direction === 'in').reduce((sum, e) => sum + toNumber(e.amount), 0);
+-  const bankOut = active.filter((e) => e.fundType === 'bank' && e.direction === 'out').reduce((sum, e) => sum + toNumber(e.amount), 0);
+-  return { cashIn, cashOut, cashBalance: cashIn - cashOut, bankIn, bankOut, bankBalance: bankIn - bankOut, totalIn: cashIn + bankIn, totalOut: cashOut + bankOut, totalBalance: cashIn + bankIn - cashOut - bankOut };
++  const dates = rows.map((row) => dateOnly(row.date || row.createdAt)).filter(Boolean).sort();
++  const dateFrom = dates[0] || dateUtil.todayVN();
++  const dateTo = dates[dates.length - 1] || dateFrom;
++  return FundBalanceReadService.calculateFixture(rows, { dateFrom, dateTo, full: true }).summary;
+ }
+ 
+ async function listFundLedgers(query = {}) {
+-  const filter = {
+-    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] }
+-  };
+-  if (query.fundType && query.fundType !== 'all') filter.fundType = String(query.fundType);
+-  if (query.direction && query.direction !== 'all') filter.direction = String(query.direction);
+-  const dateFrom = query.dateFrom ? dateOnly(query.dateFrom) : '';
+-  const dateTo = query.dateTo ? dateOnly(query.dateTo) : '';
+-  if (dateFrom || dateTo) filter.date = { ...(dateFrom ? { $gte: dateFrom } : {}), ...(dateTo ? { $lte: dateTo } : {}) };
+-
+-  const q = String(query.q || query.search || '').trim();
+-  if (q) {
+-    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+-    const rx = new RegExp(escaped, 'i');
+-    filter.$or = [
+-      'code', 'sourceCode', 'sourceType', 'deliveryStaffCode', 'deliveryStaffName',
+-      'customerCode', 'customerName', 'staffName', 'note', 'status'
+-    ].map((field) => ({ [field]: rx }));
+-  }
+-
+-  const page = Math.max(Number(query.page || 1), 1);
+-  const limit = Math.min(Math.max(Number(query.limit || 50), 1), 200);
+-  const skip = (page - 1) * limit;
+-  const result = await fundLedgerRepository.aggregate([
+-    { $match: filter },
+-    {
+-      $facet: {
+-        rows: [
+-          { $sort: { date: -1, createdAt: -1, code: -1 } },
+-          { $skip: skip },
+-          { $limit: limit }
+-        ],
+-        totals: [
+-          {
+-            $group: {
+-              _id: { fundType: '$fundType', direction: '$direction' },
+-              amount: { $sum: { $ifNull: ['$amount', 0] } },
+-              count: { $sum: 1 }
+-            }
+-          }
+-        ],
+-        count: [{ $count: 'total' }]
+-      }
+-    }
+-  ]);
+-
+-  const facet = result[0] || { rows: [], totals: [], count: [] };
+-  const summaryRows = (facet.totals || []).map((row) => ({
+-    fundType: row._id?.fundType,
+-    direction: row._id?.direction,
+-    amount: toNumber(row.amount),
+-    count: toNumber(row.count)
+-  }));
+-  const summary = summarizeFundLedgers(summaryRows.map((row) => ({
+-    fundType: row.fundType,
+-    direction: row.direction,
+-    amount: row.amount,
+-    status: 'posted'
+-  })));
+-  const total = toNumber(facet.count?.[0]?.total);
+-
+-  return {
+-    fundLedgers: facet.rows || [],
+-    items: facet.rows || [],
+-    summary: { ...summary, groups: summaryRows },
+-    meta: {
+-      page,
+-      limit,
+-      total,
+-      totalPages: Math.ceil(total / limit),
+-      hasMore: skip + (facet.rows || []).length < total
+-    }
+-  };
++  return FundBalanceReadService.listFundLedgers(query);
+ }
+ 
+ async function findExistingFundLedger(sourceType, sourceCode, fundType, direction, sourceId = '', account = '') {
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/src/services/reports/FinanceReportService.js mkpro_phase228_work/src/services/reports/FinanceReportService.js
+--- mkpro_phase227_baseline/src/services/reports/FinanceReportService.js	2026-07-07 08:52:10.000000000 +0000
++++ mkpro_phase228_work/src/services/reports/FinanceReportService.js	2026-07-10 09:15:15.975013672 +0000
+@@ -1,69 +1,34 @@
+ 'use strict';
+ 
+-const FundLedger = require('../../models/FundLedger');
+ const ReturnReportService = require('./ReturnReportService');
+-const {
+-  activeDocumentFilter,
+-  businessDateStages,
+-  businessDate,
+-  dateRange,
+-  firstText,
+-  lower,
+-  paginate,
+-  text,
+-  toNumber
+-} = require('./ReportDomainUtils');
++const FundBalanceReadService = require('../accounting/FundBalanceReadService');
++const { firstText, paginate, text, toNumber } = require('./ReportDomainUtils');
+ 
+ function fundTypeOf(row = {}) {
+-  const explicit = lower(row.fundType || row.fund || row.accountType);
+-  if (explicit.includes('bank') || explicit.includes('ngan')) return 'bank';
+-  if (explicit.includes('cash') || explicit.includes('tien') || explicit.includes('quy')) return 'cash';
+-  const account = lower(row.account);
+-  return account.includes('bank') || account.startsWith('112') ? 'bank' : 'cash';
++  return FundBalanceReadService.fundTypeOfRow(row);
+ }
+ 
+ function directionOf(row = {}) {
+-  const explicit = lower(row.direction);
+-  if (explicit === 'in' || explicit === 'out') return explicit;
+-  const value = [row.type, row.transactionType, row.sourceType, row.note].map(lower).join(' ');
+-  if (/(out|payment|chi|withdraw|transfer[_\s-]*out)/i.test(value)) return 'out';
+-  return 'in';
++  return FundBalanceReadService.directionOfRow(row);
+ }
+ 
+ function accountKeyOf(row = {}) {
+   const fundType = fundTypeOf(row);
+-  const account = firstText(row, ['account', 'fundCode', 'bankAccountCode']) || (fundType === 'bank' ? 'BANK' : 'CASH');
++  const account = FundBalanceReadService.accountOfRow(row, fundType);
+   return `${fundType}:${account}`;
+ }
+ 
+-
+ function fundLedgerCanonicalFilter(extra = {}) {
+-  return {
+-    ...activeDocumentFilter(),
+-    active: { $ne: false },
+-    isDeleted: { $ne: true },
+-    deletedAt: { $in: [null, ''] },
+-    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'] },
+-    reversed: { $ne: true },
+-    isReversal: { $ne: true },
+-    reversalOf: { $in: [null, ''] },
+-    $or: [
+-      { accountingConfirmed: true },
+-      { accountingStatus: { $in: ['confirmed', 'posted', 'locked'] } },
+-      { posted: true }
+-    ],
+-    ...extra
+-  };
++  return FundBalanceReadService.fundLedgerCanonicalFilter(extra);
+ }
+ 
+ async function loadFundLedgersUntil(query = {}) {
+-  const { dateFrom, dateTo } = dateRange(query);
+-  const rows = await FundLedger.aggregate([
+-    { $match: fundLedgerCanonicalFilter() },
+-    ...businessDateStages('0000-01-01', dateTo, ['date'], '_reportBusinessDate'),
+-    { $sort: { fundType: 1, account: 1, _reportBusinessDate: 1, createdAt: 1, _id: 1 } }
+-  ]).allowDiskUse(true).exec();
+-  return { rows, dateFrom, dateTo };
++  const result = await FundBalanceReadService.listFundLedgers({ ...query, full: '1', limit: 50000 });
++  return {
++    rows: result.rows || [],
++    dateFrom: result.summary?.period?.dateFrom || '',
++    dateTo: result.summary?.period?.dateTo || ''
++  };
+ }
+ 
+ function summarizeAccounts(accounts = []) {
+@@ -82,20 +47,24 @@
+     bankBalance: 0
+   };
+   for (const account of accounts) {
+-    summary.openingBalance += account.openingBalance;
+-    summary.fundIn += account.inAmount;
+-    summary.fundOut += account.outAmount;
+-    summary.endingBalance += account.endingBalance;
++    const openingBalance = toNumber(account.openingBalance);
++    const inAmount = toNumber(account.inAmount ?? account.inPeriod);
++    const outAmount = toNumber(account.outAmount ?? account.outPeriod);
++    const endingBalance = toNumber(account.endingBalance);
++    summary.openingBalance += openingBalance;
++    summary.fundIn += inAmount;
++    summary.fundOut += outAmount;
++    summary.endingBalance += endingBalance;
+     if (account.fundType === 'bank') {
+-      summary.bankOpeningBalance += account.openingBalance;
+-      summary.bankIn += account.inAmount;
+-      summary.bankOut += account.outAmount;
+-      summary.bankBalance += account.endingBalance;
++      summary.bankOpeningBalance += openingBalance;
++      summary.bankIn += inAmount;
++      summary.bankOut += outAmount;
++      summary.bankBalance += endingBalance;
+     } else {
+-      summary.cashOpeningBalance += account.openingBalance;
+-      summary.cashIn += account.inAmount;
+-      summary.cashOut += account.outAmount;
+-      summary.cashBalance += account.endingBalance;
++      summary.cashOpeningBalance += openingBalance;
++      summary.cashIn += inAmount;
++      summary.cashOut += outAmount;
++      summary.cashBalance += endingBalance;
+     }
+   }
+   summary.totalFundIn = summary.fundIn;
+@@ -104,86 +73,77 @@
+   return summary;
+ }
+ 
+-async function financeReport(query = {}) {
+-  const { rows: ledgers, dateFrom, dateTo } = await loadFundLedgersUntil(query);
+-  const accountMap = new Map();
+-  const periodRows = [];
+-
+-  for (const ledger of ledgers) {
+-    const key = accountKeyOf(ledger);
+-    const fundType = fundTypeOf(ledger);
+-    const account = firstText(ledger, ['account', 'fundCode', 'bankAccountCode']) || (fundType === 'bank' ? 'BANK' : 'CASH');
+-    if (!accountMap.has(key)) {
+-      accountMap.set(key, { key, fundType, account, openingBalance: 0, inAmount: 0, outAmount: 0, endingBalance: 0, transactionCount: 0 });
+-    }
+-    const target = accountMap.get(key);
+-    const ledgerDate = ledger._reportBusinessDate || businessDate(ledger, ['date']);
+-    const amount = Math.abs(toNumber(ledger.amount));
+-    const direction = directionOf(ledger);
+-    const signed = direction === 'out' ? -amount : amount;
+-    if (ledgerDate < dateFrom) {
+-      target.openingBalance += signed;
+-      target.endingBalance += signed;
+-      continue;
+-    }
+-    target.transactionCount += 1;
+-    target.endingBalance += signed;
+-    if (direction === 'out') target.outAmount += amount;
+-    else target.inAmount += amount;
+-    periodRows.push({ ledger, ledgerDate, key, fundType, account, direction, amount });
+-  }
++function reportRowFromFundLedger(ledger = {}) {
++  const amount = Math.abs(toNumber(ledger.amount));
++  const direction = directionOf(ledger);
++  const endingBalance = toNumber(ledger.runningBalanceAfterTransaction);
++  const openingBalance = endingBalance - (direction === 'out' ? -amount : amount);
++  return {
++    id: text(ledger.id || ledger._id),
++    date: text(ledger.date),
++    code: firstText(ledger, ['code', 'referenceCode', 'refCode', 'sourceCode']),
++    type: firstText(ledger, ['sourceType', 'type', 'refType']),
++    fundType: fundTypeOf(ledger),
++    account: FundBalanceReadService.accountOfRow(ledger),
++    counterparty: firstText(ledger, ['customerName', 'deliveryStaffName', 'staffName', 'partnerName', 'counterpartyName']),
++    direction,
++    openingBalance,
++    inAmount: direction === 'in' ? amount : 0,
++    outAmount: direction === 'out' ? amount : 0,
++    endingBalance,
++    runningBalanceAfterTransaction: endingBalance,
++    note: firstText(ledger, ['note'])
++  };
++}
+ 
+-  const accounts = Array.from(accountMap.values()).map((row) => ({
++async function financeReport(query = {}) {
++  const fundData = await FundBalanceReadService.listFundLedgers(query);
++  const canonicalSummary = fundData.summary || {};
++  const accounts = (canonicalSummary.accounts || []).map((row) => ({
+     ...row,
+-    endingBalance: row.openingBalance + row.inAmount - row.outAmount
+-  })).sort((a, b) => a.fundType.localeCompare(b.fundType) || a.account.localeCompare(b.account));
+-
+-  const running = new Map(accounts.map((row) => [row.key, row.openingBalance]));
+-  periodRows.sort((a, b) => a.key.localeCompare(b.key)
+-    || a.ledgerDate.localeCompare(b.ledgerDate)
+-    || text(a.ledger.createdAt).localeCompare(text(b.ledger.createdAt))
+-    || text(a.ledger._id).localeCompare(text(b.ledger._id)));
+-  const rows = periodRows.map(({ ledger, ledgerDate, key, fundType, account, direction, amount }) => {
+-    const openingBalance = toNumber(running.get(key));
+-    const endingBalance = openingBalance + (direction === 'out' ? -amount : amount);
+-    running.set(key, endingBalance);
+-    return {
+-      id: text(ledger.id || ledger._id),
+-      date: ledgerDate,
+-      code: firstText(ledger, ['code', 'referenceCode', 'refCode', 'sourceCode']),
+-      type: firstText(ledger, ['sourceType', 'type', 'refType']),
+-      fundType,
+-      account,
+-      counterparty: firstText(ledger, ['customerName', 'deliveryStaffName', 'staffName', 'partnerName']),
+-      direction,
+-      openingBalance,
+-      inAmount: direction === 'in' ? amount : 0,
+-      outAmount: direction === 'out' ? amount : 0,
+-      endingBalance,
+-      note: firstText(ledger, ['note'])
+-    };
+-  });
+-
++    inAmount: toNumber(row.inPeriod),
++    outAmount: toNumber(row.outPeriod),
++    transactionCount: toNumber(row.periodLedgerCount)
++  }));
++  const rows = (fundData.rows || []).map(reportRowFromFundLedger);
+   const returnData = await ReturnReportService.returnReport({ ...query, full: '1', export: '1' });
++  const groupCounts = canonicalSummary.groups || [];
++  const receiptCount = groupCounts
++    .filter((row) => row.direction === 'in')
++    .reduce((sum, row) => sum + toNumber(row.count), 0);
+ 
+   const summary = {
+     ...summarizeAccounts(accounts),
+-    receiptCount: rows.filter((row) => row.direction === 'in').length,
++    cashOpeningBalance: toNumber(canonicalSummary.cashOpeningBalance),
++    cashIn: toNumber(canonicalSummary.cashInPeriod),
++    cashOut: toNumber(canonicalSummary.cashOutPeriod),
++    cashBalance: toNumber(canonicalSummary.cashEndingBalance),
++    bankOpeningBalance: toNumber(canonicalSummary.bankOpeningBalance),
++    bankIn: toNumber(canonicalSummary.bankInPeriod),
++    bankOut: toNumber(canonicalSummary.bankOutPeriod),
++    bankBalance: toNumber(canonicalSummary.bankEndingBalance),
++    openingBalance: toNumber(canonicalSummary.totalOpeningBalance),
++    fundIn: toNumber(canonicalSummary.totalInPeriod),
++    fundOut: toNumber(canonicalSummary.totalOutPeriod),
++    endingBalance: toNumber(canonicalSummary.totalEndingBalance),
++    totalFundIn: toNumber(canonicalSummary.totalInPeriod),
++    totalFundOut: toNumber(canonicalSummary.totalOutPeriod),
++    totalFundBalance: toNumber(canonicalSummary.totalEndingBalance),
++    receiptCount,
+     returnCount: toNumber(returnData.summary?.returnCount),
+     totalReturns: toNumber(returnData.summary?.totalReturnAmount)
+   };
+-  const paged = paginate(rows, query, { defaultLimit: 50, maxLimit: 200 });
++
+   return {
+-    source: 'mongo_fund_ledgers_period',
++    source: 'mongo_fund_ledgers_canonical_balance_service',
+     fundSource: 'fundLedgers',
+-    dateFrom,
+-    dateTo,
++    dateFrom: canonicalSummary.period?.dateFrom || '',
++    dateTo: canonicalSummary.period?.dateTo || '',
+     accounts,
+-    fundLedger: paged.rows,
+-    items: paged.rows,
+-    meta: paged.meta,
++    fundLedger: rows,
++    items: rows,
++    meta: fundData.meta,
+     summary,
+-    // Compatibility payloads đều lấy từ ledger chuẩn, không đọc cashbooks/bankbooks.
+     receipts: rows.filter((row) => row.direction === 'in'),
+     cashbook: rows.filter((row) => row.fundType === 'cash'),
+     bankbook: rows.filter((row) => row.fundType === 'bank'),
+@@ -197,5 +157,7 @@
+   accountKeyOf,
+   fundLedgerCanonicalFilter,
+   loadFundLedgersUntil,
+-  financeReport
++  summarizeAccounts,
++  financeReport,
++  reportRowFromFundLedger
+ };
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/test/fixtures/index-page/phase79-assembled.sha256 mkpro_phase228_work/test/fixtures/index-page/phase79-assembled.sha256
+--- mkpro_phase227_baseline/test/fixtures/index-page/phase79-assembled.sha256	2026-07-09 06:19:06.000000000 +0000
++++ mkpro_phase228_work/test/fixtures/index-page/phase79-assembled.sha256	2026-07-10 09:23:29.292647420 +0000
+@@ -1 +1 @@
+-7e5a91032e51d650e8d8b7d171559319d1eb697b23296fd0286754de97bbe98f
++99dc74ccd776e94bb51757a7e8870c65ef03115b419d8e1f0a2272f8b8dc9862
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/test/fund-ledger-report-source.test.js mkpro_phase228_work/test/fund-ledger-report-source.test.js
+--- mkpro_phase227_baseline/test/fund-ledger-report-source.test.js	2026-07-07 08:52:10.000000000 +0000
++++ mkpro_phase228_work/test/fund-ledger-report-source.test.js	2026-07-10 09:18:05.075077009 +0000
+@@ -16,11 +16,12 @@
+   assert.doesNotMatch(block, /const bankIn = sum\(bankRows/);
+ });
+ 
+-test('fund ledger list calculates summary over the full filtered result using facet', () => {
++test('fund ledger list delegates balance and running-balance logic to canonical FundBalanceReadService', () => {
+   const block = fundSource.match(/async function listFundLedgers[\s\S]*?\nasync function findExistingFundLedger/)?.[0] || '';
+-  assert.match(block, /\$facet/);
+-  assert.match(block, /totals:/);
+-  assert.match(block, /count:/);
+-  assert.match(block, /meta:/);
+-  assert.doesNotMatch(block, /summarizeFundLedgers\(rows\)/);
++  assert.match(block, /FundBalanceReadService\.listFundLedgers\(query\)/);
++  assert.doesNotMatch(block, /cashBalance\s*=|bankBalance\s*=|\$facet/);
++  const canonical = fs.readFileSync('src/services/accounting/FundBalanceReadService.js', 'utf8');
++  assert.match(canonical, /\$setWindowFields/);
++  assert.match(canonical, /buildSummaryPipeline/);
++  assert.match(canonical, /buildRowsPipeline/);
+ });
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/test/phase228-canonical-fund-balance-read-service.test.js mkpro_phase228_work/test/phase228-canonical-fund-balance-read-service.test.js
+--- mkpro_phase227_baseline/test/phase228-canonical-fund-balance-read-service.test.js	1970-01-01 00:00:00.000000000 +0000
++++ mkpro_phase228_work/test/phase228-canonical-fund-balance-read-service.test.js	2026-07-10 09:17:25.572192529 +0000
+@@ -0,0 +1,217 @@
++'use strict';
++
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const FundBalanceReadService = require('../src/services/accounting/FundBalanceReadService');
++const FinanceReportService = require('../src/services/reports/FinanceReportService');
++
++const ROOT = path.resolve(__dirname, '..');
++
++function row({ id, date, createdAt, fundType = 'cash', account, direction = 'in', amount, sourceType = 'TEST', note = '', ...extra }) {
++  return {
++    id,
++    code: id,
++    date,
++    createdAt: createdAt || `${date || '2026-07-10'}T01:00:00.000Z`,
++    fundType,
++    account: account || (fundType === 'bank' ? 'BANK' : 'CASH'),
++    direction,
++    amount,
++    sourceType,
++    note,
++    accountingConfirmed: true,
++    accountingStatus: 'confirmed',
++    active: true,
++    reversed: false,
++    status: 'posted',
++    ...extra
++  };
++}
++
++function fixture(rows, query) {
++  return FundBalanceReadService.calculateFixture(rows, { full: true, ...query });
++}
++
++test('Phase228: cùng dateTo luôn có cùng cash/bank ending balance dù dateFrom khác', () => {
++  const rows = [
++    row({ id: 'C9-IN', date: '2026-07-09', fundType: 'cash', amount: 185855730 }),
++    row({ id: 'C9-OUT', date: '2026-07-09', fundType: 'cash', direction: 'out', amount: 100000 }),
++    row({ id: 'B9-IN', date: '2026-07-09', fundType: 'bank', amount: 172610381 }),
++    row({ id: 'C10-IN', date: '2026-07-10', fundType: 'cash', amount: 43831719 }),
++    row({ id: 'C10-OUT', date: '2026-07-10', fundType: 'cash', direction: 'out', amount: 400000 }),
++    row({ id: 'B10-IN', date: '2026-07-10', fundType: 'bank', amount: 19435318 })
++  ];
++  const a = fixture(rows, { dateFrom: '2026-07-09', dateTo: '2026-07-10' });
++  const b = fixture(rows, { dateFrom: '2026-07-10', dateTo: '2026-07-10' });
++
++  assert.equal(a.summary.cashEndingBalance, 229187449);
++  assert.equal(a.summary.bankEndingBalance, 192045699);
++  assert.equal(a.summary.cashEndingBalance, b.summary.cashEndingBalance);
++  assert.equal(a.summary.bankEndingBalance, b.summary.bankEndingBalance);
++  assert.notEqual(a.summary.totalInPeriod, b.summary.totalInPeriod);
++  assert.notEqual(a.summary.totalOutPeriod, b.summary.totalOutPeriod);
++  assert.notEqual(a.summary.totalOpeningBalance, b.summary.totalOpeningBalance);
++});
++
++test('Phase228: opening + in - out = ending', () => {
++  const result = fixture([
++    row({ id: 'OPEN-IN', date: '2026-07-08', amount: 100000000 }),
++    row({ id: 'OPEN-OUT', date: '2026-07-08', direction: 'out', amount: 10000000 }),
++    row({ id: 'PERIOD-IN', date: '2026-07-10', amount: 5000000 }),
++    row({ id: 'PERIOD-OUT', date: '2026-07-10', direction: 'out', amount: 2000000 })
++  ], { dateFrom: '2026-07-10', dateTo: '2026-07-10' });
++
++  assert.equal(result.summary.cashOpeningBalance, 90000000);
++  assert.equal(result.summary.cashInPeriod, 5000000);
++  assert.equal(result.summary.cashOutPeriod, 2000000);
++  assert.equal(result.summary.cashEndingBalance, 93000000);
++});
++
++test('Phase228: cash và bank độc lập, total là tổng hai quỹ', () => {
++  const result = fixture([
++    row({ id: 'C-IN', date: '2026-07-10', fundType: 'cash', amount: 10000000 }),
++    row({ id: 'B-IN', date: '2026-07-10', fundType: 'bank', amount: 20000000 }),
++    row({ id: 'C-OUT', date: '2026-07-10', fundType: 'cash', direction: 'out', amount: 1000000 }),
++    row({ id: 'B-OUT', date: '2026-07-10', fundType: 'bank', direction: 'out', amount: 2000000 })
++  ], { dateFrom: '2026-07-10', dateTo: '2026-07-10' });
++
++  assert.equal(result.summary.cashEndingBalance, 9000000);
++  assert.equal(result.summary.bankEndingBalance, 18000000);
++  assert.equal(result.summary.totalEndingBalance, 27000000);
++});
++
++test('Phase228: keyword/direction/sourceType chỉ lọc rows, không đổi ending balance', () => {
++  const rows = [
++    row({ id: 'GHKX-IN', date: '2026-07-10', amount: 5000000, sourceType: 'ORDER_PAYMENT_ALLOCATION', deliveryStaffCode: 'ghkx', note: 'ghkx' }),
++    row({ id: 'OTHER-IN', date: '2026-07-10', amount: 3000000, sourceType: 'OTHER_SOURCE', note: 'other' }),
++    row({ id: 'OUT', date: '2026-07-10', direction: 'out', amount: 1000000, sourceType: 'EXPENSE_VOUCHER' })
++  ];
++  const base = fixture(rows, { dateFrom: '2026-07-10', dateTo: '2026-07-10' });
++  const byKeyword = fixture(rows, { dateFrom: '2026-07-10', dateTo: '2026-07-10', q: 'ghkx' });
++  const byDirection = fixture(rows, { dateFrom: '2026-07-10', dateTo: '2026-07-10', direction: 'in' });
++  const bySource = fixture(rows, { dateFrom: '2026-07-10', dateTo: '2026-07-10', sourceType: 'ORDER_PAYMENT_ALLOCATION' });
++
++  for (const result of [byKeyword, byDirection, bySource]) {
++    assert.equal(result.summary.cashEndingBalance, base.summary.cashEndingBalance);
++  }
++  assert.equal(byKeyword.totalRows, 1);
++  assert.equal(byDirection.totalRows, 2);
++  assert.equal(bySource.totalRows, 1);
++});
++
++test('Phase228: fundType là balance scope filter', () => {
++  const rows = [
++    row({ id: 'CASH', date: '2026-07-10', fundType: 'cash', amount: 100 }),
++    row({ id: 'BANK', date: '2026-07-10', fundType: 'bank', amount: 200 })
++  ];
++  const cash = fixture(rows, { dateFrom: '2026-07-10', dateTo: '2026-07-10', fundType: 'cash' });
++  assert.equal(cash.summary.cashEndingBalance, 100);
++  assert.equal(cash.summary.bankEndingBalance, 0);
++  assert.equal(cash.rows.every((entry) => entry.fundType === 'cash'), true);
++});
++
++test('Phase228: running balance của cùng ledger không phụ thuộc dateFrom', () => {
++  const rows = [
++    row({ id: 'PREVIOUS', date: '2026-07-09', amount: 1000, createdAt: '2026-07-09T01:00:00.000Z' }),
++    row({ id: 'TARGET', date: '2026-07-10', amount: 500, createdAt: '2026-07-10T01:00:00.000Z' })
++  ];
++  const a = fixture(rows, { dateFrom: '2026-07-09', dateTo: '2026-07-10' });
++  const b = fixture(rows, { dateFrom: '2026-07-10', dateTo: '2026-07-10' });
++  const targetA = a.rows.find((entry) => entry.id === 'TARGET');
++  const targetB = b.rows.find((entry) => entry.id === 'TARGET');
++  assert.equal(targetA.runningBalanceAfterTransaction, 1500);
++  assert.equal(targetB.runningBalanceAfterTransaction, 1500);
++});
++
++test('Phase228: running balance không phụ thuộc page/limit với hơn 200 ledger', () => {
++  const rows = Array.from({ length: 250 }, (_, index) => row({
++    id: `L${String(index + 1).padStart(3, '0')}`,
++    date: '2026-07-10',
++    createdAt: `2026-07-10T${String(Math.floor(index / 60)).padStart(2, '0')}:${String(index % 60).padStart(2, '0')}:00.000Z`,
++    amount: 1
++  }));
++  const query = { dateFrom: '2026-07-10', dateTo: '2026-07-10' };
++  const pageOne200 = FundBalanceReadService.calculateFixture(rows, { ...query, page: 1, limit: 200 });
++  const pageTwo100 = FundBalanceReadService.calculateFixture(rows, { ...query, page: 2, limit: 100 });
++  const commonIds = new Set(pageOne200.rows.map((entry) => entry.id));
++  const common = pageTwo100.rows.find((entry) => commonIds.has(entry.id));
++  assert.ok(common, 'phải có transaction xuất hiện ở cả hai cách phân trang');
++  const other = pageOne200.rows.find((entry) => entry.id === common.id);
++  assert.equal(common.runningBalanceAfterTransaction, other.runningBalanceAfterTransaction);
++});
++
++test('Phase228: createdAt legacy fallback dùng timezone Asia/Ho_Chi_Minh tại biên cuối ngày', () => {
++  const beforeMidnight = row({ id: 'VN-END', date: '', createdAt: '2026-07-10T16:59:59.000Z', amount: 100 });
++  const nextDay = row({ id: 'VN-NEXT', date: '', createdAt: '2026-07-10T17:00:00.000Z', amount: 200 });
++  const result = fixture([beforeMidnight, nextDay], {
++    dateFrom: '2026-07-10',
++    dateTo: '2026-07-10',
++    timezone: 'Asia/Ho_Chi_Minh'
++  });
++  assert.equal(result.summary.cashEndingBalance, 100);
++  assert.deepEqual(result.rows.map((entry) => entry.id), ['VN-END']);
++});
++
++test('Phase228: unconfirmed/inactive/reversal/cancelled/deleted không vào balance', () => {
++  const rows = [
++    row({ id: 'OK', date: '2026-07-10', amount: 100 }),
++    row({ id: 'UNCONFIRMED', date: '2026-07-10', amount: 100, accountingConfirmed: false, accountingStatus: '' }),
++    row({ id: 'INACTIVE', date: '2026-07-10', amount: 100, active: false }),
++    row({ id: 'REVERSAL', date: '2026-07-10', amount: 100, isReversal: true }),
++    row({ id: 'CANCELLED', date: '2026-07-10', amount: 100, status: 'cancelled' }),
++    row({ id: 'DELETED', date: '2026-07-10', amount: 100, isDeleted: true })
++  ];
++  const result = fixture(rows, { dateFrom: '2026-07-10', dateTo: '2026-07-10' });
++  assert.equal(result.summary.cashEndingBalance, 100);
++  assert.deepEqual(result.rows.map((entry) => entry.id), ['OK']);
++});
++
++test('Phase228: chuyển cash sang bank làm từng quỹ đổi nhưng total không đổi', () => {
++  const result = fixture([
++    row({ id: 'OPEN-CASH', date: '2026-07-09', fundType: 'cash', amount: 10000000 }),
++    row({ id: 'TRANSFER-OUT', date: '2026-07-10', fundType: 'cash', direction: 'out', amount: 5000000, sourceType: 'FUND_TRANSFER' }),
++    row({ id: 'TRANSFER-IN', date: '2026-07-10', fundType: 'bank', direction: 'in', amount: 5000000, sourceType: 'FUND_TRANSFER' })
++  ], { dateFrom: '2026-07-10', dateTo: '2026-07-10' });
++  assert.equal(result.summary.cashEndingBalance, 5000000);
++  assert.equal(result.summary.bankEndingBalance, 5000000);
++  assert.equal(result.summary.totalOpeningBalance, 10000000);
++  assert.equal(result.summary.totalEndingBalance, 10000000);
++});
++
++test('Phase228: compatibility aliases map đúng canonical fields', () => {
++  const result = fixture([
++    row({ id: 'IN', date: '2026-07-10', amount: 1000 }),
++    row({ id: 'OUT', date: '2026-07-10', direction: 'out', amount: 200 })
++  ], { dateFrom: '2026-07-10', dateTo: '2026-07-10' });
++  const summary = result.summary;
++  assert.equal(summary.cashBalance, summary.cashEndingBalance);
++  assert.equal(summary.bankBalance, summary.bankEndingBalance);
++  assert.equal(summary.totalIn, summary.totalInPeriod);
++  assert.equal(summary.totalOut, summary.totalOutPeriod);
++  assert.equal(summary.totalBalance, summary.totalEndingBalance);
++});
++
++test('Phase228: FinanceReport và màn Quỹ dùng cùng canonical summary service', () => {
++  const result = fixture([
++    row({ id: 'CASH-IN', date: '2026-07-10', fundType: 'cash', amount: 1000 }),
++    row({ id: 'BANK-IN', date: '2026-07-10', fundType: 'bank', amount: 2000 })
++  ], { dateFrom: '2026-07-10', dateTo: '2026-07-10' });
++  const financeSummary = FinanceReportService.summarizeAccounts(result.summary.accounts.map((account) => ({
++    ...account,
++    inAmount: account.inPeriod,
++    outAmount: account.outPeriod
++  })));
++  assert.equal(financeSummary.cashBalance, result.summary.cashEndingBalance);
++  assert.equal(financeSummary.bankBalance, result.summary.bankEndingBalance);
++
++  const financeSource = fs.readFileSync(path.join(ROOT, 'src/services/reports/FinanceReportService.js'), 'utf8');
++  const fundServiceSource = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'src/services/fundService.js'));
++  const frontendSource = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'public/js/app/debt/07f-fund-ledger.js'));
++  assert.match(financeSource, /FundBalanceReadService\.listFundLedgers/);
++  assert.match(fundServiceSource, /FundBalanceReadService\.listFundLedgers\(query\)/);
++  assert.doesNotMatch(frontendSource, /const balances=\{cash:0,bank:0\}/);
++  assert.match(frontendSource, /runningBalanceAfterTransaction/);
++});
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/test/phase79-production-strangler.test.js mkpro_phase228_work/test/phase79-production-strangler.test.js
+--- mkpro_phase227_baseline/test/phase79-production-strangler.test.js	2026-07-07 08:52:10.000000000 +0000
++++ mkpro_phase228_work/test/phase79-production-strangler.test.js	2026-07-10 09:23:30.388012185 +0000
+@@ -40,6 +40,8 @@
+   const expectedHash = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'test/fixtures/index-page/phase79-assembled.sha256')).trim();
+   assert.equal(sha256(html), expectedHash);
+   assert.match(html, /id="salesTab"/);
++  assert.match(html, /id="fundCashBalanceLabel"/);
++  assert.match(html, /id="fundBankBalanceLabel"/);
+   assert.match(html, /\/js\/bootstrap\/03-tab-loader\.js/);
+ });
+ 
+diff -ruN '--exclude=node_modules' '--exclude=.git' '--exclude=*.log' '--exclude=coverage' '--exclude=PHASE228_CANONICAL_FUND_BALANCE_READ_SERVICE_FIX_REPORT.md' '--exclude=PHASE228_DRY_RUN_FIXTURE_RESULT.json' mkpro_phase227_baseline/test/report-finance-fund-ledger-source.test.js mkpro_phase228_work/test/report-finance-fund-ledger-source.test.js
+--- mkpro_phase227_baseline/test/report-finance-fund-ledger-source.test.js	2026-07-07 08:52:10.000000000 +0000
++++ mkpro_phase228_work/test/report-finance-fund-ledger-source.test.js	2026-07-10 09:18:05.075481661 +0000
+@@ -9,16 +9,12 @@
+ const finance = fs.readFileSync(path.join(root, 'src/services/reports/FinanceReportService.js'), 'utf8');
+ const delivery = fs.readFileSync(path.join(root, 'src/services/reports/DeliveryReportService.js'), 'utf8');
+ 
+-test('FinanceReportService defines and uses canonical fundLedger filter', () => {
++test('FinanceReportService reuses canonical FundBalanceReadService instead of duplicating balance formulas', () => {
++  assert.match(finance, /FundBalanceReadService = require\('\.\.\/accounting\/FundBalanceReadService'\)/);
++  assert.match(finance, /FundBalanceReadService\.listFundLedgers\(query\)/);
+   assert.match(finance, /function fundLedgerCanonicalFilter\(extra = \{\}\)/);
+-  assert.match(finance, /status:\s*\{\s*\$nin:\s*\['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'\]/);
+-  assert.match(finance, /reversed:\s*\{\s*\$ne:\s*true\s*\}/);
+-  assert.match(finance, /isReversal:\s*\{\s*\$ne:\s*true\s*\}/);
+-  assert.match(finance, /isDeleted:\s*\{\s*\$ne:\s*true\s*\}/);
+-  assert.match(finance, /active:\s*\{\s*\$ne:\s*false\s*\}/);
+-  assert.match(finance, /accountingConfirmed:\s*true/);
+-  assert.match(finance, /accountingStatus:\s*\{\s*\$in:\s*\['confirmed', 'posted', 'locked'\]/);
+-  assert.match(finance, /\{\s*\$match:\s*fundLedgerCanonicalFilter\(\)\s*\}/);
++  assert.match(finance, /FundBalanceReadService\.fundLedgerCanonicalFilter\(extra\)/);
++  assert.doesNotMatch(finance, /FundLedger\.aggregate/);
+ });
+ 
+ test('DeliveryReportService reuses fundLedgerCanonicalFilter for collections', () => {
