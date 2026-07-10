@@ -153,11 +153,12 @@
           </div>
 
           <div class="fund-tab-nav" role="tablist" aria-label="Quỹ tiền">
-            <button type="button" class="fund-tab-button active" data-fund-tab="fundLedger" role="tab" aria-selected="true">Sổ quỹ</button>
-            <button type="button" class="fund-tab-button" data-fund-tab="fundSummaryBook" role="tab" aria-selected="false">Sổ quỹ tổng hợp</button>
+            <button type="button" class="fund-tab-button active" data-fund-tab="fundDashboard" role="tab" aria-selected="true">Tổng quan quỹ</button>
+            <button type="button" class="fund-tab-button" data-fund-tab="fundLedger" role="tab" aria-selected="false">Sổ quỹ</button>
             <button type="button" class="fund-tab-button" data-fund-tab="deliverySubmission" role="tab" aria-selected="false">Nộp quỹ giao hàng</button>
             <button type="button" class="fund-tab-button" data-fund-tab="expenseVoucher" role="tab" aria-selected="false">Phiếu chi</button>
-            <button type="button" class="fund-tab-button" data-fund-tab="bankTransfer" role="tab" aria-selected="false">Nộp ngân hàng</button>
+            <button type="button" class="fund-tab-button" data-fund-tab="bankTransfer" role="tab" aria-selected="false">Chuyển quỹ</button>
+            <button type="button" class="fund-tab-button" data-fund-tab="fundSummaryBook" role="tab" aria-selected="false">Sổ quỹ tổng hợp</button>
           </div>
 
           <div class="ui-list-toolbar fund-module-toolbar">
@@ -198,7 +199,63 @@
             </div>
           </div>
 
-          <div class="fund-tab-panel active" data-fund-panel="fundLedger">
+          <div class="fund-tab-panel active" data-fund-panel="fundDashboard">
+            <div class="fund-dashboard-head">
+              <div>
+                <h3>Tổng quan quỹ vận hành</h3>
+                <p id="fundDashboardStatus" class="muted ui-page-meta">Đang tải số dư và các hàng chờ từ fundLedgers.</p>
+              </div>
+              <div class="ui-page-actions">
+                <input id="fundDashboardAsOf" type="date" aria-label="Ngày tổng quan quỹ" />
+                <button id="fundDashboardRefreshButton" class="secondary" type="button">Tải lại</button>
+              </div>
+            </div>
+
+            <div class="fund-dashboard-kpis">
+              <button type="button" class="fund-dashboard-kpi" data-fund-dashboard-jump="fundLedger">
+                <span>Tiền mặt hiện có</span><b id="fundDashboardCashAmount">0</b><small id="fundDashboardCashSub">fundLedgers</small>
+              </button>
+              <button type="button" class="fund-dashboard-kpi" data-fund-dashboard-jump="fundLedger">
+                <span>Ngân hàng hiện có</span><b id="fundDashboardBankAmount">0</b><small id="fundDashboardBankSub">fundLedgers</small>
+              </button>
+              <button type="button" class="fund-dashboard-kpi" data-fund-dashboard-jump="deliverySubmission">
+                <span>NVGH còn giữ</span><b id="fundDashboardTransitAmount">0</b><small id="fundDashboardTransitSub">cash-in-transit</small>
+              </button>
+              <button type="button" class="fund-dashboard-kpi" data-fund-dashboard-jump="deliverySubmission">
+                <span>Khoản cần xử lý</span><b id="fundDashboardSuspenseAmount">0</b><small id="fundDashboardSuspenseSub">thiếu/chờ nhận</small>
+              </button>
+            </div>
+
+            <div class="fund-dashboard-queues" aria-label="Hàng chờ xử lý quỹ">
+              <button type="button" class="fund-dashboard-queue" data-fund-dashboard-jump="deliverySubmission" data-fund-dashboard-filter="pendingRemittances"><span>Phiếu nộp chờ xác nhận</span><b id="fundDashboardPendingRemittanceCount">0</b><small id="fundDashboardPendingRemittanceAmount">0</small></button>
+              <button type="button" class="fund-dashboard-queue" data-fund-dashboard-jump="deliverySubmission" data-fund-dashboard-filter="overdueDeliveryCash"><span>Tiền giao hàng quá hạn</span><b id="fundDashboardOverdueCashCount">0</b><small id="fundDashboardOverdueCashAmount">0</small></button>
+              <button type="button" class="fund-dashboard-queue" data-fund-dashboard-jump="deliverySubmission" data-fund-dashboard-filter="unclassifiedShortages"><span>Thiếu quỹ chưa xử lý</span><b id="fundDashboardShortageCount">0</b><small id="fundDashboardShortageAmount">0</small></button>
+              <button type="button" class="fund-dashboard-queue disabled" disabled><span>Đối soát ngân hàng</span><b id="fundDashboardBankQueueCount">-</b><small id="fundDashboardBankQueueAmount">Chưa hỗ trợ</small></button>
+            </div>
+
+            <div class="fund-dashboard-grids">
+              <section class="fund-dashboard-section">
+                <div class="fund-dashboard-section-head"><h4>Tiền NVGH đang giữ</h4><span id="fundDashboardCashInTransitMeta" class="muted">0 dòng</span></div>
+                <div class="table-scroll funds-sub-table-scroll">
+                  <table>
+                    <thead><tr><th>Ngày giao</th><th>NVGH</th><th>Phải nộp</th><th>Đã nộp</th><th>Còn giữ</th><th>Tuổi</th></tr></thead>
+                    <tbody id="fundDashboardCashInTransitTable"><tr><td colspan="6">Đang tải...</td></tr></tbody>
+                  </table>
+                </div>
+              </section>
+              <section class="fund-dashboard-section">
+                <div class="fund-dashboard-section-head"><h4>Giao dịch quỹ gần nhất</h4><span id="fundDashboardRecentMeta" class="muted">fundLedgers</span></div>
+                <div class="table-scroll funds-sub-table-scroll">
+                  <table>
+                    <thead><tr><th>Ngày</th><th>Mã</th><th>Quỹ</th><th>Thu</th><th>Chi</th><th>Nguồn</th></tr></thead>
+                    <tbody id="fundDashboardRecentTable"><tr><td colspan="6">Đang tải...</td></tr></tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <div class="fund-tab-panel" data-fund-panel="fundLedger">
             <div class="kpi-row debt-v2-kpis debt-v2-kpis-4 funds-kpi-row">
               <div><span id="fundCashBalanceLabel">Tồn tiền mặt cuối ngày</span><b id="fundCashBalanceKpi">0</b></div>
               <div><span id="fundBankBalanceLabel">Tồn ngân hàng cuối ngày</span><b id="fundBankBalanceKpi">0</b></div>
@@ -326,8 +383,8 @@
               <div class="delivery-subtab-panel active" data-delivery-subpanel="cash" role="tabpanel">
                 <div class="table-scroll funds-sub-table-scroll">
                   <table>
-                    <thead><tr><th>Mã phiếu</th><th>Ngày giao</th><th>Ngày nộp/nhận</th><th>NVGH</th><th>Báo cáo TM</th><th>Đã nhận TM / Thực nộp TM</th><th>Kế hoạch TM</th><th>Còn thiếu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
-                    <tbody id="deliveryCashSubmissionTable"><tr><td colspan="10">Chưa tải danh sách tiền mặt.</td></tr></tbody>
+                    <thead><tr><th>Mã phiếu</th><th>Ngày giao</th><th>Ngày nộp gần nhất</th><th>NVGH</th><th>Phải nộp</th><th>Đã khai báo nộp</th><th>Đã xác nhận nhận</th><th>Còn thiếu/thừa</th><th>Đối soát</th><th>Ghi quỹ</th><th>Thao tác</th></tr></thead>
+                    <tbody id="deliveryCashSubmissionTable"><tr><td colspan="11">Chưa tải danh sách tiền mặt.</td></tr></tbody>
                   </table>
                 </div>
               </div>
@@ -335,8 +392,8 @@
               <div class="delivery-subtab-panel" data-delivery-subpanel="bank" role="tabpanel" hidden>
                 <div class="table-scroll funds-sub-table-scroll">
                   <table>
-                    <thead><tr><th>Mã phiếu</th><th>Ngày giao</th><th>Ngày nộp/nhận</th><th>NVGH</th><th>Báo cáo TK</th><th>Đã nhận TK / Thực nhận TK</th><th>Kế hoạch TK</th><th>Còn thiếu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
-                    <tbody id="deliveryBankSubmissionTable"><tr><td colspan="10">Chưa tải danh sách chuyển khoản.</td></tr></tbody>
+                    <thead><tr><th>Mã phiếu</th><th>Ngày giao</th><th>Ngày nộp gần nhất</th><th>NVGH</th><th>Phải nộp</th><th>Đã khai báo nộp</th><th>Đã xác nhận nhận</th><th>Còn thiếu/thừa</th><th>Đối soát</th><th>Ghi quỹ</th><th>Thao tác</th></tr></thead>
+                    <tbody id="deliveryBankSubmissionTable"><tr><td colspan="11">Chưa tải danh sách chuyển khoản.</td></tr></tbody>
                   </table>
                 </div>
               </div>
@@ -367,11 +424,11 @@
             <section class="fund-list-card fund-list-card-full">
               <div class="ui-page-header fund-list-toolbar">
                 <div class="ui-page-title">
-                  <h3>Danh sách nộp ngân hàng</h3>
+                  <h3>Danh sách chuyển quỹ</h3>
                   <span class="muted ui-page-meta">Nguồn FUND_TRANSFER</span>
                 </div>
                 <div class="ui-page-actions">
-                  <button id="createFundTransferButton" class="ui-action-primary" type="button">Tạo phiếu nộp ngân hàng</button>
+                  <button id="createFundTransferButton" class="ui-action-primary" type="button">Tạo phiếu chuyển quỹ</button>
                 </div>
               </div>
               <div class="table-scroll funds-sub-table-scroll">

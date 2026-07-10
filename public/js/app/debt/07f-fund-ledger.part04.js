@@ -11,13 +11,13 @@ note:String(deliveryBankShortageNote&&deliveryBankShortageNote.value||"").trim()
 ;const url=mode==="classify"?`/api/funds/delivery-cash-submissions/${encodeURIComponent(code)}/shortages`:`/api/funds/delivery-cash-submissions/${encodeURIComponent(code)}/confirm`
 ;const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
 ;const json=await fundReadJsonResponse(res,mode==="classify"?"Không phân loại được khoản thiếu":"Không xác nhận được phiếu nộp quỹ")
-;if(!json.ok)throw new Error(json.message||"Không xử lý được khoản thiếu");await loadDeliveryCashSubmissions();await loadFundLedger();closeDeliveryShortageResolutionModal()
-;alert(json.message||"Đã xử lý khoản thiếu")}catch(err){showMessage(deliveryShortageResolutionMessage,err.message,true)}}function closeDeliveryShortageRepaymentModal(){
-setFundAuxModal(deliveryShortageRepaymentModal,false);activeDeliveryShortageId="";if(deliveryShortageRepaymentForm)deliveryShortageRepaymentForm.reset()
-;if(deliveryShortageRepaymentMessage)showMessage(deliveryShortageRepaymentMessage,"")}function deliveryShortageStatusLabel(status){const labels={open:"Chưa nộp bù",
-partial:"Đã nộp một phần",settled:"Đã tất toán",pending_reconciliation:"Chờ đối soát ngân hàng",customer_outstanding:"Công nợ khách hàng",adjusted:"Đã điều chỉnh",
-disputed:"Chờ kiểm tra"};return labels[String(status||"").toLowerCase()]||String(status||"")}async function loadDeliveryShortageHistory(shortageId){
-const res=await fetch(`/api/funds/delivery-cash-shortages/${encodeURIComponent(shortageId)}/history`)
+;if(!json.ok)throw new Error(json.message||"Không xử lý được khoản thiếu");await loadDeliveryCashSubmissions();await fundRefreshAfterMutation()
+;closeDeliveryShortageResolutionModal();alert(json.message||"Đã xử lý khoản thiếu")}catch(err){showMessage(deliveryShortageResolutionMessage,err.message,true)}}
+function closeDeliveryShortageRepaymentModal(){setFundAuxModal(deliveryShortageRepaymentModal,false);activeDeliveryShortageId=""
+;if(deliveryShortageRepaymentForm)deliveryShortageRepaymentForm.reset();if(deliveryShortageRepaymentMessage)showMessage(deliveryShortageRepaymentMessage,"")}
+function deliveryShortageStatusLabel(status){const labels={open:"Chưa nộp bù",partial:"Đã nộp một phần",settled:"Đã tất toán",pending_reconciliation:"Chờ đối soát ngân hàng",
+customer_outstanding:"Công nợ khách hàng",adjusted:"Đã điều chỉnh",disputed:"Chờ kiểm tra"};return labels[String(status||"").toLowerCase()]||String(status||"")}
+async function loadDeliveryShortageHistory(shortageId){const res=await fetch(`/api/funds/delivery-cash-shortages/${encodeURIComponent(shortageId)}/history`)
 ;const json=await fundReadJsonResponse(res,"Không tải được lịch sử khoản thiếu");if(!json.ok)throw new Error(json.message||"Không tải được lịch sử khoản thiếu")
 ;const shortage=json.shortage||{};const summary=json.summary||{};activeDeliveryShortageId=String(shortage.id||shortage.code||shortageId)
 ;fundRowCache.shortage[activeDeliveryShortageId]=shortage;if(deliveryShortageRepaymentShortageId)deliveryShortageRepaymentShortageId.value=activeDeliveryShortageId
@@ -41,11 +41,12 @@ const res=await fetch(`/api/funds/delivery-cash-shortages/${encodeURIComponent(a
 body:JSON.stringify(payload)});const json=await fundReadJsonResponse(res,"Không tạo được phiếu nộp bù");if(!json.ok)throw new Error(json.message||"Không tạo được phiếu nộp bù")
 ;showMessage(deliveryShortageRepaymentMessage,json.message||"Đã tạo phiếu nộp bù");await loadDeliveryShortageHistory(activeDeliveryShortageId);await loadDeliveryCashSubmissions()
 }catch(err){showMessage(deliveryShortageRepaymentMessage,err.message,true)}}async function confirmDeliveryShortageRepayment(code,triggerButton){if(!code)return
-;if(!confirm(`Xác nhận phiếu nộp bù ${code} và ghi vào fundLedgers?`))return;const actionKey=`confirm:repayment:${code}`;try{
-const json=await runFundActionRequest(actionKey,triggerButton,async()=>{const res=await fetch(`/api/funds/delivery-shortage-repayments/${encodeURIComponent(code)}/confirm`,{
-method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});const payload=await fundReadJsonResponse(res,"Không xác nhận được phiếu nộp bù")
-;if(!payload.ok)throw new Error(payload.message||"Không xác nhận được phiếu nộp bù");await loadDeliveryShortageHistory(activeDeliveryShortageId);await loadDeliveryCashSubmissions()
-;await loadFundLedger();return payload});alert(json.message||"Đã xác nhận nộp bù")}catch(err){alert(err.message||"Không xác nhận được phiếu nộp bù")}}
+;const actionKey=`confirm:repayment:${code}`;openFundConfirmPreview({title:"Xác nhận phiếu nộp bù",message:"Phiếu nộp bù sẽ ghi tăng fundLedgers và giảm số thiếu của NVGH.",
+actionKey:actionKey,triggerButton:triggerButton,
+rows:[["Mã phiếu bù",code],["Khoản thiếu",activeDeliveryShortageId||""],["Nguồn ghi","deliveryCashShortageRepayments → fundLedgers"]],onConfirm:async()=>{
+const res=await fetch(`/api/funds/delivery-shortage-repayments/${encodeURIComponent(code)}/confirm`,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})
+;const payload=await fundReadJsonResponse(res,"Không xác nhận được phiếu nộp bù");if(!payload.ok)throw new Error(payload.message||"Không xác nhận được phiếu nộp bù")
+;await loadDeliveryShortageHistory(activeDeliveryShortageId);await loadDeliveryCashSubmissions();await fundRefreshAfterMutation();return payload}})}
 window.confirmDeliveryShortageRepayment=confirmDeliveryShortageRepayment;function editFundVoucher(type,code){const row=(fundRowCache[type]||{})[code];if(!row){
 alert("Không tìm thấy dữ liệu phiếu để sửa");return}if(!fundCanEdit(row)){alert("Phiếu đã xác nhận hoặc đã khóa, không được sửa");return}fundResetVoucherForm(type);fundEditing={
 type:type,id:code};if(type==="delivery"){fundFillForm(deliveryCashSubmissionForm,row,["deliveryDate","deliveryStaffCode","note"])
@@ -55,9 +56,9 @@ fundFillForm(expenseVoucherForm,row,["date","fundType","expenseType","amount","r
 ;fundSetSubmitLabel(fundTransferForm,"Cập nhật chuyển quỹ")}openFundVoucherModal(type)}window.editFundVoucher=editFundVoucher
 ;async function confirmFundVoucher(type,code,triggerButton){if(type==="delivery")return confirmDeliveryCashSubmission(code,triggerButton)
 ;const label=type==="expense"?"phiếu chi":"phiếu chuyển quỹ";const base=type==="expense"?"/api/funds/expenses":"/api/funds/transfers";if(!code)return
-;if(!confirm(`Xác nhận ${label} ${code} và ghi vào fundLedgers?`))return;const actionKey=`confirm:${type}:${code}`;try{
-const json=await runFundActionRequest(actionKey,triggerButton,async()=>{const res=await fetch(`${base}/${encodeURIComponent(code)}/confirm`,{method:"POST",headers:{
-"Content-Type":"application/json"},body:"{}"});const payload=await fundReadJsonResponse(res,`Không xác nhận được ${label}`)
-;if(!payload.ok)throw new Error(payload.message||`Không xác nhận được ${label}`);if(type==="expense")await loadExpenseVouchers();else await loadFundTransfers()
-;await loadFundLedger();return payload});alert(json.message||"Đã xác nhận và ghi sổ quỹ")}catch(err){alert(err.message||`Không xác nhận được ${label}`)}}
-window.confirmFundVoucher=confirmFundVoucher;
+;const actionKey=`confirm:${type}:${code}`;const row=(fundRowCache[type]||{})[code]||{};openFundConfirmPreview({title:`Xác nhận ${label}`,
+message:"Thao tác này tạo bút toán fundLedgers theo service domain hiện tại.",actionKey:actionKey,triggerButton:triggerButton,
+rows:[["Mã phiếu",code],["Quỹ",type==="expense"?fundTypeName(row.fundType):`${fundTypeName(row.fromFund)} → ${fundTypeName(row.toFund)}`],["Số tiền",money(row.amount||0)],["Ngày chứng từ",row.date||""]],
+onConfirm:async()=>{const res=await fetch(`${base}/${encodeURIComponent(code)}/confirm`,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})
+;const payload=await fundReadJsonResponse(res,`Không xác nhận được ${label}`);if(!payload.ok)throw new Error(payload.message||`Không xác nhận được ${label}`)
+;if(type==="expense")await loadExpenseVouchers();else await loadFundTransfers();await fundRefreshAfterMutation();return payload}})}window.confirmFundVoucher=confirmFundVoucher;

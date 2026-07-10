@@ -8,6 +8,7 @@ const router = express.Router();
 const viewFund = requireRole(['admin', 'accountant', 'manager']);
 const manageFund = requireRole(['admin', 'accountant']);
 
+router.get('/dashboard', viewFund, fundController.getDashboard);
 router.get('/ledger', viewFund, fundController.listLedger);
 router.get('/summary', viewFund, fundController.getSummary);
 router.get('/summary/export', viewFund, fundController.exportSummary);

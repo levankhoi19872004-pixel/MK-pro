@@ -32,7 +32,7 @@ async function submitExpenseVoucher(event){
     fundResetEditing('expense');
     showMessage(expenseVoucherMessage,json.message||'Đã lưu phiếu chi');
     await loadExpenseVouchers();
-    await loadFundLedger();
+    await fundRefreshAfterMutation();
     closeFundVoucherModal('expense');
   }catch(err){showMessage(expenseVoucherMessage,err.message,true)}
 }
@@ -50,12 +50,13 @@ async function submitFundTransfer(event){
     fundResetEditing('transfer');
     showMessage(fundTransferMessage,json.message||'Đã lưu chuyển quỹ');
     await loadFundTransfers();
-    await loadFundLedger();
+    await fundRefreshAfterMutation();
     closeFundVoucherModal('transfer');
   }catch(err){showMessage(fundTransferMessage,err.message,true)}
 }
 
 function reloadActiveFundTab(){
+  if(activeFundTab==='fundDashboard')return loadFundDashboard();
   if(activeFundTab==='fundLedger')return loadFundLedger();
   if(activeFundTab==='fundSummaryBook'&&window.FundSummaryBook)return window.FundSummaryBook.load();
   if(activeFundTab==='deliverySubmission')return loadDeliveryCashSubmissions();
@@ -88,6 +89,10 @@ if(!document.documentElement.dataset.fundSecurityDelegationBound){
     if(action==='confirm-remittance-line')confirmDeliveryRemittanceLine(code,button.dataset.lineId||'',button);
   });
 }
+document.addEventListener('click',event=>{
+  const button=event.target.closest('[data-fund-dashboard-jump]');
+  if(button)handleFundDashboardJump(button);
+});
 if(fundTabButtons)fundTabButtons.forEach(btn=>btn.addEventListener('click',()=>setActiveFundTab(btn.dataset.fundTab)));
 if(deliverySubmissionTabButtons)deliverySubmissionTabButtons.forEach(btn=>btn.addEventListener('click',()=>setActiveDeliverySubmissionTab(btn.dataset.deliverySubtab)));
 bindFundVoucherModal('delivery',createDeliveryCashSubmissionButton,closeDeliveryCashSubmissionModalButton);
@@ -95,6 +100,7 @@ bindFundVoucherModal('expense',createExpenseVoucherButton,closeExpenseVoucherMod
 bindFundVoucherModal('transfer',createFundTransferButton,closeFundTransferModalButton);
 document.addEventListener('keydown',event=>{
   if(event.key!=='Escape')return;
+  if(fundConfirmPreviewModal&&fundConfirmPreviewModal.classList.contains('show'))return closeFundConfirmPreview();
   if(deliveryShortageResolutionModal&&deliveryShortageResolutionModal.classList.contains('show'))return closeDeliveryShortageResolutionModal();
   if(deliveryShortageRepaymentModal&&deliveryShortageRepaymentModal.classList.contains('show'))return closeDeliveryShortageRepaymentModal();
   if(activeFundVoucherModalType)closeFundVoucherModal(activeFundVoucherModalType);
@@ -102,6 +108,11 @@ document.addEventListener('keydown',event=>{
 if(applyFundFiltersButton)applyFundFiltersButton.addEventListener('click',reloadActiveFundTab);
 if(clearFundFiltersButton)clearFundFiltersButton.addEventListener('click',resetFundFilters);
 if(reloadFundLedgerButton)reloadFundLedgerButton.addEventListener('click',reloadActiveFundTab);
+if(fundDashboardRefreshButton)fundDashboardRefreshButton.addEventListener('click',loadFundDashboard);
+if(fundDashboardAsOf)fundDashboardAsOf.addEventListener('change',loadFundDashboard);
+if(fundConfirmPreviewCancelButton)fundConfirmPreviewCancelButton.addEventListener('click',closeFundConfirmPreview);
+if(fundConfirmPreviewSubmitButton)fundConfirmPreviewSubmitButton.addEventListener('click',submitFundConfirmPreview);
+if(fundConfirmPreviewModal)fundConfirmPreviewModal.addEventListener('click',event=>{if(event.target===fundConfirmPreviewModal)closeFundConfirmPreview();});
 if(fundSearchInput)fundSearchInput.addEventListener('keydown',event=>{
   if(event.key!=='Enter')return;
   event.preventDefault();
@@ -146,4 +157,5 @@ if(fundTransferForm)fundTransferForm.addEventListener('submit',submitFundTransfe
 [deliveryCashSubmissionForm, expenseVoucherForm, fundTransferForm, deliveryShortageRepaymentForm].forEach(form=>{ if(form&&form.elements.date)form.elements.date.value=today(); if(form&&form.elements.deliveryDate)form.elements.deliveryDate.value=today(); if(form&&form.elements.repaymentDate)form.elements.repaymentDate.value=today(); });
 clearDeliveryCashSubmissionPreview();
 setActiveDeliverySubmissionTab('cash');
-loadFundLedger();
+if(fundDashboardAsOf&&!fundDashboardAsOf.value)fundDashboardAsOf.value=today();
+setActiveFundTab('fundDashboard');

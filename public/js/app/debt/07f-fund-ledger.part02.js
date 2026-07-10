@@ -84,11 +84,53 @@ if(deliveryCashSubmissionCashInput)deliveryCashSubmissionCashInput.value=Math.ro
 }finally{if(requestSeq===deliveryCashPreviewRequestSeq)deliveryCashPreviewAbortController=null}}
 function scheduleDeliveryCashSubmissionPreview({syncSubmitted:syncSubmitted=fundEditing.type!=="delivery",immediate:immediate=false}={}){
 if(deliveryCashPreviewTimer)clearTimeout(deliveryCashPreviewTimer);if(immediate)return loadDeliveryCashSubmissionPreview({syncSubmitted:syncSubmitted})
-;deliveryCashPreviewTimer=setTimeout(()=>{deliveryCashPreviewTimer=null;loadDeliveryCashSubmissionPreview({syncSubmitted:syncSubmitted})},350)}function setActiveFundTab(tab){
-activeFundTab=tab||"fundLedger";if(fundTabButtons)fundTabButtons.forEach(btn=>{const active=btn.dataset.fundTab===activeFundTab;btn.classList.toggle("active",active)
+;deliveryCashPreviewTimer=setTimeout(()=>{deliveryCashPreviewTimer=null;loadDeliveryCashSubmissionPreview({syncSubmitted:syncSubmitted})},350)}function fundDashboardCount(value){
+if(value===null||value===undefined)return"-";return String(Number(value||0))}function setFundDashboardLoading(message){
+if(fundDashboardStatus)fundDashboardStatus.textContent=message||"Đang tải tổng quan quỹ..."
+;if(fundDashboardCashInTransitTable)fundDashboardCashInTransitTable.innerHTML='<tr><td colspan="6">Đang tải...</td></tr>'
+;if(fundDashboardRecentTable)fundDashboardRecentTable.innerHTML='<tr><td colspan="6">Đang tải...</td></tr>'}function renderFundDashboard(data={}){const balances=data.balances||{}
+;const cash=balances.cash||{};const bank=balances.bank||{};const queues=data.workQueues||{};const pending=queues.pendingRemittances||{};const overdue=queues.overdueDeliveryCash||{}
+;const shortages=queues.unclassifiedShortages||{};const bankQueue=queues.unmatchedBankTransactions||{};const transit=data.cashInTransit||{}
+;const transitRows=Array.isArray(transit.items)?transit.items:[];const recentRows=Array.isArray(data.recentTransactions)?data.recentTransactions:[]
+;const suspenseAmount=Number(pending.amount||0)+Number(shortages.amount||0);if(fundDashboardAsOf&&!fundDashboardAsOf.value)fundDashboardAsOf.value=data.asOf||today()
+;if(fundDashboardCashAmount)fundDashboardCashAmount.textContent=money(cash.closing||0)
+;if(fundDashboardCashSub)fundDashboardCashSub.textContent=`Thu ${money(cash.inflow||0)} · chi ${money(cash.outflow||0)}`
+;if(fundDashboardBankAmount)fundDashboardBankAmount.textContent=money(bank.closing||0)
+;if(fundDashboardBankSub)fundDashboardBankSub.textContent=`Thu ${money(bank.inflow||0)} · chi ${money(bank.outflow||0)}`
+;if(fundDashboardTransitAmount)fundDashboardTransitAmount.textContent=money(transit.totalAmount||0)
+;if(fundDashboardTransitSub)fundDashboardTransitSub.textContent=`${fundDashboardCount(transit.staffCount)} NVGH · ${fundDashboardCount(transit.totalRows)} dòng`
+;if(fundDashboardSuspenseAmount)fundDashboardSuspenseAmount.textContent=money(suspenseAmount)
+;if(fundDashboardSuspenseSub)fundDashboardSuspenseSub.textContent=`${fundDashboardCount(pending.count)} phiếu · ${fundDashboardCount(shortages.count)} thiếu`
+;if(fundDashboardPendingRemittanceCount)fundDashboardPendingRemittanceCount.textContent=fundDashboardCount(pending.count)
+;if(fundDashboardPendingRemittanceAmount)fundDashboardPendingRemittanceAmount.textContent=money(pending.amount||0)
+;if(fundDashboardOverdueCashCount)fundDashboardOverdueCashCount.textContent=fundDashboardCount(overdue.count)
+;if(fundDashboardOverdueCashAmount)fundDashboardOverdueCashAmount.textContent=money(overdue.amount||0)
+;if(fundDashboardShortageCount)fundDashboardShortageCount.textContent=fundDashboardCount(shortages.count)
+;if(fundDashboardShortageAmount)fundDashboardShortageAmount.textContent=money(shortages.amount||0)
+;if(fundDashboardBankQueueCount)fundDashboardBankQueueCount.textContent=bankQueue.supported===false?"-":fundDashboardCount(bankQueue.count)
+;if(fundDashboardBankQueueAmount)fundDashboardBankQueueAmount.textContent=bankQueue.supported===false?"Chưa hỗ trợ":money(bankQueue.amount||0)
+;if(fundDashboardCashInTransitMeta)fundDashboardCashInTransitMeta.textContent=`${fundDashboardCount(transit.totalRows)} dòng${transit.truncated?" · đang rút gọn":""}`
+;if(fundDashboardCashInTransitTable){
+fundDashboardCashInTransitTable.innerHTML=transitRows.length?transitRows.map(row=>`<tr><td>${escapeHtml(row.deliveryDate||"")}</td><td>${escapeHtml(((row.deliveryStaffCode||"")+" "+(row.deliveryStaffName||"")).trim())}</td><td class="price">${money(row.requiredAmount||0)}</td><td class="price cash-in">${money(row.submittedAmount||0)}</td><td class="price cash-out">${money(row.remainingAmount||0)}</td><td>${Number(row.ageDays||0)} ngày</td></tr>`).join(""):'<tr><td colspan="6">Không có tiền NVGH đang giữ.</td></tr>'
+}if(fundDashboardRecentMeta)fundDashboardRecentMeta.textContent=`${recentRows.length} giao dịch`;if(fundDashboardRecentTable){
+fundDashboardRecentTable.innerHTML=recentRows.length?recentRows.map(row=>`<tr><td>${escapeHtml(row.accountingDate||row.date||"")}</td><td><strong>${escapeHtml(row.code||"")}</strong></td><td>${escapeHtml(fundTypeName(row.fundType))}</td><td class="price cash-in">${Number(row.inAmount||0)>0?money(row.inAmount):""}</td><td class="price cash-out">${Number(row.outAmount||0)>0?money(row.outAmount):""}</td><td>${escapeHtml(row.sourceType||"")}</td></tr>`).join(""):'<tr><td colspan="6">Chưa có giao dịch quỹ.</td></tr>'
+}if(fundSummary)fundSummary.textContent=`Tổng quan quỹ ngày ${data.asOf||""}: tiền mặt ${money(cash.closing||0)}, ngân hàng ${money(bank.closing||0)}.`
+;if(fundDashboardStatus)fundDashboardStatus.textContent=data.status==="partial"?"Đã tải tổng quan, một số hàng chờ cần kiểm tra lại.":`Dữ liệu tổng quan ngày ${data.asOf||""} từ fundLedgers.`
+}function loadFundDashboard(){if(!fundDashboardStatus&&!fundDashboardCashInTransitTable&&!fundDashboardRecentTable)return Promise.resolve()
+;return runFundListRequest("dashboard",async()=>{setFundDashboardLoading();try{const params=new URLSearchParams
+;const asOf=fundDashboardAsOf&&fundDashboardAsOf.value?fundDashboardAsOf.value:today();params.set("asOf",asOf);params.set("recentLimit","10");params.set("cashInTransitLimit","20")
+;const res=await fetch(`/api/funds/dashboard?${params.toString()}`);const json=await fundReadJsonResponse(res,"Không tải được tổng quan quỹ")
+;if(!json.ok||!json.data)throw new Error(json.message||"Không tải được tổng quan quỹ");renderFundDashboard(json.data)}catch(err){
+if(fundDashboardStatus)fundDashboardStatus.textContent=err.message||"Lỗi tải tổng quan quỹ"
+;if(fundDashboardCashInTransitTable)fundDashboardCashInTransitTable.innerHTML=`<tr><td colspan="6">${escapeHtml(err.message||"Lỗi tải tổng quan quỹ")}</td></tr>`
+;if(fundDashboardRecentTable)fundDashboardRecentTable.innerHTML='<tr><td colspan="6">Không tải được giao dịch gần nhất.</td></tr>'}})}function handleFundDashboardJump(button){
+const target=button&&button.dataset&&button.dataset.fundDashboardJump;if(!target)return;if(target==="fundLedger"){
+if(fundDateTo&&fundDashboardAsOf)fundDateTo.value=fundDashboardAsOf.value||today();setActiveFundTab("fundLedger");return}setActiveFundTab(target)}function setActiveFundTab(tab){
+activeFundTab=tab||"fundDashboard";if(fundTabButtons)fundTabButtons.forEach(btn=>{const active=btn.dataset.fundTab===activeFundTab;btn.classList.toggle("active",active)
 ;btn.setAttribute("aria-selected",active?"true":"false")});if(fundTabPanels)fundTabPanels.forEach(panel=>panel.classList.toggle("active",panel.dataset.fundPanel===activeFundTab))
-;const commonToolbar=fundToolbarGrid&&fundToolbarGrid.closest(".fund-module-toolbar");if(commonToolbar)commonToolbar.hidden=activeFundTab==="fundSummaryBook"
-;const showLedgerFilters=activeFundTab==="fundLedger";if(fundLedgerOnlyFields)fundLedgerOnlyFields.forEach(field=>{field.hidden=!showLedgerFilters})
+;const commonToolbar=fundToolbarGrid&&fundToolbarGrid.closest(".fund-module-toolbar")
+;if(commonToolbar)commonToolbar.hidden=activeFundTab==="fundSummaryBook"||activeFundTab==="fundDashboard";const showLedgerFilters=activeFundTab==="fundLedger"
+;if(fundLedgerOnlyFields)fundLedgerOnlyFields.forEach(field=>{field.hidden=!showLedgerFilters})
 ;if(fundToolbarGrid)fundToolbarGrid.classList.toggle("fund-toolbar-compact",!showLedgerFilters);reloadActiveFundTab()}function buildFundLedgerParams(){
 const params=new URLSearchParams;const q=fundSearchInput?fundSearchInput.value.trim():"";if(q)params.set("q",q)
 ;if(fundDateFrom&&fundDateFrom.value)params.set("dateFrom",fundDateFrom.value);if(fundDateTo&&fundDateTo.value)params.set("dateTo",fundDateTo.value)

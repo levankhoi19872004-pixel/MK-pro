@@ -1,4 +1,29 @@
 /* Sổ quỹ tổng hợp: chỉ bổ sung layout, tái sử dụng token/nút/bảng hiện hữu. */
+#fundsTab .fund-dashboard-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;}
+#fundsTab .fund-dashboard-head h3,#fundsTab .fund-dashboard-section h4{margin:0;}
+#fundsTab .fund-dashboard-head .ui-page-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+#fundsTab .fund-dashboard-head input[type="date"]{min-height:36px;border:1px solid #cbd5e1;border-radius:8px;padding:0 10px;background:#fff;}
+#fundsTab .fund-dashboard-kpis{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:10px;margin:8px 0 12px;}
+#fundsTab .fund-dashboard-kpi{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;border:1px solid #dbe7f6;background:#fff;border-radius:8px;padding:12px;min-height:112px;box-shadow:0 1px 2px rgba(15,23,42,.04);}
+#fundsTab .fund-dashboard-kpi span,#fundsTab .fund-dashboard-queue span{font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;}
+#fundsTab .fund-dashboard-kpi b{font-size:22px;line-height:1.2;font-variant-numeric:tabular-nums;color:#0f172a;overflow-wrap:anywhere;}
+#fundsTab .fund-dashboard-kpi small,#fundsTab .fund-dashboard-queue small{color:#64748b;}
+#fundsTab .fund-dashboard-queues{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:12px;}
+#fundsTab .fund-dashboard-queue{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;text-align:left;border:1px solid #dbe7f6;background:#f8fbff;border-radius:8px;padding:10px 12px;min-height:76px;}
+#fundsTab .fund-dashboard-queue b{font-size:20px;font-variant-numeric:tabular-nums;color:#0f172a;}
+#fundsTab .fund-dashboard-queue small{grid-column:1/-1;font-variant-numeric:tabular-nums;}
+#fundsTab .fund-dashboard-queue.disabled{opacity:.62;cursor:not-allowed;}
+#fundsTab .fund-dashboard-grids{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:12px;}
+#fundsTab .fund-dashboard-section{min-width:0;border:1px solid #dbe7f6;border-radius:8px;background:#fff;padding:12px;}
+#fundsTab .fund-dashboard-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+#fundConfirmPreviewModal .fund-confirm-preview-card{width:min(560px,94vw);}
+#fundConfirmPreviewModal .fund-confirm-preview-body{padding:14px 18px 4px;background:#f8fbff;}
+#fundConfirmPreviewModal dl{display:grid;grid-template-columns:1fr;gap:8px;margin:0;}
+#fundConfirmPreviewModal dl div{display:grid;grid-template-columns:150px 1fr;gap:10px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;}
+#fundConfirmPreviewModal dt{font-weight:700;color:#475569;}
+#fundConfirmPreviewModal dd{margin:0;color:#0f172a;overflow-wrap:anywhere;}
+#fundConfirmPreviewModal .message{margin:8px 18px;min-height:22px;}
+#fundConfirmPreviewModal .form-actions{padding:0 18px 16px;display:flex;justify-content:flex-end;}
 #fundsTab .fund-summary-book{min-width:0;}
 #fundsTab .fund-summary-toolbar{margin:0 0 10px;}
 #fundsTab .fund-summary-filter-grid{display:grid;grid-template-columns:repeat(6,minmax(150px,1fr));gap:10px;align-items:end;}
@@ -38,10 +63,16 @@
 #fundSummaryDetailModal th:nth-child(6),#fundSummaryDetailModal td:nth-child(6),
 #fundSummaryDetailModal th:nth-child(7),#fundSummaryDetailModal td:nth-child(7){text-align:right;font-variant-numeric:tabular-nums;}
 @media(max-width:1280px){
+  #fundsTab .fund-dashboard-kpis,#fundsTab .fund-dashboard-queues{grid-template-columns:repeat(2,minmax(160px,1fr));}
+  #fundsTab .fund-dashboard-grids{grid-template-columns:1fr;}
   #fundsTab .fund-summary-filter-grid{grid-template-columns:repeat(3,minmax(160px,1fr));}
   #fundsTab .fund-summary-kpis{grid-template-columns:repeat(4,minmax(140px,1fr));}
 }
 @media(max-width:760px){
+  #fundsTab .fund-dashboard-head{display:block;}
+  #fundsTab .fund-dashboard-head .ui-page-actions{margin-top:8px;}
+  #fundsTab .fund-dashboard-kpis,#fundsTab .fund-dashboard-queues{grid-template-columns:1fr;}
+  #fundConfirmPreviewModal dl div{grid-template-columns:1fr;}
   #fundsTab .fund-summary-filter-grid{grid-template-columns:1fr;}
   #fundsTab .fund-summary-person-field{grid-column:auto;}
   #fundsTab .fund-summary-actions{grid-column:auto;display:grid;grid-template-columns:1fr;}

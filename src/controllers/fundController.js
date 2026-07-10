@@ -3,6 +3,7 @@
 const fundService = require('../services/fundService');
 const fundSummaryService = require('../services/fundSummary.service');
 const DeliverySettlementService = require('../domain/settlement/DeliverySettlementService');
+const FundDashboardReadService = require('../services/accounting/FundDashboardReadService');
 
 function sendResult(res, result, successMessage = 'OK', statusCode = 200) {
   if (result?.error) return res.status(result.status || 400).json({ ok: false, success: false, message: result.error, ...result });
@@ -19,6 +20,19 @@ async function listDeliverySubmissions(req, res) {
   catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được phiếu nộp quỹ giao hàng', error: process.env.NODE_ENV === 'production' ? undefined : err.message }); }
 }
 
+async function getDashboard(req, res) {
+  try {
+    const result = await FundDashboardReadService.getFundDashboard(req.query || {});
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(err.status || 500).json({
+      ok: false,
+      success: false,
+      message: err.message || 'KhÃ´ng táº£i Ä‘Æ°á»£c tá»•ng quan quá»¹ tiá»n',
+      error: process.env.NODE_ENV === 'production' ? undefined : err.message
+    });
+  }
+}
 
 async function deliveryCashInTransit(req, res) {
   try {
@@ -218,4 +232,4 @@ async function confirmTransfer(req, res) {
   catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không xác nhận được phiếu chuyển quỹ' }); }
 }
 
-module.exports = { listLedger, getSummary, getSummaryTransactions, exportSummary, listDeliverySubmissions, deliveryCashInTransit, listExpenses, listTransfers, previewDeliverySubmission, createDeliverySubmission, updateDeliverySubmission, confirmDeliverySubmission, confirmDeliveryRemittanceLine, classifyDeliveryShortages, getDeliveryShortageHistory, createDeliveryShortageRepayment, confirmDeliveryShortageRepayment, createExpense, updateExpense, confirmExpense, createTransfer, updateTransfer, confirmTransfer };
+module.exports = { listLedger, getDashboard, getSummary, getSummaryTransactions, exportSummary, listDeliverySubmissions, deliveryCashInTransit, listExpenses, listTransfers, previewDeliverySubmission, createDeliverySubmission, updateDeliverySubmission, confirmDeliverySubmission, confirmDeliveryRemittanceLine, classifyDeliveryShortages, getDeliveryShortageHistory, createDeliveryShortageRepayment, confirmDeliveryShortageRepayment, createExpense, updateExpense, confirmExpense, createTransfer, updateTransfer, confirmTransfer };

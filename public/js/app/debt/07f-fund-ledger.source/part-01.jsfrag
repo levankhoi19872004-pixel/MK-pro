@@ -1,8 +1,9 @@
 'use strict';
 
 // Fund Ledger V45 - nguồn tiền chuẩn duy nhất cho thu/chi/chuyển quỹ.
-let activeFundTab='fundLedger';
+let activeFundTab='fundDashboard';
 let activeDeliverySubmissionTab='cash';
+let fundConfirmPreviewContext=null;
 
 function fundStatusLabel(diff){
   const n=Number(diff||0);
@@ -74,6 +75,55 @@ function runFundActionRequest(key,triggerButton,task){
   fundActionRequests.set(key,request);
   return request;
 }
+
+function fundRefreshAfterMutation(){
+  return Promise.all([
+    loadFundDashboard(),
+    activeFundTab==='fundLedger'?loadFundLedger():Promise.resolve()
+  ]);
+}
+
+function fundPreviewRows(rows=[]){
+  return `<dl>${rows.map(row=>`<div><dt>${escapeHtml(row[0]||'')}</dt><dd>${escapeHtml(row[1]||'')}</dd></div>`).join('')}</dl>`;
+}
+
+function openFundConfirmPreview({title='Xác nhận ghi quỹ',rows=[],message='',actionKey='',triggerButton=null,onConfirm}={}){
+  if(!fundConfirmPreviewModal||!fundConfirmPreviewBody||!fundConfirmPreviewSubmitButton||typeof onConfirm!=='function'){
+    return Promise.resolve().then(onConfirm);
+  }
+  fundConfirmPreviewContext={actionKey,triggerButton,onConfirm};
+  const titleEl=document.getElementById('fundConfirmPreviewTitle');
+  if(titleEl)titleEl.textContent=title;
+  fundConfirmPreviewBody.innerHTML=fundPreviewRows(rows);
+  if(fundConfirmPreviewMessage)showMessage(fundConfirmPreviewMessage,message||'');
+  fundConfirmPreviewSubmitButton.disabled=false;
+  fundConfirmPreviewModal.classList.add('show');
+  fundConfirmPreviewModal.setAttribute('aria-hidden','false');
+  document.body.classList.add('modal-open');
+  window.requestAnimationFrame(()=>fundConfirmPreviewSubmitButton.focus());
+}
+
+function closeFundConfirmPreview(){
+  if(!fundConfirmPreviewModal)return;
+  fundConfirmPreviewModal.classList.remove('show');
+  fundConfirmPreviewModal.setAttribute('aria-hidden','true');
+  fundConfirmPreviewContext=null;
+  if(!document.querySelector('.modal-backdrop.show'))document.body.classList.remove('modal-open');
+}
+
+async function submitFundConfirmPreview(){
+  const ctx=fundConfirmPreviewContext;
+  if(!ctx||typeof ctx.onConfirm!=='function')return;
+  try{
+    if(fundConfirmPreviewSubmitButton)fundConfirmPreviewSubmitButton.disabled=true;
+    const json=await runFundActionRequest(ctx.actionKey||'fund-confirm-preview',ctx.triggerButton,ctx.onConfirm);
+    closeFundConfirmPreview();
+    alert(json&&json.message||'Đã xác nhận và ghi quỹ');
+  }catch(err){
+    if(fundConfirmPreviewMessage)showMessage(fundConfirmPreviewMessage,err.message||'Không xác nhận được giao dịch quỹ',true);
+    if(fundConfirmPreviewSubmitButton)fundConfirmPreviewSubmitButton.disabled=false;
+  }
+}
 function fundStatusText(row){
   const status=String(row&&row.status||'pending').toLowerCase();
   if(status==='confirmed')return 'confirmed';
@@ -98,8 +148,8 @@ function fundActionButtons(type,row){
   const rawCode=String(row.code||row.id||'');
   const code=fundSafeCode(rawCode);
   const actions=[];
-  if(fundCanEdit(row))actions.push(`<button type="button" class="secondary compact-action" data-fund-action-key="${escapeHtml(`edit:${type}:${rawCode}`)}" data-fund-action="edit" data-fund-type="${escapeHtml(type)}" data-fund-code="${escapeHtml(rawCode)}">Sửa</button>`);
-  if(fundCanConfirm(row))actions.push(`<button type="button" class="secondary compact-action fund-confirm-action" data-fund-action-key="${escapeHtml(`confirm:${type}:${rawCode}`)}" data-fund-action="confirm" data-fund-type="${escapeHtml(type)}" data-fund-code="${escapeHtml(rawCode)}">Xác nhận</button>`);
+  if(fundCanEdit(row))actions.push(`<button type="button" class="secondary compact-action" data-fund-action-key="${escapeHtml(`edit:${type}:${rawCode}`)}" data-fund-action="edit" data-fund-type="${escapeHtml(type)}" data-fund-code="${escapeHtml(rawCode)}">${type==='delivery'?'Xử lý':'Sửa'}</button>`);
+  if(fundCanConfirm(row))actions.push(`<button type="button" class="secondary compact-action fund-confirm-action" data-fund-action-key="${escapeHtml(`confirm:${type}:${rawCode}`)}" data-fund-action="confirm" data-fund-type="${escapeHtml(type)}" data-fund-code="${escapeHtml(rawCode)}">${type==='delivery'?'Xử lý':'Xác nhận'}</button>`);
   if(!actions.length)return '<span class="muted">Đã xác nhận</span>';
   return actions.join(' ');
 }
@@ -178,8 +228,8 @@ function fundVoucherUi(type){
     form:fundTransferForm,
     message:fundTransferMessage,
     title:document.getElementById('fundTransferModalTitle'),
-    createTitle:'Tạo phiếu nộp ngân hàng',
-    editTitle:'Sửa phiếu nộp ngân hàng',
+    createTitle:'Tạo phiếu chuyển quỹ',
+    editTitle:'Sửa phiếu chuyển quỹ',
     dateField:'date'
   };
   return null;
@@ -222,4 +272,3 @@ function bindFundVoucherModal(type,openButton,closeButton){
   if(closeButton)closeButton.addEventListener('click',()=>closeFundVoucherModal(type));
   if(ui&&ui.modal)ui.modal.addEventListener('click',event=>{if(event.target===ui.modal)closeFundVoucherModal(type);});
 }
-
