@@ -127,7 +127,8 @@
     "audit:dead-code": "node scripts/audit-dead-code.js",
     "audit:confirmed-debt-collection-receipts": "node scripts/audit-confirmed-debt-collections-missing-from-debt-read-model.js --json",
     "audit:bulk-debt-reconcile-balance-lookup": "node scripts/audit-bulk-debt-reconcile-balance-lookup.js --json",
-    "audit:fund-ending-balance": "node scripts/audit-fund-ending-balance-consistency.js --json"
+    "audit:fund-ending-balance": "node scripts/audit-fund-ending-balance-consistency.js --json",
+    "audit:closeout-duplicate-debt-adjustment": "node scripts/audit-closeout-debt-adjustment-duplicate-ar-sale.js --json"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

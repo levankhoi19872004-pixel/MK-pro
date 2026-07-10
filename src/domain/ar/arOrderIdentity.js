@@ -6,6 +6,12 @@
  * Correction/closeout/allocation documents may have their own sourceId/sourceCode.
  * Those document identities must never replace the sales order identity when
  * calculating the current AR balance for an order.
+ *
+ * Important: a non-business document source may legitimately reuse the same
+ * value as the business order (normal delivery closeout uses sourceId=orderId
+ * and sourceCode=orderCode). Such overlapping values are trusted because they
+ * are also present in explicit order identity fields; they must not be removed
+ * from lookupKeys merely because sourceType itself is not a business-order type.
  */
 
 const BUSINESS_ORDER_SOURCE_TYPES = Object.freeze(new Set([
@@ -45,6 +51,7 @@ function resolveCanonicalArOrderIdentity(input = {}) {
   const order = input.order && typeof input.order === 'object' ? input.order : {};
   const allocation = input.allocation && typeof input.allocation === 'object' ? input.allocation : {};
   const explicit = input.identity && typeof input.identity === 'object' ? input.identity : {};
+  const extraOrderKeys = Array.isArray(input.extraOrderKeys) ? input.extraOrderKeys : [];
 
   const orderId = first([
     explicit.salesOrderId,
@@ -68,21 +75,9 @@ function resolveCanonicalArOrderIdentity(input = {}) {
     allocation.orderCode
   ]);
 
-  const allowedSourceAliases = unique([
-    ...sourceOrderAliases(explicit),
-    ...sourceOrderAliases(order),
-    ...sourceOrderAliases(allocation)
-  ]);
-  const ignoredSourceAliases = unique([
-    explicit.sourceId,
-    explicit.sourceCode,
-    order.sourceId,
-    order.sourceCode,
-    allocation.sourceId,
-    allocation.sourceCode
-  ]).filter((value) => !allowedSourceAliases.includes(value));
-
-  const lookupKeys = unique([
+  // These values come from dedicated business-order fields and are therefore
+  // trusted even when a closeout/correction source alias happens to be equal.
+  const businessIdentityKeys = unique([
     orderId,
     orderCode,
     explicit.salesOrderId,
@@ -96,13 +91,41 @@ function resolveCanonicalArOrderIdentity(input = {}) {
     order.salesOrderCode,
     order.orderCode,
     order.code,
+    order.documentCode,
+    order.invoiceCode,
     allocation.salesOrderId,
     allocation.orderId,
     allocation.salesOrderCode,
     allocation.orderCode,
-    ...allowedSourceAliases,
-    ...(Array.isArray(input.extraOrderKeys) ? input.extraOrderKeys : [])
-  ]).filter((value) => !ignoredSourceAliases.includes(value));
+    ...extraOrderKeys
+  ]);
+
+  const allowedSourceAliases = unique([
+    ...sourceOrderAliases(explicit),
+    ...sourceOrderAliases(order),
+    ...sourceOrderAliases(allocation)
+  ]);
+  const allSourceAliases = unique([
+    explicit.sourceId,
+    explicit.sourceCode,
+    order.sourceId,
+    order.sourceCode,
+    allocation.sourceId,
+    allocation.sourceCode
+  ]);
+
+  const sourceAliasesMatchingBusinessIdentity = allSourceAliases
+    .filter((value) => businessIdentityKeys.includes(value));
+  const ignoredSourceAliases = allSourceAliases
+    .filter((value) => !allowedSourceAliases.includes(value) && !businessIdentityKeys.includes(value));
+
+  // Never subtract ignored source aliases from trusted business keys. The old
+  // implementation did this and collapsed normal closeout lookupKeys to []
+  // because delivery_closeout sourceId/sourceCode equal orderId/orderCode.
+  const lookupKeys = unique([
+    ...businessIdentityKeys,
+    ...allowedSourceAliases
+  ]);
 
   return {
     orderId,
@@ -110,6 +133,9 @@ function resolveCanonicalArOrderIdentity(input = {}) {
     salesOrderId: first([explicit.salesOrderId, order.salesOrderId, allocation.salesOrderId, orderId]),
     salesOrderCode: first([explicit.salesOrderCode, order.salesOrderCode, allocation.salesOrderCode, orderCode]),
     lookupKeys,
+    businessIdentityKeys,
+    allowedSourceAliases,
+    sourceAliasesMatchingBusinessIdentity,
     ignoredSourceAliases,
     sourceType: first([explicit.sourceType, allocation.sourceType, order.sourceType])
   };

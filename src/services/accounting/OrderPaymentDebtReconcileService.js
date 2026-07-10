@@ -235,6 +235,7 @@ async function getCurrentOrderArBalanceDetails(identityInput = {}, customerCode 
     identity,
     lookupKeys: identity.lookupKeys,
     ignoredSourceAliases: identity.ignoredSourceAliases,
+    sourceAliasesMatchingBusinessIdentity: identity.sourceAliasesMatchingBusinessIdentity || [],
     currentArBalance
   };
 }
@@ -373,6 +374,7 @@ function diagnosticFromReconcile({
     deliveryDate: dateUtil.toDateOnly(allocation.deliveryDate || order.deliveryDate || order.orderDate || order.date),
     lookupKeys: balanceDetails.lookupKeys || identity.lookupKeys || [],
     ignoredSourceAliases: balanceDetails.ignoredSourceAliases || identity.ignoredSourceAliases || [],
+    sourceAliasesMatchingBusinessIdentity: balanceDetails.sourceAliasesMatchingBusinessIdentity || identity.sourceAliasesMatchingBusinessIdentity || [],
     rawMatchedLedgerCount: Number(balanceDetails.rawMatchedLedgerCount || 0),
     rawActiveConfirmedLedgerCount: Number(balanceDetails.rawActiveConfirmedLedgerCount || 0),
     canonicalMatchedLedgerCount: Number(balanceDetails.canonicalMatchedLedgerCount || 0),
@@ -470,6 +472,26 @@ async function reconcileOneOrder({
     idempotencyKey,
     suggestedFix
   });
+
+  // Accounting safety guard: a positive expected debt must never be posted as
+  // a full adjustment when the business order identity could not be resolved.
+  // This protects against future identity-contract regressions even if the
+  // category reader itself is otherwise healthy.
+  if (!(balanceDetails.lookupKeys || []).length
+    && money(expected.expectedDebtAmount) > normalizedTolerance) {
+    return emitReconcileDiagnostic({
+      needsAdjustment: false,
+      manualReviewRequired: true,
+      skipReason: 'CANONICAL_AR_ORDER_IDENTITY_UNRESOLVED',
+      zeroToleranceApplied: expected.zeroToleranceApplied,
+      currentArBalance,
+      expectedDebtAmount: expected.expectedDebtAmount,
+      deltaDebt,
+      diff: -deltaDebt,
+      action: 'manual-review',
+      diagnostic: buildDiagnostic('manual-review', 'CANONICAL_AR_ORDER_IDENTITY_UNRESOLVED', 'Không dựng được orderId/orderCode canonical. Đã chặn post toàn bộ expected debt để tránh nhân đôi công nợ.')
+    }, diagnosticLogger);
+  }
 
   if (hasCanonicalLookupAnomaly(balanceDetails, expected.expectedDebtAmount, normalizedTolerance)) {
     return emitReconcileDiagnostic({

@@ -1,0 +1,65 @@
+{
+  "phase": 229,
+  "dryRun": true,
+  "readOnly": true,
+  "generatedAt": "2026-07-10T09:57:29.331Z",
+  "filter": {
+    "account": "AR",
+    "category": "AR-DEBT-ADJUSTMENT",
+    "ledgerType": "AR-DEBT-ADJUSTMENT",
+    "sourceScope": [
+      "sourceType matches /^delivery_closeout$/i",
+      "or sourceModel matches /^orderPaymentAllocations$/i and reason matches /^order payment debt reconcile$/i"
+    ],
+    "orderCode": "",
+    "customerCode": ""
+  },
+  "summary": {
+    "adjustmentCount": 1,
+    "p0DuplicateDebtCount": 1,
+    "warningCount": 0,
+    "totalOverPostedAmount": 875094
+  },
+  "rows": [
+    {
+      "customerCode": "5052875",
+      "customerName": "Trung Liên",
+      "orderCode": "B0039252",
+      "orderId": "SO-B0039252",
+      "adjustmentLedgerId": "AR-DEBT-ADJUSTMENT-DEBT-RECONCILE-B0039252",
+      "adjustmentCreatedAt": "2026-07-10T01:00:01.000Z",
+      "sourceType": "delivery_closeout",
+      "sourceId": "SO-B0039252",
+      "sourceCode": "B0039252",
+      "canonicalLookupKeys": [
+        "SO-B0039252",
+        "B0039252"
+      ],
+      "legacyLookupKeys": [],
+      "legacyIdentityCollapsed": true,
+      "rawBalanceBefore": 875094,
+      "canonicalBalanceBefore": 875094,
+      "expectedDebtAmount": 875094,
+      "expectedDelta": 0,
+      "postedDebit": 875094,
+      "postedCredit": 0,
+      "postedDelta": 875094,
+      "overPostedAmount": 875094,
+      "existingArSaleLedgerIds": [
+        "AR-SALE-B0039252"
+      ],
+      "existingArSaleDebit": 875094,
+      "excludedLedgerIds": [],
+      "exclusionReasons": [],
+      "severity": "P0_DUPLICATE_DEBT",
+      "remediationPlan": {
+        "applyAutomatically": false,
+        "action": "ACCOUNTING_SAFE_REVERSAL_PLAN_ONLY",
+        "originalLedgerId": "AR-DEBT-ADJUSTMENT-DEBT-RECONCILE-B0039252",
+        "reversalDirection": "credit",
+        "reversalAmount": 875094,
+        "note": "Không hard delete hoặc sửa ledger posted. Chỉ tạo reversal tham chiếu original ledger sau khi kế toán duyệt audit production."
+      }
+    }
+  ]
+}
