@@ -21,6 +21,7 @@ const {
   pickDeliveryStaffName
 } = postingDependencies.staffIdentity;
 const assertValidCanonicalArLedgerContract = postingDependencies.arLedgerContractValidation?.assertValidArLedgerContract || (() => true);
+const AR_CATEGORIES = postingDependencies.arDebtCategoryRegistry?.AR_CATEGORIES || { RECEIPT: 'AR-RECEIPT' };
 
 
 
@@ -388,8 +389,8 @@ async function postReceiptAR(receipt = {}, options = {}) {
       id: `AR-RECEIPT-${receiptKey}-${sourceId || sourceCode || index + 1}`,
       code: `AR-RECEIPT-${receipt.code || receipt.id || sourceCode || receiptKey}-${index + 1}`,
       type: 'ar_receipt',
-      category: 'AR-RECEIPT',
-      ledgerType: 'AR-RECEIPT',
+      category: AR_CATEGORIES.RECEIPT,
+      ledgerType: AR_CATEGORIES.RECEIPT,
       entryType: 'normal',
       refType: receipt.refType || 'RECEIPT',
       refId: receipt.refId || receipt.id || receipt._id || receipt.code || receiptKey,

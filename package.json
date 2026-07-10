@@ -124,7 +124,8 @@
     "order-payment:trace:json": "node scripts/trace-order-payment-debt.js --json",
     "debt-new:audit-vs-ar": "node scripts/audit-debt-new-vs-ar-ledgers.js",
     "debt-new:audit-vs-ar:json": "node scripts/audit-debt-new-vs-ar-ledgers.js --json",
-    "audit:dead-code": "node scripts/audit-dead-code.js"
+    "audit:dead-code": "node scripts/audit-dead-code.js",
+    "audit:confirmed-debt-collection-receipts": "node scripts/audit-confirmed-debt-collections-missing-from-debt-read-model.js --json"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

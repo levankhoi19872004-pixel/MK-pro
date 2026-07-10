@@ -9,6 +9,10 @@ const {
   isCanonicalArDebtLedger,
   validateArLedgerContract
 } = require('./arLedgerValidator');
+const {
+  ACTIVE_DEBT_READ_MODEL_CATEGORIES,
+  EXCLUDED_DEBT_READ_MODEL_CATEGORIES
+} = require('./arDebtCategoryRegistry');
 
 function clean(value = '') {
   return String(value ?? '').trim();
@@ -163,6 +167,66 @@ function buildCanonicalArLedgerMatch(filters = {}) {
   return match;
 }
 
+function buildActiveDebtReadModelLedgerMatch(filters = {}) {
+  const normalized = normalizeArDebtFilters(filters);
+  const match = {
+    account: 'AR',
+    accountingConfirmed: true,
+    accountingStatus: 'confirmed',
+    active: true,
+    reversed: { $ne: true },
+    isDeleted: { $ne: true },
+    deleted: { $ne: true },
+    status: { $nin: ['void', 'voided', 'cancelled', 'canceled', 'deleted', 'reversed'] },
+    category: { $in: [...ACTIVE_DEBT_READ_MODEL_CATEGORIES] },
+    ledgerType: { $in: [...ACTIVE_DEBT_READ_MODEL_CATEGORIES] }
+  };
+
+  if (clean(filters.tenantId)) match.tenantId = clean(filters.tenantId);
+  if (normalized.customerCode) {
+    const rx = exactCodeRegex(normalized.customerCode);
+    appendAnd(match, { $or: [{ customerCode: rx }, { customerId: rx }] });
+  }
+  if (normalized.sourceId) {
+    const rx = exactCodeRegex(normalized.sourceId);
+    appendAnd(match, { $or: [{ sourceId: rx }, { salesOrderId: rx }, { orderId: rx }, { refId: rx }] });
+  }
+  if (normalized.sourceCode) {
+    const rx = exactCodeRegex(normalized.sourceCode);
+    appendAnd(match, { $or: [{ sourceCode: rx }, { salesOrderCode: rx }, { orderCode: rx }, { refCode: rx }] });
+  }
+  if (normalized.salesStaffCode) {
+    const rx = exactCodeRegex(normalized.salesStaffCode);
+    appendAnd(match, { $or: [{ salesStaffCode: rx }, { salesmanCode: rx }, { nvbhCode: rx }] });
+  }
+  if (normalized.deliveryStaffCode) {
+    const rx = exactCodeRegex(normalized.deliveryStaffCode);
+    appendAnd(match, { $or: [{ deliveryStaffCode: rx }, { deliveryCode: rx }, { nvghCode: rx }] });
+  }
+  if (normalized.q) {
+    const rx = new RegExp(escapeRegExp(normalized.q), 'i');
+    appendAnd(match, {
+      $or: [
+        { customerCode: rx },
+        { customerName: rx },
+        { customerId: rx },
+        { sourceCode: rx },
+        { sourceId: rx },
+        { orderCode: rx },
+        { salesOrderCode: rx },
+        { code: rx },
+        { id: rx }
+      ]
+    });
+  }
+  if (normalized.dateFrom || normalized.dateTo) {
+    match.date = {};
+    if (normalized.dateFrom) match.date.$gte = normalized.dateFrom;
+    if (normalized.dateTo) match.date.$lte = normalized.dateTo;
+  }
+  return match;
+}
+
 function getSignedArAmount(ledger = {}) {
   if (!isPhase87ReadModelArDebtLedger(ledger)) {
     const validation = validateArLedgerContract(ledger);
@@ -244,7 +308,10 @@ function matchesDebtStatus(amount, row = {}, status = 'open') {
 
 module.exports = {
   DEBT_ZERO_TOLERANCE,
+  ACTIVE_DEBT_READ_MODEL_CATEGORIES,
+  EXCLUDED_DEBT_READ_MODEL_CATEGORIES,
   buildCanonicalArLedgerMatch,
+  buildActiveDebtReadModelLedgerMatch,
   normalizeArDebtFilters,
   normalizeDebtStatus,
   normalizeStaffCode,

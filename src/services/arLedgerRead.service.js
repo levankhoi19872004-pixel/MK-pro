@@ -2,9 +2,15 @@
 
 const dateUtil = require('../utils/date.util');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
-const { isCanonicalArDebtLedger, validateArLedgerContract, PHASE87_READ_MODEL_CATEGORIES } = require('../domain/ar/arLedgerValidator');
+const {
+  isCanonicalArDebtLedger,
+  canProjectCanonicalAccountingLedgerToDebtReadModel,
+  validateArLedgerContract,
+  PHASE87_READ_MODEL_CATEGORIES
+} = require('../domain/ar/arLedgerValidator');
 const {
   buildCanonicalArLedgerMatch,
+  buildActiveDebtReadModelLedgerMatch,
   normalizeArDebtFilters,
   normalizeCanonicalLedgerRow,
   canonicalRowMatchesFilters,
@@ -74,6 +80,20 @@ function normalizeAndValidateRows(rows = [], filters = {}) {
 }
 
 
+function normalizeAndValidateActiveDebtRows(rows = [], filters = {}) {
+  const canonicalLedgers = [];
+  const rejectedLedgers = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (canProjectCanonicalAccountingLedgerToDebtReadModel(row) && canonicalRowMatchesFilters(row, filters)) {
+      canonicalLedgers.push(normalizeCanonicalLedgerRow(row));
+    } else {
+      rejectedLedgers.push({ ledgerId: clean(row.id || row.code || row._id), validation: validateArLedgerContract(row) });
+    }
+  }
+  return { canonicalLedgers, rejectedLedgers };
+}
+
+
 
 async function findArLedgerRowsByRawMatch(match = {}, options = {}) {
   const { ArLedger } = getModels();
@@ -93,6 +113,14 @@ async function getCanonicalArLedgers(filters = {}, options = {}) {
   const normalized = normalizeArDebtFilters(filters);
   const rows = await queryRows(ArLedger, buildCanonicalArLedgerMatch(normalized), options);
   const result = normalizeAndValidateRows(rows, normalized);
+  return options.includeRejected ? result : result.canonicalLedgers;
+}
+
+async function getActiveDebtReadModelLedgers(filters = {}, options = {}) {
+  const { ArLedger } = getModels();
+  const normalized = normalizeArDebtFilters(filters);
+  const rows = await queryRows(ArLedger, buildActiveDebtReadModelLedgerMatch(normalized), options);
+  const result = normalizeAndValidateActiveDebtRows(rows, normalized);
   return options.includeRejected ? result : result.canonicalLedgers;
 }
 
@@ -294,9 +322,11 @@ async function aggregateDebtByStaff(filters = {}, options = {}) {
 module.exports = {
   setModelsForTest,
   buildCanonicalArLedgerMatch,
+  buildActiveDebtReadModelLedgerMatch,
   normalizeArDebtFilters,
   getSignedArAmount,
   getCanonicalArLedgers,
+  getActiveDebtReadModelLedgers,
   findArLedgerRowsByRawMatch,
   getCanonicalLedgersByRawMatch,
   getCanonicalLedgersByCustomer,

@@ -10,6 +10,7 @@ function matchesValue(actual, expected) {
   if (expected instanceof RegExp) return expected.test(clean(actual));
   if (expected && typeof expected === 'object' && !Array.isArray(expected)) {
     if ('$in' in expected) return expected.$in.some((item) => matchesValue(actual, item));
+    if ('$nin' in expected) return !expected.$nin.some((item) => matchesValue(actual, item));
     if ('$ne' in expected) return !matchesValue(actual, expected.$ne);
     if ('$exists' in expected) return expected.$exists ? actual !== undefined : actual === undefined;
     if ('$type' in expected) {

@@ -1,0 +1,1421 @@
+--- a/package.json
++++ b/package.json
+@@ -124,7 +124,8 @@
+     "order-payment:trace:json": "node scripts/trace-order-payment-debt.js --json",
+     "debt-new:audit-vs-ar": "node scripts/audit-debt-new-vs-ar-ledgers.js",
+     "debt-new:audit-vs-ar:json": "node scripts/audit-debt-new-vs-ar-ledgers.js --json",
+-    "audit:dead-code": "node scripts/audit-dead-code.js"
++    "audit:dead-code": "node scripts/audit-dead-code.js",
++    "audit:confirmed-debt-collection-receipts": "node scripts/audit-confirmed-debt-collections-missing-from-debt-read-model.js --json"
+   },
+   "dependencies": {
+     "bcryptjs": "^3.0.3",
+--- a/src/domain/ar/arDebtCategoryRegistry.js
++++ b/src/domain/ar/arDebtCategoryRegistry.js
+@@ -0,0 +1,182 @@
++'use strict';
++
++/**
++ * Canonical AR category registry for the active debt read model.
++ *
++ * Accounting documents may contain additional audit/reversal categories, but
++ * only ACTIVE_DEBT_READ_MODEL_CATEGORIES are eligible to participate in the
++ * official customer/order debt balance. Source/provenance checks are applied
++ * separately to detailed accounting categories to prevent legacy closeout
++ * rows from leaking into the active debt balance.
++ */
++const AR_CATEGORIES = Object.freeze({
++  DEBT_OPEN: 'AR-DEBT-OPEN',
++  DEBT_PAYMENT: 'AR-DEBT-PAYMENT',
++  DEBT_ADJUSTMENT: 'AR-DEBT-ADJUSTMENT',
++  DEBT_VOID: 'AR-DEBT-VOID',
++  SALE: 'AR-SALE',
++  SALE_REVERSAL: 'AR-SALE-REVERSAL',
++  RETURN: 'AR-RETURN',
++  RETURN_REVERSAL: 'AR-RETURN-REVERSAL',
++  RECEIPT: 'AR-RECEIPT',
++  RECEIPT_CASH: 'AR-RECEIPT-CASH',
++  RECEIPT_BANK: 'AR-RECEIPT-BANK',
++  RECEIPT_REVERSAL: 'AR-RECEIPT-REVERSAL',
++  REWARD_ALLOWANCE: 'AR-REWARD-ALLOWANCE',
++  BONUS: 'AR-BONUS',
++  ALLOWANCE: 'AR-ALLOWANCE',
++  ADJUSTMENT: 'AR-ADJUSTMENT'
++});
++
++const PHASE87_READ_MODEL_CATEGORIES = Object.freeze([
++  AR_CATEGORIES.DEBT_OPEN,
++  AR_CATEGORIES.DEBT_PAYMENT,
++  AR_CATEGORIES.DEBT_ADJUSTMENT,
++  AR_CATEGORIES.DEBT_VOID
++]);
++
++const ACTIVE_DEBT_INCREASE_CATEGORIES = Object.freeze([
++  AR_CATEGORIES.DEBT_OPEN,
++  AR_CATEGORIES.SALE
++]);
++
++const ACTIVE_DEBT_DECREASE_CATEGORIES = Object.freeze([
++  AR_CATEGORIES.DEBT_PAYMENT,
++  AR_CATEGORIES.RECEIPT,
++  AR_CATEGORIES.RECEIPT_CASH,
++  AR_CATEGORIES.RECEIPT_BANK,
++  AR_CATEGORIES.RETURN,
++  AR_CATEGORIES.REWARD_ALLOWANCE
++]);
++
++const ACTIVE_DEBT_ADJUSTMENT_CATEGORIES = Object.freeze([
++  AR_CATEGORIES.DEBT_ADJUSTMENT,
++  AR_CATEGORIES.DEBT_VOID
++]);
++
++const ACTIVE_DEBT_READ_MODEL_CATEGORIES = Object.freeze(Array.from(new Set([
++  ...ACTIVE_DEBT_INCREASE_CATEGORIES,
++  ...ACTIVE_DEBT_DECREASE_CATEGORIES,
++  ...ACTIVE_DEBT_ADJUSTMENT_CATEGORIES
++])));
++
++const EXCLUDED_DEBT_READ_MODEL_CATEGORIES = Object.freeze([
++  AR_CATEGORIES.SALE_REVERSAL,
++  AR_CATEGORIES.RETURN_REVERSAL,
++  AR_CATEGORIES.RECEIPT_REVERSAL
++]);
++
++const DETAILED_ACCOUNTING_CATEGORIES = Object.freeze([
++  AR_CATEGORIES.SALE,
++  AR_CATEGORIES.SALE_REVERSAL,
++  AR_CATEGORIES.RETURN,
++  AR_CATEGORIES.RETURN_REVERSAL,
++  AR_CATEGORIES.RECEIPT,
++  AR_CATEGORIES.RECEIPT_CASH,
++  AR_CATEGORIES.RECEIPT_BANK,
++  AR_CATEGORIES.RECEIPT_REVERSAL,
++  AR_CATEGORIES.REWARD_ALLOWANCE,
++  AR_CATEGORIES.BONUS,
++  AR_CATEGORIES.ALLOWANCE,
++  AR_CATEGORIES.ADJUSTMENT
++]);
++
++const ALL_SUPPORTED_AR_CATEGORIES = Object.freeze(Array.from(new Set([
++  ...PHASE87_READ_MODEL_CATEGORIES,
++  ...DETAILED_ACCOUNTING_CATEGORIES
++])));
++
++const ACCOUNTING_READ_MODEL_PROJECTABLE_CATEGORIES = Object.freeze([
++  ...ACTIVE_DEBT_READ_MODEL_CATEGORIES,
++  AR_CATEGORIES.BONUS,
++  AR_CATEGORIES.ALLOWANCE,
++  AR_CATEGORIES.ADJUSTMENT
++]);
++
++const CATEGORY_EFFECT = Object.freeze({
++  [AR_CATEGORIES.DEBT_OPEN]: 'debit',
++  [AR_CATEGORIES.DEBT_PAYMENT]: 'credit',
++  [AR_CATEGORIES.DEBT_ADJUSTMENT]: 'either',
++  [AR_CATEGORIES.DEBT_VOID]: 'either',
++  [AR_CATEGORIES.SALE]: 'debit',
++  [AR_CATEGORIES.SALE_REVERSAL]: 'credit',
++  [AR_CATEGORIES.RETURN]: 'credit',
++  [AR_CATEGORIES.RETURN_REVERSAL]: 'debit',
++  [AR_CATEGORIES.RECEIPT]: 'credit',
++  [AR_CATEGORIES.RECEIPT_CASH]: 'credit',
++  [AR_CATEGORIES.RECEIPT_BANK]: 'credit',
++  [AR_CATEGORIES.RECEIPT_REVERSAL]: 'debit',
++  [AR_CATEGORIES.REWARD_ALLOWANCE]: 'credit',
++  [AR_CATEGORIES.BONUS]: 'credit',
++  [AR_CATEGORIES.ALLOWANCE]: 'credit',
++  [AR_CATEGORIES.ADJUSTMENT]: 'either'
++});
++
++function clean(value = '') {
++  return String(value ?? '').trim();
++}
++
++function upper(value = '') {
++  return clean(value).toUpperCase();
++}
++
++function normalizeCategory(value = '') {
++  return upper(value);
++}
++
++function isActiveDebtReadModelCategory(value = '') {
++  return ACTIVE_DEBT_READ_MODEL_CATEGORIES.includes(normalizeCategory(value));
++}
++
++function isExcludedDebtReadModelCategory(value = '') {
++  return EXCLUDED_DEBT_READ_MODEL_CATEGORIES.includes(normalizeCategory(value));
++}
++
++function isDebtCollectionReceiptLedger(ledger = {}) {
++  const category = normalizeCategory(ledger.category || ledger.ledgerType);
++  if (![AR_CATEGORIES.RECEIPT, AR_CATEGORIES.RECEIPT_CASH, AR_CATEGORIES.RECEIPT_BANK].includes(category)) return false;
++
++  const sourceType = upper(ledger.sourceType);
++  const refType = upper(ledger.refType);
++  const source = upper(ledger.source);
++  const idempotencyKey = upper(ledger.idempotencyKey);
++
++  return sourceType === 'DEBTCOLLECTION'
++    || refType === 'DEBTCOLLECTION'
++    || source === 'DEBTCOLLECTIONPOSTINGSERVICE'
++    || /^AR-RECEIPT:DC[A-Z0-9_-]*:/i.test(idempotencyKey);
++}
++
++function canProjectDetailedAccountingCategoryBySource(ledger = {}) {
++  const category = normalizeCategory(ledger.category || ledger.ledgerType);
++  if (!ACCOUNTING_READ_MODEL_PROJECTABLE_CATEGORIES.includes(category)) return false;
++  if (PHASE87_READ_MODEL_CATEGORIES.includes(category)) return true;
++
++  const sourceType = upper(ledger.sourceType);
++  if (sourceType === 'ORDER_PAYMENT_ALLOCATION') return true;
++  return isDebtCollectionReceiptLedger(ledger);
++}
++
++function categoryEffect(value = '') {
++  return CATEGORY_EFFECT[normalizeCategory(value)] || '';
++}
++
++module.exports = {
++  AR_CATEGORIES,
++  PHASE87_READ_MODEL_CATEGORIES,
++  ACTIVE_DEBT_INCREASE_CATEGORIES,
++  ACTIVE_DEBT_DECREASE_CATEGORIES,
++  ACTIVE_DEBT_ADJUSTMENT_CATEGORIES,
++  ACTIVE_DEBT_READ_MODEL_CATEGORIES,
++  EXCLUDED_DEBT_READ_MODEL_CATEGORIES,
++  DETAILED_ACCOUNTING_CATEGORIES,
++  ALL_SUPPORTED_AR_CATEGORIES,
++  ACCOUNTING_READ_MODEL_PROJECTABLE_CATEGORIES,
++  CATEGORY_EFFECT,
++  normalizeCategory,
++  isActiveDebtReadModelCategory,
++  isExcludedDebtReadModelCategory,
++  isDebtCollectionReceiptLedger,
++  canProjectDetailedAccountingCategoryBySource,
++  categoryEffect
++};
+--- a/src/domain/ar/arLedgerValidator.js
++++ b/src/domain/ar/arLedgerValidator.js
+@@ -2,67 +2,18 @@
+ 
+ const { toNumber } = require('../../utils/common.util');
+ 
+-const PHASE87_READ_MODEL_CATEGORIES = Object.freeze([
+-  'AR-DEBT-OPEN',
+-  'AR-DEBT-PAYMENT',
+-  'AR-DEBT-ADJUSTMENT',
+-  'AR-DEBT-VOID'
+-]);
+-
+-// Legacy AR categories are retained only for audit/migration/posting contract
+-// validation. They must not be part of the Phase87 debt read-model category set.
+-const LEGACY_AR_CATEGORIES = Object.freeze([
+-  'AR-SALE',
+-  'AR-SALE-REVERSAL',
+-  'AR-RETURN',
+-  'AR-RETURN-REVERSAL',
+-  'AR-RECEIPT',
+-  'AR-RECEIPT-CASH',
+-  'AR-RECEIPT-BANK',
+-  'AR-REWARD-ALLOWANCE',
+-  'AR-BONUS',
+-  'AR-ALLOWANCE',
+-  'AR-ADJUSTMENT'
+-]);
+-
+-const DEBT_CATEGORIES = Object.freeze([
+-  ...PHASE87_READ_MODEL_CATEGORIES,
+-  ...LEGACY_AR_CATEGORIES
+-]);
+-
+-// Canonical accounting ledgers may be valid AR documents without being part of
+-// the strict Phase87 AR-DEBT-* Mongo read match. Reversal rows remain valid
+-// accounting documents, but are not projected as open debt rows by themselves.
+-const ACCOUNTING_READ_MODEL_PROJECTABLE_CATEGORIES = Object.freeze([
+-  ...PHASE87_READ_MODEL_CATEGORIES,
+-  'AR-SALE',
+-  'AR-RETURN',
+-  'AR-RECEIPT',
+-  'AR-RECEIPT-CASH',
+-  'AR-RECEIPT-BANK',
+-  'AR-REWARD-ALLOWANCE',
+-  'AR-BONUS',
+-  'AR-ALLOWANCE',
+-  'AR-ADJUSTMENT'
+-]);
+-
+-const CATEGORY_EFFECT = Object.freeze({
+-  'AR-DEBT-OPEN': 'debit',
+-  'AR-DEBT-PAYMENT': 'credit',
+-  'AR-DEBT-ADJUSTMENT': 'either',
+-  'AR-DEBT-VOID': 'either',
+-  'AR-SALE': 'debit',
+-  'AR-SALE-REVERSAL': 'credit',
+-  'AR-RETURN': 'credit',
+-  'AR-RETURN-REVERSAL': 'debit',
+-  'AR-RECEIPT': 'credit',
+-  'AR-RECEIPT-CASH': 'credit',
+-  'AR-RECEIPT-BANK': 'credit',
+-  'AR-REWARD-ALLOWANCE': 'credit',
+-  'AR-BONUS': 'credit',
+-  'AR-ALLOWANCE': 'credit',
+-  'AR-ADJUSTMENT': 'either'
+-});
++const {
++  PHASE87_READ_MODEL_CATEGORIES,
++  DETAILED_ACCOUNTING_CATEGORIES,
++  ALL_SUPPORTED_AR_CATEGORIES,
++  ACCOUNTING_READ_MODEL_PROJECTABLE_CATEGORIES,
++  CATEGORY_EFFECT,
++  canProjectDetailedAccountingCategoryBySource
++} = require('./arDebtCategoryRegistry');
++
++// Backward-compatible export name used by existing validators/audits.
++const LEGACY_AR_CATEGORIES = DETAILED_ACCOUNTING_CATEGORIES;
++const DEBT_CATEGORIES = ALL_SUPPORTED_AR_CATEGORIES;
+ 
+ function clean(value = '') {
+   return String(value ?? '').trim();
+@@ -269,13 +220,11 @@
+   if (!ACCOUNTING_READ_MODEL_PROJECTABLE_CATEGORIES.includes(category)) return false;
+   if (PHASE87_READ_MODEL_CATEGORIES.includes(category)) return isCanonicalArDebtLedger(ledger);
+ 
+-  // Detailed accounting categories are allowed into the debt read-model bridge
+-  // only when they are the normalized mirror of orderPaymentAllocations.
+-  // Legacy/dirty AR-SALE, AR-RETURN or AR-RECEIPT rows from closeout/correction
+-  // sources must remain excluded from strict Phase87 grouping even when their
+-  // debit/credit fields look complete.
+-  const sourceType = upper(ledger.sourceType);
+-  if (sourceType !== 'ORDER_PAYMENT_ALLOCATION') return false;
++  // Detailed accounting rows require explicit canonical provenance.
++  // orderPaymentAllocations remain projectable, and accounting-confirmed
++  // debtCollection receipts are projectable through their ref/source contract.
++  // Legacy closeout/correction receipts remain excluded.
++  if (!canProjectDetailedAccountingCategoryBySource(ledger)) return false;
+   return isCanonicalArDebtLedger(ledger);
+ }
+ 
+--- a/src/domain/ar/arLedgerQueryPolicy.js
++++ b/src/domain/ar/arLedgerQueryPolicy.js
+@@ -9,6 +9,10 @@
+   isCanonicalArDebtLedger,
+   validateArLedgerContract
+ } = require('./arLedgerValidator');
++const {
++  ACTIVE_DEBT_READ_MODEL_CATEGORIES,
++  EXCLUDED_DEBT_READ_MODEL_CATEGORIES
++} = require('./arDebtCategoryRegistry');
+ 
+ function clean(value = '') {
+   return String(value ?? '').trim();
+@@ -116,6 +120,66 @@
+     active: true,
+     reversed: { $ne: true },
+     category: { $in: [...PHASE87_READ_MODEL_CATEGORIES] }
++  };
++
++  if (clean(filters.tenantId)) match.tenantId = clean(filters.tenantId);
++  if (normalized.customerCode) {
++    const rx = exactCodeRegex(normalized.customerCode);
++    appendAnd(match, { $or: [{ customerCode: rx }, { customerId: rx }] });
++  }
++  if (normalized.sourceId) {
++    const rx = exactCodeRegex(normalized.sourceId);
++    appendAnd(match, { $or: [{ sourceId: rx }, { salesOrderId: rx }, { orderId: rx }, { refId: rx }] });
++  }
++  if (normalized.sourceCode) {
++    const rx = exactCodeRegex(normalized.sourceCode);
++    appendAnd(match, { $or: [{ sourceCode: rx }, { salesOrderCode: rx }, { orderCode: rx }, { refCode: rx }] });
++  }
++  if (normalized.salesStaffCode) {
++    const rx = exactCodeRegex(normalized.salesStaffCode);
++    appendAnd(match, { $or: [{ salesStaffCode: rx }, { salesmanCode: rx }, { nvbhCode: rx }] });
++  }
++  if (normalized.deliveryStaffCode) {
++    const rx = exactCodeRegex(normalized.deliveryStaffCode);
++    appendAnd(match, { $or: [{ deliveryStaffCode: rx }, { deliveryCode: rx }, { nvghCode: rx }] });
++  }
++  if (normalized.q) {
++    const rx = new RegExp(escapeRegExp(normalized.q), 'i');
++    appendAnd(match, {
++      $or: [
++        { customerCode: rx },
++        { customerName: rx },
++        { customerId: rx },
++        { sourceCode: rx },
++        { sourceId: rx },
++        { orderCode: rx },
++        { salesOrderCode: rx },
++        { code: rx },
++        { id: rx }
++      ]
++    });
++  }
++  if (normalized.dateFrom || normalized.dateTo) {
++    match.date = {};
++    if (normalized.dateFrom) match.date.$gte = normalized.dateFrom;
++    if (normalized.dateTo) match.date.$lte = normalized.dateTo;
++  }
++  return match;
++}
++
++function buildActiveDebtReadModelLedgerMatch(filters = {}) {
++  const normalized = normalizeArDebtFilters(filters);
++  const match = {
++    account: 'AR',
++    accountingConfirmed: true,
++    accountingStatus: 'confirmed',
++    active: true,
++    reversed: { $ne: true },
++    isDeleted: { $ne: true },
++    deleted: { $ne: true },
++    status: { $nin: ['void', 'voided', 'cancelled', 'canceled', 'deleted', 'reversed'] },
++    category: { $in: [...ACTIVE_DEBT_READ_MODEL_CATEGORIES] },
++    ledgerType: { $in: [...ACTIVE_DEBT_READ_MODEL_CATEGORIES] }
+   };
+ 
+   if (clean(filters.tenantId)) match.tenantId = clean(filters.tenantId);
+@@ -244,7 +308,10 @@
+ 
+ module.exports = {
+   DEBT_ZERO_TOLERANCE,
++  ACTIVE_DEBT_READ_MODEL_CATEGORIES,
++  EXCLUDED_DEBT_READ_MODEL_CATEGORIES,
+   buildCanonicalArLedgerMatch,
++  buildActiveDebtReadModelLedgerMatch,
+   normalizeArDebtFilters,
+   normalizeDebtStatus,
+   normalizeStaffCode,
+--- a/src/services/arLedgerRead.service.js
++++ b/src/services/arLedgerRead.service.js
+@@ -2,9 +2,15 @@
+ 
+ const dateUtil = require('../utils/date.util');
+ const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
+-const { isCanonicalArDebtLedger, validateArLedgerContract, PHASE87_READ_MODEL_CATEGORIES } = require('../domain/ar/arLedgerValidator');
++const {
++  isCanonicalArDebtLedger,
++  canProjectCanonicalAccountingLedgerToDebtReadModel,
++  validateArLedgerContract,
++  PHASE87_READ_MODEL_CATEGORIES
++} = require('../domain/ar/arLedgerValidator');
+ const {
+   buildCanonicalArLedgerMatch,
++  buildActiveDebtReadModelLedgerMatch,
+   normalizeArDebtFilters,
+   normalizeCanonicalLedgerRow,
+   canonicalRowMatchesFilters,
+@@ -74,6 +80,20 @@
+ }
+ 
+ 
++function normalizeAndValidateActiveDebtRows(rows = [], filters = {}) {
++  const canonicalLedgers = [];
++  const rejectedLedgers = [];
++  for (const row of Array.isArray(rows) ? rows : []) {
++    if (canProjectCanonicalAccountingLedgerToDebtReadModel(row) && canonicalRowMatchesFilters(row, filters)) {
++      canonicalLedgers.push(normalizeCanonicalLedgerRow(row));
++    } else {
++      rejectedLedgers.push({ ledgerId: clean(row.id || row.code || row._id), validation: validateArLedgerContract(row) });
++    }
++  }
++  return { canonicalLedgers, rejectedLedgers };
++}
++
++
+ 
+ async function findArLedgerRowsByRawMatch(match = {}, options = {}) {
+   const { ArLedger } = getModels();
+@@ -93,6 +113,14 @@
+   const normalized = normalizeArDebtFilters(filters);
+   const rows = await queryRows(ArLedger, buildCanonicalArLedgerMatch(normalized), options);
+   const result = normalizeAndValidateRows(rows, normalized);
++  return options.includeRejected ? result : result.canonicalLedgers;
++}
++
++async function getActiveDebtReadModelLedgers(filters = {}, options = {}) {
++  const { ArLedger } = getModels();
++  const normalized = normalizeArDebtFilters(filters);
++  const rows = await queryRows(ArLedger, buildActiveDebtReadModelLedgerMatch(normalized), options);
++  const result = normalizeAndValidateActiveDebtRows(rows, normalized);
+   return options.includeRejected ? result : result.canonicalLedgers;
+ }
+ 
+@@ -294,9 +322,11 @@
+ module.exports = {
+   setModelsForTest,
+   buildCanonicalArLedgerMatch,
++  buildActiveDebtReadModelLedgerMatch,
+   normalizeArDebtFilters,
+   getSignedArAmount,
+   getCanonicalArLedgers,
++  getActiveDebtReadModelLedgers,
+   findArLedgerRowsByRawMatch,
+   getCanonicalLedgersByRawMatch,
+   getCanonicalLedgersByCustomer,
+--- a/src/services/v2/debtNew.service.js
++++ b/src/services/v2/debtNew.service.js
+@@ -2,6 +2,11 @@
+ 
+ const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../../constants/finance.constants');
+ const { normalizeAccountingAmount, canProjectCanonicalAccountingLedgerToDebtReadModel } = require('../../domain/ar/arLedgerValidator');
++const {
++  ACTIVE_DEBT_READ_MODEL_CATEGORIES,
++  EXCLUDED_DEBT_READ_MODEL_CATEGORIES
++} = require('../../domain/ar/arDebtCategoryRegistry');
++const { buildActiveDebtReadModelLedgerMatch } = require('../../domain/ar/arLedgerQueryPolicy');
+ const arLedgerReadService = require('../arLedgerRead.service');
+ const searchService = require('../searchService');
+ const { buildSourceNote } = require('../source-contracts/SourceNoteBuilder');
+@@ -30,17 +35,7 @@
+   return modelsForDebtNew;
+ }
+ 
+-const ALLOWED_CATEGORIES = Object.freeze([
+-  'AR-DEBT-OPEN',
+-  'AR-DEBT-PAYMENT',
+-  'AR-DEBT-ADJUSTMENT',
+-  'AR-DEBT-VOID',
+-  'AR-SALE',
+-  'AR-RECEIPT-CASH',
+-  'AR-RECEIPT-BANK',
+-  'AR-REWARD-ALLOWANCE',
+-  'AR-RETURN'
+-]);
++const ALLOWED_CATEGORIES = ACTIVE_DEBT_READ_MODEL_CATEGORIES;
+ const PENDING_COLLECTION_STATUSES = Object.freeze(['submitted', 'under_review']);
+ const LEGACY_REVERSAL_AUDIT_ORDER = Object.freeze(['AR-SALE', 'AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RETURN-REVERSAL', 'AR-RECEIPT', 'AR-RECEIPT-REVERSAL']);
+ 
+@@ -90,8 +85,8 @@
+       searchCriteriaRequired: true,
+       hasSearchCriteria: hasSearchCriteria(query),
+       allowedCategories: ALLOWED_CATEGORIES,
+-      excludedLegacyCategories: ['AR-SALE-REVERSAL', 'AR-RETURN-REVERSAL', 'AR-RECEIPT-REVERSAL'],
+-      writePolicy: 'read-only from AR-DEBT-* only; debt collections are submitted separately and do not reduce debt until accounting confirm'
++      excludedLegacyCategories: EXCLUDED_DEBT_READ_MODEL_CATEGORIES,
++      writePolicy: 'read-only from canonical active arLedgers; debtCollections are workflow documents and reduce debt only through accounting-confirmed AR receipt ledgers'
+     }
+   };
+ }
+@@ -114,65 +109,7 @@
+ }
+ 
+ function buildLedgerMatch(query = {}) {
+-  const match = {
+-    account: /^AR$/i,
+-    category: { $in: ALLOWED_CATEGORIES },
+-    ledgerType: { $in: ALLOWED_CATEGORIES },
+-    accountingConfirmed: true,
+-    active: { $ne: false },
+-    reversed: { $ne: true },
+-    isDeleted: { $ne: true },
+-    deleted: { $ne: true },
+-    status: { $nin: ['void', 'voided', 'cancelled', 'canceled', 'deleted', 'reversed'] }
+-  };
+-
+-  const q = text(query.q || query.search || query.keyword || query.customerName || query.phone);
+-  if (q) {
+-    const rx = new RegExp(escapeRegExp(q), 'i');
+-    match.$or = [
+-      { customerCode: rx },
+-      { customerName: rx },
+-      { customerId: rx },
+-      { orderCode: rx },
+-      { salesOrderCode: rx },
+-      { orderId: rx },
+-      { salesOrderId: rx },
+-      { sourceCode: rx },
+-      { sourceId: rx },
+-      { code: rx },
+-      { id: rx }
+-    ];
+-  }
+-
+-  const customer = text(query.customerCode || query.customerId || query.code || query.id);
+-  if (customer) {
+-    const rx = new RegExp(`^${escapeRegExp(customer)}$`, 'i');
+-    match.$and = Array.isArray(match.$and) ? match.$and : [];
+-    match.$and.push({ $or: [{ customerCode: rx }, { customerId: rx }] });
+-  }
+-
+-  const order = text(query.orderCode || query.salesOrderCode || query.sourceCode || query.sourceId || query.salesOrderId || query.orderId);
+-  if (order) {
+-    const rx = new RegExp(`^${escapeRegExp(order)}$`, 'i');
+-    match.$and = Array.isArray(match.$and) ? match.$and : [];
+-    match.$and.push({ $or: [{ sourceCode: rx }, { salesOrderCode: rx }, { orderCode: rx }, { refCode: rx }, { sourceId: rx }, { salesOrderId: rx }, { orderId: rx }, { refId: rx }] });
+-  }
+-
+-  const salesman = text(query.salesman || query.salesStaffCode || query.nvbh);
+-  if (salesman) {
+-    const rx = new RegExp(escapeRegExp(salesman), 'i');
+-    match.$and = Array.isArray(match.$and) ? match.$and : [];
+-    match.$and.push({ $or: [{ salesStaffCode: rx }, { salesStaffName: rx }, { salesmanCode: rx }, { salesmanName: rx }] });
+-  }
+-
+-  const delivery = text(query.delivery || query.deliveryStaffCode || query.nvgh);
+-  if (delivery) {
+-    const rx = new RegExp(escapeRegExp(delivery), 'i');
+-    match.$and = Array.isArray(match.$and) ? match.$and : [];
+-    match.$and.push({ $or: [{ deliveryStaffCode: rx }, { deliveryStaffName: rx }, { deliveryCode: rx }, { deliveryName: rx }] });
+-  }
+-
+-  return match;
++  return buildActiveDebtReadModelLedgerMatch(query);
+ }
+ 
+ function ledgerEffect(row = {}) {
+@@ -437,6 +374,9 @@
+       const category = upper(row.category);
+       const ledgerType = upper(row.ledgerType || row.category);
+       if (!ALLOWED_CATEGORIES.includes(category) || !ALLOWED_CATEGORIES.includes(ledgerType)) return false;
++      // Phase87 AR-DEBT rows are already canonical debt events and may be
++      // grouped directly by tests/callers that bypass the repository read gate.
++      // Detailed accounting categories still require provenance validation.
+       if (category.startsWith('AR-DEBT-')) return true;
+       return canProjectCanonicalAccountingLedgerToDebtReadModel(row);
+     })
+@@ -594,7 +534,7 @@
+     if (textSearch) normalizedQuery.q = textSearch;
+   }
+   const limit = Math.max(1, Math.min(500, Number(normalizedQuery.ledgerLimit || normalizedQuery.limit || 500)));
+-  const ledgerRows = await arLedgerReadService.getCanonicalArLedgers({
++  const ledgerRows = await arLedgerReadService.getActiveDebtReadModelLedgers({
+     ...normalizedQuery,
+     limit,
+     status: 'all'
+@@ -613,7 +553,7 @@
+       hasSearchCriteria: hasSearchCriteria(query),
+       searchCriteriaRequired: false,
+       allowedCategories: ALLOWED_CATEGORIES,
+-      excludedLegacyCategories: ['AR-SALE-REVERSAL', 'AR-RETURN-REVERSAL', 'AR-RECEIPT-REVERSAL'],
++      excludedLegacyCategories: EXCLUDED_DEBT_READ_MODEL_CATEGORIES,
+       writePolicy: 'read-only from canonical arLedgers; payment allocation detail is joined from orderPaymentAllocations; submitted debt collections do not reduce official debt until accounting confirm'
+     }
+   };
+--- a/src/utils/arLedgerCategoryEffect.util.js
++++ b/src/utils/arLedgerCategoryEffect.util.js
+@@ -1,6 +1,7 @@
+ 'use strict';
+ 
+ const { toNumber } = require('./common.util');
++const { CATEGORY_EFFECT } = require('../domain/ar/arDebtCategoryRegistry');
+ 
+ function clean(value = '') {
+   return String(value ?? '').trim();
+@@ -79,15 +80,14 @@
+ 
+ function getArLedgerCategoryEffect(doc = {}) {
+   const category = normalizeArCategory(doc);
+-  if (['AR-DEBT-OPEN', 'AR-SALE', 'AR-EXTERNAL', 'AR-EXTERNAL-DEBT', 'AR-RETURN-REVERSAL', 'AR-RECEIPT-REVERSAL'].includes(category)) {
+-    return { category, defaultSide: 'debit', effect: 'increase_ar' };
+-  }
+-  if (['AR-DEBT-PAYMENT', 'AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RECEIPT', 'AR-RECEIPT-CASH', 'AR-RECEIPT-BANK', 'AR-REWARD-ALLOWANCE', 'AR-BONUS-ALLOWANCE'].includes(category)) {
+-    return { category, defaultSide: 'credit', effect: 'decrease_ar' };
+-  }
+-  if (category === 'AR-DEBT-ADJUSTMENT' || category === 'AR-DEBT-VOID' || category === 'AR-ADJUSTMENT') {
+-    return { category, defaultSide: 'explicit', effect: 'adjust_ar' };
+-  }
++  const registeredEffect = CATEGORY_EFFECT[category];
++  if (registeredEffect === 'debit') return { category, defaultSide: 'debit', effect: 'increase_ar' };
++  if (registeredEffect === 'credit') return { category, defaultSide: 'credit', effect: 'decrease_ar' };
++  if (registeredEffect === 'either') return { category, defaultSide: 'explicit', effect: 'adjust_ar' };
++
++  // Compatibility aliases that are intentionally outside the active debt-read registry.
++  if (['AR-EXTERNAL', 'AR-EXTERNAL-DEBT'].includes(category)) return { category, defaultSide: 'debit', effect: 'increase_ar' };
++  if (category === 'AR-BONUS-ALLOWANCE') return { category, defaultSide: 'credit', effect: 'decrease_ar' };
+   return { category, defaultSide: 'explicit', effect: 'explicit_ar' };
+ }
+ 
+--- a/src/engines/posting.dependencies.js
++++ b/src/engines/posting.dependencies.js
+@@ -11,6 +11,7 @@
+   arLedgerValidation: require('../utils/arLedgerValidation.util'),
+   arLedgerStatus: require('../utils/arLedgerStatus.util'),
+   arLedgerContractValidation: require('../domain/ar/arLedgerValidator'),
++  arDebtCategoryRegistry: require('../domain/ar/arDebtCategoryRegistry'),
+   returnArPostingService: require('../services/accounting/returnArPostingService'),
+   staffIdentity: require('../domain/staff/staffIdentity')
+ };
+--- a/src/engines/posting.engine.js
++++ b/src/engines/posting.engine.js
+@@ -21,6 +21,7 @@
+   pickDeliveryStaffName
+ } = postingDependencies.staffIdentity;
+ const assertValidCanonicalArLedgerContract = postingDependencies.arLedgerContractValidation?.assertValidArLedgerContract || (() => true);
++const AR_CATEGORIES = postingDependencies.arDebtCategoryRegistry?.AR_CATEGORIES || { RECEIPT: 'AR-RECEIPT' };
+ 
+ 
+ 
+@@ -388,8 +389,8 @@
+       id: `AR-RECEIPT-${receiptKey}-${sourceId || sourceCode || index + 1}`,
+       code: `AR-RECEIPT-${receipt.code || receipt.id || sourceCode || receiptKey}-${index + 1}`,
+       type: 'ar_receipt',
+-      category: 'AR-RECEIPT',
+-      ledgerType: 'AR-RECEIPT',
++      category: AR_CATEGORIES.RECEIPT,
++      ledgerType: AR_CATEGORIES.RECEIPT,
+       entryType: 'normal',
+       refType: receipt.refType || 'RECEIPT',
+       refId: receipt.refId || receipt.id || receipt._id || receipt.code || receiptKey,
+--- a/scripts/audit-confirmed-debt-collections-missing-from-debt-read-model.js
++++ b/scripts/audit-confirmed-debt-collections-missing-from-debt-read-model.js
+@@ -0,0 +1,431 @@
++#!/usr/bin/env node
++'use strict';
++
++/**
++ * Phase226 read-only audit.
++ *
++ * Finds accounting-confirmed debt collections whose AR receipt exists but was
++ * excluded by the pre-Phase226 Debt New category/provenance contract, or whose
++ * receipt still cannot participate in the active debt read model.
++ *
++ * This script never writes to MongoDB.
++ */
++const mongoose = require('mongoose');
++const { normalizeDebtAmount, DEBT_ZERO_TOLERANCE } = require('../src/constants/finance.constants');
++const {
++  ACTIVE_DEBT_READ_MODEL_CATEGORIES,
++  EXCLUDED_DEBT_READ_MODEL_CATEGORIES
++} = require('../src/domain/ar/arDebtCategoryRegistry');
++const {
++  canProjectCanonicalAccountingLedgerToDebtReadModel,
++  normalizeAccountingAmount
++} = require('../src/domain/ar/arLedgerValidator');
++
++const PRE_PHASE226_ALLOWED_CATEGORIES = Object.freeze([
++  'AR-DEBT-OPEN',
++  'AR-DEBT-PAYMENT',
++  'AR-DEBT-ADJUSTMENT',
++  'AR-DEBT-VOID',
++  'AR-SALE',
++  'AR-RECEIPT-CASH',
++  'AR-RECEIPT-BANK',
++  'AR-REWARD-ALLOWANCE',
++  'AR-RETURN'
++]);
++
++const AUDIT_PROJECTION = Object.freeze({
++  _id: 1,
++  id: 1,
++  code: 1,
++  category: 1,
++  ledgerType: 1,
++  customerCode: 1,
++  sourceId: 1,
++  sourceCode: 1,
++  salesOrderId: 1,
++  salesOrderCode: 1,
++  orderId: 1,
++  orderCode: 1,
++  debit: 1,
++  credit: 1,
++  amount: 1,
++  direction: 1,
++  accountingConfirmed: 1,
++  accountingStatus: 1,
++  active: 1,
++  reversed: 1,
++  status: 1,
++  refId: 1,
++  refCode: 1,
++  refType: 1,
++  source: 1,
++  idempotencyKey: 1,
++  isDeleted: 1,
++  deleted: 1,
++  deletedAt: 1,
++  salesStaffCode: 1,
++  salesStaffName: 1,
++  deliveryStaffCode: 1,
++  deliveryStaffName: 1
++});
++
++function clean(value = '') {
++  return String(value ?? '').trim();
++}
++
++function upper(value = '') {
++  return clean(value).toUpperCase();
++}
++
++function money(value) {
++  const number = Number(value || 0);
++  return Number.isFinite(number) ? Math.round(number) : 0;
++}
++
++function ledgerId(row = {}) {
++  return clean(row.id || row.code || row._id);
++}
++
++function orderKeys(row = {}) {
++  return Array.from(new Set([
++    row.sourceId,
++    row.sourceCode,
++    row.salesOrderId,
++    row.salesOrderCode,
++    row.orderId,
++    row.orderCode
++  ].map(clean).filter(Boolean)));
++}
++
++function allocationKeys(row = {}) {
++  return Array.from(new Set([
++    row.salesOrderId,
++    row.salesOrderCode,
++    row.orderId,
++    row.orderCode,
++    row.sourceOrderId,
++    row.sourceOrderCode,
++    row.refId,
++    row.refCode
++  ].map(clean).filter(Boolean)));
++}
++
++function collectionIdentity(row = {}) {
++  return clean(row.code || row.id || row._id);
++}
++
++function isActiveConfirmed(row = {}) {
++  const status = clean(row.status).toLowerCase();
++  return upper(row.account || 'AR') === 'AR'
++    && row.accountingConfirmed === true
++    && clean(row.accountingStatus).toLowerCase() === 'confirmed'
++    && row.active === true
++    && row.reversed !== true
++    && row.isDeleted !== true
++    && row.deleted !== true
++    && !clean(row.deletedAt)
++    && !['void', 'voided', 'cancelled', 'canceled', 'deleted', 'reversed'].includes(status);
++}
++
++function wasProjectableBeforePhase226(row = {}) {
++  const category = upper(row.category);
++  const ledgerType = upper(row.ledgerType || row.category);
++  if (!isActiveConfirmed(row)) return false;
++  if (!PRE_PHASE226_ALLOWED_CATEGORIES.includes(category) || !PRE_PHASE226_ALLOWED_CATEGORIES.includes(ledgerType)) return false;
++  if (category.startsWith('AR-DEBT-')) return true;
++  return upper(row.sourceType) === 'ORDER_PAYMENT_ALLOCATION';
++}
++
++function signedEffect(row = {}) {
++  const amounts = normalizeAccountingAmount(row);
++  return money(amounts.debit - amounts.credit);
++}
++
++function debtFromRows(rows = [], predicate = () => true) {
++  const raw = (rows || []).filter(predicate).reduce((sum, row) => sum + signedEffect(row), 0);
++  return normalizeDebtAmount(money(raw), DEBT_ZERO_TOLERANCE);
++}
++
++function receiptMatchesCollection(row = {}, collection = {}) {
++  const collectionKeys = new Set([collection.id, collection.code, collection._id].map(clean).filter(Boolean));
++  return upper(row.category) === 'AR-RECEIPT'
++    && [row.refId, row.refCode].map(clean).some((key) => collectionKeys.has(key));
++}
++
++function rowMatchesAllocation(row = {}, allocation = {}) {
++  const ledgerKeys = new Set(orderKeys(row));
++  return allocationKeys(allocation).some((key) => ledgerKeys.has(key));
++}
++
++function buildMismatchReason({ receiptLedger, legacyDebt, expectedDebt }) {
++  if (!receiptLedger) return 'MISSING_AR_RECEIPT_FOR_CONFIRMED_ALLOCATION';
++  const category = upper(receiptLedger.category);
++  const ledgerType = upper(receiptLedger.ledgerType || receiptLedger.category);
++  if (!PRE_PHASE226_ALLOWED_CATEGORIES.includes(category) || !PRE_PHASE226_ALLOWED_CATEGORIES.includes(ledgerType)) {
++    return 'AR_RECEIPT_CATEGORY_MISSING_FROM_PRE_PHASE226_READ_MATCH';
++  }
++  if (!canProjectCanonicalAccountingLedgerToDebtReadModel(receiptLedger)) {
++    return 'AR_RECEIPT_PROVENANCE_OR_CONTRACT_REJECTED';
++  }
++  if (legacyDebt !== expectedDebt) return 'PRE_PHASE226_DEBT_BALANCE_IGNORED_CONFIRMED_RECEIPT';
++  return '';
++}
++
++function buildAuditRows(collections = [], ledgers = []) {
++  const rows = [];
++  for (const collection of collections || []) {
++    const code = collectionIdentity(collection);
++    const allocations = Array.isArray(collection.allocations) ? collection.allocations : [];
++    for (const allocation of allocations) {
++      const keys = allocationKeys(allocation);
++      const orderRows = (ledgers || []).filter((row) => {
++        if (clean(row.customerCode) !== clean(collection.customerCode)) return false;
++        const rowKeySet = new Set(orderKeys(row));
++        return keys.some((key) => rowKeySet.has(key));
++      });
++      const receiptLedger = orderRows.find((row) => receiptMatchesCollection(row, collection) && rowMatchesAllocation(row, allocation)) || null;
++      const legacyDebt = debtFromRows(orderRows, wasProjectableBeforePhase226);
++      const expectedDebt = debtFromRows(orderRows, canProjectCanonicalAccountingLedgerToDebtReadModel);
++      const mismatchReason = buildMismatchReason({ receiptLedger, legacyDebt, expectedDebt });
++      if (!mismatchReason) continue;
++
++      rows.push({
++        collectionCode: code,
++        customerCode: clean(collection.customerCode),
++        orderCode: clean(allocation.salesOrderCode || allocation.orderCode || allocation.sourceOrderCode || allocation.refCode),
++        collectionAmount: money(collection.amount),
++        allocatedAmount: money(allocation.allocatedAmount ?? allocation.amount),
++        arLedgerId: receiptLedger ? ledgerId(receiptLedger) : '',
++        category: receiptLedger ? upper(receiptLedger.category) : '',
++        ledgerType: receiptLedger ? upper(receiptLedger.ledgerType || receiptLedger.category) : '',
++        currentDebt: legacyDebt,
++        expectedDebt,
++        mismatchReason,
++        receiptProjectableAfterPhase226: Boolean(receiptLedger && canProjectCanonicalAccountingLedgerToDebtReadModel(receiptLedger)),
++        receiptActiveConfirmed: Boolean(receiptLedger && isActiveConfirmed(receiptLedger)),
++        excludedReversalCategories: EXCLUDED_DEBT_READ_MODEL_CATEGORIES,
++        activeDebtCategories: ACTIVE_DEBT_READ_MODEL_CATEGORIES
++      });
++    }
++  }
++  return rows;
++}
++
++function fixtureData() {
++  const collection = {
++    id: 'DC202607093145492952',
++    code: 'DC202607093145492952',
++    status: 'accounting_confirmed',
++    accountingConfirmed: true,
++    accountingStatus: 'confirmed',
++    arPosted: true,
++    arLedgerIds: ['AR-RECEIPT-DC202607093145492952-SO1783155351292178'],
++    customerCode: '4501680',
++    customerName: 'Chị Hiền',
++    amount: 2499694,
++    allocations: [{
++      salesOrderId: 'SO1783155351292178',
++      salesOrderCode: 'B0038774',
++      allocatedAmount: 2499694
++    }]
++  };
++  const common = {
++    account: 'AR',
++    customerCode: '4501680',
++    customerName: 'Chị Hiền',
++    sourceId: 'SO1783155351292178',
++    sourceCode: 'B0038774',
++    salesOrderId: 'SO1783155351292178',
++    salesOrderCode: 'B0038774',
++    orderId: 'SO1783155351292178',
++    orderCode: 'B0038774',
++    salesStaffCode: '39534',
++    salesStaffName: 'Lương Thị Kiều',
++    deliveryStaffCode: 'ghkx',
++    deliveryStaffName: 'Hào Giao Hàng KX',
++    accountingConfirmed: true,
++    accountingStatus: 'confirmed',
++    active: true,
++    reversed: false,
++    status: 'posted'
++  };
++  return {
++    collections: [collection],
++    ledgers: [
++      {
++        ...common,
++        id: 'AR-SALE-SO1783155351292178',
++        code: 'AR-SALE-B0038774',
++        category: 'AR-SALE',
++        ledgerType: 'AR-SALE',
++        entryType: 'normal',
++        sourceType: 'ORDER_PAYMENT_ALLOCATION',
++        refType: 'ORDER_PAYMENT_ALLOCATION',
++        refId: 'OPA-B0038774',
++        refCode: 'OPA-B0038774',
++        debit: 2499694,
++        credit: 0,
++        amount: 2499694,
++        direction: 'debit',
++        amountField: 'debit',
++        idempotencyKey: 'AR-SALE:OPA-B0038774'
++      },
++      {
++        ...common,
++        id: 'AR-RECEIPT-DC202607093145492952-SO1783155351292178',
++        code: 'AR-RECEIPT-DC202607093145492952-1',
++        category: 'AR-RECEIPT',
++        ledgerType: 'AR-RECEIPT',
++        entryType: 'normal',
++        sourceType: 'salesOrder',
++        refType: 'debtCollection',
++        refId: 'DC202607093145492952',
++        refCode: 'DC202607093145492952',
++        source: 'DebtCollectionPostingService',
++        debit: 0,
++        credit: 2499694,
++        amount: 2499694,
++        direction: 'credit',
++        amountField: 'credit',
++        idempotencyKey: 'AR-RECEIPT:DC202607093145492952:SO1783155351292178'
++      }
++    ]
++  };
++}
++
++function parseArgs(argv = process.argv.slice(2)) {
++  const args = new Set(argv);
++  const value = (prefix, fallback = '') => {
++    const item = argv.find((arg) => arg.startsWith(`${prefix}=`));
++    return item ? item.slice(prefix.length + 1) : fallback;
++  };
++  return {
++    fixture: args.has('--fixture'),
++    json: args.has('--json') || !args.has('--markdown'),
++    collectionCode: value('--collection-code'),
++    limit: Math.max(1, Math.min(5000, Number(value('--limit', '500')) || 500))
++  };
++}
++
++function mongoCollectionFilter(options = {}) {
++  const filter = {
++    status: 'accounting_confirmed',
++    arPosted: true
++  };
++  if (options.collectionCode) {
++    filter.$or = [{ code: options.collectionCode }, { id: options.collectionCode }];
++  }
++  return filter;
++}
++
++function ledgerQueryForCollections(collections = []) {
++  const collectionKeys = Array.from(new Set((collections || []).flatMap((row) => [row.id, row.code, row._id]).map(clean).filter(Boolean)));
++  const customerCodes = Array.from(new Set((collections || []).map((row) => clean(row.customerCode)).filter(Boolean)));
++  const orderKeysList = Array.from(new Set((collections || []).flatMap((row) => (row.allocations || []).flatMap(allocationKeys)).filter(Boolean)));
++  return {
++    $or: [
++      { refId: { $in: collectionKeys } },
++      { refCode: { $in: collectionKeys } },
++      { sourceId: { $in: orderKeysList } },
++      { sourceCode: { $in: orderKeysList } },
++      { salesOrderId: { $in: orderKeysList } },
++      { salesOrderCode: { $in: orderKeysList } },
++      { orderId: { $in: orderKeysList } },
++      { orderCode: { $in: orderKeysList } },
++      { customerCode: { $in: customerCodes } }
++    ]
++  };
++}
++
++async function loadMongoData(options = {}) {
++  const uri = process.env.MONGO_URI || process.env.MONGODB_URI || '';
++  if (!uri) throw new Error('Thiếu MONGO_URI/MONGODB_URI. Chạy --fixture để kiểm chứng offline; script production chỉ đọc dữ liệu.');
++  await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
++  const db = mongoose.connection.db;
++  const collections = await db.collection('debtCollections')
++    .find(mongoCollectionFilter(options), {
++      projection: {
++        _id: 1, id: 1, code: 1, status: 1, accountingConfirmed: 1, accountingStatus: 1,
++        arPosted: 1, arLedgerIds: 1, customerCode: 1, customerName: 1, amount: 1, allocations: 1
++      }
++    })
++    .limit(options.limit)
++    .toArray();
++  if (!collections.length) return { collections: [], ledgers: [] };
++  const ledgers = await db.collection('arLedgers')
++    .find(ledgerQueryForCollections(collections), { projection: AUDIT_PROJECTION })
++    .limit(Math.max(options.limit * 50, 5000))
++    .toArray();
++  return { collections, ledgers };
++}
++
++function markdownReport(report = {}) {
++  const lines = [
++    '# Phase226 confirmed debt collection AR receipt audit',
++    '',
++    `- mode: ${report.mode}`,
++    `- collectionsScanned: ${report.collectionsScanned}`,
++    `- ledgersScanned: ${report.ledgersScanned}`,
++    `- mismatches: ${report.mismatches.length}`,
++    `- dryRun: true`,
++    ''
++  ];
++  for (const row of report.mismatches) {
++    lines.push(`## ${row.collectionCode} / ${row.orderCode}`);
++    lines.push('');
++    for (const [key, value] of Object.entries(row)) {
++      if (Array.isArray(value)) continue;
++      lines.push(`- ${key}: ${value}`);
++    }
++    lines.push('');
++  }
++  return lines.join('\n');
++}
++
++async function run(options = parseArgs()) {
++  const data = options.fixture ? fixtureData() : await loadMongoData(options);
++  const mismatches = buildAuditRows(data.collections, data.ledgers);
++  return {
++    audit: 'confirmed-debt-collections-missing-from-debt-read-model',
++    phase: 226,
++    mode: options.fixture ? 'fixture' : 'mongo-read-only',
++    dryRun: true,
++    generatedAt: new Date().toISOString(),
++    collectionsScanned: data.collections.length,
++    ledgersScanned: data.ledgers.length,
++    mismatches
++  };
++}
++
++async function main() {
++  const options = parseArgs();
++  try {
++    const report = await run(options);
++    process.stdout.write(options.json ? `${JSON.stringify(report, null, 2)}\n` : `${markdownReport(report)}\n`);
++  } finally {
++    if (mongoose.connection.readyState) await mongoose.disconnect();
++  }
++}
++
++if (require.main === module) {
++  main().catch(async (error) => {
++    console.error(`[phase226-audit] ${error.stack || error.message}`);
++    try { if (mongoose.connection.readyState) await mongoose.disconnect(); } catch (_) {}
++    process.exitCode = 1;
++  });
++}
++
++module.exports = {
++  PRE_PHASE226_ALLOWED_CATEGORIES,
++  AUDIT_PROJECTION,
++  isActiveConfirmed,
++  wasProjectableBeforePhase226,
++  debtFromRows,
++  buildAuditRows,
++  fixtureData,
++  parseArgs,
++  mongoCollectionFilter,
++  ledgerQueryForCollections,
++  markdownReport,
++  run
++};
+--- a/test/helpers/phase79FakeModels.js
++++ b/test/helpers/phase79FakeModels.js
+@@ -10,6 +10,7 @@
+   if (expected instanceof RegExp) return expected.test(clean(actual));
+   if (expected && typeof expected === 'object' && !Array.isArray(expected)) {
+     if ('$in' in expected) return expected.$in.some((item) => matchesValue(actual, item));
++    if ('$nin' in expected) return !expected.$nin.some((item) => matchesValue(actual, item));
+     if ('$ne' in expected) return !matchesValue(actual, expected.$ne);
+     if ('$exists' in expected) return expected.$exists ? actual !== undefined : actual === undefined;
+     if ('$type' in expected) {
+--- a/test/ar-receipt-mobile-delivery-canonical-contract-static.test.js
++++ b/test/ar-receipt-mobile-delivery-canonical-contract-static.test.js
+@@ -7,8 +7,9 @@
+ 
+ test('posting.engine postReceiptAR builds canonical AR-RECEIPT entries before upsert', () => {
+   const src = fs.readFileSync(path.join(__dirname, '..', 'src/engines/posting.engine.js'), 'utf8');
+-  assert.match(src, /category:\s*'AR-RECEIPT'/);
+-  assert.match(src, /ledgerType:\s*'AR-RECEIPT'/);
++  assert.match(src, /category:\s*AR_CATEGORIES\.RECEIPT/);
++  assert.match(src, /ledgerType:\s*AR_CATEGORIES\.RECEIPT/);
++  assert.match(src, /arDebtCategoryRegistry/);
+   assert.match(src, /entryType:\s*'normal'/);
+   assert.match(src, /sourceType:\s*'salesOrder'/);
+   assert.match(src, /active:\s*true/);
+--- a/test/delivery-closeout-correction-contract-static.test.js
++++ b/test/delivery-closeout-correction-contract-static.test.js
+@@ -56,15 +56,19 @@
+   assert.match(posting, /newCloseoutId/);
+ });
+ 
+-test('Phase93 Debt New keeps AR-DEBT categories only and groups correction ledgers back to the sales order', () => {
++test('Phase226 Debt New uses the canonical active category registry and keeps correction identity mapping', () => {
+   const debtNew = read('src/services/v2/debtNew.service.js');
+-  assert.match(debtNew, /AR-DEBT-OPEN/);
+-  assert.match(debtNew, /AR-DEBT-PAYMENT/);
+-  assert.match(debtNew, /AR-DEBT-ADJUSTMENT/);
+-  assert.match(debtNew, /AR-DEBT-VOID/);
++  const registry = read('src/domain/ar/arDebtCategoryRegistry.js');
++  assert.match(debtNew, /arDebtCategoryRegistry/);
++  assert.match(debtNew, /ACTIVE_DEBT_READ_MODEL_CATEGORIES/);
++  assert.match(registry, /DEBT_OPEN:\s*'AR-DEBT-OPEN'/);
++  assert.match(registry, /DEBT_PAYMENT:\s*'AR-DEBT-PAYMENT'/);
++  assert.match(registry, /DEBT_ADJUSTMENT:\s*'AR-DEBT-ADJUSTMENT'/);
++  assert.match(registry, /DEBT_VOID:\s*'AR-DEBT-VOID'/);
++  assert.match(registry, /RECEIPT:\s*'AR-RECEIPT'/);
++  assert.match(registry, /RECEIPT_REVERSAL:\s*'AR-RECEIPT-REVERSAL'/);
+   assert.match(debtNew, /sourceType === 'DELIVERY_CLOSEOUT_CORRECTION'/);
+   assert.match(debtNew, /salesOrderId \|\| row\.orderId/);
+-  assert.equal(/AR-SALE['"]\s*,\s*['"]AR-SALE-REVERSAL/.test(debtNew), true);
+ });
+ 
+ test('Phase92 scripts exist for index, audit, consistency audit and repair planning', () => {
+--- a/test/phase226-debt-collection-ar-receipt-read-model.test.js
++++ b/test/phase226-debt-collection-ar-receipt-read-model.test.js
+@@ -0,0 +1,226 @@
++'use strict';
++
++const assert = require('node:assert/strict');
++const test = require('node:test');
++
++const registry = require('../src/domain/ar/arDebtCategoryRegistry');
++const validator = require('../src/domain/ar/arLedgerValidator');
++const queryPolicy = require('../src/domain/ar/arLedgerQueryPolicy');
++const effectUtil = require('../src/utils/arLedgerCategoryEffect.util');
++const debtNew = require('../src/services/v2/debtNew.service');
++const postingDependencies = require('../src/engines/posting.dependencies');
++const postingEngine = require('../src/engines/posting.engine');
++const { FakeModel } = require('./helpers/phase79FakeModels');
++
++function ledger(category, amount, side, overrides = {}) {
++  const debit = side === 'debit' ? amount : 0;
++  const credit = side === 'credit' ? amount : 0;
++  const orderId = overrides.orderId || 'SO1783155351292178';
++  const orderCode = overrides.orderCode || 'B0038774';
++  return {
++    id: overrides.id || `${category}-${orderCode}-${amount}`,
++    code: overrides.code || `${category}-${orderCode}-${amount}`,
++    account: 'AR',
++    category,
++    ledgerType: category,
++    entryType: 'normal',
++    sourceType: overrides.sourceType || 'ORDER_PAYMENT_ALLOCATION',
++    sourceId: overrides.sourceId || orderId,
++    sourceCode: overrides.sourceCode || orderCode,
++    orderId,
++    orderCode,
++    salesOrderId: orderId,
++    salesOrderCode: orderCode,
++    refType: overrides.refType || 'ORDER_PAYMENT_ALLOCATION',
++    refId: overrides.refId || orderId,
++    refCode: overrides.refCode || orderCode,
++    customerCode: overrides.customerCode || '4501680',
++    customerName: overrides.customerName || 'Chị Hiền',
++    salesStaffCode: overrides.salesStaffCode || '39534',
++    salesStaffName: overrides.salesStaffName || 'Lương Thị Kiều',
++    deliveryStaffCode: overrides.deliveryStaffCode || 'ghkx',
++    deliveryStaffName: overrides.deliveryStaffName || 'Hào Giao Hàng KX',
++    debit,
++    credit,
++    amount,
++    direction: side,
++    amountField: side,
++    accountingConfirmed: true,
++    accountingStatus: 'confirmed',
++    active: true,
++    reversed: false,
++    status: 'posted',
++    idempotencyKey: overrides.idempotencyKey || `${category}:${orderId}:${amount}`,
++    date: '2026-07-09',
++    source: overrides.source || 'phase226-test'
++  };
++}
++
++function receipt(amount, overrides = {}) {
++  return ledger('AR-RECEIPT', amount, 'credit', {
++    sourceType: 'salesOrder',
++    refType: 'debtCollection',
++    refId: 'DC202607093145492952',
++    refCode: 'DC202607093145492952',
++    source: 'DebtCollectionPostingService',
++    idempotencyKey: `AR-RECEIPT:DC202607093145492952:SO1783155351292178`,
++    ...overrides
++  });
++}
++
++function emptyModel() {
++  return new FakeModel([]);
++}
++
++test('Phase226 canonical category registry marks AR-RECEIPT as active decrease and excludes receipt reversal', () => {
++  assert.equal(registry.ACTIVE_DEBT_READ_MODEL_CATEGORIES.includes('AR-RECEIPT'), true);
++  assert.equal(registry.ACTIVE_DEBT_DECREASE_CATEGORIES.includes('AR-RECEIPT'), true);
++  assert.equal(registry.CATEGORY_EFFECT['AR-RECEIPT'], 'credit');
++  assert.equal(effectUtil.getArLedgerCategoryEffect({ category: 'AR-RECEIPT' }).effect, 'decrease_ar');
++  assert.equal(registry.ACTIVE_DEBT_READ_MODEL_CATEGORIES.includes('AR-RECEIPT-REVERSAL'), false);
++  assert.equal(registry.EXCLUDED_DEBT_READ_MODEL_CATEGORIES.includes('AR-RECEIPT-REVERSAL'), true);
++});
++
++test('Phase226 projects only canonical debtCollection AR-RECEIPT, not legacy closeout receipt or reversal', () => {
++  assert.equal(validator.canProjectCanonicalAccountingLedgerToDebtReadModel(receipt(2499694)), true);
++  assert.equal(validator.canProjectCanonicalAccountingLedgerToDebtReadModel(receipt(2499694, {
++    refType: 'RECEIPT',
++    refId: 'LEGACY-RECEIPT',
++    refCode: 'LEGACY-RECEIPT',
++    source: 'delivery-closeout-correction',
++    sourceType: 'SALES_ORDER_DELIVERY_CLOSEOUT_CORRECTION',
++    idempotencyKey: 'AR-RECEIPT:LEGACY-RECEIPT'
++  })), false);
++  assert.equal(validator.canProjectCanonicalAccountingLedgerToDebtReadModel(ledger('AR-RECEIPT-REVERSAL', 2499694, 'debit', {
++    entryType: 'reversal'
++  })), false);
++});
++
++test('Phase226 active Mongo match includes AR-RECEIPT and filters NVBH by exact code aliases only', () => {
++  const match = queryPolicy.buildActiveDebtReadModelLedgerMatch({ salesStaffCode: '39534', status: 'open' });
++  assert.equal(match.category.$in.includes('AR-RECEIPT'), true);
++  assert.equal(match.ledgerType.$in.includes('AR-RECEIPT'), true);
++  assert.equal(match.category.$in.includes('AR-RECEIPT-REVERSAL'), false);
++  const serialized = JSON.stringify(match);
++  assert.match(serialized, /salesStaffCode/);
++  assert.match(serialized, /salesmanCode/);
++  assert.doesNotMatch(serialized, /salesStaffName|salesmanName/);
++});
++
++test('Phase226 full payment case 4501680/B0038774 becomes zero and disappears from status=open', async () => {
++  const rows = [
++    ledger('AR-SALE', 2499694, 'debit'),
++    receipt(2499694)
++  ];
++  debtNew.setModelsForTest({
++    ArLedger: new FakeModel(rows),
++    DebtCollection: emptyModel(),
++    OrderPaymentAllocation: emptyModel()
++  });
++  try {
++    const all = await debtNew.listCustomers({ customerCode: '4501680', salesStaffCode: '39534', status: 'all' });
++    assert.equal(all.orders.length, 1);
++    assert.equal(all.orders[0].remainingDebt, 0);
++    assert.equal(all.customers[0].remainingDebt, 0);
++    assert.equal(all.summary.totalDebt, 0);
++    assert.equal(all.summary.debtOrderCount, 0);
++
++    const open = await debtNew.listCustomers({ customerCode: '4501680', salesStaffCode: '39534', status: 'open' });
++    assert.equal(open.orders.length, 0);
++    assert.equal(open.customers.length, 0);
++    assert.equal(open.summary.totalDebt, 0);
++    assert.equal(open.summary.debtOrderCount, 0);
++  } finally {
++    debtNew.setModelsForTest(null);
++  }
++});
++
++test('Phase226 partial AR-RECEIPT keeps exact remaining debt', () => {
++  const result = debtNew.groupLedgers([
++    ledger('AR-SALE', 10000000, 'debit'),
++    receipt(2499694)
++  ], { status: 'all' });
++  assert.equal(result.orders.length, 1);
++  assert.equal(result.orders[0].remainingDebt, 7500306);
++  assert.equal(result.customers[0].remainingDebt, 7500306);
++});
++
++test('Phase226 pending collection query includes only submitted/under_review, never accounting_confirmed', async () => {
++  let captured = null;
++  const DebtCollection = {
++    find(filter) {
++      captured = filter;
++      return {
++        limit() { return this; },
++        session() { return this; },
++        lean: async () => []
++      };
++    }
++  };
++  debtNew.setModelsForTest({ ArLedger: emptyModel(), DebtCollection, OrderPaymentAllocation: emptyModel() });
++  try {
++    await debtNew._private.loadPendingDebtCollectionsForOrders([{
++      orderId: 'SO1783155351292178',
++      orderCode: 'B0038774',
++      salesOrderId: 'SO1783155351292178',
++      salesOrderCode: 'B0038774'
++    }]);
++    assert.deepEqual(captured.status.$in, ['submitted', 'under_review']);
++    assert.equal(captured.status.$in.includes('accounting_confirmed'), false);
++  } finally {
++    debtNew.setModelsForTest(null);
++  }
++});
++
++test('Phase226 multi-allocation receipt creates deterministic one-ledger-per-order idempotency keys', async () => {
++  const originalUpsert = postingDependencies.paymentRepository.upsert;
++  const upserted = new Map();
++  postingDependencies.paymentRepository.upsert = async (entry) => {
++    upserted.set(entry.idempotencyKey, { ...entry });
++    return entry;
++  };
++  try {
++    const doc = {
++      id: 'DC-MULTI-1',
++      code: 'DC-MULTI-1',
++      customerCode: '4501680',
++      customerName: 'Chị Hiền',
++      amount: 3000000,
++      refType: 'debtCollection',
++      refId: 'DC-MULTI-1',
++      refCode: 'DC-MULTI-1',
++      sourceType: 'debtCollection',
++      source: 'DebtCollectionPostingService',
++      idempotencyKey: 'AR-RECEIPT:DC-MULTI-1',
++      accountingConfirmedBy: 'Kế toán',
++      allocations: [
++        { orderId: 'SO-1', orderCode: 'B-1', amount: 1000000, salesStaffCode: '39534' },
++        { orderId: 'SO-2', orderCode: 'B-2', amount: 2000000, salesStaffCode: '39534' }
++      ]
++    };
++    const first = await postingEngine.postReceiptAR(doc);
++    const second = await postingEngine.postReceiptAR(doc);
++    assert.equal(first.length, 2);
++    assert.equal(second.length, 2);
++    assert.equal(upserted.size, 2);
++    assert.equal(Array.from(upserted.values()).reduce((sum, row) => sum + row.credit, 0), 3000000);
++    assert.deepEqual(Array.from(upserted.keys()).sort(), [
++      'AR-RECEIPT:DC-MULTI-1:SO-1',
++      'AR-RECEIPT:DC-MULTI-1:SO-2'
++    ]);
++  } finally {
++    postingDependencies.paymentRepository.upsert = originalUpsert;
++  }
++});
++
++test('Phase226 dry-run audit fixture reports the historical 2.499.694 mismatch and expected zero', async () => {
++  const audit = require('../scripts/audit-confirmed-debt-collections-missing-from-debt-read-model');
++  const report = await audit.run({ fixture: true, json: true, limit: 10 });
++  assert.equal(report.dryRun, true);
++  assert.equal(report.mismatches.length, 1);
++  assert.equal(report.mismatches[0].collectionCode, 'DC202607093145492952');
++  assert.equal(report.mismatches[0].orderCode, 'B0038774');
++  assert.equal(report.mismatches[0].currentDebt, 2499694);
++  assert.equal(report.mismatches[0].expectedDebt, 0);
++  assert.equal(report.mismatches[0].receiptProjectableAfterPhase226, true);
++});
+--- a/PHASE226_DRY_RUN_FIXTURE_RESULT.json
++++ b/PHASE226_DRY_RUN_FIXTURE_RESULT.json
+@@ -0,0 +1,43 @@
++{
++  "audit": "confirmed-debt-collections-missing-from-debt-read-model",
++  "phase": 226,
++  "mode": "fixture",
++  "dryRun": true,
++  "generatedAt": "2026-07-10T01:34:57.809Z",
++  "collectionsScanned": 1,
++  "ledgersScanned": 2,
++  "mismatches": [
++    {
++      "collectionCode": "DC202607093145492952",
++      "customerCode": "4501680",
++      "orderCode": "B0038774",
++      "collectionAmount": 2499694,
++      "allocatedAmount": 2499694,
++      "arLedgerId": "AR-RECEIPT-DC202607093145492952-SO1783155351292178",
++      "category": "AR-RECEIPT",
++      "ledgerType": "AR-RECEIPT",
++      "currentDebt": 2499694,
++      "expectedDebt": 0,
++      "mismatchReason": "AR_RECEIPT_CATEGORY_MISSING_FROM_PRE_PHASE226_READ_MATCH",
++      "receiptProjectableAfterPhase226": true,
++      "receiptActiveConfirmed": true,
++      "excludedReversalCategories": [
++        "AR-SALE-REVERSAL",
++        "AR-RETURN-REVERSAL",
++        "AR-RECEIPT-REVERSAL"
++      ],
++      "activeDebtCategories": [
++        "AR-DEBT-OPEN",
++        "AR-SALE",
++        "AR-DEBT-PAYMENT",
++        "AR-RECEIPT",
++        "AR-RECEIPT-CASH",
++        "AR-RECEIPT-BANK",
++        "AR-RETURN",
++        "AR-REWARD-ALLOWANCE",
++        "AR-DEBT-ADJUSTMENT",
++        "AR-DEBT-VOID"
++      ]
++    }
++  ]
++}

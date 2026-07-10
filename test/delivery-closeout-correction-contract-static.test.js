@@ -56,15 +56,19 @@ test('Phase92 AR-DEBT-ADJUSTMENT contract uses correction source and canonical d
   assert.match(posting, /newCloseoutId/);
 });
 
-test('Phase93 Debt New keeps AR-DEBT categories only and groups correction ledgers back to the sales order', () => {
+test('Phase226 Debt New uses the canonical active category registry and keeps correction identity mapping', () => {
   const debtNew = read('src/services/v2/debtNew.service.js');
-  assert.match(debtNew, /AR-DEBT-OPEN/);
-  assert.match(debtNew, /AR-DEBT-PAYMENT/);
-  assert.match(debtNew, /AR-DEBT-ADJUSTMENT/);
-  assert.match(debtNew, /AR-DEBT-VOID/);
+  const registry = read('src/domain/ar/arDebtCategoryRegistry.js');
+  assert.match(debtNew, /arDebtCategoryRegistry/);
+  assert.match(debtNew, /ACTIVE_DEBT_READ_MODEL_CATEGORIES/);
+  assert.match(registry, /DEBT_OPEN:\s*'AR-DEBT-OPEN'/);
+  assert.match(registry, /DEBT_PAYMENT:\s*'AR-DEBT-PAYMENT'/);
+  assert.match(registry, /DEBT_ADJUSTMENT:\s*'AR-DEBT-ADJUSTMENT'/);
+  assert.match(registry, /DEBT_VOID:\s*'AR-DEBT-VOID'/);
+  assert.match(registry, /RECEIPT:\s*'AR-RECEIPT'/);
+  assert.match(registry, /RECEIPT_REVERSAL:\s*'AR-RECEIPT-REVERSAL'/);
   assert.match(debtNew, /sourceType === 'DELIVERY_CLOSEOUT_CORRECTION'/);
   assert.match(debtNew, /salesOrderId \|\| row\.orderId/);
-  assert.equal(/AR-SALE['"]\s*,\s*['"]AR-SALE-REVERSAL/.test(debtNew), true);
 });
 
 test('Phase92 scripts exist for index, audit, consistency audit and repair planning', () => {

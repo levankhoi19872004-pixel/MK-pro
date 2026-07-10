@@ -7,8 +7,9 @@ const path = require('node:path');
 
 test('posting.engine postReceiptAR builds canonical AR-RECEIPT entries before upsert', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'src/engines/posting.engine.js'), 'utf8');
-  assert.match(src, /category:\s*'AR-RECEIPT'/);
-  assert.match(src, /ledgerType:\s*'AR-RECEIPT'/);
+  assert.match(src, /category:\s*AR_CATEGORIES\.RECEIPT/);
+  assert.match(src, /ledgerType:\s*AR_CATEGORIES\.RECEIPT/);
+  assert.match(src, /arDebtCategoryRegistry/);
   assert.match(src, /entryType:\s*'normal'/);
   assert.match(src, /sourceType:\s*'salesOrder'/);
   assert.match(src, /active:\s*true/);

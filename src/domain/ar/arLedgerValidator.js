@@ -2,67 +2,18 @@
 
 const { toNumber } = require('../../utils/common.util');
 
-const PHASE87_READ_MODEL_CATEGORIES = Object.freeze([
-  'AR-DEBT-OPEN',
-  'AR-DEBT-PAYMENT',
-  'AR-DEBT-ADJUSTMENT',
-  'AR-DEBT-VOID'
-]);
+const {
+  PHASE87_READ_MODEL_CATEGORIES,
+  DETAILED_ACCOUNTING_CATEGORIES,
+  ALL_SUPPORTED_AR_CATEGORIES,
+  ACCOUNTING_READ_MODEL_PROJECTABLE_CATEGORIES,
+  CATEGORY_EFFECT,
+  canProjectDetailedAccountingCategoryBySource
+} = require('./arDebtCategoryRegistry');
 
-// Legacy AR categories are retained only for audit/migration/posting contract
-// validation. They must not be part of the Phase87 debt read-model category set.
-const LEGACY_AR_CATEGORIES = Object.freeze([
-  'AR-SALE',
-  'AR-SALE-REVERSAL',
-  'AR-RETURN',
-  'AR-RETURN-REVERSAL',
-  'AR-RECEIPT',
-  'AR-RECEIPT-CASH',
-  'AR-RECEIPT-BANK',
-  'AR-REWARD-ALLOWANCE',
-  'AR-BONUS',
-  'AR-ALLOWANCE',
-  'AR-ADJUSTMENT'
-]);
-
-const DEBT_CATEGORIES = Object.freeze([
-  ...PHASE87_READ_MODEL_CATEGORIES,
-  ...LEGACY_AR_CATEGORIES
-]);
-
-// Canonical accounting ledgers may be valid AR documents without being part of
-// the strict Phase87 AR-DEBT-* Mongo read match. Reversal rows remain valid
-// accounting documents, but are not projected as open debt rows by themselves.
-const ACCOUNTING_READ_MODEL_PROJECTABLE_CATEGORIES = Object.freeze([
-  ...PHASE87_READ_MODEL_CATEGORIES,
-  'AR-SALE',
-  'AR-RETURN',
-  'AR-RECEIPT',
-  'AR-RECEIPT-CASH',
-  'AR-RECEIPT-BANK',
-  'AR-REWARD-ALLOWANCE',
-  'AR-BONUS',
-  'AR-ALLOWANCE',
-  'AR-ADJUSTMENT'
-]);
-
-const CATEGORY_EFFECT = Object.freeze({
-  'AR-DEBT-OPEN': 'debit',
-  'AR-DEBT-PAYMENT': 'credit',
-  'AR-DEBT-ADJUSTMENT': 'either',
-  'AR-DEBT-VOID': 'either',
-  'AR-SALE': 'debit',
-  'AR-SALE-REVERSAL': 'credit',
-  'AR-RETURN': 'credit',
-  'AR-RETURN-REVERSAL': 'debit',
-  'AR-RECEIPT': 'credit',
-  'AR-RECEIPT-CASH': 'credit',
-  'AR-RECEIPT-BANK': 'credit',
-  'AR-REWARD-ALLOWANCE': 'credit',
-  'AR-BONUS': 'credit',
-  'AR-ALLOWANCE': 'credit',
-  'AR-ADJUSTMENT': 'either'
-});
+// Backward-compatible export name used by existing validators/audits.
+const LEGACY_AR_CATEGORIES = DETAILED_ACCOUNTING_CATEGORIES;
+const DEBT_CATEGORIES = ALL_SUPPORTED_AR_CATEGORIES;
 
 function clean(value = '') {
   return String(value ?? '').trim();
@@ -269,13 +220,11 @@ function canProjectCanonicalAccountingLedgerToDebtReadModel(ledger = {}) {
   if (!ACCOUNTING_READ_MODEL_PROJECTABLE_CATEGORIES.includes(category)) return false;
   if (PHASE87_READ_MODEL_CATEGORIES.includes(category)) return isCanonicalArDebtLedger(ledger);
 
-  // Detailed accounting categories are allowed into the debt read-model bridge
-  // only when they are the normalized mirror of orderPaymentAllocations.
-  // Legacy/dirty AR-SALE, AR-RETURN or AR-RECEIPT rows from closeout/correction
-  // sources must remain excluded from strict Phase87 grouping even when their
-  // debit/credit fields look complete.
-  const sourceType = upper(ledger.sourceType);
-  if (sourceType !== 'ORDER_PAYMENT_ALLOCATION') return false;
+  // Detailed accounting rows require explicit canonical provenance.
+  // orderPaymentAllocations remain projectable, and accounting-confirmed
+  // debtCollection receipts are projectable through their ref/source contract.
+  // Legacy closeout/correction receipts remain excluded.
+  if (!canProjectDetailedAccountingCategoryBySource(ledger)) return false;
   return isCanonicalArDebtLedger(ledger);
 }
 

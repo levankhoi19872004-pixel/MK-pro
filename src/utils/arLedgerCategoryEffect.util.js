@@ -1,6 +1,7 @@
 'use strict';
 
 const { toNumber } = require('./common.util');
+const { CATEGORY_EFFECT } = require('../domain/ar/arDebtCategoryRegistry');
 
 function clean(value = '') {
   return String(value ?? '').trim();
@@ -79,15 +80,14 @@ function isBusinessArReturnReversal(doc = {}) {
 
 function getArLedgerCategoryEffect(doc = {}) {
   const category = normalizeArCategory(doc);
-  if (['AR-DEBT-OPEN', 'AR-SALE', 'AR-EXTERNAL', 'AR-EXTERNAL-DEBT', 'AR-RETURN-REVERSAL', 'AR-RECEIPT-REVERSAL'].includes(category)) {
-    return { category, defaultSide: 'debit', effect: 'increase_ar' };
-  }
-  if (['AR-DEBT-PAYMENT', 'AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RECEIPT', 'AR-RECEIPT-CASH', 'AR-RECEIPT-BANK', 'AR-REWARD-ALLOWANCE', 'AR-BONUS-ALLOWANCE'].includes(category)) {
-    return { category, defaultSide: 'credit', effect: 'decrease_ar' };
-  }
-  if (category === 'AR-DEBT-ADJUSTMENT' || category === 'AR-DEBT-VOID' || category === 'AR-ADJUSTMENT') {
-    return { category, defaultSide: 'explicit', effect: 'adjust_ar' };
-  }
+  const registeredEffect = CATEGORY_EFFECT[category];
+  if (registeredEffect === 'debit') return { category, defaultSide: 'debit', effect: 'increase_ar' };
+  if (registeredEffect === 'credit') return { category, defaultSide: 'credit', effect: 'decrease_ar' };
+  if (registeredEffect === 'either') return { category, defaultSide: 'explicit', effect: 'adjust_ar' };
+
+  // Compatibility aliases that are intentionally outside the active debt-read registry.
+  if (['AR-EXTERNAL', 'AR-EXTERNAL-DEBT'].includes(category)) return { category, defaultSide: 'debit', effect: 'increase_ar' };
+  if (category === 'AR-BONUS-ALLOWANCE') return { category, defaultSide: 'credit', effect: 'decrease_ar' };
   return { category, defaultSide: 'explicit', effect: 'explicit_ar' };
 }
 

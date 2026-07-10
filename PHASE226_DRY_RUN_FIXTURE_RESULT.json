@@ -1,0 +1,43 @@
+{
+  "audit": "confirmed-debt-collections-missing-from-debt-read-model",
+  "phase": 226,
+  "mode": "fixture",
+  "dryRun": true,
+  "generatedAt": "2026-07-10T01:34:57.809Z",
+  "collectionsScanned": 1,
+  "ledgersScanned": 2,
+  "mismatches": [
+    {
+      "collectionCode": "DC202607093145492952",
+      "customerCode": "4501680",
+      "orderCode": "B0038774",
+      "collectionAmount": 2499694,
+      "allocatedAmount": 2499694,
+      "arLedgerId": "AR-RECEIPT-DC202607093145492952-SO1783155351292178",
+      "category": "AR-RECEIPT",
+      "ledgerType": "AR-RECEIPT",
+      "currentDebt": 2499694,
+      "expectedDebt": 0,
+      "mismatchReason": "AR_RECEIPT_CATEGORY_MISSING_FROM_PRE_PHASE226_READ_MATCH",
+      "receiptProjectableAfterPhase226": true,
+      "receiptActiveConfirmed": true,
+      "excludedReversalCategories": [
+        "AR-SALE-REVERSAL",
+        "AR-RETURN-REVERSAL",
+        "AR-RECEIPT-REVERSAL"
+      ],
+      "activeDebtCategories": [
+        "AR-DEBT-OPEN",
+        "AR-SALE",
+        "AR-DEBT-PAYMENT",
+        "AR-RECEIPT",
+        "AR-RECEIPT-CASH",
+        "AR-RECEIPT-BANK",
+        "AR-RETURN",
+        "AR-REWARD-ALLOWANCE",
+        "AR-DEBT-ADJUSTMENT",
+        "AR-DEBT-VOID"
+      ]
+    }
+  ]
+}

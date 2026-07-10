@@ -11,6 +11,7 @@ module.exports = {
   arLedgerValidation: require('../utils/arLedgerValidation.util'),
   arLedgerStatus: require('../utils/arLedgerStatus.util'),
   arLedgerContractValidation: require('../domain/ar/arLedgerValidator'),
+  arDebtCategoryRegistry: require('../domain/ar/arDebtCategoryRegistry'),
   returnArPostingService: require('../services/accounting/returnArPostingService'),
   staffIdentity: require('../domain/staff/staffIdentity')
 };

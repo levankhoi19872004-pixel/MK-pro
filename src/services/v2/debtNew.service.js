@@ -2,6 +2,11 @@
 
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../../constants/finance.constants');
 const { normalizeAccountingAmount, canProjectCanonicalAccountingLedgerToDebtReadModel } = require('../../domain/ar/arLedgerValidator');
+const {
+  ACTIVE_DEBT_READ_MODEL_CATEGORIES,
+  EXCLUDED_DEBT_READ_MODEL_CATEGORIES
+} = require('../../domain/ar/arDebtCategoryRegistry');
+const { buildActiveDebtReadModelLedgerMatch } = require('../../domain/ar/arLedgerQueryPolicy');
 const arLedgerReadService = require('../arLedgerRead.service');
 const searchService = require('../searchService');
 const { buildSourceNote } = require('../source-contracts/SourceNoteBuilder');
@@ -30,17 +35,7 @@ function getDebtNewModels() {
   return modelsForDebtNew;
 }
 
-const ALLOWED_CATEGORIES = Object.freeze([
-  'AR-DEBT-OPEN',
-  'AR-DEBT-PAYMENT',
-  'AR-DEBT-ADJUSTMENT',
-  'AR-DEBT-VOID',
-  'AR-SALE',
-  'AR-RECEIPT-CASH',
-  'AR-RECEIPT-BANK',
-  'AR-REWARD-ALLOWANCE',
-  'AR-RETURN'
-]);
+const ALLOWED_CATEGORIES = ACTIVE_DEBT_READ_MODEL_CATEGORIES;
 const PENDING_COLLECTION_STATUSES = Object.freeze(['submitted', 'under_review']);
 const LEGACY_REVERSAL_AUDIT_ORDER = Object.freeze(['AR-SALE', 'AR-SALE-REVERSAL', 'AR-RETURN', 'AR-RETURN-REVERSAL', 'AR-RECEIPT', 'AR-RECEIPT-REVERSAL']);
 
@@ -90,8 +85,8 @@ function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {
       searchCriteriaRequired: true,
       hasSearchCriteria: hasSearchCriteria(query),
       allowedCategories: ALLOWED_CATEGORIES,
-      excludedLegacyCategories: ['AR-SALE-REVERSAL', 'AR-RETURN-REVERSAL', 'AR-RECEIPT-REVERSAL'],
-      writePolicy: 'read-only from AR-DEBT-* only; debt collections are submitted separately and do not reduce debt until accounting confirm'
+      excludedLegacyCategories: EXCLUDED_DEBT_READ_MODEL_CATEGORIES,
+      writePolicy: 'read-only from canonical active arLedgers; debtCollections are workflow documents and reduce debt only through accounting-confirmed AR receipt ledgers'
     }
   };
 }
@@ -114,65 +109,7 @@ function emptySummary() {
 }
 
 function buildLedgerMatch(query = {}) {
-  const match = {
-    account: /^AR$/i,
-    category: { $in: ALLOWED_CATEGORIES },
-    ledgerType: { $in: ALLOWED_CATEGORIES },
-    accountingConfirmed: true,
-    active: { $ne: false },
-    reversed: { $ne: true },
-    isDeleted: { $ne: true },
-    deleted: { $ne: true },
-    status: { $nin: ['void', 'voided', 'cancelled', 'canceled', 'deleted', 'reversed'] }
-  };
-
-  const q = text(query.q || query.search || query.keyword || query.customerName || query.phone);
-  if (q) {
-    const rx = new RegExp(escapeRegExp(q), 'i');
-    match.$or = [
-      { customerCode: rx },
-      { customerName: rx },
-      { customerId: rx },
-      { orderCode: rx },
-      { salesOrderCode: rx },
-      { orderId: rx },
-      { salesOrderId: rx },
-      { sourceCode: rx },
-      { sourceId: rx },
-      { code: rx },
-      { id: rx }
-    ];
-  }
-
-  const customer = text(query.customerCode || query.customerId || query.code || query.id);
-  if (customer) {
-    const rx = new RegExp(`^${escapeRegExp(customer)}$`, 'i');
-    match.$and = Array.isArray(match.$and) ? match.$and : [];
-    match.$and.push({ $or: [{ customerCode: rx }, { customerId: rx }] });
-  }
-
-  const order = text(query.orderCode || query.salesOrderCode || query.sourceCode || query.sourceId || query.salesOrderId || query.orderId);
-  if (order) {
-    const rx = new RegExp(`^${escapeRegExp(order)}$`, 'i');
-    match.$and = Array.isArray(match.$and) ? match.$and : [];
-    match.$and.push({ $or: [{ sourceCode: rx }, { salesOrderCode: rx }, { orderCode: rx }, { refCode: rx }, { sourceId: rx }, { salesOrderId: rx }, { orderId: rx }, { refId: rx }] });
-  }
-
-  const salesman = text(query.salesman || query.salesStaffCode || query.nvbh);
-  if (salesman) {
-    const rx = new RegExp(escapeRegExp(salesman), 'i');
-    match.$and = Array.isArray(match.$and) ? match.$and : [];
-    match.$and.push({ $or: [{ salesStaffCode: rx }, { salesStaffName: rx }, { salesmanCode: rx }, { salesmanName: rx }] });
-  }
-
-  const delivery = text(query.delivery || query.deliveryStaffCode || query.nvgh);
-  if (delivery) {
-    const rx = new RegExp(escapeRegExp(delivery), 'i');
-    match.$and = Array.isArray(match.$and) ? match.$and : [];
-    match.$and.push({ $or: [{ deliveryStaffCode: rx }, { deliveryStaffName: rx }, { deliveryCode: rx }, { deliveryName: rx }] });
-  }
-
-  return match;
+  return buildActiveDebtReadModelLedgerMatch(query);
 }
 
 function ledgerEffect(row = {}) {
@@ -437,6 +374,9 @@ function groupLedgers(ledgerRows = [], query = {}) {
       const category = upper(row.category);
       const ledgerType = upper(row.ledgerType || row.category);
       if (!ALLOWED_CATEGORIES.includes(category) || !ALLOWED_CATEGORIES.includes(ledgerType)) return false;
+      // Phase87 AR-DEBT rows are already canonical debt events and may be
+      // grouped directly by tests/callers that bypass the repository read gate.
+      // Detailed accounting categories still require provenance validation.
       if (category.startsWith('AR-DEBT-')) return true;
       return canProjectCanonicalAccountingLedgerToDebtReadModel(row);
     })
@@ -594,7 +534,7 @@ async function listCustomers(query = {}, options = {}) {
     if (textSearch) normalizedQuery.q = textSearch;
   }
   const limit = Math.max(1, Math.min(500, Number(normalizedQuery.ledgerLimit || normalizedQuery.limit || 500)));
-  const ledgerRows = await arLedgerReadService.getCanonicalArLedgers({
+  const ledgerRows = await arLedgerReadService.getActiveDebtReadModelLedgers({
     ...normalizedQuery,
     limit,
     status: 'all'
@@ -613,7 +553,7 @@ async function listCustomers(query = {}, options = {}) {
       hasSearchCriteria: hasSearchCriteria(query),
       searchCriteriaRequired: false,
       allowedCategories: ALLOWED_CATEGORIES,
-      excludedLegacyCategories: ['AR-SALE-REVERSAL', 'AR-RETURN-REVERSAL', 'AR-RECEIPT-REVERSAL'],
+      excludedLegacyCategories: EXCLUDED_DEBT_READ_MODEL_CATEGORIES,
       writePolicy: 'read-only from canonical arLedgers; payment allocation detail is joined from orderPaymentAllocations; submitted debt collections do not reduce official debt until accounting confirm'
     }
   };
