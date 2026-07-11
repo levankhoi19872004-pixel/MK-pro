@@ -1,0 +1,274 @@
+{
+  "phase": "242A",
+  "status": "PARTIAL_QUERY_GRAPH",
+  "auditOnly": true,
+  "generatedAt": "2026-07-11T00:00:00.000+07:00",
+  "route": {
+    "method": "POST",
+    "path": "/api/new/delivery-today/closeout",
+    "mountedFrom": "/api/new",
+    "handlerFile": "src/routes/newOperationsRoutes.js",
+    "handler": "AccountingCloseoutService.confirmDeliveryAccounting"
+  },
+  "baseline": {
+    "source": "user-provided Phase241 production runtime evidence",
+    "request": "POST /api/new/delivery-today/closeout",
+    "avgQueryCountPerRequest": 157,
+    "avgTotalMs": 38130,
+    "maxTotalMs": 62310,
+    "sourceDisplay": {
+      "avg": "38.130 ms",
+      "max": "62.310 ms"
+    },
+    "normalizationNote": "Vietnamese thousands separator normalized to integer milliseconds.",
+    "note": "Time figures are copied from the user-provided evidence text. Phase242A did not replay production data."
+  },
+  "controlledTrace": {
+    "status": "BLOCKED_NO_SAFE_CLOSEOUT_FIXTURE",
+    "reason": "No production-equivalent, accounting-safe fixture was available in the workspace for a write-path replay of closeout.",
+    "impact": "The audit can identify static query groups and accounting-safe boundaries, but cannot attribute all 157 observed queries to exact stage/model counters."
+  },
+  "middlewareGraph": [
+    "requestContextMiddleware",
+    "performanceTelemetry.requestLifecycleMiddleware",
+    "helmet/csp/cors",
+    "pinoHttp request logger",
+    "express.json/urlencoded",
+    "createApiLimiter",
+    "maintenanceWriteGuard",
+    "securityInputGuard",
+    "inputSanitizer",
+    "responseFormatter",
+    "startupReadinessGuard",
+    "apiMonitor",
+    "apiSecurity(requireAuth)",
+    "csrfProtection",
+    "tenantContext",
+    "runtimeFlowTelemetry",
+    "registerApiRoutes -> newOperationsRoutes"
+  ],
+  "callGraph": [
+    {
+      "stage": "route",
+      "file": "src/routes/newOperationsRoutes.js",
+      "function": "POST /delivery-today/closeout",
+      "work": "Normalize selected order ids/codes, require reason, derive actor, call AccountingCloseoutService.confirmDeliveryAccounting, shape response."
+    },
+    {
+      "stage": "inFlightGuard",
+      "file": "src/services/accounting/AccountingCloseoutService.js",
+      "function": "confirmDeliveryAccounting",
+      "work": "Deduplicate duplicate submits by date, selected order ids, and actor."
+    },
+    {
+      "stage": "preflightLoadOrders",
+      "file": "src/services/accounting/AccountingCloseoutService.js",
+      "function": "loadOrders -> orderRepository.findManyByIdentity",
+      "work": "Read selected SalesOrder rows outside transaction for selection validation and idempotent fast skip."
+    },
+    {
+      "stage": "preflightLoadReturnOrders",
+      "file": "src/services/master-order/masterOrderReturn.impl.js",
+      "function": "findReturnOrdersForDeliveryChildren",
+      "work": "Read ReturnOrder rows for pending orders and validate inventory lifecycle guard."
+    },
+    {
+      "stage": "transactionCriticalRead",
+      "file": "src/services/accounting/closeout/CloseoutTransactionRunner.js",
+      "function": "CloseoutCriticalReader.loadCriticalOrdersAndReturns",
+      "work": "Re-read SalesOrder and ReturnOrder rows inside Mongo session before posting writers."
+    },
+    {
+      "stage": "perOrderCloseout",
+      "file": "src/services/accounting/AccountingCloseoutService.js",
+      "function": "confirmOneOrder",
+      "work": "Build closeout from SSoT, compare existing deliveryCloseout, write salesOrders closeout patch, post allocation, reconcile debt, log audits."
+    },
+    {
+      "stage": "allocationPosting",
+      "file": "src/services/accounting/OrderPaymentAllocationService.js",
+      "function": "buildAndPostFromCloseout -> postAllocation",
+      "work": "Upsert orderPaymentAllocation, check/post AR rows, check/post fund rows, update posted refs."
+    },
+    {
+      "stage": "debtReconcile",
+      "file": "src/services/accounting/OrderPaymentDebtReconcileService.js",
+      "function": "reconcileOrderDebt",
+      "work": "Inspect AR balance, check debt adjustment idempotency, safety re-read, optional adjustment post, after-read."
+    },
+    {
+      "stage": "postCommit",
+      "file": "src/services/accounting/closeout/CloseoutPostCommitHandler.js",
+      "function": "enqueueReadModelSync",
+      "work": "Queue AR debt read-model sync after transaction commits."
+    }
+  ],
+  "queryGroups": [
+    {
+      "id": "QG01",
+      "stage": "preflightLoadOrders",
+      "model": "salesOrders",
+      "operation": "find",
+      "growth": "O(1) for stable SO ids, may split into direct id query plus fallback identity query",
+      "safeToOptimizeInPhase242A": false,
+      "accountingSafety": "selection validation before writers"
+    },
+    {
+      "id": "QG02",
+      "stage": "preflightLoadReturnOrders",
+      "model": "returnOrders",
+      "operation": "find",
+      "growth": "O(1), optional fallback second find when no rows match direct identity query",
+      "safeToOptimizeInPhase242A": false,
+      "accountingSafety": "return lifecycle/inventory guard"
+    },
+    {
+      "id": "QG03",
+      "stage": "transactionCriticalRead",
+      "model": "salesOrders",
+      "operation": "find",
+      "growth": "O(1) batched identity read inside transaction",
+      "safeToOptimizeInPhase242A": false,
+      "accountingSafety": "fresh-read before writer"
+    },
+    {
+      "id": "QG04",
+      "stage": "transactionCriticalRead",
+      "model": "returnOrders",
+      "operation": "find",
+      "growth": "O(1), optional fallback",
+      "safeToOptimizeInPhase242A": false,
+      "accountingSafety": "fresh-read before writer"
+    },
+    {
+      "id": "QG05",
+      "stage": "perOrderCloseout",
+      "model": "salesOrders",
+      "operation": "updateOne plus rare fallback find",
+      "growth": "O(N orders)",
+      "safeToOptimizeInPhase242A": false,
+      "accountingSafety": "writer and conflict fallback"
+    },
+    {
+      "id": "QG06",
+      "stage": "allocationPosting",
+      "model": "orderPaymentAllocations",
+      "operation": "findOneAndUpdate",
+      "growth": "O(N orders)",
+      "safeToOptimizeInPhase242A": false,
+      "accountingSafety": "writer"
+    },
+    {
+      "id": "QG07",
+      "stage": "allocationPosting",
+      "model": "arLedgers",
+      "operation": "find by idempotency then findOneAndUpdate per AR row",
+      "growth": "O(N orders * AR rows)",
+      "safeToOptimizeInPhase242A": false,
+      "accountingSafety": "idempotency read followed by writer"
+    },
+    {
+      "id": "QG08",
+      "stage": "allocationPosting",
+      "model": "fundLedgers",
+      "operation": "findByIdempotencyKey plus possible code lookup/upsert per cash/bank row",
+      "growth": "O(N orders * fund rows)",
+      "safeToOptimizeInPhase242A": false,
+      "accountingSafety": "fund ledger idempotency and writer"
+    },
+    {
+      "id": "QG09",
+      "stage": "debtReconcile",
+      "model": "arLedgers",
+      "operation": "raw/canonical balance reads, debt adjustment idempotency reads, optional post, after-read",
+      "growth": "O(N orders)",
+      "safeToOptimizeInPhase242A": false,
+      "accountingSafety": "fresh AR balance before/after adjustment"
+    },
+    {
+      "id": "QG10",
+      "stage": "postCommit",
+      "model": "readModelSyncJobs",
+      "operation": "updateOne",
+      "growth": "O(customer groups)",
+      "safeToOptimizeInPhase242A": false,
+      "accountingSafety": "post-commit queue, outside core writer transaction"
+    }
+  ],
+  "nPlusOneFindings": [
+    {
+      "id": "N1",
+      "stage": "allocationPosting",
+      "model": "arLedgers",
+      "finding": "AR row idempotency check/post is executed serially for each generated AR ledger row per order.",
+      "risk": "Cannot batch blindly because conflict detection and post ordering are part of accounting safety.",
+      "phase242B_candidate": true
+    },
+    {
+      "id": "N2",
+      "stage": "debtReconcile",
+      "model": "arLedgers",
+      "finding": "Debt reconcile reads AR balance before apply, safety re-reads before post, checks idempotency, and after-reads.",
+      "risk": "These are intentional fresh reads. Optimization requires a dedicated accounting proof."
+    },
+    {
+      "id": "N3",
+      "stage": "fundPosting",
+      "model": "fundLedgers",
+      "finding": "Cash and bank fund ledger paths each perform idempotency checks and possible sequence/code lookup.",
+      "risk": "Potential query growth, but fund ledger idempotency is writer-adjacent."
+    }
+  ],
+  "duplicateReadFindings": [
+    {
+      "id": "DR1",
+      "models": ["salesOrders", "returnOrders"],
+      "finding": "Orders/returns are read once for preflight validation and again inside transaction.",
+      "classification": "fresh-read-before-write, not removable duplicate",
+      "allowedOptimization": "Only a future phase may reduce payload/projection or add safe trace counters; do not remove transaction re-read."
+    }
+  ],
+  "safeOptimizationCandidatesForPhase242B": [
+    {
+      "id": "C1",
+      "title": "Add disabled-by-default query trace around static stages",
+      "risk": "low",
+      "requirements": ["feature flag default off", "no business response changes", "no query execution in disabled mode"]
+    },
+    {
+      "id": "C2",
+      "title": "Measure AR idempotency reads per generated ledger row with controlled fixture",
+      "risk": "low",
+      "requirements": ["fixture with cash/bank/reward/return/debt permutations", "transaction-safe trace only"]
+    },
+    {
+      "id": "C3",
+      "title": "Investigate read-only projection narrowing for preflight order load",
+      "risk": "medium",
+      "requirements": ["prove all fields used by scope validation and response diagnostics remain present"]
+    }
+  ],
+  "doNotOptimizeWithoutDedicatedAccountingPhase": [
+    "Do not remove CloseoutCriticalReader transaction re-read.",
+    "Do not parallelize writer path with Promise.all.",
+    "Do not batch AR/Fund writes without idempotency and ordering proof.",
+    "Do not skip debt reconcile safety re-read.",
+    "Do not change Mongo schema or indexes in Phase242A.",
+    "Do not change SSoT: inventories, arLedgers, fundLedgers, returnOrders."
+  ],
+  "writerSafetyMap": {
+    "writerCount": 6,
+    "freshReadCount": 5,
+    "transactionBoundaryCount": 1,
+    "postCommitQueueCount": 1
+  },
+  "phase242AChanges": {
+    "businessLogicChanged": false,
+    "routeChanged": false,
+    "writerOrderChanged": false,
+    "schemaOrIndexChanged": false,
+    "frontendChanged": false,
+    "auditModule": "src/observability/closeoutQueryAudit.js",
+    "auditDefaultEnabled": false
+  }
+}

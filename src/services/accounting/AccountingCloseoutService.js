@@ -12,6 +12,7 @@ const OrderPaymentDebtReconcileService = require('./OrderPaymentDebtReconcileSer
 const { createCommandTelemetry } = require('../../utils/commandTelemetry');
 const CloseoutTransactionRunner = require('./closeout/CloseoutTransactionRunner');
 const CloseoutPostCommitHandler = require('./closeout/CloseoutPostCommitHandler');
+const closeoutQueryAudit = require('../../observability/closeoutQueryAudit');
 
 const CONFIRM_GUARD_TTL_MS = Math.max(1000, Number(process.env.CLOSEOUT_CONFIRM_GUARD_TTL_MS || 8000));
 const inFlight = new Map();
@@ -448,11 +449,11 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
   if (!isCompletedDelivery(order)) return { skipped: true, status: 'skipped', reason: 'delivery_not_completed', orderId: DeliveryCloseoutService.orderId(order), orderCode: DeliveryCloseoutService.orderCode(order) };
 
   const existingCloseout = order.deliveryCloseout || {};
-  const computed = DeliveryCloseoutService.buildCloseout(order, returnOrders, [], {
+  const computed = closeoutQueryAudit.withCloseoutAuditStage('order.computeCloseout', () => DeliveryCloseoutService.buildCloseout(order, returnOrders, [], {
     actor,
     status: existingCloseout.status || 'pending_accounting',
     reason: clean(options.reason || options.closeoutReason || '')
-  });
+  }));
 
   if (DeliveryCloseoutService.hasReturnSignalWithoutReturnOrders(order, computed)) {
     const err = new Error('Đơn có số tiền hàng trả trên app/salesOrders nhưng chưa có returnOrders hợp lệ. Chặn xác nhận kế toán để tránh lệch tồn kho/công nợ.');
@@ -491,7 +492,7 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
   // finalDebtAmount âm lớn là overpayment/exception: vẫn khóa closeout nhưng không sinh công nợ âm.
   const confirmedCloseout = DeliveryCloseoutService.confirmCloseout(order, scopedComputed, { actor, reason: clean(options.reason || options.closeoutReason || '') });
   const patch = buildConfirmedOrderPatchFields(order, confirmedCloseout, actor);
-  const patchResult = await orderRepository.patchAccountingCloseoutById(DeliveryCloseoutService.orderId(order), patch, options);
+  const patchResult = await closeoutQueryAudit.withCloseoutAuditStage('order.salesOrder.patch', () => orderRepository.patchAccountingCloseoutById(DeliveryCloseoutService.orderId(order), patch, options));
   if (!patchResult || Number(patchResult.matchedCount || 0) === 0) {
     const latest = await orderRepository.findByIdOrCode(DeliveryCloseoutService.orderId(order), {
       session: options.session,
@@ -520,7 +521,7 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     note: clean(options.note || options.reason || `Phân bổ thanh toán từ chốt giao hàng ${DeliveryCloseoutService.orderCode(order)}`),
     skipReadModelRebuild: true
   });
-  const debtReconcileResult = await OrderPaymentDebtReconcileService.reconcileOrderDebt({
+  const debtReconcileResult = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.reconcile', () => OrderPaymentDebtReconcileService.reconcileOrderDebt({
     order: updatedOrderForLedger,
     allocation: allocationResult.allocation,
     sourceType: 'delivery_closeout',
@@ -535,7 +536,7 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     actor,
     session: options.session,
     skipReadModelRebuild: true
-  });
+  }));
   const debtAdjustmentLedger = debtReconcileResult && debtReconcileResult.posted ? debtReconcileResult.ledger : null;
   const arLedgers = [
     ...(allocationResult.arLedgers || []),
@@ -550,14 +551,14 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     debtReconcile: debtReconcileResult || null,
     debtAdjustmentLedger
   };
-  await auditService.log('ACCOUNTING_CONFIRM_DELIVERY_CLOSEOUT', {
+  await closeoutQueryAudit.withCloseoutAuditStage('order.audit.accountingConfirm', () => auditService.log('ACCOUNTING_CONFIRM_DELIVERY_CLOSEOUT', {
     refType: 'SALES_ORDER',
     refId: DeliveryCloseoutService.orderId(order),
     refCode: DeliveryCloseoutService.orderCode(order),
     user: actor,
     note: `Xác nhận kế toán chốt giao hàng: finalDebt=${confirmedCloseout.finalDebtAmount}, allocation=${arResult.allocation?.allocationCode || ''}, AR rows=${(arResult.arLedgers || []).length}, reason=${clean(options.reason || options.closeoutReason || '')}`
-  });
-  await auditService.log('DELIVERY_CLOSEOUT_CONFIRMED', {
+  }));
+  await closeoutQueryAudit.withCloseoutAuditStage('order.audit.closeoutConfirmed', () => auditService.log('DELIVERY_CLOSEOUT_CONFIRMED', {
     refType: 'SALES_ORDER',
     refId: DeliveryCloseoutService.orderId(order),
     refCode: DeliveryCloseoutService.orderCode(order),
@@ -577,6 +578,19 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
       closeoutScopeHash: clean(confirmedCloseout.closeoutScopeHash || confirmedCloseout.scopeHash)
     },
     note: `DELIVERY_CLOSEOUT_CONFIRMED scope=${clean(confirmedCloseout.closeoutScopeHash || confirmedCloseout.scopeHash)} finalDebt=${confirmedCloseout.finalDebtAmount}`
+  }));
+  closeoutQueryAudit.updateCardinality({
+    orderMetric: {
+      generatedArRowCount: arLedgers.length,
+      cashFundPathUsed: (allocationResult.fundLedgers || []).some((row) => String(row.fundType || row.account || '').toLowerCase().includes('cash')),
+      bankFundPathUsed: (allocationResult.fundLedgers || []).some((row) => String(row.fundType || row.account || '').toLowerCase().includes('bank')),
+      rewardOffsetUsed: Number(confirmedCloseout.rewardAmount || confirmedCloseout.offsetAmount || 0) > 0,
+      returnAmountUsed: Number(confirmedCloseout.returnedAmount || confirmedCloseout.returnAmount || 0) > 0,
+      debtReconcileOutcome: debtReconcileResult?.posted ? 'ADJUSTMENT_POSTED'
+        : (debtReconcileResult?.skippedAlreadyFixed || debtReconcileResult?.skipReason === 'NO_DEBT_DELTA' ? 'NO_DEBT_DELTA'
+          : (debtReconcileResult?.skippedAlreadyReconciled ? 'IDEMPOTENT_SKIP'
+            : (debtReconcileResult?.manualReviewRequired ? 'MANUAL_REVIEW' : 'UNKNOWN')))
+    }
   });
   return {
     confirmed: true,
@@ -609,10 +623,11 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
   if (!selectedOrderIds.length) return { error: 'Vui lòng chọn ít nhất một đơn để xác nhận kế toán', status: 400 };
   const actor = clean(normalized.confirmedBy || body.confirmedBy || body.userName || body.accountantName || 'accountant');
   const reason = clean(normalized.reason || body.reason || body.note || 'Chốt sổ giao hàng cuối ngày');
-  const orders = await loadOrders(selectedOrderIds);
+  closeoutQueryAudit.updateCardinality({ selectedOrderCount: selectedOrderIds.length });
+  const orders = await closeoutQueryAudit.withCloseoutAuditStage('request.preflight.orders', () => loadOrders(selectedOrderIds));
   markPerformance('loadOrders', { requestedOrderKeys: selectedOrderIds.length, orderCount: orders.length });
   if (!orders.length) return { error: `Không tìm thấy đơn đã chọn trong ngày ${date} để kế toán xác nhận`, status: 404, code: 'ORDER_SELECTION_NOT_FOUND', performance: telemetry.finish() };
-  const scopeError = validateSelectedOrderScope(orders, body, selectedOrderIds);
+  const scopeError = closeoutQueryAudit.withCloseoutAuditStage('request.preflight.scopeValidation', () => validateSelectedOrderScope(orders, body, selectedOrderIds));
   if (scopeError) return { ...scopeError, performance: telemetry.finish() };
   markPerformance('validateSelectedOrderScope');
 
@@ -627,6 +642,11 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
 
   const alreadyConfirmedOrders = orders.filter(isAccountingConfirmed);
   const pendingConfirmOrders = orders.filter((order) => !isAccountingConfirmed(order));
+  closeoutQueryAudit.updateCardinality({
+    selectedOrderCount: selectedOrderIds.length,
+    alreadyConfirmedOrderCount: alreadyConfirmedOrders.length,
+    pendingOrderCount: pendingConfirmOrders.length
+  });
   const results = alreadyConfirmedOrders.map((order) => buildAlreadyConfirmedResult(order));
 
   if (!pendingConfirmOrders.length) {
@@ -657,12 +677,13 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     };
   }
 
-  const returnOrders = await findReturnOrdersForDeliveryChildren(pendingConfirmOrders);
+  const returnOrders = await closeoutQueryAudit.withCloseoutAuditStage('request.preflight.returnOrders', () => findReturnOrdersForDeliveryChildren(pendingConfirmOrders));
   markPerformance('loadReturnOrders', { pendingConfirmOrders: pendingConfirmOrders.length, returnOrderCount: returnOrders.length });
+  closeoutQueryAudit.updateCardinality({ returnOrderCount: returnOrders.length });
   // Guard phải dùng returnOrders mới nhất vừa query từ DB. Không được chặn theo payload/frontend hoặc embedded stale trong orders.
-  assertReturnOrdersInventoryReady(returnOrders);
+  closeoutQueryAudit.withCloseoutAuditStage('request.preflight.returnGuard', () => assertReturnOrdersInventoryReady(returnOrders));
   markPerformance('validateReturnOrdersInventory');
-  const transactionResult = await CloseoutTransactionRunner.runCloseoutTransaction({
+  const transactionResult = await closeoutQueryAudit.withCloseoutAuditStage('transaction.begin', () => CloseoutTransactionRunner.runCloseoutTransaction({
     pendingConfirmOrders,
     results,
     confirmOneOrder,
@@ -678,18 +699,19 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
       selectedOrderCodes,
       selectedSalesStaffCodes
     }
-  });
+  }));
+  closeoutQueryAudit.updateCardinality({ criticalOrderCount: transactionResult.criticalReads.length });
   markPerformance('transactionAndPosting', {
     resultCount: results.length,
     criticalReads: transactionResult.criticalReads.length,
     readModelSyncGroups: transactionResult.syncGroups.length
   });
-  const readModelSync = await CloseoutPostCommitHandler.enqueueReadModelSync(transactionResult.syncGroups, {
+  const readModelSync = await closeoutQueryAudit.withCloseoutAuditStage('postCommit.readModelSync', () => CloseoutPostCommitHandler.enqueueReadModelSync(transactionResult.syncGroups, {
     actor,
     reason,
     source: 'DELIVERY_CLOSEOUT',
     metadata: { route: 'POST /api/new/delivery-today/closeout' }
-  });
+  }));
   markPerformance('postCommitReadModelSync', { queued: readModelSync.queued, warnings: readModelSync.warnings.length });
 
   const confirmedOrders = results.filter((row) => row.confirmed).length;

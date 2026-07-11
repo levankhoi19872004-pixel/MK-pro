@@ -2,6 +2,7 @@
 
 const { AsyncLocalStorage } = require('async_hooks');
 const performanceTelemetry = require('../observability/performanceTelemetry');
+const closeoutQueryAudit = require('../observability/closeoutQueryAudit');
 let mongoose = null;
 try {
   mongoose = require('mongoose');
@@ -11,6 +12,8 @@ try {
 
 const apiMonitorStore = new AsyncLocalStorage();
 let mongooseApiMonitorPatched = false;
+const mongoQueryObservers = new Set();
+const apiMetricObservers = new Set();
 
 const DEFAULT_SLOW_MS = Number(process.env.API_MONITOR_SLOW_MS || 1000);
 const MAX_RECENT_SLOW = Number(process.env.API_MONITOR_MAX_SLOW || 200);
@@ -186,11 +189,12 @@ function describeMongooseExec(ctx) {
       inputKeys,
       dirtyInputKeys,
       hasDirtyInputKeys: dirtyInputKeys.length > 0,
+      model,
       collection,
       operation: op
     };
   } catch (err) {
-    return { label: 'Mongo.query', inputKeys: [], dirtyInputKeys: [], hasDirtyInputKeys: false };
+    return { label: 'Mongo.query', inputKeys: [], dirtyInputKeys: [], hasDirtyInputKeys: false, model: 'Mongo', collection: '', operation: 'query' };
   }
 }
 
@@ -208,12 +212,48 @@ function getActiveMetric() {
   return apiMonitorStore.getStore() || null;
 }
 
-function addMongoMetric(ms, trace = null) {
+function registerMongoQueryObserver(observer) {
+  if (typeof observer !== 'function') return () => {};
+  mongoQueryObservers.add(observer);
+  return () => mongoQueryObservers.delete(observer);
+}
+
+function registerApiMetricObserver(observer) {
+  if (typeof observer !== 'function') return () => {};
+  apiMetricObservers.add(observer);
+  return () => apiMetricObservers.delete(observer);
+}
+
+function notifyMongoQueryObservers(event) {
+  for (const observer of mongoQueryObservers) {
+    try {
+      observer(event);
+    } catch (_) {
+      // Query observers must never affect request execution or query results.
+    }
+  }
+}
+
+function notifyApiMetricObservers(metric) {
+  for (const observer of apiMetricObservers) {
+    try {
+      observer(metric);
+    } catch (_) {
+      // API metric observers must never affect response execution.
+    }
+  }
+}
+
+registerMongoQueryObserver(closeoutQueryAudit.observeMongoQueryEvent);
+registerApiMetricObserver(closeoutQueryAudit.recordApiMonitorSnapshot);
+
+function addMongoMetric(ms, trace = null, event = null) {
   const store = getActiveMetric();
   if (!store) return;
   store.dbQueries += 1;
   store.mongoMs += ms;
   if (trace) pushQueryTrace(store, trace);
+  if (event) notifyMongoQueryObservers(event);
 }
 
 function patchMongooseApiMonitor() {
@@ -228,14 +268,26 @@ function patchMongooseApiMonitor() {
       const queryInfo = describeMongooseExec(this);
       const finalizeTrace = (result, err = null) => {
         const ms = Math.round(nowMs() - started);
-        addMongoMetric(ms, {
+        const rows = resultRows(result);
+        const trace = {
           label: queryInfo.label,
           inputKeys: queryInfo.inputKeys || [],
           dirtyInputKeys: queryInfo.dirtyInputKeys || [],
           hasDirtyInputKeys: !!queryInfo.hasDirtyInputKeys,
           ms,
-          rows: resultRows(result),
+          rows,
           error: err ? (err.message || String(err)) : undefined
+        };
+        addMongoMetric(ms, trace, {
+          timestamp: new Date().toISOString(),
+          model: queryInfo.model || queryInfo.collection || 'Mongo',
+          collection: queryInfo.collection || '',
+          operation: queryInfo.operation || 'query',
+          durationMs: ms,
+          rows,
+          hasSession: Boolean(typeof this?.getOptions === 'function' ? this.getOptions()?.session : this?.options?.session),
+          queryShape: queryInfo.label,
+          error: err ? 'QUERY_ERROR' : ''
         });
       };
       try {
@@ -459,6 +511,7 @@ function apiMonitor(req, res, next) {
         slowestQuery: body.perf?.slowestQuery ?? (metricStore.queryTraces || []).slice().sort((a, b) => (b.ms || 0) - (a.ms || 0))[0] ?? null
       };
     }
+    notifyApiMetricObservers({ dbQueries, mongoMs, ms, statusCode: res.statusCode });
     return originalJson(body);
   };
 
@@ -664,4 +717,14 @@ module.exports = {
   getApiMonitorReport,
   resetApiMonitor,
   percentile
+  ,
+  registerMongoQueryObserver,
+  registerApiMetricObserver,
+  _private: {
+    mongoQueryObservers,
+    apiMetricObservers,
+    notifyMongoQueryObservers,
+    notifyApiMetricObservers,
+    describeMongooseExec
+  }
 };

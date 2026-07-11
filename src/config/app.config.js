@@ -202,7 +202,10 @@ function buildRuntimeConfig(env = process.env) {
       observationMaxDurationMs: safe('PERF_OBSERVATION_MAX_DURATION_MS', () => readInteger(env, 'PERF_OBSERVATION_MAX_DURATION_MS', { defaultValue: 28800000, min: 60000, max: 86400000 }), 28800000),
       targetEnv: safe('PERF_TARGET_ENV', () => readEnum(env, 'PERF_TARGET_ENV', ['local', 'staging', 'production'], { defaultValue: 'local' }), 'local'),
       maxResponseBytes: safe('PERF_MAX_RESPONSE_BYTES', () => readInteger(env, 'PERF_MAX_RESPONSE_BYTES', { defaultValue: 1048576, min: 1024, max: 10485760 }), 1048576),
-      scenarioCooldownMs: safe('PERF_SCENARIO_COOLDOWN_MS', () => readInteger(env, 'PERF_SCENARIO_COOLDOWN_MS', { defaultValue: 1000, min: 0, max: 600000 }), 1000)
+      scenarioCooldownMs: safe('PERF_SCENARIO_COOLDOWN_MS', () => readInteger(env, 'PERF_SCENARIO_COOLDOWN_MS', { defaultValue: 1000, min: 0, max: 600000 }), 1000),
+      closeoutQueryAuditEnabled: safe('CLOSEOUT_QUERY_AUDIT_ENABLED', () => readBoolean(env, 'CLOSEOUT_QUERY_AUDIT_ENABLED', { defaultValue: false }), false),
+      closeoutQueryAuditHistoryLimit: safe('CLOSEOUT_QUERY_AUDIT_HISTORY_LIMIT', () => readInteger(env, 'CLOSEOUT_QUERY_AUDIT_HISTORY_LIMIT', { defaultValue: 20, min: 1, max: 100 }), 20),
+      closeoutQueryAuditMaxEvents: safe('CLOSEOUT_QUERY_AUDIT_MAX_EVENTS', () => readInteger(env, 'CLOSEOUT_QUERY_AUDIT_MAX_EVENTS', { defaultValue: 300, min: 0, max: 2000 }), 300)
     },
     worker: {
       backgroundConcurrency: safe('BACKGROUND_JOB_CONCURRENCY', () => readInteger(env, 'BACKGROUND_JOB_CONCURRENCY', { defaultValue: 2, min: 1, max: 64 }), 2),

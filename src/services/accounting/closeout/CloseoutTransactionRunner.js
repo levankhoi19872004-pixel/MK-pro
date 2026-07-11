@@ -3,6 +3,7 @@
 const { withMongoTransaction } = require('../../../utils/transaction.util');
 const CriticalReader = require('./CloseoutCriticalReader');
 const { compactDeliveryOrderKeys } = require('../../master-order/masterOrderIdentity.util');
+const closeoutQueryAudit = require('../../../observability/closeoutQueryAudit');
 
 function clean(value = '') {
   return String(value ?? '').trim();
@@ -81,23 +82,25 @@ async function runCloseoutTransaction({
   if (typeof assertReturnOrdersInventoryReady !== 'function') throw new TypeError('assertReturnOrdersInventoryReady is required');
   const criticalReads = [];
 
-  await withMongoTransaction(async (session) => {
+  await withMongoTransaction(async (session) => closeoutQueryAudit.withTransactionAttempt(async () => {
     const critical = await CriticalReader.loadCriticalOrdersAndReturns(pendingConfirmOrders, { session });
     const returnByKey = groupReturnOrdersBySalesOrder(critical.returnOrders, critical.orders);
+    let orderIndex = 0;
     for (const order of critical.orders) {
+      orderIndex += 1;
       const returnOrders = returnOrdersForOrder(order, returnByKey);
       criticalReads.push({
         orderId: clean(order.id || order._id || order.code),
         returnOrderCount: returnOrders.length
       });
-      assertReturnOrdersInventoryReady(returnOrders);
-      const result = await confirmOneOrder(order, returnOrders, {
+      closeoutQueryAudit.withCloseoutAuditStage('transaction.critical.validation', () => assertReturnOrdersInventoryReady(returnOrders));
+      const result = await closeoutQueryAudit.withCloseoutOrder(orderIndex, critical.orders.length, () => confirmOneOrder(order, returnOrders, {
         ...perOrderOptions,
         session
-      });
+      }));
       results.push(result);
     }
-  });
+  }));
 
   return {
     results,

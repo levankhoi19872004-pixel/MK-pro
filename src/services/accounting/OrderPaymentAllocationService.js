@@ -7,6 +7,7 @@ const paymentRepository = require('../../repositories/paymentRepository');
 const arPostingService = require('../arPosting.service');
 const fundService = require('../fundService');
 const DeliveryCloseoutService = require('./DeliveryCloseoutService');
+const closeoutQueryAudit = require('../../observability/closeoutQueryAudit');
 
 const ACTIVE_LEDGER_STATUSES = ['void', 'voided', 'cancelled', 'canceled', 'deleted', 'reversed'];
 const DEFAULT_ZERO_TOLERANCE = 1000;
@@ -397,7 +398,7 @@ async function upsertAllocation(allocation = {}, options = {}) {
     { $set: update, $setOnInsert: insertOnly },
     { upsert: true, new: true, setDefaultsOnInsert: true, session: options.session }
   );
-  return query.lean ? query.lean() : query;
+  return closeoutQueryAudit.withCloseoutAuditStage('order.allocation.upsert', () => (query.lean ? query.lean() : query));
 }
 
 async function findActiveArByIdempotency(idempotencyKey, options = {}) {
@@ -515,10 +516,11 @@ function buildArLedgerRows(allocation = {}, options = {}) {
 }
 
 async function postArLedgersFromAllocation(allocation = {}, options = {}) {
-  const rows = buildArLedgerRows(allocation, options);
+  const rows = closeoutQueryAudit.withCloseoutAuditStage('order.ar.buildRows', () => buildArLedgerRows(allocation, options));
+  closeoutQueryAudit.updateCardinality({ addGeneratedArRows: rows.length });
   const posted = [];
   for (const row of rows) {
-    const existed = await findActiveArByIdempotency(row.idempotencyKey, options);
+    const existed = await closeoutQueryAudit.withCloseoutAuditStage('order.ar.idempotency', () => findActiveArByIdempotency(row.idempotencyKey, options));
     if (existed) {
       if (money(existed.debit) !== money(row.debit) || money(existed.credit) !== money(row.credit)) {
         throw allocationError('ORDER_PAYMENT_ALLOCATION_AR_LEDGER_CONFLICT', 'AR ledger từ orderPaymentAllocation đã tồn tại nhưng khác số tiền.', allocation, {
@@ -533,7 +535,7 @@ async function postArLedgersFromAllocation(allocation = {}, options = {}) {
       posted.push(existed);
       continue;
     }
-    const saved = await arPostingService.postArLedgerEntry(row, options);
+    const saved = await closeoutQueryAudit.withCloseoutAuditStage('order.ar.post', () => arPostingService.postArLedgerEntry(row, options));
     posted.push(saved || row);
   }
   return posted;
@@ -544,7 +546,9 @@ async function postFundLedgersFromAllocation(allocation = {}, options = {}) {
   const postOne = async (fundType, amount) => {
     const normalized = positiveMoney(amount);
     if (normalized <= 0) return;
-    const result = await fundService.postFundLedger({
+    closeoutQueryAudit.updateCardinality({ addFundPath: 1 });
+    const stageName = fundType === 'bank' ? 'order.fund.bank.post' : 'order.fund.cash.post';
+    const result = await closeoutQueryAudit.withCloseoutAuditStage(stageName, () => fundService.postFundLedger({
       date: allocation.deliveryDate || dateUtil.todayVN(),
       fundType,
       direction: 'in',
@@ -569,7 +573,7 @@ async function postFundLedgersFromAllocation(allocation = {}, options = {}) {
       createdBy: actorOf(options, allocation.updatedBy || allocation.createdBy || 'accountant'),
       idempotencyKey: `FUND:OPA:${allocation.idempotencyKey}:${fundType}`,
       note: `${fundType === 'bank' ? 'Chuyển khoản' : 'Tiền mặt'} từ phân bổ thanh toán đơn ${allocation.orderCode}`
-    }, options);
+    }, options));
     posted.push(result && result.ledger ? result.ledger : result);
   };
   await postOne('cash', allocation.cashAmount);
@@ -597,7 +601,7 @@ async function updatePostedRefs(allocation = {}, arLedgers = [], fundLedgers = [
     },
     { new: true, session: options.session }
   );
-  return query.lean ? query.lean() : query;
+  return closeoutQueryAudit.withCloseoutAuditStage('order.allocation.updatePostedRefs', () => (query.lean ? query.lean() : query));
 }
 
 async function postAllocation(allocation = {}, options = {}) {
@@ -609,7 +613,7 @@ async function postAllocation(allocation = {}, options = {}) {
 }
 
 async function buildAndPostFromCloseout(order = {}, closeout = {}, options = {}) {
-  const allocation = buildAllocationFromCloseout(order, closeout, options);
+  const allocation = closeoutQueryAudit.withCloseoutAuditStage('order.allocation.build', () => buildAllocationFromCloseout(order, closeout, options));
   return postAllocation(allocation, options);
 }
 

@@ -10,6 +10,7 @@ const DeliveryAdjustmentBulkCommitService = require('../services/delivery/Delive
 const DebtCollectionService = require('../services/DebtCollectionService');
 const manualDebtPostingService = require('../services/accounting/manualDebtPostingService');
 const AccountingCloseoutService = require('../services/accounting/AccountingCloseoutService');
+const closeoutQueryAudit = require('../observability/closeoutQueryAudit');
 const { buildSourceNote } = require('../services/source-contracts/SourceNoteBuilder');
 
 const router = express.Router();
@@ -103,7 +104,7 @@ router.get('/delivery-today/adjustments/resolve', requireAuth, readRoles, async 
   }
 });
 
-router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, res) => {
+router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, res) => closeoutQueryAudit.withCloseoutAuditRequest(req, res, async () => {
   try {
     const body = req.body || {};
     const stableOrderIds = [
@@ -188,7 +189,7 @@ router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, 
   } catch (err) {
     return sendError(res, err, 'Không chốt được sổ giao hàng');
   }
-});
+}));
 
 
 router.post('/delivery-today/closeouts/:id/corrections', requireAuth, writeRoles, async (req, res) => {

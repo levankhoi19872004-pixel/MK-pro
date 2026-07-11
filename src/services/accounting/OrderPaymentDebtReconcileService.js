@@ -11,6 +11,7 @@ const {
   buildCanonicalArOrderLookupKeys
 } = require('../../domain/ar/arOrderIdentity');
 const OrderPaymentAllocationService = require('./OrderPaymentAllocationService');
+const closeoutQueryAudit = require('../../observability/closeoutQueryAudit');
 
 const ACTIVE_EXCLUDED_STATUSES = ['reversed', 'void', 'voided', 'cancelled', 'canceled', 'deleted', 'removed', 'superseded'];
 const DEFAULT_ZERO_TOLERANCE = 1000;
@@ -438,6 +439,7 @@ async function reconcileOneOrder({
   accountingBatchId = '',
   diagnosticLogger = null
 } = {}) {
+  closeoutQueryAudit.updateCardinality({ addDebtReconcile: 1 });
   const effectiveAllocation = allocation && Object.keys(allocation).length
     ? { ...allocation }
     : allocationFromCloseout(order, closeout || {}, { zeroTolerance, sourceType, sourceId, sourceCode });
@@ -450,15 +452,15 @@ async function reconcileOneOrder({
     : computeExpectedDebtFromAllocation(effectiveAllocation, { zeroTolerance });
   const normalizedTolerance = normalizeZeroTolerance(zeroTolerance, DEFAULT_ZERO_TOLERANCE);
   const identityInput = { order, allocation: effectiveAllocation };
-  let balanceDetails = await getCurrentOrderArBalanceDetails(
+  let balanceDetails = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.initialBalance', () => getCurrentOrderArBalanceDetails(
     identityInput,
     customerCodeOf(effectiveAllocation, order),
     { session }
-  );
+  ));
   let currentArBalance = money(balanceDetails.currentArBalance);
   let deltaDebt = money(expected.expectedDebtAmount - currentArBalance);
   const idempotencyKey = clean(forcedIdempotencyKey || debtAdjustmentIdempotencyKey(effectiveAllocation, expected.expectedDebtAmount));
-  const existing = await findActiveDebtAdjustmentByKey(idempotencyKey, { session });
+  const existing = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.initialIdempotency', () => findActiveDebtAdjustmentByKey(idempotencyKey, { session }));
 
   const buildDiagnostic = (action, skipReason = '', suggestedFix = '') => diagnosticFromReconcile({
     order,
@@ -581,11 +583,11 @@ async function reconcileOneOrder({
 
   // Accounting safety guard: re-read in the same Mongo session immediately
   // before posting so a stale preflight cannot create a full target-debt entry.
-  balanceDetails = await getCurrentOrderArBalanceDetails(
+  balanceDetails = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.safetyBalance', () => getCurrentOrderArBalanceDetails(
     identityInput,
     customerCodeOf(effectiveAllocation, order),
     { session }
-  );
+  ));
   currentArBalance = money(balanceDetails.currentArBalance);
   deltaDebt = money(expected.expectedDebtAmount - currentArBalance);
 
@@ -620,7 +622,7 @@ async function reconcileOneOrder({
     }, diagnosticLogger);
   }
 
-  const existingBeforePost = await findActiveDebtAdjustmentByKey(idempotencyKey, { session });
+  const existingBeforePost = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.prePostIdempotency', () => findActiveDebtAdjustmentByKey(idempotencyKey, { session }));
   if (existingBeforePost) {
     return emitReconcileDiagnostic({
       needsAdjustment: false,
@@ -644,12 +646,12 @@ async function reconcileOneOrder({
     deltaDebt
   }, { zeroTolerance: normalizedTolerance, actor, rawDebtAmount: expected.rawDebtAmount, session, sourceType, sourceId, sourceCode, sourceModel, refType, refId, refCode, note, reason, accountingBatchId, idempotencyKey });
   const action = actionForDelta();
-  const saved = await arPostingService.postArLedgerEntry(ledger, { session, actor });
-  const afterDetails = await getCurrentOrderArBalanceDetails(
+  const saved = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.adjustmentPost', () => arPostingService.postArLedgerEntry(ledger, { session, actor }));
+  const afterDetails = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.afterBalance', () => getCurrentOrderArBalanceDetails(
     identityInput,
     customerCodeOf(effectiveAllocation, order),
     { session }
-  );
+  ));
   const afterBalance = money(afterDetails.currentArBalance);
   return emitReconcileDiagnostic({
     needsAdjustment: true,

@@ -4,6 +4,7 @@ const orderRepository = require('../../../repositories/orderRepository');
 const DeliveryCloseoutService = require('../DeliveryCloseoutService');
 const { findReturnOrdersForDeliveryChildren } = require('../../master-order/masterOrderReturn.impl');
 const { compactDeliveryOrderKeys } = require('../../master-order/masterOrderIdentity.util');
+const closeoutQueryAudit = require('../../../observability/closeoutQueryAudit');
 
 const CLOSEOUT_ORDER_PROJECTION = [
   'id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderId', 'salesOrderCode',
@@ -67,11 +68,11 @@ async function loadCriticalOrdersAndReturns(orders = [], options = {}) {
   const preflightOrders = Array.isArray(orders) ? orders.filter(Boolean) : [];
   const identityValues = Array.from(new Set(preflightOrders.flatMap(orderIdentityValues)));
   const criticalOrders = identityValues.length
-    ? await orderRepository.findManyByIdentity(identityValues, {
+    ? await closeoutQueryAudit.withCloseoutAuditStage('transaction.critical.orders', () => orderRepository.findManyByIdentity(identityValues, {
       session: options.session,
       projection: options.projection || CLOSEOUT_ORDER_PROJECTION,
       limit: Math.max(1, identityValues.length)
-    })
+    }))
     : [];
   const criticalByKey = new Map();
   for (const order of criticalOrders || []) {
@@ -89,9 +90,9 @@ async function loadCriticalOrdersAndReturns(orders = [], options = {}) {
     err.orderId = orderIdentity(order);
     throw err;
   });
-  const returnOrders = await findReturnOrdersForDeliveryChildren(orderedCritical, {
+  const returnOrders = await closeoutQueryAudit.withCloseoutAuditStage('transaction.critical.returnOrders', () => findReturnOrdersForDeliveryChildren(orderedCritical, {
     session: options.session
-  });
+  }));
   return { orders: orderedCritical, returnOrders };
 }
 

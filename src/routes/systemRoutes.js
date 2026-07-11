@@ -18,11 +18,15 @@ router.get('/system/operations', requireRole(['admin', 'manager']), systemContro
 router.get('/system/performance-baseline', requireRole(['admin', 'manager']), systemController.performanceBaseline);
 router.get('/system/performance-observation', requireRole(['admin', 'manager']), systemController.performanceObservation);
 router.get('/system/performance-observation/export', requireRole(['admin', 'manager']), systemController.exportPerformanceObservation);
+router.get('/system/closeout-query-audit', requireRole(['admin', 'manager']), systemController.closeoutQueryAuditList);
+router.get('/system/closeout-query-audit/:auditId/export', requireRole(['admin', 'manager']), systemController.closeoutQueryAuditExport);
+router.get('/system/closeout-query-audit/:auditId', requireRole(['admin', 'manager']), systemController.closeoutQueryAuditDetail);
 router.get('/system/release', requireRole(['admin', 'manager']), systemController.release);
 router.post('/system/api-monitor/reset', requireRole(['admin']), systemController.resetApiMonitor);
 router.post('/system/performance-baseline/reset', requireRole(['admin']), systemController.resetPerformanceBaseline);
 router.post('/system/performance-observation/start', requireRole(['admin']), systemController.startPerformanceObservation);
 router.post('/system/performance-observation/stop', requireRole(['admin']), systemController.stopPerformanceObservation);
+router.post('/system/closeout-query-audit/clear', requireRole(['admin']), systemController.closeoutQueryAuditClear);
 router.get('/system/reconciliation-reports', requireRole(['admin', 'manager']), systemController.listReconciliationReports);
 router.post('/system/reconciliation/run', requireRole(['admin']), systemController.runReconciliation);
 router.get('/system/health', systemController.health);

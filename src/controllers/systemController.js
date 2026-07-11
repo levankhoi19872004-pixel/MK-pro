@@ -5,6 +5,7 @@ const { createCommandTelemetry } = require('../utils/commandTelemetry');
 const ReconciliationService = require('../domain/reconciliation/ReconciliationService');
 const JobSubmissionService = require('../services/background-jobs/JobSubmissionService');
 const operationsService = require('../services/operationsService');
+const closeoutQueryAudit = require('../observability/closeoutQueryAudit');
 
 function sendError(res, err, fallbackMessage) {
   const status = err.status || 500;
@@ -215,6 +216,45 @@ async function resetApiMonitor(req, res) {
   }
 }
 
+async function closeoutQueryAuditList(req, res) {
+  try {
+    res.json(closeoutQueryAudit.listAudits());
+  } catch (err) {
+    sendError(res, err, 'Khong doc duoc closeout query audit');
+  }
+}
+
+async function closeoutQueryAuditDetail(req, res) {
+  try {
+    const data = closeoutQueryAudit.getAudit(req.params.auditId);
+    if (!data) return res.status(404).json({ ok: false, success: false, message: 'Closeout query audit not found' });
+    return res.json({ ok: true, success: true, data });
+  } catch (err) {
+    return sendError(res, err, 'Khong doc duoc closeout query audit');
+  }
+}
+
+async function closeoutQueryAuditExport(req, res) {
+  try {
+    const exported = closeoutQueryAudit.exportAudit(req.params.auditId);
+    if (String(req.query.format || '').toLowerCase() === 'md') {
+      res.set('Content-Type', 'text/markdown; charset=utf-8');
+      return res.send(exported.markdown || '');
+    }
+    return res.json(exported.data || exported);
+  } catch (err) {
+    return sendError(res, err, 'Khong export duoc closeout query audit');
+  }
+}
+
+async function closeoutQueryAuditClear(req, res) {
+  try {
+    res.json(closeoutQueryAudit.clearHistory());
+  } catch (err) {
+    sendError(res, err, 'Khong xoa duoc closeout query audit');
+  }
+}
+
 
 async function runReconciliation(req, res) {
   try {
@@ -276,6 +316,10 @@ module.exports = {
   release,
   apiMonitor,
   resetApiMonitor,
+  closeoutQueryAuditList,
+  closeoutQueryAuditDetail,
+  closeoutQueryAuditExport,
+  closeoutQueryAuditClear,
   runReconciliation,
   listReconciliationReports
 };
