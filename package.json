@@ -69,6 +69,8 @@
     "worker:background": "node scripts/background-job-worker.js",
     "worker:background:once": "node scripts/background-job-worker.js --once",
     "benchmark:background-jobs": "node scripts/performance/background-job-isolation-benchmark.js",
+    "benchmark:api": "node scripts/performance/api-benchmark.js",
+    "benchmark:phase240": "node scripts/benchmark-phase240-capacity.js",
     "benchmark:frontend": "node scripts/performance/frontend-dom-benchmark.js",
     "audit:frontend-sinks": "node scripts/security/audit-frontend-sinks.js --output=CSP_XSS_SINK_INVENTORY.json",
     "check:csp-xss": "node scripts/security/audit-frontend-sinks.js --check --output=CSP_XSS_SINK_INVENTORY.json",

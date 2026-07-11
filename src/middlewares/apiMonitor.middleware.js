@@ -1,6 +1,7 @@
 'use strict';
 
 const { AsyncLocalStorage } = require('async_hooks');
+const performanceTelemetry = require('../observability/performanceTelemetry');
 let mongoose = null;
 try {
   mongoose = require('mongoose');
@@ -43,6 +44,13 @@ function compactJson(value, maxLength = MAX_QUERY_TRACE_LABEL) {
   }
 }
 
+function maskTraceValue(value) {
+  const text = String(value == null ? '' : value).trim();
+  if (!text) return '';
+  if (text.length <= 4) return `${text.slice(0, 1)}***(${text.length})`;
+  return `${text.slice(0, 2)}***${text.slice(-2)}(${text.length})`;
+}
+
 const ORDER_KEY_FIELDS = new Set([
   'salesOrderId',
   'salesOrderCode',
@@ -82,9 +90,10 @@ function pushOrderInputValue(result, value) {
   }
   const text = String(value).trim();
   if (!text) return;
-  if (!result.inputKeys.includes(text)) result.inputKeys.push(text);
-  if (isDirtyOrderInputKey(text) && !result.dirtyInputKeys.includes(text)) {
-    result.dirtyInputKeys.push(text);
+  const masked = maskTraceValue(text);
+  if (masked && !result.inputKeys.includes(masked)) result.inputKeys.push(masked);
+  if (isDirtyOrderInputKey(text) && masked && !result.dirtyInputKeys.includes(masked)) {
+    result.dirtyInputKeys.push(masked);
   }
 }
 
@@ -124,35 +133,61 @@ function resultRows(result) {
   return 0;
 }
 
+function collectFieldNames(value, result = new Set(), depth = 0) {
+  if (!value || typeof value !== 'object' || depth > 4) return result;
+  if (Array.isArray(value)) {
+    value.slice(0, 8).forEach((item) => collectFieldNames(item, result, depth + 1));
+    return result;
+  }
+  Object.entries(value).forEach(([key, child]) => {
+    if (!key.startsWith('$')) result.add(key);
+    if (child && typeof child === 'object') collectFieldNames(child, result, depth + 1);
+  });
+  return result;
+}
+
+function describeQueryShape(ctx, model, op) {
+  if (typeof ctx?.getQuery === 'function') {
+    const query = ctx.getQuery();
+    const fields = Array.from(collectFieldNames(query)).sort().slice(0, 12);
+    const flags = [];
+    const options = typeof ctx.getOptions === 'function' ? ctx.getOptions() : {};
+    if (options && Object.prototype.hasOwnProperty.call(options, 'limit')) flags.push('limit');
+    if (ctx._fields && Object.keys(ctx._fields).length) flags.push('projection');
+    return {
+      label: `${model}.${op} fields=[${fields.join(',') || '-'}]${flags.length ? ` flags=[${flags.join(',')}]` : ''}`,
+      input: collectOrderInputKeys(query)
+    };
+  }
+  if (Array.isArray(ctx?._pipeline)) {
+    const stages = ctx._pipeline.slice(0, 12).map((stage) => Object.keys(stage || {})[0] || 'stage');
+    return {
+      label: `${model}.${op} stages=[${stages.join(',') || '-'}]`,
+      input: collectOrderInputKeys(ctx._pipeline)
+    };
+  }
+  return {
+    label: `${model}.${op}`,
+    input: { inputKeys: [], dirtyInputKeys: [] }
+  };
+}
+
 function describeMongooseExec(ctx) {
   try {
     const collection = ctx?.mongooseCollection?.name || ctx?.model?.collection?.name || ctx?._model?.collection?.name || ctx?.collection?.name || '';
     const model = ctx?.model?.modelName || ctx?._model?.modelName || collection || 'Mongo';
     const op = ctx?.op || (ctx?._pipeline ? 'aggregate' : 'query');
-    let filter = '';
-    let inputKeys = [];
-    let dirtyInputKeys = [];
-
-    if (typeof ctx?.getQuery === 'function') {
-      const query = ctx.getQuery();
-      filter = compactJson(query);
-      const collected = collectOrderInputKeys(query);
-      inputKeys = collected.inputKeys;
-      dirtyInputKeys = collected.dirtyInputKeys;
-    } else if (Array.isArray(ctx?._pipeline)) {
-      const pipeline = ctx._pipeline.slice(0, 3);
-      filter = compactJson(pipeline);
-      const collected = collectOrderInputKeys(pipeline);
-      inputKeys = collected.inputKeys;
-      dirtyInputKeys = collected.dirtyInputKeys;
-    }
-
-    const label = `${model}.${op}${filter ? ` ${filter}` : ''}`;
+    const shape = describeQueryShape(ctx, model, op);
+    const label = shape.label;
+    const inputKeys = shape.input.inputKeys || [];
+    const dirtyInputKeys = shape.input.dirtyInputKeys || [];
     return {
       label: label.length > MAX_QUERY_TRACE_LABEL ? `${label.slice(0, MAX_QUERY_TRACE_LABEL)}...` : label,
       inputKeys,
       dirtyInputKeys,
-      hasDirtyInputKeys: dirtyInputKeys.length > 0
+      hasDirtyInputKeys: dirtyInputKeys.length > 0,
+      collection,
+      operation: op
     };
   } catch (err) {
     return { label: 'Mongo.query', inputKeys: [], dirtyInputKeys: [], hasDirtyInputKeys: false };
@@ -314,6 +349,9 @@ function recordMetric(metric) {
     maxDbQueries: 0,
     totalRows: 0,
     maxRows: 0,
+    totalResponseBytes: 0,
+    maxResponseBytes: 0,
+    responseBytesKnown: 0,
     lastRows: 0,
     lastStatus: 0,
     lastAt: null,
@@ -324,6 +362,8 @@ function recordMetric(metric) {
     slowestQueryLabel: '',
     slowestQueryMs: 0,
     latencySamples: [],
+    recentTimestamps: [],
+    maxConcurrentObserved: 0,
     statusCounts: {}
   };
 
@@ -333,6 +373,14 @@ function recordMetric(metric) {
   if (current.latencySamples.length > MAX_LATENCY_SAMPLES) current.latencySamples.splice(0, current.latencySamples.length - MAX_LATENCY_SAMPLES);
   current.statusCounts = current.statusCounts || {};
   current.statusCounts[metric.statusCode] = (current.statusCounts[metric.statusCode] || 0) + 1;
+  current.recentTimestamps = Array.isArray(current.recentTimestamps) ? current.recentTimestamps : [];
+  const metricAt = Date.now();
+  current.recentTimestamps.push(metricAt);
+  while (current.recentTimestamps.length && current.recentTimestamps[0] < metricAt - 5 * 60 * 1000) current.recentTimestamps.shift();
+  if (current.recentTimestamps.length > MAX_LATENCY_SAMPLES * 5) {
+    current.recentTimestamps.splice(0, current.recentTimestamps.length - MAX_LATENCY_SAMPLES * 5);
+  }
+  current.maxConcurrentObserved = Math.max(current.maxConcurrentObserved || 0, metric.activeRequests || 0);
   current.totalMs += metric.ms;
   current.totalMongoMs += metric.mongoMs || 0;
   current.totalJsMs += metric.jsMs || 0;
@@ -348,6 +396,11 @@ function recordMetric(metric) {
   current.maxDbQueries = Math.max(current.maxDbQueries || 0, metric.dbQueries || 0);
   current.totalRows += metric.rows || 0;
   current.maxRows = Math.max(current.maxRows || 0, metric.rows || 0);
+  if (metric.contentLength > 0) {
+    current.totalResponseBytes += metric.contentLength;
+    current.responseBytesKnown += 1;
+    current.maxResponseBytes = Math.max(current.maxResponseBytes || 0, metric.contentLength);
+  }
   current.lastRows = metric.rows;
   current.lastStatus = metric.statusCode;
   current.lastAt = metric.at;
@@ -431,7 +484,8 @@ function apiMonitor(req, res, next) {
       rows: responseRows,
       queryTraces: Array.isArray(metricStore.queryTraces) ? metricStore.queryTraces.slice().sort((a, b) => (b.ms || 0) - (a.ms || 0)) : [],
       slowMs,
-      contentLength: Number(res.getHeader('content-length') || 0)
+      contentLength: Number(res.getHeader('content-length') || 0),
+      activeRequests: performanceTelemetry._private.counters.activeRequests
     };
     recordMetric(metric);
 
@@ -465,6 +519,7 @@ function apiMonitor(req, res, next) {
 }
 
 function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}) {
+  const now = Date.now();
   const rows = Array.from(apiStats.values()).map((s) => ({
     route: s.route,
     method: s.method,
@@ -482,6 +537,11 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
     avgDbQueries: Math.round((s.totalDbQueries || 0) / Math.max(1, s.count)),
     avgRows: Math.round((s.totalRows || 0) / Math.max(1, s.count)),
     maxRows: s.maxRows || 0,
+    avgResponseBytes: s.responseBytesKnown ? Math.round((s.totalResponseBytes || 0) / Math.max(1, s.responseBytesKnown)) : null,
+    maxResponseBytes: s.maxResponseBytes || 0,
+    last1mCount: (Array.isArray(s.recentTimestamps) ? s.recentTimestamps : []).filter((at) => at >= now - 60 * 1000).length,
+    last5mCount: (Array.isArray(s.recentTimestamps) ? s.recentTimestamps : []).filter((at) => at >= now - 5 * 60 * 1000).length,
+    maxConcurrentObserved: s.maxConcurrentObserved || 0,
     maxMs: s.maxMs,
     maxMongoMs: s.maxMongoMs || 0,
     maxJsMs: s.maxJsMs || 0,
@@ -505,6 +565,12 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
     slowCount: s.slowCount,
     errorCount: s.errorCount,
     statusCounts: { ...(s.statusCounts || {}) },
+    statusClassCounts: {
+      '2xx': Object.entries(s.statusCounts || {}).reduce((sum, [code, count]) => Number(code) >= 200 && Number(code) < 300 ? sum + count : sum, 0),
+      '3xx': Object.entries(s.statusCounts || {}).reduce((sum, [code, count]) => Number(code) >= 300 && Number(code) < 400 ? sum + count : sum, 0),
+      '4xx': Object.entries(s.statusCounts || {}).reduce((sum, [code, count]) => Number(code) >= 400 && Number(code) < 500 ? sum + count : sum, 0),
+      '5xx': Object.entries(s.statusCounts || {}).reduce((sum, [code, count]) => Number(code) >= 500 ? sum + count : sum, 0)
+    },
     status: s.slowCount > 0 || s.maxMs >= DEFAULT_SLOW_MS ? 'slow' : 'ok'
   }))
     .filter((row) => (slowOnly ? row.slowCount > 0 || row.maxMs >= DEFAULT_SLOW_MS : true))
@@ -527,6 +593,8 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
     totalMongoMs: Array.from(apiStats.values()).reduce((sum, s) => sum + (s.totalMongoMs || 0), 0),
     totalJsMs: Array.from(apiStats.values()).reduce((sum, s) => sum + (s.totalJsMs || 0), 0),
     totalDbQueries: Array.from(apiStats.values()).reduce((sum, s) => sum + (s.totalDbQueries || 0), 0),
+    activeRequests: performanceTelemetry._private.counters.activeRequests,
+    maxActiveRequests: performanceTelemetry._private.counters.maxActiveRequests,
     generatedAt: new Date().toISOString()
   };
 

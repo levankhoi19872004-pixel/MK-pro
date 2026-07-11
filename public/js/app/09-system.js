@@ -150,6 +150,64 @@ function apiMonitorSafeText(value) {
   return String(value == null ? '' : value).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c] || c));
 }
 
+function performanceFormatBytes(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n) || n <= 0) return '-';
+  if (n >= 1024 * 1024 * 1024) return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${systemFormatNumber(n)} B`;
+}
+
+function performanceFormatPercent(value) {
+  const n = Number(value || 0);
+  return `${Math.round(n * 1000) / 10}%`;
+}
+
+function renderPerformanceBaseline(json = {}) {
+  const processInfo = json.process || {};
+  const eventLoop = json.eventLoop || {};
+  const requests = json.requests || {};
+  const windowInfo = json.window || requests.window || {};
+  const capacity = json.capacity || {};
+
+  if (performanceCapacityStatus) performanceCapacityStatus.textContent = capacity.status || 'unknown';
+  if (performanceRss) performanceRss.textContent = `${performanceFormatBytes(processInfo.rssBytes)} / ${performanceFormatBytes(json.highWater?.rssBytes?.value)}`;
+  if (performanceHeap) performanceHeap.textContent = `${performanceFormatBytes(processInfo.heapUsedBytes)} (${performanceFormatPercent(processInfo.heapUtilizationRatio)})`;
+  if (performanceEventLoop) performanceEventLoop.textContent = `p95 ${apiMonitorFormatMs(eventLoop.p95Ms || 0)} / p99 ${apiMonitorFormatMs(eventLoop.p99Ms || 0)} / max ${apiMonitorFormatMs(eventLoop.maxMs || 0)}`;
+  if (performanceActiveRequests) performanceActiveRequests.textContent = `${systemFormatNumber(requests.activeRequests || 0)} / ${systemFormatNumber(requests.maxActiveRequests || 0)}`;
+  if (performanceRequestWindow) performanceRequestWindow.textContent = `${systemFormatNumber(windowInfo.requestsLast1Minute || 0)} / ${systemFormatNumber(windowInfo.requestsLast5Minutes || 0)}`;
+  if (performanceErrorWindow) performanceErrorWindow.textContent = `${performanceFormatPercent(windowInfo.errorRate1Minute || 0)} / ${performanceFormatPercent(windowInfo.errorRate5Minutes || 0)}`;
+  if (performanceUptime) performanceUptime.textContent = `${systemFormatNumber(processInfo.uptimeSeconds || json.process?.uptimeSeconds || 0)}s`;
+}
+
+async function loadPerformanceBaseline() {
+  if (!performanceCapacityStatus) return;
+  try {
+    performanceCapacityStatus.textContent = 'loading';
+    const res = await fetch('/api/system/performance-baseline');
+    const json = await res.json();
+    if (!res.ok || json.ok === false) throw new Error(json.message || 'Khong tai duoc performance baseline');
+    renderPerformanceBaseline(json);
+  } catch (err) {
+    if (performanceCapacityStatus) performanceCapacityStatus.textContent = 'error';
+    setSystemMessage(err.message || 'Khong tai duoc performance baseline', 'error');
+  }
+}
+
+async function resetPerformanceBaselineStats() {
+  const ok = window.confirm('Reset thống kê Runtime Capacity hiện tại? Dữ liệu chỉ là in-memory telemetry.');
+  if (!ok) return;
+  try {
+    const res = await fetch('/api/system/performance-baseline/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const json = await res.json();
+    if (!res.ok || json.ok === false) throw new Error(json.message || 'Khong reset duoc performance baseline');
+    await loadPerformanceBaseline();
+    setSystemMessage('Đã reset Runtime Capacity in-memory.', 'success');
+  } catch (err) {
+    setSystemMessage(err.message || 'Khong reset duoc performance baseline', 'error');
+  }
+}
+
 
 function apiMonitorQueryText(row = {}, mode = 'history') {
   const preferLast = mode === 'last';

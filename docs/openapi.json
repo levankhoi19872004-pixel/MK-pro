@@ -17159,6 +17159,86 @@
         ]
       }
     },
+    "/api/system/performance-baseline": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "GET /api/system/performance-baseline",
+        "operationId": "getSystemPerformanceBaseline",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/system/performance-baseline/reset": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "POST /api/system/performance-baseline/reset",
+        "operationId": "postSystemPerformanceBaselineReset",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/system/reconciliation-reports": {
       "get": {
         "tags": [

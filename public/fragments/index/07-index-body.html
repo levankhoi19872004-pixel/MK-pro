@@ -43,6 +43,30 @@
         </div>
 
 
+        <div class="system-panel">
+          <div class="toolbar compact-toolbar">
+            <div>
+              <h3>Runtime Capacity</h3>
+              <p class="muted">Snapshot hiệu năng runtime hiện tại, chỉ tải khi bấm nút.</p>
+            </div>
+            <div>
+              <button type="button" id="reloadPerformanceBaselineButton" class="secondary">Tải capacity</button>
+              <button type="button" id="resetPerformanceBaselineButton" class="secondary danger-light">Reset capacity</button>
+            </div>
+          </div>
+          <div class="summary-box api-monitor-summary">
+            <span>Trạng thái: <strong id="performanceCapacityStatus">unknown</strong></span>
+            <span>RSS: <strong id="performanceRss">-</strong></span>
+            <span>Heap: <strong id="performanceHeap">-</strong></span>
+            <span>Event loop: <strong id="performanceEventLoop">-</strong></span>
+            <span>Request đang xử lý: <strong id="performanceActiveRequests">0</strong></span>
+            <span>Requests 1m/5m: <strong id="performanceRequestWindow">0 / 0</strong></span>
+            <span>Error 1m/5m: <strong id="performanceErrorWindow">0% / 0%</strong></span>
+            <span>Uptime: <strong id="performanceUptime">-</strong></span>
+          </div>
+        </div>
+
+
         <div class="system-panel api-monitor-panel">
           <div class="toolbar compact-toolbar">
             <div>

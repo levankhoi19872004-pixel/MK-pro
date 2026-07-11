@@ -176,6 +176,26 @@ function buildRuntimeConfig(env = process.env) {
       workerShutdownTimeoutMs: safe('WORKER_SHUTDOWN_TIMEOUT_MS', () => readInteger(env, 'WORKER_SHUTDOWN_TIMEOUT_MS', { defaultValue: 30000, min: 1000, max: 300000 }), 30000),
       readinessDependencyTimeoutMs: safe('READINESS_DEPENDENCY_TIMEOUT_MS', () => readInteger(env, 'READINESS_DEPENDENCY_TIMEOUT_MS', { defaultValue: 2000, min: 250, max: 30000 }), 2000)
     },
+    performance: {
+      telemetryEnabled: safe('PERF_TELEMETRY_ENABLED', () => readBoolean(env, 'PERF_TELEMETRY_ENABLED', { defaultValue: true }), true),
+      sampleIntervalMs: safe('PERF_SAMPLE_INTERVAL_MS', () => readInteger(env, 'PERF_SAMPLE_INTERVAL_MS', { defaultValue: 30000, min: 5000, max: 300000 }), 30000),
+      logIntervalMs: safe('PERF_LOG_INTERVAL_MS', () => readInteger(env, 'PERF_LOG_INTERVAL_MS', { defaultValue: 60000, min: 30000, max: 1800000 }), 60000),
+      memoryLimitMb: safe('PERF_MEMORY_LIMIT_MB', () => readInteger(env, 'PERF_MEMORY_LIMIT_MB', { defaultValue: 0, min: 0, max: 1048576 }), 0),
+      heapWarnRatio: safe('PERF_HEAP_WARN_RATIO', () => {
+        const value = Number(readString(env, 'PERF_HEAP_WARN_RATIO', { defaultValue: '0.85', maxLength: 16 }));
+        if (!Number.isFinite(value) || value < 0.1 || value > 0.99) throw new Error('phai nam trong khoang 0.1..0.99');
+        return value;
+      }, 0.85),
+      eventLoopWarnMs: safe('PERF_EVENT_LOOP_WARN_MS', () => readInteger(env, 'PERF_EVENT_LOOP_WARN_MS', { defaultValue: 75, min: 10, max: 10000 }), 75),
+      eventLoopCriticalMs: safe('PERF_EVENT_LOOP_CRITICAL_MS', () => readInteger(env, 'PERF_EVENT_LOOP_CRITICAL_MS', { defaultValue: 250, min: 20, max: 30000 }), 250),
+      p95WarnMs: safe('PERF_P95_WARN_MS', () => readInteger(env, 'PERF_P95_WARN_MS', { defaultValue: 1500, min: 50, max: 120000 }), 1500),
+      errorRateWarn: safe('PERF_ERROR_RATE_WARN', () => {
+        const value = Number(readString(env, 'PERF_ERROR_RATE_WARN', { defaultValue: '0.05', maxLength: 16 }));
+        if (!Number.isFinite(value) || value < 0 || value > 1) throw new Error('phai nam trong khoang 0..1');
+        return value;
+      }, 0.05),
+      activeRequestWarn: safe('PERF_ACTIVE_REQUEST_WARN', () => readInteger(env, 'PERF_ACTIVE_REQUEST_WARN', { defaultValue: 25, min: 1, max: 10000 }), 25)
+    },
     worker: {
       backgroundConcurrency: safe('BACKGROUND_JOB_CONCURRENCY', () => readInteger(env, 'BACKGROUND_JOB_CONCURRENCY', { defaultValue: 2, min: 1, max: 64 }), 2),
       backgroundPollMs: safe('BACKGROUND_JOB_POLL_MS', () => readInteger(env, 'BACKGROUND_JOB_POLL_MS', { defaultValue: 1000, min: 250, max: 60000 }), 1000),
@@ -307,6 +327,13 @@ function publicConfigSummary(config = getRuntimeConfig()) {
     operations: {
       heartbeatIntervalMs: config.operations.heartbeatIntervalMs,
       heartbeatStaleMs: config.operations.heartbeatStaleMs
+    },
+    performance: {
+      telemetryEnabled: config.performance.telemetryEnabled,
+      sampleIntervalMs: config.performance.sampleIntervalMs,
+      logIntervalMs: config.performance.logIntervalMs,
+      errorRateWarn: config.performance.errorRateWarn,
+      memoryLimitConfigured: config.performance.memoryLimitMb > 0
     }
   };
 }

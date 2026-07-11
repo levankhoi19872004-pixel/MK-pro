@@ -131,6 +131,22 @@ async function operations(req, res) {
   }
 }
 
+async function performanceBaseline(req, res) {
+  try {
+    res.json(await operationsService.performanceBaseline());
+  } catch (err) {
+    sendError(res, err, 'Khong doc duoc performance baseline');
+  }
+}
+
+async function resetPerformanceBaseline(req, res) {
+  try {
+    res.json(await operationsService.resetPerformanceBaseline());
+  } catch (err) {
+    sendError(res, err, 'Khong reset duoc performance baseline');
+  }
+}
+
 async function release(req, res) {
   try {
     res.json({ ok: true, data: operationsService.internalReleaseSummary() });
@@ -211,6 +227,8 @@ module.exports = {
   verifyBackup,
   reset,
   operations,
+  performanceBaseline,
+  resetPerformanceBaseline,
   release,
   apiMonitor,
   resetApiMonitor,

@@ -1,10 +1,12 @@
 'use strict';
 
 const fs = require('node:fs');
+const path = require('node:path');
 const { monitorEventLoopDelay, performance } = require('node:perf_hooks');
 
-const DEFAULT_ENDPOINTS = ['/api/health', '/api/system/status'];
-const DEFAULT_CONCURRENCY = [1, 5, 10, 20, 50];
+const DEFAULT_ENDPOINTS = ['/api/health/live', '/api/health/ready', '/api/system/status'];
+const DEFAULT_LOCAL_CONCURRENCY = [1, 5, 10, 20];
+const DEFAULT_REMOTE_CONCURRENCY = [1, 2, 5];
 
 function envNumber(name, fallback, minimum = 0) {
   const value = Number(process.env[name]);
@@ -36,6 +38,11 @@ function validateReadOnlyEndpoint(endpoint) {
     throw new Error(`Endpoint phải là path cùng host và bắt đầu bằng một dấu /: ${endpoint}`);
   }
   if (/\s/.test(endpoint)) throw new Error(`Endpoint không hợp lệ: ${endpoint}`);
+  const lower = endpoint.toLowerCase();
+  const forbidden = ['/commit', '/closeout', '/confirm', '/reconciliation/run', '/repair', '/reset', '/delete', '/update', '/create'];
+  if (forbidden.some((item) => lower.includes(item))) {
+    throw new Error(`Benchmark only allows read-only GET paths; refused write-like endpoint: ${endpoint}`);
+  }
   return endpoint;
 }
 
@@ -172,6 +179,44 @@ function summarize(results, elapsedMs, before, after, loop, context) {
   };
 }
 
+function toMarkdown(report = {}) {
+  const lines = [
+    '# Phase240 API Benchmark',
+    '',
+    `- Generated at: ${report.generatedAt || ''}`,
+    `- Evidence status: ${report.evidenceStatus || ''}`,
+    `- Base URL: ${report.safety?.baseUrl || ''}`,
+    `- Method: ${report.safety?.method || 'GET'}`,
+    `- Production writes: ${report.safety?.productionWrites === false ? 'false' : 'unknown'}`,
+    '',
+    '| Endpoint | Concurrency | Requests | Success | Failures | RPS | Avg ms | p50 | p95 | p99 | Max | Avg Mongo | Avg JS | Avg queries | Avg bytes | Event loop p95 |',
+    '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|'
+  ];
+  for (const row of report.results || []) {
+    lines.push(`|${[
+      row.endpoint,
+      row.concurrent,
+      row.requests,
+      row.success,
+      row.failures,
+      row.throughputRps,
+      row.latencyMs?.average,
+      row.latencyMs?.median,
+      row.latencyMs?.p95,
+      row.latencyMs?.p99,
+      row.latencyMs?.max,
+      row.apiMonitor?.averageMongoMs,
+      row.apiMonitor?.averageJsMs,
+      row.apiMonitor?.averageQueriesPerRequest,
+      row.responseBytes?.average,
+      row.eventLoopLagMs?.p95
+    ].join('|')}|`);
+  }
+  lines.push('');
+  lines.push('Production capacity must only be interpreted when the target environment and workload are production-like.');
+  return `${lines.join('\n')}\n`;
+}
+
 async function benchmarkScenario(baseUrl, endpoint, concurrency, options) {
   const base = new URL(baseUrl);
   const target = new URL(endpoint, base);
@@ -197,7 +242,7 @@ async function benchmarkScenario(baseUrl, endpoint, concurrency, options) {
 }
 
 function printHelp() {
-  console.log(`Usage: node scripts/performance/api-benchmark.js\n\nEnvironment:\n  PERF_IN_PROCESS=1              Start Express only; no Mongo connection or jobs\n  PERF_BASE_URL=http://127.0.0.1:3000\n  PERF_ENDPOINTS=/api/health,/api/system/status\n  PERF_CONCURRENCY=1,5,10,20,50\n  PERF_REQUESTS_PER_LEVEL=50\n  PERF_WARMUP_REQUESTS=3\n  PERF_TIMEOUT_MS=5000\n  PERF_TOKEN=<JWT>               Optional Bearer token for protected GET endpoints\n  PERF_ALLOW_REMOTE=true         Explicit opt-in for non-local targets\n  PERF_OUTPUT=<path.json>        Optional JSON output file\n\nThe benchmark sends GET requests only.`);
+  console.log(`Usage: node scripts/performance/api-benchmark.js\n\nEnvironment:\n  PERF_IN_PROCESS=1              Start Express only; no Mongo connection or jobs\n  PERF_BASE_URL=http://127.0.0.1:3000\n  PERF_ENDPOINTS=/api/health/live,/api/health/ready,/api/system/status\n  PERF_CONCURRENCY=1,5,10,20\n  PERF_REQUESTS_PER_LEVEL=50\n  PERF_WARMUP_REQUESTS=3\n  PERF_TIMEOUT_MS=5000\n  PERF_TOKEN=<JWT>               Optional Bearer token for protected GET endpoints\n  PERF_ALLOW_REMOTE=true         Explicit opt-in for non-local targets\n  PERF_ALLOW_HIGH_REMOTE_CONCURRENCY=true\n  PERF_OUTPUT=<path.json>        Optional JSON output file\n  PERF_MARKDOWN_OUTPUT=<path.md> Optional Markdown output file\n\nThe benchmark sends GET requests only.`);
 }
 
 async function main() {
@@ -207,11 +252,14 @@ async function main() {
   }
   const inProcess = process.env.PERF_IN_PROCESS === '1';
   const endpoints = csv(process.env.PERF_ENDPOINTS, DEFAULT_ENDPOINTS).map(validateReadOnlyEndpoint);
-  const concurrencyLevels = csv(process.env.PERF_CONCURRENCY, DEFAULT_CONCURRENCY.map(String))
-    .map(Number).filter((value) => Number.isInteger(value) && value > 0 && value <= 50);
-  if (!concurrencyLevels.length) throw new Error('PERF_CONCURRENCY không hợp lệ');
-
   const configuredBaseUrl = process.env.PERF_BASE_URL || 'http://127.0.0.1:3000';
+  const parsedBaseForConcurrency = new URL(configuredBaseUrl);
+  const remoteTarget = !inProcess && !localTarget(parsedBaseForConcurrency);
+  const defaultConcurrency = remoteTarget ? DEFAULT_REMOTE_CONCURRENCY : DEFAULT_LOCAL_CONCURRENCY;
+  const maxConcurrency = remoteTarget && process.env.PERF_ALLOW_HIGH_REMOTE_CONCURRENCY !== 'true' ? 5 : 50;
+  const concurrencyLevels = csv(process.env.PERF_CONCURRENCY, defaultConcurrency.map(String))
+    .map(Number).filter((value) => Number.isInteger(value) && value > 0 && value <= maxConcurrency);
+  if (!concurrencyLevels.length) throw new Error('PERF_CONCURRENCY không hợp lệ');
   if (!inProcess) {
     const parsedBase = new URL(configuredBaseUrl);
     if (!localTarget(parsedBase) && process.env.PERF_ALLOW_REMOTE !== 'true') {
@@ -231,6 +279,7 @@ async function main() {
   };
   const report = {
     generatedAt: new Date().toISOString(),
+    evidenceStatus: inProcess ? 'MEASURED_LOCAL' : (localTarget(new URL(baseUrl)) ? 'MEASURED_LOCAL' : 'MEASURED_PRODUCTION_READ_ONLY'),
     safety: {
       method: 'GET',
       baseUrl,
@@ -267,7 +316,14 @@ async function main() {
   }
 
   const json = `${JSON.stringify(report, null, 2)}\n`;
-  if (process.env.PERF_OUTPUT) fs.writeFileSync(process.env.PERF_OUTPUT, json);
+  if (process.env.PERF_OUTPUT) {
+    fs.mkdirSync(path.dirname(process.env.PERF_OUTPUT), { recursive: true });
+    fs.writeFileSync(process.env.PERF_OUTPUT, json);
+  }
+  if (process.env.PERF_MARKDOWN_OUTPUT) {
+    fs.mkdirSync(path.dirname(process.env.PERF_MARKDOWN_OUTPUT), { recursive: true });
+    fs.writeFileSync(process.env.PERF_MARKDOWN_OUTPUT, toMarkdown(report));
+  }
   process.stdout.write(json);
 }
 

@@ -41,6 +41,7 @@ const startupState = require('./services/startupState');
 const { getRuntimeConfig, validateRuntimeConfig } = require('./config/app.config');
 const { logger } = require('./observability/logger');
 const { requestContextMiddleware } = require('./observability/requestContext');
+const performanceTelemetry = require('./observability/performanceTelemetry');
 const { createRuntimeFlowTelemetry } = require('./middlewares/runtimeFlowTelemetry');
 const { classifyError } = require('./observability/errorClassification');
 const { createHeartbeat } = require('./operations/heartbeatService');
@@ -180,6 +181,7 @@ function createApp() {
 
   configureTrustProxy(app);
   app.use(requestContextMiddleware);
+  app.use(performanceTelemetry.requestLifecycleMiddleware);
 
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cspHeaders);
@@ -333,6 +335,7 @@ function installGracefulShutdown(server, options = {}) {
           });
         }
         if (webHeartbeat) await webHeartbeat.stop(exitCode ? 'failed' : 'stopped');
+        performanceTelemetry.stop();
         await closeMongoForShutdown(timeoutMs, logger);
         clearTimeout(forceTimer);
         logger.info({ signal, exitCode }, 'Graceful shutdown completed');
@@ -430,6 +433,7 @@ async function startServer() {
   try {
     server = await listenHttpServer();
     startupState.markStepCompleted('http-listen', listenStartedAt);
+    performanceTelemetry.start({ logger });
   } catch (error) {
     startupState.markFailed(error);
     throw error;
@@ -528,6 +532,7 @@ async function startServer() {
     stopOutboxJob();
     stopIntegrationJob();
     stopReportingProjectionJob();
+    performanceTelemetry.stop();
     await closeServerAfterStartupFailure(server);
     if (mongoose.connection.readyState !== 0) {
       await closeMongoForShutdown(getRuntimeConfig().app.gracefulShutdownTimeoutMs, logger);

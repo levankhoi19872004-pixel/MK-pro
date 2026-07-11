@@ -10,6 +10,7 @@ const { getApiMonitorReport } = require('../middlewares/apiMonitor.middleware');
 const { readHeartbeats } = require('../operations/heartbeatService');
 const { publicReleaseSummary, internalReleaseSummary } = require('../operations/releaseMetadata');
 const { getRuntimeConfig, publicConfigSummary } = require('../config/app.config');
+const performanceTelemetry = require('../observability/performanceTelemetry');
 
 let readinessCache = null;
 let readinessCacheAt = 0;
@@ -127,6 +128,63 @@ function processSnapshot() {
   };
 }
 
+function startupBaseline() {
+  const startup = startupState.snapshot();
+  const started = Date.parse(startup.startedAt || '');
+  const ready = Date.parse(startup.readyAt || '');
+  return {
+    ...startup,
+    totalStartupDurationMs: Number.isFinite(started) && Number.isFinite(ready) ? Math.max(0, ready - started) : null
+  };
+}
+
+async function performanceBaseline() {
+  const api = getApiMonitorReport({ limit: 50 });
+  const performance = performanceTelemetry.snapshot();
+  return {
+    ok: true,
+    generatedAt: new Date().toISOString(),
+    version: 'performance-baseline-v1',
+    window: performance.window,
+    process: performance.process,
+    cpu: performance.cpu,
+    eventLoop: performance.eventLoop,
+    requests: performance.requests,
+    highWater: performance.highWater,
+    capacity: performance.capacity,
+    api: {
+      summary: api.summary,
+      topSlowestApis: api.topSlowestApis.slice(0, 10),
+      topCalledApis: api.topCalledApis.slice(0, 10),
+      topQueryApis: api.topQueryTraceApis.slice(0, 10),
+      topMemoryRiskApis: api.topRowsApis.slice(0, 10)
+    },
+    startup: startupBaseline(),
+    mongo: {
+      connected: mongoose.connection.readyState === 1,
+      readyState: mongoose.connection.readyState,
+      poolDiagnostics: {
+        supported: false,
+        reason: 'Mongo driver pool event aggregation is not wired in Phase240; no serverStatus command is executed.'
+      }
+    },
+    limitations: performance.limitations
+  };
+}
+
+async function resetPerformanceBaseline() {
+  const snapshot = performanceTelemetry.reset();
+  return {
+    ok: true,
+    success: true,
+    resetAt: new Date().toISOString(),
+    data: {
+      version: 'performance-baseline-reset-v1',
+      activeRequests: snapshot.requests.activeRequests
+    }
+  };
+}
+
 async function detailedStatus() {
   const [ready, heartbeats, jobs] = await Promise.all([
     readiness({ refresh: true }),
@@ -141,6 +199,7 @@ async function detailedStatus() {
     config: publicConfigSummary(),
     readiness: ready,
     startup: startupState.snapshot(),
+    performance: performanceTelemetry.snapshot(),
     process: processSnapshot(),
     database: {
       connected: mongoose.connection.readyState === 1,
@@ -163,6 +222,8 @@ module.exports = {
   queueSummary,
   processSnapshot,
   detailedStatus,
+  performanceBaseline,
+  resetPerformanceBaseline,
   publicReleaseSummary,
   internalReleaseSummary,
   _private: { checkTempStorage }

@@ -1,0 +1,128 @@
+{
+  "ok": true,
+  "generatedAt": "2026-07-11T00:41:48.577Z",
+  "evidenceStatus": "BLOCKED_NO_RUNTIME_WORKLOAD",
+  "release": {
+    "application": "MK-Pro",
+    "version": "1.0.0",
+    "releaseId": "2026-07-08-05",
+    "gitCommit": "unavailable",
+    "sourceSha256": "d703aa030432b02d3631b55db0ec2b35aed4a67e21ce8abaf5da1772ff3cb63b",
+    "bundleSha256": "ac0dd8ea756329999c427bb62a06f4048748731944ff0edee3b02032db98d69f",
+    "buildTime": "2026-07-08T13:01:17.235Z",
+    "environment": "test",
+    "nodeVersion": "v22.16.0",
+    "packageLockHash": "dbd7e67cc078cfaf1a7ffd4a9225257fa1ddd39dfe06435642b38a141cc35148",
+    "configurationVersion": "019a3930790e8925d0156dee850b674f534cd0682f9af022e82ddc47a3dd79b3",
+    "releasedBy": "chatgpt-phase204",
+    "previousVersion": "2026-07-08-04",
+    "sourceFileCount": 934,
+    "bundleCount": 28,
+    "databaseMigration": [],
+    "sourceHashScope": [
+      "server.js",
+      "package.json",
+      "package-lock.json",
+      ".env.example",
+      ".env.production.example",
+      "src",
+      "services",
+      "scripts",
+      "public",
+      "templates",
+      "config",
+      "utils",
+      "docs/openapi.json"
+    ],
+    "manifestPresent": true
+  },
+  "runtime": {
+    "nodeVersion": "v24.16.0",
+    "platform": "win32",
+    "arch": "x64",
+    "hostname": "DESKTOP-0L5PBOI",
+    "pid": 10592,
+    "cwd": "E:\\MK-pro"
+  },
+  "snapshot": {
+    "process": {
+      "rssBytes": 34291712,
+      "heapUsedBytes": 4464288,
+      "heapTotalBytes": 6496256,
+      "heapUtilizationRatio": 0.6872,
+      "externalBytes": 1527183,
+      "arrayBuffersBytes": 22831,
+      "uptimeSeconds": 0.05,
+      "delta": {
+        "rssBytes": 0,
+        "heapUsedBytes": 0,
+        "heapTotalBytes": 0,
+        "externalBytes": 0,
+        "arrayBuffersBytes": 0
+      }
+    },
+    "cpu": {
+      "userCpuMs": 0,
+      "systemCpuMs": 0,
+      "totalCpuMs": 0,
+      "sampleDurationMs": 2.8,
+      "cpuUtilizationRatio": 0,
+      "cpuCount": 12,
+      "approximation": "process_cpu_delta_over_wall_time_and_cpu_count"
+    },
+    "eventLoop": {
+      "available": false,
+      "meanMs": 0,
+      "p50Ms": 0,
+      "p95Ms": 0,
+      "p99Ms": 0,
+      "maxMs": 0
+    },
+    "requests": {
+      "activeRequests": 0,
+      "maxActiveRequests": 0,
+      "completedRequests": 0,
+      "failedRequests": 0,
+      "abortedRequests": 0,
+      "status2xx": 0,
+      "status3xx": 0,
+      "status4xx": 0,
+      "status5xx": 0,
+      "responseBytesKnown": 0,
+      "responseBytesTotal": 0,
+      "maxResponseBytes": 0,
+      "averageResponseBytes": null,
+      "window": {
+        "requestsLast1Minute": 0,
+        "requestsLast5Minutes": 0,
+        "requestsPerSecond1Minute": 0,
+        "requestsPerSecond5Minutes": 0,
+        "errorsLast1Minute": 0,
+        "errorsLast5Minutes": 0,
+        "errorRate1Minute": 0,
+        "errorRate5Minutes": 0,
+        "retainedEvents": 0
+      }
+    },
+    "capacity": {
+      "status": "healthy",
+      "reasons": [
+        {
+          "metric": "memoryLimit",
+          "value": "unknown",
+          "threshold": "PERF_MEMORY_LIMIT_MB not configured"
+        }
+      ]
+    }
+  },
+  "benchmark": {
+    "configured": false,
+    "status": "BLOCKED_NO_RUNTIME_WORKLOAD",
+    "reason": "Run scripts/performance/api-benchmark.js or scripts/benchmark-phase240-capacity.js against a selected target to attach benchmark results."
+  },
+  "limitations": [
+    "This exporter captures the current process only.",
+    "No production or staging workload was executed by this script.",
+    "Do not use this artifact to claim production capacity."
+  ]
+}

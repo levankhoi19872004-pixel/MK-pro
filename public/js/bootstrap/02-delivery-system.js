@@ -16,12 +16,13 @@ if(resetUserButton)resetUserButton.addEventListener('click',resetUserForm);
 if(promotionForm)promotionForm.addEventListener('submit',submitPromotion);
 if(resetPromotionButton)resetPromotionButton.addEventListener('click',resetPromotionForm);
 if(promotionSearchInput)promotionSearchInput.addEventListener('input',loadPromotions);
-if(reloadSystemStatusButton)reloadSystemStatusButton.addEventListener('click',()=>{loadSystemStatus();loadApiMonitor();});
+if(reloadSystemStatusButton)reloadSystemStatusButton.addEventListener('click',()=>{loadSystemStatus();loadPerformanceBaseline();loadApiMonitor();});
 if(typeof reloadSystemDataSourceButton!=='undefined'&&reloadSystemDataSourceButton)reloadSystemDataSourceButton.addEventListener('click',loadSystemDataSource);
 if(createSystemBackupButton)createSystemBackupButton.addEventListener('click',createSystemBackup);
 if(resetSystemDataButton)resetSystemDataButton.addEventListener('click',resetSystemData);
 if(reloadApiMonitorButton)reloadApiMonitorButton.addEventListener('click',loadApiMonitor);
 if(resetApiMonitorButton)resetApiMonitorButton.addEventListener('click',resetApiMonitorStats);
+if(typeof reloadPerformanceBaselineButton!=='undefined'&&reloadPerformanceBaselineButton)reloadPerformanceBaselineButton.addEventListener('click',loadPerformanceBaseline);
+if(typeof resetPerformanceBaselineButton!=='undefined'&&resetPerformanceBaselineButton)resetPerformanceBaselineButton.addEventListener('click',resetPerformanceBaselineStats);
 if(apiMonitorFilter)apiMonitorFilter.addEventListener('change',loadApiMonitor);
 if(typeof setupApiMonitorTabs==='function')setupApiMonitorTabs();
-
