@@ -402,9 +402,13 @@ async function upsertAllocation(allocation = {}, options = {}) {
 }
 
 async function findActiveArByIdempotency(idempotencyKey, options = {}) {
-  if (!clean(idempotencyKey)) return null;
+  const key = clean(idempotencyKey);
+  if (!key) return null;
+  if (options.existingArLedgerByIdempotencyKey instanceof Map) {
+    return options.existingArLedgerByIdempotencyKey.get(key) || null;
+  }
   const rows = await paymentRepository.findAll({
-    idempotencyKey,
+    idempotencyKey: key,
     active: { $ne: false },
     reversed: { $ne: true },
     isDeleted: { $ne: true },

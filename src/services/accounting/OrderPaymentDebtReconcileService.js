@@ -257,9 +257,15 @@ function debtAdjustmentIdempotencyKey(allocation = {}, expectedDebtAmount = 0) {
 }
 
 async function findActiveDebtAdjustmentByKey(idempotencyKey, options = {}) {
-  if (!clean(idempotencyKey)) return null;
+  const key = clean(idempotencyKey);
+  if (!key) return null;
+  if (options.existingArLedgerByIdempotencyKey instanceof Map) {
+    const cached = options.existingArLedgerByIdempotencyKey.get(key);
+    if (!cached) return null;
+    return upper(cached.category || cached.ledgerType) === 'AR-DEBT-ADJUSTMENT' ? cached : null;
+  }
   const rows = await arLedgerReadService.getCanonicalLedgersByRawMatch(
-    activeArFilter({ idempotencyKey: clean(idempotencyKey), category: 'AR-DEBT-ADJUSTMENT' }),
+    activeArFilter({ idempotencyKey: key, category: 'AR-DEBT-ADJUSTMENT' }),
     { session: options.session, limit: 1, filters: { status: 'all' } }
   );
   return Array.isArray(rows) && rows.length ? rows[0] : null;
@@ -434,6 +440,7 @@ async function reconcileOneOrder({
   refId = '',
   refCode = '',
   idempotencyKey: forcedIdempotencyKey = '',
+  existingArLedgerByIdempotencyKey = null,
   note = '',
   reason = '',
   accountingBatchId = '',
@@ -460,7 +467,7 @@ async function reconcileOneOrder({
   let currentArBalance = money(balanceDetails.currentArBalance);
   let deltaDebt = money(expected.expectedDebtAmount - currentArBalance);
   const idempotencyKey = clean(forcedIdempotencyKey || debtAdjustmentIdempotencyKey(effectiveAllocation, expected.expectedDebtAmount));
-  const existing = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.initialIdempotency', () => findActiveDebtAdjustmentByKey(idempotencyKey, { session }));
+  const existing = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.initialIdempotency', () => findActiveDebtAdjustmentByKey(idempotencyKey, { session, existingArLedgerByIdempotencyKey }));
 
   const buildDiagnostic = (action, skipReason = '', suggestedFix = '') => diagnosticFromReconcile({
     order,
@@ -622,7 +629,7 @@ async function reconcileOneOrder({
     }, diagnosticLogger);
   }
 
-  const existingBeforePost = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.prePostIdempotency', () => findActiveDebtAdjustmentByKey(idempotencyKey, { session }));
+  const existingBeforePost = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.prePostIdempotency', () => findActiveDebtAdjustmentByKey(idempotencyKey, { session, existingArLedgerByIdempotencyKey }));
   if (existingBeforePost) {
     return emitReconcileDiagnostic({
       needsAdjustment: false,

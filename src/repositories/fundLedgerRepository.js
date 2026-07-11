@@ -22,6 +22,9 @@ async function findLatestCodes(prefix = '', options = {}) {
 async function findByIdempotencyKey(idempotencyKey, options = {}) {
   const key = String(idempotencyKey || '').trim();
   if (!key) return null;
+  if (options.existingFundLedgerByIdempotencyKey instanceof Map) {
+    return options.existingFundLedgerByIdempotencyKey.get(key) || null;
+  }
   const rows = await findAll({ idempotencyKey: key }, { ...options, limit: 1 });
   return rows[0] || null;
 }

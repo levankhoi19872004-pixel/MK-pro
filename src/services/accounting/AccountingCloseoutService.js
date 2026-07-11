@@ -12,6 +12,10 @@ const OrderPaymentDebtReconcileService = require('./OrderPaymentDebtReconcileSer
 const { createCommandTelemetry } = require('../../utils/commandTelemetry');
 const CloseoutTransactionRunner = require('./closeout/CloseoutTransactionRunner');
 const CloseoutPostCommitHandler = require('./closeout/CloseoutPostCommitHandler');
+const CloseoutContextLoader = require('./closeout/CloseoutContextLoader');
+const { validateCloseoutContext } = require('./closeout/CloseoutContextValidator');
+const { executeCanonicalCloseoutWriters } = require('./closeout/CloseoutCanonicalExecutor');
+const { buildCloseoutResult } = require('./closeout/CloseoutFinalizer');
 const closeoutQueryAudit = require('../../observability/closeoutQueryAudit');
 
 const CONFIRM_GUARD_TTL_MS = Math.max(1000, Number(process.env.CLOSEOUT_CONFIRM_GUARD_TTL_MS || 8000));
@@ -613,10 +617,71 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
   };
 }
 
+function closeoutContextHelpers() {
+  return {
+    normalizeOrderIds,
+    buildCloseoutScopeKey,
+    resolveSelectedOrderCodes,
+    resolveSelectedSalesStaffCodes,
+    validateSelectedOrderScope,
+    assertReturnOrdersInventoryReady,
+    attachCloseoutScope,
+    isAccountingConfirmed,
+    buildAlreadyConfirmedResult,
+    confirmOneOrder
+  };
+}
+
 async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
   const telemetry = createCommandTelemetry('delivery.closeout');
   const performanceStages = telemetry.stages;
   const markPerformance = (stage, extra = {}) => telemetry.mark(stage, extra);
+
+  const helpers = closeoutContextHelpers();
+  const command = CloseoutContextLoader.normalizeCloseoutCommand({
+    ...body,
+    date: normalized.date || body.date || body.deliveryDate,
+    confirmedBy: normalized.confirmedBy || body.confirmedBy,
+    reason: normalized.reason || body.reason || body.note,
+    selectedOrderIds: normalized.selectedOrderIds || body.selectedOrderIds,
+    orderIds: normalized.selectedOrderIds || body.orderIds
+  }, helpers);
+
+  if (!command.selectedOrderIds.length) {
+    return { error: 'Vui lòng chọn ít nhất một đơn để xác nhận kế toán', status: 400 };
+  }
+
+  const context = await CloseoutContextLoader.loadCanonicalCloseoutContext(command, { helpers });
+  markPerformance('loadCanonicalCloseoutContext', {
+    requestedOrderKeys: command.selectedOrderIds.length,
+    orderCount: context.orders.length,
+    returnOrderCount: context.returnOrders.length,
+    existingArLedgers: context.existingArLedgers.length,
+    existingFundLedgers: context.existingFundLedgers.length
+  });
+
+  try {
+    closeoutQueryAudit.withCloseoutAuditStage('context.validation', () => validateCloseoutContext(context, helpers));
+  } catch (err) {
+    return {
+      error: err.message,
+      status: err.status || 400,
+      code: err.code || 'DELIVERY_CLOSEOUT_REJECTED',
+      ...(err.data && typeof err.data === 'object' ? err.data : {}),
+      performance: telemetry.finish()
+    };
+  }
+  markPerformance('validateCloseoutContext');
+
+  const execution = await executeCanonicalCloseoutWriters(context, helpers);
+  markPerformance('executeCanonicalCloseoutWriters', {
+    resultCount: execution.results.length,
+    criticalReads: execution.transactionResult.criticalReads.length,
+    readModelSyncGroups: execution.transactionResult.syncGroups.length,
+    queuedReadModelSync: execution.readModelSync.queued
+  });
+
+  return buildCloseoutResult(context, execution, telemetry);
 
   const date = normalized.date || dateUtil.toDateOnly(body.date || dateUtil.todayVN());
   const selectedOrderIds = normalized.selectedOrderIds || normalizeOrderIds(body);
