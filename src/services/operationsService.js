@@ -11,6 +11,12 @@ const { readHeartbeats } = require('../operations/heartbeatService');
 const { publicReleaseSummary, internalReleaseSummary } = require('../operations/releaseMetadata');
 const { getRuntimeConfig, publicConfigSummary } = require('../config/app.config');
 const performanceTelemetry = require('../observability/performanceTelemetry');
+const performanceObservation = require('../observability/performanceObservation');
+
+performanceObservation.setProviders({
+  getApiMonitorReport,
+  getReleaseSummary: internalReleaseSummary
+});
 
 let readinessCache = null;
 let readinessCacheAt = 0;
@@ -140,11 +146,12 @@ function startupBaseline() {
 
 async function performanceBaseline() {
   const api = getApiMonitorReport({ limit: 50 });
-  const performance = performanceTelemetry.snapshot();
+  const performance = performanceTelemetry.snapshot({ apiSummary: api.summary });
   return {
     ok: true,
     generatedAt: new Date().toISOString(),
     version: 'performance-baseline-v1',
+    release: internalReleaseSummary(),
     window: performance.window,
     process: performance.process,
     cpu: performance.cpu,
@@ -152,6 +159,10 @@ async function performanceBaseline() {
     requests: performance.requests,
     highWater: performance.highWater,
     capacity: performance.capacity,
+    evidenceQuality: {
+      status: api.summary?.totalCalls ? 'MEASURED' : 'INSUFFICIENT_DATA',
+      limitations: api.summary?.totalCalls ? [] : ['API latency dimensions need runtime traffic before they become representative.']
+    },
     api: {
       summary: api.summary,
       topSlowestApis: api.topSlowestApis.slice(0, 10),
@@ -169,6 +180,31 @@ async function performanceBaseline() {
       }
     },
     limitations: performance.limitations
+  };
+}
+
+async function startPerformanceObservation(options = {}) {
+  return performanceObservation.startObservation(options);
+}
+
+async function stopPerformanceObservation() {
+  return performanceObservation.stopObservation();
+}
+
+async function performanceObservationStatus() {
+  return performanceObservation.getObservation();
+}
+
+async function performanceObservationExport() {
+  return performanceObservation.exportObservation();
+}
+
+async function performanceOptimizationCandidates() {
+  const exported = performanceObservation.exportObservation();
+  return exported.data?.candidates || {
+    status: 'BLOCKED_NO_PRODUCTION_EVIDENCE',
+    candidates: [],
+    limitations: ['No observation session has been recorded.']
   };
 }
 
@@ -200,6 +236,7 @@ async function detailedStatus() {
     readiness: ready,
     startup: startupState.snapshot(),
     performance: performanceTelemetry.snapshot(),
+    observation: performanceObservation.getObservation(),
     process: processSnapshot(),
     database: {
       connected: mongoose.connection.readyState === 1,
@@ -224,6 +261,11 @@ module.exports = {
   detailedStatus,
   performanceBaseline,
   resetPerformanceBaseline,
+  startPerformanceObservation,
+  stopPerformanceObservation,
+  performanceObservationStatus,
+  performanceObservationExport,
+  performanceOptimizationCandidates,
   publicReleaseSummary,
   internalReleaseSummary,
   _private: { checkTempStorage }

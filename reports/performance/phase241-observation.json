@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "generatedAt": "2026-07-11T01:11:40.919Z",
+  "status": "BLOCKED_NO_RUNTIME_WORKLOAD",
+  "evidenceStatus": "BLOCKED",
+  "environment": "unavailable",
+  "releaseId": "unavailable",
+  "summary": null,
+  "limitations": [
+    "No production or staging observation session was executed in this workspace.",
+    "Use PHASE241_PRODUCTION_PERFORMANCE_EVIDENCE_RUNBOOK.md to collect passive observation evidence after deployment."
+  ]
+}

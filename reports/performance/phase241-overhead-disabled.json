@@ -1,0 +1,434 @@
+{
+  "generatedAt": "2026-07-11T01:11:09.198Z",
+  "evidenceStatus": "MEASURED_LOCAL",
+  "safety": {
+    "method": "GET",
+    "baseUrl": "http://127.0.0.1:59177",
+    "inProcess": true,
+    "productionWrites": false,
+    "maxConcurrency": 20,
+    "endpointRegistry": true,
+    "customEndpointsAllowed": false
+  },
+  "environment": {
+    "targetEnv": "local",
+    "evidenceStatus": "MEASURED_LOCAL",
+    "node": "v24.16.0",
+    "platform": "win32",
+    "arch": "x64",
+    "pid": 23492
+  },
+  "config": {
+    "endpoints": [
+      {
+        "id": "health-live",
+        "path": "/api/health/live",
+        "auth": "none",
+        "workloadClass": "light"
+      },
+      {
+        "id": "system-status",
+        "path": "/api/system/status",
+        "auth": "none",
+        "workloadClass": "light"
+      }
+    ],
+    "concurrencyLevels": [
+      1,
+      5,
+      10,
+      20
+    ],
+    "requestsPerLevel": 50,
+    "warmupRequests": 3,
+    "timeoutMs": 5000,
+    "maxResponseBytes": 1048576,
+    "scenarioCooldownMs": 1000
+  },
+  "results": [
+    {
+      "endpoint": "/api/health/live",
+      "endpointId": "health-live",
+      "concurrent": 1,
+      "requests": 50,
+      "success": 50,
+      "failures": 0,
+      "throughputRps": 554.39,
+      "latencyMs": {
+        "min": 0.92,
+        "average": 1.78,
+        "median": 1.54,
+        "p95": 3.24,
+        "p99": 4.51,
+        "max": 4.51
+      },
+      "apiMonitorHeaders": {
+        "averageServerMs": 0,
+        "averageMongoMs": 0,
+        "averageJsMs": 0,
+        "averageQueriesPerRequest": 0
+      },
+      "responseBytes": {
+        "average": 77,
+        "max": 77
+      },
+      "clientMetrics": {
+        "scope": "benchmark-client-and-in-process-server",
+        "cpuUserMs": 62,
+        "cpuSystemMs": 0,
+        "rssDeltaBytes": -7823360,
+        "heapUsedDeltaBytes": 8588384,
+        "eventLoopLagMs": {
+          "mean": 10.02,
+          "p95": 10.21,
+          "p99": 10.21,
+          "max": 10.21
+        }
+      },
+      "statusCounts": {
+        "200": 50
+      },
+      "errors": {},
+      "elapsedMs": 90.19,
+      "serverBefore": null,
+      "serverAfter": null,
+      "serverDelta": null
+    },
+    {
+      "endpoint": "/api/health/live",
+      "endpointId": "health-live",
+      "concurrent": 5,
+      "requests": 50,
+      "success": 50,
+      "failures": 0,
+      "throughputRps": 1146.99,
+      "latencyMs": {
+        "min": 2.35,
+        "average": 4.19,
+        "median": 2.92,
+        "p95": 10.43,
+        "p99": 10.72,
+        "max": 10.72
+      },
+      "apiMonitorHeaders": {
+        "averageServerMs": 0,
+        "averageMongoMs": 0,
+        "averageJsMs": 0,
+        "averageQueriesPerRequest": 0
+      },
+      "responseBytes": {
+        "average": 77,
+        "max": 77
+      },
+      "clientMetrics": {
+        "scope": "benchmark-client-and-in-process-server",
+        "cpuUserMs": 16,
+        "cpuSystemMs": 16,
+        "rssDeltaBytes": 2908160,
+        "heapUsedDeltaBytes": -10380096,
+        "eventLoopLagMs": {
+          "mean": 10.18,
+          "p95": 10.4,
+          "p99": 10.4,
+          "max": 10.4
+        }
+      },
+      "statusCounts": {
+        "200": 50
+      },
+      "errors": {},
+      "elapsedMs": 43.59,
+      "serverBefore": null,
+      "serverAfter": null,
+      "serverDelta": null
+    },
+    {
+      "endpoint": "/api/health/live",
+      "endpointId": "health-live",
+      "concurrent": 10,
+      "requests": 50,
+      "success": 50,
+      "failures": 0,
+      "throughputRps": 1534.24,
+      "latencyMs": {
+        "min": 3.2,
+        "average": 6.25,
+        "median": 5.92,
+        "p95": 8.5,
+        "p99": 8.78,
+        "max": 8.78
+      },
+      "apiMonitorHeaders": {
+        "averageServerMs": 0,
+        "averageMongoMs": 0,
+        "averageJsMs": 0,
+        "averageQueriesPerRequest": 0
+      },
+      "responseBytes": {
+        "average": 77,
+        "max": 77
+      },
+      "clientMetrics": {
+        "scope": "benchmark-client-and-in-process-server",
+        "cpuUserMs": 15,
+        "cpuSystemMs": 16,
+        "rssDeltaBytes": 5234688,
+        "heapUsedDeltaBytes": 7363352,
+        "eventLoopLagMs": {
+          "mean": 11.3,
+          "p95": 11.83,
+          "p99": 11.83,
+          "max": 11.83
+        }
+      },
+      "statusCounts": {
+        "200": 50
+      },
+      "errors": {},
+      "elapsedMs": 32.59,
+      "serverBefore": null,
+      "serverAfter": null,
+      "serverDelta": null
+    },
+    {
+      "endpoint": "/api/health/live",
+      "endpointId": "health-live",
+      "concurrent": 20,
+      "requests": 50,
+      "success": 50,
+      "failures": 0,
+      "throughputRps": 1121.54,
+      "latencyMs": {
+        "min": 8.49,
+        "average": 15.41,
+        "median": 15.56,
+        "p95": 19.53,
+        "p99": 19.55,
+        "max": 19.55
+      },
+      "apiMonitorHeaders": {
+        "averageServerMs": 0,
+        "averageMongoMs": 0,
+        "averageJsMs": 0,
+        "averageQueriesPerRequest": 0
+      },
+      "responseBytes": {
+        "average": 77,
+        "max": 77
+      },
+      "clientMetrics": {
+        "scope": "benchmark-client-and-in-process-server",
+        "cpuUserMs": 15,
+        "cpuSystemMs": 15,
+        "rssDeltaBytes": 12922880,
+        "heapUsedDeltaBytes": -7849584,
+        "eventLoopLagMs": {
+          "mean": 13.72,
+          "p95": 15.16,
+          "p99": 15.16,
+          "max": 15.16
+        }
+      },
+      "statusCounts": {
+        "200": 50
+      },
+      "errors": {},
+      "elapsedMs": 44.58,
+      "serverBefore": null,
+      "serverAfter": null,
+      "serverDelta": null
+    },
+    {
+      "endpoint": "/api/system/status",
+      "endpointId": "system-status",
+      "concurrent": 1,
+      "requests": 50,
+      "success": 50,
+      "failures": 0,
+      "throughputRps": 1616.32,
+      "latencyMs": {
+        "min": 0.45,
+        "average": 0.61,
+        "median": 0.55,
+        "p95": 1.09,
+        "p99": 1.38,
+        "max": 1.38
+      },
+      "apiMonitorHeaders": {
+        "averageServerMs": 0,
+        "averageMongoMs": 0,
+        "averageJsMs": 0,
+        "averageQueriesPerRequest": 0
+      },
+      "responseBytes": {
+        "average": 520,
+        "max": 520
+      },
+      "clientMetrics": {
+        "scope": "benchmark-client-and-in-process-server",
+        "cpuUserMs": 16,
+        "cpuSystemMs": 16,
+        "rssDeltaBytes": 655360,
+        "heapUsedDeltaBytes": 7349368,
+        "eventLoopLagMs": {
+          "mean": 10.03,
+          "p95": 10.11,
+          "p99": 10.11,
+          "max": 10.11
+        }
+      },
+      "statusCounts": {
+        "200": 50
+      },
+      "errors": {},
+      "elapsedMs": 30.93,
+      "serverBefore": null,
+      "serverAfter": null,
+      "serverDelta": null
+    },
+    {
+      "endpoint": "/api/system/status",
+      "endpointId": "system-status",
+      "concurrent": 5,
+      "requests": 50,
+      "success": 50,
+      "failures": 0,
+      "throughputRps": 1729.82,
+      "latencyMs": {
+        "min": 1.64,
+        "average": 2.83,
+        "median": 2.42,
+        "p95": 5.44,
+        "p99": 5.89,
+        "max": 5.89
+      },
+      "apiMonitorHeaders": {
+        "averageServerMs": 0,
+        "averageMongoMs": 0,
+        "averageJsMs": 0,
+        "averageQueriesPerRequest": 0
+      },
+      "responseBytes": {
+        "average": 520,
+        "max": 520
+      },
+      "clientMetrics": {
+        "scope": "benchmark-client-and-in-process-server",
+        "cpuUserMs": 31,
+        "cpuSystemMs": 0,
+        "rssDeltaBytes": 327680,
+        "heapUsedDeltaBytes": 7001608,
+        "eventLoopLagMs": {
+          "mean": 9.77,
+          "p95": 9.85,
+          "p99": 9.85,
+          "max": 9.85
+        }
+      },
+      "statusCounts": {
+        "200": 50
+      },
+      "errors": {},
+      "elapsedMs": 28.9,
+      "serverBefore": null,
+      "serverAfter": null,
+      "serverDelta": null
+    },
+    {
+      "endpoint": "/api/system/status",
+      "endpointId": "system-status",
+      "concurrent": 10,
+      "requests": 50,
+      "success": 50,
+      "failures": 0,
+      "throughputRps": 1758.45,
+      "latencyMs": {
+        "min": 3.52,
+        "average": 5.5,
+        "median": 5.01,
+        "p95": 8.12,
+        "p99": 9.45,
+        "max": 9.45
+      },
+      "apiMonitorHeaders": {
+        "averageServerMs": 0,
+        "averageMongoMs": 0,
+        "averageJsMs": 0,
+        "averageQueriesPerRequest": 0
+      },
+      "responseBytes": {
+        "average": 520,
+        "max": 520
+      },
+      "clientMetrics": {
+        "scope": "benchmark-client-and-in-process-server",
+        "cpuUserMs": 16,
+        "cpuSystemMs": 0,
+        "rssDeltaBytes": 385024,
+        "heapUsedDeltaBytes": 7018152,
+        "eventLoopLagMs": {
+          "mean": 10.13,
+          "p95": 10.13,
+          "p99": 10.13,
+          "max": 10.13
+        }
+      },
+      "statusCounts": {
+        "200": 50
+      },
+      "errors": {},
+      "elapsedMs": 28.43,
+      "serverBefore": null,
+      "serverAfter": null,
+      "serverDelta": null
+    },
+    {
+      "endpoint": "/api/system/status",
+      "endpointId": "system-status",
+      "concurrent": 20,
+      "requests": 50,
+      "success": 50,
+      "failures": 0,
+      "throughputRps": 1509.64,
+      "latencyMs": {
+        "min": 6.07,
+        "average": 11.76,
+        "median": 11.45,
+        "p95": 17.65,
+        "p99": 17.93,
+        "max": 17.93
+      },
+      "apiMonitorHeaders": {
+        "averageServerMs": 0,
+        "averageMongoMs": 0,
+        "averageJsMs": 0,
+        "averageQueriesPerRequest": 0
+      },
+      "responseBytes": {
+        "average": 520,
+        "max": 520
+      },
+      "clientMetrics": {
+        "scope": "benchmark-client-and-in-process-server",
+        "cpuUserMs": 15,
+        "cpuSystemMs": 0,
+        "rssDeltaBytes": 1437696,
+        "heapUsedDeltaBytes": -15484672,
+        "eventLoopLagMs": {
+          "mean": 16.46,
+          "p95": 16.47,
+          "p99": 16.47,
+          "max": 16.47
+        }
+      },
+      "statusCounts": {
+        "200": 50
+      },
+      "errors": {},
+      "elapsedMs": 33.12,
+      "serverBefore": null,
+      "serverAfter": null,
+      "serverDelta": null
+    }
+  ]
+}

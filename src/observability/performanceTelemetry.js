@@ -2,6 +2,7 @@
 
 const os = require('os');
 const { monitorEventLoopDelay, performance } = require('node:perf_hooks');
+const { evaluateCapacity } = require('./capacityEvaluator');
 
 const DEFAULTS = Object.freeze({
   enabled: true,
@@ -15,21 +16,37 @@ const DEFAULTS = Object.freeze({
   errorRateWarn: 0.05,
   activeRequestWarn: 25,
   maxSamples: 120,
-  maxRequestEvents: 10000
+  rollingBucketMs: 5000,
+  rollingBucketCount: 60,
+  minApiSamples: 20,
+  minErrorSamples: 20
 });
 
 let histogram = null;
 let sampleTimer = null;
-let logTimer = null;
 let runtimeLogger = null;
 let started = false;
 let lastCpuUsage = process.cpuUsage();
 let lastSampleAt = performance.now();
 let lastMemory = null;
 let lastSample = null;
+let sampleSequence = 0;
+let nextLogAtMs = 0;
+
+const sampleListeners = new Set();
 
 const samples = [];
-const requestEvents = [];
+const requestBuckets = Array.from({ length: DEFAULTS.rollingBucketCount }, () => ({
+  bucketStart: 0,
+  requests: 0,
+  errors: 0,
+  aborted: 0,
+  status2xx: 0,
+  status3xx: 0,
+  status4xx: 0,
+  status5xx: 0,
+  responseBytes: 0
+}));
 const counters = {
   activeRequests: 0,
   maxActiveRequests: 0,
@@ -83,7 +100,10 @@ function readConfig() {
     errorRateWarn: clamp(toNumber(process.env.PERF_ERROR_RATE_WARN, DEFAULTS.errorRateWarn), 0, 1),
     activeRequestWarn: clamp(toNumber(process.env.PERF_ACTIVE_REQUEST_WARN, DEFAULTS.activeRequestWarn), 1, 10000),
     maxSamples: clamp(toNumber(process.env.PERF_MAX_SAMPLES, DEFAULTS.maxSamples), 10, 2000),
-    maxRequestEvents: clamp(toNumber(process.env.PERF_MAX_REQUEST_EVENTS, DEFAULTS.maxRequestEvents), 100, 200000)
+    rollingBucketMs: clamp(toNumber(process.env.PERF_ROLLING_BUCKET_MS, DEFAULTS.rollingBucketMs), 1000, 60000),
+    rollingBucketCount: clamp(toNumber(process.env.PERF_ROLLING_BUCKET_COUNT, DEFAULTS.rollingBucketCount), 12, 360),
+    minApiSamples: clamp(toNumber(process.env.PERF_MIN_API_SAMPLES, DEFAULTS.minApiSamples), 1, 10000),
+    minErrorSamples: clamp(toNumber(process.env.PERF_MIN_ERROR_SAMPLES, DEFAULTS.minErrorSamples), 1, 10000)
   };
 }
 
@@ -152,18 +172,22 @@ function cpuSnapshot(sampleAt = performance.now()) {
   const systemCpuMs = delta.system / 1000;
   const totalCpuMs = userCpuMs + systemCpuMs;
   const cpuCount = Math.max(1, os.cpus().length);
+  const processCpuCoreRatio = totalCpuMs / elapsedMs;
+  const hostCpuCapacityRatio = processCpuCoreRatio / cpuCount;
   return {
     userCpuMs: round(userCpuMs),
     systemCpuMs: round(systemCpuMs),
     totalCpuMs: round(totalCpuMs),
     sampleDurationMs: round(elapsedMs),
-    cpuUtilizationRatio: round(totalCpuMs / (elapsedMs * cpuCount), 4),
+    processCpuCoreRatio: round(processCpuCoreRatio, 4),
+    hostCpuCapacityRatio: round(hostCpuCapacityRatio, 4),
+    cpuUtilizationRatio: round(hostCpuCapacityRatio, 4),
     cpuCount,
-    approximation: 'process_cpu_delta_over_wall_time_and_cpu_count'
+    approximation: 'cpuUtilizationRatio is deprecated alias for hostCpuCapacityRatio'
   };
 }
 
-function eventLoopSnapshot() {
+function eventLoopSnapshot(options = {}) {
   if (!histogram) return { available: false, meanMs: 0, p50Ms: 0, p95Ms: 0, p99Ms: 0, maxMs: 0 };
   const row = {
     available: true,
@@ -174,37 +198,91 @@ function eventLoopSnapshot() {
     maxMs: msFromNs(histogram.max)
   };
   updateHighWater('eventLoopP99Ms', row.p99Ms);
-  histogram.reset();
+  if (options.reset !== false) histogram.reset();
   return row;
 }
 
-function pruneRequestEvents(now = Date.now()) {
-  const cutoff = now - 5 * 60 * 1000;
-  while (requestEvents.length && requestEvents[0].at < cutoff) requestEvents.shift();
+function emptyBucket(bucketStart = 0) {
+  return {
+    bucketStart,
+    requests: 0,
+    errors: 0,
+    aborted: 0,
+    status2xx: 0,
+    status3xx: 0,
+    status4xx: 0,
+    status5xx: 0,
+    responseBytes: 0
+  };
+}
+
+function bucketStartFor(now = Date.now(), bucketMs = DEFAULTS.rollingBucketMs) {
+  const safeNow = Number.isFinite(now) && now > 0 ? now : Date.now();
+  return Math.floor(safeNow / bucketMs) * bucketMs;
+}
+
+function bucketFor(now = Date.now()) {
   const config = readConfig();
-  if (requestEvents.length > config.maxRequestEvents) {
-    requestEvents.splice(0, requestEvents.length - config.maxRequestEvents);
+  const start = bucketStartFor(now, config.rollingBucketMs);
+  const index = Math.abs(Math.floor(start / config.rollingBucketMs)) % requestBuckets.length;
+  if (requestBuckets[index].bucketStart !== start) {
+    requestBuckets[index] = emptyBucket(start);
+  }
+  return requestBuckets[index];
+}
+
+function resetBuckets() {
+  for (let index = 0; index < requestBuckets.length; index += 1) {
+    requestBuckets[index] = emptyBucket(0);
   }
 }
 
+function recordRequestBucket(details = {}, now = Date.now()) {
+  const bucket = bucketFor(now);
+  const statusCode = Number(details.statusCode || 0);
+  bucket.requests += 1;
+  if (details.aborted) bucket.aborted += 1;
+  if (statusCode >= 500 || details.aborted) bucket.errors += 1;
+  if (statusCode >= 200 && statusCode < 300) bucket.status2xx += 1;
+  else if (statusCode >= 300 && statusCode < 400) bucket.status3xx += 1;
+  else if (statusCode >= 400 && statusCode < 500) bucket.status4xx += 1;
+  else if (statusCode >= 500) bucket.status5xx += 1;
+  const responseBytes = parseResponseBytes(details.responseBytes);
+  if (responseBytes != null) bucket.responseBytes += responseBytes;
+}
+
+function summarizeBuckets(now = Date.now(), windowMs = 5 * 60 * 1000) {
+  const config = readConfig();
+  const safeNow = Number.isFinite(now) && now > 0 ? now : Date.now();
+  const cutoff = safeNow - windowMs;
+  return requestBuckets.reduce((sum, row) => {
+    if (!row.bucketStart || row.bucketStart < cutoff - config.rollingBucketMs || row.bucketStart > safeNow + config.rollingBucketMs) return sum;
+    sum.requests += row.requests || 0;
+    sum.errors += row.errors || 0;
+    sum.aborted += row.aborted || 0;
+    sum.status2xx += row.status2xx || 0;
+    sum.status3xx += row.status3xx || 0;
+    sum.status4xx += row.status4xx || 0;
+    sum.status5xx += row.status5xx || 0;
+    sum.responseBytes += row.responseBytes || 0;
+    return sum;
+  }, emptyBucket(0));
+}
+
 function windowSummary(now = Date.now()) {
-  pruneRequestEvents(now);
-  const oneMinute = now - 60 * 1000;
-  const fiveMinutes = now - 5 * 60 * 1000;
-  const last1m = requestEvents.filter((row) => row.at >= oneMinute);
-  const last5m = requestEvents.filter((row) => row.at >= fiveMinutes);
-  const errors1m = last1m.filter((row) => row.statusCode >= 500 || row.aborted).length;
-  const errors5m = last5m.filter((row) => row.statusCode >= 500 || row.aborted).length;
+  const last1m = summarizeBuckets(now, 60 * 1000);
+  const last5m = summarizeBuckets(now, 5 * 60 * 1000);
   return {
-    requestsLast1Minute: last1m.length,
-    requestsLast5Minutes: last5m.length,
-    requestsPerSecond1Minute: round(last1m.length / 60),
-    requestsPerSecond5Minutes: round(last5m.length / 300),
-    errorsLast1Minute: errors1m,
-    errorsLast5Minutes: errors5m,
-    errorRate1Minute: round(errors1m / Math.max(1, last1m.length), 4),
-    errorRate5Minutes: round(errors5m / Math.max(1, last5m.length), 4),
-    retainedEvents: requestEvents.length
+    requestsLast1Minute: last1m.requests,
+    requestsLast5Minutes: last5m.requests,
+    requestsPerSecond1Minute: round(last1m.requests / 60),
+    requestsPerSecond5Minutes: round(last5m.requests / 300),
+    errorsLast1Minute: last1m.errors,
+    errorsLast5Minutes: last5m.errors,
+    errorRate1Minute: round(last1m.errors / Math.max(1, last1m.requests), 4),
+    errorRate5Minutes: round(last5m.errors / Math.max(1, last5m.requests), 4),
+    retainedBuckets: requestBuckets.length,
+    bucketMs: readConfig().rollingBucketMs
   };
 }
 
@@ -229,55 +307,36 @@ function requestsSnapshot() {
   };
 }
 
-function capacitySnapshot(snapshot = lastSample) {
+function capacitySnapshot(snapshot = lastSample, apiSummary = null) {
   const config = readConfig();
-  if (!snapshot) return { status: 'unknown', reasons: [{ metric: 'sample', value: 'missing', threshold: 'sample required' }] };
-  const reasons = [];
-  const memory = snapshot.process || {};
-  const eventLoop = snapshot.eventLoop || {};
-  const requests = snapshot.requests || requestsSnapshot();
-  const window = requests.window || windowSummary();
-  let status = 'healthy';
-
-  const push = (level, metric, value, threshold) => {
-    reasons.push({ metric, value, threshold });
-    if (level === 'critical') status = 'critical';
-    else if (status !== 'critical') status = 'watch';
-  };
-
-  if (config.memoryLimitMb > 0) {
-    const memoryLimitBytes = config.memoryLimitMb * 1024 * 1024;
-    const rssRatio = memory.rssBytes / memoryLimitBytes;
-    if (rssRatio >= 0.95) push('critical', 'rssRatio', round(rssRatio, 4), 0.95);
-    else if (rssRatio >= 0.85) push('watch', 'rssRatio', round(rssRatio, 4), 0.85);
-  } else {
-    reasons.push({ metric: 'memoryLimit', value: 'unknown', threshold: 'PERF_MEMORY_LIMIT_MB not configured' });
+  if (!snapshot) {
+    return {
+      status: 'unknown',
+      dimensions: { memory: 'unknown', eventLoop: 'unknown', requests: 'unknown', apiLatency: 'insufficient_data', errors: 'insufficient_data' },
+      reasons: [{ metric: 'sample', value: 'missing', threshold: 'sample required' }]
+    };
   }
-
-  if (memory.heapUtilizationRatio >= 0.95) push('critical', 'heapUtilizationRatio', memory.heapUtilizationRatio, 0.95);
-  else if (memory.heapUtilizationRatio >= config.heapWarnRatio) push('watch', 'heapUtilizationRatio', memory.heapUtilizationRatio, config.heapWarnRatio);
-
-  if (eventLoop.p99Ms >= config.eventLoopCriticalMs) push('critical', 'eventLoopP99Ms', eventLoop.p99Ms, config.eventLoopCriticalMs);
-  else if (eventLoop.p95Ms >= config.eventLoopWarnMs) push('watch', 'eventLoopP95Ms', eventLoop.p95Ms, config.eventLoopWarnMs);
-
-  if (window.errorRate5Minutes >= config.errorRateWarn && window.requestsLast5Minutes >= 10) {
-    push('watch', 'errorRate5Minutes', window.errorRate5Minutes, config.errorRateWarn);
-  }
-  if (requests.activeRequests >= config.activeRequestWarn) {
-    push('watch', 'activeRequests', requests.activeRequests, config.activeRequestWarn);
-  }
-
-  return { status, reasons };
+  return evaluateCapacity({
+    runtime: {
+      process: snapshot.process || {},
+      eventLoop: snapshot.eventLoop || {}
+    },
+    requests: snapshot.requests || requestsSnapshot(),
+    api: apiSummary || {},
+    config
+  });
 }
 
 function sampleNow() {
   const at = nowIso();
+  sampleSequence += 1;
   const sample = {
+    sampleSequence,
     generatedAt: at,
     uptimeSeconds: round(process.uptime()),
     process: memorySnapshot(),
     cpu: cpuSnapshot(),
-    eventLoop: eventLoopSnapshot(),
+    eventLoop: eventLoopSnapshot({ reset: true }),
     requests: requestsSnapshot()
   };
   sample.capacity = capacitySnapshot(sample);
@@ -285,6 +344,40 @@ function sampleNow() {
   samples.push(sample);
   const config = readConfig();
   if (samples.length > config.maxSamples) samples.splice(0, samples.length - config.maxSamples);
+  for (const listener of sampleListeners) {
+    try {
+      listener(sample);
+    } catch (_) {
+      // Observation listeners must never affect request/runtime telemetry.
+    }
+  }
+  return sample;
+}
+
+function maybeLogSample(sample) {
+  const config = readConfig();
+  const now = Date.now();
+  if (!runtimeLogger?.info || now < nextLogAtMs) return;
+  nextLogAtMs = now + config.logIntervalMs;
+  const payload = {
+    event: 'performance_snapshot',
+    generatedAt: nowIso(),
+    sampleGeneratedAt: sample.generatedAt,
+    sampleAgeMs: Math.max(0, Date.now() - Date.parse(sample.generatedAt || nowIso())),
+    sampleSequence: sample.sampleSequence,
+    uptimeSeconds: sample.uptimeSeconds,
+    process: sample.process,
+    cpu: sample.cpu,
+    eventLoop: sample.eventLoop,
+    requests: sample.requests,
+    capacity: sample.capacity
+  };
+  runtimeLogger.info(payload, '[PERF_SNAPSHOT]');
+}
+
+function runSampleCycle() {
+  const sample = sampleNow();
+  maybeLogSample(sample);
   return sample;
 }
 
@@ -297,31 +390,16 @@ function start(options = {}) {
   histogram.enable();
   lastCpuUsage = process.cpuUsage();
   lastSampleAt = performance.now();
-  sampleNow();
-  sampleTimer = setInterval(() => sampleNow(), config.sampleIntervalMs);
+  nextLogAtMs = Date.now() + config.logIntervalMs;
+  runSampleCycle();
+  sampleTimer = setInterval(() => runSampleCycle(), config.sampleIntervalMs);
   sampleTimer.unref?.();
-  logTimer = setInterval(() => {
-    const snapshot = sampleNow();
-    const payload = {
-      event: 'performance_snapshot',
-      generatedAt: snapshot.generatedAt,
-      uptimeSeconds: snapshot.uptimeSeconds,
-      process: snapshot.process,
-      eventLoop: snapshot.eventLoop,
-      requests: snapshot.requests,
-      capacity: snapshot.capacity
-    };
-    if (runtimeLogger?.info) runtimeLogger.info(payload, '[PERF_SNAPSHOT]');
-  }, config.logIntervalMs);
-  logTimer.unref?.();
   return { started: true, enabled: true, sampleIntervalMs: config.sampleIntervalMs, logIntervalMs: config.logIntervalMs };
 }
 
 function stop() {
   if (sampleTimer) clearInterval(sampleTimer);
-  if (logTimer) clearInterval(logTimer);
   sampleTimer = null;
-  logTimer = null;
   if (histogram) histogram.disable();
   histogram = null;
   started = false;
@@ -332,7 +410,7 @@ function reset() {
   Object.keys(counters).forEach((key) => { counters[key] = 0; });
   counters.activeRequests = Math.max(0, active);
   counters.maxActiveRequests = counters.activeRequests;
-  requestEvents.splice(0, requestEvents.length);
+  resetBuckets();
   samples.splice(0, samples.length);
   Object.values(highWater).forEach((row) => {
     row.value = 0;
@@ -340,6 +418,7 @@ function reset() {
   });
   lastMemory = null;
   lastSample = null;
+  sampleSequence = 0;
   return sampleNow();
 }
 
@@ -374,8 +453,7 @@ function recordRequestStart() {
       counters.responseBytesTotal += responseBytes;
       counters.maxResponseBytes = Math.max(counters.maxResponseBytes, responseBytes);
     }
-    requestEvents.push({ at: Date.now(), statusCode, aborted: Boolean(details.aborted) });
-    pruneRequestEvents();
+    recordRequestBucket({ statusCode, aborted: Boolean(details.aborted), responseBytes });
     return { activeAtStart };
   };
 }
@@ -401,18 +479,23 @@ function requestLifecycleMiddleware(req, res, next) {
   return next();
 }
 
-function snapshot() {
-  const current = lastSample || sampleNow();
+function snapshot(options = {}) {
+  const current = lastSample;
+  const generatedAt = nowIso();
+  const sampleAgeMs = current?.generatedAt ? Math.max(0, Date.now() - Date.parse(current.generatedAt)) : null;
   return {
     ok: true,
-    generatedAt: nowIso(),
+    generatedAt,
     version: 'performance-summary-v1',
     enabled: readConfig().enabled,
-    process: current.process,
-    cpu: current.cpu,
-    eventLoop: current.eventLoop,
+    sampleGeneratedAt: current?.generatedAt || null,
+    sampleAgeMs,
+    sampleSequence: current?.sampleSequence || 0,
+    process: current?.process || null,
+    cpu: current?.cpu || null,
+    eventLoop: current?.eventLoop || { available: false, meanMs: 0, p50Ms: 0, p95Ms: 0, p99Ms: 0, maxMs: 0 },
     requests: requestsSnapshot(),
-    capacity: capacitySnapshot(current),
+    capacity: capacitySnapshot(current, options.apiSummary || null),
     highWater: JSON.parse(JSON.stringify(highWater)),
     window: windowSummary(),
     samples: {
@@ -427,6 +510,12 @@ function snapshot() {
   };
 }
 
+function addSampleListener(listener) {
+  if (typeof listener !== 'function') return () => {};
+  sampleListeners.add(listener);
+  return () => sampleListeners.delete(listener);
+}
+
 function isStarted() {
   return started;
 }
@@ -438,6 +527,7 @@ module.exports = {
   stop,
   reset,
   sampleNow,
+  addSampleListener,
   snapshot,
   capacitySnapshot,
   requestLifecycleMiddleware,
@@ -446,12 +536,16 @@ module.exports = {
   _private: {
     counters,
     samples,
-    requestEvents,
+    requestBuckets,
     highWater,
-    pruneRequestEvents,
+    bucketFor,
+    recordRequestBucket,
+    resetBuckets,
     memorySnapshot,
     cpuSnapshot,
     eventLoopSnapshot,
-    windowSummary
+    windowSummary,
+    runSampleCycle,
+    sampleListeners
   }
 };

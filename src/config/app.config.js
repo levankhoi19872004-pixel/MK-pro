@@ -194,7 +194,15 @@ function buildRuntimeConfig(env = process.env) {
         if (!Number.isFinite(value) || value < 0 || value > 1) throw new Error('phai nam trong khoang 0..1');
         return value;
       }, 0.05),
-      activeRequestWarn: safe('PERF_ACTIVE_REQUEST_WARN', () => readInteger(env, 'PERF_ACTIVE_REQUEST_WARN', { defaultValue: 25, min: 1, max: 10000 }), 25)
+      activeRequestWarn: safe('PERF_ACTIVE_REQUEST_WARN', () => readInteger(env, 'PERF_ACTIVE_REQUEST_WARN', { defaultValue: 25, min: 1, max: 10000 }), 25),
+      minApiSamples: safe('PERF_MIN_API_SAMPLES', () => readInteger(env, 'PERF_MIN_API_SAMPLES', { defaultValue: 20, min: 1, max: 10000 }), 20),
+      minErrorSamples: safe('PERF_MIN_ERROR_SAMPLES', () => readInteger(env, 'PERF_MIN_ERROR_SAMPLES', { defaultValue: 20, min: 1, max: 10000 }), 20),
+      rollingBucketMs: safe('PERF_ROLLING_BUCKET_MS', () => readInteger(env, 'PERF_ROLLING_BUCKET_MS', { defaultValue: 5000, min: 1000, max: 60000 }), 5000),
+      rollingBucketCount: safe('PERF_ROLLING_BUCKET_COUNT', () => readInteger(env, 'PERF_ROLLING_BUCKET_COUNT', { defaultValue: 60, min: 12, max: 360 }), 60),
+      observationMaxDurationMs: safe('PERF_OBSERVATION_MAX_DURATION_MS', () => readInteger(env, 'PERF_OBSERVATION_MAX_DURATION_MS', { defaultValue: 28800000, min: 60000, max: 86400000 }), 28800000),
+      targetEnv: safe('PERF_TARGET_ENV', () => readEnum(env, 'PERF_TARGET_ENV', ['local', 'staging', 'production'], { defaultValue: 'local' }), 'local'),
+      maxResponseBytes: safe('PERF_MAX_RESPONSE_BYTES', () => readInteger(env, 'PERF_MAX_RESPONSE_BYTES', { defaultValue: 1048576, min: 1024, max: 10485760 }), 1048576),
+      scenarioCooldownMs: safe('PERF_SCENARIO_COOLDOWN_MS', () => readInteger(env, 'PERF_SCENARIO_COOLDOWN_MS', { defaultValue: 1000, min: 0, max: 600000 }), 1000)
     },
     worker: {
       backgroundConcurrency: safe('BACKGROUND_JOB_CONCURRENCY', () => readInteger(env, 'BACKGROUND_JOB_CONCURRENCY', { defaultValue: 2, min: 1, max: 64 }), 2),
@@ -333,6 +341,8 @@ function publicConfigSummary(config = getRuntimeConfig()) {
       sampleIntervalMs: config.performance.sampleIntervalMs,
       logIntervalMs: config.performance.logIntervalMs,
       errorRateWarn: config.performance.errorRateWarn,
+      p95WarnMs: config.performance.p95WarnMs,
+      minApiSamples: config.performance.minApiSamples,
       memoryLimitConfigured: config.performance.memoryLimitMb > 0
     }
   };

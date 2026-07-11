@@ -3,14 +3,19 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { monitorEventLoopDelay, performance } = require('node:perf_hooks');
+const { resolveBenchmarkEndpoints, validateEndpointPath } = require('../../config/performance-benchmark-endpoints');
 
-const DEFAULT_ENDPOINTS = ['/api/health/live', '/api/health/ready', '/api/system/status'];
 const DEFAULT_LOCAL_CONCURRENCY = [1, 5, 10, 20];
 const DEFAULT_REMOTE_CONCURRENCY = [1, 2, 5];
+const EVIDENCE_STATUS = Object.freeze({
+  local: 'MEASURED_LOCAL',
+  staging: 'MEASURED_STAGING_READ_ONLY',
+  production: 'MEASURED_PRODUCTION_READ_ONLY'
+});
 
-function envNumber(name, fallback, minimum = 0) {
+function envNumber(name, fallback, minimum = 0, maximum = Number.MAX_SAFE_INTEGER) {
   const value = Number(process.env[name]);
-  return Number.isFinite(value) && value >= minimum ? value : fallback;
+  return Number.isFinite(value) && value >= minimum ? Math.min(value, maximum) : fallback;
 }
 
 function csv(value, fallback = []) {
@@ -33,17 +38,23 @@ function localTarget(url) {
   return ['127.0.0.1', 'localhost', '::1', '[::1]'].includes(url.hostname);
 }
 
-function validateReadOnlyEndpoint(endpoint) {
-  if (!endpoint.startsWith('/') || endpoint.startsWith('//') || endpoint.includes('\\')) {
-    throw new Error(`Endpoint phải là path cùng host và bắt đầu bằng một dấu /: ${endpoint}`);
+function redact(value) {
+  return String(value || '')
+    .replace(/bearer\s+[a-z0-9._-]+/gi, 'Bearer [redacted]')
+    .replace(/token=[^&\s]+/gi, 'token=[redacted]')
+    .replace(/jwt=[^&\s]+/gi, 'jwt=[redacted]');
+}
+
+function classifyEnvironment({ inProcess, baseUrl, env = process.env }) {
+  const parsed = new URL(baseUrl);
+  if (inProcess || localTarget(parsed)) {
+    return { targetEnv: 'local', evidenceStatus: EVIDENCE_STATUS.local, remote: false };
   }
-  if (/\s/.test(endpoint)) throw new Error(`Endpoint không hợp lệ: ${endpoint}`);
-  const lower = endpoint.toLowerCase();
-  const forbidden = ['/commit', '/closeout', '/confirm', '/reconciliation/run', '/repair', '/reset', '/delete', '/update', '/create'];
-  if (forbidden.some((item) => lower.includes(item))) {
-    throw new Error(`Benchmark only allows read-only GET paths; refused write-like endpoint: ${endpoint}`);
+  const targetEnv = String(env.PERF_TARGET_ENV || '').trim().toLowerCase();
+  if (!['staging', 'production'].includes(targetEnv)) {
+    return { targetEnv: targetEnv || 'remote-unclassified', evidenceStatus: 'REMOTE_UNCLASSIFIED', remote: true };
   }
-  return endpoint;
+  return { targetEnv, evidenceStatus: EVIDENCE_STATUS[targetEnv], remote: true };
 }
 
 async function startInProcessServer() {
@@ -62,6 +73,26 @@ async function startInProcessServer() {
   };
 }
 
+async function readResponseBytes(response, options = {}) {
+  const maxBytes = options.maxResponseBytes || 1024 * 1024;
+  if (!response.body || typeof response.body.getReader !== 'function') {
+    const bytes = Number(response.headers.get('content-length') || 0);
+    return { bytes: Number.isFinite(bytes) ? bytes : 0, tooLarge: bytes > maxBytes, streamUnavailable: true };
+  }
+  const reader = response.body.getReader();
+  let bytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytes += value ? value.byteLength : 0;
+    if (bytes > maxBytes) {
+      await reader.cancel().catch(() => {});
+      return { bytes, tooLarge: true };
+    }
+  }
+  return { bytes, tooLarge: false };
+}
+
 async function fetchOnce(url, options) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
@@ -74,16 +105,18 @@ async function fetchOnce(url, options) {
       signal: controller.signal,
       redirect: 'manual'
     });
-    const body = await response.arrayBuffer();
+    const body = await readResponseBytes(response, options);
+    const authBlocked = response.status === 401 || response.status === 403;
     return {
-      ok: response.status >= 200 && response.status < 400,
+      ok: response.status >= 200 && response.status < 400 && !body.tooLarge && !authBlocked,
       status: response.status,
       latencyMs: performance.now() - started,
-      bytes: body.byteLength,
+      bytes: body.bytes,
       mongoMs: Number(response.headers.get('x-mongo-time-ms') || 0),
       jsMs: Number(response.headers.get('x-js-time-ms') || 0),
       serverMs: Number(response.headers.get('x-response-time-ms') || 0),
-      dbQueries: Number(response.headers.get('x-db-queries') || 0)
+      dbQueries: Number(response.headers.get('x-db-queries') || 0),
+      error: authBlocked ? 'BLOCKED_AUTH' : (body.tooLarge ? 'RESPONSE_TOO_LARGE' : '')
     };
   } catch (error) {
     return {
@@ -95,8 +128,26 @@ async function fetchOnce(url, options) {
       jsMs: 0,
       serverMs: 0,
       dbQueries: 0,
-      error: error && error.name === 'AbortError' ? 'timeout' : String(error && error.message || error)
+      error: error && error.name === 'AbortError' ? 'timeout' : redact(error && error.message || error)
     };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchJson(url, options) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
+  timeout.unref?.();
+  try {
+    const response = await fetch(url, { method: 'GET', headers: options.headers, signal: controller.signal, redirect: 'manual' });
+    if (response.status === 401 || response.status === 403) return { ok: false, status: response.status, error: 'BLOCKED_AUTH' };
+    if (response.status < 200 || response.status >= 400) return { ok: false, status: response.status, error: `HTTP_${response.status}` };
+    const text = await response.text();
+    if (text.length > options.maxResponseBytes) return { ok: false, status: response.status, error: 'RESPONSE_TOO_LARGE' };
+    return { ok: true, status: response.status, json: JSON.parse(text) };
+  } catch (error) {
+    return { ok: false, status: 0, error: redact(error.message || error) };
   } finally {
     clearTimeout(timeout);
   }
@@ -121,6 +172,29 @@ function average(rows, field) {
   return rows.length ? rows.reduce((sum, row) => sum + Number(row[field] || 0), 0) / rows.length : 0;
 }
 
+function releaseId(snapshot) {
+  return snapshot?.startup?.releaseId
+    || snapshot?.release?.releaseId
+    || snapshot?.data?.releaseId
+    || snapshot?.releaseId
+    || snapshot?.startup?.version
+    || '';
+}
+
+function serverDelta(before, after) {
+  if (!before || !after || before.ok === false || after.ok === false) return null;
+  return {
+    rssBytes: Number(after.process?.rssBytes || 0) - Number(before.process?.rssBytes || 0),
+    heapUsedBytes: Number(after.process?.heapUsedBytes || 0) - Number(before.process?.heapUsedBytes || 0),
+    requestCount: Number(after.requests?.completedRequests || 0) - Number(before.requests?.completedRequests || 0),
+    failedRequests: Number(after.requests?.failedRequests || 0) - Number(before.requests?.failedRequests || 0),
+    maxActiveRequests: after.requests?.maxActiveRequests || 0,
+    apiP95Ms: after.api?.summary?.overallP95Ms || 0,
+    errorRate5Minutes: after.window?.errorRate5Minutes || 0,
+    capacity: after.capacity || null
+  };
+}
+
 function summarize(results, elapsedMs, before, after, loop, context) {
   const latencies = results.map((row) => row.latencyMs).sort((a, b) => a - b);
   const success = results.filter((row) => row.ok).length;
@@ -135,6 +209,7 @@ function summarize(results, elapsedMs, before, after, loop, context) {
   const cpuSystemMs = (after.cpu.system - before.cpu.system) / 1000;
   return {
     endpoint: context.endpoint,
+    endpointId: context.endpointId,
     concurrent: context.concurrency,
     requests: results.length,
     success,
@@ -148,7 +223,7 @@ function summarize(results, elapsedMs, before, after, loop, context) {
       p99: round(percentile(latencies, 0.99)),
       max: round(latencies[latencies.length - 1])
     },
-    apiMonitor: {
+    apiMonitorHeaders: {
       averageServerMs: round(average(results, 'serverMs')),
       averageMongoMs: round(average(results, 'mongoMs')),
       averageJsMs: round(average(results, 'jsMs')),
@@ -158,20 +233,18 @@ function summarize(results, elapsedMs, before, after, loop, context) {
       average: round(average(results, 'bytes')),
       max: Math.max(0, ...results.map((row) => row.bytes || 0))
     },
-    process: {
+    clientMetrics: {
       scope: context.inProcess ? 'benchmark-client-and-in-process-server' : 'benchmark-client-only',
       cpuUserMs: round(cpuUserMs),
       cpuSystemMs: round(cpuSystemMs),
       rssDeltaBytes: after.memory.rss - before.memory.rss,
       heapUsedDeltaBytes: after.memory.heapUsed - before.memory.heapUsed,
-      heapUsedBeforeBytes: before.memory.heapUsed,
-      heapUsedAfterBytes: after.memory.heapUsed
-    },
-    eventLoopLagMs: {
-      mean: Number.isFinite(loop.mean) ? round(loop.mean / 1e6) : 0,
-      p95: round(loop.percentile(95) / 1e6),
-      p99: round(loop.percentile(99) / 1e6),
-      max: round(loop.max / 1e6)
+      eventLoopLagMs: {
+        mean: Number.isFinite(loop.mean) ? round(loop.mean / 1e6) : 0,
+        p95: round(loop.percentile(95) / 1e6),
+        p99: round(loop.percentile(99) / 1e6),
+        max: round(loop.max / 1e6)
+      }
     },
     statusCounts,
     errors,
@@ -179,51 +252,30 @@ function summarize(results, elapsedMs, before, after, loop, context) {
   };
 }
 
-function toMarkdown(report = {}) {
-  const lines = [
-    '# Phase240 API Benchmark',
-    '',
-    `- Generated at: ${report.generatedAt || ''}`,
-    `- Evidence status: ${report.evidenceStatus || ''}`,
-    `- Base URL: ${report.safety?.baseUrl || ''}`,
-    `- Method: ${report.safety?.method || 'GET'}`,
-    `- Production writes: ${report.safety?.productionWrites === false ? 'false' : 'unknown'}`,
-    '',
-    '| Endpoint | Concurrency | Requests | Success | Failures | RPS | Avg ms | p50 | p95 | p99 | Max | Avg Mongo | Avg JS | Avg queries | Avg bytes | Event loop p95 |',
-    '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|'
-  ];
-  for (const row of report.results || []) {
-    lines.push(`|${[
-      row.endpoint,
-      row.concurrent,
-      row.requests,
-      row.success,
-      row.failures,
-      row.throughputRps,
-      row.latencyMs?.average,
-      row.latencyMs?.median,
-      row.latencyMs?.p95,
-      row.latencyMs?.p99,
-      row.latencyMs?.max,
-      row.apiMonitor?.averageMongoMs,
-      row.apiMonitor?.averageJsMs,
-      row.apiMonitor?.averageQueriesPerRequest,
-      row.responseBytes?.average,
-      row.eventLoopLagMs?.p95
-    ].join('|')}|`);
-  }
-  lines.push('');
-  lines.push('Production capacity must only be interpreted when the target environment and workload are production-like.');
-  return `${lines.join('\n')}\n`;
-}
-
-async function benchmarkScenario(baseUrl, endpoint, concurrency, options) {
+async function benchmarkScenario(baseUrl, endpointMeta, concurrency, options) {
   const base = new URL(baseUrl);
-  const target = new URL(endpoint, base);
-  if (target.origin !== base.origin) throw new Error(`Endpoint vượt ra ngoài benchmark host: ${endpoint}`);
+  const target = new URL(endpointMeta.path, base);
+  if (target.origin !== base.origin) throw new Error(`Endpoint leaves benchmark host: ${endpointMeta.path}`);
+  validateEndpointPath(`${target.pathname}${target.search}`);
   const url = target.toString();
   for (let index = 0; index < options.warmup; index += 1) {
     await fetchOnce(url, options);
+  }
+
+  const baselineUrl = new URL('/api/system/performance-baseline', base).toString();
+  const serverBefore = options.remote || endpointMeta.auth !== 'none'
+    ? await fetchJson(baselineUrl, options)
+    : null;
+
+  if (serverBefore?.json?.capacity?.status === 'critical' && options.targetEnv === 'production') {
+    return {
+      endpoint: endpointMeta.path,
+      endpointId: endpointMeta.id,
+      concurrent: concurrency,
+      skipped: true,
+      skipReason: 'SERVER_CAPACITY_CRITICAL',
+      serverBefore: serverBefore.json || serverBefore
+    };
   }
 
   const loop = monitorEventLoopDelay({ resolution: 10 });
@@ -234,15 +286,74 @@ async function benchmarkScenario(baseUrl, endpoint, concurrency, options) {
   const elapsedMs = performance.now() - started;
   const after = { cpu: process.cpuUsage(), memory: process.memoryUsage() };
   loop.disable();
-  return summarize(results, elapsedMs, before, after, loop, {
-    endpoint,
+  const row = summarize(results, elapsedMs, before, after, loop, {
+    endpoint: endpointMeta.path,
+    endpointId: endpointMeta.id,
     concurrency,
     inProcess: options.inProcess
   });
+  const serverAfter = options.remote || endpointMeta.auth !== 'none'
+    ? await fetchJson(baselineUrl, options)
+    : null;
+  row.serverBefore = serverBefore?.json || serverBefore;
+  row.serverAfter = serverAfter?.json || serverAfter;
+  row.serverDelta = serverDelta(row.serverBefore, row.serverAfter);
+  const beforeRelease = releaseId(row.serverBefore);
+  const afterRelease = releaseId(row.serverAfter);
+  if (beforeRelease && afterRelease && beforeRelease !== afterRelease) {
+    row.evidenceStatus = 'BLOCKED_RELEASE_CHANGED';
+    row.releaseChanged = { before: beforeRelease, after: afterRelease };
+  }
+  if (row.errors.BLOCKED_AUTH) row.evidenceStatus = 'BLOCKED_AUTH';
+  if (row.serverBefore?.ok === false || row.serverAfter?.ok === false) row.evidenceStatus = row.evidenceStatus || 'BLOCKED_BASELINE_API';
+  return row;
+}
+
+function toMarkdown(report = {}) {
+  const lines = [
+    '# Phase241 API Benchmark',
+    '',
+    `- Generated at: ${report.generatedAt || ''}`,
+    `- Evidence status: ${report.evidenceStatus || ''}`,
+    `- Target environment: ${report.environment?.targetEnv || ''}`,
+    `- Base URL: ${report.safety?.baseUrl || ''}`,
+    `- Method: ${report.safety?.method || 'GET'}`,
+    `- Production writes: ${report.safety?.productionWrites === false ? 'false' : 'unknown'}`,
+    '',
+    '| Endpoint | Concurrency | Requests | Success | Failures | RPS | Avg ms | p95 | Avg Mongo header | Avg JS header | Avg bytes | Client loop p95 | Server API p95 after | Status |',
+    '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|'
+  ];
+  for (const row of report.results || []) {
+    lines.push(`|${[
+      row.endpoint,
+      row.concurrent,
+      row.requests || 0,
+      row.success || 0,
+      row.failures || 0,
+      row.throughputRps || 0,
+      row.latencyMs?.average || 0,
+      row.latencyMs?.p95 || 0,
+      row.apiMonitorHeaders?.averageMongoMs || 0,
+      row.apiMonitorHeaders?.averageJsMs || 0,
+      row.responseBytes?.average || 0,
+      row.clientMetrics?.eventLoopLagMs?.p95 || 0,
+      row.serverAfter?.api?.summary?.overallP95Ms || '',
+      row.evidenceStatus || (row.skipped ? row.skipReason : 'MEASURED')
+    ].join('|')}|`);
+  }
+  lines.push('');
+  lines.push('Client CPU/memory/event-loop metrics describe the benchmark client process only unless the run is explicitly in-process.');
+  lines.push('Server capacity must be read from serverBefore/serverAfter/serverDelta only.');
+  return `${lines.join('\n')}\n`;
 }
 
 function printHelp() {
-  console.log(`Usage: node scripts/performance/api-benchmark.js\n\nEnvironment:\n  PERF_IN_PROCESS=1              Start Express only; no Mongo connection or jobs\n  PERF_BASE_URL=http://127.0.0.1:3000\n  PERF_ENDPOINTS=/api/health/live,/api/health/ready,/api/system/status\n  PERF_CONCURRENCY=1,5,10,20\n  PERF_REQUESTS_PER_LEVEL=50\n  PERF_WARMUP_REQUESTS=3\n  PERF_TIMEOUT_MS=5000\n  PERF_TOKEN=<JWT>               Optional Bearer token for protected GET endpoints\n  PERF_ALLOW_REMOTE=true         Explicit opt-in for non-local targets\n  PERF_ALLOW_HIGH_REMOTE_CONCURRENCY=true\n  PERF_OUTPUT=<path.json>        Optional JSON output file\n  PERF_MARKDOWN_OUTPUT=<path.md> Optional Markdown output file\n\nThe benchmark sends GET requests only.`);
+  console.log(`Usage: node scripts/performance/api-benchmark.js\n\nEnvironment:\n  PERF_IN_PROCESS=1\n  PERF_BASE_URL=http://127.0.0.1:3000\n  PERF_TARGET_ENV=local|staging|production\n  PERF_ENDPOINTS=/api/health/live,/api/system/status\n  PERF_ALLOW_CUSTOM_ENDPOINTS=true\n  PERF_APPROVED_ENDPOINTS=/api/custom/read-only\n  PERF_CONCURRENCY=1,5,10,20\n  PERF_REQUESTS_PER_LEVEL=50\n  PERF_WARMUP_REQUESTS=3\n  PERF_TIMEOUT_MS=5000\n  PERF_MAX_RESPONSE_BYTES=1048576\n  PERF_SCENARIO_COOLDOWN_MS=1000\n  PERF_TOKEN=<JWT>\n  PERF_ALLOW_REMOTE=true\n  PERF_ALLOW_HIGH_REMOTE_CONCURRENCY=true\n\nThe benchmark sends approved GET requests only and redacts tokens from output.`);
+}
+
+async function sleep(ms) {
+  if (!ms) return;
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function main() {
@@ -251,64 +362,81 @@ async function main() {
     return;
   }
   const inProcess = process.env.PERF_IN_PROCESS === '1';
-  const endpoints = csv(process.env.PERF_ENDPOINTS, DEFAULT_ENDPOINTS).map(validateReadOnlyEndpoint);
   const configuredBaseUrl = process.env.PERF_BASE_URL || 'http://127.0.0.1:3000';
-  const parsedBaseForConcurrency = new URL(configuredBaseUrl);
-  const remoteTarget = !inProcess && !localTarget(parsedBaseForConcurrency);
-  const defaultConcurrency = remoteTarget ? DEFAULT_REMOTE_CONCURRENCY : DEFAULT_LOCAL_CONCURRENCY;
-  const maxConcurrency = remoteTarget && process.env.PERF_ALLOW_HIGH_REMOTE_CONCURRENCY !== 'true' ? 5 : 50;
-  const concurrencyLevels = csv(process.env.PERF_CONCURRENCY, defaultConcurrency.map(String))
-    .map(Number).filter((value) => Number.isInteger(value) && value > 0 && value <= maxConcurrency);
-  if (!concurrencyLevels.length) throw new Error('PERF_CONCURRENCY không hợp lệ');
-  if (!inProcess) {
-    const parsedBase = new URL(configuredBaseUrl);
-    if (!localTarget(parsedBase) && process.env.PERF_ALLOW_REMOTE !== 'true') {
-      throw new Error('Từ chối benchmark target không phải localhost. Đặt PERF_ALLOW_REMOTE=true sau khi được phê duyệt.');
-    }
-  }
+  const endpoints = resolveBenchmarkEndpoints(process.env.PERF_ENDPOINTS, process.env);
   const localServer = inProcess ? await startInProcessServer() : null;
   const baseUrl = localServer ? localServer.baseUrl : configuredBaseUrl;
+  const target = classifyEnvironment({ inProcess, baseUrl });
+  if (target.remote && process.env.PERF_ALLOW_REMOTE !== 'true') {
+    throw new Error('Refused non-local benchmark target. Set PERF_ALLOW_REMOTE=true only after approval.');
+  }
+  if (target.remote && target.evidenceStatus === 'REMOTE_UNCLASSIFIED') {
+    throw new Error('Remote benchmark requires PERF_TARGET_ENV=staging or production.');
+  }
+
+  const defaultConcurrency = target.remote ? DEFAULT_REMOTE_CONCURRENCY : DEFAULT_LOCAL_CONCURRENCY;
+  const hardCeiling = target.remote ? (process.env.PERF_ALLOW_HIGH_REMOTE_CONCURRENCY === 'true' ? 10 : 5) : 50;
+  const concurrencyLevels = csv(process.env.PERF_CONCURRENCY, defaultConcurrency.map(String))
+    .map(Number)
+    .filter((value) => Number.isInteger(value) && value > 0 && value <= hardCeiling);
+  if (!concurrencyLevels.length) throw new Error('PERF_CONCURRENCY is invalid');
 
   const token = String(process.env.PERF_TOKEN || '').trim();
   const options = {
     inProcess,
-    requests: Math.max(1, envNumber('PERF_REQUESTS_PER_LEVEL', 50, 1)),
-    warmup: Math.max(0, envNumber('PERF_WARMUP_REQUESTS', 3, 0)),
-    timeoutMs: Math.max(100, envNumber('PERF_TIMEOUT_MS', 5000, 100)),
+    remote: target.remote,
+    targetEnv: target.targetEnv,
+    requests: envNumber('PERF_REQUESTS_PER_LEVEL', target.remote ? 30 : 50, 1, target.remote ? 50 : 500),
+    warmup: envNumber('PERF_WARMUP_REQUESTS', target.remote ? 1 : 3, 0, 20),
+    timeoutMs: envNumber('PERF_TIMEOUT_MS', 5000, 100, 120000),
+    maxResponseBytes: envNumber('PERF_MAX_RESPONSE_BYTES', 1024 * 1024, 1024, 10 * 1024 * 1024),
     headers: token ? { authorization: `Bearer ${token}` } : {}
   };
+  const cooldownMs = envNumber('PERF_SCENARIO_COOLDOWN_MS', target.remote ? 5000 : 1000, 0, 600000);
   const report = {
     generatedAt: new Date().toISOString(),
-    evidenceStatus: inProcess ? 'MEASURED_LOCAL' : (localTarget(new URL(baseUrl)) ? 'MEASURED_LOCAL' : 'MEASURED_PRODUCTION_READ_ONLY'),
+    evidenceStatus: target.evidenceStatus,
     safety: {
       method: 'GET',
       baseUrl,
       inProcess,
       productionWrites: false,
-      maxConcurrency: Math.max(...concurrencyLevels)
+      maxConcurrency: Math.max(...concurrencyLevels),
+      endpointRegistry: true,
+      customEndpointsAllowed: process.env.PERF_ALLOW_CUSTOM_ENDPOINTS === 'true'
     },
     environment: {
+      targetEnv: target.targetEnv,
+      evidenceStatus: target.evidenceStatus,
       node: process.version,
       platform: process.platform,
       arch: process.arch,
       pid: process.pid
     },
     config: {
-      endpoints,
+      endpoints: endpoints.map((row) => ({ id: row.id, path: row.path, auth: row.auth, workloadClass: row.workloadClass })),
       concurrencyLevels,
       requestsPerLevel: options.requests,
       warmupRequests: options.warmup,
-      timeoutMs: options.timeoutMs
+      timeoutMs: options.timeoutMs,
+      maxResponseBytes: options.maxResponseBytes,
+      scenarioCooldownMs: cooldownMs
     },
     results: []
   };
 
   try {
     for (const endpoint of endpoints) {
-      for (const concurrency of concurrencyLevels) {
+      const endpointCeiling = target.remote ? Number(endpoint.maxConcurrency || hardCeiling) : hardCeiling;
+      const allowedConcurrency = concurrencyLevels.filter((value) => value <= endpointCeiling);
+      for (const concurrency of allowedConcurrency) {
         const result = await benchmarkScenario(baseUrl, endpoint, concurrency, options);
         report.results.push(result);
-        console.error(`${endpoint} c=${concurrency} avg=${result.latencyMs.average}ms p95=${result.latencyMs.p95}ms rps=${result.throughputRps} failures=${result.failures}`);
+        if (result.evidenceStatus) report.evidenceStatus = result.evidenceStatus;
+        console.error(redact(`${endpoint.path} c=${concurrency} p95=${result.latencyMs?.p95 || 0}ms failures=${result.failures || 0} status=${result.evidenceStatus || 'MEASURED'}`));
+        if (result.evidenceStatus === 'BLOCKED_AUTH' || result.evidenceStatus === 'BLOCKED_RELEASE_CHANGED') break;
+        if (target.targetEnv === 'production' && result.serverAfter?.capacity?.status === 'critical') break;
+        await sleep(cooldownMs);
       }
     }
   } finally {
@@ -328,6 +456,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(`[api-benchmark] ${error && error.stack || error}`);
+  console.error(`[api-benchmark] ${redact(error && error.stack || error)}`);
   process.exitCode = 1;
 });

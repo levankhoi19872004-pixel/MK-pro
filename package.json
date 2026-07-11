@@ -71,6 +71,8 @@
     "benchmark:background-jobs": "node scripts/performance/background-job-isolation-benchmark.js",
     "benchmark:api": "node scripts/performance/api-benchmark.js",
     "benchmark:phase240": "node scripts/benchmark-phase240-capacity.js",
+    "benchmark:phase241:overhead": "node scripts/benchmark-phase241-telemetry-overhead.js",
+    "performance:phase241:candidates": "node scripts/export-phase241-candidates.js",
     "benchmark:frontend": "node scripts/performance/frontend-dom-benchmark.js",
     "audit:frontend-sinks": "node scripts/security/audit-frontend-sinks.js --output=CSP_XSS_SINK_INVENTORY.json",
     "check:csp-xss": "node scripts/security/audit-frontend-sinks.js --check --output=CSP_XSS_SINK_INVENTORY.json",

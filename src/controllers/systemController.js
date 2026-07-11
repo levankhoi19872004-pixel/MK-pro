@@ -147,6 +147,46 @@ async function resetPerformanceBaseline(req, res) {
   }
 }
 
+async function startPerformanceObservation(req, res) {
+  try {
+    res.json(await operationsService.startPerformanceObservation({
+      label: req.body?.label || '',
+      environment: req.body?.environment || ''
+    }));
+  } catch (err) {
+    sendError(res, err, 'Khong bat dau duoc performance observation');
+  }
+}
+
+async function performanceObservation(req, res) {
+  try {
+    res.json(await operationsService.performanceObservationStatus());
+  } catch (err) {
+    sendError(res, err, 'Khong doc duoc performance observation');
+  }
+}
+
+async function stopPerformanceObservation(req, res) {
+  try {
+    res.json(await operationsService.stopPerformanceObservation());
+  } catch (err) {
+    sendError(res, err, 'Khong dung duoc performance observation');
+  }
+}
+
+async function exportPerformanceObservation(req, res) {
+  try {
+    const exported = await operationsService.performanceObservationExport();
+    if (String(req.query.format || '').toLowerCase() === 'md') {
+      res.set('Content-Type', 'text/markdown; charset=utf-8');
+      return res.send(exported.markdown || '');
+    }
+    return res.json(exported.data || exported);
+  } catch (err) {
+    return sendError(res, err, 'Khong export duoc performance observation');
+  }
+}
+
 async function release(req, res) {
   try {
     res.json({ ok: true, data: operationsService.internalReleaseSummary() });
@@ -229,6 +269,10 @@ module.exports = {
   operations,
   performanceBaseline,
   resetPerformanceBaseline,
+  startPerformanceObservation,
+  performanceObservation,
+  stopPerformanceObservation,
+  exportPerformanceObservation,
   release,
   apiMonitor,
   resetApiMonitor,

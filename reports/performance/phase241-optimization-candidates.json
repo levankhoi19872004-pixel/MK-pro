@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "generatedAt": "2026-07-11T01:10:25.439Z",
+  "status": "BLOCKED_NO_PRODUCTION_EVIDENCE",
+  "evidenceStatus": "BLOCKED",
+  "candidates": [],
+  "limitations": [
+    "No production or staging observation evidence is available in this workspace.",
+    "Phase241 does not create fake ranking from local health endpoints.",
+    "Run a passive production/staging observation session, then export evidence before Phase242 selection."
+  ]
+}

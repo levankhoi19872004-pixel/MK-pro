@@ -29,6 +29,7 @@ test('performance telemetry collector is bounded, resettable and tracks request 
   assert.equal(telemetry._private.counters.completedRequests, 1);
   assert.equal(telemetry._private.counters.status2xx, 1);
   assert.equal(telemetry._private.counters.responseBytesTotal, 123);
+  assert.equal(telemetry._private.requestBuckets.length, 60);
 
   const snapshot = telemetry.snapshot();
   assert.equal(snapshot.version, 'performance-summary-v1');

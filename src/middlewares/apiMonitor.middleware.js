@@ -583,12 +583,23 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
   const topQueryTraceApis = rows.slice().sort((a, b) => (b.slowestQueryMs - a.slowestQueryMs) || (b.maxMongoMs - a.maxMongoMs)).slice(0, 30);
 
   const slowRows = rows.filter((row) => row.status === 'slow');
+  const allLatencySamples = Array.from(apiStats.values()).flatMap((s) => Array.isArray(s.latencySamples) ? s.latencySamples : []);
+  const routeP95Rows = rows.filter((row) => Number(row.count || 0) >= 5).sort((a, b) => Number(b.p95Ms || 0) - Number(a.p95Ms || 0));
+  const totalCalls = Array.from(apiStats.values()).reduce((sum, s) => sum + s.count, 0);
+  const errorCalls = Array.from(apiStats.values()).reduce((sum, s) => sum + s.errorCount, 0);
   const summary = {
     totalRoutes: apiStats.size,
-    totalCalls: Array.from(apiStats.values()).reduce((sum, s) => sum + s.count, 0),
+    totalCalls,
+    sampleCount: allLatencySamples.length,
+    overallP50Ms: percentile(allLatencySamples, 0.5),
+    overallP95Ms: percentile(allLatencySamples, 0.95),
+    overallP99Ms: percentile(allLatencySamples, 0.99),
+    worstRouteP95Ms: routeP95Rows[0]?.p95Ms || 0,
+    topRouteP95Ms: routeP95Rows[0]?.p95Ms || 0,
     slowRoutes: slowRows.length,
     slowCalls: Array.from(apiStats.values()).reduce((sum, s) => sum + s.slowCount, 0),
-    errorCalls: Array.from(apiStats.values()).reduce((sum, s) => sum + s.errorCount, 0),
+    errorCalls,
+    errorRate: Number((errorCalls / Math.max(1, totalCalls)).toFixed(4)),
     slowMs: DEFAULT_SLOW_MS,
     totalMongoMs: Array.from(apiStats.values()).reduce((sum, s) => sum + (s.totalMongoMs || 0), 0),
     totalJsMs: Array.from(apiStats.values()).reduce((sum, s) => sum + (s.totalJsMs || 0), 0),

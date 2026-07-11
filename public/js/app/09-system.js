@@ -208,6 +208,108 @@ async function resetPerformanceBaselineStats() {
   }
 }
 
+function currentSystemRole() {
+  try {
+    const user = JSON.parse(localStorage.getItem('mk_web_user') || '{}');
+    return String(user.role || '').toLowerCase();
+  } catch (err) {
+    return '';
+  }
+}
+
+function applyPerformanceObservationRoleUi() {
+  const isAdmin = currentSystemRole() === 'admin';
+  [startPerformanceObservationButton, stopPerformanceObservationButton].filter(Boolean).forEach((button) => {
+    button.hidden = !isAdmin;
+  });
+}
+
+function performanceFormatDuration(ms) {
+  const total = Math.max(0, Math.round(Number(ms || 0) / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}m ${seconds}s`;
+}
+
+function renderPerformanceObservation(json = {}) {
+  const session = json.active || (Array.isArray(json.completed) ? json.completed[0] : null) || {};
+  if (performanceObservationStatus) performanceObservationStatus.textContent = session.status || 'idle';
+  if (performanceObservationEnvironment) performanceObservationEnvironment.textContent = session.environment || '-';
+  if (performanceObservationRelease) performanceObservationRelease.textContent = session.releaseId || '-';
+  if (performanceObservationStartedAt) performanceObservationStartedAt.textContent = session.startedAt ? systemFormatTime(session.startedAt) : '-';
+  if (performanceObservationDuration) performanceObservationDuration.textContent = performanceFormatDuration(session.durationMs || 0);
+  if (performanceObservationSamples) performanceObservationSamples.textContent = systemFormatNumber(session.sampleCount || 0);
+  if (performanceObservationRequests) performanceObservationRequests.textContent = systemFormatNumber(session.requestCount || 0);
+  if (performanceObservationPeakActive) performanceObservationPeakActive.textContent = systemFormatNumber(session.peakActiveRequest || 0);
+  if (performanceObservationPeakRss) performanceObservationPeakRss.textContent = performanceFormatBytes(session.peakRssBytes || 0);
+  if (performanceObservationEventLoop) performanceObservationEventLoop.textContent = apiMonitorFormatMs(session.eventLoop?.p95Ms || 0);
+  if (performanceObservationApiP95) performanceObservationApiP95.textContent = apiMonitorFormatMs(session.api?.overallP95Ms || 0);
+  if (performanceObservationCapacity) performanceObservationCapacity.textContent = session.capacity?.status || 'unknown';
+}
+
+async function loadPerformanceObservation() {
+  if (!performanceObservationStatus) return;
+  try {
+    performanceObservationStatus.textContent = 'loading';
+    const res = await fetch('/api/system/performance-observation');
+    const json = await res.json();
+    if (!res.ok || json.ok === false) throw new Error(json.message || 'Khong tai duoc performance observation');
+    renderPerformanceObservation(json);
+    applyPerformanceObservationRoleUi();
+  } catch (err) {
+    if (performanceObservationStatus) performanceObservationStatus.textContent = 'error';
+    setSystemMessage(err.message || 'Khong tai duoc performance observation', 'error');
+  }
+}
+
+async function startPerformanceObservation() {
+  const label = window.prompt('Nhap nhan phien quan sat ngan gon', 'normal workload') || 'normal workload';
+  try {
+    const res = await fetch('/api/system/performance-observation/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label })
+    });
+    const json = await res.json();
+    if (!res.ok || json.ok === false) throw new Error(json.message || 'Khong bat dau duoc observation');
+    renderPerformanceObservation(json);
+    setSystemMessage('Da bat dau phien quan sat hieu nang.', 'success');
+  } catch (err) {
+    setSystemMessage(err.message || 'Khong bat dau duoc observation', 'error');
+  }
+}
+
+async function stopPerformanceObservation() {
+  const ok = window.confirm('Dung phien quan sat hieu nang hien tai?');
+  if (!ok) return;
+  try {
+    const res = await fetch('/api/system/performance-observation/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const json = await res.json();
+    if (!res.ok || json.ok === false) throw new Error(json.message || 'Khong dung duoc observation');
+    renderPerformanceObservation(json);
+    setSystemMessage('Da dung phien quan sat hieu nang.', 'success');
+  } catch (err) {
+    setSystemMessage(err.message || 'Khong dung duoc observation', 'error');
+  }
+}
+
+async function exportPerformanceObservation() {
+  try {
+    const res = await fetch('/api/system/performance-observation/export');
+    const json = await res.json();
+    if (!res.ok || json.ok === false) throw new Error(json.message || 'Khong export duoc observation');
+    const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `phase241-observation-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    setSystemMessage(err.message || 'Khong export duoc observation', 'error');
+  }
+}
+
 
 function apiMonitorQueryText(row = {}, mode = 'history') {
   const preferLast = mode === 'last';

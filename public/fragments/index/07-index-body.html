@@ -64,10 +64,39 @@
             <span>Error 1m/5m: <strong id="performanceErrorWindow">0% / 0%</strong></span>
             <span>Uptime: <strong id="performanceUptime">-</strong></span>
           </div>
-        </div>
+          </div>
+
+          <div class="system-panel">
+            <div class="toolbar compact-toolbar">
+              <div>
+                <h3>Phiên quan sát hiệu năng</h3>
+                <p class="muted">Thu thập evidence thụ động khi nhân viên sử dụng phần mềm bình thường.</p>
+              </div>
+              <div class="toolbar-actions">
+                <button type="button" id="startPerformanceObservationButton" class="secondary admin-only">Bắt đầu quan sát</button>
+                <button type="button" id="stopPerformanceObservationButton" class="secondary danger-light admin-only">Dừng quan sát</button>
+                <button type="button" id="reloadPerformanceObservationButton" class="secondary">Tải lại</button>
+                <button type="button" id="exportPerformanceObservationButton" class="secondary">Xuất evidence</button>
+              </div>
+            </div>
+            <div class="summary-box api-monitor-summary">
+              <span>Trạng thái: <strong id="performanceObservationStatus">idle</strong></span>
+              <span>Environment: <strong id="performanceObservationEnvironment">-</strong></span>
+              <span>Release: <strong id="performanceObservationRelease">-</strong></span>
+              <span>Bắt đầu: <strong id="performanceObservationStartedAt">-</strong></span>
+              <span>Thời lượng: <strong id="performanceObservationDuration">-</strong></span>
+              <span>Samples: <strong id="performanceObservationSamples">0</strong></span>
+              <span>Requests: <strong id="performanceObservationRequests">0</strong></span>
+              <span>Peak active: <strong id="performanceObservationPeakActive">0</strong></span>
+              <span>Peak RSS: <strong id="performanceObservationPeakRss">-</strong></span>
+              <span>Event-loop p95: <strong id="performanceObservationEventLoop">-</strong></span>
+              <span>API p95: <strong id="performanceObservationApiP95">-</strong></span>
+              <span>Capacity: <strong id="performanceObservationCapacity">unknown</strong></span>
+            </div>
+          </div>
 
 
-        <div class="system-panel api-monitor-panel">
+          <div class="system-panel api-monitor-panel">
           <div class="toolbar compact-toolbar">
             <div>
               <h3>API Monitor toàn phần mềm</h3>
