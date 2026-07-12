@@ -141,6 +141,27 @@ router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, 
     if (result && result.error) {
       return res.status(result.status || 400).json({ ok: false, success: false, code: result.code || 'DELIVERY_CLOSEOUT_REJECTED', message: result.error, data: result });
     }
+    if (result && result.ok === false) {
+      const statusCode = Number(result.httpStatus || result.statusCode || (result.status === 'failed' ? 500 : (result.status === 'empty' ? 422 : 409)));
+      return res.status(statusCode).json({
+        ok: false,
+        success: false,
+        status: result.status || 'rejected',
+        code: result.code || 'DELIVERY_CLOSEOUT_REJECTED',
+        message: result.message || 'Khong co don nao du dieu kien chot so giao hang.',
+        checkedOrders: result.totalOrders || 0,
+        closedOrders: result.confirmedOrders || 0,
+        alreadyConfirmedOrders: result.alreadyConfirmedOrders || 0,
+        rejectedOrders: result.rejectedOrders || 0,
+        failedOrders: result.failedOrders || 0,
+        skippedOrders: result.skippedOrders || 0,
+        results: result.results || [],
+        diagnostics: result.diagnostics || [],
+        performance: result.performance,
+        data: result,
+        canonicalRoute: '/api/new/delivery-today/closeout'
+      });
+    }
     const rows = Array.isArray(result && result.results) ? result.results : [];
     const debtLedgerCreated = rows.filter((row) => row.arDebtOpen && row.arDebtOpen.posted).length;
     const idempotentLedgers = rows.filter((row) => row.arDebtOpen && row.arDebtOpen.idempotent).length;
@@ -157,7 +178,16 @@ router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, 
     const closeoutId = `DTC-${String(body.date || body.deliveryDate || '').replace(/[^0-9]/g, '') || 'DATE'}-${String(body.deliveryStaffCode || body.delivery || 'ALL').replace(/[^a-zA-Z0-9_-]/g, '')}-${Date.now()}`;
     const closedOrders = result.confirmedOrders || 0;
     const skippedOrders = result.skippedOrders || 0;
+    const alreadyConfirmedOrders = result.alreadyConfirmedOrders || 0;
+    const rejectedOrders = result.rejectedOrders || 0;
+    const failedOrders = result.failedOrders || 0;
     const readModelSync = result.readModelSync || { mode: 'skipped', queued: 0, status: 'not_needed' };
+    const phase243SyncSuffix = readModelSync && readModelSync.status === 'pending' ? '. Cong no dang dong bo nen' : '';
+    const phase243ResponseMessage = result.status === 'idempotent'
+      ? `Cac don da duoc chot truoc do${phase243SyncSuffix}`
+      : (result.status === 'partial'
+        ? `Da chot ${closedOrders} don, bo qua ${alreadyConfirmedOrders} don da chot, tu choi ${rejectedOrders} don${phase243SyncSuffix}`
+        : `Da chot so giao hang${phase243SyncSuffix}`);
     const syncSuffix = readModelSync && readModelSync.status === 'pending' ? '. Công nợ đang đồng bộ nền' : '';
     const responseMessage = result.status === 'idempotent'
       ? 'Các đơn đã được chốt trước đó'
@@ -166,7 +196,7 @@ router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, 
       ok: true,
       success: true,
       status: result.status || 'confirmed',
-      message: responseMessage,
+      message: phase243ResponseMessage,
       closeoutId,
       closeoutScope: result.closeoutScope,
       closeoutScopeHash: result.closeoutScopeHash,
@@ -174,6 +204,9 @@ router.post('/delivery-today/closeout', requireAuth, closeoutRoles, async (req, 
       selectedSalesStaffCodes: result.selectedSalesStaffCodes || [],
       checkedOrders: result.totalOrders || rows.length,
       closedOrders,
+      alreadyConfirmedOrders,
+      rejectedOrders,
+      failedOrders,
       skippedOrders,
       debtLedgerCreated,
       idempotentLedgers,

@@ -7,6 +7,7 @@ const searchService = require('../searchService');
 const { buildSourceNote } = require('../source-contracts/SourceNoteBuilder');
 const deliveryTodayCanonicalOrderReader = require('../delivery/deliveryTodayCanonicalOrderReader');
 const { calculateDeliveryTodayKpi } = require('../delivery/deliveryTodayKpiCalculator');
+const { evaluateCloseoutEligibility } = require('../accounting/closeout/CloseoutEligibility');
 
 
 function buildDeliveryTodaySourceNotes(query = {}) {
@@ -708,7 +709,8 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     || order.canceled === true
     || ['cancelled', 'canceled', 'deleted', 'void', 'voided'].includes(orderStatus);
   const viewSelectable = !cancelledOrDeleted;
-  const closeoutEligible = viewSelectable && !confirmedCloseout;
+  const closeoutEligibility = evaluateCloseoutEligibility(order, { confirmedCloseout });
+  const closeoutEligible = closeoutEligibility.eligible === true;
   return {
     id: text(order.id || order._id),
     orderId: text(order.id || order._id),
@@ -735,6 +737,8 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     accountingConfirmed: confirmedCloseout,
     viewSelectable,
     closeoutEligible,
+    closeoutEligibility,
+    closeoutEligibilityCode: closeoutEligibility.code,
     adjustmentAllowed: viewSelectable,
     closeoutLocked: confirmedCloseout,
     canCloseout: closeoutEligible,

@@ -16,6 +16,8 @@ const CloseoutContextLoader = require('./closeout/CloseoutContextLoader');
 const { validateCloseoutContext } = require('./closeout/CloseoutContextValidator');
 const { executeCanonicalCloseoutWriters } = require('./closeout/CloseoutCanonicalExecutor');
 const { buildCloseoutResult } = require('./closeout/CloseoutFinalizer');
+const { evaluateCloseoutEligibility, isCompletedDeliveryStatus } = require('./closeout/CloseoutEligibility');
+const { evaluateArSatisfaction } = require('./closeout/CloseoutArSatisfaction');
 const closeoutQueryAudit = require('../../observability/closeoutQueryAudit');
 
 const CONFIRM_GUARD_TTL_MS = Math.max(1000, Number(process.env.CLOSEOUT_CONFIRM_GUARD_TTL_MS || 8000));
@@ -57,7 +59,7 @@ function normalizeOrderIds(body = {}) {
 }
 
 function isCompletedDelivery(order = {}) {
-  return ['delivered', 'success', 'completed', 'done'].includes(clean(order.deliveryStatus || order.status).toLowerCase());
+  return isCompletedDeliveryStatus(order.deliveryStatus || order.status || order.lifecycleStatus);
 }
 
 function guardKey(date, orderIds = [], actor = '') {
@@ -313,11 +315,25 @@ function buildAlreadyConfirmedResult(order = {}, reason = 'already_accounting_co
   const result = {
     skipped: true,
     idempotent: true,
-    status: 'skipped',
+    outcome: 'already_confirmed',
+    status: 'already_confirmed',
     reason,
+    reasonCode: 'ALREADY_ACCOUNTING_CONFIRMED',
     orderId: DeliveryCloseoutService.orderId(order),
     orderCode: DeliveryCloseoutService.orderCode(order),
     accountingConfirmed: true,
+    persistence: {
+      salesOrderUpdated: false,
+      allocationWritten: false,
+      arRequired: null,
+      arSatisfied: true,
+      arPosted: false,
+      arAlreadyExists: false,
+      arNoopValid: false,
+      arReasonCode: 'ALREADY_CONFIRMED',
+      fundPosted: false,
+      verifiedFromExistingState: true
+    },
     finalDebtAmount,
     debtAmount: finalDebtAmount,
     arStatus: clean(order.arStatus || (finalDebtAmount > 0 ? 'ar_debt_opened' : 'paid')),
@@ -326,6 +342,36 @@ function buildAlreadyConfirmedResult(order = {}, reason = 'already_accounting_co
   };
   result.diagnostic.action = 'skipped_already_accounting_confirmed';
   return result;
+}
+
+function buildRejectedCloseoutResult(order = {}, eligibility = {}) {
+  return {
+    skipped: true,
+    rejected: true,
+    outcome: 'rejected',
+    status: 'rejected',
+    reason: clean(eligibility.reasonCode || eligibility.code || 'CLOSEOUT_REJECTED').toLowerCase(),
+    reasonCode: clean(eligibility.reasonCode || eligibility.code || 'CLOSEOUT_REJECTED') || 'CLOSEOUT_REJECTED',
+    message: clean(eligibility.message || 'Don khong du dieu kien chot so.'),
+    orderId: DeliveryCloseoutService.orderId(order),
+    orderCode: DeliveryCloseoutService.orderCode(order),
+    accountingConfirmed: false,
+    persistence: {
+      salesOrderUpdated: false,
+      allocationWritten: false,
+      arPosted: false,
+      fundPosted: false,
+      verifiedFromExistingState: false
+    },
+    closeoutEligibility: eligibility,
+    diagnostic: {
+      action: 'rejected_closeout_eligibility',
+      reasonCode: clean(eligibility.reasonCode || eligibility.code || 'CLOSEOUT_REJECTED'),
+      orderId: DeliveryCloseoutService.orderId(order),
+      orderCode: DeliveryCloseoutService.orderCode(order),
+      sourceStatus: eligibility.sourceStatus || ''
+    }
+  };
 }
 
 function buildConfirmedOrderPatchFields(order = {}, closeout = {}, actor = 'accountant') {
@@ -450,7 +496,11 @@ function validateSelectedOrderScope(orders = [], body = {}, selectedOrderIds = [
 async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
   const actor = clean(options.actor || 'accountant');
   if (isAccountingConfirmed(order)) return buildAlreadyConfirmedResult(order);
-  if (!isCompletedDelivery(order)) return { skipped: true, status: 'skipped', reason: 'delivery_not_completed', orderId: DeliveryCloseoutService.orderId(order), orderCode: DeliveryCloseoutService.orderCode(order) };
+  const eligibility = evaluateCloseoutEligibility(order);
+  if (!eligibility.eligible) {
+    if (eligibility.code === 'ALREADY_ACCOUNTING_CONFIRMED') return buildAlreadyConfirmedResult(order);
+    return buildRejectedCloseoutResult(order, eligibility);
+  }
 
   const existingCloseout = order.deliveryCloseout || {};
   const computed = closeoutQueryAudit.withCloseoutAuditStage('order.computeCloseout', () => DeliveryCloseoutService.buildCloseout(order, returnOrders, [], {
@@ -555,6 +605,42 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     debtReconcile: debtReconcileResult || null,
     debtAdjustmentLedger
   };
+  if (!allocationResult.allocation) {
+    const err = new Error('Khong xac minh duoc phan bo thanh toan sau khi chot so.');
+    err.code = 'PERSISTENCE_VERIFICATION_FAILED';
+    err.orderId = DeliveryCloseoutService.orderId(order);
+    err.orderCode = DeliveryCloseoutService.orderCode(order);
+    throw err;
+  }
+  const arEvidence = evaluateArSatisfaction({
+    allocation: allocationResult.allocation,
+    expectedArLedgers: allocationResult.expectedArLedgers || [],
+    arPostingResults: allocationResult.arPostingResults || [],
+    debtReconcileResult,
+    zeroTolerance: OrderPaymentAllocationService.DEFAULT_ZERO_TOLERANCE || 1000
+  });
+  arResult.arEvidence = arEvidence;
+  if (!arEvidence.arSatisfied) {
+    const err = new Error('Khong xac minh duoc ghi nhan cong no sau chot so.');
+    err.code = 'AR_PERSISTENCE_VERIFICATION_FAILED';
+    err.httpStatus = 500;
+    err.status = 500;
+    err.orderId = DeliveryCloseoutService.orderId(order);
+    err.orderCode = DeliveryCloseoutService.orderCode(order);
+    err.details = {
+      orderId: err.orderId,
+      orderCode: err.orderCode,
+      arRequired: arEvidence.arRequired,
+      arSatisfied: arEvidence.arSatisfied,
+      arReasonCode: arEvidence.arReasonCode,
+      expectedIntentCount: arEvidence.expectedIntentCount,
+      satisfiedIntentCount: arEvidence.satisfiedIntentCount,
+      missingIntents: arEvidence.missingIntents,
+      missingIdempotencyKeys: (arEvidence.missingIntents || []).map((row) => row.idempotencyKey).filter(Boolean)
+    };
+    err.data = { details: err.details };
+    throw err;
+  }
   await closeoutQueryAudit.withCloseoutAuditStage('order.audit.accountingConfirm', () => auditService.log('ACCOUNTING_CONFIRM_DELIVERY_CLOSEOUT', {
     refType: 'SALES_ORDER',
     refId: DeliveryCloseoutService.orderId(order),
@@ -598,12 +684,31 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
   });
   return {
     confirmed: true,
+    outcome: 'confirmed',
     status: 'confirmed',
+    reasonCode: null,
     orderId: DeliveryCloseoutService.orderId(order),
     orderCode: DeliveryCloseoutService.orderCode(order),
+    accountingConfirmed: true,
     affectedSourceId: clean(arResult?.entry?.sourceId || DeliveryCloseoutService.orderId(order)),
     affectedCustomerCode: clean(order.customerCode),
     readModelSyncNeeded: arResult?.posted === true,
+    persistence: {
+      salesOrderUpdated: Number(patchResult?.matchedCount || 0) > 0,
+      allocationWritten: Boolean(allocationResult.allocation),
+      arRequired: arEvidence.arRequired,
+      arSatisfied: arEvidence.arSatisfied,
+      arPosted: arEvidence.arPosted,
+      arAlreadyExists: arEvidence.arAlreadyExists,
+      arNoopValid: arEvidence.arNoopValid,
+      arReasonCode: arEvidence.arReasonCode,
+      arEntryIds: arEvidence.arEntryIds,
+      arIdempotencyKeys: arEvidence.arIdempotencyKeys,
+      fundRequired: DeliveryCloseoutService.positiveMoney(confirmedCloseout.cashAmount) > 0 || DeliveryCloseoutService.positiveMoney(confirmedCloseout.bankAmount) > 0,
+      fundSatisfied: !(DeliveryCloseoutService.positiveMoney(confirmedCloseout.cashAmount) > 0 || DeliveryCloseoutService.positiveMoney(confirmedCloseout.bankAmount) > 0) || (allocationResult.fundLedgers || []).length > 0,
+      fundPosted: (allocationResult.fundLedgers || []).length > 0,
+      verifiedFromWriterResult: true
+    },
     closeout: confirmedCloseout,
     closeoutScopeHash: clean(confirmedCloseout.closeoutScopeHash || confirmedCloseout.scopeHash),
     selectedOrderCodes: confirmedCloseout.selectedOrderCodes || [],
@@ -867,6 +972,8 @@ module.exports = {
     compactCloseoutForOrder,
     isAccountingConfirmed,
     buildAlreadyConfirmedResult,
+    buildRejectedCloseoutResult,
+    evaluateCloseoutEligibility,
     buildCloseoutDiagnostic,
     invalidReturnInventoryRows,
     assertReturnOrdersInventoryReady,

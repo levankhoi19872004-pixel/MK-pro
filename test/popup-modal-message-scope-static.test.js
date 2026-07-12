@@ -78,7 +78,7 @@ test('Delivery Today New correction and closeout modals use scoped modal message
   assert.match(submitCloseout, /setModalError\('closeout'/);
   assert.doesNotMatch(submitCloseout, /setMessage\(/);
   assert.match(submitCloseout, /patchCloseoutRowsFromResult\(json, rows\)/);
-  assert.doesNotMatch(submitCloseout, /load\(\{ silent: true \}\)/);
+  assert.match(submitCloseout, /load\(\{ silent: true \}\)/);
 
   const submitAdjustment = functionSlice(source, 'submitAdjustmentPopup');
   assert.match(submitAdjustment, /setModalNotice\('adjustment'/);

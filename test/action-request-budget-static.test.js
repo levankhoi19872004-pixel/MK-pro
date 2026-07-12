@@ -39,7 +39,7 @@ test('Phase214 action contract matrix defines P0/P1 command request budgets', ()
   assert.match(doc, /Read model[^\n]+enqueue/i);
 });
 
-test('Delivery Today command actions use one command request and patch UI instead of full reload', () => {
+test('Delivery Today command actions keep scoped requests and closeout reloads canonical state after patch', () => {
   const source = read('public/js/app/new/91-delivery-today-new.js');
   const closeout = functionBody(source, 'submitCloseout');
   const bulk = functionBody(source, 'submitBulkAdjustmentCommit');
@@ -48,7 +48,7 @@ test('Delivery Today command actions use one command request and patch UI instea
   assert.match(closeout, /runCommandOnce\('delivery\.closeout'/);
   assert.match(closeout, /fetch\('\/api\/new\/delivery-today\/closeout'/);
   assert.match(closeout, /patchCloseoutRowsFromResult\(json, rows\)/);
-  assert.doesNotMatch(closeout, /await\s+load\(\{\s*silent:\s*true\s*\}\)/);
+  assert.match(closeout, /await\s+load\(\{\s*silent:\s*true\s*\}\)/);
 
   assert.match(bulk, /runCommandOnce\('delivery\.bulkAdjustment'/);
   assert.match(bulk, /fetch\('\/api\/new\/delivery-today\/adjustments\/bulk-commit'/);

@@ -846,8 +846,9 @@
     var alreadyClosed = closeoutLocked || isConfirmed(row);
     if (alreadyClosed) return false;
     if (row.closeoutEligible === false || row.canCloseout === false) return false;
+    if (row.closeoutEligibility && typeof row.closeoutEligibility === 'object') return row.closeoutEligibility.eligible === true;
     if (row.closeoutEligible === true || row.canCloseout === true) return true;
-    return true;
+    return false;
   }
 
   function isOrderSelectable(row) {
@@ -1284,10 +1285,15 @@
     renderRows();
   }
 
+  function isSuccessfulCloseoutResult(ref) {
+    var outcome = String((ref && ref.outcome) || '').toLowerCase();
+    return (outcome === 'confirmed' || outcome === 'already_confirmed') && ref.accountingConfirmed === true;
+  }
+
   function patchCloseoutRowsFromResult(json, submittedRows) {
     var data = (json && (json.data || json)) || {};
     var results = data.results || json.results || [];
-    var refs = Array.isArray(results) && results.length ? results : submittedRows;
+    var refs = Array.isArray(results) ? results.filter(isSuccessfulCloseoutResult) : [];
     if (!Array.isArray(refs) || !refs.length) return;
     state.rows = (state.rows || []).map(function (row) {
       var matched = refs.find(function (ref) { return sameOrder(row, ref); });
@@ -1300,6 +1306,7 @@
         closeoutEligible: false,
         canCloseout: false,
         accountingConfirmedAt: matched.accountingConfirmedAt || row.accountingConfirmedAt || new Date().toISOString(),
+        closeoutPatchAccepted: true,
         closeoutPatchedLocally: true
       });
     });
@@ -1467,7 +1474,12 @@
       var data = json.data || {};
       var closed = json.closedOrders != null ? json.closedOrders : (data.confirmedOrders || 0);
       var skipped = json.skippedOrders != null ? json.skippedOrders : (data.skippedOrders || 0);
+      var rejected = json.rejectedOrders != null ? json.rejectedOrders : (data.rejectedOrders || 0);
+      var failed = json.failedOrders != null ? json.failedOrders : (data.failedOrders || 0);
       var status = String(json.status || data.status || '').toLowerCase();
+      if (json.ok === false || json.success === false || status === 'rejected' || status === 'failed') {
+        throw new Error(json.message || data.message || 'Khong chot duoc so giao hang');
+      }
       var sync = json.readModelSync || data.readModelSync || {};
       var syncPending = String(sync.status || '').toLowerCase() === 'pending' || String(sync.mode || '').toLowerCase() === 'queued';
       var syncNote = syncPending ? ' Công nợ đang đồng bộ nền.' : '';
@@ -1477,8 +1489,15 @@
       } else if (closed && skipped) {
         successMessage = 'Đã chốt ' + closed + ' đơn, bỏ qua ' + skipped + ' đơn đã chốt trước đó. Đã chuyển ' + money(posted || 0) + ' sang công nợ.' + syncNote;
       }
+      if (status === 'partial' && rejected) {
+        successMessage = 'Da chot ' + closed + ' don, tu choi ' + rejected + ' don. Da chuyen ' + money(posted || 0) + ' sang cong no.' + syncNote;
+      }
+      if (failed) {
+        successMessage += ' Co ' + failed + ' don loi can kiem tra lai.';
+      }
       setModalNotice('closeout', successMessage, 'success');
       patchCloseoutRowsFromResult(json, rows);
+      await load({ silent: true });
     } catch (err) {
       setModalError('closeout', err.message || 'Không chốt được sổ giao hàng');
     } finally {

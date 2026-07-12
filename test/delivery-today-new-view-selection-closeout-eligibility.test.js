@@ -65,7 +65,9 @@ test('delivery today API contract separates viewSelectable and closeoutEligible'
   assert.match(service, /closeoutLocked/);
   assert.match(service, /canCloseout/);
   assert.match(service, /canAdjust/);
-  assert.match(service, /const closeoutEligible = viewSelectable && !confirmedCloseout/);
+  assert.match(service, /evaluateCloseoutEligibility\(order,\s*\{\s*confirmedCloseout\s*\}\)/);
+  assert.match(service, /const closeoutEligible = closeoutEligibility\.eligible === true/);
+  assert.match(service, /closeoutEligibilityCode/);
 });
 
 test('adjustment popup can submit before closeout through open-order adjustment path', () => {

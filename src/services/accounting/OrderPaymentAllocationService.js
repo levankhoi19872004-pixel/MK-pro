@@ -523,6 +523,7 @@ async function postArLedgersFromAllocation(allocation = {}, options = {}) {
   const rows = closeoutQueryAudit.withCloseoutAuditStage('order.ar.buildRows', () => buildArLedgerRows(allocation, options));
   closeoutQueryAudit.updateCardinality({ addGeneratedArRows: rows.length });
   const posted = [];
+  const postingResults = [];
   for (const row of rows) {
     const existed = await closeoutQueryAudit.withCloseoutAuditStage('order.ar.idempotency', () => findActiveArByIdempotency(row.idempotencyKey, options));
     if (existed) {
@@ -537,11 +538,30 @@ async function postArLedgersFromAllocation(allocation = {}, options = {}) {
         });
       }
       posted.push(existed);
+      postingResults.push({
+        idempotencyKey: row.idempotencyKey,
+        category: row.category,
+        created: false,
+        alreadyExists: true,
+        reasonCode: 'ALREADY_EXISTS',
+        entry: existed
+      });
       continue;
     }
     const saved = await closeoutQueryAudit.withCloseoutAuditStage('order.ar.post', () => arPostingService.postArLedgerEntry(row, options));
-    posted.push(saved || row);
+    const entry = saved || row;
+    posted.push(entry);
+    postingResults.push({
+      idempotencyKey: row.idempotencyKey,
+      category: row.category,
+      created: true,
+      alreadyExists: false,
+      reasonCode: 'POSTED',
+      entry
+    });
   }
+  posted.postingResults = postingResults;
+  posted.expectedArLedgers = rows;
   return posted;
 }
 
@@ -613,7 +633,13 @@ async function postAllocation(allocation = {}, options = {}) {
   const arLedgers = await postArLedgersFromAllocation(saved, options);
   const fundLedgers = await postFundLedgersFromAllocation(saved, options);
   const updated = await updatePostedRefs(saved, arLedgers, fundLedgers, options);
-  return { allocation: updated || saved, arLedgers, fundLedgers };
+  return {
+    allocation: updated || saved,
+    arLedgers,
+    fundLedgers,
+    arPostingResults: arLedgers.postingResults || [],
+    expectedArLedgers: arLedgers.expectedArLedgers || []
+  };
 }
 
 async function buildAndPostFromCloseout(order = {}, closeout = {}, options = {}) {
