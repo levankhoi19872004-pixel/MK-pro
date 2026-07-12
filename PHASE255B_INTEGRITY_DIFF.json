@@ -1,0 +1,31 @@
+{
+  "baselineFileCount": 2025,
+  "finalFileCount": 2032,
+  "newFiles": [
+    "PHASE255B_ENTERPRISE_ROUTE_STATIC_ENTRY_GOVERNANCE_REPORT.md",
+    "PHASE255B_ENTERPRISE_SURFACE_AFTER.json",
+    "PHASE255B_ENTERPRISE_SURFACE_BASELINE.json",
+    "PHASE255B_INTEGRITY_DIFF.json",
+    "scripts/audit-enterprise-runtime-surface.js",
+    "src/routes/enterpriseFeatureRegistry.js",
+    "test/phase255b-enterprise-route-static-entry-governance.test.js"
+  ],
+  "modifiedFiles": [
+    ".env.example",
+    ".env.production.example",
+    "DEPLOYMENT_RUNBOOK.md",
+    "ENVIRONMENT_VARIABLES.md",
+    "package.json",
+    "public/fragments/index/06-index-body.html",
+    "public/fragments/index/06c-system-start.html",
+    "src/app.js",
+    "src/config/featureFlags.js",
+    "src/routes/index.js",
+    "src/routes/static.routes.js",
+    "src/services/web/indexPageRenderer.js"
+  ],
+  "deletedFiles": [],
+  "newFileCount": 7,
+  "modifiedFileCount": 12,
+  "deletedFileCount": 0
+}

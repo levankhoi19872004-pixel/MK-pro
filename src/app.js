@@ -20,10 +20,10 @@ const mongoose = require('mongoose');
 const connectDB = require('./config/db');
 const { registerApiRoutes } = require('./routes');
 const { registerStaticRoutes } = require('./routes/static.routes');
+const { snapshot: createFeatureSnapshot } = require('./config/featureFlags');
 const { registerHealthRoutes } = require('./routes/health.routes');
 const { ensureMongoIndexes } = require('./services/mongoIndexService');
 const { ensureArLedgersBackfillFromJournals } = require('./services/arLedgerMigrationService');
-const { startReconciliationJob, stopReconciliationJob } = require('./jobs/reconciliationJob');
 const importSessionService = require('./services/importSessionService');
 const { apiMonitor } = require('./middlewares/apiMonitor.middleware');
 const { apiSecurity } = require('./middlewares/apiSecurity.middleware');
@@ -33,10 +33,6 @@ const { maintenanceWriteGuard } = require('./middlewares/maintenance.middleware'
 const { csrfProtection } = require('./middlewares/csrf.middleware');
 const { tenantContext } = require('./middlewares/tenant.middleware');
 const { cspHeaders, createCspReportHandler } = require('./middlewares/csp.middleware');
-const { startOutboxJob, stopOutboxJob } = require('./jobs/outboxJob');
-const { startIntegrationJob, stopIntegrationJob } = require('./jobs/integrationJob');
-const { registerDefaultOutboxHandlers } = require('./services/outbox/registerDefaultHandlers');
-const { startReportingProjectionJob, stopReportingProjectionJob } = require('./jobs/reportingProjectionJob');
 const startupState = require('./services/startupState');
 const { getRuntimeConfig, validateRuntimeConfig } = require('./config/app.config');
 const { logger } = require('./observability/logger');
@@ -47,14 +43,17 @@ const { classifyError } = require('./observability/errorClassification');
 const { createHeartbeat } = require('./operations/heartbeatService');
 const { internalReleaseSummary } = require('./operations/releaseMetadata');
 const { closeMongoForShutdown: closeMongoConnectionForShutdown } = require('./operations/mongoShutdown');
+const { createScheduledJobOrchestrator } = require('./jobs/scheduledJobOrchestrator');
 
 const INITIAL_CONFIG = getRuntimeConfig();
+const BOOTSTRAP_FEATURE_SNAPSHOT = Object.freeze({ ...createFeatureSnapshot() });
 const PORT = INITIAL_CONFIG.app.port;
 const BIND_HOST = INITIAL_CONFIG.app.bindHost;
 // Kept as a named constant for deployment regression checks; source is centralized.
 const TRUST_PROXY = INITIAL_CONFIG.http.trustProxy;
 
 let webHeartbeat = null;
+let webSchedulerOrchestrator = null;
 let shutdownRequested = false;
 
 function inputSanitizer(req, res, next) {
@@ -176,8 +175,9 @@ function configureTrustProxy(app, configuredValue = TRUST_PROXY) {
   app.set('trust proxy', configuredValue);
 }
 
-function createApp() {
+function createApp(options = {}) {
   const app = express();
+  const featureSnapshot = Object.freeze({ ...(options.featureSnapshot || BOOTSTRAP_FEATURE_SNAPSHOT) });
 
   configureTrustProxy(app);
   app.use(requestContextMiddleware);
@@ -236,7 +236,11 @@ function createApp() {
   app.use('/api', createRuntimeFlowTelemetry({ logger }));
   // GLOBAL_API_SECURITY_BOUNDARY_APPLY_END
 
-  registerApiRoutes(app);
+  registerApiRoutes(app, {
+    featureSnapshot,
+    onOptionalRouteEvidence: options.onOptionalRouteEvidence,
+    onEnterpriseRouteEvidence: options.onEnterpriseRouteEvidence
+  });
 
   // Mobile UI: online-first cache policy. CSP is applied globally by cspHeaders above;
   // mobile pages no longer require an inline script exception.
@@ -250,7 +254,10 @@ function createApp() {
 
   // Register application HTML before express.static so / and /index.html
   // are assembled from maintainable fragments instead of a monolithic file.
-  registerStaticRoutes(app);
+  registerStaticRoutes(app, {
+    featureSnapshot,
+    onEnterpriseStaticEvidence: options.onEnterpriseStaticEvidence
+  });
 
   app.use(express.static(path.join(__dirname, '..', 'public'), {
     etag: false,
@@ -317,10 +324,7 @@ function installGracefulShutdown(server, options = {}) {
 
     shutdownPromise = (async () => {
       logger[exitCode ? 'fatal' : 'info']({ signal, err: fatalError || undefined }, 'Graceful shutdown started');
-      stopReconciliationJob();
-      stopOutboxJob();
-      stopIntegrationJob();
-      stopReportingProjectionJob();
+      await webSchedulerOrchestrator?.stop();
 
       const forceTimer = setTimeout(() => {
         logger.fatal({ signal, timeoutMs }, 'Graceful shutdown timed out');
@@ -425,6 +429,12 @@ async function closeServerAfterStartupFailure(server) {
 async function startServer() {
   shutdownRequested = false;
   const runtimeConfig = validateRuntimeConfig(process.env, { profile: 'server' });
+  webSchedulerOrchestrator = createScheduledJobOrchestrator({
+    processRole: 'web',
+    schedulerConfig: runtimeConfig.scheduler,
+    logger,
+    activate: true
+  });
   startupState.begin();
   startupState.markStepStarted('http-listen');
   const listenStartedAt = Date.now();
@@ -446,8 +456,6 @@ async function startServer() {
 `);
 
   try {
-    registerDefaultOutboxHandlers();
-
     await runStartupStep(
       'mongodb-connect',
       () => connectDB(),
@@ -503,21 +511,32 @@ async function startServer() {
 
     startupState.markStepStarted('background-jobs');
     const jobsStartedAt = Date.now();
-    const outboxJob = startOutboxJob();
-    if (outboxJob.started) console.log(`✅ Outbox worker enabled: intervalMs=${outboxJob.intervalMs}`);
-    const integrationJob = startIntegrationJob();
-    if (integrationJob.started) console.log(`✅ Integration worker enabled: intervalMs=${integrationJob.intervalMs}`);
-    const reportingProjectionJob = startReportingProjectionJob();
-    if (reportingProjectionJob.started) console.log(`✅ Reporting projection job enabled: intervalMs=${reportingProjectionJob.intervalMs}`);
-
-    const reconciliationJob = startReconciliationJob();
-    if (reconciliationJob.started) {
-      console.log(`✅ Reconciliation job enabled: intervalMs=${reconciliationJob.intervalMs}`);
+    if (BOOTSTRAP_FEATURE_SNAPSHOT.enterpriseCore) {
+      const { ensureDefaultOutboxHandlersRegistered } = require('./services/outbox/registerDefaultHandlers');
+      ensureDefaultOutboxHandlersRegistered();
     }
-    startupState.markStepCompleted('background-jobs', jobsStartedAt);
+    const schedulerSnapshot = await webSchedulerOrchestrator.start();
+    const startedJobs = Object.values(schedulerSnapshot.jobs || {}).filter((job) => job.started).map((job) => job.id);
+    const skippedJobs = Object.values(schedulerSnapshot.jobs || {}).filter((job) => !job.started).map((job) => ({ id: job.id, reason: job.reason }));
+    startupState.markStepCompleted('background-jobs', jobsStartedAt, {
+      ownerConfigured: schedulerSnapshot.configuredOwner,
+      processRole: schedulerSnapshot.processRole,
+      ownerMatched: schedulerSnapshot.ownerMatched,
+      startedJobs,
+      skippedJobs,
+      failedJob: schedulerSnapshot.failedJob
+    });
 
     startupState.markReady();
-    await webHeartbeat?.beat({ status: 'ready' }).catch((error) => logger.warn({ err: error }, 'Web ready heartbeat failed'));
+    await webHeartbeat?.beat({
+      status: 'ready',
+      metadata: {
+        bindHost: BIND_HOST,
+        port: PORT,
+        schedulerOwner: schedulerSnapshot.configuredOwner,
+        schedulerJobsStarted: startedJobs
+      }
+    }).catch((error) => logger.warn({ err: error }, 'Web ready heartbeat failed'));
     logger.info({ bindHost: BIND_HOST, port: PORT, startup: startupState.snapshot() }, 'Application ready');
     return server;
   } catch (error) {
@@ -528,10 +547,7 @@ async function startServer() {
     startupState.markFailed(error);
     await webHeartbeat?.beat({ status: 'failed', metadata: { startupErrorCode: error.code || 'STARTUP_FAILED' } }).catch(() => null);
     logger.fatal({ err: error, startup: startupState.snapshot() }, 'Application bootstrap failed');
-    stopReconciliationJob();
-    stopOutboxJob();
-    stopIntegrationJob();
-    stopReportingProjectionJob();
+    await webSchedulerOrchestrator?.stop();
     performanceTelemetry.stop();
     await closeServerAfterStartupFailure(server);
     if (mongoose.connection.readyState !== 0) {
@@ -553,5 +569,6 @@ module.exports = {
   csrfProtection,
   configureTrustProxy,
   installGracefulShutdown,
-  closeMongoForShutdown
+  closeMongoForShutdown,
+  getWebSchedulerSnapshot: () => webSchedulerOrchestrator?.snapshot() || null
 };

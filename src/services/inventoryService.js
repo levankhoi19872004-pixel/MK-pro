@@ -88,7 +88,7 @@ warehouseName:h(),lastTransactionAt:A,updatedAt:A}}}}});if(q.length){const e=awa
 ;if(Number(e?.matchedCount??e?.nMatched??e?.result?.nMatched??0)!==q.length){const e=new Error("Tồn kho thay đổi trong lúc import. Hệ thống đã rollback chunk để tránh âm kho.")
 ;throw e.code="INVENTORY_CONCURRENT_UPDATE",e}}return y.invalidateInventorySummaryCache&&y.invalidateInventorySummaryCache(),[...(p||[]).map(e=>({...e,skipped:!0,
 reason:"DUPLICATE_STOCK_MOVEMENT"})),...Q]}async function V(e={},t={},o={}){const r="IN"===t.direction?"OUT":"IN";return K(e,{...t,direction:r,
-type:t.reverseType||`${t.type||"ADJUST"}_REVERSAL`,note:t.note||`Đảo bút toán ${t.type||""}`.trim()},o)}async function W(e={}){const o={}
+type:t.reverseType||`${t.type||"ADJUST"}_REVERSAL`,note:t.note||`Đảo bút toán ${t.type||""}`.trim()},o)}async function W(e={}){const o={warehouseCode:I()}
 ;e.productCode&&(o.productCode=e.productCode);const r=await t.find(o).sort({productCode:1}).lean(),n=new Map;for(const e of r){const t=String(e.productCode||e.productId||"").trim()
 ;if(!t)continue;const o=u(e.onHand??e.quantity??e.qty??e.availableQty);n.has(t)||n.set(t,{...e,warehouseId:I(),warehouseCode:I(),warehouseName:h(),qty:0,quantity:0,onHand:0,
 availableQty:0});const r=n.get(t);r.qty+=o,r.quantity+=o,r.onHand+=o,r.availableQty+=o,

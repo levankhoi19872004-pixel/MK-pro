@@ -175,7 +175,7 @@ async function reverseStockMovement(document = {}, movement = {}, options = {}) 
 }
 
 async function getCurrentStock(query = {}) {
-  const filter = {};
+  const filter = mainInventoryFilter();
   if (query.productCode) filter.productCode = query.productCode;
   const rows = await InventoryLegacy.find(filter).sort({ productCode: 1 }).lean();
   const grouped = new Map();

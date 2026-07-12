@@ -38,7 +38,7 @@ function markStepStarted(name) {
   };
 }
 
-function markStepCompleted(name, startedAtMs) {
+function markStepCompleted(name, startedAtMs, evidence = undefined) {
   const key = String(name || 'unknown');
   const current = state.steps[key] || {};
   state.steps[key] = {
@@ -46,7 +46,8 @@ function markStepCompleted(name, startedAtMs) {
     status: 'completed',
     completedAt: nowIso(),
     durationMs: Number.isFinite(startedAtMs) ? Math.max(0, Date.now() - startedAtMs) : current.durationMs,
-    error: null
+    error: null,
+    ...(evidence === undefined ? {} : { evidence })
   };
 }
 

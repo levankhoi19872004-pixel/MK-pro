@@ -1,10 +1,23 @@
 'use strict';
 
 const OutboxService = require('../services/outbox/OutboxService');
+const { getRuntimeConfig } = require('../config/app.config');
 
 const handlers = new Map();
 let timer = null;
 let running = false;
+const state = {
+  enabled: false,
+  started: false,
+  running: false,
+  intervalMs: 0,
+  lastStartedAt: null,
+  lastStoppedAt: null,
+  lastRunAt: null,
+  lastSuccessAt: null,
+  lastFailureAt: null,
+  lastError: ''
+};
 
 function registerOutboxHandler(eventType, handler) {
   if (!eventType || typeof handler !== 'function') throw new Error('Outbox handler không hợp lệ');
@@ -34,6 +47,8 @@ async function processOne(options = {}) {
 async function drain(options = {}) {
   if (running) return { skipped: true, reason: 'ALREADY_RUNNING' };
   running = true;
+  state.running = true;
+  state.lastRunAt = new Date().toISOString();
   let count = 0;
   try {
     const limit = Math.max(1, Math.min(Number(options.limit || 50), 500));
@@ -42,25 +57,58 @@ async function drain(options = {}) {
       if (!result.eventId) break;
       count += 1;
     }
+    state.lastSuccessAt = new Date().toISOString();
+    state.lastError = '';
     return { processedCount: count };
+  } catch (error) {
+    state.lastFailureAt = new Date().toISOString();
+    state.lastError = String(error?.message || error).slice(0, 500);
+    throw error;
   } finally {
     running = false;
+    state.running = false;
   }
 }
 
-function startOutboxJob() {
-  if (process.env.ENABLE_OUTBOX_WORKER !== 'true' || timer) return { started: false };
-  const intervalMs = Math.max(5000, Number(process.env.OUTBOX_POLL_INTERVAL_MS || 15000));
+function normalizeConfig(options) {
+  if (options && typeof options === 'object') {
+    return {
+      enabled: Boolean(options.enabled),
+      intervalMs: Math.max(5000, Number(options.intervalMs || 15000))
+    };
+  }
+  const config = getRuntimeConfig().scheduler.outbox;
+  return { enabled: config.enabled, intervalMs: config.intervalMs };
+}
+
+function startOutboxJob(options) {
+  const config = normalizeConfig(options);
+  state.enabled = config.enabled;
+  state.intervalMs = config.intervalMs;
+  if (!config.enabled) return { started: false, reason: 'JOB_DISABLED', intervalMs: config.intervalMs };
+  if (timer) return { started: true, reason: 'ALREADY_STARTED', intervalMs: state.intervalMs };
   timer = setInterval(() => {
     drain().catch((error) => console.error('Outbox worker failed:', error));
-  }, intervalMs);
+  }, config.intervalMs);
   timer.unref?.();
-  return { started: true, intervalMs };
+  state.started = true;
+  state.lastStartedAt = new Date().toISOString();
+  state.lastStoppedAt = null;
+  return { started: true, reason: 'STARTED', intervalMs: config.intervalMs };
 }
 
 function stopOutboxJob() {
   if (timer) clearInterval(timer);
   timer = null;
+  state.enabled = false;
+  state.started = false;
+  state.running = false;
+  state.lastStoppedAt = new Date().toISOString();
+  return { stopped: true };
+}
+
+function getOutboxJobState() {
+  return { ...state, handlerCount: handlers.size };
 }
 
 module.exports = {
@@ -68,5 +116,7 @@ module.exports = {
   processOne,
   drain,
   startOutboxJob,
-  stopOutboxJob
+  stopOutboxJob,
+  getOutboxJobState,
+  _private: { normalizeConfig, handlers }
 };

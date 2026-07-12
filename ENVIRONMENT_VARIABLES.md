@@ -224,3 +224,38 @@ DELIVERY_ROUTE_TRACKING_RETENTION_DAYS=180
 ```
 
 Mặc định Phase29 chỉ tracking khi app giao hàng đang mở và NVGH chủ động bấm **Bắt đầu giao**. Tracking nền Android cần native wrapper/foreground service riêng.
+
+
+## Enterprise Core feature flag
+
+```env
+ENABLE_ENTERPRISE_CORE=false
+```
+
+- `false` hoặc không khai báo: không load `/api/enterprise`, chặn Enterprise HTML/CSS/JS và ẩn link “Trung tâm mở rộng”.
+- `true` (hoặc `1`, `yes`, `on`, `enabled`): bật Enterprise API và console tĩnh.
+- Thay đổi cần restart web process; không hỗ trợ bật/tắt nóng theo request.
+- Không dùng query parameter, payload hoặc database value để bật feature.
+- Với triển khai nội bộ hiện tại, giữ `false` nếu không sử dụng Enterprise console.
+
+
+## Phase255C — Scheduler ownership
+
+MK-Pro uses one explicit scheduler owner for reconciliation, outbox, integrations, and reporting projections:
+
+```env
+SCHEDULED_JOB_OWNER=none
+```
+
+Allowed values are `none`, `web`, and `worker`. Missing or invalid configuration must not start timers. The safe defaults are:
+
+```env
+AUTO_RECONCILIATION_JOB=false
+RECONCILIATION_RUN_ON_START=false
+ENABLE_OUTBOX_WORKER=false
+ENABLE_INTEGRATION_WORKER=false
+ENABLE_REPORTING_PROJECTION_JOB=false
+READINESS_REQUIRE_BACKGROUND_WORKER=false
+```
+
+Changing scheduler ownership requires a process restart. Request parameters and database values cannot change process ownership. `SCHEDULED_JOB_OWNER=web` is safe only when exactly one web instance owns timers. Reconciliation scheduling only enqueues `background_jobs`; a background worker is still required to execute that queue.

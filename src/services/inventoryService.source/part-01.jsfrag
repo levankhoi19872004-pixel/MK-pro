@@ -12,6 +12,7 @@ const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/bus
 const inventoryStockService = require('./inventoryStock.service');
 const { assertDestructiveInventoryOperation } = require('../utils/inventoryMaintenance.util');
 const InventoryRebuildService = require('../domain/reconciliation/InventoryRebuildService');
+const { mainInventoryFilter } = require('../domain/inventory/mainInventoryReadPolicy');
 
 function dateOnly(value) { return dateUtil.toDateOnly(value || dateUtil.todayVN()); }
 function isActive(row = {}) { return !['void', 'cancelled', 'canceled', 'deleted'].includes(String(row.status || '').toLowerCase()); }

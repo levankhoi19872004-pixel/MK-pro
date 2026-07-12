@@ -2,6 +2,7 @@
 
 const SalesOrder = require('../../models/SalesOrder');
 const Inventory = require('../../models/InventoryLegacy');
+const { mainInventoryFilter } = require('../../domain/inventory/mainInventoryReadPolicy');
 const arLedgerReadService = require('../arLedgerRead.service');
 const ReportingSnapshot = require('../../models/ReportingSnapshot');
 const dateUtil = require('../../utils/date.util');
@@ -96,10 +97,10 @@ async function buildDailySales(tenantId, date) {
 
 async function buildInventory(tenantId, date) {
   const rows = await Inventory.aggregate([
-    { $match: tenantMatch(tenantId) },
+    { $match: mainInventoryFilter(tenantMatch(tenantId)) },
     {
       $group: {
-        _id: { warehouseCode: { $ifNull: ['$warehouseCode', 'MAIN'] } },
+        _id: { warehouseCode: '$warehouseCode' },
         skuCount: { $sum: 1 },
         onHandQty: { $sum: { $ifNull: ['$onHand', { $ifNull: ['$qty', { $ifNull: ['$quantity', 0] }] }] } },
         reservedQty: { $sum: { $ifNull: ['$reservedQty', 0] } },
@@ -116,7 +117,7 @@ async function buildInventory(tenantId, date) {
     }
   ]);
   return rows.map((row) => ({
-    dimensionKey: String(row._id.warehouseCode || 'MAIN'),
+    dimensionKey: String(row._id.warehouseCode),
     dimensions: row._id,
     metrics: {
       skuCount: row.skuCount,

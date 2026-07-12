@@ -95,7 +95,7 @@
         "src/services/inventoryService.source/part-02.jsfrag",
         "src/services/inventoryService.source/part-03.jsfrag"
       ],
-      "sourceSha256": "82c1b1e63e4bbe863e700a0c07bc0b176ee692a2f1b513dcb84668384e7ce214"
+      "sourceSha256": "91b565c7509edea6d29345ad7e6007f87ff28ba0588e631d2fa587a39cc32b59"
     },
     {
       "target": "templates/printTemplates.js",

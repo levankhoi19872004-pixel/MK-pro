@@ -96,9 +96,30 @@ async function emitOrderChangeEvents(req = {}, before = {}, after = {}) {
   }
 }
 
+
+function orderControllerErrorStatus(err, fallbackStatus = 500) {
+  const explicit = Number(err && (err.status || err.statusCode));
+  if (Number.isInteger(explicit) && explicit >= 400 && explicit <= 599) return explicit;
+  const code = String(err && err.code || '').toUpperCase();
+  if (code.includes('VALIDATION') || code.includes('INVALID') || code.includes('REQUIRED')) return 422;
+  return fallbackStatus;
+}
+
+function sendOrderControllerError(res, err, fallbackMessage) {
+  const status = orderControllerErrorStatus(err, 500);
+  return res.status(status).json({
+    ok: false,
+    success: false,
+    code: err && err.code,
+    message: status >= 500 && process.env.NODE_ENV === 'production'
+      ? fallbackMessage
+      : ((err && err.message) || fallbackMessage)
+  });
+}
+
 function handleServiceResult(res, result, successStatus = 200, successPayload = {}) {
   if (result && result.error) {
-    return res.status(result.status || 400).json({ ok: false, message: result.error });
+    return res.status(result.status || 400).json({ ok: false, success: false, code: result.code, message: result.error });
   }
   return res.status(successStatus).json({ ok: true, source: 'mongo-route', ...successPayload(result) });
 }
@@ -142,15 +163,18 @@ async function create(req, res) {
 
 async function update(req, res) {
   try {
-    const beforeResult = await orderService.getOrder(req.params.id).catch(() => null);
-    const beforeOrder = beforeResult && !beforeResult.error ? beforeResult.salesOrder : null;
-    const result = await orderService.updateOrder(req.params.id, req.body || {});
+    const beforeOrder = req.salesOrderMutation?.order || null;
+    const result = await orderService.updateOrder(req.params.id, req.body || {}, {
+      actor: req.user || {},
+      order: beforeOrder,
+      expectedVersion: req.salesOrderMutation?.expectedVersion
+    });
     if (!result?.error && beforeOrder && result?.salesOrder) {
       await emitOrderChangeEvents(req, beforeOrder, result.salesOrder);
     }
     return handleServiceResult(res, result, 200, (r) => ({ message: `Đã cập nhật đơn bán ${r.salesOrder.code}`, salesOrder: r.salesOrder, order: r.salesOrder }));
   } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không sửa được đơn bán' });
+    return sendOrderControllerError(res, err, 'Không sửa được đơn bán');
   }
 }
 
@@ -169,10 +193,14 @@ async function updateVatInvoiceSetting(req, res) {
 
 async function cancel(req, res) {
   try {
-    const result = await orderService.cancelOrder(req.params.id, req.body || {});
+    const result = await orderService.cancelOrder(req.params.id, req.body || {}, {
+      actor: req.user || {},
+      order: req.salesOrderMutation?.order,
+      expectedVersion: req.salesOrderMutation?.expectedVersion
+    });
     return handleServiceResult(res, result, 200, (r) => ({ message: `Đã hủy đơn bán ${r.salesOrder.code}`, salesOrder: r.salesOrder, order: r.salesOrder }));
   } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không hủy được đơn bán' });
+    return sendOrderControllerError(res, err, 'Không hủy được đơn bán');
   }
 }
 
@@ -183,7 +211,9 @@ async function remove(req, res) {
       source: 'web-sales-history',
       user: req.user || {},
       actorCode: req.user?.code || req.user?.staffCode || '',
-      actorName: req.user?.name || req.user?.fullName || req.user?.username || ''
+      actorName: req.user?.name || req.user?.fullName || req.user?.username || '',
+      authorizedOrder: req.salesOrderMutation?.order,
+      expectedVersion: req.salesOrderMutation?.expectedVersion
     });
 
     if (!result?.error && result?.salesOrder) {
@@ -210,10 +240,7 @@ async function remove(req, res) {
       order: r.salesOrder
     }));
   } catch (err) {
-    res.status(err.status || 400).json({
-      ok: false,
-      message: err.message || 'Không xóa được đơn bán'
-    });
+    return sendOrderControllerError(res, err, 'Không xóa được đơn bán');
   }
 }
 

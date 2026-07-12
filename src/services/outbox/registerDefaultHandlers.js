@@ -6,7 +6,7 @@ const { FLAGS } = require('../../config/featureFlags');
 
 let registered = false;
 
-function registerDefaultOutboxHandlers() {
+function ensureDefaultOutboxHandlersRegistered() {
   if (registered) return;
   registered = true;
 
@@ -36,4 +36,8 @@ function registerDefaultOutboxHandlers() {
   });
 }
 
-module.exports = { registerDefaultOutboxHandlers };
+module.exports = {
+  registerDefaultOutboxHandlers: ensureDefaultOutboxHandlersRegistered,
+  ensureDefaultOutboxHandlersRegistered,
+  isDefaultOutboxHandlersRegistered: () => registered
+};

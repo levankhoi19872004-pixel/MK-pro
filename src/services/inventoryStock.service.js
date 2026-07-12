@@ -4,7 +4,8 @@ const InventoryCurrent = require('../models/InventoryLegacy');
 const Product = require('../models/Product');
 const dateUtil = require('../utils/date.util');
 const { toNumber } = require('../utils/common.util');
-const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
+const { STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
+const { mainWarehouseCode, mainInventoryFilter } = require('../domain/inventory/mainInventoryReadPolicy');
 
 const INVENTORY_SUMMARY_CACHE_TTL_MS = Math.max(0, Number(process.env.INVENTORY_SUMMARY_CACHE_TTL_MS || 5000));
 let inventorySummaryCache = { key: '', expiresAt: 0, value: null };
@@ -18,7 +19,7 @@ function normalizeProductCode(value = '') {
 }
 
 function stockWarehouseCode() {
-  return STOCK_WAREHOUSE_CODE || 'MAIN';
+  return mainWarehouseCode();
 }
 
 function stockWarehouseName() {
@@ -136,14 +137,14 @@ async function getAvailableStocks(productCodes = []) {
   }
 
   const aliases = Array.from(aliasToCanonical.keys());
-  const rows = await InventoryCurrent.find({
+  const rows = await InventoryCurrent.find(mainInventoryFilter({
     $or: [
       { productCode: { $in: aliases } },
       { code: { $in: aliases } },
       { sku: { $in: aliases } },
       { productId: { $in: aliases } }
     ]
-  }).lean().catch(() => []);
+  })).select('productId productCode code sku warehouseCode onHand quantity qty stockQuantity availableQty reservedQty reserved').lean().catch(() => []);
 
   for (const row of rows || []) {
     const alias = productCodeOf(row);
@@ -172,7 +173,7 @@ async function getInventorySummary(query = {}, options = {}) {
     return inventorySummaryCache.value;
   }
 
-  let inventoryQuery = InventoryCurrent.find({})
+  let inventoryQuery = InventoryCurrent.find(mainInventoryFilter())
     .select('id productId productCode code sku productName name warehouseCode unit baseUnit conversionRate packing packingQty unitsPerCase onHand quantity qty stockQuantity availableQty reservedQty reserved updatedAt createdAt lastTransactionAt')
     .sort({ productCode: 1 });
 

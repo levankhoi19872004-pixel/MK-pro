@@ -32,14 +32,8 @@ const dmsInventoryRoutes = require('./dmsInventoryRoutes');
 const excelInteractionRoutes = require('./excelInteractionRoutes');
 const { retiredRoute } = require('../middlewares/retiredRoute.middleware');
 const { inventoryMaintenanceGuard } = require('../middlewares/inventoryMaintenance.middleware');
-const purchaseRoutes = require('./purchaseRoutes');
-const warehouseAdvancedRoutes = require('./warehouseAdvancedRoutes');
-const analyticsRoutes = require('./analyticsRoutes');
-const fieldOperationRoutes = require('./fieldOperationRoutes');
-const deliveryPlanningRoutes = require('./deliveryPlanningRoutes');
-const integrationRoutes = require('./integrationRoutes');
-const platformRoutes = require('./platformRoutes');
-const enterpriseRoutes = require('./enterpriseRoutes');
+const { registerOptionalApiRoutes } = require('./optionalRouteRegistry');
+const { registerEnterpriseApiRoute } = require('./enterpriseFeatureRegistry');
 const backgroundJobRoutes = require('./backgroundJobRoutes');
 const adminCorrectionRoutes = require('./adminCorrectionRoutes');
 const newOperationsRoutes = require('./newOperationsRoutes');
@@ -49,7 +43,7 @@ const dmsGapSimulatorRoutes = require('./tools/dmsGapSimulator.routes');
 const displayCheckRoutes = require('./tools/displayCheck.routes');
 
 
-function registerApiRoutes(app) {
+function registerApiRoutes(app, options = {}) {
   // Khi chạy rebuild/normalize tồn kho, chặn mọi command có thể ghi tồn song song.
   app.use('/api', inventoryMaintenanceGuard);
   // API docs must be mounted before legacy guard.
@@ -144,14 +138,16 @@ function registerApiRoutes(app) {
 
   // Phase 80 enterprise expansion modules. Every module is feature-flagged and
   // uses tenant-scoped command/transaction boundaries.
-  app.use('/api/purchase', purchaseRoutes);
-  app.use('/api/warehouse-advanced', warehouseAdvancedRoutes);
-  app.use('/api/analytics', analyticsRoutes);
-  app.use('/api/field-operations', fieldOperationRoutes);
-  app.use('/api/delivery-planning', deliveryPlanningRoutes);
-  app.use('/api/integrations', integrationRoutes);
-  app.use('/api/platform', platformRoutes);
-  app.use('/api/enterprise', enterpriseRoutes);
+  registerOptionalApiRoutes({
+    app,
+    featureSnapshot: options.featureSnapshot,
+    onEvidence: options.onOptionalRouteEvidence
+  });
+  registerEnterpriseApiRoute({
+    app,
+    featureSnapshot: options.featureSnapshot,
+    onEvidence: options.onEnterpriseRouteEvidence
+  });
 }
 
 module.exports = { registerApiRoutes };

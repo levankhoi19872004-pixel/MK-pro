@@ -176,6 +176,28 @@ function buildRuntimeConfig(env = process.env) {
       workerShutdownTimeoutMs: safe('WORKER_SHUTDOWN_TIMEOUT_MS', () => readInteger(env, 'WORKER_SHUTDOWN_TIMEOUT_MS', { defaultValue: 30000, min: 1000, max: 300000 }), 30000),
       readinessDependencyTimeoutMs: safe('READINESS_DEPENDENCY_TIMEOUT_MS', () => readInteger(env, 'READINESS_DEPENDENCY_TIMEOUT_MS', { defaultValue: 2000, min: 250, max: 30000 }), 2000)
     },
+    scheduler: {
+      owner: safe('SCHEDULED_JOB_OWNER', () => readEnum(env, 'SCHEDULED_JOB_OWNER', ['none', 'web', 'worker'], { defaultValue: 'none' }), 'none'),
+      reconciliation: {
+        enabled: safe('AUTO_RECONCILIATION_JOB', () => readBoolean(env, 'AUTO_RECONCILIATION_JOB', { defaultValue: false }), false),
+        runOnStart: safe('RECONCILIATION_RUN_ON_START', () => readBoolean(env, 'RECONCILIATION_RUN_ON_START', { defaultValue: false }), false),
+        intervalMs: safe('RECONCILIATION_INTERVAL_MS', () => readInteger(env, 'RECONCILIATION_INTERVAL_MS', { defaultValue: 6 * 60 * 60 * 1000, min: 5 * 60 * 1000, max: 7 * 24 * 60 * 60 * 1000 }), 6 * 60 * 60 * 1000),
+        startDelayMs: safe('RECONCILIATION_START_DELAY_MS', () => readInteger(env, 'RECONCILIATION_START_DELAY_MS', { defaultValue: 30000, min: 1000, max: 60 * 60 * 1000 }), 30000)
+      },
+      outbox: {
+        enabled: safe('ENABLE_OUTBOX_WORKER', () => readBoolean(env, 'ENABLE_OUTBOX_WORKER', { defaultValue: false }), false),
+        intervalMs: safe('OUTBOX_POLL_INTERVAL_MS', () => readInteger(env, 'OUTBOX_POLL_INTERVAL_MS', { defaultValue: 15000, min: 5000, max: 60 * 60 * 1000 }), 15000)
+      },
+      integration: {
+        enabled: safe('ENABLE_INTEGRATION_WORKER', () => readBoolean(env, 'ENABLE_INTEGRATION_WORKER', { defaultValue: false }), false),
+        intervalMs: safe('INTEGRATION_POLL_INTERVAL_MS', () => readInteger(env, 'INTEGRATION_POLL_INTERVAL_MS', { defaultValue: 30000, min: 5000, max: 60 * 60 * 1000 }), 30000)
+      },
+      reportingProjection: {
+        enabled: safe('ENABLE_REPORTING_PROJECTION_JOB', () => readBoolean(env, 'ENABLE_REPORTING_PROJECTION_JOB', { defaultValue: false }), false),
+        intervalMs: safe('REPORTING_PROJECTION_INTERVAL_MS', () => readInteger(env, 'REPORTING_PROJECTION_INTERVAL_MS', { defaultValue: 60 * 60 * 1000, min: 15 * 60 * 1000, max: 7 * 24 * 60 * 60 * 1000 }), 60 * 60 * 1000)
+      },
+      readinessRequireBackgroundWorker: safe('READINESS_REQUIRE_BACKGROUND_WORKER', () => readBoolean(env, 'READINESS_REQUIRE_BACKGROUND_WORKER', { defaultValue: false }), false)
+    },
     performance: {
       telemetryEnabled: safe('PERF_TELEMETRY_ENABLED', () => readBoolean(env, 'PERF_TELEMETRY_ENABLED', { defaultValue: true }), true),
       sampleIntervalMs: safe('PERF_SAMPLE_INTERVAL_MS', () => readInteger(env, 'PERF_SAMPLE_INTERVAL_MS', { defaultValue: 30000, min: 5000, max: 300000 }), 30000),
@@ -338,6 +360,14 @@ function publicConfigSummary(config = getRuntimeConfig()) {
     operations: {
       heartbeatIntervalMs: config.operations.heartbeatIntervalMs,
       heartbeatStaleMs: config.operations.heartbeatStaleMs
+    },
+    scheduler: {
+      owner: config.scheduler.owner,
+      reconciliationEnabled: config.scheduler.reconciliation.enabled,
+      outboxEnabled: config.scheduler.outbox.enabled,
+      integrationEnabled: config.scheduler.integration.enabled,
+      reportingProjectionEnabled: config.scheduler.reportingProjection.enabled,
+      readinessRequireBackgroundWorker: config.scheduler.readinessRequireBackgroundWorker
     },
     performance: {
       telemetryEnabled: config.performance.telemetryEnabled,

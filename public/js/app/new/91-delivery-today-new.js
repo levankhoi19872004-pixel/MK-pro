@@ -822,7 +822,7 @@
 
   function updateTopKpisFromSelectedSalesmen() {
     if (!state.hasSearched) { applySummary({ orderCount: 0 }); return; }
-    applySummary(summarizeVisibleRows(getSelectedOrders()));
+    applySummary(summarizeVisibleRows(getVisibleRowsBySelectedSalesmen()));
   }
 
   function ensureSelectedOrderSet() {
@@ -859,48 +859,30 @@
     return getVisibleRowsBySelectedSalesmen().filter(isViewSelectableOrder);
   }
 
-  function groupSelectableRows(group) {
-    return ((group && group.orders) || []).filter(isViewSelectableOrder);
-  }
-
-  function groupSelectedCount(group) {
-    var selected = ensureSelectedOrderSet();
-    return groupSelectableRows(group).filter(function (row) { return selected.has(orderSelectionKey(row)); }).length;
-  }
-
   function groupSelectionState(group) {
-    var selectable = groupSelectableRows(group);
-    var count = groupSelectedCount(group);
-    var explicitlySelected = Boolean(state.selectedSalesmanKeys && state.selectedSalesmanKeys[group.key]);
     return {
-      selectableCount: selectable.length,
-      selectedCount: count,
-      checked: explicitlySelected,
+      checked: Boolean(state.selectedSalesmanKeys && group && state.selectedSalesmanKeys[group.key]),
       indeterminate: false
     };
   }
 
-  function selectGroupOrders(group, checked) {
+  function pruneStaleOrderSelection(loadedRows) {
+    var allowed = new Set((Array.isArray(loadedRows) ? loadedRows : (state.rows || []))
+      .filter(isViewSelectableOrder)
+      .map(orderSelectionKey)
+      .filter(Boolean));
     var selected = ensureSelectedOrderSet();
-    groupSelectableRows(group).forEach(function (row) {
-      var key = orderSelectionKey(row);
-      if (!key) return;
-      if (checked) selected.add(key);
-      else selected.delete(key);
+    Array.from(selected).forEach(function (key) {
+      if (!allowed.has(String(key || '').trim())) selected.delete(key);
     });
+    return selected;
   }
 
-  function selectDefaultOrdersForSelectedSalesmen() {
-    state.selectedOrderIds = new Set();
-    (state.salesmanGroups || []).forEach(function (group) {
-      if (state.selectedSalesmanKeys && state.selectedSalesmanKeys[group.key]) selectGroupOrders(group, true);
-    });
-  }
-
-  function pruneSelectedOrderIds(visibleRows) {
-    var allowed = new Set((visibleRows || getVisibleRowsBySelectedSalesmen()).filter(isViewSelectableOrder).map(orderSelectionKey));
+  function deriveVisibleSelectedCount(visibleRows) {
     var selected = ensureSelectedOrderSet();
-    Array.from(selected).forEach(function (key) { if (!allowed.has(key)) selected.delete(key); });
+    return (Array.isArray(visibleRows) ? visibleRows : getVisibleRowsBySelectedSalesmen())
+      .filter(isViewSelectableOrder)
+      .reduce(function (count, row) { return count + (selected.has(orderSelectionKey(row)) ? 1 : 0); }, 0);
   }
 
   function toggleOrderSelection(orderId, checked) {
@@ -975,7 +957,7 @@
 
   function getSelectedOrders() {
     var selected = ensureSelectedOrderSet();
-    return getVisibleRowsBySelectedSalesmen().filter(function (row) { return isViewSelectableOrder(row) && selected.has(orderSelectionKey(row)); });
+    return (state.rows || []).filter(function (row) { return isViewSelectableOrder(row) && selected.has(orderSelectionKey(row)); });
   }
 
   function deriveCloseoutSelectionSummary(rows, selectedIds) {
@@ -999,8 +981,8 @@
     };
   }
 
-  function getCloseoutSelectionSummary(visibleRows) {
-    var rows = state.hasSearched ? (visibleRows || getVisibleRowsBySelectedSalesmen()) : [];
+  function getCloseoutSelectionSummary(rowsOverride) {
+    var rows = state.hasSearched ? (Array.isArray(rowsOverride) ? rowsOverride : (state.rows || [])) : [];
     return deriveCloseoutSelectionSummary(rows, ensureSelectedOrderSet());
   }
 
@@ -1013,7 +995,6 @@
   }
 
   function applySelectedSalesmanFilter() {
-    pruneSelectedOrderIds(getVisibleRowsBySelectedSalesmen());
     updateTopKpisFromSelectedSalesmen();
     renderSalesmanGroupPanel();
     renderRows();
@@ -1023,8 +1004,6 @@
   function toggleSalesmanSelection(key, checked) {
     state.selectedSalesmanKeys = state.selectedSalesmanKeys || {};
     state.selectedSalesmanKeys[key] = Boolean(checked);
-    var group = (state.salesmanGroups || []).filter(function (item) { return item.key === key; })[0];
-    if (group) selectGroupOrders(group, Boolean(checked));
     applySelectedSalesmanFilter();
   }
 
@@ -1178,13 +1157,14 @@
     var toggleAll = byId('deliveryTodayNewToggleOrders');
     var bulkAdjustment = byId('deliveryTodayNewBulkAdjustmentCommit');
     var visible = visibleRows || getVisibleRowsBySelectedSalesmen();
-    var summary = getCloseoutSelectionSummary(visible);
+    var summary = getCloseoutSelectionSummary();
     var bulkSelection = deriveOrderBulkSelectionState(visible);
     var selectedCount = summary.selectedOrders;
+    var visibleSelectedCount = deriveVisibleSelectedCount(visible);
     var selectedCloseoutCount = summary.eligibleSelectedOrders;
     var closedCount = summary.closedSelectedOrders;
-    if (countEl) countEl.textContent = 'Tổng đơn: ' + visible.length;
-    if (selectedEl) selectedEl.textContent = 'Đang chọn: ' + selectedCount + ' · Có thể chốt: ' + selectedCloseoutCount + ' · Đã chốt: ' + closedCount;
+    if (countEl) countEl.textContent = 'Tổng đơn đang hiển thị: ' + visible.length;
+    if (selectedEl) selectedEl.textContent = 'Đang chọn: ' + selectedCount + ' tổng · ' + visibleSelectedCount + ' đang hiển thị · Có thể chốt: ' + selectedCloseoutCount + ' · Đã chốt: ' + closedCount;
     if (toggleAll) {
       var api = typeof window !== 'undefined' ? window.ScopedBulkSelection : null;
       if (api && typeof api.applyToggleButtonState === 'function') api.applyToggleButtonState(toggleAll, bulkSelection, { entityLabel: 'đơn đang hiển thị' });
@@ -1216,7 +1196,6 @@
       return;
     }
     var visibleRows = getVisibleRowsBySelectedSalesmen();
-    pruneSelectedOrderIds(visibleRows);
     if (!state.rows.length) {
       list.innerHTML = '<div class="empty-state">' + esc(emptyOrdersMessage()) + '</div>';
       refreshDerivedUiState([]);
@@ -2375,9 +2354,8 @@
       if (dateMismatchWarning) setMessage(dateMismatchWarning, true);
       state.salesmanGroups = buildSalesmanGroups(state.rows);
       state.selectedSalesmanKeys = {};
-      state.selectedOrderIds = new Set();
       state.salesmanGroups.forEach(function (group) { state.selectedSalesmanKeys[group.key] = true; });
-      selectDefaultOrdersForSelectedSalesmen();
+      pruneStaleOrderSelection(state.rows);
       state.selectedIndex = state.rows.length ? 0 : -1;
       state.loaded = true;
       state.hasSearched = true;

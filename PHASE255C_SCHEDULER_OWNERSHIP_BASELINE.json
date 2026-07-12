@@ -1,0 +1,29 @@
+{
+  "nodeVersion": "v22.16.0",
+  "manifest": "PASS",
+  "processRole": "web",
+  "configuredOwner": null,
+  "topLevelJobImports": [
+    "reconciliation",
+    "outbox",
+    "integration",
+    "reportingProjection"
+  ],
+  "loadedWhenAllDisabled": {
+    "reconciliation": true,
+    "outbox": true,
+    "integration": true,
+    "reportingProjection": true,
+    "registerDefaultHandlers": true
+  },
+  "defaultReconciliationEnabled": true,
+  "defaultReconciliationRunOnStart": true,
+  "readinessDependsOnWorker": false,
+  "loadedModuleCount": 1910,
+  "evidence": {
+    "source": "Phase255B clean workspace before Phase255C changes",
+    "method": "require src/app.js with NODE_ENV=test and all scheduler flags unset; inspect require.cache",
+    "productionDatabaseConnected": false,
+    "timersStarted": false
+  }
+}

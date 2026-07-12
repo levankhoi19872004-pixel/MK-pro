@@ -12,11 +12,32 @@ const { publicReleaseSummary, internalReleaseSummary } = require('../operations/
 const { getRuntimeConfig, publicConfigSummary } = require('../config/app.config');
 const performanceTelemetry = require('../observability/performanceTelemetry');
 const performanceObservation = require('../observability/performanceObservation');
+const { getActiveScheduledJobSnapshot } = require('../jobs/scheduledJobOrchestrator');
 
 performanceObservation.setProviders({
   getApiMonitorReport,
   getReleaseSummary: internalReleaseSummary
 });
+
+
+function evaluateWorkerDependency(heartbeats = [], config = getRuntimeConfig(), release = internalReleaseSummary()) {
+  const workers = heartbeats.filter((row) => row.role === 'worker');
+  const healthyWorkers = workers.filter((row) => row.healthy === true);
+  const sameReleaseWorkers = healthyWorkers.filter((row) => row.releaseId && row.releaseId === release.releaseId);
+  const required = Boolean(config.scheduler.readinessRequireBackgroundWorker);
+  const reconciliationRequiresExecutor = Boolean(config.scheduler.reconciliation.enabled);
+  const warnings = [];
+  if (reconciliationRequiresExecutor && sameReleaseWorkers.length === 0) {
+    warnings.push('RECONCILIATION_EXECUTOR_UNAVAILABLE');
+  }
+  return {
+    requiredByReadiness: required,
+    healthyWorkerCount: healthyWorkers.length,
+    sameReleaseWorkerCount: sameReleaseWorkers.length,
+    status: required ? (sameReleaseWorkers.length > 0 ? 'READY' : 'NOT_READY') : 'ADVISORY',
+    warnings
+  };
+}
 
 let readinessCache = null;
 let readinessCacheAt = 0;
@@ -59,11 +80,12 @@ async function checkTempStorage() {
 async function readiness(options = {}) {
   const now = Date.now();
   const startup = startupState.snapshot();
-  const currentCacheKey = `${startup.phase}:${mongoose.connection.readyState}:${getRuntimeConfig().import.tempDir || ''}`;
-  if (!options.refresh && readinessCache && readinessCacheKey === currentCacheKey && now - readinessCacheAt < 1000) {
+  const config = getRuntimeConfig();
+  const strictWorkerReadiness = Boolean(config.scheduler.readinessRequireBackgroundWorker);
+  const currentCacheKey = `${startup.phase}:${mongoose.connection.readyState}:${config.import.tempDir || ''}:${strictWorkerReadiness}`;
+  if (!options.refresh && options.heartbeats === undefined && readinessCache && readinessCacheKey === currentCacheKey && now - readinessCacheAt < 1000) {
     return readinessCache;
   }
-  const config = getRuntimeConfig();
   const databaseConnected = mongoose.connection.readyState === 1;
   let databasePing = false;
   if (databaseConnected && mongoose.connection.db) {
@@ -75,18 +97,26 @@ async function readiness(options = {}) {
     }
   }
   const storage = await checkTempStorage();
+  let heartbeats = Array.isArray(options.heartbeats) ? options.heartbeats : [];
+  if (strictWorkerReadiness && options.heartbeats === undefined && databaseConnected) {
+    heartbeats = await readHeartbeats().catch(() => []);
+  }
+  const workerDependency = evaluateWorkerDependency(heartbeats, config, internalReleaseSummary());
   const checks = {
     bootstrap: startupState.isReady(),
     database: databaseConnected && databasePing,
     models: Object.keys(mongoose.models || {}).length > 0,
-    tempStorage: storage.ok
+    tempStorage: storage.ok,
+    ...(strictWorkerReadiness ? { backgroundWorker: workerDependency.status === 'READY' } : {})
   };
+  const ok = Object.values(checks).every(Boolean);
   readinessCache = {
-    ok: Object.values(checks).every(Boolean),
-    status: Object.values(checks).every(Boolean) ? 'ready' : 'not_ready',
+    ok,
+    status: ok ? 'ready' : 'not_ready',
     service: 'mk-pro-web',
     timestamp: new Date().toISOString(),
-    checks
+    checks,
+    workerDependency
   };
   readinessCacheAt = now;
   readinessCacheKey = currentCacheKey;
@@ -228,6 +258,8 @@ async function detailedStatus() {
     queueSummary().catch((error) => ({ available: false, error: error.code || 'QUEUE_STATUS_FAILED' }))
   ]);
   const api = getApiMonitorReport({ limit: 20 });
+  const scheduler = getActiveScheduledJobSnapshot();
+  const workerDependency = evaluateWorkerDependency(heartbeats, getRuntimeConfig(), internalReleaseSummary());
   return {
     ok: ready.ok,
     generatedAt: new Date().toISOString(),
@@ -247,6 +279,8 @@ async function detailedStatus() {
       topSlowestApis: api.topSlowestApis.slice(0, 10),
       topCalledApis: api.topCalledApis.slice(0, 10)
     },
+    scheduler,
+    workerDependency,
     workers: heartbeats,
     jobs
   };
@@ -268,5 +302,5 @@ module.exports = {
   performanceOptimizationCandidates,
   publicReleaseSummary,
   internalReleaseSummary,
-  _private: { checkTempStorage }
+  _private: { checkTempStorage, evaluateWorkerDependency }
 };

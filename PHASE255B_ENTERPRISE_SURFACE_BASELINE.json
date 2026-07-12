@@ -1,0 +1,28 @@
+{
+  "generatedAt": "2026-07-12T09:38:54.770Z",
+  "nodeVersion": "v22.16.0",
+  "featureValue": null,
+  "enterpriseEnabled": true,
+  "api": {
+    "routeLoaded": true,
+    "controllerLoaded": true,
+    "serviceLoaded": true,
+    "mounted": true
+  },
+  "static": {
+    "enterpriseHtmlReachable": true,
+    "enterpriseCssReachable": true,
+    "enterpriseJsReachable": true,
+    "statusCodes": {
+      "html": 200,
+      "css": 200,
+      "js": 200
+    }
+  },
+  "index": {
+    "enterpriseLinkCount": 2
+  },
+  "loadedModuleCountBefore": 124,
+  "loadedModuleCount": 1857,
+  "registrationDurationMs": 1178.422
+}

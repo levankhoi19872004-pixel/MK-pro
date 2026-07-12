@@ -3,12 +3,15 @@
 const express = require('express');
 const { body, param, query } = require('express-validator');
 const { createMobileSalesController } = require('../../controllers/mobile/sales.controller');
+const { requireSalesOrderMutation } = require('../../middlewares/salesOrderMutation.middleware');
 
 function createMobileSalesRouter(ctx) {
   const router = express.Router();
   const controller = createMobileSalesController(ctx);
   const { requireMobileLogin, requireMobileRole, validateRequest } = ctx;
   const onlySales = [requireMobileLogin, requireMobileRole(['sales'])];
+  const authorizeUpdate = requireSalesOrderMutation('update');
+  const authorizeDelete = requireSalesOrderMutation('delete');
 
   const orderPayloadRules = [
     body('customer').optional().isObject().withMessage('Khách hàng không hợp lệ'),
@@ -26,8 +29,8 @@ function createMobileSalesRouter(ctx) {
   router.get('/orders/:id/print.pdf', ...onlySales, param('id').isString().trim().notEmpty(), validateRequest, controller.renderOrderPrint);
   router.get('/orders/:id/returns', ...onlySales, param('id').isString().trim().notEmpty(), validateRequest, controller.getOrderReturns);
   router.get('/orders/:id', ...onlySales, param('id').isString().trim().notEmpty(), validateRequest, controller.getOrder);
-  router.put('/orders/:id', ...onlySales, param('id').isString().trim().notEmpty(), orderPayloadRules, validateRequest, controller.updateOrder);
-  router.delete('/orders/:id', ...onlySales, param('id').isString().trim().notEmpty(), validateRequest, controller.deleteOrder);
+  router.put('/orders/:id', ...onlySales, param('id').isString().trim().notEmpty(), validateRequest, authorizeUpdate, orderPayloadRules, validateRequest, controller.updateOrder);
+  router.delete('/orders/:id', ...onlySales, param('id').isString().trim().notEmpty(), validateRequest, authorizeDelete, controller.deleteOrder);
   router.get('/orders', ...onlySales, [
     query('date').optional().isISO8601().withMessage('Ngày không hợp lệ'),
     query('mine').optional().isIn(['0', '1']).withMessage('mine chỉ nhận 0 hoặc 1'),

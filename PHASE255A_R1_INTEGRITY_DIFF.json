@@ -1,0 +1,35 @@
+{
+  "baselineFileCount": 2018,
+  "currentFileCount": 2025,
+  "addedCount": 7,
+  "modifiedCount": 10,
+  "removedCount": 0,
+  "added": [
+    ".env.production.example",
+    "PHASE255A_R1_INTEGRITY_DIFF.json",
+    "PHASE255A_R1_RELEASE_BASELINE.json",
+    "PHASE255A_R1_REPRODUCIBLE_RELEASE_FINALIZATION_REPORT.md",
+    "scripts/lib/zip-artifact.js",
+    "test/fixtures/index-page/phase79-assembled.sha256",
+    "test/phase255a-r1-reproducible-release-finalization.test.js"
+  ],
+  "modified": [
+    "RELEASE_MANIFEST.json",
+    "package-lock.json",
+    "package.json",
+    "scripts/create-deployment-artifact.js",
+    "scripts/generate-release-manifest.js",
+    "scripts/lib/release-artifact-policy.js",
+    "scripts/run-quality-gate.js",
+    "scripts/verify-deployment-artifact.js",
+    "scripts/verify-source-artifact-clean.js",
+    "test/phase253-non-mutating-release-governance.test.js"
+  ],
+  "removed": [],
+  "productionBusinessFilesModified": [],
+  "restoredFiles": [
+    ".env.production.example",
+    "test/fixtures/index-page/phase79-assembled.sha256"
+  ],
+  "scopeStatement": "Release tooling only; no AR/Fund/Inventory/Delivery/accounting/Enterprise/scheduler/frontend business files modified."
+}

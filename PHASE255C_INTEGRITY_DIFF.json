@@ -1,0 +1,39 @@
+{
+  "baselineArtifact": "MK-pro-phase255b-enterprise-route-static-entry-governance-fixed.zip",
+  "baselineFileCount": 2032,
+  "finalFileCount": 2039,
+  "added": [
+    "PHASE255C_INTEGRITY_DIFF.json",
+    "PHASE255C_SCHEDULER_OWNERSHIP_AFTER.json",
+    "PHASE255C_SCHEDULER_OWNERSHIP_BASELINE.json",
+    "PHASE255C_SCHEDULER_OWNERSHIP_READINESS_GOVERNANCE_REPORT.md",
+    "scripts/audit-scheduler-ownership.js",
+    "src/jobs/scheduledJobOrchestrator.js",
+    "test/phase255c-scheduler-ownership-readiness-governance.test.js"
+  ],
+  "modified": [
+    ".env.example",
+    ".env.production.example",
+    "DEPLOYMENT_RUNBOOK.md",
+    "ENVIRONMENT_VARIABLES.md",
+    "RELEASE_MANIFEST.json",
+    "WORKER_DEPLOYMENT_RUNBOOK.md",
+    "package.json",
+    "scripts/background-job-worker.js",
+    "src/app.js",
+    "src/config/app.config.js",
+    "src/jobs/integrationJob.js",
+    "src/jobs/outboxJob.js",
+    "src/jobs/reconciliationJob.js",
+    "src/jobs/reportingProjectionJob.js",
+    "src/services/operationsService.js",
+    "src/services/outbox/registerDefaultHandlers.js",
+    "src/services/startupState.js",
+    "src/services/systemService.js"
+  ],
+  "removed": [],
+  "businessWriterFilesModified": [],
+  "databaseSchemaFilesModified": [],
+  "migrationOrBackfillExecuted": false,
+  "productionDatabaseConnected": false
+}

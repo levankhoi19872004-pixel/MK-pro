@@ -15,11 +15,14 @@ const {
   decideSalesOrderDeletion,
   isStockPosted
 } = require('./salesOrderDeletion.policy');
+const { canMutateSalesOrder } = require('../orders/salesOrderMutationPolicy');
 
 function actorFromCommand(command = {}) {
   return {
     actorCode: String(command.actorCode || command.user?.code || command.user?.staffCode || '').trim(),
-    actorName: String(command.actorName || command.user?.name || command.user?.fullName || command.userName || '').trim()
+    actorName: String(command.actorName || command.user?.name || command.user?.fullName || command.userName || '').trim(),
+    role: String(command.role || command.user?.role || (command.source === 'mobile-sales-app' ? 'sales' : '')).trim().toLowerCase(),
+    salesStaffCode: String(command.user?.salesStaffCode || command.user?.salesmanCode || command.user?.nvbhCode || command.user?.staffCode || command.actorCode || '').trim()
   };
 }
 
@@ -47,7 +50,7 @@ function logDeleteDebug(stage, payload = {}) {
 }
 
 async function deleteSalesOrder(idOrCode, command = {}) {
-  const order = await orderRepository.findByIdOrCode(idOrCode);
+  const order = command.authorizedOrder || await orderRepository.findByIdOrCode(idOrCode);
 
   if (!order) {
     logDeleteDebug('NOT_FOUND', { ref: String(idOrCode || '').trim() });
@@ -55,6 +58,21 @@ async function deleteSalesOrder(idOrCode, command = {}) {
       error: 'Không tìm thấy đơn bán theo mã đã gửi. Hãy thử tải lại danh sách rồi xóa lại.',
       status: 404,
       code: 'ORDER_NOT_FOUND'
+    };
+  }
+
+  const actor = actorFromCommand(command);
+  const authorization = canMutateSalesOrder({
+    actor,
+    order,
+    command: 'delete',
+    expectedVersion: command.expectedVersion
+  });
+  if (!authorization.allowed) {
+    return {
+      error: authorization.message,
+      status: authorization.status,
+      code: authorization.code
     };
   }
 
@@ -80,7 +98,6 @@ async function deleteSalesOrder(idOrCode, command = {}) {
     }
   }
 
-  const actor = actorFromCommand(command);
   logDeleteDebug('RESOLVED', orderDeleteDebugPayload(order, { ref: String(idOrCode || '').trim(), actorCode: actor.actorCode }));
   const earlyDecision = decideSalesOrderDeletion(order, {}, { ...command, ...actor });
   if (earlyDecision.mode === 'ALREADY_DELETED') {

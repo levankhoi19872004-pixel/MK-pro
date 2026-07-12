@@ -112,3 +112,14 @@ MK-pro-phase06-api-query-performance-patched.zip
 ```
 
 Phase 06 does not read `background_jobs`; queued Phase 07 jobs remain inert. After forward-fixing, redeploy Phase 07 and resume the worker. Do not manually delete import sessions, audit logs, reconciliation reports or ledger data.
+
+
+## Phase255C scheduler ownership
+
+The background worker always continues its lease-safe `background_jobs` claim loop. It owns periodic schedulers only when all services use:
+
+```env
+SCHEDULED_JOB_OWNER=worker
+```
+
+With `SCHEDULED_JOB_OWNER=web` or `none`, the worker does not load reconciliation, outbox, integration, or reporting projection scheduler modules. Scheduler ownership does not change job payload, lease, retry, dead-letter, or child executor behavior.

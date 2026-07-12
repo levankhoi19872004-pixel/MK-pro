@@ -1,0 +1,47 @@
+{
+  "capturedAt": "2026-07-12T09:11:06.480Z",
+  "releasePhase": "Phase255A",
+  "releaseId": "Phase255A-1.0.0-20260712084359",
+  "manifestCheck": "FAIL",
+  "manifestMismatches": [
+    "sourceSha256",
+    "sourceFileCount",
+    "configurationVersion"
+  ],
+  "sourceFileCountManifest": 1617,
+  "sourceFileCountActual": 1615,
+  "sourceSha256Manifest": "a6aee57152a91e475dafa7a6d964182c6f10058f0d710a125c7942f632c3bb9a",
+  "sourceSha256Actual": "1138d7e7707fce89bb7ce8d0d08878f23622eb23eaf7ba72e2cf2860c5e09c44",
+  "configurationVersionManifest": "0071c71c2487c6612f7c7e0c8ba64b75c90d05db8e45cea614d2bf2d33a3f190",
+  "configurationVersionActual": "8a91938e1b7749d2dd6097714d0180a6f3df7c50a91530f24f956ebc0d2b97d3",
+  "bundleFileCountManifest": 32,
+  "bundleFileCountActual": 32,
+  "bundleSha256Manifest": "3112aea9adfc20f08c502c4775b85c760d99b43a6bf6cd7bf8f11e8ee63c3974",
+  "bundleSha256Actual": "3112aea9adfc20f08c502c4775b85c760d99b43a6bf6cd7bf8f11e8ee63c3974",
+  "sourceTree": {
+    "fileCount": 2018,
+    "sha256": "9d41d7dd4506274008388c1c14fbd89ffd45194e1a580f5ff9f670dd0421f946"
+  },
+  "artifactBuilder": {
+    "requiresSystemZip": true,
+    "implementation": "spawnSync(zip)",
+    "result": "NOT_RUN_BASELINE_CONFIRMED_BY_SOURCE"
+  },
+  "deploymentVerifier": {
+    "checksExtractedManifest": false,
+    "zipReader": "unzip -Z1"
+  },
+  "qualityRunner": {
+    "npmResolution": "PATH-only spawnSync(npm)",
+    "result": "NOT_RUN_BASELINE_CONFIRMED_BY_SOURCE"
+  },
+  "evidenceLimitations": [
+    ".env.production.example is absent from the artifact and explains one count/configuration mismatch.",
+    "The second missing source-hash file cannot be proven from the manifest because the manifest does not store the file list."
+  ],
+  "missingSourceFilesProvenByPhase253Comparison": [
+    ".env.production.example",
+    "test/fixtures/index-page/phase79-assembled.sha256"
+  ],
+  "rootCauseEvidence": "Both files existed in the Phase253 source artifact, were included by the Phase255A manifest hash scope, and are absent from the Phase255A ZIP."
+}

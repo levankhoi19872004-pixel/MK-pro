@@ -1,0 +1,62 @@
+{
+  "nodeVersion": "v22.16.0",
+  "manifestBaseline": "Phase255B PASS before changes",
+  "safeDefaults": {
+    "owner": "none",
+    "reconciliationEnabled": false,
+    "reconciliationRunOnStart": false,
+    "outboxEnabled": false,
+    "integrationEnabled": false,
+    "reportingProjectionEnabled": false,
+    "readinessRequireBackgroundWorker": false
+  },
+  "ownerNone": {
+    "processRole": "web",
+    "ownerMatched": false,
+    "jobModulesLoaded": 0,
+    "timersStarted": 0,
+    "startupReconciliationTimer": 0,
+    "outboxHandlersLoaded": false,
+    "totalLoadedModulesFromAppImport": 1904,
+    "reasons": {
+      "outbox": "OWNER_NONE",
+      "integration": "OWNER_NONE",
+      "reportingProjection": "OWNER_NONE",
+      "reconciliation": "OWNER_NONE"
+    }
+  },
+  "ownerMismatch": {
+    "processRole": "web",
+    "configuredOwner": "worker",
+    "jobModulesLoaded": 0,
+    "timersStarted": 0,
+    "reason": "OWNER_MISMATCH"
+  },
+  "webOwnerExample": {
+    "processRole": "web",
+    "configuredOwner": "web",
+    "requestedJobs": ["outbox", "reconciliation"],
+    "loadedJobs": ["outbox", "reconciliation"],
+    "startedJobs": ["outbox", "reconciliation"],
+    "startOrder": ["outbox", "reconciliation"],
+    "stopOrder": ["reconciliation", "outbox"]
+  },
+  "workerOwnerExample": {
+    "processRole": "worker",
+    "configuredOwner": "worker",
+    "requestedJobs": ["outbox", "reconciliation"],
+    "loadedJobs": ["outbox", "reconciliation"],
+    "startedJobs": ["outbox", "reconciliation"]
+  },
+  "readiness": {
+    "defaultMode": "ADVISORY",
+    "strictModeVariable": "READINESS_REQUIRE_BACKGROUND_WORKER",
+    "strictHealthySameReleaseWorkerRequired": true,
+    "reconciliationWithoutExecutorWarning": "RECONCILIATION_EXECUTOR_UNAVAILABLE"
+  },
+  "limitations": [
+    "Module counts are local CommonJS require-cache measurements, not production RSS or heap evidence.",
+    "Scheduler timing was validated with injected timers; no production database or business writer was executed.",
+    "No distributed leader election was added; web ownership assumes one web instance."
+  ]
+}

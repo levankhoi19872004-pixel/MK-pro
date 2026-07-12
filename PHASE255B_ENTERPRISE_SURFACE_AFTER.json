@@ -1,0 +1,104 @@
+{
+  "disabled": {
+    "generatedAt": "2026-07-12T09:42:41.107Z",
+    "nodeVersion": "v22.16.0",
+    "featureValue": "false",
+    "enterpriseEnabled": false,
+    "api": {
+      "routeLoaded": false,
+      "controllerLoaded": false,
+      "serviceLoaded": false,
+      "mounted": false,
+      "disabledBoundaryMounted": true,
+      "evidence": {
+        "enterpriseCore": false,
+        "routeModule": "./enterpriseRoutes",
+        "prefix": "/api/enterprise",
+        "loaded": false,
+        "mounted": false,
+        "disabledBoundaryMounted": true,
+        "registrationDurationMs": 0.055
+      }
+    },
+    "static": {
+      "enterpriseHtmlReachable": false,
+      "enterpriseCssReachable": false,
+      "enterpriseJsReachable": false,
+      "paths": {
+        "/enterprise.html": {
+          "blocked": true,
+          "fileExists": true,
+          "reachable": false
+        },
+        "/css/enterprise.css": {
+          "blocked": true,
+          "fileExists": true,
+          "reachable": false
+        },
+        "/js/enterprise-app.js": {
+          "blocked": true,
+          "fileExists": true,
+          "reachable": false
+        }
+      }
+    },
+    "index": {
+      "enterpriseLinkCount": 0,
+      "markerCount": 0
+    },
+    "loadedModuleCountBefore": 1,
+    "loadedModuleCount": 1854,
+    "registrationDurationMs": 1653.274
+  },
+  "enabled": {
+    "generatedAt": "2026-07-12T09:42:42.987Z",
+    "nodeVersion": "v22.16.0",
+    "featureValue": "true",
+    "enterpriseEnabled": true,
+    "api": {
+      "routeLoaded": true,
+      "controllerLoaded": true,
+      "serviceLoaded": true,
+      "mounted": true,
+      "disabledBoundaryMounted": false,
+      "evidence": {
+        "enterpriseCore": true,
+        "routeModule": "./enterpriseRoutes",
+        "prefix": "/api/enterprise",
+        "loaded": true,
+        "mounted": true,
+        "disabledBoundaryMounted": false,
+        "registrationDurationMs": 3.753
+      }
+    },
+    "static": {
+      "enterpriseHtmlReachable": true,
+      "enterpriseCssReachable": true,
+      "enterpriseJsReachable": true,
+      "paths": {
+        "/enterprise.html": {
+          "blocked": false,
+          "fileExists": true,
+          "reachable": true
+        },
+        "/css/enterprise.css": {
+          "blocked": false,
+          "fileExists": true,
+          "reachable": true
+        },
+        "/js/enterprise-app.js": {
+          "blocked": false,
+          "fileExists": true,
+          "reachable": true
+        }
+      }
+    },
+    "index": {
+      "enterpriseLinkCount": 2,
+      "markerCount": 0
+    },
+    "loadedModuleCountBefore": 1,
+    "loadedModuleCount": 1860,
+    "registrationDurationMs": 1576.382
+  }
+}

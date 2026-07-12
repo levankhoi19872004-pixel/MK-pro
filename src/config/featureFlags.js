@@ -9,7 +9,7 @@ function readBoolean(name, fallback = false) {
 }
 
 const FLAGS = Object.freeze({
-  enterpriseCore: () => readBoolean('ENABLE_ENTERPRISE_CORE', true),
+  enterpriseCore: () => readBoolean('ENABLE_ENTERPRISE_CORE', false),
   purchasing: () => readBoolean('ENABLE_PURCHASING', false),
   warehouseAdvanced: () => readBoolean('ENABLE_WAREHOUSE_ADVANCED', false),
   analyticsProjections: () => readBoolean('ENABLE_ANALYTICS_PROJECTIONS', false),

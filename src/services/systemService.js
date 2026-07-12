@@ -11,7 +11,7 @@ const settingRepository = require('../repositories/settingRepository');
 const { APP_COLLECTION_KEYS } = require('../constants/collectionKeys');
 const { getApiMonitorReport, resetApiMonitor } = require('../middlewares/apiMonitor.middleware');
 const { withMongoTransaction } = require('../utils/transaction.util');
-const { getReconciliationJobState } = require('../jobs/reconciliationJob');
+const { getActiveScheduledJobSnapshot } = require('../jobs/scheduledJobOrchestrator');
 const { internalReleaseSummary } = require('../operations/releaseMetadata');
 const { buildBackupIntegrity, compareBackupIntegrity } = require('../operations/backupIntegrity');
 
@@ -92,7 +92,7 @@ async function status() {
     mongoState: mongo.state,
     mongoOk: mongo.ok,
     primaryDataSource: 'mongodb',
-    reconciliation: getReconciliationJobState()
+    reconciliation: getActiveScheduledJobSnapshot().jobs?.reconciliation || { requested: false, loaded: false, started: false, reason: 'SCHEDULER_UNINITIALIZED' }
   };
 }
 

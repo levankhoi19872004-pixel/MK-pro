@@ -5,6 +5,7 @@ const { makeId, toNumber } = require('../../utils/common.util');
 
 const StockTransaction = require('../../models/StockTransaction');
 const InventoryLegacy = require('../../models/InventoryLegacy');
+const { mainInventoryFilter } = require('../inventory/mainInventoryReadPolicy');
 const ArLedger = require('../../models/ArLedger');
 const SalesOrder = require('../../models/SalesOrder');
 const FundLedger = require('../../models/FundLedger');
@@ -74,6 +75,7 @@ async function reconcileStock() {
     ]),
 
     InventoryLegacy.aggregate([
+      { $match: mainInventoryFilter() },
       {
         $project: {
           productCode: { $ifNull: ['$productCode', '$productId'] },

@@ -3,113 +3,114 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const {
+  REQUIRED_ROOT_FILES,
+  REQUIRED_ROOT_DIRS,
+  validateArtifactEntries
+} = require('./lib/release-artifact-policy');
+const {
+  listZipEntries,
+  extractZip,
+  verifyZipIntegrity
+} = require('./lib/zip-artifact');
+const { checkManifest } = require('./generate-release-manifest');
 
-const REQUIRED_FILES = ['package.json', 'package-lock.json'];
-const REQUIRED_DIRS = ['src', 'public', 'test', 'scripts'];
-const FORBIDDEN_SEGMENTS = new Set(['.git', 'node_modules', 'coverage', 'logs', 'tmp', 'temp', '.cache', '.codex']);
-
-function normalize(value) {
-  return String(value || '').replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
+function verifyEntryStructure(entries, options = {}) {
+  return validateArtifactEntries(entries, {
+    root: options.root || path.resolve(__dirname, '..'),
+    requireStructure: options.requireStructure !== false
+  });
 }
 
-function listZipEntries(zipPath) {
-  const result = spawnSync('unzip', ['-Z1', zipPath], { encoding: 'utf8' });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error((result.stderr || result.stdout || 'Cannot list ZIP').trim());
-  return result.stdout.split(/\r?\n/).map(normalize).filter(Boolean);
+function verifyExtractedStructure(root) {
+  const missing = [];
+  for (const file of REQUIRED_ROOT_FILES) {
+    if (!fs.statSync(path.join(root, file), { throwIfNoEntry: false })?.isFile()) missing.push(file);
+  }
+  for (const dir of REQUIRED_ROOT_DIRS) {
+    if (!fs.statSync(path.join(root, dir), { throwIfNoEntry: false })?.isDirectory()) missing.push(`${dir}/`);
+  }
+  return missing;
 }
 
-function duplicateValues(values) {
-  const counts = new Map();
-  for (const value of values) counts.set(value, (counts.get(value) || 0) + 1);
-  return [...counts.entries()].filter(([, count]) => count > 1).map(([value, count]) => ({ value, count }));
-}
+async function verifyZip(zipPath, options = {}) {
+  const absolute = path.resolve(zipPath);
+  if (!fs.existsSync(absolute)) throw new Error(`Artifact not found: ${absolute}`);
 
-function verifyEntryStructure(entries) {
-  const violations = [];
-  const normalized = entries.map(normalize).filter(Boolean);
-  const exactDuplicates = duplicateValues(normalized);
-  for (const item of exactDuplicates) violations.push(`${item.value}: duplicate ZIP entry (${item.count})`);
-
-  const files = normalized.filter((entry) => !entry.endsWith('/'));
-  const roots = new Set(normalized.map((entry) => entry.split('/')[0]));
-
-  for (const required of REQUIRED_FILES) {
-    if (!files.includes(required)) violations.push(`${required}: required root file missing`);
-  }
-  for (const required of REQUIRED_DIRS) {
-    if (!normalized.some((entry) => entry === required || entry.startsWith(`${required}/`))) {
-      violations.push(`${required}/: required source directory missing`);
-    }
-  }
-
-  const sourceLikeRootFiles = files.filter((entry) => !entry.includes('/') && /\.(js|mjs|cjs|css|html|test\.js)$/i.test(entry));
-  const nestedSourceFiles = files.filter((entry) => /^(src|public|test|scripts)\//.test(entry));
-  if (sourceLikeRootFiles.length > 25 && nestedSourceFiles.length < 20) {
-    violations.push(`root flatten detected: ${sourceLikeRootFiles.length} source-like files at ZIP root and only ${nestedSourceFiles.length} under required directories`);
-  }
-
-  const rootBasenames = duplicateValues(files.filter((entry) => !entry.includes('/')).map((entry) => path.posix.basename(entry)));
-  for (const item of rootBasenames) violations.push(`${item.value}: duplicate basename at ZIP root (${item.count})`);
-
-  for (const entry of normalized) {
-    const parts = entry.split('/');
-    if (entry.startsWith('../') || entry.includes('/../') || path.posix.isAbsolute(entry)) {
-      violations.push(`${entry}: unsafe path traversal`);
-    }
-    if (parts.some((part) => FORBIDDEN_SEGMENTS.has(part))) violations.push(`${entry}: forbidden artifact segment`);
-    const base = parts.at(-1) || '';
-    if (/^\.env($|\.)/i.test(base) && !/^\.env\.(example|production\.example)$/i.test(base)) {
-      violations.push(`${entry}: environment secret file is not allowed`);
-    }
-    if (/\.(log|dump|bak|backup)$/i.test(base)) violations.push(`${entry}: runtime log/dump/backup is not allowed`);
-    if (/\.(zip|7z|rar|tar|tgz)$/i.test(base)) violations.push(`${entry}: nested archive is not allowed`);
-  }
-
-  return { violations, files, roots };
-}
-
-function extractionSmokeTest(zipPath) {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mkpro-artifact-'));
+  const entries = await listZipEntries(absolute, { checkCRC32: true });
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mkpro-artifact-verify-'));
+  let result;
   try {
-    const result = spawnSync('unzip', ['-q', zipPath, '-d', tempDir], { encoding: 'utf8' });
-    if (result.error) throw result.error;
-    if (result.status !== 0) throw new Error((result.stderr || result.stdout || 'Cannot extract ZIP').trim());
-    const missing = [];
-    for (const file of REQUIRED_FILES) if (!fs.existsSync(path.join(tempDir, file))) missing.push(file);
-    for (const dir of REQUIRED_DIRS) if (!fs.statSync(path.join(tempDir, dir), { throwIfNoEntry: false })?.isDirectory()) missing.push(`${dir}/`);
-    if (missing.length) throw new Error(`extraction smoke missing: ${missing.join(', ')}`);
-    return { ok: true, tempDir };
+    await extractZip(absolute, tempDir, { checkCRC32: true });
+    const policy = verifyEntryStructure(entries, { root: tempDir, requireStructure: true });
+    const violations = [...policy.violations];
+    const missing = verifyExtractedStructure(tempDir);
+    if (missing.length) violations.push(`EXTRACTION_SMOKE_MISSING: ${missing.join(', ')}`);
+
+    let manifest = { ok: false, mismatches: ['RELEASE_MANIFEST_NOT_CHECKED'] };
+    if (missing.length === 0 && fs.existsSync(path.join(tempDir, 'RELEASE_MANIFEST.json'))) {
+      manifest = checkManifest({ root: tempDir });
+      if (!manifest.ok) {
+        violations.push(`DEPLOYMENT_ARTIFACT_MANIFEST_STALE: ${manifest.mismatches.join(', ')}`);
+      }
+    }
+
+    const integrity = await verifyZipIntegrity(absolute);
+    result = {
+      artifact: absolute,
+      ok: violations.length === 0,
+      checkedEntries: policy.checkedEntries,
+      files: policy.files,
+      violations,
+      policyVersion: policy.policyVersion,
+      manifest: {
+        ok: manifest.ok,
+        mismatches: manifest.mismatches || [],
+        releaseId: manifest.current?.releaseId || ''
+      },
+      extractionSmoke: { ok: missing.length === 0, missing },
+      zipIntegrity: integrity.ok
+    };
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
+  return result;
 }
 
-function verifyZip(zipPath) {
-  const absolute = path.resolve(zipPath);
-  if (!fs.existsSync(absolute)) throw new Error(`Artifact not found: ${absolute}`);
-  const entries = listZipEntries(absolute);
-  const result = verifyEntryStructure(entries);
-  if (result.violations.length === 0) extractionSmokeTest(absolute);
-  return { artifact: absolute, checkedEntries: entries.length, ...result };
+async function extractionSmokeTest(zipPath) {
+  const result = await verifyZip(zipPath);
+  if (!result.extractionSmoke.ok) throw new Error(`extraction smoke missing: ${result.extractionSmoke.missing.join(', ')}`);
+  if (!result.manifest.ok) throw new Error(`DEPLOYMENT_ARTIFACT_MANIFEST_STALE: ${result.manifest.mismatches.join(', ')}`);
+  return { ok: true, manifest: result.manifest };
 }
 
-function main() {
+async function main() {
   const index = process.argv.indexOf('--zip');
   const zipPath = index >= 0 ? process.argv[index + 1] : process.argv[2];
   if (!zipPath) throw new Error('Usage: node scripts/verify-deployment-artifact.js --zip <artifact.zip>');
-  const result = verifyZip(zipPath);
-  if (result.violations.length) {
-    console.error('[deployment-artifact] FAILED');
+  const result = await verifyZip(zipPath);
+  if (!result.ok) {
+    console.error(`[deployment-artifact] FAILED policy=${result.policyVersion}`);
     for (const violation of result.violations) console.error(`- ${violation}`);
     process.exit(1);
   }
-  console.log(`[deployment-artifact] OK ${result.checkedEntries} entries ${path.basename(result.artifact)}`);
+  console.log(
+    `[deployment-artifact] OK ${result.checkedEntries} entries policy=${result.policyVersion} `
+    + `manifest=${result.manifest.releaseId} integrity=crc32 ${path.basename(result.artifact)}`
+  );
 }
 
 if (require.main === module) {
-  try { main(); } catch (error) { console.error(`[deployment-artifact] ERROR ${error.message}`); process.exit(1); }
+  main().catch((error) => {
+    console.error(`[deployment-artifact] ERROR ${error.message}`);
+    process.exit(1);
+  });
 }
 
-module.exports = { normalize, listZipEntries, verifyEntryStructure, verifyZip };
+module.exports = {
+  listZipEntries,
+  verifyEntryStructure,
+  verifyExtractedStructure,
+  verifyZip,
+  extractionSmokeTest
+};

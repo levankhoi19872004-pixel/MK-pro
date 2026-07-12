@@ -147,3 +147,39 @@ Thực hiện `ROLLBACK_RUNBOOK.md`; không tự restore database chỉ để ch
 ## 8. Kết thúc deploy
 
 Ghi `finishedAt`, kết quả health/smoke, dashboard/log evidence, job IDs đã thử, người xác nhận nghiệp vụ và quyết định giữ release/rollback. Tag/release artifact và lưu SHA-256 ở nơi độc lập với máy chạy.
+
+
+## Enterprise Core feature flag
+
+```env
+ENABLE_ENTERPRISE_CORE=false
+```
+
+- `false` hoặc không khai báo: không load `/api/enterprise`, chặn Enterprise HTML/CSS/JS và ẩn link “Trung tâm mở rộng”.
+- `true` (hoặc `1`, `yes`, `on`, `enabled`): bật Enterprise API và console tĩnh.
+- Thay đổi cần restart web process; không hỗ trợ bật/tắt nóng theo request.
+- Không dùng query parameter, payload hoặc database value để bật feature.
+- Với triển khai nội bộ hiện tại, giữ `false` nếu không sử dụng Enterprise console.
+
+
+## Phase255C scheduler deployment profiles
+
+### Profile A — no schedulers
+
+```env
+SCHEDULED_JOB_OWNER=none
+AUTO_RECONCILIATION_JOB=false
+RECONCILIATION_RUN_ON_START=false
+ENABLE_OUTBOX_WORKER=false
+ENABLE_INTEGRATION_WORKER=false
+ENABLE_REPORTING_PROJECTION_JOB=false
+READINESS_REQUIRE_BACKGROUND_WORKER=false
+```
+
+### Profile B — one Render Web Service
+
+Use `SCHEDULED_JOB_OWNER=web` only with one web instance, then enable only required jobs. Reconciliation is a queue producer; it does not execute the reconciliation writer itself. A background worker is required to claim `background_jobs`.
+
+### Profile C — web plus background worker
+
+Use the same `SCHEDULED_JOB_OWNER=worker` value on both services. The web process will not load scheduler modules; the worker process owns enabled schedulers and also claims the persistent queue. Do not configure web ownership on the web service and worker ownership on the worker service at the same time.
