@@ -41,9 +41,9 @@ test('selected KPI and closeout use selected orders, not every visible order', (
   const kpiBody = bodyOf('updateTopKpisFromSelectedSalesmen', 'ensureSelectedOrderSet');
   assert.match(kpiBody, /summarizeVisibleRows\(getSelectedOrders\(\)\)/);
   const closeoutRowsBody = bodyOf('selectedCloseoutRows', 'closeoutSummary');
-  assert.match(closeoutRowsBody, /getCloseoutSelectionSummary\(\)\.eligibleRows/);
+  assert.match(closeoutRowsBody, /getSelectedOrders\(\)/);
   const submitBody = bodyOf('submitCloseout', 'rowKey');
-  assert.match(submitBody, /var rows = selectionSummary\.eligibleRows/);
+  assert.match(submitBody, /var rows = selectedCloseoutRows\(\)/);
   assert.match(submitBody, /orderIds: orderIds/);
   assert.match(submitBody, /closeoutScope:\s*'selected_orders'/);
 });
@@ -54,5 +54,5 @@ test('unselecting all NVBH gives an empty selected-state message and disabled cl
   assert.match(renderRowsBody, /!visibleRows\.length/);
   assert.match(renderRowsBody, /delivery-new-no-salesman-selected/);
   const canCloseoutBody = bodyOf('canCloseoutSelectedOrders', 'applySelectedSalesmanFilter');
-  assert.match(canCloseoutBody, /getCloseoutSelectionSummary\(\)\.eligibleSelectedOrders > 0/);
+  assert.match(canCloseoutBody, /selectedCloseoutRows\(\)\.length > 0/);
 });

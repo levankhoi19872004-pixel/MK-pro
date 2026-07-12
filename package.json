@@ -134,7 +134,10 @@
     "audit:bulk-debt-reconcile-balance-lookup": "node scripts/audit-bulk-debt-reconcile-balance-lookup.js --json",
     "audit:fund-ending-balance": "node scripts/audit-fund-ending-balance-consistency.js --json",
     "audit:closeout-duplicate-debt-adjustment": "node scripts/audit-closeout-debt-adjustment-duplicate-ar-sale.js --json",
-    "audit:delivery-remittance-accounting-date": "node scripts/audit-delivery-remittance-accounting-date.js --json"
+    "audit:delivery-remittance-accounting-date": "node scripts/audit-delivery-remittance-accounting-date.js --json",
+    "verify:deployment-artifact": "node scripts/verify-deployment-artifact.js",
+    "build:deployment-artifact": "node scripts/create-deployment-artifact.js",
+    "verify:phase247:mongo": "node scripts/verify-phase247-mongo-persistence.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
