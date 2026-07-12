@@ -19,7 +19,8 @@ function bodyOf(source, functionName, nextFunctionName) {
 
 test('Delivery Today checkbox is view selection, not closeout permission', () => {
   const viewBody = bodyOf(ui, 'isViewSelectableOrder', 'isCloseoutEligibleOrder');
-  assert.match(viewBody, /row\.viewSelectable !== false/);
+  assert.match(viewBody, /deriveCloseoutUiState\(row\)\.viewSelectable/);
+  assert.match(ui, /row\.viewSelectable !== false/);
   assert.doesNotMatch(viewBody, /isConfirmed\(row\)/);
   assert.doesNotMatch(viewBody, /accountingConfirmed/);
   assert.doesNotMatch(viewBody, /accountingStatus/);
@@ -27,31 +28,33 @@ test('Delivery Today checkbox is view selection, not closeout permission', () =>
   assert.doesNotMatch(viewBody, /canCloseout/);
 
   const renderBody = bodyOf(ui, 'renderOrderRow', 'updateOrderSelectionToolbar');
-  assert.match(renderBody, /var viewSelectable = isViewSelectableOrder\(row\)/);
-  assert.match(renderBody, /var closeoutEligible = isCloseoutEligibleOrder\(row\)/);
+  assert.match(renderBody, /var viewSelectable = closeoutState\.viewSelectable/);
+  assert.match(renderBody, /var closeoutState = deriveCloseoutUiState\(row\)/);
+  assert.match(renderBody, /var closeoutEligible = closeoutState\.closeoutEligible/);
   assert.match(renderBody, /var disabled = viewSelectable \? '' : ' disabled'/);
   assert.doesNotMatch(renderBody, /var disabled = selectable \? '' : ' disabled'/);
 });
 
 test('closeout action only sends closeout-eligible selected orders', () => {
   const closeoutRowsBody = bodyOf(ui, 'selectedCloseoutRows', 'closeoutSummary');
-  assert.match(closeoutRowsBody, /getSelectedOrders\(\)\.filter\(isCloseoutEligibleOrder\)/);
+  assert.match(closeoutRowsBody, /getCloseoutSelectionSummary\(\)\.eligibleRows/);
 
   const buttonBody = bodyOf(ui, 'updateCloseoutButton', 'closeCloseoutModal');
-  assert.match(buttonBody, /selectedCloseoutRows\(\)/);
-  assert.match(buttonBody, /Các đơn đang chọn đều đã chốt sổ hoặc không còn có thể chốt/);
+  assert.match(buttonBody, /getCloseoutSelectionSummary\(\)/);
+  assert.match(buttonBody, /eligibleSelectedOrders === 0/);
 
   const submitBody = bodyOf(ui, 'submitCloseout', 'rowKey');
-  assert.match(submitBody, /var rows = selectedCloseoutRows\(\)/);
-  assert.match(submitBody, /Không có đơn nào còn có thể chốt trong các đơn đang chọn/);
+  assert.match(submitBody, /var selectionSummary = getCloseoutSelectionSummary\(\)/);
+  assert.match(submitBody, /var rows = selectionSummary\.eligibleRows/);
+  assert.match(submitBody, /Không có đơn đủ điều kiện chốt sổ/);
   assert.match(submitBody, /orderIds: orderIds/);
 });
 
 test('toolbar separates total selected closeout-eligible and closed counters', () => {
   const toolbarBody = bodyOf(ui, 'updateOrderSelectionToolbar', 'renderRows');
-  assert.match(toolbarBody, /var viewSelectable = visible\.filter\(isViewSelectableOrder\)/);
-  assert.match(toolbarBody, /selectedOrders\.filter\(isCloseoutEligibleOrder\)\.length/);
-  assert.match(toolbarBody, /var closedCount = visible\.filter\(isConfirmed\)\.length/);
+  assert.match(toolbarBody, /var summary = getCloseoutSelectionSummary\(visible\)/);
+  assert.match(toolbarBody, /summary\.eligibleSelectedOrders/);
+  assert.match(toolbarBody, /summary\.closedSelectedOrders/);
   assert.match(toolbarBody, /Tổng đơn:/);
   assert.match(toolbarBody, /Đang chọn:/);
   assert.match(toolbarBody, /Có thể chốt:/);

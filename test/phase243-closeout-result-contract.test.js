@@ -78,7 +78,7 @@ test('Phase243 frontend uses result outcome as the only local closeout patch evi
   assert.match(source, /ref\.accountingConfirmed === true/);
   assert.doesNotMatch(patchBody, /results\)\s*&&\s*results\.length\s*\?\s*results\s*:\s*submittedRows/);
   assert.doesNotMatch(patchBody, /submittedRows/);
-  assert.match(eligibilityBody, /closeoutEligibility\.eligible === true/);
+  assert.match(source, /closeoutEligibility[\s\S]*eligible === true/);
   assert.doesNotMatch(eligibilityBody, /return true;\s*$/);
   assert.match(submitBody, /json\.ok === false/);
   assert.match(submitBody, /status === 'rejected'/);

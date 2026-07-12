@@ -104,7 +104,7 @@ test('repository closeout update does not set deliveryCloseout and unset deliver
 
 test('frontend treats accountingStatus confirmed as non-selectable and idempotent as success notice', () => {
   const source = read(frontendPath);
-  assert.match(source, /row\.accountingStatus\s*===\s*'confirmed'/);
+  assert.match(source, /accountingStatus\s*===\s*'confirmed'/);
   assert.match(source, /Đơn đã được chốt trước đó\. Hệ thống đã bỏ qua/);
   assert.match(source, /Đã chốt '\s*\+\s*closed\s*\+\s*' đơn, bỏ qua '/);
   assert.match(source, /Công nợ đang đồng bộ nền/);

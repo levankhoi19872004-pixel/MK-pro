@@ -86,13 +86,25 @@
     return parseVietnameseMoney(inputValue);
   }
   function today() { return new Date().toISOString().slice(0, 10); }
-  function isConfirmed(row) { return row && (row.accountingConfirmed || row.accountingStatus === 'confirmed' || row.deliveryCloseoutStatus === 'closed' || row.closeoutStatus === 'accounting_confirmed' || row.closeoutStatus === 'corrected_confirmed'); }
+  function deriveCloseoutUiState(row) {
+    var accountingStatus = String((row && row.accountingStatus) || '').toLowerCase();
+    var accountingConfirmed = Boolean(row && (row.accountingConfirmed === true || accountingStatus === 'confirmed'));
+    var viewSelectable = Boolean(row && orderSelectionKey(row) && row.viewSelectable !== false && !orderCancelledOrDeleted(row));
+    var eligibility = row && row.closeoutEligibility && typeof row.closeoutEligibility === 'object' ? row.closeoutEligibility : null;
+    var closeoutEligibleEvidence = eligibility ? eligibility.eligible === true : row && row.closeoutEligible === true;
+    var closeoutEligible = Boolean(viewSelectable && !accountingConfirmed && closeoutEligibleEvidence);
+    return {
+      accountingConfirmed: accountingConfirmed,
+      closeoutEligible: closeoutEligible,
+      viewSelectable: viewSelectable,
+      eligibilityCode: (eligibility && eligibility.code) || row && row.closeoutEligibilityCode || '',
+      statusLabel: accountingConfirmed ? 'Đã chốt sổ' : 'Chưa chốt'
+    };
+  }
+
+  function isConfirmed(row) { return deriveCloseoutUiState(row).accountingConfirmed; }
   function statusLabel(row) {
-    if (row && (row.deliveryCloseoutStatus === 'closed' || row.closeoutStatus === 'accounting_confirmed' || row.accountingConfirmed || row.accountingStatus === 'confirmed')) return 'Đã chốt sổ';
-    var status = String((row && (row.closeoutStatus || row.status)) || 'pending').toLowerCase();
-    if (status === 'pending' || status === 'draft') return 'Chưa chốt';
-    if (status === 'delivered') return 'Đã giao';
-    return status;
+    return deriveCloseoutUiState(row).statusLabel;
   }
 
   function ensureRoot() {
@@ -696,7 +708,7 @@
     applySummary({});
     renderEmptyState(message);
     setResultSectionsVisible(false);
-    updateCloseoutButton();
+    refreshDerivedUiState([]);
   }
 
   function resetFiltersToEmptyState() {
@@ -837,18 +849,11 @@
   }
 
   function isViewSelectableOrder(row) {
-    return Boolean(row && orderSelectionKey(row) && row.viewSelectable !== false && !orderCancelledOrDeleted(row));
+    return deriveCloseoutUiState(row).viewSelectable;
   }
 
   function isCloseoutEligibleOrder(row) {
-    if (!isViewSelectableOrder(row)) return false;
-    var closeoutLocked = row.closeoutLocked === true || row.deliveryCloseoutLocked === true || row.accountingLocked === true;
-    var alreadyClosed = closeoutLocked || isConfirmed(row);
-    if (alreadyClosed) return false;
-    if (row.closeoutEligible === false || row.canCloseout === false) return false;
-    if (row.closeoutEligibility && typeof row.closeoutEligibility === 'object') return row.closeoutEligibility.eligible === true;
-    if (row.closeoutEligible === true || row.canCloseout === true) return true;
-    return false;
+    return deriveCloseoutUiState(row).closeoutEligible;
   }
 
   function isOrderSelectable(row) {
@@ -948,12 +953,38 @@
     return getVisibleRowsBySelectedSalesmen().filter(function (row) { return isViewSelectableOrder(row) && selected.has(orderSelectionKey(row)); });
   }
 
+  function deriveCloseoutSelectionSummary(rows, selectedIds) {
+    var selected = selectedIds && typeof selectedIds.has === 'function' ? selectedIds : new Set();
+    var states = (rows || []).map(function (row) {
+      return { row: row, key: orderSelectionKey(row), state: deriveCloseoutUiState(row) };
+    });
+    var selectableRows = states.filter(function (item) { return item.state.viewSelectable; }).map(function (item) { return item.row; });
+    var selectedStates = states.filter(function (item) { return item.state.viewSelectable && selected.has(item.key); });
+    var eligibleStates = selectedStates.filter(function (item) { return item.state.closeoutEligible; });
+    var closedStates = selectedStates.filter(function (item) { return item.state.accountingConfirmed; });
+    return {
+      totalOrders: (rows || []).length,
+      selectableOrders: selectableRows.length,
+      selectedOrders: selectedStates.length,
+      eligibleSelectedOrders: eligibleStates.length,
+      closedSelectedOrders: closedStates.length,
+      selectedRows: selectedStates.map(function (item) { return item.row; }),
+      eligibleRows: eligibleStates.map(function (item) { return item.row; }),
+      selectableRows: selectableRows
+    };
+  }
+
+  function getCloseoutSelectionSummary(visibleRows) {
+    var rows = state.hasSearched ? (visibleRows || getVisibleRowsBySelectedSalesmen()) : [];
+    return deriveCloseoutSelectionSummary(rows, ensureSelectedOrderSet());
+  }
+
   function getSelectedCloseoutSummary() {
-    return closeoutSummary(getSelectedOrders());
+    return closeoutSummary(getCloseoutSelectionSummary().eligibleRows);
   }
 
   function canCloseoutSelectedOrders() {
-    return selectedCloseoutRows().length > 0 && !state.closeoutBusy;
+    return getCloseoutSelectionSummary().eligibleSelectedOrders > 0 && !state.closeoutBusy;
   }
 
   function applySelectedSalesmanFilter() {
@@ -1088,9 +1119,10 @@
   }
 
   function renderOrderRow(row) {
-    var confirmed = isConfirmed(row);
-    var viewSelectable = isViewSelectableOrder(row);
-    var closeoutEligible = isCloseoutEligibleOrder(row);
+    var closeoutState = deriveCloseoutUiState(row);
+    var confirmed = closeoutState.accountingConfirmed;
+    var viewSelectable = closeoutState.viewSelectable;
+    var closeoutEligible = closeoutState.closeoutEligible;
     var key = orderSelectionKey(row);
     var checked = isOrderSelected(row) ? ' checked' : '';
     var disabled = viewSelectable ? '' : ' disabled';
@@ -1110,7 +1142,7 @@
       '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + moneyDash(num(row.rewardAmount) + num(row.offsetAmount)) + '</span>' +
       '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell delivery-new-return">' + moneyDash(row.returnedAmount) + '</span>' +
       '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell ' + debtClass + '">' + moneyDash(row.finalDebtAmount) + '</span>' +
-      '<span class="delivery-new-order-cell delivery-new-status-cell"><span class="delivery-new-status ' + (confirmed ? 'confirmed' : '') + '">' + esc(statusLabel(row)) + '</span></span>' +
+      '<span class="delivery-new-order-cell delivery-new-status-cell"><span class="delivery-new-status ' + (confirmed ? 'confirmed' : '') + '">' + esc(closeoutState.statusLabel) + '</span></span>' +
       '<span class="delivery-new-order-cell delivery-new-row-action delivery-new-action-cell"><button type="button" class="primary-action deliveryTodayNewAdjustBtn" data-adjust-key="' + esc(key) + '">Điều chỉnh</button></span>' +
     '</div>';
   }
@@ -1122,11 +1154,11 @@
     var clearAll = byId('deliveryTodayNewClearOrders');
     var bulkAdjustment = byId('deliveryTodayNewBulkAdjustmentCommit');
     var visible = visibleRows || getVisibleRowsBySelectedSalesmen();
-    var viewSelectable = visible.filter(isViewSelectableOrder);
-    var selectedOrders = getSelectedOrders();
-    var selectedCount = selectedOrders.length;
-    var selectedCloseoutCount = selectedOrders.filter(isCloseoutEligibleOrder).length;
-    var closedCount = visible.filter(isConfirmed).length;
+    var summary = getCloseoutSelectionSummary(visible);
+    var viewSelectable = summary.selectableRows;
+    var selectedCount = summary.selectedOrders;
+    var selectedCloseoutCount = summary.eligibleSelectedOrders;
+    var closedCount = summary.closedSelectedOrders;
     if (countEl) countEl.textContent = 'Tổng đơn: ' + visible.length;
     if (selectedEl) selectedEl.textContent = 'Đang chọn: ' + selectedCount + ' · Có thể chốt: ' + selectedCloseoutCount + ' · Đã chốt: ' + closedCount;
     if (selectAll) selectAll.disabled = !viewSelectable.length || selectedCount === viewSelectable.length;
@@ -1144,27 +1176,29 @@
     }
   }
 
+  function refreshDerivedUiState(visibleRows) {
+    updateOrderSelectionToolbar(visibleRows || getVisibleRowsBySelectedSalesmen());
+    updateCloseoutButton();
+  }
+
   function renderRows() {
     var list = byId('deliveryTodayNewTable');
     if (!list) return;
     if (!state.hasSearched) {
       list.innerHTML = '<div class="empty-state">Chưa tải đơn.</div>';
-      updateOrderSelectionToolbar([]);
-      updateCloseoutButton();
+      refreshDerivedUiState([]);
       return;
     }
     var visibleRows = getVisibleRowsBySelectedSalesmen();
     pruneSelectedOrderIds(visibleRows);
     if (!state.rows.length) {
       list.innerHTML = '<div class="empty-state">' + esc(emptyOrdersMessage()) + '</div>';
-      updateOrderSelectionToolbar([]);
-      updateCloseoutButton();
+      refreshDerivedUiState([]);
       return;
     }
     if (!visibleRows.length) {
       list.innerHTML = '<div class="delivery-new-no-salesman-selected">Chưa chọn NVBH nào.</div>';
-      updateOrderSelectionToolbar([]);
-      updateCloseoutButton();
+      refreshDerivedUiState([]);
       return;
     }
     list.innerHTML = visibleRows.map(renderOrderRow).join('');
@@ -1181,8 +1215,7 @@
         openAdjustmentPopup(findRowByOrderKey(btn.dataset.adjustKey));
       });
     });
-    updateOrderSelectionToolbar(visibleRows);
-    updateCloseoutButton();
+    refreshDerivedUiState(visibleRows);
   }
 
 
@@ -1235,7 +1268,7 @@
     var orderCodes = orderPayloads.map(function (row) { return row.orderCode || row.orderId; }).filter(Boolean).filter(function (value, index, arr) { return arr.indexOf(value) === index; });
     var orderIds = orderPayloads.map(function (row) { return row.orderId || row.orderCode; }).filter(Boolean).filter(function (value, index, arr) { return arr.indexOf(value) === index; });
     state.bulkAdjustmentBusy = true;
-    updateOrderSelectionToolbar(getVisibleRowsBySelectedSalesmen());
+    refreshDerivedUiState(getVisibleRowsBySelectedSalesmen());
     setMessage('Đang ghi nhận điều chỉnh hàng loạt cho ' + rows.length + ' đơn...');
     try {
       var res = await fetch('/api/new/delivery-today/adjustments/bulk-commit', {
@@ -1261,7 +1294,7 @@
       setMessage(err.message || 'Không ghi nhận được điều chỉnh hàng loạt', true);
     } finally {
       state.bulkAdjustmentBusy = false;
-      updateOrderSelectionToolbar(getVisibleRowsBySelectedSalesmen());
+      refreshDerivedUiState(getVisibleRowsBySelectedSalesmen());
     }
     return null;
     });
@@ -1348,7 +1381,7 @@
   }
 
   function selectedCloseoutRows() {
-    return getSelectedOrders().filter(isCloseoutEligibleOrder);
+    return getCloseoutSelectionSummary().eligibleRows;
   }
 
   function closeoutSummary(rows) {
@@ -1371,15 +1404,18 @@
   function updateCloseoutButton() {
     var btn = byId('deliveryTodayNewCloseout');
     if (!btn) return;
-    var selectedRows = state.hasSearched ? getSelectedOrders() : [];
-    var rows = state.hasSearched ? selectedCloseoutRows() : [];
+    var selectionSummary = getCloseoutSelectionSummary();
+    var selectedRows = selectionSummary.selectedRows;
+    var rows = selectionSummary.eligibleRows;
     var summary = closeoutSummary(rows);
-    btn.disabled = !canCloseoutSelectedOrders();
+    var disabled = selectionSummary.eligibleSelectedOrders === 0 || state.closeoutBusy === true;
+    btn.disabled = disabled;
+    btn.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+    btn.classList.toggle('disabled', disabled);
     btn.textContent = state.closeoutBusy ? 'Đang chốt...' : ('Chốt sổ giao hàng' + (rows.length ? ' (' + rows.length + ')' : ''));
     if (!selectedRows.length) btn.title = 'Vui lòng chọn ít nhất một đơn để chốt sổ.';
     else if (!rows.length) btn.title = 'Các đơn đang chọn đều đã chốt sổ hoặc không còn có thể chốt.';
     else btn.title = 'Chuyển CN còn lại sang AR-DEBT: ' + money(summary.totalDebt);
-    updateOrderSelectionToolbar(getVisibleRowsBySelectedSalesmen());
   }
 
   function closeCloseoutModal() {
@@ -1391,10 +1427,11 @@
   function openCloseoutModal() {
     var modal = byId('deliveryTodayNewCloseoutModal');
     if (!modal) return;
-    var selectedRows = getSelectedOrders();
-    var rows = selectedCloseoutRows();
+    var selectionSummary = getCloseoutSelectionSummary();
+    var selectedRows = selectionSummary.selectedRows;
+    var rows = selectionSummary.eligibleRows;
     if (!selectedRows.length) { setMessage('Vui lòng chọn ít nhất một đơn để chốt sổ.', true); return; }
-    if (!rows.length) { setMessage('Các đơn đang chọn đều đã chốt sổ hoặc không còn có thể chốt.', true); return; }
+    if (!rows.length) { setMessage('Không có đơn đủ điều kiện chốt sổ.', true); return; }
     clearModalNotice('closeout');
     var summary = closeoutSummary(rows);
     var f = filters();
@@ -1434,10 +1471,11 @@
 
   async function submitCloseout() {
     return runCommandOnce('delivery.closeout', async function () {
-    var rows = selectedCloseoutRows();
+    var selectionSummary = getCloseoutSelectionSummary();
+    var rows = selectionSummary.eligibleRows;
     var reasonEl = byId('deliveryCloseoutReason');
     var reason = reasonEl ? reasonEl.value.trim() : '';
-    if (!rows.length) { setModalError('closeout', 'Không có đơn nào còn có thể chốt trong các đơn đang chọn.'); return; }
+    if (!rows.length) { setModalError('closeout', 'Không có đơn đủ điều kiện chốt sổ.'); return; }
     if (!reason) { setModalError('closeout', 'Vui lòng nhập lý do chốt sổ.'); return; }
     var f = filters();
     var salesStaffCodes = (state.salesmanGroups || [])
