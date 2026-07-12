@@ -42,10 +42,13 @@ const status=String(row&&row.status||"").toLowerCase();if(row&&row.fundPosted===
 ;if(row&&row.fundPosted===true||["confirmed","cancelled","canceled","void","deleted"].includes(status))return false
 ;const lines=Array.isArray(row&&row.remittanceLines)?row.remittanceLines:[];if(!lines.length)return true
 ;return lines.some(line=>!["confirmed","cancelled","reversed"].includes(String(line.status||"draft").toLowerCase()))}function fundActionButtons(type,row){
-const rawCode=String(row.code||row.id||"");const code=fundSafeCode(rawCode);const actions=[]
-;if(fundCanEdit(row))actions.push(`<button type="button" class="secondary compact-action" data-fund-action-key="${escapeHtml(`edit:${type}:${rawCode}`)}" data-fund-action="edit" data-fund-type="${escapeHtml(type)}" data-fund-code="${escapeHtml(rawCode)}">${type==="delivery"?"Xử lý":"Sửa"}</button>`)
-;if(fundCanConfirm(row))actions.push(`<button type="button" class="secondary compact-action fund-confirm-action" data-fund-action-key="${escapeHtml(`confirm:${type}:${rawCode}`)}" data-fund-action="confirm" data-fund-type="${escapeHtml(type)}" data-fund-code="${escapeHtml(rawCode)}">${type==="delivery"?"Xử lý":"Xác nhận"}</button>`)
-;if(!actions.length)return'<span class="muted">Đã xác nhận</span>';return actions.join(" ")}function deliveryShortageStatusText(shortage,row,diff){if(Number(diff||0)>=0)return""
+const rawCode=String(row.code||row.id||"");const code=fundSafeCode(rawCode);const actions=[];if(fundCanEdit(row)){const editLabel=type==="delivery"?"Sửa phiếu":"Sửa"
+;const editTitle=type==="delivery"?"Mở phiếu nộp quỹ để chỉnh sửa thông tin đã khai báo.":`Sửa ${type==="expense"?"phiếu chi":"phiếu chuyển quỹ"}.`
+;actions.push(`<button type="button" class="secondary compact-action" data-fund-action-key="${escapeHtml(`edit:${type}:${rawCode}`)}" data-fund-action="edit" data-fund-type="${escapeHtml(type)}" data-fund-code="${escapeHtml(rawCode)}" title="${escapeHtml(editTitle)}" aria-label="${escapeHtml(`${editLabel} ${rawCode}`)}">${escapeHtml(editLabel)}</button>`)
+}if(fundCanConfirm(row)){const confirmLabel="Xác nhận"
+;const confirmTitle=type==="delivery"?"Xác nhận phiếu nộp và ghi nhận các dòng đủ điều kiện vào sổ quỹ.":`Xác nhận ${type==="expense"?"phiếu chi":"phiếu chuyển quỹ"} và ghi quỹ.`
+;actions.push(`<button type="button" class="secondary compact-action fund-confirm-action" data-fund-action-key="${escapeHtml(`confirm:${type}:${rawCode}`)}" data-fund-action="confirm" data-fund-type="${escapeHtml(type)}" data-fund-code="${escapeHtml(rawCode)}" title="${escapeHtml(confirmTitle)}" aria-label="${escapeHtml(`${confirmLabel} phiếu ${rawCode}`)}">${escapeHtml(confirmLabel)}</button>`)
+}if(!actions.length)return'<span class="muted">Đã xác nhận</span>';return actions.join(" ")}function deliveryShortageStatusText(shortage,row,diff){if(Number(diff||0)>=0)return""
 ;if(!shortage){
 return String(row&&row.status||"").toLowerCase()==="confirmed"?'<span class="fund-shortage-state needs-classification">Chưa phân loại</span>':'<span class="fund-shortage-state pending">Chờ xác nhận</span>'
 }const labels={open:"NVGH còn nợ",partial:"NVGH nợ một phần",settled:"Đã tất toán",pending_reconciliation:"Chờ đối soát NH",customer_outstanding:"Công nợ khách hàng",

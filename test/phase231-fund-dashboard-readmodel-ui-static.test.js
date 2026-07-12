@@ -61,6 +61,7 @@ test('Phase231 delivery fund tab uses operational labels for remittance review',
   assert.match(html, />Còn thiếu\/thừa</);
   assert.match(html, />Đối soát</);
   assert.match(html, />Ghi quỹ</);
-  assert.match(js, /type==='delivery'\?'Xử lý':'Sửa'/);
-  assert.match(js, /type==='delivery'\?'Xử lý':'Xác nhận'/);
+  assert.match(js, /type==='delivery'\?'Sửa phiếu':'Sửa'/);
+  assert.match(js, /const confirmLabel='Xác nhận'/);
+  assert.doesNotMatch(js, /type==='delivery'\?'Xử lý'/);
 });
