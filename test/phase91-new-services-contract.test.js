@@ -359,9 +359,10 @@ test('Debt New popup keeps collection workflow inside modal and main screen comp
   const fs = require('node:fs');
   const path = require('node:path');
   const source = fs.readFileSync(path.join(__dirname, '..', 'public/js/app/new/92-debt-new.js'), 'utf8');
-  assert.match(source, /Chọn tất cả đơn nợ/);
-  assert.match(source, /debtNewSelectAllDebtOrders/);
-  assert.match(source, /debtNewClearDebtOrders/);
+  assert.match(source, /debtNewToggleDebtOrders/);
+  assert.match(source, /data-selection-scope="debt-order-list"/);
+  assert.match(source, /Bỏ chọn tất cả/);
+  assert.doesNotMatch(source, /debtNewSelectAllDebtOrders|debtNewClearDebtOrders/);
   assert.match(source, /debt-new-go-collection/);
   assert.match(source, /renderDebtCollectionTab/);
   assert.match(source, /debtNewCollectionBox/);

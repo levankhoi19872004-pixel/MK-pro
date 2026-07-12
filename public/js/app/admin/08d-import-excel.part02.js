@@ -42,18 +42,33 @@ const validRows=(group.rows||[]).slice(0,30).map(({row:row})=>`<div class="impor
 ;const searchText=[group.programCode,group.programName,...(group.rows||[]).slice(0,100).map(item=>`${item.row.productCode||""} ${item.row.productName||""}`)].join(" ")
 ;return`<tr class="import-program-row ${group.canImport?"import-valid":"import-invalid"}" data-program-code="${escapeImportHtml(group.programCode)}" data-status="${escapeImportHtml(group.status)}" data-missing="${Number(group.missingProductCount||0)}" data-search="${escapeImportHtml(searchText)}">\n      <td>${group.canImport?`<input class="import-program-check" data-program-code="${escapeImportHtml(group.programCode)}" type="checkbox" checked />`:`<input class="import-program-check" data-program-code="${escapeImportHtml(group.programCode)}" type="checkbox" disabled title="Chương trình không có dòng hợp lệ" />`}</td>\n      <td><b>${escapeImportHtml(group.programCode)}</b>${group.programName?`<div class="muted">${escapeImportHtml(group.programName)}</div>`:""}</td>\n      <td>${formatNumber(group.validRows)}</td>\n      <td>${formatNumber(group.invalidRows)}</td>\n      <td><span class="badge ${state.type}">${escapeImportHtml(state.label)}</span></td>\n      <td>${renderImportProgramGroupDetails(group)}</td>\n    </tr>`
 }).join("");importPreviewTable.innerHTML=toolbar+rowsHtml;bindImportProgramPreviewControls()}function syncImportSelectedCount(){const selected=getSelectedImportRows().length
-;const el=document.getElementById("importPreviewSelectedCount");if(el)el.textContent=formatNumber(selected)}function syncImportChecksFromModal(){
-document.querySelectorAll(".import-modal-row-check").forEach(cb=>{const index=Number(cb.dataset.index);const row=importPreviewRows[index];const key=getImportRowSelectKey(row,index)
-;if(!isImportRowSelectable(row)){importSelectedRowKeySet.delete(key);cb.checked=false;cb.disabled=true
+;const el=document.getElementById("importPreviewSelectedCount");if(el)el.textContent=formatNumber(selected)}function deriveImportPreviewBulkSelectionState(){
+const api=window.ScopedBulkSelection;if(api&&typeof api.deriveScopeSelectionState==="function"){return api.deriveScopeSelectionState({visibleRows:importPreviewRows,
+selectedKeys:importSelectedRowKeySet,getKey:getImportRowSelectKey,isSelectable:isImportRowSelectable})}
+const keys=importPreviewRows.map((row,index)=>isImportRowSelectable(row)?getImportRowSelectKey(row,index):"").filter(Boolean)
+;const selectedCount=keys.filter(key=>importSelectedRowKeySet.has(key)).length;const allSelected=Boolean(keys.length&&selectedCount===keys.length);return{selectableKeys:keys,
+selectableCount:keys.length,selectedSelectableCount:selectedCount,allSelected:allSelected,buttonLabel:allSelected?"Bỏ chọn tất cả":"Chọn tất cả",disabled:keys.length===0}}
+function syncImportPreviewToggleButton(){const button=document.getElementById("toggleAllImportPreviewButton");if(!button)return
+;const summary=deriveImportPreviewBulkSelectionState();const api=window.ScopedBulkSelection
+;if(api&&typeof api.applyToggleButtonState==="function")api.applyToggleButtonState(button,summary,{entityLabel:"dòng import hợp lệ đang hiển thị"});else{
+button.textContent=summary.buttonLabel;button.disabled=summary.disabled;button.setAttribute("aria-disabled",summary.disabled?"true":"false")
+;button.setAttribute("aria-pressed",summary.allSelected?"true":"false")}}function syncImportChecksFromModal(){const modal=document.getElementById("importPreviewModal")
+;const body=modal&&modal.querySelector("#importPreviewModalBody");if(!body)return;body.querySelectorAll(".import-modal-row-check").forEach(cb=>{const index=Number(cb.dataset.index)
+;const row=importPreviewRows[index];const key=getImportRowSelectKey(row,index);if(!isImportRowSelectable(row)){importSelectedRowKeySet.delete(key);cb.checked=false;cb.disabled=true
 }else if(cb.checked)importSelectedRowKeySet.add(key);else importSelectedRowKeySet.delete(key)
-;const inline=document.querySelector(`.import-preview-wrap .import-row-check[data-index="${cb.dataset.index}"]`);if(inline)inline.checked=cb.checked});syncImportSelectedCount()}
-function bindImportPreviewModalControls(){const closeBtn=document.getElementById("closeImportPreviewModalButton");if(closeBtn)closeBtn.onclick=closeImportPreviewModal
-;const selectAll=document.getElementById("selectAllImportPreviewButton");if(selectAll)selectAll.onclick=()=>{initImportSelectedRows(importPreviewRows)
-;document.querySelectorAll(".import-modal-row-check").forEach(cb=>{const row=importPreviewRows[Number(cb.dataset.index)];cb.checked=isImportRowSelectable(row)
-;cb.disabled=!isImportRowSelectable(row)});syncImportChecksFromModal()};const clearAll=document.getElementById("clearAllImportPreviewButton");if(clearAll)clearAll.onclick=()=>{
-importSelectedRowKeySet=new Set;document.querySelectorAll(".import-modal-row-check").forEach(cb=>cb.checked=false);syncImportChecksFromModal()}
+;const inline=importPreviewTable&&importPreviewTable.querySelector(`.import-row-check[data-index="${cb.dataset.index}"]:not(.import-modal-row-check)`)
+;if(inline)inline.checked=cb.checked});syncImportSelectedCount();syncImportPreviewToggleButton()}function toggleImportPreviewRows(){const api=window.ScopedBulkSelection
+;if(api&&typeof api.toggleScopeSelection==="function"){api.toggleScopeSelection({visibleRows:importPreviewRows,selectedKeys:importSelectedRowKeySet,getKey:getImportRowSelectKey,
+isSelectable:isImportRowSelectable})}else{const summary=deriveImportPreviewBulkSelectionState()
+;if(summary.allSelected)summary.selectableKeys.forEach(key=>importSelectedRowKeySet.delete(key));else summary.selectableKeys.forEach(key=>importSelectedRowKeySet.add(key))}
+const modal=document.getElementById("importPreviewModal");const body=modal&&modal.querySelector("#importPreviewModalBody")
+;if(body)body.querySelectorAll(".import-modal-row-check").forEach(cb=>{const index=Number(cb.dataset.index);const row=importPreviewRows[index]
+;cb.disabled=!isImportRowSelectable(row);cb.checked=isImportRowSelectable(row)&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index))});syncImportChecksFromModal()}
+function bindImportPreviewModalControls(){const modal=document.getElementById("importPreviewModal");const body=modal&&modal.querySelector("#importPreviewModalBody")
+;const closeBtn=document.getElementById("closeImportPreviewModalButton");if(closeBtn)closeBtn.onclick=closeImportPreviewModal
+;const toggleAll=document.getElementById("toggleAllImportPreviewButton");if(toggleAll)toggleAll.onclick=toggleImportPreviewRows
 ;const importBtn=document.getElementById("commitImportFromModalButton");if(importBtn)importBtn.onclick=()=>{syncImportChecksFromModal();commitImportExcel()}
-;document.querySelectorAll(".import-modal-row-check").forEach(cb=>cb.onchange=syncImportChecksFromModal)}function ensureImportShortageActions(){
+;if(body)body.querySelectorAll(".import-modal-row-check").forEach(cb=>cb.onchange=syncImportChecksFromModal);syncImportPreviewToggleButton()}function ensureImportShortageActions(){
 let box=document.getElementById("importShortageActions");if(!box){box=document.createElement("div");box.id="importShortageActions";box.className="import-shortage-actions"
 ;if(importPreviewSummary&&importPreviewSummary.parentNode){importPreviewSummary.parentNode.insertBefore(box,importPreviewSummary)
 }else if(importDataMessage&&importDataMessage.parentNode){importDataMessage.parentNode.insertBefore(box,importDataMessage.nextSibling)}}return box}

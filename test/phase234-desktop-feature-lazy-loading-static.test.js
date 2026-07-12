@@ -50,7 +50,8 @@ test('Phase234 keeps six large desktop modules out of the initial shell', () => 
 
   const totalBytes = scripts.reduce((sum, script) => sum + script.bytes, 0);
   const totalGzipBytes = scripts.reduce((sum, script) => sum + script.gzipBytes, 0);
-  assert.equal(scripts.length, 63);
+  assert.ok(srcList.some((src) => src.startsWith('/js/shared/scoped-bulk-selection.js')));
+  assert.equal(scripts.length, 64);
   assert.ok(totalBytes <= 750 * 1024, `initial decoded JS too large: ${totalBytes}`);
   assert.ok(totalGzipBytes <= 205 * 1024, `initial gzip JS too large: ${totalGzipBytes}`);
 });

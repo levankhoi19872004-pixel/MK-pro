@@ -46,14 +46,15 @@ const invalid=next.valid===false||String(next.status||"").toLowerCase()==="inval
 ;next.statusText=next.statusText||"Hợp lệ"}return next}function isImportRowSelectable(row){
 return Boolean(row&&row.valid!==false&&row.canImport!==false&&!importRowHasMissingCatalogProduct(row)&&importRowErrorList(row).length===0)}function initImportSelectedRows(rows=[]){
 importSelectedRowKeySet=new Set;rows.forEach((row,index)=>{if(isImportRowSelectable(row))importSelectedRowKeySet.add(getImportRowSelectKey(row,index))})}
-function syncImportInlineSelection(){document.querySelectorAll(".import-row-check").forEach(cb=>{const index=Number(cb.dataset.index);const row=importPreviewRows[index]
+function syncImportInlineSelection(){const root=importPreviewTable||document.querySelector(".import-preview-wrap");if(!root)return
+;root.querySelectorAll(".import-row-check:not(.import-modal-row-check)").forEach(cb=>{const index=Number(cb.dataset.index);const row=importPreviewRows[index]
 ;const key=getImportRowSelectKey(row,index);if(!isImportRowSelectable(row)){importSelectedRowKeySet.delete(key);cb.checked=false;return}
 if(cb.checked)importSelectedRowKeySet.add(key);else importSelectedRowKeySet.delete(key)});syncImportSelectedCount()}function bindImportInlinePreviewChecks(){
-document.querySelectorAll(".import-row-check").forEach(cb=>{const index=Number(cb.dataset.index);const row=importPreviewRows[index]
-;cb.checked=isImportRowSelectable(row)&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index));cb.disabled=!isImportRowSelectable(row);cb.onchange=syncImportInlineSelection
-})}function getSelectedImportRows(){const groupedRows=getSelectedImportProgramRows();if(groupedRows)return groupedRows
-;return importPreviewRows.filter((row,index)=>isImportRowSelectable(row)&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index)))}function escapeImportHtml(value){
-return String(value??"").replace(/[&<>'\"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[ch]))}function importRowToText(row){
+const root=importPreviewTable||document.querySelector(".import-preview-wrap");if(!root)return;root.querySelectorAll(".import-row-check:not(.import-modal-row-check)").forEach(cb=>{
+const index=Number(cb.dataset.index);const row=importPreviewRows[index];cb.checked=isImportRowSelectable(row)&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index))
+;cb.disabled=!isImportRowSelectable(row);cb.onchange=syncImportInlineSelection})}function getSelectedImportRows(){const groupedRows=getSelectedImportProgramRows()
+;if(groupedRows)return groupedRows;return importPreviewRows.filter((row,index)=>isImportRowSelectable(row)&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index)))}
+function escapeImportHtml(value){return String(value??"").replace(/[&<>'\"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[ch]))}function importRowToText(row){
 if(row&&row.previewMode==="order"){const customer=row.customerName||row.supplier||"";const total=row.totalAmount!==undefined?money(row.totalAmount):""
 ;const status=row.statusText||(row.valid?"Hợp lệ":"Lỗi")
 ;const shortage=row.hasShortage?` | Vượt tồn: ${displayImportAggregateQty(row.shortageQuantity||0)} | Cắt: ${money(row.shortageAmount||0)}`:""

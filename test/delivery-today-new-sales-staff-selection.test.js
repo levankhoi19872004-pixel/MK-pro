@@ -21,13 +21,14 @@ test('checking or unchecking an NVBH selects or removes its view-selectable orde
   assert.match(body, /applySelectedSalesmanFilter\(\)/);
 });
 
-test('manual order checkbox updates NVBH checkbox state and KPI', () => {
+test('manual order checkbox updates order KPI without mutating explicit NVBH scope', () => {
   const body = bodyOf('toggleOrderSelection', 'selectAllVisibleOrders');
-  assert.match(body, /findRowByOrderKey\(key\)/);
-  assert.match(body, /salesmanKey\(row\)/);
-  assert.match(body, /groupSelectedCount\(group\) > 0/);
   assert.match(body, /updateTopKpisFromSelectedSalesmen\(\)/);
-  assert.match(body, /renderSalesmanGroupPanel\(\)/);
+  assert.match(body, /renderRows\(\)/);
+  assert.doesNotMatch(body, /selectedSalesmanKeys/);
+  assert.doesNotMatch(body, /salesmanKey\(row\)/);
+  assert.doesNotMatch(body, /groupSelectedCount\(group\)/);
+  assert.doesNotMatch(body, /renderSalesmanGroupPanel\(\)/);
 });
 
 test('default load ticks all NVBH and selects view-selectable orders for tracking', () => {
@@ -41,9 +42,9 @@ test('selected KPI and closeout use selected orders, not every visible order', (
   const kpiBody = bodyOf('updateTopKpisFromSelectedSalesmen', 'ensureSelectedOrderSet');
   assert.match(kpiBody, /summarizeVisibleRows\(getSelectedOrders\(\)\)/);
   const closeoutRowsBody = bodyOf('selectedCloseoutRows', 'closeoutSummary');
-  assert.match(closeoutRowsBody, /getSelectedOrders\(\)/);
+  assert.match(closeoutRowsBody, /getCloseoutSelectionSummary\(\)\.eligibleRows/);
   const submitBody = bodyOf('submitCloseout', 'rowKey');
-  assert.match(submitBody, /var rows = selectedCloseoutRows\(\)/);
+  assert.match(submitBody, /var rows = selectionSummary\.eligibleRows/);
   assert.match(submitBody, /orderIds: orderIds/);
   assert.match(submitBody, /closeoutScope:\s*'selected_orders'/);
 });
@@ -54,5 +55,5 @@ test('unselecting all NVBH gives an empty selected-state message and disabled cl
   assert.match(renderRowsBody, /!visibleRows\.length/);
   assert.match(renderRowsBody, /delivery-new-no-salesman-selected/);
   const canCloseoutBody = bodyOf('canCloseoutSelectedOrders', 'applySelectedSalesmanFilter');
-  assert.match(canCloseoutBody, /selectedCloseoutRows\(\)\.length > 0/);
+  assert.match(canCloseoutBody, /getCloseoutSelectionSummary\(\)\.eligibleSelectedOrders > 0/);
 });

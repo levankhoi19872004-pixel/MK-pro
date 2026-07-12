@@ -39,21 +39,59 @@ function renderSalesOrderItems(items){
 }
 
 
-function toggleSelectAllSalesOrders(){
-  const checks=[...document.querySelectorAll('.sales-order-check')];
-  if(!checks.length)return;
-  const shouldCheck=checks.some(ch=>!ch.checked);
-  checks.forEach(ch=>{ch.checked=shouldCheck;});
-  if(typeof selectAllSalesOrdersButton!=='undefined' && selectAllSalesOrdersButton){
-    selectAllSalesOrdersButton.textContent=shouldCheck?'Bỏ chọn tất cả':'Chọn tất cả';
+function salesOrderSelectionKey(order,index){
+  return String(order?.id||order?.code||order?.orderCode||order?.salesOrderCode||index||'').trim();
+}
+function ensureSelectedSalesOrderKeys(){
+  if(!(window.__selectedSalesOrderKeys instanceof Set))window.__selectedSalesOrderKeys=new Set();
+  return window.__selectedSalesOrderKeys;
+}
+function deriveSalesOrderBulkSelectionState(){
+  const rows=Array.isArray(window.__salesOrdersCache)?window.__salesOrdersCache:[];
+  const api=window.ScopedBulkSelection;
+  if(api&&typeof api.deriveScopeSelectionState==='function'){
+    return api.deriveScopeSelectionState({visibleRows:rows,selectedKeys:ensureSelectedSalesOrderKeys(),getKey:salesOrderSelectionKey,isSelectable:()=>true});
   }
+  const keys=rows.map(salesOrderSelectionKey).filter(Boolean);
+  const selected=ensureSelectedSalesOrderKeys();
+  const count=keys.filter(key=>selected.has(key)).length;
+  const allSelected=Boolean(keys.length&&count===keys.length);
+  return {selectableKeys:keys,selectableCount:keys.length,selectedSelectableCount:count,allSelected,buttonLabel:allSelected?'Bỏ chọn tất cả':'Chọn tất cả',disabled:keys.length===0};
+}
+function syncSalesOrderBulkSelectionUi(){
+  const selected=ensureSelectedSalesOrderKeys();
+  if(salesOrderList)salesOrderList.querySelectorAll('.sales-order-check').forEach(check=>{
+    check.checked=selected.has(String(check.dataset.selectionKey||''));
+  });
+  if(typeof selectAllSalesOrdersButton!=='undefined'&&selectAllSalesOrdersButton){
+    const summary=deriveSalesOrderBulkSelectionState();
+    const api=window.ScopedBulkSelection;
+    if(api&&typeof api.applyToggleButtonState==='function')api.applyToggleButtonState(selectAllSalesOrdersButton,summary,{entityLabel:'đơn bán đang hiển thị'});
+    else{
+      selectAllSalesOrdersButton.textContent=summary.buttonLabel;
+      selectAllSalesOrdersButton.disabled=summary.disabled;
+      selectAllSalesOrdersButton.setAttribute('aria-disabled',summary.disabled?'true':'false');
+      selectAllSalesOrdersButton.setAttribute('aria-pressed',summary.allSelected?'true':'false');
+    }
+  }
+}
+function toggleSelectAllSalesOrders(){
+  const rows=Array.isArray(window.__salesOrdersCache)?window.__salesOrdersCache:[];
+  const selected=ensureSelectedSalesOrderKeys();
+  const api=window.ScopedBulkSelection;
+  if(api&&typeof api.toggleScopeSelection==='function')api.toggleScopeSelection({visibleRows:rows,selectedKeys:selected,getKey:salesOrderSelectionKey,isSelectable:()=>true});
+  else{
+    const summary=deriveSalesOrderBulkSelectionState();
+    if(summary.allSelected)summary.selectableKeys.forEach(key=>selected.delete(key));
+    else summary.selectableKeys.forEach(key=>selected.add(key));
+  }
+  syncSalesOrderBulkSelectionUi();
 }
 window.toggleSelectAllSalesOrders=toggleSelectAllSalesOrders;
 
 async function printSelectedSalesOrders(){
   try{
-    const checks=[...document.querySelectorAll('.sales-order-check:checked')];
-    const orders=checks.map(ch=>window.__salesOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
+    const orders=selectedSalesOrders();
     const ids=orders.map(order=>order.id||order.code||order.orderCode||order.salesOrderCode).filter(Boolean);
     if(!ids.length){alert('Chưa chọn đơn con để in');return}
     const res=await fetch('/api/print/orders/batch',{
@@ -267,6 +305,15 @@ if(salesOrderList&&!salesOrderList.dataset.securityDelegationBound){
     if(button.dataset.salesOrderAction==='edit'){openSalesOrderEdit(index);return;}
     if(button.dataset.salesOrderAction==='delete'){deleteSalesOrder(index);return;}
   });
+  salesOrderList.addEventListener('change',event=>{
+    const check=event.target.closest('.sales-order-check');
+    if(!check||!salesOrderList.contains(check))return;
+    const key=String(check.dataset.selectionKey||'').trim();
+    if(!key)return;
+    if(check.checked)ensureSelectedSalesOrderKeys().add(key);
+    else ensureSelectedSalesOrderKeys().delete(key);
+    syncSalesOrderBulkSelectionUi();
+  });
 }
 
 
@@ -406,7 +453,7 @@ function filterSalesOrderRowsByCurrentStaff(rows){
 function renderSalesOrderRows(orders, {append=false} = {}){
   if(!append){
     window.__salesOrdersCache=[];
-    if(typeof selectAllSalesOrdersButton!=='undefined' && selectAllSalesOrdersButton)selectAllSalesOrdersButton.textContent='Chọn tất cả';
+    ensureSelectedSalesOrderKeys().clear();
   }
   const startIndex=(window.__salesOrdersCache||[]).length;
   window.__salesOrdersCache=(window.__salesOrdersCache||[]).concat(orders||[]);
@@ -425,7 +472,7 @@ function renderSalesOrderRows(orders, {append=false} = {}){
     // SALES_HISTORY_NVBH_COLUMN_PATCH_END
     return `
       <article class="sales-order-row">
-        <label class="sales-order-select"><input type="checkbox" class="sales-order-check" data-idx="${idx}"></label>
+        <label class="sales-order-select"><input type="checkbox" class="sales-order-check" data-selection-item data-selection-key="${escapeSalesHtml(salesOrderSelectionKey(o,idx))}" data-idx="${idx}"></label>
         <strong class="sales-order-code-text" title="Mã đơn: ${orderCode}">${orderCode}</strong>
         <span class="sales-order-customer-inline" title="Khách hàng: ${customerName}">${customerName}</span>
         <!-- SALES_HISTORY_NVBH_COLUMN_PATCH_START -->
@@ -445,6 +492,7 @@ function renderSalesOrderRows(orders, {append=false} = {}){
   }).join('');
   if(append)salesOrderList.insertAdjacentHTML('beforeend',html);
   else salesOrderList.innerHTML=html;
+  syncSalesOrderBulkSelectionUi();
 }
 
 function updateSalesOrderLoadMoreButton(){

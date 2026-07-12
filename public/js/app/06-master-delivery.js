@@ -154,6 +154,7 @@ function renderUnmergedChildOrders() {
   if (unmergedOrderCount) unmergedOrderCount.textContent = `${rows.length} đơn con chưa gộp`;
   if (!rows.length) {
     unmergedOrderList.innerHTML = '<div class="empty-cell">Không có đơn con chưa gộp phù hợp.</div>';
+    syncUnmergedOrderToggleButton();
     return;
   }
 
@@ -175,7 +176,7 @@ function renderUnmergedChildOrders() {
     const staff = canonicalSalesStaffLabel(order);
     const saleDate = masterOrderDate(masterOrderSaleDateRaw(order));
     return `<label class="master-child-one-line${selectedClass}" title="${masterOrderEscapeHtml(code)} | ${masterOrderEscapeHtml(customer)} | ${masterOrderEscapeHtml(staff)}">
-      <input type="checkbox" class="child-order-check" data-id="${masterOrderEscapeHtml(key)}" ${checked} />
+      <input type="checkbox" class="child-order-check" data-selection-item data-selection-key="${masterOrderEscapeHtml(key)}" data-id="${masterOrderEscapeHtml(key)}" ${checked} />
       <span class="master-child-code">${masterOrderEscapeHtml(code)}</span>
       <span class="master-child-customer">${masterOrderEscapeHtml(customer)}</span>
       <span class="master-child-staff">${masterOrderEscapeHtml(staff)}</span>
@@ -185,6 +186,7 @@ function renderUnmergedChildOrders() {
   }).join('');
 
   unmergedOrderList.innerHTML = header + body;
+  syncUnmergedOrderToggleButton();
 }
 window.renderUnmergedChildOrders = renderUnmergedChildOrders;
 
@@ -303,12 +305,40 @@ window.reloadUnmergedChildOrdersNow = reloadUnmergedChildOrdersNow;
 window.scheduleUnmergedChildOrdersReload = scheduleUnmergedChildOrdersReload;
 
 // MASTER_ORDER_POPUP_PATCH_START: chọn tất cả chỉ tác động layer 2 đang nhìn thấy
+function unmergedBulkRows(){
+  return (Array.isArray(unmergedOrdersCache)?unmergedOrdersCache:[]).filter(row=>!selectedGroupedChildOrderIds.has(salesOrderIdentity(row)));
+}
+function deriveUnmergedOrderBulkSelectionState(){
+  const rows=unmergedBulkRows();
+  const api=window.ScopedBulkSelection;
+  if(api&&typeof api.deriveScopeSelectionState==='function')return api.deriveScopeSelectionState({visibleRows:rows,selectedKeys:selectedUnmergedChildOrderIds,getKey:salesOrderIdentity,isSelectable:()=>true});
+  const keys=rows.map(salesOrderIdentity).filter(Boolean);
+  const count=keys.filter(key=>selectedUnmergedChildOrderIds.has(key)).length;
+  const allSelected=Boolean(keys.length&&count===keys.length);
+  return {selectableKeys:keys,selectableCount:keys.length,selectedSelectableCount:count,allSelected,buttonLabel:allSelected?'Bỏ chọn tất cả':'Chọn tất cả',disabled:keys.length===0};
+}
+function syncUnmergedOrderToggleButton(){
+  if(typeof selectAllUnmergedOrdersButton==='undefined'||!selectAllUnmergedOrdersButton)return;
+  const summary=deriveUnmergedOrderBulkSelectionState();
+  const api=window.ScopedBulkSelection;
+  if(api&&typeof api.applyToggleButtonState==='function')api.applyToggleButtonState(selectAllUnmergedOrdersButton,summary,{entityLabel:'đơn con chưa gộp đang hiển thị'});
+  else{
+    selectAllUnmergedOrdersButton.textContent=summary.buttonLabel;
+    selectAllUnmergedOrdersButton.disabled=summary.disabled;
+    selectAllUnmergedOrdersButton.setAttribute('aria-disabled',summary.disabled?'true':'false');
+    selectAllUnmergedOrdersButton.setAttribute('aria-pressed',summary.allSelected?'true':'false');
+  }
+}
+
 function toggleSelectAllUnmergedOrders() {
-  const rows = (Array.isArray(unmergedOrdersCache) ? unmergedOrdersCache : [])
-    .filter((row) => !selectedGroupedChildOrderIds.has(salesOrderIdentity(row)));
-  const allSelected = rows.length && rows.every((row) => selectedUnmergedChildOrderIds.has(salesOrderIdentity(row)));
-  if (allSelected) selectedUnmergedChildOrderIds.clear();
-  else rows.forEach((row) => selectedUnmergedChildOrderIds.add(salesOrderIdentity(row)));
+  const rows=unmergedBulkRows();
+  const api=window.ScopedBulkSelection;
+  if(api&&typeof api.toggleScopeSelection==='function')api.toggleScopeSelection({visibleRows:rows,selectedKeys:selectedUnmergedChildOrderIds,getKey:salesOrderIdentity,isSelectable:()=>true});
+  else{
+    const summary=deriveUnmergedOrderBulkSelectionState();
+    if(summary.allSelected)summary.selectableKeys.forEach(key=>selectedUnmergedChildOrderIds.delete(key));
+    else summary.selectableKeys.forEach(key=>selectedUnmergedChildOrderIds.add(key));
+  }
   selectedChildOrderIds = selectedUnmergedChildOrderIds;
   renderUnmergedChildOrders();
 }
@@ -355,6 +385,7 @@ function handleUnmergedChildSelectionChange(event) {
   if (!syncMasterChildCheckboxSelection(selectedUnmergedChildOrderIds, check)) return;
   selectedChildOrderIds = selectedUnmergedChildOrderIds;
   window.selectedChildOrderIds = selectedChildOrderIds;
+  syncUnmergedOrderToggleButton();
 }
 
 function handleGroupedChildSelectionChange(event) {
@@ -376,6 +407,7 @@ function renderMasterOrders() {
   if (masterOrderCount) masterOrderCount.textContent = `${rows.length} đơn tổng`;
   if (!rows.length) {
     masterOrderList.innerHTML = '<div class="empty-cell">Không có đơn tổng phù hợp.</div>';
+    syncMasterOrderToggleButton();
     return;
   }
   // MASTER_ORDER_LIST_ACTION_PATCH_START: thêm ghi chú + thao tác Sửa/Hủy
@@ -393,7 +425,7 @@ function renderMasterOrders() {
       ? '<span class="locked-text">Đã khóa</span>'
       : `<button type="button" class="secondary small edit-master-order" data-id="${masterOrderEscapeHtml(key)}">Sửa</button><button type="button" class="secondary small danger cancel-master-order" data-id="${masterOrderEscapeHtml(key)}">Huỷ</button>`;
     return `<div class="order-row compact-order-row master-order-row">
-      <label><input type="checkbox" class="master-order-check" data-id="${masterOrderEscapeHtml(key)}" ${checked} /></label>
+      <label><input type="checkbox" class="master-order-check" data-selection-item data-selection-key="${masterOrderEscapeHtml(key)}" data-id="${masterOrderEscapeHtml(key)}" ${checked} /></label>
       <span class="master-order-code" title="${masterOrderEscapeHtml(code)}">${masterOrderEscapeHtml(code)}</span>
       <span title="${masterOrderEscapeHtml(delivery)}">${masterOrderEscapeHtml(delivery)}</span>
       <span class="master-order-note-cell" title="${masterOrderEscapeHtml(note)}">${masterOrderEscapeHtml(note || '-')}</span>
@@ -402,6 +434,7 @@ function renderMasterOrders() {
       <span class="button-row master-order-actions">${actions}</span>
     </div>`;
   }).join('');
+  syncMasterOrderToggleButton();
   // MASTER_ORDER_LIST_ACTION_PATCH_END
 }
 
@@ -523,11 +556,37 @@ async function submitMasterOrder(event) {
 }
 window.submitMasterOrder = submitMasterOrder;
 
+function deriveMasterOrderBulkSelectionState(){
+  const rows=Array.isArray(masterOrdersCache)?masterOrdersCache:[];
+  const api=window.ScopedBulkSelection;
+  if(api&&typeof api.deriveScopeSelectionState==='function')return api.deriveScopeSelectionState({visibleRows:rows,selectedKeys:selectedMasterOrderIds,getKey:masterOrderIdentity,isSelectable:()=>true});
+  const keys=rows.map(masterOrderIdentity).filter(Boolean);
+  const count=keys.filter(key=>selectedMasterOrderIds.has(key)).length;
+  const allSelected=Boolean(keys.length&&count===keys.length);
+  return {selectableKeys:keys,selectableCount:keys.length,selectedSelectableCount:count,allSelected,buttonLabel:allSelected?'Bỏ chọn tất cả':'Chọn tất cả',disabled:keys.length===0};
+}
+function syncMasterOrderToggleButton(){
+  if(typeof selectAllMasterOrdersButton==='undefined'||!selectAllMasterOrdersButton)return;
+  const summary=deriveMasterOrderBulkSelectionState();
+  const api=window.ScopedBulkSelection;
+  if(api&&typeof api.applyToggleButtonState==='function')api.applyToggleButtonState(selectAllMasterOrdersButton,summary,{entityLabel:'đơn tổng đang hiển thị'});
+  else{
+    selectAllMasterOrdersButton.textContent=summary.buttonLabel;
+    selectAllMasterOrdersButton.disabled=summary.disabled;
+    selectAllMasterOrdersButton.setAttribute('aria-disabled',summary.disabled?'true':'false');
+    selectAllMasterOrdersButton.setAttribute('aria-pressed',summary.allSelected?'true':'false');
+  }
+}
+
 function toggleSelectAllMasterOrders() {
-  const rows = Array.isArray(masterOrdersCache) ? masterOrdersCache : [];
-  const allSelected = rows.length && rows.every((row) => selectedMasterOrderIds.has(masterOrderIdentity(row)));
-  if (allSelected) selectedMasterOrderIds.clear();
-  else rows.forEach((row) => selectedMasterOrderIds.add(masterOrderIdentity(row)));
+  const rows=Array.isArray(masterOrdersCache)?masterOrdersCache:[];
+  const api=window.ScopedBulkSelection;
+  if(api&&typeof api.toggleScopeSelection==='function')api.toggleScopeSelection({visibleRows:rows,selectedKeys:selectedMasterOrderIds,getKey:masterOrderIdentity,isSelectable:()=>true});
+  else{
+    const summary=deriveMasterOrderBulkSelectionState();
+    if(summary.allSelected)summary.selectableKeys.forEach(key=>selectedMasterOrderIds.delete(key));
+    else summary.selectableKeys.forEach(key=>selectedMasterOrderIds.add(key));
+  }
   renderMasterOrders();
 }
 window.toggleSelectAllMasterOrders = toggleSelectAllMasterOrders;
@@ -651,6 +710,7 @@ if (masterOrderList) {
     if (check.checked) selectedMasterOrderIds.add(check.dataset.id);
     else selectedMasterOrderIds.delete(check.dataset.id);
     window.__selectedMasterOrderIds = selectedMasterOrderIds;
+    syncMasterOrderToggleButton();
   });
   masterOrderList.addEventListener('click', (event) => {
     // MASTER_ORDER_LIST_ACTION_PATCH_START: thêm nút sửa, giữ nguyên hủy

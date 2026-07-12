@@ -141,11 +141,11 @@
         '<div class="delivery-new-salesman-empty">Tải đơn để xem NVBH thuộc NVGH đang chọn.</div>' +
       '</section>' +
       '<main class="delivery-new-main-list">' +
-        '<section class="card delivery-v46-list-panel delivery-new-list-panel-full">' +
-          '<div class="delivery-v46-panel-title delivery-v46-panel-title-with-actions delivery-new-orders-toolbar"><h3>Danh sách đơn</h3><div class="delivery-v46-list-actions delivery-new-closeout-toolbar"><span id="deliveryTodayNewOrderCount">0 đơn</span><span id="deliveryTodayNewSelectionCount" class="delivery-new-selection-count">0 đơn được chọn</span><button id="deliveryTodayNewSelectAllOrders" type="button" class="secondary">Chọn tất cả</button><button id="deliveryTodayNewClearOrders" type="button" class="secondary">Bỏ chọn</button><button id="deliveryTodayNewBulkAdjustmentCommit" type="button" class="secondary delivery-new-bulk-adjustment-btn" disabled>Ghi nhận điều chỉnh đã chọn</button><button id="deliveryTodayNewCloseout" type="button" class="primary-action delivery-new-closeout-btn" disabled>Chốt sổ giao hàng</button></div></div>' +
+        '<section id="delivery-order-list" data-selection-scope="delivery-order-list" data-selection-entity="sales-order" class="card delivery-v46-list-panel delivery-new-list-panel-full">' +
+          '<div class="delivery-v46-panel-title delivery-v46-panel-title-with-actions delivery-new-orders-toolbar"><h3>Danh sách đơn</h3><div class="delivery-v46-list-actions delivery-new-closeout-toolbar"><span id="deliveryTodayNewOrderCount">0 đơn</span><span id="deliveryTodayNewSelectionCount" class="delivery-new-selection-count">0 đơn được chọn</span><button id="deliveryTodayNewToggleOrders" data-selection-toggle data-selection-scope="delivery-order-list" aria-controls="deliveryTodayNewTable" aria-pressed="false" aria-label="Chọn tất cả đơn đang hiển thị" type="button" class="secondary">Chọn tất cả</button><button id="deliveryTodayNewBulkAdjustmentCommit" type="button" class="secondary delivery-new-bulk-adjustment-btn" disabled>Ghi nhận điều chỉnh đã chọn</button><button id="deliveryTodayNewCloseout" type="button" class="primary-action delivery-new-closeout-btn" disabled>Chốt sổ giao hàng</button></div></div>' +
           '<div class="delivery-new-orders-table">' +
             '<div class="delivery-new-orders-header delivery-new-order-grid" role="row">' +
-              '<div class="delivery-new-order-cell delivery-new-order-checkbox-cell"><input id="deliveryTodayNewHeaderSelectAllOrders" type="checkbox" aria-label="Chọn tất cả đơn để xem KPI"></div>' +
+              '<div class="delivery-new-order-cell delivery-new-order-checkbox-cell">Chọn</div>' +
               '<div class="delivery-new-order-cell delivery-new-order-customer-cell">Đơn / Khách hàng</div>' +
               '<div class="delivery-new-order-cell delivery-new-staff-cell">NVBH</div>' +
               '<div class="delivery-new-order-cell delivery-new-money-cell">Phải thu</div>' +
@@ -183,17 +183,8 @@
     if (closeoutButton) closeoutButton.addEventListener('click', openCloseoutModal);
     var bulkAdjustmentButton = byId('deliveryTodayNewBulkAdjustmentCommit');
     if (bulkAdjustmentButton) bulkAdjustmentButton.addEventListener('click', submitBulkAdjustmentCommit);
-    var selectAllOrdersButton = byId('deliveryTodayNewSelectAllOrders');
-    var clearOrdersButton = byId('deliveryTodayNewClearOrders');
-    if (selectAllOrdersButton) selectAllOrdersButton.addEventListener('click', selectAllVisibleOrders);
-    if (clearOrdersButton) clearOrdersButton.addEventListener('click', clearSelectedOrders);
-    var headerSelectAllOrders = byId('deliveryTodayNewHeaderSelectAllOrders');
-    if (headerSelectAllOrders) {
-      headerSelectAllOrders.addEventListener('change', function () {
-        if (headerSelectAllOrders.checked) selectAllVisibleOrders();
-        else clearSelectedOrders();
-      });
-    }
+    var toggleOrdersButton = byId('deliveryTodayNewToggleOrders');
+    if (toggleOrdersButton) toggleOrdersButton.addEventListener('click', toggleVisibleOrderSelection);
     ensureScopedStyle();
     bindFilterAutocomplete();
     document.addEventListener('click', function (event) {
@@ -880,12 +871,12 @@
   function groupSelectionState(group) {
     var selectable = groupSelectableRows(group);
     var count = groupSelectedCount(group);
-    var groupVisible = Boolean(state.selectedSalesmanKeys && state.selectedSalesmanKeys[group.key]);
+    var explicitlySelected = Boolean(state.selectedSalesmanKeys && state.selectedSalesmanKeys[group.key]);
     return {
       selectableCount: selectable.length,
       selectedCount: count,
-      checked: Boolean(groupVisible && selectable.length && count === selectable.length),
-      indeterminate: Boolean(groupVisible && count > 0 && count < selectable.length)
+      checked: explicitlySelected,
+      indeterminate: false
     };
   }
 
@@ -918,33 +909,67 @@
     var selected = ensureSelectedOrderSet();
     if (checked) selected.add(key);
     else selected.delete(key);
-    var row = findRowByOrderKey(key);
-    var groupKey = row ? salesmanKey(row) : '';
-    if (groupKey && state.selectedSalesmanKeys) {
-      var group = (state.salesmanGroups || []).filter(function (item) { return item.key === groupKey; })[0];
-      if (group) state.selectedSalesmanKeys[groupKey] = groupSelectedCount(group) > 0;
-    }
     updateTopKpisFromSelectedSalesmen();
-    renderSalesmanGroupPanel();
     renderRows();
   }
 
   function selectAllVisibleOrders() {
     var selected = ensureSelectedOrderSet();
-    getSelectableVisibleRows().forEach(function (row) { selected.add(orderSelectionKey(row)); });
-    (state.salesmanGroups || []).forEach(function (group) {
-      if (state.selectedSalesmanKeys && state.selectedSalesmanKeys[group.key]) state.selectedSalesmanKeys[group.key] = groupSelectedCount(group) > 0;
+    getSelectableVisibleRows().forEach(function (row) {
+      var key = orderSelectionKey(row);
+      if (key) selected.add(key);
     });
     updateTopKpisFromSelectedSalesmen();
-    renderSalesmanGroupPanel();
     renderRows();
   }
 
   function clearSelectedOrders() {
     ensureSelectedOrderSet().clear();
-    (state.salesmanGroups || []).forEach(function (group) { if (state.selectedSalesmanKeys) state.selectedSalesmanKeys[group.key] = false; });
     updateTopKpisFromSelectedSalesmen();
-    renderSalesmanGroupPanel();
+    renderRows();
+  }
+
+  function deriveOrderBulkSelectionState(visibleRows) {
+    var rows = Array.isArray(visibleRows) ? visibleRows : getVisibleRowsBySelectedSalesmen();
+    var api = typeof window !== 'undefined' ? window.ScopedBulkSelection : null;
+    if (api && typeof api.deriveScopeSelectionState === 'function') {
+      return api.deriveScopeSelectionState({
+        visibleRows: rows,
+        selectedKeys: ensureSelectedOrderSet(),
+        getKey: orderSelectionKey,
+        isSelectable: isViewSelectableOrder
+      });
+    }
+    var selectableKeys = rows.filter(isViewSelectableOrder).map(orderSelectionKey).filter(Boolean);
+    var selected = ensureSelectedOrderSet();
+    var selectedCount = selectableKeys.filter(function (key) { return selected.has(key); }).length;
+    var allSelected = Boolean(selectableKeys.length && selectedCount === selectableKeys.length);
+    return {
+      selectableKeys: selectableKeys,
+      selectableCount: selectableKeys.length,
+      selectedSelectableCount: selectedCount,
+      allSelected: allSelected,
+      buttonLabel: allSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả',
+      disabled: selectableKeys.length === 0
+    };
+  }
+
+  function toggleVisibleOrderSelection() {
+    var rows = getVisibleRowsBySelectedSalesmen();
+    var api = typeof window !== 'undefined' ? window.ScopedBulkSelection : null;
+    if (api && typeof api.toggleScopeSelection === 'function') {
+      api.toggleScopeSelection({
+        visibleRows: rows,
+        selectedKeys: ensureSelectedOrderSet(),
+        getKey: orderSelectionKey,
+        isSelectable: isViewSelectableOrder
+      });
+    } else {
+      var summary = deriveOrderBulkSelectionState(rows);
+      if (summary.allSelected) summary.selectableKeys.forEach(function (key) { ensureSelectedOrderSet().delete(key); });
+      else summary.selectableKeys.forEach(function (key) { ensureSelectedOrderSet().add(key); });
+    }
+    updateTopKpisFromSelectedSalesmen();
     renderRows();
   }
 
@@ -1150,29 +1175,30 @@
   function updateOrderSelectionToolbar(visibleRows) {
     var countEl = byId('deliveryTodayNewOrderCount');
     var selectedEl = byId('deliveryTodayNewSelectionCount');
-    var selectAll = byId('deliveryTodayNewSelectAllOrders');
-    var clearAll = byId('deliveryTodayNewClearOrders');
+    var toggleAll = byId('deliveryTodayNewToggleOrders');
     var bulkAdjustment = byId('deliveryTodayNewBulkAdjustmentCommit');
     var visible = visibleRows || getVisibleRowsBySelectedSalesmen();
     var summary = getCloseoutSelectionSummary(visible);
-    var viewSelectable = summary.selectableRows;
+    var bulkSelection = deriveOrderBulkSelectionState(visible);
     var selectedCount = summary.selectedOrders;
     var selectedCloseoutCount = summary.eligibleSelectedOrders;
     var closedCount = summary.closedSelectedOrders;
     if (countEl) countEl.textContent = 'Tổng đơn: ' + visible.length;
     if (selectedEl) selectedEl.textContent = 'Đang chọn: ' + selectedCount + ' · Có thể chốt: ' + selectedCloseoutCount + ' · Đã chốt: ' + closedCount;
-    if (selectAll) selectAll.disabled = !viewSelectable.length || selectedCount === viewSelectable.length;
-    if (clearAll) clearAll.disabled = !selectedCount;
+    if (toggleAll) {
+      var api = typeof window !== 'undefined' ? window.ScopedBulkSelection : null;
+      if (api && typeof api.applyToggleButtonState === 'function') api.applyToggleButtonState(toggleAll, bulkSelection, { entityLabel: 'đơn đang hiển thị' });
+      else {
+        toggleAll.textContent = bulkSelection.buttonLabel;
+        toggleAll.disabled = bulkSelection.disabled;
+        toggleAll.setAttribute('aria-disabled', bulkSelection.disabled ? 'true' : 'false');
+        toggleAll.setAttribute('aria-pressed', bulkSelection.allSelected ? 'true' : 'false');
+      }
+    }
     if (bulkAdjustment) {
       bulkAdjustment.disabled = !selectedCount || state.bulkAdjustmentBusy;
       bulkAdjustment.textContent = state.bulkAdjustmentBusy ? 'Đang ghi nhận...' : ('Ghi nhận điều chỉnh đã chọn' + (selectedCount ? ' (' + selectedCount + ')' : ''));
       bulkAdjustment.title = selectedCount ? 'Chạy cùng logic Lưu điều chỉnh từng đơn cho các đơn đang tick.' : 'Vui lòng chọn ít nhất một đơn.';
-    }
-    var headerCheck = byId('deliveryTodayNewHeaderSelectAllOrders');
-    if (headerCheck) {
-      headerCheck.disabled = !viewSelectable.length;
-      headerCheck.checked = Boolean(viewSelectable.length && selectedCount === viewSelectable.length);
-      headerCheck.indeterminate = Boolean(selectedCount > 0 && selectedCount < viewSelectable.length);
     }
   }
 

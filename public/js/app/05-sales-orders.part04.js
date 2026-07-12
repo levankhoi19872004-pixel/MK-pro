@@ -22,9 +22,9 @@ removedByClientGuard:removedByClientGuard,total:json.total,clientMs:clientMs,ser
 if(!getSalesProductCatalog().length)await loadSalesProductCatalog()})}if(salesForm){
 salesForm.querySelectorAll('input[name="vatInvoiceRequired"]').forEach(input=>input.addEventListener("change",syncVatConditionalUi));syncVatConditionalUi()
 ;salesForm.querySelectorAll('input[name="saleMode"]').forEach(input=>input.addEventListener("change",async()=>{syncSalesModeUi();await recalculateSalesPromotionPrices()
-;renderSalesItems()}));syncSalesModeUi()}function selectedSalesOrders(){const checks=[...document.querySelectorAll(".sales-order-check:checked")]
-;return checks.map(ch=>window.__salesOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean)}async function exportSelectedSalesOrders(){const orders=selectedSalesOrders()
-;if(!orders.length){alert("Chưa chọn đơn bán để xuất Excel");return}
+;renderSalesItems()}));syncSalesModeUi()}function selectedSalesOrders(){const selected=ensureSelectedSalesOrderKeys()
+;return(window.__salesOrdersCache||[]).filter((order,index)=>selected.has(salesOrderSelectionKey(order,index)))}async function exportSelectedSalesOrders(){
+const orders=selectedSalesOrders();if(!orders.length){alert("Chưa chọn đơn bán để xuất Excel");return}
 const selectedIds=orders.map(order=>String(order.id||order.code||order.orderCode||order.documentCode||"").trim()).filter(Boolean);try{
 if(!window.ExcelInteraction||typeof window.ExcelInteraction.downloadWorkbook!=="function")throw new Error("Chức năng Excel chưa sẵn sàng")
 ;await window.ExcelInteraction.downloadWorkbook({type:"SALES_ORDERS",scope:"SELECTED",selectedIds:selectedIds,includeDetails:true})}catch(error){

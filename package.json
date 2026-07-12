@@ -137,7 +137,8 @@
     "audit:delivery-remittance-accounting-date": "node scripts/audit-delivery-remittance-accounting-date.js --json",
     "verify:deployment-artifact": "node scripts/verify-deployment-artifact.js",
     "build:deployment-artifact": "node scripts/create-deployment-artifact.js",
-    "verify:phase247:mongo": "node scripts/verify-phase247-mongo-persistence.js"
+    "verify:phase247:mongo": "node scripts/verify-phase247-mongo-persistence.js",
+    "audit:bulk-selection": "node scripts/audit-scoped-bulk-selection.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

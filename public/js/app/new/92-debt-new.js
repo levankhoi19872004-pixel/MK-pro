@@ -733,11 +733,13 @@
         '<td><span class="debt-new-status ' + esc(order.status || 'open') + '">' + esc(statusLabel(order.status)) + '</span></td>' +
       '</tr>';
     }).join('');
-    return '<div class="debt-new-order-toolbar"><div><b>Đơn nợ</b><div class="muted">Đã chọn ' + selected.length + ' đơn · Còn có thể thu đã chọn: <b>' + money(selectedTotal) + '</b></div></div>' +
-      '<div class="debt-new-order-toolbar-actions"><button id="debtNewSelectAllDebtOrders" type="button" class="secondary">Chọn tất cả đơn nợ</button><button id="debtNewClearDebtOrders" type="button" class="secondary">Bỏ chọn</button><button type="button" class="primary-action debt-new-go-collection">Lập phiếu thu</button></div></div>' +
-      '<div class="debt-new-modal-table-wrap"><table class="new-table debt-new-modal-table"><thead><tr><th>Chọn thu</th><th>Mã đơn</th><th>Ngày đơn</th><th>Phải thu / Debit</th><th>Đã thu / Credit</th><th>Còn nợ</th><th>Đã báo thu chờ xác nhận</th><th>Còn có thể thu</th><th>Trạng thái</th></tr></thead><tbody>' +
+    var bulkState = deriveDebtOrderBulkSelectionState(customer);
+    return '<section id="debt-order-list" data-selection-scope="debt-order-list" data-selection-entity="debt-order">' +
+      '<div class="debt-new-order-toolbar"><div><b>Đơn nợ</b><div class="muted">Đã chọn ' + selected.length + ' đơn · Còn có thể thu đã chọn: <b>' + money(selectedTotal) + '</b></div></div>' +
+      '<div class="debt-new-order-toolbar-actions"><button id="debtNewToggleDebtOrders" data-selection-toggle data-selection-scope="debt-order-list" aria-controls="debtNewDebtOrderTable" aria-pressed="false" aria-label="Chọn tất cả đơn nợ đang hiển thị" title="Chọn tất cả đơn nợ đang hiển thị" type="button" class="secondary"' + (bulkState.disabled ? ' disabled aria-disabled="true"' : ' aria-disabled="false"') + '>' + bulkState.buttonLabel + '</button><button type="button" class="primary-action debt-new-go-collection">Lập phiếu thu</button></div></div>' +
+      '<div class="debt-new-modal-table-wrap"><table id="debtNewDebtOrderTable" class="new-table debt-new-modal-table"><thead><tr><th>Chọn thu</th><th>Mã đơn</th><th>Ngày đơn</th><th>Phải thu / Debit</th><th>Đã thu / Credit</th><th>Còn nợ</th><th>Đã báo thu chờ xác nhận</th><th>Còn có thể thu</th><th>Trạng thái</th></tr></thead><tbody>' +
       (rows || '<tr><td colspan="9">Khách này không có đơn trong read model New.</td></tr>') +
-      '</tbody></table></div>';
+      '</tbody></table></div></section>';
   }
 
   function renderDebtCollectionTab(customer) {
@@ -775,13 +777,16 @@
         renderDebtCustomerModal();
       });
     });
-    var selectAll = byId('debtNewSelectAllDebtOrders');
-    if (selectAll) selectAll.addEventListener('click', function () {
-      (customer.orders || []).forEach(function (order) { if (openDebt(order) > 0) state.selectedOrderKeys[orderKey(order)] = true; });
-      renderDebtCustomerModal();
-    });
-    var clear = byId('debtNewClearDebtOrders');
-    if (clear) clear.addEventListener('click', function () { state.selectedOrderKeys = {}; renderDebtCustomerModal(); });
+    var toggleAll = byId('debtNewToggleDebtOrders');
+    if (toggleAll) {
+      var bulkSummary = deriveDebtOrderBulkSelectionState(customer);
+      var bulkApi = typeof window !== 'undefined' ? window.ScopedBulkSelection : null;
+      if (bulkApi && typeof bulkApi.applyToggleButtonState === 'function') bulkApi.applyToggleButtonState(toggleAll, bulkSummary, { entityLabel: 'đơn nợ đang hiển thị' });
+      toggleAll.addEventListener('click', function () {
+        toggleDebtOrderBulkSelection(customer);
+        renderDebtCustomerModal();
+      });
+    }
     Array.prototype.forEach.call(modal.querySelectorAll('.debt-new-go-collection'), function (button) {
       button.addEventListener('click', function () { setDebtCustomerModalTab('collection'); });
     });
@@ -792,6 +797,47 @@
     Array.prototype.forEach.call(modal.querySelectorAll('.debtNewRejectCollection'), function (btn) {
       btn.addEventListener('click', function () { rejectCollection(btn.dataset.id); });
     });
+  }
+
+  function debtSelectedOrderSet() {
+    return new Set(Object.keys(state.selectedOrderKeys || {}).filter(function (key) { return state.selectedOrderKeys[key] === true; }));
+  }
+
+  function debtOrderBulkSelectable(order) {
+    return availableToCollect(order) > 0;
+  }
+
+  function deriveDebtOrderBulkSelectionState(customer) {
+    var orders = Array.isArray(customer && customer.orders) ? customer.orders : [];
+    var selected = debtSelectedOrderSet();
+    var api = typeof window !== 'undefined' ? window.ScopedBulkSelection : null;
+    if (api && typeof api.deriveScopeSelectionState === 'function') {
+      return api.deriveScopeSelectionState({
+        visibleRows: orders,
+        selectedKeys: selected,
+        getKey: orderKey,
+        isSelectable: debtOrderBulkSelectable
+      });
+    }
+    var keys = orders.filter(debtOrderBulkSelectable).map(orderKey).filter(Boolean);
+    var selectedCount = keys.filter(function (key) { return selected.has(key); }).length;
+    var allSelected = Boolean(keys.length && selectedCount === keys.length);
+    return { selectableKeys: keys, selectableCount: keys.length, selectedSelectableCount: selectedCount, allSelected: allSelected, buttonLabel: allSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả', disabled: keys.length === 0 };
+  }
+
+  function toggleDebtOrderBulkSelection(customer) {
+    var orders = Array.isArray(customer && customer.orders) ? customer.orders : [];
+    var selected = debtSelectedOrderSet();
+    var api = typeof window !== 'undefined' ? window.ScopedBulkSelection : null;
+    if (api && typeof api.toggleScopeSelection === 'function') {
+      api.toggleScopeSelection({ visibleRows: orders, selectedKeys: selected, getKey: orderKey, isSelectable: debtOrderBulkSelectable });
+    } else {
+      var summary = deriveDebtOrderBulkSelectionState(customer);
+      if (summary.allSelected) summary.selectableKeys.forEach(function (key) { selected.delete(key); });
+      else summary.selectableKeys.forEach(function (key) { selected.add(key); });
+    }
+    state.selectedOrderKeys = {};
+    selected.forEach(function (key) { state.selectedOrderKeys[key] = true; });
   }
 
   function selectedDebtOrders(customer) {

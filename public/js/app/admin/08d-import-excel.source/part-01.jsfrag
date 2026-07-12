@@ -164,7 +164,9 @@ function initImportSelectedRows(rows=[]){
   });
 }
 function syncImportInlineSelection(){
-  document.querySelectorAll('.import-row-check').forEach(cb=>{
+  const root=importPreviewTable||document.querySelector('.import-preview-wrap');
+  if(!root)return;
+  root.querySelectorAll('.import-row-check:not(.import-modal-row-check)').forEach(cb=>{
     const index=Number(cb.dataset.index);
     const row=importPreviewRows[index];
     const key=getImportRowSelectKey(row,index);
@@ -179,7 +181,9 @@ function syncImportInlineSelection(){
   syncImportSelectedCount();
 }
 function bindImportInlinePreviewChecks(){
-  document.querySelectorAll('.import-row-check').forEach(cb=>{
+  const root=importPreviewTable||document.querySelector('.import-preview-wrap');
+  if(!root)return;
+  root.querySelectorAll('.import-row-check:not(.import-modal-row-check)').forEach(cb=>{
     const index=Number(cb.dataset.index);
     const row=importPreviewRows[index];
     cb.checked=isImportRowSelectable(row)&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index));

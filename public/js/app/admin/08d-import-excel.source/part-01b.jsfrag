@@ -3,7 +3,7 @@ function ensureImportPreviewModal(){
   if(modal)return modal;
   document.body.insertAdjacentHTML('beforeend', `
     <div id="importPreviewModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="importPreviewModalTitle">
-      <div class="modal-card import-preview-modal-card">
+      <div id="import-preview-valid-rows" data-selection-scope="import-preview-valid-rows" data-selection-entity="import-preview-row" class="modal-card import-preview-modal-card">
         <div class="modal-head">
           <div>
             <h3 id="importPreviewModalTitle">Xem trước import</h3>
@@ -13,8 +13,7 @@ function ensureImportPreviewModal(){
         </div>
         <div id="importPreviewModalReport" class="import-preview-report"></div>
         <div class="button-row import-preview-modal-actions">
-          <button type="button" id="selectAllImportPreviewButton" class="secondary">Chọn tất cả hợp lệ</button>
-          <button type="button" id="clearAllImportPreviewButton" class="secondary">Bỏ chọn</button>
+          <button type="button" id="toggleAllImportPreviewButton" data-selection-toggle data-selection-scope="import-preview-valid-rows" aria-controls="importPreviewModalBody" aria-pressed="false" aria-label="Chọn tất cả dòng import hợp lệ đang hiển thị" class="secondary">Chọn tất cả</button>
           <button type="button" id="commitImportFromModalButton">Xác nhận import</button>
         </div>
         <div id="importPreviewModalBody" class="import-preview-modal-body"></div>
@@ -239,7 +238,7 @@ function renderImportPreviewModal(result){
       return `<article class="import-preview-card ${row.valid?'valid':'invalid'}">
         <div class="import-preview-card-head">
           <label class="import-preview-check-wrap">
-            ${row.valid&&row.canImport!==false?`<input class="import-row-check import-modal-row-check" data-index="${index}" type="checkbox" checked />`:''}
+            ${row.valid&&row.canImport!==false?`<input class="import-row-check import-modal-row-check" data-selection-item data-index="${index}" type="checkbox" checked />`:''}
             <span>Dòng ${escapeImportHtml(row.rowNo||'')}</span>
           </label>
           <span class="badge ${row.valid?(row.hasShortage?'warn':'active'):'inactive'}">${escapeImportHtml(row.statusText||(row.valid?'Hợp lệ':'Lỗi'))}</span>

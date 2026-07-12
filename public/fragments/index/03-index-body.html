@@ -52,12 +52,12 @@
             </section>
             <!-- MASTER_ORDER_LAYOUT_V2_END -->
 
-            <section class="card master-order-layer master-order-layer-unmerged">
+            <section id="master-unmerged-child-list-scope" data-selection-scope="master-unmerged-child-list" data-selection-entity="sales-order" class="card master-order-layer master-order-layer-unmerged">
               <div class="toolbar compact-toolbar">
                 <div><h3>2. Đơn con chưa gộp</h3><p id="unmergedOrderCount" class="muted">Đang tải đơn con chưa gộp...</p></div>
                 <div class="button-row">
                   <button id="reloadUnmergedOrdersButton" type="button" class="secondary small" aria-label="Tải lại danh sách đơn con chưa gộp">Tải lại</button>
-                  <button id="selectAllUnmergedOrdersButton" type="button" class="secondary small">Chọn tất cả</button>
+                  <button id="selectAllUnmergedOrdersButton" data-selection-toggle data-selection-scope="master-unmerged-child-list" aria-controls="unmergedOrderList" aria-pressed="false" aria-label="Chọn tất cả đơn con chưa gộp đang hiển thị" type="button" class="secondary small">Chọn tất cả</button>
                   <button id="moveToGroupedOrdersButton" type="button" class="primary small">Gộp đơn đã chọn →</button>
                 </div>
               </div>

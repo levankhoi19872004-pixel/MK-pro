@@ -73,7 +73,7 @@
 
     <section id="salesTab" class="tab-content">
       <main class="sales-page-main">
-        <section class="card sales-history-card">
+        <section id="sales-order-list-scope" data-selection-scope="sales-order-list" data-selection-entity="sales-order" class="card sales-history-card">
           <div class="ui-list-toolbar">
             <header class="ui-page-header">
               <div class="ui-page-title">
@@ -81,7 +81,7 @@
                 <p id="salesOrderCount" class="muted ui-page-meta">Đang tải...</p>
               </div>
               <div class="ui-page-actions" aria-label="Hành động cấp màn hình">
-                <button id="selectAllSalesOrdersButton" class="secondary compact-action" type="button">Chọn tất cả</button>
+                <button id="selectAllSalesOrdersButton" data-selection-toggle data-selection-scope="sales-order-list" aria-controls="salesOrderList" aria-pressed="false" aria-label="Chọn tất cả đơn bán đang hiển thị" class="secondary compact-action" type="button">Chọn tất cả</button>
                 <button id="printSelectedSalesOrdersButton" class="secondary compact-action" type="button">In đơn</button>
                 <button id="exportSelectedSalesOrdersButton" class="secondary compact-action" type="button">Xuất Excel</button>
                 <button id="openCreateSalesOrderButton" class="primary compact-action" type="button">+ Tạo đơn mới</button>
@@ -356,7 +356,7 @@
     <section id="masterOrdersTab" class="tab-content">
       <!-- MASTER_ORDER_POPUP_PATCH_START: màn chính chỉ giữ danh sách đơn tổng, tạo đơn tổng đưa vào popup 3 layer -->
       <main class="grid master-order-grid master-order-list-only-grid">
-        <section class="card master-list-card master-list-only-card">
+        <section id="master-order-list-scope" data-selection-scope="master-order-list" data-selection-entity="master-order" class="card master-list-card master-list-only-card">
           <div class="ui-list-toolbar">
             <div class="ui-page-header">
               <div>
@@ -364,7 +364,7 @@
                 <p id="masterOrderCount" class="muted ui-page-meta">Đang tải...</p>
               </div>
               <div class="ui-page-actions">
-                <button id="selectAllMasterOrdersButton" class="secondary" type="button">Chọn tất cả</button>
+                <button id="selectAllMasterOrdersButton" data-selection-toggle data-selection-scope="master-order-list" aria-controls="masterOrderList" aria-pressed="false" aria-label="Chọn tất cả đơn tổng đang hiển thị" class="secondary" type="button">Chọn tất cả</button>
                 <button id="printSelectedMasterOrdersButton" class="secondary" type="button">In đơn tổng</button>
                 <button id="exportSelectedMasterOrdersButton" class="secondary" type="button">Xuất Excel</button>
                 <button id="openMasterOrderModalButton" class="primary ui-action-primary" type="button">+ Tạo đơn tổng</button>

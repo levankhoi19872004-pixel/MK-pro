@@ -103,8 +103,8 @@ if(salesForm){
 }
 
 function selectedSalesOrders(){
-  const checks=[...document.querySelectorAll('.sales-order-check:checked')];
-  return checks.map(ch=>window.__salesOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
+  const selected=ensureSelectedSalesOrderKeys();
+  return (window.__salesOrdersCache||[]).filter((order,index)=>selected.has(salesOrderSelectionKey(order,index)));
 }
 async function exportSelectedSalesOrders(){
   const orders=selectedSalesOrders();
