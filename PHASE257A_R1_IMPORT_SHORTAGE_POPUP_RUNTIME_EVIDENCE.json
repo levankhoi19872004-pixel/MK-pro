@@ -1,0 +1,10 @@
+{
+  "modalExists": true,
+  "modalVisible": true,
+  "modalPosition": "fixed",
+  "backdropVisible": true,
+  "ariaHidden": "false",
+  "bodyModalOpen": true,
+  "shortageRows": 1,
+  "reportsModuleLoaded": false
+}

@@ -282,9 +282,9 @@ function renderImportShortageActions(rows=[]){
   box.innerHTML=`
     <div class="import-shortage-actions-text">
       <b>Có ${formatNumber(shortageRows.length)} đơn vượt tồn</b>
-      <span>Review. SL thiếu: ${displayImportAggregateQty(shortageQty)} · Cắt: ${money(shortageAmount)}</span>
+      <span>SL thiếu: ${displayImportAggregateQty(shortageQty)} · Cắt: ${money(shortageAmount)}</span>
     </div>
-    <button type="button" class="secondary" id="reopenImportShortageReviewButton">Mở</button>`;
+    <button type="button" class="secondary" id="reopenImportShortageReviewButton">Mở review</button>`;
   const reopen=document.getElementById('reopenImportShortageReviewButton');
   if(reopen)reopen.onclick=()=>openImportShortageReviewModal({manual:true});
   if(!importShortageReviewState.autoOpened)setTimeout(()=>openImportShortageReviewModal({auto:true}),0);

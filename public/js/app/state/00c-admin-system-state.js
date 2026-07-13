@@ -91,6 +91,46 @@ let selectedChildOrderIds=selectedUnmergedChildOrderIds;
 // MASTER_ORDER_POPUP_PATCH_END
 let masterOrdersCache=[];
 let importPreviewRows=[];
+let importShortageActionMode='';
+let importShortageReviewState={
+  sessionId:'',
+  fingerprint:'',
+  selectedScopeFingerprint:'',
+  status:'not_required',
+  mode:'',
+  items:[],
+  summary:null,
+  autoOpened:false,
+  loading:false,
+  committing:false
+};
+let importPreviewSessionId='';
+let importSelectedRowKeySet=new Set();
+const IMPORT_PREVIEW_RENDER_LIMIT=Number(window.IMPORT_PREVIEW_RENDER_LIMIT||120);
+
+function resetImportShortageReviewState(){
+  importShortageReviewState={
+    sessionId:'',
+    fingerprint:'',
+    selectedScopeFingerprint:'',
+    status:'not_required',
+    mode:'',
+    items:[],
+    summary:null,
+    autoOpened:false,
+    loading:false,
+    committing:false
+  };
+}
+
+function invalidateImportShortageReviewState(){
+  if(!importShortageReviewState)return;
+  importShortageReviewState.fingerprint='';
+  importShortageReviewState.selectedScopeFingerprint='';
+  importShortageReviewState.status='stale';
+  importShortageReviewState.mode='';
+  importShortageReviewState.autoOpened=false;
+}
 
 const reloadSystemStatusButton=document.getElementById('reloadSystemStatusButton');
 const reloadSystemDataSourceButton=document.getElementById('reloadSystemDataSourceButton');

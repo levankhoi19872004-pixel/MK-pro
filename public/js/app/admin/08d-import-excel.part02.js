@@ -77,7 +77,7 @@ function renderImportShortageActions(rows=[]){const box=ensureImportShortageActi
 ;if(importDataType?.value!=="salesOrders"||!shortageRows.length){box.innerHTML="";box.style.display="none";importShortageActionMode="";return}
 const shortageQty=shortageRows.reduce((sum,row)=>sum+Number(row.shortageQuantity||0),0);const shortageAmount=shortageRows.reduce((sum,row)=>sum+Number(row.shortageAmount||0),0)
 ;box.style.display="flex";importShortageActionMode="";if(commitImportButton)commitImportButton.disabled=false
-;box.innerHTML=`\n    <div class="import-shortage-actions-text">\n      <b>Có ${formatNumber(shortageRows.length)} đơn vượt tồn</b>\n      <span>Review. SL thiếu: ${displayImportAggregateQty(shortageQty)} · Cắt: ${money(shortageAmount)}</span>\n    </div>\n    <button type="button" class="secondary" id="reopenImportShortageReviewButton">Mở</button>`
+;box.innerHTML=`\n    <div class="import-shortage-actions-text">\n      <b>Có ${formatNumber(shortageRows.length)} đơn vượt tồn</b>\n      <span>SL thiếu: ${displayImportAggregateQty(shortageQty)} · Cắt: ${money(shortageAmount)}</span>\n    </div>\n    <button type="button" class="secondary" id="reopenImportShortageReviewButton">Mở review</button>`
 ;const reopen=document.getElementById("reopenImportShortageReviewButton");if(reopen)reopen.onclick=()=>openImportShortageReviewModal({manual:true})
 ;if(!importShortageReviewState.autoOpened)setTimeout(()=>openImportShortageReviewModal({auto:true}),0)}function renderImportPreview(result){importShortageActionMode=""
 ;if(typeof resetImportShortageReviewState==="function")resetImportShortageReviewState();const previewSource=inferImportPreviewSource(result||{})

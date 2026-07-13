@@ -374,31 +374,12 @@ function ensureImportShortageReviewModal(){
   if(modal)return modal;
   modal=document.createElement('div');
   modal.id='importShortageReviewModal';
-  modal.className='modal import-shortage-review-modal';
+  modal.className='modal-backdrop import-shortage-review-modal';
   modal.hidden=true;
-  modal.innerHTML=`
-    <div class="modal-content import-shortage-review-content" role="dialog" aria-modal="true" aria-labelledby="importShortageReviewTitle">
-      <div class="modal-header">
-        <div>
-          <h3 id="importShortageReviewTitle">Review đơn thiếu hàng trước khi import</h3>
-          <p id="importShortageReviewMeta" class="muted"></p>
-        </div>
-        <button type="button" class="icon-button" id="closeImportShortageReviewButton" aria-label="Đóng">×</button>
-      </div>
-      <div id="importShortageReviewSummary" class="import-shortage-review-summary"></div>
-      <div class="table-wrap import-shortage-review-table-wrap">
-        <table>
-          <thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Mã SP</th><th>Tên SP</th><th>Yêu cầu</th><th>Tồn khả dụng</th><th>Thiếu</th><th>Giá trị cắt</th></tr></thead>
-          <tbody id="importShortageReviewTable"></tbody>
-        </table>
-      </div>
-      <div class="modal-actions import-shortage-review-actions">
-        <button type="button" class="secondary" id="skipImportShortageReviewButton">Bỏ qua</button>
-        <button type="button" id="confirmImportShortageQuantityButton">Import tất cả – loại trừ hàng thiếu</button>
-        <button type="button" class="danger" id="confirmImportShortageOrderButton">Import tất cả – loại trừ đơn thiếu</button>
-      </div>
-    </div>`;
+  modal.setAttribute('aria-hidden','true');
+  modal.innerHTML=`<section class="modal-card import-shortage-review-content" role="dialog" aria-modal="true" aria-labelledby="importShortageReviewTitle"><div class="modal-header"><div><h3 id="importShortageReviewTitle">Review đơn thiếu hàng trước khi import</h3><p id="importShortageReviewMeta" class="muted"></p></div><button type="button" class="icon-button" id="closeImportShortageReviewButton" aria-label="Đóng">×</button></div><div id="importShortageReviewSummary" class="import-shortage-review-summary"></div><div class="table-wrap import-shortage-review-table-wrap"><table><thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Mã SP</th><th>Tên SP</th><th>Yêu cầu</th><th>Tồn khả dụng</th><th>Thiếu</th><th>Giá trị cắt</th></tr></thead><tbody id="importShortageReviewTable"></tbody></table></div><div class="modal-actions import-shortage-review-actions"><button type="button" class="secondary" id="skipImportShortageReviewButton">Bỏ qua</button><button type="button" id="confirmImportShortageQuantityButton">Import tất cả – loại trừ hàng thiếu</button><button type="button" class="danger" id="confirmImportShortageOrderButton">Import tất cả – loại trừ đơn thiếu</button></div></section>`;
   document.body.appendChild(modal);
+  modal.onclick=(event)=>{if(event.target===modal)closeImportShortageReviewModal();};
   document.getElementById('closeImportShortageReviewButton').onclick=closeImportShortageReviewModal;
   document.getElementById('skipImportShortageReviewButton').onclick=closeImportShortageReviewModal;
   document.getElementById('confirmImportShortageQuantityButton').onclick=()=>confirmImportShortageReviewAndCommit('exclude_shortage_quantity');
@@ -406,9 +387,22 @@ function ensureImportShortageReviewModal(){
   return modal;
 }
 
+function showImportShortageReviewModal(){
+  const modal=ensureImportShortageReviewModal();
+  modal.hidden=false;
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden','false');
+  document.body.classList.add('modal-open');
+  return modal;
+}
+
 function closeImportShortageReviewModal(){
   const modal=document.getElementById('importShortageReviewModal');
-  if(modal)modal.hidden=true;
+  if(!modal)return;
+  modal.classList.remove('show');
+  modal.setAttribute('aria-hidden','true');
+  modal.hidden=true;
+  if(!document.querySelector('.modal-backdrop.show'))document.body.classList.remove('modal-open');
 }
 
 function renderImportShortageReview(review){
@@ -439,7 +433,7 @@ function renderImportShortageReview(review){
     <td class="number"><strong>${displayImportQtyTL(item.missingQuantity||0,item)}</strong></td>
     <td class="number">${money(item.cutAmount||0)}</td>
   </tr>`).join(''):'<tr><td colspan="8">Không có dòng thiếu hàng trong phạm vi đã chọn.</td></tr>';
-  modal.hidden=false;
+  showImportShortageReviewModal();
 }
 
 async function openImportShortageReviewModal(options={}){
@@ -448,8 +442,7 @@ async function openImportShortageReviewModal(options={}){
   if(!selected.length)return null;
   const hasShortage=selected.some(({row})=>row&&row.hasShortage);
   if(!hasShortage&&!options.manual)return null;
-  if(options.auto&&importShortageReviewState?.autoOpened)return null;
-  if(options.auto)importShortageReviewState.autoOpened=true;
+  if(options.auto&&(importShortageReviewState.autoOpened||importShortageReviewState.loading))return null;
   importShortageReviewState.loading=true;
   try{
     const params=new URLSearchParams();
@@ -460,6 +453,7 @@ async function openImportShortageReviewModal(options={}){
     if(!json.ok)throw new Error(json.message||json.error||'Không tải được review đơn thiếu hàng');
     importShortageReviewState.loading=false;
     if(Array.isArray(json.items)&&json.items.length){
+      if(options.auto)importShortageReviewState.autoOpened=true;
       renderImportShortageReview(json);
       return json;
     }
@@ -468,6 +462,7 @@ async function openImportShortageReviewModal(options={}){
     return json;
   }catch(err){
     importShortageReviewState.loading=false;
+    if(options.auto)importShortageReviewState.autoOpened=false;
     showMessage(importDataMessage,err.message,true);
     return null;
   }

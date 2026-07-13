@@ -65,42 +65,48 @@
 /* IMPORT_ORDER_POPUP_PATCH_END */
 
 /* PHASE257A_IMPORT_SHORTAGE_REVIEW_START */
-.import-shortage-review-content{
-  width:min(1120px,96vw);
-  max-height:88vh;
+#importShortageReviewModal{
+  z-index:1400;
+}
+#importShortageReviewModal .import-shortage-review-content{
+  width:min(96vw,1550px);
+  max-height:92dvh;
   display:flex;
   flex-direction:column;
+  overflow:hidden;
 }
-.import-shortage-review-summary{
+#importShortageReviewModal .import-shortage-review-summary{
   display:flex;
   flex-wrap:wrap;
   gap:8px;
   padding:10px 0;
 }
-.import-shortage-review-summary span{
+#importShortageReviewModal .import-shortage-review-summary span{
   border:1px solid #dbe7f5;
   border-radius:8px;
   padding:6px 10px;
   background:#f8fafc;
 }
-.import-shortage-review-table-wrap{
+#importShortageReviewModal .import-shortage-review-table-wrap{
   min-height:0;
+  flex:1 1 auto;
   overflow:auto;
 }
-.import-shortage-review-table-wrap table{
+#importShortageReviewModal .import-shortage-review-table-wrap table{
   min-width:920px;
 }
-.import-shortage-review-actions{
+#importShortageReviewModal .import-shortage-review-actions{
+  flex:0 0 auto;
   flex-wrap:wrap;
   justify-content:flex-end;
   gap:8px;
 }
 @media(max-width:760px){
-  .import-shortage-review-content{
+  #importShortageReviewModal .import-shortage-review-content{
     width:98vw;
     max-height:94vh;
   }
-  .import-shortage-review-actions button{
+  #importShortageReviewModal .import-shortage-review-actions button{
     width:100%;
   }
 }
