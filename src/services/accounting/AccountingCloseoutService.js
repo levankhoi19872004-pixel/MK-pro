@@ -764,7 +764,18 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     return { error: 'Vui lòng chọn ít nhất một đơn để xác nhận kế toán', status: 400 };
   }
 
-  const context = await CloseoutContextLoader.loadCanonicalCloseoutContext(command, { helpers });
+  let context;
+  try {
+    context = await CloseoutContextLoader.loadCanonicalCloseoutContext(command, { helpers });
+  } catch (err) {
+    return {
+      error: err.message,
+      status: err.status || 500,
+      code: err.code || 'DELIVERY_CLOSEOUT_CONTEXT_REJECTED',
+      data: err.data,
+      performance: telemetry.finish()
+    };
+  }
   markPerformance('loadCanonicalCloseoutContext', {
     requestedOrderKeys: command.selectedOrderIds.length,
     orderCount: context.orders.length,

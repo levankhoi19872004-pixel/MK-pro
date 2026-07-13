@@ -1,0 +1,70 @@
+{
+  "phase": "Phase256B",
+  "title": "Delivery Today Master Metadata Scope Isolation",
+  "fixture": {
+    "date": "2026-07-08",
+    "deliveryStaffCode": "ghtp",
+    "orders": [
+      {
+        "id": "SO-MERGED",
+        "code": "B-MERGED",
+        "mergeStatus": "merged",
+        "masterOrderId": "MO1",
+        "masterOrderCode": "DT1",
+        "deliveryStaffCode": "ghtp"
+      },
+      {
+        "id": "SO1783644686092554",
+        "code": "B0039130",
+        "mergeStatus": "unmerged",
+        "masterOrderId": "",
+        "masterOrderCode": "",
+        "deliveryStaffCode": ""
+      }
+    ],
+    "masterOrders": [
+      {
+        "id": "MO1",
+        "code": "DT1",
+        "childOrderIds": [
+          "SO-MERGED"
+        ],
+        "deliveryStaffCode": "ghtp",
+        "status": "assigned"
+      }
+    ]
+  },
+  "before": {
+    "returnedOrderCodes": [
+      "B-MERGED",
+      "B0039130"
+    ],
+    "b0039130ReturnedForGhtp": true,
+    "b0039130SyntheticMasterOrderId": "MO1",
+    "b0039130SyntheticMasterOrderCode": "DT1",
+    "b0039130SyntheticDeliveryStaffCode": "ghtp",
+    "b0039130MetadataApplied": true,
+    "masterMetadataAppliedCount": 2
+  },
+  "after": {
+    "returnedOrderCodes": [
+      "B-MERGED"
+    ],
+    "b0039130ReturnedForGhtp": false,
+    "b0039130MetadataApplied": false,
+    "b0039130DeliveryStaffCode": "",
+    "b0039130MasterOrderId": "",
+    "validMergedOrderReturned": true,
+    "masterMetadataAppliedCount": 1,
+    "masterMetadataUnboundCount": 1,
+    "masterMetadataConflictCount": 0,
+    "queryCount": 2,
+    "ordersQueryCount": 1,
+    "masterMetadataQueryCount": 1
+  },
+  "source": {
+    "before": "Local reproduction of the previous global-map loop over the same fixture.",
+    "after": "deliveryTodayCanonicalOrderReader.listSalesOrders and per-order resolver over the same fixture.",
+    "readOnly": true
+  }
+}

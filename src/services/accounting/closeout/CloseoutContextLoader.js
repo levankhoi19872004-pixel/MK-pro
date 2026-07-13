@@ -10,6 +10,11 @@ const DeliveryCloseoutService = require('../DeliveryCloseoutService');
 const OrderPaymentAllocationService = require('../OrderPaymentAllocationService');
 const OrderPaymentDebtReconcileService = require('../OrderPaymentDebtReconcileService');
 const closeoutQueryAudit = require('../../../observability/closeoutQueryAudit');
+const MasterOrder = require('../../../models/MasterOrder');
+const {
+  loadMasterOrderMetadata,
+  metadataForOrder
+} = require('../../delivery/deliveryTodayCanonicalOrderReader');
 
 const CLOSEOUT_ORDER_PROJECTION = [
   'id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderId', 'salesOrderCode',
@@ -25,6 +30,7 @@ const CLOSEOUT_ORDER_PROJECTION = [
   'rewardAmount', 'bonusAmount', 'allowanceAmount', 'promotionRewardAmount', 'displayRewardAmount', 'bonusReturnAmount', 'rewardOffsetAmount', 'promotionOffsetAmount', 'offsetAmount', 'debtOffsetAmount',
   'paymentAllocations', 'deliveryPayment', 'deliveryPayments', 'payments', 'items', 'lines', 'products',
   'masterOrderId', 'masterOrderCode', 'deliveryMasterId', 'deliveryMasterCode', 'masterId', 'masterCode',
+  'mergeStatus', 'isChildOrder',
   'deliveryCloseout', 'version', 'note', 'deliveryNote'
 ].join(' ');
 
@@ -36,6 +42,10 @@ function unique(values = []) {
   return [...new Set((Array.isArray(values) ? values : [])
     .map((value) => clean(value))
     .filter(Boolean))];
+}
+
+function normalizedCode(value = '') {
+  return clean(value).toLowerCase();
 }
 
 function normalizeCloseoutCommand(body = {}, helpers = {}) {
@@ -64,6 +74,85 @@ async function loadOrders(command = {}, options = {}) {
     limit: Math.max(1, command.selectedOrderIds.length),
     projection: options.projection || CLOSEOUT_ORDER_PROJECTION
   });
+}
+
+function orderDeliveryAssignment(order = {}, binding = null) {
+  const storedCode = clean(order.deliveryStaffCode || order.deliveryCode || order.nvghCode);
+  if (storedCode) {
+    return {
+      actualDeliveryStaffCode: storedCode,
+      bindingSource: 'orders',
+      verified: true
+    };
+  }
+  if (binding && binding.verified === true && binding.master) {
+    const masterCode = clean(binding.master.deliveryStaffCode || binding.master.deliveryCode || binding.master.nvghCode);
+    if (masterCode) {
+      return {
+        actualDeliveryStaffCode: masterCode,
+        bindingSource: `masterOrder.${binding.source || 'none'}`,
+        verified: true
+      };
+    }
+  }
+  return {
+    actualDeliveryStaffCode: '',
+    bindingSource: binding && binding.source ? binding.source : 'none',
+    verified: false
+  };
+}
+
+function closeoutScopeMismatchError(command = {}, mismatchedOrders = []) {
+  const err = new Error('Một hoặc nhiều đơn không thuộc NVGH đang chốt sổ.');
+  err.status = 409;
+  err.code = 'DELIVERY_CLOSEOUT_ORDER_SCOPE_MISMATCH';
+  err.data = {
+    requestedDeliveryStaffCode: clean(command.deliveryStaffCode),
+    mismatchedOrders
+  };
+  return err;
+}
+
+async function assertCloseoutDeliveryScope(command = {}, pendingConfirmOrders = [], options = {}) {
+  const requestedDeliveryStaffCode = clean(command.deliveryStaffCode);
+  if (!requestedDeliveryStaffCode || !pendingConfirmOrders.length) {
+    return { checked: false, requestedDeliveryStaffCode, mismatchedOrders: [] };
+  }
+  const modelSet = { MasterOrder: options.models && options.models.MasterOrder ? options.models.MasterOrder : MasterOrder };
+  const metadata = await closeoutQueryAudit.withCloseoutAuditStage('context.deliveryScopeMasterMetadata', () => (
+    loadMasterOrderMetadata(pendingConfirmOrders, modelSet, options)
+  ));
+  const mismatchedOrders = [];
+  const checkedOrders = [];
+  for (const order of pendingConfirmOrders) {
+    const binding = metadataForOrder(order, metadata.metadataByOrderKey);
+    const assignment = orderDeliveryAssignment(order, binding);
+    checkedOrders.push({
+      orderId: clean(order.id || order._id),
+      orderCode: clean(order.orderCode || order.code || order.salesOrderCode),
+      actualDeliveryStaffCode: assignment.actualDeliveryStaffCode,
+      bindingSource: assignment.bindingSource
+    });
+    if (assignment.verified !== true || normalizedCode(assignment.actualDeliveryStaffCode) !== normalizedCode(requestedDeliveryStaffCode)) {
+      mismatchedOrders.push({
+        orderId: clean(order.id || order._id),
+        orderCode: clean(order.orderCode || order.code || order.salesOrderCode),
+        actualDeliveryStaffCode: assignment.actualDeliveryStaffCode,
+        mergeStatus: clean(order.mergeStatus),
+        masterOrderId: clean(order.masterOrderId || order.masterId),
+        masterOrderCode: clean(order.masterOrderCode || order.masterCode),
+        bindingSource: assignment.bindingSource
+      });
+    }
+  }
+  if (mismatchedOrders.length) throw closeoutScopeMismatchError(command, mismatchedOrders);
+  return {
+    checked: true,
+    requestedDeliveryStaffCode,
+    checkedOrders,
+    masterMetadataRows: metadata.masterRows.length,
+    masterMetadataQueryExecuted: metadata.queryExecuted === true
+  };
 }
 
 function groupReturnOrdersBySalesOrder(returnOrders = [], orders = []) {
@@ -233,6 +322,7 @@ async function loadCanonicalCloseoutContext(commandInput = {}, options = {}) {
     alreadyConfirmedOrderCount: alreadyConfirmedOrders.length,
     pendingOrderCount: pendingConfirmOrders.length
   });
+  const deliveryScopeGuard = await assertCloseoutDeliveryScope(command, pendingConfirmOrders, options);
 
   const returnOrders = pendingConfirmOrders.length
     ? await closeoutQueryAudit.withCloseoutAuditStage('context.returnOrders', () => findReturnOrdersForDeliveryChildren(pendingConfirmOrders, options))
@@ -265,6 +355,7 @@ async function loadCanonicalCloseoutContext(commandInput = {}, options = {}) {
     calculatedTotals: {},
     metadata: {
       implementation: 'canonical-context-v1',
+      deliveryScopeGuard,
       loadedAt: dateUtil.nowIso()
     }
   };
@@ -286,11 +377,14 @@ module.exports = {
   loadCanonicalCloseoutContext,
   preloadWriterIdempotency,
   collectWriterIdempotencyKeys,
+  assertCloseoutDeliveryScope,
   groupReturnOrdersBySalesOrder,
   returnOrdersForOrder,
   _internal: {
     clean,
     unique,
+    normalizedCode,
+    orderDeliveryAssignment,
     mapByIdempotency,
     buildCloseoutPreview
   }
