@@ -6,6 +6,54 @@
   width:100%!important;
   min-height:520px;
 }
+
+/* PHASE256D_MASTER_ORDER_LIST_VIEWPORT_START
+   Scope: only the main "Danh sach don tong" list-only view.
+   The legacy 520/420/430px caps still serve older two-panel layouts; this mode uses viewport height. */
+#masterOrdersTab .master-order-list-only-grid{
+  min-height:0!important;
+}
+
+#masterOrdersTab .master-order-list-only-grid .master-list-only-card{
+  display:flex!important;
+  flex-direction:column!important;
+  height:calc(100vh - 128px)!important;
+  height:calc(100dvh - 128px)!important;
+  min-height:620px!important;
+  max-height:none!important;
+  overflow:hidden!important;
+}
+
+#masterOrdersTab .master-order-list-only-grid .master-list-only-card .ui-list-toolbar,
+#masterOrdersTab .master-order-list-only-grid .master-list-only-card .master-order-list-head{
+  flex:0 0 auto!important;
+}
+
+#masterOrdersTab .master-order-list-only-grid .master-list-only-card #masterOrderList{
+  flex:1 1 auto!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+}
+
+@media(max-height:720px){
+  #masterOrdersTab .master-order-list-only-grid .master-list-only-card{
+    height:calc(100vh - 104px)!important;
+    height:calc(100dvh - 104px)!important;
+    min-height:480px!important;
+  }
+}
+
+@media(max-width:768px){
+  #masterOrdersTab .master-order-list-only-grid .master-list-only-card{
+    height:auto!important;
+    min-height:520px!important;
+    max-height:none!important;
+  }
+}
+/* PHASE256D_MASTER_ORDER_LIST_VIEWPORT_END */
 #masterOrderModal .master-order-modal-workspace{
   /* MASTER_ORDER_LAYOUT_V2: tăng diện tích popup tạo đơn tổng, không đổi logic */
   width:90vw;
@@ -330,4 +378,3 @@
 /* MASTER_ORDER_SELECTED_LIST_LAYOUT_FIX_END */
 
 /* MASTER_ORDER_POPUP_PATCH_END */
-
