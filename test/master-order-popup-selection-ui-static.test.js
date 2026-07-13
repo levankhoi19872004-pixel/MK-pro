@@ -19,7 +19,8 @@ test('master-order popup delegates checkbox changes into the correct selection s
 
 test('remove grouped child action reads the state populated by grouped checkbox changes', () => {
   assert.match(source, /const ids = \[\.\.\.selectedGroupedChildOrderCheckIds\]\.filter\(Boolean\)/);
-  assert.match(source, /ids\.forEach\(\(id\) => selectedGroupedChildOrderIds\.delete\(id\)\)/);
+  assert.match(source, /selectedGroupedChildOrderIds\.delete\(id\)/);
+  assert.match(source, /explicitlyRemovedGroupedChildOrderIds\.add\(id\)/);
   assert.match(source, /removeFromGroupedOrdersButton\.addEventListener\('click',\s*removeSelectedGroupedChildOrders\)/);
 });
 
@@ -27,5 +28,5 @@ test('master-delivery bundle is registered behind the desktop feature loader', (
   assert.doesNotMatch(indexHtml, /<script src="\/js\/app\/06-master-delivery\.js/);
   assert.match(indexHtml, /\/js\/app\/core\/feature-module-loader\.js/);
   assert.match(desktopFacades, /masterOrders/);
-  assert.match(desktopFacades, /\/js\/app\/06-master-delivery\.js\?v=phase69-unmerged-refresh-v1/);
+  assert.match(desktopFacades, /\/js\/app\/06-master-delivery\.js\?v=phase256c-master-order-edit-working-set-v1/);
 });

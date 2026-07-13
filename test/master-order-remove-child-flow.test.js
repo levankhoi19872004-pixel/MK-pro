@@ -92,6 +92,8 @@ test('updateMasterOrder removes child assignment from SalesOrder and return draf
   try {
     const result = await masterOrderService.updateMasterOrder('MO100', {
       childOrderIds: ['SO101'],
+      expectedChildOrderIds: ['SO100', 'SO101'],
+      removedChildOrderIds: ['SO100'],
       deliveryStaffCode: 'GH01',
       deliveryDate: '2026-06-13',
       routeName: 'TP'
@@ -160,6 +162,8 @@ test('updateMasterOrder refuses to detach a child after delivery money has been 
   try {
     const result = await masterOrderService.updateMasterOrder('MO200', {
       childOrderIds: ['SO201'],
+      expectedChildOrderIds: ['SO200', 'SO201'],
+      removedChildOrderIds: ['SO200'],
       deliveryStaffCode: 'GH01',
       deliveryDate: '2026-06-13'
     });

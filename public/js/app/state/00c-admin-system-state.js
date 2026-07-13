@@ -82,6 +82,10 @@ let unmergedOrdersCache=[];
 let selectedUnmergedChildOrderIds=new Set();
 let selectedGroupedChildOrderIds=new Set();
 let selectedGroupedChildOrderCheckIds=new Set();
+let masterOrderChildRowsById=new Map();
+let unmergedOrderResultIds=[];
+let explicitlyRemovedGroupedChildOrderIds=new Set();
+let originalGroupedChildOrderIds=new Set();
 // Giữ biến cũ để tương thích các đoạn cũ, nhưng luồng tạo đơn tổng mới dùng selectedGroupedChildOrderIds.
 let selectedChildOrderIds=selectedUnmergedChildOrderIds;
 // MASTER_ORDER_POPUP_PATCH_END

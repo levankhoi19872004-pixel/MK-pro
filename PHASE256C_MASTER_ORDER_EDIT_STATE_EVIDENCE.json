@@ -1,0 +1,96 @@
+{
+  "phase": "Phase256C",
+  "title": "Master Order Edit Working Set Persistence",
+  "production_case": {
+    "masterOrderCode": "DT1783758798503103",
+    "initialChildOrderCodes": [
+      "B0039412",
+      "B0039414",
+      "B0039413",
+      "B0039415"
+    ],
+    "initialTotalAmountVnd": 16925906,
+    "bug": "Changing the left unmerged-child filters during edit could clear the right grouped pane and make submit replace the master order with only newly visible children."
+  },
+  "root_cause": [
+    "The grouped pane was derived from unmergedOrdersCache, which is the candidate-result cache.",
+    "loadUnmergedChildOrders replaced unmergedOrdersCache on every candidate reload.",
+    "syncVisibleGroupedChildOrderIds mutated selectedGroupedChildOrderIds to only visible rows.",
+    "submitMasterOrder used that visible-derived list as the replacement childOrderIds payload.",
+    "updateMasterOrder treated childOrderIds as the full replacement set and detached missing children."
+  ],
+  "frontend_contract": {
+    "stableRegistry": "masterOrderChildRowsById",
+    "candidateResults": "unmergedOrderResultIds",
+    "workingSet": "selectedGroupedChildOrderIds",
+    "explicitRemovalSet": "explicitlyRemovedGroupedChildOrderIds",
+    "originalBaseline": "originalGroupedChildOrderIds",
+    "submitPayload": [
+      "childOrderIds",
+      "expectedChildOrderIds",
+      "removedChildOrderIds"
+    ]
+  },
+  "backend_guards": [
+    {
+      "code": "MASTER_ORDER_EDIT_STALE_CHILD_SET",
+      "status": 409,
+      "condition": "expectedChildOrderIds does not exactly match current master children before write"
+    },
+    {
+      "code": "MASTER_ORDER_CHILD_REMOVAL_INTENT_MISMATCH",
+      "status": 409,
+      "condition": "actual removed children do not exactly match removedChildOrderIds before write"
+    }
+  ],
+  "targeted_tests": [
+    {
+      "command": "npm run check:syntax",
+      "result": "PASS",
+      "summary": "SYNTAX_OK 1491 JavaScript files"
+    },
+    {
+      "command": "node --test test/master-order-popup-selection-ui-static.test.js test/master-order-unmerged-refresh-ui-static.test.js test/master-order-unmerged-query-behavior.test.js test/master-order-remove-child-flow.test.js test/master-order-detach-delivery-invariant.test.js test/master-order-concurrent-merge.test.js test/phase256c-master-order-edit-working-set-persistence.test.js test/phase256c-master-order-removal-intent-guard.test.js",
+      "result": "PASS",
+      "summary": "20 tests passed"
+    },
+    {
+      "command": "npm run docs:check",
+      "result": "PASS",
+      "summary": "OpenAPI document is up to date. Scanned operations: 368."
+    },
+    {
+      "command": "npm run test:release-governance",
+      "result": "PASS",
+      "summary": "85 tests passed"
+    }
+  ],
+  "known_unrelated_failures": [
+    {
+      "command": "npm run check:source-bundles",
+      "result": "FAIL",
+      "summary": "Existing stale generated file: src/services/inventoryService.js"
+    },
+    {
+      "command": "npm run test:artifact-clean",
+      "result": "FAIL",
+      "summary": "Existing root ZIP artifacts are reported as nested archives"
+    },
+    {
+      "command": "npm run quality",
+      "result": "FAIL",
+      "summary": "release-governance passed 85/85, then artifact-clean failed on existing root ZIP artifacts"
+    },
+    {
+      "command": "npm test",
+      "result": "FAIL",
+      "summary": "Existing unrelated failures include app trust proxy static, sales-order delete/cancel tests, and source artifact verifier"
+    }
+  ],
+  "manifest": {
+    "releasePhase": "Phase256C",
+    "releaseVersion": "1.0.0",
+    "releaseId": "Phase256C-1.0.0-20260713141139",
+    "check": "PASS"
+  }
+}

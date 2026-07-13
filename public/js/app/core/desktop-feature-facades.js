@@ -17,7 +17,7 @@
     });
   }
 
-  registerFeature('masterOrders', '/js/app/06-master-delivery.js?v=phase69-unmerged-refresh-v1&patch=phase73-excel-interaction-v1', 'loadMasterOrderModule');
+  registerFeature('masterOrders', '/js/app/06-master-delivery.js?v=phase256c-master-order-edit-working-set-v1&patch=phase73-excel-interaction-v1', 'loadMasterOrderModule');
   registerFeature('masterReturnOrders', '/js/app/debt/07d-master-return-orders.js?v=phase82-master-return-popup-v1', 'openMasterReturnOrderModal');
   registerFeature('deliveryTodayNew', '/js/app/new/91-delivery-today-new.js?v=phase199-bulk-manual-save-replay-v1', 'loadDeliveryTodayNew');
   registerFeature('debtNew', '/js/app/new/92-debt-new.js?v=phase91-new-modules-v1', 'loadDebtNew');

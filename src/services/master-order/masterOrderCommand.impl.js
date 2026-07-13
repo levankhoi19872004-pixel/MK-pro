@@ -119,6 +119,50 @@ function childOrderCodes(children = []) {
   return [...new Set((children || []).map((child) => childOrderDisplayCode(child)).filter(Boolean))];
 }
 
+function childSetIntentSnapshot(children = []) {
+  return (children || []).map((child) => ({
+    id: child.id || '',
+    code: childOrderDisplayCode(child),
+    identityKeys: childOrderIdentityKeys(child)
+  }));
+}
+
+function diffCurrentChildrenAgainstExpected(currentChildren = [], expectedRefs = []) {
+  const expectedSet = new Set(normalizeChildOrderRefsInput(expectedRefs));
+  const currentSnapshot = childSetIntentSnapshot(currentChildren);
+  if (!expectedSet.size) {
+    return {
+      ok: currentSnapshot.length === 0,
+      missingCurrentChildren: currentSnapshot,
+      unexpectedExpectedChildOrderIds: []
+    };
+  }
+  const missingCurrentChildren = currentSnapshot.filter((child) => !child.identityKeys.some((key) => expectedSet.has(key)));
+  const unexpectedExpectedChildOrderIds = [...expectedSet].filter((ref) => !currentSnapshot.some((child) => child.identityKeys.includes(ref)));
+  return {
+    ok: missingCurrentChildren.length === 0 && unexpectedExpectedChildOrderIds.length === 0,
+    missingCurrentChildren,
+    unexpectedExpectedChildOrderIds
+  };
+}
+
+function buildRemovalIntentMismatch(currentChildren = [], requestedChildren = [], removedChildren = [], explicitRemovedRefs = []) {
+  const explicitSet = new Set(normalizeChildOrderRefsInput(explicitRemovedRefs));
+  const removedSnapshot = childSetIntentSnapshot(removedChildren);
+  const unexpectedRemovedChildren = removedSnapshot.filter((child) => !child.identityKeys.some((key) => explicitSet.has(key)));
+  const unusedExplicitRemovedChildOrderIds = [...explicitSet].filter((ref) => !removedSnapshot.some((child) => child.identityKeys.includes(ref)));
+  return {
+    ok: unexpectedRemovedChildren.length === 0 && unusedExplicitRemovedChildOrderIds.length === 0,
+    diagnostic: {
+      currentChildOrderIds: childOrderCodes(currentChildren),
+      requestedChildOrderIds: childOrderCodes(requestedChildren),
+      explicitRemovedChildOrderIds: [...explicitSet],
+      unexpectedRemovedChildOrderIds: unexpectedRemovedChildren.map((child) => child.code || child.id).filter(Boolean),
+      unusedExplicitRemovedChildOrderIds
+    }
+  };
+}
+
 async function resolveRequestedChildOrders(inputRefs = [], options = {}) {
   const refs = normalizeChildOrderRefsInput(inputRefs);
   if (!refs.length) return { refs, children: [], invalid: [] };
@@ -391,8 +435,27 @@ async function updateMasterOrder(id, body = {}) {
 
   let children = currentChildren;
   const hasRequestedChildren = Array.isArray(body.childOrderIds);
+  const hasExpectedChildOrderIds = Array.isArray(body.expectedChildOrderIds);
+  const hasExplicitRemovedChildOrderIds = Array.isArray(body.removedChildOrderIds);
+  const expectedChildOrderIds = normalizeChildOrderRefsInput(body.expectedChildOrderIds || []);
+  const explicitRemovedChildOrderIds = normalizeChildOrderRefsInput(body.removedChildOrderIds || []);
+  let requestedChildIds = [];
+  if (hasExpectedChildOrderIds) {
+    const expectedDiff = diffCurrentChildrenAgainstExpected(currentChildren, expectedChildOrderIds);
+    if (!expectedDiff.ok) {
+      return {
+        error: 'Danh sách đơn con của đơn tổng đã thay đổi, vui lòng tải lại trước khi lưu.',
+        code: 'MASTER_ORDER_EDIT_STALE_CHILD_SET',
+        status: 409,
+        currentChildOrderIds: childOrderCodes(currentChildren),
+        expectedChildOrderIds,
+        missingCurrentChildOrderIds: expectedDiff.missingCurrentChildren.map((child) => child.code || child.id).filter(Boolean),
+        unexpectedExpectedChildOrderIds: expectedDiff.unexpectedExpectedChildOrderIds
+      };
+    }
+  }
   if (hasRequestedChildren) {
-    const requestedChildIds = normalizeChildOrderRefsInput(body.childOrderIds || []);
+    requestedChildIds = normalizeChildOrderRefsInput(body.childOrderIds || []);
     if (!requestedChildIds.length) return { error: 'Đơn tổng phải có ít nhất 1 đơn con', status: 400 };
     const resolved = await resolveRequestedChildOrders(requestedChildIds, { currentMaster: current });
     debugLog('DEBUG_ORDER_FLOW', '[UPDATE_MASTER_ORDER_VALIDATE]', {
@@ -443,6 +506,18 @@ async function updateMasterOrder(id, body = {}) {
   const removedChildKeys = childOrderKeySet(removedChildren);
   const removedChildCodes = childOrderCodes(removedChildren);
   const now = dateUtil.nowIso();
+
+  if (hasRequestedChildren && removedChildren.length) {
+    const removalIntent = buildRemovalIntentMismatch(currentChildren, children, removedChildren, explicitRemovedChildOrderIds);
+    if (!hasExplicitRemovedChildOrderIds || !removalIntent.ok) {
+      return {
+        error: 'Danh sách đơn con bị giảm nhưng không khớp ý định xóa rõ ràng.',
+        code: 'MASTER_ORDER_CHILD_REMOVAL_INTENT_MISMATCH',
+        status: 409,
+        ...removalIntent.diagnostic
+      };
+    }
+  }
 
   const lockedRemovedChild = removedChildren.find(hasDeliveryOperationalData);
   if (lockedRemovedChild) {
