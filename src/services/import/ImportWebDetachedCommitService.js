@@ -17,7 +17,9 @@ function normalizePayload(payload = {}, session = {}) {
     sessionId,
     importSessionId: sessionId,
     importMode: cleanText(payload.importMode || session.importMode),
-    shortageMode: cleanText(payload.shortageMode)
+    shortageMode: cleanText(payload.shortageMode),
+    shortageReviewFingerprint: cleanText(payload.shortageReviewFingerprint),
+    selectedScopeFingerprint: cleanText(payload.selectedScopeFingerprint)
   };
 }
 

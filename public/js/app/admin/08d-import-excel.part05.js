@@ -83,4 +83,49 @@ if(typeof window.reloadPromotionRules==="function")await window.reloadPromotionR
 const tasks=[];const add=fn=>{if(typeof fn==="function")tasks.push(Promise.resolve().then(fn))};if(type==="salesOrders"){add(loadSalesOrders);add(loadStock)
 }else if(type==="products"){add(loadProducts);add(loadStock)}else if(type==="customers"){add(loadCustomers)}else if(type==="openingStock"){add(loadStock);add(loadProducts)
 }else if(type==="importOrders"){add(loadImportOrders)}else if(type==="openingDebt"){add(loadDebts)}else if(type==="debtCollections"){add(loadDebts);add(loadReceipts)
-;add(loadCashbook)}else if(type==="cashbook"){add(loadCashbook)}if(tasks.length)await Promise.allSettled(tasks)}
+;add(loadCashbook)}else if(type==="cashbook"){add(loadCashbook)}if(tasks.length)await Promise.allSettled(tasks)}function getSelectedImportRowsWithIndexes(){
+if(isPromotionProductRuleImportType()){const selected=new Set(getSelectedImportProgramCodes());return(importPreviewRows||[]).map((row,index)=>({row:row,index:index
+})).filter(({row:row})=>isImportRowSelectable(row)&&selected.has(getPromotionProgramCode(row)))}return(importPreviewRows||[]).map((row,index)=>({row:row,index:index
+})).filter(({row:row,index:index})=>isImportRowSelectable(row)&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index)))}function buildImportShortageReviewSelectionPayload(){
+const selected=getSelectedImportRowsWithIndexes();return{
+selectedOrderCodes:selected.map(({row:row})=>String(row.documentCode||row.orderCode||row.code||row.username||"").trim()).filter(Boolean),
+selectedRowNumbers:selected.map(({row:row,index:index})=>getImportRowSourceNumber(row,index)).filter(Boolean),selectedProgramCodes:getSelectedImportProgramCodes(),
+selectedRowKeys:selected.map(({row:row,index:index})=>getImportRowSelectKey(row,index)).filter(Boolean)}}function ensureImportShortageReviewModal(){
+let modal=document.getElementById("importShortageReviewModal");if(modal)return modal;modal=document.createElement("div");modal.id="importShortageReviewModal"
+;modal.className="modal import-shortage-review-modal";modal.hidden=true
+;modal.innerHTML=`\n    <div class="modal-content import-shortage-review-content" role="dialog" aria-modal="true" aria-labelledby="importShortageReviewTitle">\n      <div class="modal-header">\n        <div>\n          <h3 id="importShortageReviewTitle">Review đơn thiếu hàng trước khi import</h3>\n          <p id="importShortageReviewMeta" class="muted"></p>\n        </div>\n        <button type="button" class="icon-button" id="closeImportShortageReviewButton" aria-label="Đóng">×</button>\n      </div>\n      <div id="importShortageReviewSummary" class="import-shortage-review-summary"></div>\n      <div class="table-wrap import-shortage-review-table-wrap">\n        <table>\n          <thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Mã SP</th><th>Tên SP</th><th>Yêu cầu</th><th>Tồn khả dụng</th><th>Thiếu</th><th>Giá trị cắt</th></tr></thead>\n          <tbody id="importShortageReviewTable"></tbody>\n        </table>\n      </div>\n      <div class="modal-actions import-shortage-review-actions">\n        <button type="button" class="secondary" id="skipImportShortageReviewButton">Bỏ qua</button>\n        <button type="button" id="confirmImportShortageQuantityButton">Import tất cả – loại trừ hàng thiếu</button>\n        <button type="button" class="danger" id="confirmImportShortageOrderButton">Import tất cả – loại trừ đơn thiếu</button>\n      </div>\n    </div>`
+;document.body.appendChild(modal);document.getElementById("closeImportShortageReviewButton").onclick=closeImportShortageReviewModal
+;document.getElementById("skipImportShortageReviewButton").onclick=closeImportShortageReviewModal
+;document.getElementById("confirmImportShortageQuantityButton").onclick=()=>confirmImportShortageReviewAndCommit("exclude_shortage_quantity")
+;document.getElementById("confirmImportShortageOrderButton").onclick=()=>confirmImportShortageReviewAndCommit("exclude_shortage_orders");return modal}
+function closeImportShortageReviewModal(){const modal=document.getElementById("importShortageReviewModal");if(modal)modal.hidden=true}function renderImportShortageReview(review){
+const modal=ensureImportShortageReviewModal();const summary=review.summary||{};const items=Array.isArray(review.items)?review.items:[];importShortageReviewState={
+...importShortageReviewState,sessionId:review.sessionId||importPreviewSessionId||"",fingerprint:review.fingerprint||"",selectedScopeFingerprint:review.selectedScopeFingerprint||"",
+status:review.status||"pending",items:items,summary:summary};const meta=document.getElementById("importShortageReviewMeta")
+;if(meta)meta.textContent=`${formatNumber(summary.shortageOrderCount||0)} đơn thiếu hàng · ${formatNumber(summary.itemCount||items.length)} dòng thiếu · SL thiếu ${displayImportAggregateQty(summary.totalMissingQuantity||0)} · Giá trị cắt ${money(summary.totalCutAmount||0)}`
+;const summaryBox=document.getElementById("importShortageReviewSummary")
+;if(summaryBox)summaryBox.innerHTML=`<span>Đơn đã chọn: <strong>${formatNumber(summary.selectedOrderCount||0)}</strong></span><span>Đơn thiếu: <strong>${formatNumber(summary.shortageOrderCount||0)}</strong></span><span>Sản phẩm: <strong>${formatNumber(summary.productCount||0)}</strong></span><span>Dòng thiếu: <strong>${formatNumber(items.length)}</strong></span>`
+;const body=document.getElementById("importShortageReviewTable")
+;if(body)body.innerHTML=items.length?items.map(item=>`<tr>\n    <td>${escapeImportHtml(item.documentCode||"")}</td>\n    <td>${escapeImportHtml(item.customerName||item.customerCode||"")}</td>\n    <td>${escapeImportHtml(item.productCode||"")}</td>\n    <td>${escapeImportHtml(item.productName||"")}</td>\n    <td class="number">${displayImportQtyTL(item.requestedQuantity||0,item)}</td>\n    <td class="number">${displayImportQtyTL(item.availableQuantity||0,item)}</td>\n    <td class="number"><strong>${displayImportQtyTL(item.missingQuantity||0,item)}</strong></td>\n    <td class="number">${money(item.cutAmount||0)}</td>\n  </tr>`).join(""):'<tr><td colspan="8">Không có dòng thiếu hàng trong phạm vi đã chọn.</td></tr>'
+;modal.hidden=false}async function openImportShortageReviewModal(options={}){if(importDataType?.value!=="salesOrders"||!importPreviewSessionId)return null
+;const selected=getSelectedImportRowsWithIndexes();if(!selected.length)return null;const hasShortage=selected.some(({row:row})=>row&&row.hasShortage)
+;if(!hasShortage&&!options.manual)return null;if(options.auto&&importShortageReviewState?.autoOpened)return null;if(options.auto)importShortageReviewState.autoOpened=true
+;importShortageReviewState.loading=true;try{const params=new URLSearchParams;const selection=buildImportShortageReviewSelectionPayload()
+;Object.entries(selection).forEach(([key,list])=>(list||[]).forEach(value=>params.append(key,String(value))))
+;const res=await fetch(`/api/import/sessions/${encodeURIComponent(importPreviewSessionId)}/shortage-review?${params.toString()}`);const json=await res.json().catch(()=>({ok:false,
+message:`API review không trả JSON hợp lệ (HTTP ${res.status})`}));if(!json.ok)throw new Error(json.message||json.error||"Không tải được review đơn thiếu hàng")
+;importShortageReviewState.loading=false;if(Array.isArray(json.items)&&json.items.length){renderImportShortageReview(json);return json}importShortageReviewState={
+...importShortageReviewState,status:"not_required",items:[],summary:json.summary||null,fingerprint:json.fingerprint||"",selectedScopeFingerprint:json.selectedScopeFingerprint||""}
+;if(options.manual)showMessage(importDataMessage,"Không có dòng thiếu hàng trong phạm vi đang chọn.");return json}catch(err){importShortageReviewState.loading=false
+;showMessage(importDataMessage,err.message,true);return null}}async function confirmImportShortageReviewAndCommit(mode){if(mode==="exclude_shortage_orders"){
+const ok=window.confirm("Xác nhận loại trừ toàn bộ các đơn đang thiếu hàng khỏi lần import này?");if(!ok)return}
+const button=mode==="exclude_shortage_orders"?document.getElementById("confirmImportShortageOrderButton"):document.getElementById("confirmImportShortageQuantityButton")
+;if(button)button.disabled=true;try{const selection=buildImportShortageReviewSelectionPayload()
+;const res=await fetch(`/api/import/sessions/${encodeURIComponent(importPreviewSessionId)}/shortage-review`,{method:"PUT",headers:{"Content-Type":"application/json"},
+body:JSON.stringify({mode:mode,fingerprint:importShortageReviewState.fingerprint||"",selectedScopeFingerprint:importShortageReviewState.selectedScopeFingerprint||"",...selection})
+});const json=await res.json().catch(()=>({ok:false,message:`API xác nhận review không trả JSON hợp lệ (HTTP ${res.status})`}))
+;if(!json.ok)throw new Error(json.message||json.error||"Không xác nhận được review đơn thiếu hàng");importShortageReviewState={...importShortageReviewState,status:"confirmed",
+mode:mode,fingerprint:json.fingerprint||importShortageReviewState.fingerprint,
+selectedScopeFingerprint:json.selectedScopeFingerprint||importShortageReviewState.selectedScopeFingerprint};importShortageActionMode=mode;closeImportShortageReviewModal()
+;await commitImportExcelCore({confirmedShortageReview:true})}catch(err){showMessage(importDataMessage,err.message,true)
+;if(String(err.message||"").includes("thay đổi"))await openImportShortageReviewModal({manual:true})}finally{if(button)button.disabled=false}}

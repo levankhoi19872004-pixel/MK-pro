@@ -26,6 +26,8 @@ async function submitImportCommit(req) {
     type: String(req.body?.type || '').trim(),
     rows: req.body?.rows,
     shortageMode: String(req.body?.shortageMode || '').trim(),
+    shortageReviewFingerprint: String(req.body?.shortageReviewFingerprint || '').trim(),
+    selectedScopeFingerprint: String(req.body?.selectedScopeFingerprint || '').trim(),
     sessionId: String(req.body?.sessionId || req.body?.importSessionId || '').trim(),
     selectedOrderCodes: req.body?.selectedOrderCodes || [],
     selectedRowNumbers: req.body?.selectedRowNumbers || [],

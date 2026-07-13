@@ -9,23 +9,26 @@ const response=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)
 ;if(payload.status==="failed"||!response.ok&&!["importing","processing"].includes(String(payload.status||"").toLowerCase())){
 throw new Error(payload.errorMessage||payload.message||`Import nền thất bại${jobId?` (${jobId})`:""}`)}await new Promise(resolve=>setTimeout(resolve,600))}
 if(importCommitPollController===pollController)importCommitPollController=null
-;throw new Error(`Import quá thời gian chờ${jobId?` (${jobId})`:""}. Vui lòng kiểm tra lại trạng thái phiên import.`)}async function commitImportExcelCore(){
+;throw new Error(`Import quá thời gian chờ${jobId?` (${jobId})`:""}. Vui lòng kiểm tra lại trạng thái phiên import.`)}async function commitImportExcelCore(options={}){
 if(!importDataType)return;let stopProgressPolling=()=>{};try{const hasFile=Boolean(importExcelFile&&importExcelFile.files&&importExcelFile.files.length)
 ;if(!importPreviewRows.length){if(hasFile){await previewImportExcel();return}
 showMessage(importDataMessage,"Chưa có dữ liệu preview. Vui lòng chọn file Excel hoặc dán dữ liệu từ Excel rồi bấm Đọc dữ liệu.",true);return}if(!importPreviewSessionId){
 showMessage(importDataMessage,"Bản xem trước chưa có mã phiên import. Vui lòng tạo lại preview từ file Excel hoặc dữ liệu dán.",true);return}
-const selectedRows=getSelectedImportRows();if(!selectedRows.length){showMessage(importDataMessage,"Bạn chưa chọn đơn/dòng nào để import",true);return}if(commitImportButton){
-commitImportButton.disabled=true;commitImportButton.dataset.originalText=commitImportButton.textContent||"Import các đơn đã chọn";commitImportButton.textContent="Đang import..."}
-showMessage(importDataMessage,`Đang import ${formatNumber(selectedRows.length)} đơn/dòng đã chọn...`)
-;stopProgressPolling=startImportCommitProgressPolling(importPreviewSessionId,selectedRows.length)
+const selectedIndexedRows=getSelectedImportRowsWithIndexes();const selectedRows=selectedIndexedRows.map(({row:row})=>row);if(!selectedRows.length){
+showMessage(importDataMessage,"Bạn chưa chọn đơn/dòng nào để import",true);return}if(importDataType.value==="salesOrders"&&!options.confirmedShortageReview){
+const hasSelectedShortage=selectedIndexedRows.some(({row:row})=>row&&row.hasShortage);if(hasSelectedShortage){await openImportShortageReviewModal({manual:true});return}}
+if(commitImportButton){commitImportButton.disabled=true;commitImportButton.dataset.originalText=commitImportButton.textContent||"Import các đơn đã chọn"
+;commitImportButton.textContent="Đang import..."}showMessage(importDataMessage,`Đang import ${formatNumber(selectedRows.length)} đơn/dòng đã chọn...`)
+;stopProgressPolling=startImportCommitProgressPolling(importPreviewSessionId,selectedRows.length);const selection=buildImportShortageReviewSelectionPayload()
 ;const commitUrl=`/api/import/sessions/${encodeURIComponent(importPreviewSessionId)}/commit`;const res=await fetch(commitUrl,{method:"POST",headers:{
 "Content-Type":"application/json"},body:JSON.stringify({type:importDataType.value,importMode:getSelectedImportMode(),importSessionId:importPreviewSessionId,
-selectedOrderCodes:selectedRows.map(r=>String(r.documentCode||r.orderCode||r.code||r.username||"").trim()).filter(Boolean),
-selectedRowNumbers:selectedRows.map((r,index)=>getImportRowSourceNumber(r,index)).filter(Boolean),selectedProgramCodes:getSelectedImportProgramCodes(),
-selectedRowKeys:selectedRows.map((r,index)=>getImportRowSelectKey(r,index)).filter(Boolean),importSource:currentImportSource==="paste"?"paste":"file",
-shortageMode:importShortageActionMode||"cut"})});let json=await res.json().catch(()=>({ok:false,message:`API import không trả JSON hợp lệ (HTTP ${res.status})`}))
-;if(!json.ok)throw new Error(json.error||json.message||"Import thất bại");if(json.accepted&&json.jobId){
-showMessage(importDataMessage,`Đã tạo job ${json.jobId}. Tác vụ nền đang xử lý...`);json=await waitForAsyncImportCommit(importPreviewSessionId,json.jobId)}
+selectedOrderCodes:selection.selectedOrderCodes,selectedRowNumbers:selection.selectedRowNumbers,selectedProgramCodes:selection.selectedProgramCodes,
+selectedRowKeys:selection.selectedRowKeys,importSource:currentImportSource==="paste"?"paste":"file",shortageMode:importShortageReviewState.mode||"",
+shortageReviewFingerprint:importShortageReviewState.fingerprint||"",selectedScopeFingerprint:importShortageReviewState.selectedScopeFingerprint||""})})
+;let json=await res.json().catch(()=>({ok:false,message:`API import không trả JSON hợp lệ (HTTP ${res.status})`}));if(!json.ok){
+if(String(json.code||"").startsWith("IMPORT_SHORTAGE_REVIEW_"))await openImportShortageReviewModal({manual:true});throw new Error(json.error||json.message||"Import thất bại")}
+if(json.accepted&&json.jobId){showMessage(importDataMessage,`Đã tạo job ${json.jobId}. Tác vụ nền đang xử lý...`)
+;json=await waitForAsyncImportCommit(importPreviewSessionId,json.jobId)}
 const shortageText=json.shortageReport&&json.shortageReport.length?` · Đã tự cắt ${displayImportAggregateQty(json.shortageSummary?.totalMissingQty||0)} sản phẩm thiếu (${money(json.shortageSummary?.totalCutAmount||0)})`:""
 ;const durationMs=Number(json.performance&&json.performance.durationMs||0);const performanceText=durationMs>0?` · ${Math.max(.1,durationMs/1e3).toFixed(1)} giây`:""
 ;const savedReportText=json.shortageReportSaved&&json.shortageReportCode?` · Đã lưu báo cáo ${json.shortageReportCode}`:""
@@ -34,12 +37,12 @@ const shortageText=json.shortageReport&&json.shortageReport.length?` · Đã t�
 importPreviewTable.innerHTML=reportRows.map(r=>`\n          <tr>\n            <td>${escapeImportHtml(r.documentCode||"")}</td>\n            <td>${escapeImportHtml(r.customerName||r.customerCode||"")}</td>\n            <td>${escapeImportHtml(r.productCode||"")}</td>\n            <td>${escapeImportHtml(r.productName||"")}</td>\n            <td>${displayImportQtyTL(r.missingQuantity||0,r)}</td>\n            <td>${money(r.cutAmount||0)}</td>\n          </tr>\n        `).join("")
 ;if(importPreviewHead)importPreviewHead.innerHTML="<tr><th>Mã đơn</th><th>Khách hàng</th><th>Mã SP</th><th>Tên SP</th><th>SL thiếu</th><th>Giá trị cắt</th></tr>"}else{
 importPreviewTable.innerHTML=`<tr><td colspan="6">Import thành công. Không có hàng vượt tồn.</td></tr>`
-;if(importPreviewHead)importPreviewHead.innerHTML='<tr><th colspan="6">Báo cáo import</th></tr>'}}importPreviewRows=[];importPreviewSessionId=""
-;window.__importPreviewRows=importPreviewRows;window.__importPreviewSessionId=importPreviewSessionId;setCurrentImportSource("none","");if(commitImportButton){
-commitImportButton.disabled=true;commitImportButton.textContent="Import các dòng đã chọn"}if(importDataType.value==="salesOrders"){
-if(salesOrderSourceFilter)salesOrderSourceFilter.value="DMS"}await refreshAfterImport(importDataType.value)
-;if(importDataType.value==="salesOrders")await loadImportShortageReports()}catch(err){if(err&&err.name==="AbortError")return;if(commitImportButton){
-commitImportButton.disabled=false;if(commitImportButton.dataset.originalText)commitImportButton.textContent=commitImportButton.dataset.originalText}
+;if(importPreviewHead)importPreviewHead.innerHTML='<tr><th colspan="6">Báo cáo import</th></tr>'}}
+if(typeof resetImportShortageReviewState==="function")resetImportShortageReviewState();importPreviewRows=[];importPreviewSessionId="";window.__importPreviewRows=importPreviewRows
+;window.__importPreviewSessionId=importPreviewSessionId;setCurrentImportSource("none","");if(commitImportButton){commitImportButton.disabled=true
+;commitImportButton.textContent="Import các dòng đã chọn"}if(importDataType.value==="salesOrders"){if(salesOrderSourceFilter)salesOrderSourceFilter.value="DMS"}
+await refreshAfterImport(importDataType.value);if(importDataType.value==="salesOrders")await loadImportShortageReports()}catch(err){if(err&&err.name==="AbortError")return
+;if(commitImportButton){commitImportButton.disabled=false;if(commitImportButton.dataset.originalText)commitImportButton.textContent=commitImportButton.dataset.originalText}
 showMessage(importDataMessage,err.message,true)}finally{stopProgressPolling();stopImportCommitPolling()}}async function commitImportExcel(){
 return runImportCommandOnce("import.commit",commitImportExcelCore)}let activeImportShortageReport=null;function importShortageStatusLabel(status){
 return status==="resolved"?"Đã xử lý":status==="in_review"?"Đang đối soát":"Chưa đối soát"}function importShortageItemStatusLabel(status){

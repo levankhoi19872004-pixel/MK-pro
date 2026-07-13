@@ -35,7 +35,7 @@ async function waitForAsyncImportCommit(sessionId,jobId){
   throw new Error(`Import quá thời gian chờ${jobId?` (${jobId})`:''}. Vui lòng kiểm tra lại trạng thái phiên import.`);
 }
 
-async function commitImportExcelCore(){
+async function commitImportExcelCore(options={}){
   if(!importDataType)return;
   let stopProgressPolling=()=>{};
   try{
@@ -57,8 +57,17 @@ async function commitImportExcelCore(){
 
     // V45: backend validate lần 2 theo importSession; frontend không tự sửa dữ liệu preview.
 
-    const selectedRows=getSelectedImportRows();
+    const selectedIndexedRows=getSelectedImportRowsWithIndexes();
+    const selectedRows=selectedIndexedRows.map(({row})=>row);
     if(!selectedRows.length){showMessage(importDataMessage,'Bạn chưa chọn đơn/dòng nào để import',true);return;}
+
+    if(importDataType.value==='salesOrders'&&!options.confirmedShortageReview){
+      const hasSelectedShortage=selectedIndexedRows.some(({row})=>row&&row.hasShortage);
+      if(hasSelectedShortage){
+        await openImportShortageReviewModal({manual:true});
+        return;
+      }
+    }
 
     if(commitImportButton){
       commitImportButton.disabled=true;
@@ -69,6 +78,7 @@ async function commitImportExcelCore(){
     showMessage(importDataMessage,`Đang import ${formatNumber(selectedRows.length)} đơn/dòng đã chọn...`);
     stopProgressPolling=startImportCommitProgressPolling(importPreviewSessionId,selectedRows.length);
 
+    const selection=buildImportShortageReviewSelectionPayload();
     const commitUrl=`/api/import/sessions/${encodeURIComponent(importPreviewSessionId)}/commit`;
     const res=await fetch(commitUrl,{
       method:'POST',
@@ -77,16 +87,21 @@ async function commitImportExcelCore(){
         type:importDataType.value,
         importMode:getSelectedImportMode(),
         importSessionId:importPreviewSessionId,
-        selectedOrderCodes:selectedRows.map(r=>String(r.documentCode||r.orderCode||r.code||r.username||'').trim()).filter(Boolean),
-        selectedRowNumbers:selectedRows.map((r,index)=>getImportRowSourceNumber(r,index)).filter(Boolean),
-        selectedProgramCodes:getSelectedImportProgramCodes(),
-        selectedRowKeys:selectedRows.map((r,index)=>getImportRowSelectKey(r,index)).filter(Boolean),
+        selectedOrderCodes:selection.selectedOrderCodes,
+        selectedRowNumbers:selection.selectedRowNumbers,
+        selectedProgramCodes:selection.selectedProgramCodes,
+        selectedRowKeys:selection.selectedRowKeys,
         importSource:currentImportSource==='paste'?'paste':'file',
-        shortageMode:importShortageActionMode||'cut'
+        shortageMode:importShortageReviewState.mode||'',
+        shortageReviewFingerprint:importShortageReviewState.fingerprint||'',
+        selectedScopeFingerprint:importShortageReviewState.selectedScopeFingerprint||''
       })
     });
     let json=await res.json().catch(()=>({ok:false,message:`API import không trả JSON hợp lệ (HTTP ${res.status})`}));
-    if(!json.ok)throw new Error(json.error||json.message||'Import thất bại');
+    if(!json.ok){
+      if(String(json.code||'').startsWith('IMPORT_SHORTAGE_REVIEW_'))await openImportShortageReviewModal({manual:true});
+      throw new Error(json.error||json.message||'Import thất bại');
+    }
     if(json.accepted&&json.jobId){
       showMessage(importDataMessage,`Đã tạo job ${json.jobId}. Tác vụ nền đang xử lý...`);
       json=await waitForAsyncImportCommit(importPreviewSessionId,json.jobId);
@@ -120,6 +135,7 @@ async function commitImportExcelCore(){
       }
     }
 
+    if(typeof resetImportShortageReviewState==='function')resetImportShortageReviewState();
     importPreviewRows=[];
     importPreviewSessionId='';
     window.__importPreviewRows=importPreviewRows;

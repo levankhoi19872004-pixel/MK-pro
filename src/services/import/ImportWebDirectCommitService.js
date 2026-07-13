@@ -142,6 +142,8 @@ async function commitSession(payload = {}, user = {}) {
   const result = await excelImportService.commit({
     type: cleanText(payload.type || session.type),
     shortageMode: cleanText(payload.shortageMode),
+    shortageReviewFingerprint: cleanText(payload.shortageReviewFingerprint),
+    selectedScopeFingerprint: cleanText(payload.selectedScopeFingerprint),
     sessionId: canonicalSessionId,
     selectedOrderCodes: normalizeSelectedOrderCodes(payload.selectedOrderCodes),
     selectedRowNumbers: normalizeSelectedRowNumbers(payload.selectedRowNumbers),
@@ -152,6 +154,9 @@ async function commitSession(payload = {}, user = {}) {
   });
 
   if (result && result.error) {
+    if (String(result.code || '').startsWith('IMPORT_SHORTAGE_REVIEW_')) {
+      return result;
+    }
     await emitImportNotification(EVENT_TYPES.IMPORT_FAILED, session, result, user, { sessionId: canonicalSessionId, type: cleanText(payload.type || session.type), reason: result.error });
     return result;
   }

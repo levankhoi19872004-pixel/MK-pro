@@ -330,7 +330,8 @@ async function savePreviewResult(id, { rows = [], previewRows = [], fileNames = 
         errors: '',
         validDataRows: '',
         rawRows: '',
-        tempFiles: ''
+        tempFiles: '',
+        shortageReview: ''
       }
     },
     { new: true }
@@ -451,6 +452,22 @@ async function markImporting(id) {
           percent: 1,
           step: 'preparing_commit'
         }
+      }
+    },
+    { new: true }
+  );
+}
+
+async function updateShortageReview(id, shortageReview = {}) {
+  const value = cleanText(id);
+  if (!value) return null;
+
+  return ImportSession.findOneAndUpdate(
+    { $or: [{ id: value }, { sessionId: value }], status: 'preview_ready' },
+    {
+      $set: {
+        shortageReview,
+        updatedAt: new Date()
       }
     },
     { new: true }
@@ -615,6 +632,7 @@ module.exports = {
   getSession,
   listSessionRows,
   markImporting,
+  updateShortageReview,
   markDone,
   selectRows
 };

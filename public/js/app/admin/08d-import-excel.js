@@ -17,8 +17,9 @@ function setCurrentImportSource(source,label=""){currentImportSource=normalizeIm
 ;if(currentImportSource==="file"||currentImportSource==="paste")renderImportSourceNotice(`Nguồn dữ liệu: ${currentImportSourceLabel||getImportSourceLabel(currentImportSource,{})}`);else renderImportSourceNotice("Vui lòng chọn file Excel hoặc dán trực tiếp dữ liệu từ Excel.")
 }function hasImportPreviewReady(){return Boolean(importPreviewSessionId&&Array.isArray(importPreviewRows)&&importPreviewRows.length)}
 function clearImportPreviewState({message:message="Vui lòng chọn file Excel hoặc dán trực tiếp dữ liệu từ Excel."}={}){importPreviewRows=[];importPreviewSessionId=""
-;importSelectedRowKeySet=new Set;importPreviewProgramGroups=[];importSelectedProgramCodeSet=new Set;window.__importPreviewRows=importPreviewRows
-;window.__importPreviewProgramGroups=importPreviewProgramGroups;window.__importPreviewSessionId=importPreviewSessionId;setCurrentImportSource("none","")
+;importSelectedRowKeySet=new Set;if(typeof resetImportShortageReviewState==="function")resetImportShortageReviewState();importPreviewProgramGroups=[]
+;importSelectedProgramCodeSet=new Set;window.__importPreviewRows=importPreviewRows;window.__importPreviewProgramGroups=importPreviewProgramGroups
+;window.__importPreviewSessionId=importPreviewSessionId;setCurrentImportSource("none","")
 ;if(importPreviewTable)importPreviewTable.innerHTML=`<tr><td colspan="5">${escapeImportHtml(message)}</td></tr>`;if(commitImportButton){
 const hasFile=Boolean(importExcelFile&&importExcelFile.files&&importExcelFile.files.length);commitImportButton.disabled=!hasFile
 ;commitImportButton.textContent=hasFile?"Xem trước dữ liệu import":"Import các dòng đã chọn"}resetImportPreviewMessage()}function isPromotionCatalogImportType(type){
@@ -49,7 +50,8 @@ importSelectedRowKeySet=new Set;rows.forEach((row,index)=>{if(isImportRowSelecta
 function syncImportInlineSelection(){const root=importPreviewTable||document.querySelector(".import-preview-wrap");if(!root)return
 ;root.querySelectorAll(".import-row-check:not(.import-modal-row-check)").forEach(cb=>{const index=Number(cb.dataset.index);const row=importPreviewRows[index]
 ;const key=getImportRowSelectKey(row,index);if(!isImportRowSelectable(row)){importSelectedRowKeySet.delete(key);cb.checked=false;return}
-if(cb.checked)importSelectedRowKeySet.add(key);else importSelectedRowKeySet.delete(key)});syncImportSelectedCount()}function bindImportInlinePreviewChecks(){
+if(cb.checked)importSelectedRowKeySet.add(key);else importSelectedRowKeySet.delete(key)})
+;if(typeof invalidateImportShortageReviewState==="function")invalidateImportShortageReviewState();syncImportSelectedCount()}function bindImportInlinePreviewChecks(){
 const root=importPreviewTable||document.querySelector(".import-preview-wrap");if(!root)return;root.querySelectorAll(".import-row-check:not(.import-modal-row-check)").forEach(cb=>{
 const index=Number(cb.dataset.index);const row=importPreviewRows[index];cb.checked=isImportRowSelectable(row)&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index))
 ;cb.disabled=!isImportRowSelectable(row);cb.onchange=syncImportInlineSelection})}function getSelectedImportRows(){const groupedRows=getSelectedImportProgramRows()

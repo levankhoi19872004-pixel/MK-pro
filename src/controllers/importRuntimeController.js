@@ -3,6 +3,7 @@
 const excelImportService = require('../services/excelImportService');
 const ImportWebDirectCommitService = require('../services/import/ImportWebDirectCommitService');
 const ImportWebDetachedCommitService = require('../services/import/ImportWebDetachedCommitService');
+const importShortageReviewService = require('../services/import/ImportShortageReviewService');
 const { createCommandTelemetry } = require('../utils/commandTelemetry');
 
 
@@ -10,6 +11,25 @@ function shouldRunWebDetachedImportCommit(req = {}) {
   const body = req.body || {};
   const type = String(body.type || '').trim();
   return type === 'promotionProductRules';
+}
+
+function normalizeRequestArray(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item ?? '').trim()).filter(Boolean);
+  return String(value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function buildShortageReviewSelection(source = {}) {
+  return {
+    selectedOrderCodes: normalizeRequestArray(source.selectedOrderCodes),
+    selectedRowNumbers: normalizeRequestArray(source.selectedRowNumbers)
+      .map((item) => Number(item))
+      .filter((item) => Number.isFinite(item) && item > 0),
+    selectedProgramCodes: normalizeRequestArray(source.selectedProgramCodes),
+    selectedRowKeys: normalizeRequestArray(source.selectedRowKeys)
+  };
 }
 
 
@@ -94,7 +114,48 @@ async function sessionRows(req, res) {
   }
 }
 
+async function shortageReview(req, res) {
+  if (typeof res.set === 'function') res.set('Cache-Control', 'no-store');
+  try {
+    const result = await importShortageReviewService.getReview(
+      String(req.params.sessionId || req.query.sessionId || '').trim(),
+      buildShortageReviewSelection(req.query || {}),
+      { userName: req.user?.username || req.user?.fullName || '' }
+    );
+    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Không tải được review đơn thiếu hàng',
+      error: process.env.NODE_ENV === 'production' ? undefined : err.message
+    });
+  }
+}
+
+async function confirmShortageReview(req, res) {
+  try {
+    const result = await importShortageReviewService.confirmReview(
+      String(req.params.sessionId || req.body?.sessionId || req.body?.importSessionId || '').trim(),
+      {
+        ...(req.body || {}),
+        ...buildShortageReviewSelection(req.body || {})
+      },
+      req.user || {}
+    );
+    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Không xác nhận được review đơn thiếu hàng',
+      error: process.env.NODE_ENV === 'production' ? undefined : err.message
+    });
+  }
+}
+
 async function sessionStatus(req, res) {
+  const telemetry = createCommandTelemetry('import.runtime.sessionStatus');
   if (typeof res.set === 'function') res.set('Cache-Control', 'no-store');
   try {
     const result = await excelImportService.getSessionStatus(
@@ -128,4 +189,4 @@ async function logs(req, res) {
   }
 }
 
-module.exports = { preview, commit, logs, sessionStatus, sessionRows };
+module.exports = { preview, commit, logs, sessionStatus, sessionRows, shortageReview, confirmShortageReview };

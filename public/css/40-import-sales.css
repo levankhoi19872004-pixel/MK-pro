@@ -64,6 +64,48 @@
 }
 /* IMPORT_ORDER_POPUP_PATCH_END */
 
+/* PHASE257A_IMPORT_SHORTAGE_REVIEW_START */
+.import-shortage-review-content{
+  width:min(1120px,96vw);
+  max-height:88vh;
+  display:flex;
+  flex-direction:column;
+}
+.import-shortage-review-summary{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  padding:10px 0;
+}
+.import-shortage-review-summary span{
+  border:1px solid #dbe7f5;
+  border-radius:8px;
+  padding:6px 10px;
+  background:#f8fafc;
+}
+.import-shortage-review-table-wrap{
+  min-height:0;
+  overflow:auto;
+}
+.import-shortage-review-table-wrap table{
+  min-width:920px;
+}
+.import-shortage-review-actions{
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:8px;
+}
+@media(max-width:760px){
+  .import-shortage-review-content{
+    width:98vw;
+    max-height:94vh;
+  }
+  .import-shortage-review-actions button{
+    width:100%;
+  }
+}
+/* PHASE257A_IMPORT_SHORTAGE_REVIEW_END */
+
 /* IMPORT_LAYOUT_VERTICAL_V2_START: cô lập layout dọc cho popup nhập kho và danh sách phiếu nhập 1 dòng */
 #importTab .import-order-one-line-list{
   display:flex;
@@ -663,4 +705,3 @@
   #salesTab .sales-order-row{grid-template-columns:26px 1fr!important;}
 }
 /* SALES_HISTORY_NVBH_COLUMN_PATCH_END */
-

@@ -99,6 +99,30 @@ const ImportSessionSchema = new mongoose.Schema({
 
   result: { type: mongoose.Schema.Types.Mixed, default: {} },
 
+  shortageReview: {
+    status: {
+      type: String,
+      enum: ['not_required', 'pending', 'confirmed', 'stale'],
+      default: 'not_required'
+    },
+    mode: {
+      type: String,
+      enum: ['', 'exclude_shortage_quantity', 'exclude_shortage_orders'],
+      default: ''
+    },
+    fingerprint: { type: String, default: '', trim: true },
+    selectedScopeFingerprint: { type: String, default: '', trim: true },
+    orderCount: { type: Number, default: 0 },
+    productCount: { type: Number, default: 0 },
+    itemCount: { type: Number, default: 0 },
+    totalMissingQuantity: { type: Number, default: 0 },
+    totalCutAmount: { type: Number, default: 0 },
+    note: { type: String, default: '', trim: true },
+    confirmedBy: { type: String, default: '', trim: true },
+    confirmedAt: { type: Date, default: null },
+    updatedAt: { type: Date, default: null }
+  },
+
   createdBy: { type: String, default: '', trim: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },

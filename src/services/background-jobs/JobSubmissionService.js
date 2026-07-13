@@ -119,6 +119,8 @@ async function submitImportCommit(payload = {}, user = {}) {
     payload: {
       type: String(payload.type || session.type || '').trim(),
       shortageMode: String(payload.shortageMode || '').trim(),
+      shortageReviewFingerprint: String(payload.shortageReviewFingerprint || '').trim(),
+      selectedScopeFingerprint: String(payload.selectedScopeFingerprint || '').trim(),
       sessionId,
       selectedOrderCodes: stringArray(payload.selectedOrderCodes),
       selectedRowNumbers: positiveNumberArray(payload.selectedRowNumbers),

@@ -58,6 +58,7 @@ function clearImportPreviewState({message='Vui lòng chọn file Excel hoặc d�
   importPreviewRows=[];
   importPreviewSessionId='';
   importSelectedRowKeySet=new Set();
+  if(typeof resetImportShortageReviewState==='function')resetImportShortageReviewState();
   importPreviewProgramGroups=[];
   importSelectedProgramCodeSet=new Set();
   window.__importPreviewRows=importPreviewRows;
@@ -178,6 +179,7 @@ function syncImportInlineSelection(){
     if(cb.checked)importSelectedRowKeySet.add(key);
     else importSelectedRowKeySet.delete(key);
   });
+  if(typeof invalidateImportShortageReviewState==='function')invalidateImportShortageReviewState();
   syncImportSelectedCount();
 }
 function bindImportInlinePreviewChecks(){
@@ -302,4 +304,3 @@ function renderImportOrderDetailHtml(row){
   const errorHtml=errors.length?`<div class="import-preview-error"><b>Lỗi chi tiết:</b> ${escapeImportHtml(errors.join('; '))}</div>`:'';
   return `${shortageHtml}${lineHtml}${errorHtml}`;
 }
-

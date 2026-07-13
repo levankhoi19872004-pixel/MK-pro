@@ -1,0 +1,45 @@
+{
+  "phase": "257A",
+  "generatedAt": "2026-07-13T15:16:33.813Z",
+  "runner": "scripts\\phase257a-import-shortage-review-evidence.js",
+  "source": "ImportShortageReviewService fixtures",
+  "preview": {
+    "selectedOrderCount": 100,
+    "shortageOrderCount": 5,
+    "shortageLineCount": 8,
+    "productCount": 8,
+    "totalMissingQuantity": 18,
+    "totalCutAmount": 180000,
+    "fingerprint": "a462f96f59b0a0e394ab1d1a035b2817ff8c9d3326b0648f811c8fe9bd712acd",
+    "selectedScopeFingerprint": "a01c850cb9de6dd3253254044531abc3575235fa6c4e098df0250babf6c50e52"
+  },
+  "modes": {
+    "exclude_shortage_quantity": {
+      "commitRowCount": 105,
+      "importedFullOrderCount": 95,
+      "importedPartialOrderCount": 5,
+      "skippedEmptyOrderCount": 0,
+      "totalCutQuantity": 18,
+      "totalCutAmount": 180000
+    },
+    "exclude_shortage_orders": {
+      "commitRowCount": 95,
+      "importedOrderCount": 95,
+      "excludedShortageOrderCount": 5,
+      "excludedShortageOrderCodes": [
+        "SO-001",
+        "SO-002",
+        "SO-003",
+        "SO-004",
+        "SO-005"
+      ],
+      "excludedLineCount": 13,
+      "excludedOriginalAmount": 500015
+    }
+  },
+  "guards": {
+    "staleStatus": 409,
+    "staleCode": "IMPORT_SHORTAGE_REVIEW_STALE",
+    "staleKeepsPreviewReady": true
+  }
+}

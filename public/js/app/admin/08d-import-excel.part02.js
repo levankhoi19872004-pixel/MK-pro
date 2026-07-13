@@ -57,9 +57,10 @@ button.textContent=summary.buttonLabel;button.disabled=summary.disabled;button.s
 ;const row=importPreviewRows[index];const key=getImportRowSelectKey(row,index);if(!isImportRowSelectable(row)){importSelectedRowKeySet.delete(key);cb.checked=false;cb.disabled=true
 }else if(cb.checked)importSelectedRowKeySet.add(key);else importSelectedRowKeySet.delete(key)
 ;const inline=importPreviewTable&&importPreviewTable.querySelector(`.import-row-check[data-index="${cb.dataset.index}"]:not(.import-modal-row-check)`)
-;if(inline)inline.checked=cb.checked});syncImportSelectedCount();syncImportPreviewToggleButton()}function toggleImportPreviewRows(){const api=window.ScopedBulkSelection
-;if(api&&typeof api.toggleScopeSelection==="function"){api.toggleScopeSelection({visibleRows:importPreviewRows,selectedKeys:importSelectedRowKeySet,getKey:getImportRowSelectKey,
-isSelectable:isImportRowSelectable})}else{const summary=deriveImportPreviewBulkSelectionState()
+;if(inline)inline.checked=cb.checked});if(typeof invalidateImportShortageReviewState==="function")invalidateImportShortageReviewState();syncImportSelectedCount()
+;syncImportPreviewToggleButton()}function toggleImportPreviewRows(){const api=window.ScopedBulkSelection;if(api&&typeof api.toggleScopeSelection==="function"){
+api.toggleScopeSelection({visibleRows:importPreviewRows,selectedKeys:importSelectedRowKeySet,getKey:getImportRowSelectKey,isSelectable:isImportRowSelectable})}else{
+const summary=deriveImportPreviewBulkSelectionState()
 ;if(summary.allSelected)summary.selectableKeys.forEach(key=>importSelectedRowKeySet.delete(key));else summary.selectableKeys.forEach(key=>importSelectedRowKeySet.add(key))}
 const modal=document.getElementById("importPreviewModal");const body=modal&&modal.querySelector("#importPreviewModalBody")
 ;if(body)body.querySelectorAll(".import-modal-row-check").forEach(cb=>{const index=Number(cb.dataset.index);const row=importPreviewRows[index]
@@ -75,9 +76,11 @@ let box=document.getElementById("importShortageActions");if(!box){box=document.c
 function renderImportShortageActions(rows=[]){const box=ensureImportShortageActions();if(!box)return;const shortageRows=rows.filter(r=>r&&r.hasShortage)
 ;if(importDataType?.value!=="salesOrders"||!shortageRows.length){box.innerHTML="";box.style.display="none";importShortageActionMode="";return}
 const shortageQty=shortageRows.reduce((sum,row)=>sum+Number(row.shortageQuantity||0),0);const shortageAmount=shortageRows.reduce((sum,row)=>sum+Number(row.shortageAmount||0),0)
-;box.style.display="flex";importShortageActionMode="cut";if(commitImportButton)commitImportButton.disabled=false
-;box.innerHTML=`\n    <div class="import-shortage-actions-text">\n      <b>Có ${formatNumber(shortageRows.length)} đơn vượt tồn</b>\n      <span>Hệ thống sẽ tự cắt theo tồn thực tế khi import. SL bị cắt: ${displayImportAggregateQty(shortageQty)} · Giá trị bị cắt: ${money(shortageAmount)}</span>\n    </div>`
-}function renderImportPreview(result){importShortageActionMode="";const previewSource=inferImportPreviewSource(result||{})
+;box.style.display="flex";importShortageActionMode="";if(commitImportButton)commitImportButton.disabled=false
+;box.innerHTML=`\n    <div class="import-shortage-actions-text">\n      <b>Có ${formatNumber(shortageRows.length)} đơn vượt tồn</b>\n      <span>Review. SL thiếu: ${displayImportAggregateQty(shortageQty)} · Cắt: ${money(shortageAmount)}</span>\n    </div>\n    <button type="button" class="secondary" id="reopenImportShortageReviewButton">Mở</button>`
+;const reopen=document.getElementById("reopenImportShortageReviewButton");if(reopen)reopen.onclick=()=>openImportShortageReviewModal({manual:true})
+;if(!importShortageReviewState.autoOpened)setTimeout(()=>openImportShortageReviewModal({auto:true}),0)}function renderImportPreview(result){importShortageActionMode=""
+;if(typeof resetImportShortageReviewState==="function")resetImportShortageReviewState();const previewSource=inferImportPreviewSource(result||{})
 ;setCurrentImportSource(previewSource,getImportSourceLabel(previewSource,result||{}));importPreviewSessionId=result.sessionId||result.importSessionId||""
 ;importPreviewRows=result.rows||[];window.__importPreviewSessionId=importPreviewSessionId;window.__importPreviewRows=importPreviewRows
 ;if(Array.isArray(result.shortageReport)&&result.shortageReport.length){const byDoc=new Map;result.shortageReport.forEach(item=>{

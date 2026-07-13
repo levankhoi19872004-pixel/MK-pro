@@ -214,6 +214,7 @@ function syncImportChecksFromModal(){
     const inline=importPreviewTable&&importPreviewTable.querySelector(`.import-row-check[data-index="${cb.dataset.index}"]:not(.import-modal-row-check)`);
     if(inline)inline.checked=cb.checked;
   });
+  if(typeof invalidateImportShortageReviewState==='function')invalidateImportShortageReviewState();
   syncImportSelectedCount();
   syncImportPreviewToggleButton();
 }
@@ -276,17 +277,22 @@ function renderImportShortageActions(rows=[]){
   const shortageQty=shortageRows.reduce((sum,row)=>sum+Number(row.shortageQuantity||0),0);
   const shortageAmount=shortageRows.reduce((sum,row)=>sum+Number(row.shortageAmount||0),0);
   box.style.display='flex';
-  importShortageActionMode='cut';
+  importShortageActionMode='';
   if(commitImportButton)commitImportButton.disabled=false;
   box.innerHTML=`
     <div class="import-shortage-actions-text">
       <b>Có ${formatNumber(shortageRows.length)} đơn vượt tồn</b>
-      <span>Hệ thống sẽ tự cắt theo tồn thực tế khi import. SL bị cắt: ${displayImportAggregateQty(shortageQty)} · Giá trị bị cắt: ${money(shortageAmount)}</span>
-    </div>`;
+      <span>Review. SL thiếu: ${displayImportAggregateQty(shortageQty)} · Cắt: ${money(shortageAmount)}</span>
+    </div>
+    <button type="button" class="secondary" id="reopenImportShortageReviewButton">Mở</button>`;
+  const reopen=document.getElementById('reopenImportShortageReviewButton');
+  if(reopen)reopen.onclick=()=>openImportShortageReviewModal({manual:true});
+  if(!importShortageReviewState.autoOpened)setTimeout(()=>openImportShortageReviewModal({auto:true}),0);
 }
 
 function renderImportPreview(result){
   importShortageActionMode='';
+  if(typeof resetImportShortageReviewState==='function')resetImportShortageReviewState();
   const previewSource=inferImportPreviewSource(result||{});
   setCurrentImportSource(previewSource,getImportSourceLabel(previewSource,result||{}));
   importPreviewSessionId=result.sessionId||result.importSessionId||'';

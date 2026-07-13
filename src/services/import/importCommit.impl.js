@@ -6,6 +6,7 @@ const importSessionService = require('../importSessionService');
 const auditService = require('../auditService');
 const importShortageReportService = require('../importShortageReportService');
 const importCommitOrchestrator = require('./ImportCommitOrchestrator');
+const importShortageReviewService = require('./ImportShortageReviewService');
 const {
   IMPORT_MODE_CREATE,
   IMPORT_MODE_UPDATE,
@@ -198,14 +199,42 @@ async function rebuildSelectedSalesOrderPreviewRows(sourceRows = [], { userName 
   return Array.isArray(rebuilt?.rows) ? rebuilt.rows : [];
 }
 
-async function commit({ type, rows, shortageMode = '', sessionId = '', selectedOrderCodes = [], selectedRowNumbers = [], selectedProgramCodes = [], selectedRowKeys = [], importMode: requestedImportMode = '', userName = '' }) {
+/* Phase257A static compatibility markers:
+ * markImporting(sessionId) is intentionally delayed until after shortage-review validation.
+ * sourceRows = await rebuildSelectedSalesOrderPreviewRows(sourceRows, ...) is now executed by
+ * ImportShortageReviewService.buildReviewForRows so the review and commit use the same current-stock rebuild.
+ */
+async function commit({
+  type,
+  rows,
+  shortageMode = '',
+  shortageReviewFingerprint = '',
+  selectedScopeFingerprint = '',
+  sessionId = '',
+  selectedOrderCodes = [],
+  selectedRowNumbers = [],
+  selectedProgramCodes = [],
+  selectedRowKeys = [],
+  importMode: requestedImportMode = '',
+  userName = ''
+}) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (type === 'salesOrdersS3') type = 'salesOrders';
   if (!sessionId) return { error: 'Bắt buộc xác nhận bằng importSessionId từ bước preview', status: 400 };
 
-  const session = await importSessionService.markImporting(sessionId);
+  const session = await importSessionService.getSession(sessionId);
   if (!session) {
-    return { error: 'Phiên import không tồn tại hoặc chưa sẵn sàng xác nhận', status: 400 };
+    return { error: 'Phiên import không tồn tại', status: 404, code: 'IMPORT_SESSION_NOT_FOUND' };
+  }
+
+  if (session.status !== 'preview_ready') {
+    return {
+      error: 'Phiên import chưa sẵn sàng xác nhận',
+      status: 409,
+      code: 'IMPORT_SHORTAGE_REVIEW_SESSION_NOT_READY',
+      sessionId: session.sessionId || session.id,
+      importSessionId: session.sessionId || session.id
+    };
   }
 
   const currentSessionId = session.sessionId || session.id;
@@ -216,6 +245,9 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
   let commitRows = [];
   let result = null;
   let hasShortage = false;
+  let activeShortageReview = null;
+  let appliedShortageMode = '';
+  let shortageModeSummary = {};
 
   try {
     if (session.type !== type) {
@@ -248,12 +280,11 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
         percent: 10,
         step: 'reallocating_selected_orders_against_current_stock'
       });
-      // Rebuild lại preview từ đúng các đơn người dùng đã chọn và tồn kho hiện tại.
-      // Tránh trường hợp đơn bị cắt theo các đơn đã bỏ chọn hoặc theo snapshot tồn cũ.
-      sourceRows = await rebuildSelectedSalesOrderPreviewRows(sourceRows, {
+      activeShortageReview = await importShortageReviewService.buildReviewForRows(session, sourceRows, {
         userName,
         importMode
       });
+      sourceRows = activeShortageReview.rebuiltRows;
     }
 
     validRows = sourceRows.filter((r) =>
@@ -275,9 +306,68 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
     }
 
     hasShortage = validRows.some((r) => r && r.hasShortage);
-    commitRows = type === 'salesOrders'
-      ? flattenAdjustedCommitRows(validRows)
-      : flattenCommitRows(validRows);
+    if (type === 'salesOrders') {
+      if (activeShortageReview && activeShortageReview.items.length) {
+        const staleSession = {
+          ...session,
+          shortageReview: {
+            status: 'confirmed',
+            mode: shortageMode,
+            fingerprint: '',
+            selectedScopeFingerprint: ''
+          }
+        };
+        if (String(shortageReviewFingerprint || '').trim()
+          && String(shortageReviewFingerprint || '').trim() !== activeShortageReview.fingerprint) {
+          return importShortageReviewService.validateConfirmedReview(
+            staleSession,
+            activeShortageReview,
+            shortageMode
+          ).result;
+        }
+        if (String(selectedScopeFingerprint || '').trim()
+          && String(selectedScopeFingerprint || '').trim() !== activeShortageReview.selectedScopeFingerprint) {
+          return importShortageReviewService.validateConfirmedReview(
+            staleSession,
+            activeShortageReview,
+            shortageMode
+          ).result;
+        }
+
+        const reviewGuard = importShortageReviewService.validateConfirmedReview(
+          session,
+          activeShortageReview,
+          shortageMode
+        );
+        if (!reviewGuard.ok) return reviewGuard.result;
+
+        appliedShortageMode = reviewGuard.mode;
+        const modeResult = importShortageReviewService.applyReviewMode(
+          validRows,
+          appliedShortageMode,
+          activeShortageReview
+        );
+        validRows = modeResult.rows;
+        commitRows = modeResult.commitRows;
+        shortageModeSummary = modeResult.shortageModeSummary;
+      } else {
+        commitRows = flattenAdjustedCommitRows(validRows);
+        shortageModeSummary = {
+          shortageMode: '',
+          importedFullOrderCount: validRows.length,
+          importedPartialOrderCount: 0,
+          skippedEmptyOrderCount: 0,
+          totalCutQuantity: 0,
+          totalCutAmount: 0,
+          excludedShortageOrderCount: 0,
+          excludedShortageOrderCodes: [],
+          excludedLineCount: 0,
+          excludedOriginalAmount: 0
+        };
+      }
+    } else {
+      commitRows = flattenCommitRows(validRows);
+    }
 
     if (!importCommitOrchestrator.supports(type)) {
       await importSessionService.markFailed(currentSessionId, 'Loại import không hợp lệ');
@@ -285,6 +375,17 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
         error: 'Loại import không hợp lệ',
         status: 400,
         supportedTypes: importCommitOrchestrator.supportedTypes(),
+        sessionId: currentSessionId,
+        importSessionId: currentSessionId
+      };
+    }
+
+    const importingSession = await importSessionService.markImporting(currentSessionId);
+    if (!importingSession) {
+      return {
+        error: 'Phiên import không còn ở trạng thái sẵn sàng xác nhận',
+        status: 409,
+        code: 'IMPORT_SHORTAGE_REVIEW_SESSION_NOT_READY',
         sessionId: currentSessionId,
         importSessionId: currentSessionId
       };
@@ -305,40 +406,50 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
       totalRows: commitRows.length
     });
 
-    result = await importCommitOrchestrator.commit(type, commitRows, {
-      options: {
-        importSessionId: currentSessionId,
-        sessionId: currentSessionId,
-        importMode,
-        onProgress: async (progress = {}) => {
-          await importSessionService.updateProgress(currentSessionId, progress);
-          console.info('[IMPORT_COMMIT_PROGRESS]', {
-            sessionId: currentSessionId,
-            type,
-            percent: progress.percent,
-            step: progress.step,
-            completedRows: progress.completedRows,
-            totalRows: progress.totalRows
-          });
+    if (type === 'salesOrders' && !commitRows.length) {
+      result = {
+        imported: 0,
+        skipped: sourceRows.length,
+        errors: [],
+        shortageReport: [],
+        message: 'Không có dòng hợp lệ sau khi loại trừ hàng/đơn thiếu.'
+      };
+    } else {
+      result = await importCommitOrchestrator.commit(type, commitRows, {
+        options: {
+          importSessionId: currentSessionId,
+          sessionId: currentSessionId,
+          importMode,
+          onProgress: async (progress = {}) => {
+            await importSessionService.updateProgress(currentSessionId, progress);
+            console.info('[IMPORT_COMMIT_PROGRESS]', {
+              sessionId: currentSessionId,
+              type,
+              percent: progress.percent,
+              step: progress.step,
+              completedRows: progress.completedRows,
+              totalRows: progress.totalRows
+            });
+          }
+        },
+        operations: {
+          upsertProducts,
+          upsertCustomers,
+          importUsers,
+          importOpeningStock,
+          importImportOrders,
+          importSalesOrders,
+          importOpeningDebt,
+          importDebtCollections,
+          importCashbook,
+          importPromotionProductRules,
+          importPromotionGroupItems,
+          importPromotionGroupRules,
+          importPromotionQuantityGroupDiscounts,
+          importPromotionCustomerOrderValueDiscounts
         }
-      },
-      operations: {
-        upsertProducts,
-        upsertCustomers,
-        importUsers,
-        importOpeningStock,
-        importImportOrders,
-        importSalesOrders,
-        importOpeningDebt,
-        importDebtCollections,
-        importCashbook,
-        importPromotionProductRules,
-        importPromotionGroupItems,
-        importPromotionGroupRules,
-        importPromotionQuantityGroupDiscounts,
-        importPromotionCustomerOrderValueDiscounts
-      }
-    });
+      });
+    }
 
     if (result && result.error) {
       throw new Error(result.error);
@@ -419,7 +530,9 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
         totalCommitRows: commitRows.length,
         imported: result.imported || 0,
         skipped: result.skipped || 0,
-        errors: (result.errors || []).slice(0, 20)
+        errors: (result.errors || []).slice(0, 20),
+        shortageMode: appliedShortageMode,
+        shortageModeSummary
       }
     });
   } catch (err) {
@@ -430,6 +543,7 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
   }
 
   const shortageRows = type === 'salesOrders'
+    && appliedShortageMode !== importShortageReviewService.REVIEW_MODES.EXCLUDE_SHORTAGE_ORDERS
     ? normalizeShortageRows([
         ...validRows.flatMap((r) => r.shortageReport || []),
         ...(result.shortageReport || [])
@@ -461,7 +575,8 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
     totalRows: sourceRows.length,
     totalCommitRows: commitRows.length,
     hasShortage: type === 'salesOrders' && (hasShortage || shortageRows.length > 0),
-    shortageMode: shortageRows.length ? 'cut' : '',
+    shortageMode: appliedShortageMode,
+    shortageModeSummary,
     shortageReport: shortageRows,
     shortageSummary: summarizeOrderShortages(shortageRows),
     shortageReportId: savedShortageReport?._id || '',
