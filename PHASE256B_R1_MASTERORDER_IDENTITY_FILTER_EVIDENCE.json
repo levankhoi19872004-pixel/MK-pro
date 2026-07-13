@@ -1,0 +1,93 @@
+{
+  "oldRegression": {
+    "oldUnsafeFilterHadMongoIdClause": true,
+    "oldUnsafeCastError": {
+      "name": "CastError",
+      "path": "_id",
+      "value": "MO1783758703356530",
+      "message": "Cast to ObjectId failed for value \"MO1783758703356530\" (type string) at path \"_id\" for model \"MasterOrder\""
+    }
+  },
+  "businessIdentityCase": {
+    "inputKeys": [
+      "MO1783758703356530",
+      "DT1783758703356530"
+    ],
+    "mongoObjectIdKeys": [],
+    "idClausePresent": true,
+    "codeClausePresent": true,
+    "masterOrderCodeClausePresent": true,
+    "mongoIdClausePresent": false,
+    "mongooseCastPassed": true
+  },
+  "objectIdCase": {
+    "inputKeys": [
+      "6a50420e4f5d7fbf8b8142d2"
+    ],
+    "mongoObjectIdKeys": [
+      "6a50420e4f5d7fbf8b8142d2"
+    ],
+    "mongoIdClausePresent": true,
+    "mongoIdClauseValues": [
+      "6a50420e4f5d7fbf8b8142d2"
+    ],
+    "mongooseCastPassed": true
+  },
+  "mixedIdentityCase": {
+    "inputKeys": [
+      "MO1783758703356530",
+      "6a50420e4f5d7fbf8b8142d2"
+    ],
+    "mongoObjectIdKeys": [
+      "6a50420e4f5d7fbf8b8142d2"
+    ],
+    "idClauseValues": [
+      "MO1783758703356530",
+      "6a50420e4f5d7fbf8b8142d2"
+    ],
+    "codeClauseValues": [
+      "MO1783758703356530",
+      "6a50420e4f5d7fbf8b8142d2"
+    ],
+    "masterOrderCodeClauseValues": [
+      "MO1783758703356530",
+      "6a50420e4f5d7fbf8b8142d2"
+    ],
+    "mongoIdClauseValues": [
+      "6a50420e4f5d7fbf8b8142d2"
+    ],
+    "mongooseCastPassed": true
+  },
+  "readerRegression": {
+    "businessMasterId": "MO1783758703356530",
+    "deliveryStaffCode": "ghth",
+    "readerSucceeded": true,
+    "returnedOrderCodes": [
+      "B-MERGED"
+    ],
+    "returnedDeliveryStaffCode": "ghth",
+    "bindingSource": "direct-order-link",
+    "queryCount": 2,
+    "ordersQueryCount": 1,
+    "masterMetadataQueryCount": 1
+  },
+  "b0039130Isolation": {
+    "returnedForGhtp": false,
+    "returnedOrderCodes": [
+      "B-MERGED"
+    ],
+    "metadataAppliedCount": 1,
+    "unboundCount": 1
+  },
+  "closeoutScopeGuard": {
+    "checked": true,
+    "bindingSource": "masterOrder.direct-order-link",
+    "actualDeliveryStaffCode": "ghth",
+    "masterMetadataQueryExecuted": true
+  },
+  "source": {
+    "generatedBy": "Local Node evidence builder using deliveryTodayCanonicalOrderReader helpers and MasterOrder query.cast(MasterOrder).",
+    "databaseRead": false,
+    "databaseWrite": false
+  }
+}

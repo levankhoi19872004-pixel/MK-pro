@@ -1,15 +1,15 @@
 {
   "application": "MK-Pro",
-  "releasePhase": "Phase256B",
+  "releasePhase": "Phase256B-R1",
   "releaseVersion": "1.0.0",
   "version": "1.0.0",
-  "releaseId": "Phase256B-1.0.0-20260713131722",
-  "sourceSha256": "50d65c7f8f004e8c806b3c3536be4cc66bb184ff2ef2400e8446c5e8e503627f",
-  "sourceFileCount": 1631,
+  "releaseId": "Phase256B-R1-1.0.0-20260713133709",
+  "sourceSha256": "ca3f20432601dbfb571a9e49aea4a1825f6f2e8f9945d7f46acacb75576d3454",
+  "sourceFileCount": 1632,
   "bundleSha256": "3112aea9adfc20f08c502c4775b85c760d99b43a6bf6cd7bf8f11e8ee63c3974",
   "bundleFileCount": 32,
   "configurationVersion": "e1aabecef13e2ffdefc0ea4a1b4b9a97c136a9f41b5d61756894320a6aadc622",
-  "generatedAt": "2026-07-13T13:17:22.931Z",
+  "generatedAt": "2026-07-13T13:37:09.755Z",
   "generatorVersion": "phase255a-r1-manifest-generator-v1",
   "policyVersion": "phase255a-r1-release-policy-v1",
   "packageLockSha256": "cd3be37b490ac75efdd0d9891f132754ea729a44cbc82b4b3e887efc7825d96d",
@@ -30,7 +30,7 @@
     "docs/openapi.json"
   ],
   "environment": "production",
-  "gitCommit": "8633d0652aea4a1ddd7ff5bd59bc77c9fe24b613",
+  "gitCommit": "b7a2234dbc3ccc5335bf1c0a6f48b4f9c9e48bc1",
   "nodeVersion": "v24.16.0",
   "databaseMigration": []
 }

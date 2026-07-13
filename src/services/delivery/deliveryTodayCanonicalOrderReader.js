@@ -2,6 +2,7 @@
 
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
+const { isMongoObjectId } = require('../../utils/identity.util');
 
 function text(value = '') {
   return String(value ?? '').trim();
@@ -317,13 +318,13 @@ function applyProjection(query, projection) {
   return query;
 }
 
-async function loadMasterOrderMetadata(orders = [], models = {}, options = {}) {
-  const MasterOrder = models.MasterOrder;
-  const empty = { metadataByOrderKey: new Map(), masterRows: [], bindingDiagnostics: { applied: 0, unbound: 0, conflicts: 0, sources: {} }, queryExecuted: false };
-  if (!MasterOrder || typeof MasterOrder.find !== 'function' || !orders.length) return empty;
-  const childKeys = Array.from(new Set(orders.flatMap(orderKeys).filter(Boolean)));
-  const directMasterKeys = Array.from(new Set(orders.flatMap(masterKeys).filter(Boolean)));
-  if (!childKeys.length && !directMasterKeys.length) return empty;
+function buildMasterMetadataLookupFilter(orders = []) {
+  const childKeys = Array.from(new Set((Array.isArray(orders) ? orders : []).flatMap(orderKeys).filter(Boolean)));
+  const directMasterKeys = Array.from(new Set((Array.isArray(orders) ? orders : []).flatMap(masterKeys).filter(Boolean)));
+  const directMasterObjectIds = directMasterKeys.filter(isMongoObjectId);
+  if (!childKeys.length && !directMasterKeys.length) {
+    return { filter: null, childKeys, directMasterKeys, directMasterObjectIds };
+  }
   const filter = {
     deleted: { $ne: true },
     isDeleted: { $ne: true },
@@ -338,8 +339,24 @@ async function loadMasterOrderMetadata(orders = [], models = {}, options = {}) {
     ]
   };
   if (directMasterKeys.length) {
-    filter.$or.push({ id: { $in: directMasterKeys } }, { code: { $in: directMasterKeys } }, { masterOrderCode: { $in: directMasterKeys } }, { _id: { $in: directMasterKeys } });
+    filter.$or.push(
+      { id: { $in: directMasterKeys } },
+      { code: { $in: directMasterKeys } },
+      { masterOrderCode: { $in: directMasterKeys } }
+    );
   }
+  if (directMasterObjectIds.length) {
+    filter.$or.push({ _id: { $in: directMasterObjectIds } });
+  }
+  return { filter, childKeys, directMasterKeys, directMasterObjectIds };
+}
+
+async function loadMasterOrderMetadata(orders = [], models = {}, options = {}) {
+  const MasterOrder = models.MasterOrder;
+  const empty = { metadataByOrderKey: new Map(), masterRows: [], bindingDiagnostics: { applied: 0, unbound: 0, conflicts: 0, sources: {} }, queryExecuted: false };
+  if (!MasterOrder || typeof MasterOrder.find !== 'function' || !orders.length) return empty;
+  const { filter, childKeys } = buildMasterMetadataLookupFilter(orders);
+  if (!filter) return empty;
   let q = MasterOrder.find(filter);
   q = applyProjection(q, MASTER_ORDER_METADATA_PROJECTION);
   q = applySortLimit(q, { updatedAt: -1, createdAt: -1 }, Math.max(1000, childKeys.length * 2), options.session);
@@ -539,6 +556,7 @@ async function listSalesOrders(query = {}, models = {}, options = {}) {
 module.exports = {
   listSalesOrders,
   buildCanonicalSalesOrderMatch,
+  buildMasterMetadataLookupFilter,
   loadMasterOrderMetadata,
   metadataForOrder,
   enrichOrderWithMasterMetadata,
