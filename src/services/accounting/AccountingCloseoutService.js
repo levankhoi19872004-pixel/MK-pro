@@ -524,6 +524,14 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     scopedComputed.previousCloseoutMismatches = compare.mismatches;
     scopedComputed.previousCloseoutDiff = closeoutMismatchDiff(compare.mismatches);
     scopedComputed.previousCloseoutHash = clean(existingCloseout.calculationHash || existingCloseout.sourceHash || '');
+    const repairFields = [...new Set((compare.mismatches || [])
+      .filter((row) => row && row.reason)
+      .map((row) => row.field)
+      .filter(Boolean))];
+    if ((compare.mismatches || []).some((row) => row.reason === 'legacy_negative_closeout_value')) {
+      scopedComputed.repairReason = 'legacy_negative_returned_amount';
+      scopedComputed.repairFields = repairFields;
+    }
     if (process.env.NODE_ENV !== 'test') {
       console.warn('[DELIVERY_CLOSEOUT_REBUILT_FROM_SSOT]', {
         orderId: DeliveryCloseoutService.orderId(order),

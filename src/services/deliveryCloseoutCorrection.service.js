@@ -311,6 +311,31 @@ function validateCorrectionInput(input = {}, calculated = {}) {
       throw err;
     }
   }
+  const previousReturnAmount = money(calculated.currentState?.returnAmount);
+  const returnAdjustmentAmount = money(calculated.returnAdjustmentAmount);
+  const newReturnAmount = money(calculated.finalState?.returnAmount);
+  const receivableAmount = money(calculated.finalState?.receivableAmount ?? calculated.currentState?.receivableAmount);
+  if (newReturnAmount < 0) {
+    const err = new Error('Hang tra sau dieu chinh khong duoc am.');
+    err.code = 'DELIVERY_CLOSEOUT_CORRECTION_NEGATIVE_RETURN';
+    err.status = 400;
+    err.data = {
+      previousReturnAmount,
+      returnAdjustmentAmount,
+      newReturnAmount
+    };
+    throw err;
+  }
+  if (newReturnAmount > receivableAmount) {
+    const err = new Error('Hang tra sau dieu chinh khong duoc lon hon gia tri phai thu.');
+    err.code = 'DELIVERY_CLOSEOUT_CORRECTION_RETURN_EXCEEDS_RECEIVABLE';
+    err.status = 400;
+    err.data = {
+      receivableAmount,
+      newReturnAmount
+    };
+    throw err;
+  }
   // No-change corrections are intentionally allowed. They create an immutable
   // closeout version/audit history without forcing a cash, bank, reward or return delta.
 }

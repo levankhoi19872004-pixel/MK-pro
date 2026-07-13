@@ -181,6 +181,30 @@ async function patchAccountingCloseoutById(orderId, patch = {}, options = {}) {
   };
 }
 
+async function patchDeliveryCloseoutSnapshotById(orderId, patch = {}, guard = {}, options = {}) {
+  const value = normalizeIdOrCode(orderId);
+  if (!value) throw new Error('Thieu salesOrder id de repair deliveryCloseout snapshot');
+  const Model = collectionRepository.getModel(ORDER_KEY);
+  const filter = {
+    id: value,
+    accountingConfirmed: { $ne: true }
+  };
+  if (guard.updatedAt !== undefined) filter.updatedAt = guard.updatedAt;
+  if (guard.calculationHash !== undefined) filter['deliveryCloseout.calculationHash'] = guard.calculationHash;
+  if (guard.sourceHash !== undefined) filter['deliveryCloseout.sourceHash'] = guard.sourceHash;
+  const result = await Model.updateOne(
+    filter,
+    { $set: canonicalizeOperationalStaff(patch) },
+    { session: options.session }
+  );
+  return {
+    acknowledged: result.acknowledged,
+    matchedCount: result.matchedCount || 0,
+    modifiedCount: result.modifiedCount || 0,
+    upsertedCount: result.upsertedCount || 0
+  };
+}
+
 async function remove(idOrCode, options = {}) {
   const filter = identityFilter(idOrCode);
   if (!filter) throw new Error(`Không có khóa định danh để xóa ${ORDER_KEY}`);
@@ -212,4 +236,4 @@ async function removeResolved(order = {}, fallbackRef = '', options = {}) {
   }, { session: options.session });
 }
 
-module.exports = { findAll, count, findByIdOrCode, findManyByIds, findManyByIdentity, findManyByIdentityMatches, upsert, patchByIdentity, patchAccountingCloseoutById, replaceAll, remove, removeResolved, identityFields };
+module.exports = { findAll, count, findByIdOrCode, findManyByIds, findManyByIdentity, findManyByIdentityMatches, upsert, patchByIdentity, patchAccountingCloseoutById, patchDeliveryCloseoutSnapshotById, replaceAll, remove, removeResolved, identityFields };

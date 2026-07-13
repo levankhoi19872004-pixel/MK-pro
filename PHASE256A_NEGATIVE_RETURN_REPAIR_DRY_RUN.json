@@ -1,0 +1,109 @@
+{
+  "generatedAt": "2026-07-13T00:00:00.000Z",
+  "source": "fixture",
+  "applied": false,
+  "results": [
+    {
+      "orderId": "SO-39101",
+      "orderCode": "B0039101",
+      "currentStatus": "",
+      "accountingConfirmed": false,
+      "existingReturnedAmount": -291176,
+      "canonicalReturnedAmount": 291176,
+      "existingFinalDebtAmount": 8133686,
+      "canonicalFinalDebtAmount": 7551334,
+      "returnOrderIds": ["RO-39101"],
+      "mismatchReasons": ["amount_mismatch", "legacy_negative_closeout_value"],
+      "mismatches": [
+        { "field": "deliveredAmount", "expected": 7551334, "actual": 8133686, "delta": -582352 },
+        { "field": "returnedAmount", "expected": 291176, "actual": -291176, "rawActual": -291176, "reason": "legacy_negative_closeout_value" },
+        { "field": "finalDebtAmount", "expected": 7551334, "actual": 8133686, "delta": -582352 }
+      ],
+      "beforeCalculationHash": "legacy-negative-B0039101",
+      "afterCalculationHash": "a6a6f1c6e1b9cbad69b409d0d11690aeb4e45f80f760eed024722e689f76197f",
+      "before": {
+        "status": "pending_accounting",
+        "originalAmount": 7842510,
+        "returnedAmount": -291176,
+        "returnAmount": -291176,
+        "cashAmount": 0,
+        "bankAmount": 0,
+        "rewardAmount": 0,
+        "finalDebtAmount": 8133686,
+        "returnOrderIds": [],
+        "calculationHash": "legacy-negative-B0039101"
+      },
+      "after": {
+        "status": "pending_accounting",
+        "originalAmount": 7842510,
+        "returnedAmount": 291176,
+        "returnAmount": 291176,
+        "cashAmount": 0,
+        "bankAmount": 0,
+        "rewardAmount": 0,
+        "finalDebtAmount": 7551334,
+        "rawFinalDebtAmount": 7551334,
+        "returnOrderIds": ["RO-39101"],
+        "calculationHash": "a6a6f1c6e1b9cbad69b409d0d11690aeb4e45f80f760eed024722e689f76197f",
+        "sourceHash": "63ab8fc223224d626b0308fd89d830ff1da18ad569d8fcdb183335db8a72ff7d",
+        "updatedAt": "2026-07-13T00:00:00.000Z",
+        "updatedBy": "fixture",
+        "repairReason": "legacy_negative_returned_amount",
+        "repairFields": ["deliveredAmount", "returnedAmount", "finalDebtAmount"]
+      },
+      "wouldRepair": true,
+      "applied": false
+    },
+    {
+      "orderId": "SO-39100",
+      "orderCode": "B0039100",
+      "currentStatus": "",
+      "accountingConfirmed": false,
+      "existingReturnedAmount": -282279,
+      "canonicalReturnedAmount": 282279,
+      "existingFinalDebtAmount": 12038879,
+      "canonicalFinalDebtAmount": 11474379,
+      "returnOrderIds": ["RO-39100"],
+      "mismatchReasons": ["amount_mismatch", "legacy_negative_closeout_value"],
+      "mismatches": [
+        { "field": "deliveredAmount", "expected": 13324379, "actual": 13888937, "delta": -564558 },
+        { "field": "returnedAmount", "expected": 282279, "actual": -282279, "rawActual": -282279, "reason": "legacy_negative_closeout_value" },
+        { "field": "finalDebtAmount", "expected": 11474379, "actual": 12038879, "delta": -564500 }
+      ],
+      "beforeCalculationHash": "legacy-negative-B0039100",
+      "afterCalculationHash": "0da54ed6681a7dc555dee779d74029db6f304d5e9cd2218c3c568e7512e46cde",
+      "before": {
+        "status": "pending_accounting",
+        "originalAmount": 13606658,
+        "returnedAmount": -282279,
+        "returnAmount": -282279,
+        "cashAmount": 0,
+        "bankAmount": 0,
+        "rewardAmount": 1850000,
+        "finalDebtAmount": 12038879,
+        "returnOrderIds": [],
+        "calculationHash": "legacy-negative-B0039100"
+      },
+      "after": {
+        "status": "pending_accounting",
+        "originalAmount": 13606658,
+        "returnedAmount": 282279,
+        "returnAmount": 282279,
+        "cashAmount": 0,
+        "bankAmount": 0,
+        "rewardAmount": 1850000,
+        "finalDebtAmount": 11474379,
+        "rawFinalDebtAmount": 11474379,
+        "returnOrderIds": ["RO-39100"],
+        "calculationHash": "0da54ed6681a7dc555dee779d74029db6f304d5e9cd2218c3c568e7512e46cde",
+        "sourceHash": "2f7980826f64e17f5b094f9aedb3d18a5f009a2b3c97acc1dfcbc5c236fef80e",
+        "updatedAt": "2026-07-13T00:00:00.000Z",
+        "updatedBy": "fixture",
+        "repairReason": "legacy_negative_returned_amount",
+        "repairFields": ["deliveredAmount", "returnedAmount", "finalDebtAmount"]
+      },
+      "wouldRepair": true,
+      "applied": false
+    }
+  ]
+}

@@ -19,6 +19,19 @@ function money(value) {
   return Math.round(amount);
 }
 
+function parseMoneyValue(value) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value)
+      ? { ok: true, amount: Math.round(value) }
+      : { ok: false };
+  }
+  const rawText = clean(value);
+  if (!rawText || !/[0-9]/.test(rawText)) return { ok: false };
+  const amount = Number(toNumber(value));
+  if (!Number.isFinite(amount)) return { ok: false };
+  return { ok: true, amount: Math.round(amount) };
+}
+
 function positiveMoney(value) {
   return Math.max(0, normalizeDebtAmount(value));
 }
@@ -49,11 +62,11 @@ function requireMoney(source = {}, field, context = {}, options = {}) {
   if (!hasOwnValue(source, field)) {
     throw contractError('CONTRACT_VALIDATION_ERROR', `${context.label || 'document'} thiếu field tiền bắt buộc: ${field}`, { field, context });
   }
-  const raw = Number(toNumber(source[field]));
-  if (!Number.isFinite(raw)) {
+  const parsed = parseMoneyValue(source[field]);
+  if (!parsed.ok) {
     throw contractError('CONTRACT_VALIDATION_ERROR', `${context.label || 'document'} field ${field} không phải số hợp lệ`, { field, value: source[field], context });
   }
-  const rounded = Math.round(raw);
+  const rounded = parsed.amount;
   if (options.nonNegative !== false && rounded < 0) {
     throw contractError('CONTRACT_VALIDATION_ERROR', `${context.label || 'document'} field ${field} không được âm`, { field, value: rounded, context });
   }
@@ -183,14 +196,23 @@ function returnOrderAmount(row = {}) {
   return requireMoney(row, 'totalReturnAmount', { label: 'returnOrders', id: clean(row.id || row._id), code: clean(row.code) }, { nonNegative: false });
 }
 
-function summarizeReturnOrders(returnOrders = []) {
+function summarizeReturnOrders(returnOrders = [], context = {}) {
   const activeRows = [];
   for (const row of Array.isArray(returnOrders) ? returnOrders : []) {
     validateReturnOrderContract(row);
     if (isActiveReturnOrder(row)) activeRows.push(row);
   }
+  const returnedAmount = activeRows.reduce((sum, row) => sum + returnOrderAmount(row), 0);
+  if (money(returnedAmount) < 0) {
+    throw contractError('DELIVERY_CLOSEOUT_CANONICAL_RETURN_NEGATIVE', 'Tong hang tra canonical tu returnOrders khong duoc am.', {
+      orderId: context.orderId || orderId(context.order || {}),
+      orderCode: context.orderCode || orderCode(context.order || {}),
+      returnedAmount: money(returnedAmount),
+      returnOrderIds: activeRows.map((row) => clean(row.id || row.code || row._id)).filter(Boolean)
+    });
+  }
   return {
-    returnedAmount: activeRows.reduce((sum, row) => sum + returnOrderAmount(row), 0),
+    returnedAmount,
     returnOrderIds: activeRows.map((row) => clean(row.id || row.code || row._id)).filter(Boolean),
     activeReturnOrders: activeRows
   };
@@ -390,7 +412,7 @@ function publicCloseoutVersion(closeout = {}) {
 
 function buildCloseout(order = {}, returnOrders = [], payments = [], options = {}) {
   const baseAmount = originalAmount(order);
-  const returnSummary = summarizeReturnOrders(returnOrders);
+  const returnSummary = summarizeReturnOrders(returnOrders, { order });
   const paymentSummary = summarizePayments(order, payments);
   const offsetSummary = summarizeOffsets(order);
   const deliveredAmount = money(baseAmount - returnSummary.returnedAmount);
@@ -471,20 +493,65 @@ function assertNoLedgerShape(closeout = {}) {
   return true;
 }
 
+function validateCanonicalCloseout(closeout = {}, context = {}) {
+  assertNoLedgerShape(closeout);
+  const order = context.order || {};
+  const nonNegativeFields = ['originalAmount', 'returnedAmount', 'cashAmount', 'bankAmount', 'rewardAmount'];
+  for (const field of nonNegativeFields) {
+    requireMoney(closeout, field, {
+      label: 'canonical.deliveryCloseout',
+      field,
+      orderId: context.orderId || orderId(order),
+      orderCode: context.orderCode || orderCode(order)
+    }, { nonNegative: true });
+  }
+  requireMoney(closeout, 'finalDebtAmount', {
+    label: 'canonical.deliveryCloseout',
+    field: 'finalDebtAmount',
+    orderId: context.orderId || orderId(order),
+    orderCode: context.orderCode || orderCode(order)
+  }, { nonNegative: false });
+  return true;
+}
+
+function legacyCloseoutMoney(actual = {}, field = '') {
+  if (!hasOwnValue(actual, field)) {
+    return { ok: false, actual: null, reason: 'missing_required_closeout_field' };
+  }
+  const raw = actual[field];
+  const parsed = parseMoneyValue(raw);
+  if (!parsed.ok) {
+    return { ok: false, actual: null, rawActual: raw, reason: 'invalid_legacy_closeout_money' };
+  }
+  const rounded = parsed.amount;
+  const nonNegative = field !== 'finalDebtAmount' && field !== 'deliveredAmount';
+  if (nonNegative && rounded < 0) {
+    return { ok: false, actual: rounded, rawActual: raw, reason: 'legacy_negative_closeout_value' };
+  }
+  return { ok: true, actual: rounded, rawActual: raw };
+}
+
 function compareCloseout(expected = {}, actual = {}, options = {}) {
   if (!actual || typeof actual !== 'object' || !clean(actual.status)) return { ok: true, skipped: true, reason: 'missing_deliveryCloseout' };
   assertNoLedgerShape(actual);
+  validateCanonicalCloseout(expected, options);
   const fields = ['originalAmount', 'deliveredAmount', 'returnedAmount', 'collectedAmount', 'finalDebtAmount'];
   const tolerance = Math.max(0, Number(options.tolerance || 0));
   const mismatches = [];
   for (const field of fields) {
-    if (!hasOwnValue(actual, field)) {
-      mismatches.push({ field, expected: money(expected[field]), actual: null, reason: 'missing_required_closeout_field' });
+    const expectedAmount = field === 'finalDebtAmount' ? normalizeDebtAmount(expected[field]) : money(expected[field]);
+    const legacyValue = legacyCloseoutMoney(actual, field);
+    if (!legacyValue.ok) {
+      mismatches.push({
+        field,
+        expected: expectedAmount,
+        actual: legacyValue.actual,
+        ...(Object.prototype.hasOwnProperty.call(legacyValue, 'rawActual') ? { rawActual: legacyValue.rawActual } : {}),
+        reason: legacyValue.reason
+      });
       continue;
     }
-    const expectedAmount = field === 'finalDebtAmount' ? normalizeDebtAmount(expected[field]) : money(expected[field]);
-    const actualRawAmount = requireMoney(actual, field, { label: 'salesOrders.deliveryCloseout' }, { nonNegative: field !== 'finalDebtAmount' && field !== 'deliveredAmount' });
-    const actualAmount = field === 'finalDebtAmount' ? normalizeDebtAmount(actualRawAmount) : actualRawAmount;
+    const actualAmount = field === 'finalDebtAmount' ? normalizeDebtAmount(legacyValue.actual) : legacyValue.actual;
     if (Math.abs(expectedAmount - actualAmount) > tolerance) {
       mismatches.push({ field, expected: expectedAmount, actual: actualAmount, delta: expectedAmount - actualAmount });
     }
@@ -535,6 +602,7 @@ module.exports = {
   buildCloseout,
   compareCloseout,
   confirmCloseout,
+  validateCanonicalCloseout,
   assertNoLedgerShape,
   collectDeliveryPaymentRows,
   summarizePayments,
@@ -556,6 +624,7 @@ module.exports = {
   returnInventoryDiagnostic,
   _internal: {
     money,
+    parseMoneyValue,
     requireMoney,
     stableHash,
     publicCloseoutVersion,
