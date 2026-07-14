@@ -231,9 +231,6 @@ function collectWriterIdempotencyKeys(context = {}, helpers = {}) {
     });
     const arRows = OrderPaymentAllocationService.buildArLedgerRows(allocation, {});
     arKeys.push(...arRows.map((row) => row.idempotencyKey));
-    if (Number(allocation.cashAmount || 0) > 0) fundKeys.push(`FUND:OPA:${allocation.idempotencyKey}:cash`);
-    if (Number(allocation.bankAmount || 0) > 0) fundKeys.push(`FUND:OPA:${allocation.idempotencyKey}:bank`);
-
     const expected = OrderPaymentDebtReconcileService.computeExpectedDebtFromAllocation(allocation, {
       zeroTolerance: OrderPaymentAllocationService.DEFAULT_ZERO_TOLERANCE || 1000
     });

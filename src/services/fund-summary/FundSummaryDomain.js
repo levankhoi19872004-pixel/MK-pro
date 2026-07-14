@@ -1,5 +1,7 @@
 'use strict';
 
+const FundLedgerBalancePolicy = require('../accounting/FundLedgerBalancePolicy');
+
 const ACTIVE_LEDGER_STATUSES = ['', 'posted', 'confirmed', 'accounting_confirmed', 'matched'];
 const BLOCKED_LEDGER_STATUSES = ['draft', 'pending', 'submitted', 'cancelled', 'canceled', 'void', 'voided', 'deleted', 'removed', 'reversed', 'superseded'];
 
@@ -235,6 +237,7 @@ function normalizeLedgerForSummary(entry = {}) {
   const status = lower(entry.status);
   if (BLOCKED_LEDGER_STATUSES.includes(status) || entry.isDeleted === true || entry.deletedAt) return null;
   const sourceType = upper(entry.sourceType || entry.refType || entry.referenceType || 'UNKNOWN');
+  if (!FundLedgerBalancePolicy.affectsFundBalance(entry)) return null;
   if (status && !ACTIVE_LEDGER_STATUSES.includes(status)) return null;
   const amount = Math.abs(safeMoney(entry.amount ?? entry.debit ?? entry.credit));
   if (!amount) return null;
@@ -346,6 +349,7 @@ module.exports = {
   summarizeNormalizedTransactions,
   constants: {
     ACTIVE_LEDGER_STATUSES,
-    BLOCKED_LEDGER_STATUSES
+    BLOCKED_LEDGER_STATUSES,
+    NON_BALANCE_SOURCE_TYPES: FundLedgerBalancePolicy.NON_BALANCE_SOURCE_TYPES
   }
 };

@@ -610,6 +610,9 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     allocation: allocationResult.allocation,
     arLedgers,
     fundLedgers: allocationResult.fundLedgers || [],
+    fundPostingPolicy: allocationResult.fundPostingPolicy || 'deferred_to_delivery_remittance',
+    fundPostingDeferred: allocationResult.fundPostingDeferred === true,
+    fundPostingOwner: 'DELIVERY_CASH_SUBMISSION',
     debtReconcile: debtReconcileResult || null,
     debtAdjustmentLedger
   };
@@ -680,8 +683,10 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
   closeoutQueryAudit.updateCardinality({
     orderMetric: {
       generatedArRowCount: arLedgers.length,
-      cashFundPathUsed: (allocationResult.fundLedgers || []).some((row) => String(row.fundType || row.account || '').toLowerCase().includes('cash')),
-      bankFundPathUsed: (allocationResult.fundLedgers || []).some((row) => String(row.fundType || row.account || '').toLowerCase().includes('bank')),
+      cashFundPathUsed: false,
+      bankFundPathUsed: false,
+      fundPostingDeferred: allocationResult.fundPostingDeferred === true,
+      fundPostingOwner: 'DELIVERY_CASH_SUBMISSION',
       rewardOffsetUsed: Number(confirmedCloseout.rewardAmount || confirmedCloseout.offsetAmount || 0) > 0,
       returnAmountUsed: Number(confirmedCloseout.returnedAmount || confirmedCloseout.returnAmount || 0) > 0,
       debtReconcileOutcome: debtReconcileResult?.posted ? 'ADJUSTMENT_POSTED'
@@ -712,9 +717,13 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
       arReasonCode: arEvidence.arReasonCode,
       arEntryIds: arEvidence.arEntryIds,
       arIdempotencyKeys: arEvidence.arIdempotencyKeys,
-      fundRequired: DeliveryCloseoutService.positiveMoney(confirmedCloseout.cashAmount) > 0 || DeliveryCloseoutService.positiveMoney(confirmedCloseout.bankAmount) > 0,
-      fundSatisfied: !(DeliveryCloseoutService.positiveMoney(confirmedCloseout.cashAmount) > 0 || DeliveryCloseoutService.positiveMoney(confirmedCloseout.bankAmount) > 0) || (allocationResult.fundLedgers || []).length > 0,
-      fundPosted: (allocationResult.fundLedgers || []).length > 0,
+      fundRequired: false,
+      fundImmediatePostingRequired: false,
+      fundPostingPolicy: 'deferred_to_delivery_remittance',
+      fundPostingDeferred: DeliveryCloseoutService.positiveMoney(confirmedCloseout.cashAmount) > 0 || DeliveryCloseoutService.positiveMoney(confirmedCloseout.bankAmount) > 0,
+      fundPostingOwner: 'DELIVERY_CASH_SUBMISSION',
+      fundSatisfied: true,
+      fundPosted: false,
       verifiedFromWriterResult: true
     },
     closeout: confirmedCloseout,

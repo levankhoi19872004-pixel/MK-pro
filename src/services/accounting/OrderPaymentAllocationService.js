@@ -11,6 +11,7 @@ const closeoutQueryAudit = require('../../observability/closeoutQueryAudit');
 
 const ACTIVE_LEDGER_STATUSES = ['void', 'voided', 'cancelled', 'canceled', 'deleted', 'reversed'];
 const DEFAULT_ZERO_TOLERANCE = 1000;
+const OPA_FUND_POSTING_RETIRED_CODE = 'ORDER_PAYMENT_ALLOCATION_FUND_POSTING_RETIRED';
 const NON_NEGATIVE_AMOUNT_FIELDS = ['receivableAmount', 'cashAmount', 'bankAmount', 'rewardAmount', 'returnAmount'];
 const DEBT_AMOUNT_FIELDS = ['rawDebtAmount', 'normalizedDebtAmount', 'debtAmount', 'zeroToleranceAdjustmentAmount'];
 
@@ -566,6 +567,12 @@ async function postArLedgersFromAllocation(allocation = {}, options = {}) {
 }
 
 async function postFundLedgersFromAllocation(allocation = {}, options = {}) {
+  if (options.allowLegacyOrderPaymentAllocationFundPosting !== true) {
+    const error = new Error('ORDER_PAYMENT_ALLOCATION fund posting is retired; delivery remittance owns fund balance.');
+    error.code = OPA_FUND_POSTING_RETIRED_CODE;
+    error.status = 410;
+    throw error;
+  }
   const posted = [];
   const postOne = async (fundType, amount) => {
     const normalized = positiveMoney(amount);
@@ -611,18 +618,17 @@ async function updatePostedRefs(allocation = {}, arLedgers = [], fundLedgers = [
   const postedArLedgerIds = Array.from(new Set((arLedgers || []).map((row) => clean(row.id || row.code || row._id)).filter(Boolean)));
   const postedFundLedgerIds = Array.from(new Set((fundLedgers || []).map((row) => clean(row.id || row.code || row._id)).filter(Boolean)));
   const now = options.now || dateUtil.nowIso();
+  const set = {
+    postedArLedgerIds,
+    status: 'posted',
+    postedAt: now,
+    postedBy: actorOf(options, allocation.updatedBy || allocation.createdBy || 'accountant'),
+    updatedAt: now
+  };
+  if (postedFundLedgerIds.length) set.postedFundLedgerIds = postedFundLedgerIds;
   const query = OrderPaymentAllocation.findOneAndUpdate(
     { idempotencyKey },
-    {
-      $set: {
-        postedArLedgerIds,
-        postedFundLedgerIds,
-        status: 'posted',
-        postedAt: now,
-        postedBy: actorOf(options, allocation.updatedBy || allocation.createdBy || 'accountant'),
-        updatedAt: now
-      }
-    },
+    { $set: set },
     { new: true, session: options.session }
   );
   return closeoutQueryAudit.withCloseoutAuditStage('order.allocation.updatePostedRefs', () => (query.lean ? query.lean() : query));
@@ -631,12 +637,14 @@ async function updatePostedRefs(allocation = {}, arLedgers = [], fundLedgers = [
 async function postAllocation(allocation = {}, options = {}) {
   const saved = await upsertAllocation({ ...allocation, status: 'posted' }, options);
   const arLedgers = await postArLedgersFromAllocation(saved, options);
-  const fundLedgers = await postFundLedgersFromAllocation(saved, options);
+  const fundLedgers = [];
   const updated = await updatePostedRefs(saved, arLedgers, fundLedgers, options);
   return {
     allocation: updated || saved,
     arLedgers,
     fundLedgers,
+    fundPostingPolicy: 'deferred_to_delivery_remittance',
+    fundPostingDeferred: positiveMoney(saved.cashAmount) > 0 || positiveMoney(saved.bankAmount) > 0,
     arPostingResults: arLedgers.postingResults || [],
     expectedArLedgers: arLedgers.expectedArLedgers || []
   };
@@ -686,6 +694,7 @@ function buildAllocationLookup(allocations = []) {
 
 module.exports = {
   DEFAULT_ZERO_TOLERANCE,
+  OPA_FUND_POSTING_RETIRED_CODE,
   normalizeDebtAmount,
   computeDebtBreakdown,
   buildAllocationFromCloseout,

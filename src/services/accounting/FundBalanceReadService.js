@@ -8,6 +8,7 @@ const {
   normalizedDateFieldExpression,
   stringExpression
 } = require('../dashboard/DashboardMongoExpressions');
+const FundLedgerBalancePolicy = require('./FundLedgerBalancePolicy');
 
 const DEFAULT_TIMEZONE = dateUtil.VIETNAM_TIME_ZONE || 'Asia/Ho_Chi_Minh';
 const DEFAULT_LIMIT = 50;
@@ -124,6 +125,7 @@ function fundLedgerCanonicalFilter(extra = {}) {
     reversed: { $ne: true },
     isReversal: { $ne: true },
     reversalOf: { $in: [null, ''] },
+    ...FundLedgerBalancePolicy.balanceAffectingMongoFilter(),
     $or: [
       { accountingConfirmed: true },
       { accountingStatus: { $in: CONFIRMED_ACCOUNTING_STATUSES } },
@@ -701,6 +703,7 @@ function isCanonicalFundLedgerRow(row = {}) {
   if (BLOCKED_STATUSES.includes(status)) return false;
   if (row.active === false || row.isDeleted === true || truthy(row.deleted) || text(row.deletedAt)) return false;
   if (row.reversed === true || row.isReversal === true || text(row.reversalOf)) return false;
+  if (!FundLedgerBalancePolicy.affectsFundBalance(row)) return false;
   const confirmed = row.accountingConfirmed === true
     || CONFIRMED_ACCOUNTING_STATUSES.includes(lower(row.accountingStatus))
     || row.posted === true;
@@ -847,5 +850,6 @@ module.exports = {
   fundTypeOfRow,
   directionOfRow,
   accountOfRow,
-  isCanonicalFundLedgerRow
+  isCanonicalFundLedgerRow,
+  FundLedgerBalancePolicy
 };

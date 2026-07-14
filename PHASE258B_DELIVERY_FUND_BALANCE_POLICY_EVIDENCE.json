@@ -1,0 +1,33 @@
+{
+  "productionPattern": {
+    "technicalSources": [
+      "ORDER_PAYMENT_ALLOCATION",
+      "DELIVERY_CASH_SUBMISSION"
+    ],
+    "sameEconomicFlow": true
+  },
+  "before": {
+    "orderPaymentAllocationCash": 33101000,
+    "deliveryCashSubmissionCash": 33101000,
+    "canonicalCashInflow": 66202000
+  },
+  "after": {
+    "orderPaymentAllocationCash": 33101000,
+    "orderPaymentAllocationAffectsBalance": false,
+    "deliveryCashSubmissionCash": 33101000,
+    "deliveryCashSubmissionAffectsBalance": true,
+    "canonicalCashInflow": 33101000
+  },
+  "futurePosting": {
+    "closeoutCreatesOrderPaymentAllocation": true,
+    "closeoutCreatesArLedgers": true,
+    "closeoutCreatesFundLedger": false,
+    "remittanceCreatesFundLedger": true
+  },
+  "crossModuleConsistency": {
+    "fundLedger": 33101000,
+    "fundDashboard": 33101000,
+    "fundSummary": 33101000,
+    "doubleCount": false
+  }
+}

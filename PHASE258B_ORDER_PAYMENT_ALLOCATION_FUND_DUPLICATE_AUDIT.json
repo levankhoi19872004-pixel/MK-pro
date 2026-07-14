@@ -1,0 +1,35 @@
+{
+  "scope": {
+    "date": "2026-07-14",
+    "deliveryStaffCode": "ghth"
+  },
+  "orderPaymentAllocationFund": {
+    "cash": 33101000,
+    "bank": 0,
+    "rows": 11
+  },
+  "deliveryCashSubmissionFund": {
+    "cash": 33101000,
+    "bank": 0,
+    "rows": 1
+  },
+  "rawFundInflow": {
+    "cash": 66202000,
+    "bank": 0
+  },
+  "canonicalFundInflow": {
+    "cash": 33101000,
+    "bank": 0
+  },
+  "duplicateCandidate": true,
+  "differenceRemovedByPolicy": {
+    "cash": 33101000,
+    "bank": 0
+  },
+  "affectedDates": [
+    "2026-07-14"
+  ],
+  "affectedDeliveryStaff": [
+    "ghth"
+  ]
+}

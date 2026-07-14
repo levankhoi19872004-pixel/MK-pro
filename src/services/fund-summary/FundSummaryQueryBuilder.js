@@ -5,6 +5,7 @@ const DebtCollection = require('../../models/DebtCollection');
 const Receipt = require('../../models/Receipt');
 const SupplierPayment = require('../../models/SupplierPayment');
 const dateUtil = require('../../utils/date.util');
+const FundLedgerBalancePolicy = require('../accounting/FundLedgerBalancePolicy');
 const { text, upper, constants: domainConstants } = require('./FundSummaryDomain');
 const { vietnamUtcRange } = require('./FundSummaryFilters');
 
@@ -447,6 +448,7 @@ function buildEarlyMatch(filters) {
       },
       { isDeleted: { $ne: true } },
       { deletedAt: { $in: [null, ''] } },
+      FundLedgerBalancePolicy.balanceAffectingMongoFilter(),
       {
         $or: [
           { date: { $gte: filters.fromDate, $lte: filters.toDate } },

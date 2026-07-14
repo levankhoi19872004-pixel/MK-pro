@@ -2,6 +2,7 @@
 
 const REPORTING_SNAPSHOT_COLLECTION = ['reporting', 'snapshots'].join('_');
 const INVENTORY_SNAPSHOT_COLLECTION = ['inventory', 'Snapshots'].join('');
+const FUND_BALANCE_POLICY_TEXT = 'Fund balance = realized balance-affecting fundLedgers only; ORDER_PAYMENT_ALLOCATION is allocation/accounting evidence and does not affect fund balance; confirmed DELIVERY_CASH_SUBMISSION owns delivery cash/bank fund balance.';
 
 const RAW_SOURCE_CONTRACTS = Object.freeze({
   'dashboard-sales-today': {
@@ -56,6 +57,7 @@ const RAW_SOURCE_CONTRACTS = Object.freeze({
     sourceLabel: 'Số dư quỹ Dashboard từ fundLedgers canonical',
     ssotRule: 'Fund balance = fundLedgers canonical; loại cancelled/deleted/reversed/unconfirmed.',
     fundSource: 'fundLedgers',
+    balancePolicy: FUND_BALANCE_POLICY_TEXT,
     visibleOnUi: true,
     visibleInExcel: false,
     visibleForRoles: ['admin', 'manager', 'accountant'],
@@ -91,6 +93,7 @@ const RAW_SOURCE_CONTRACTS = Object.freeze({
     ssotRule: 'Delivery KPI = orders/salesOrders; collection = fundLedgers canonical; returns = returnOrders; master_orders chỉ metadata chuyến nếu cần.',
     amountSource: 'orders_recomputed',
     fundSource: 'fundLedgers',
+    balancePolicy: FUND_BALANCE_POLICY_TEXT,
     deliverySource: 'orders',
     visibleOnUi: true,
     visibleInExcel: false,
@@ -197,6 +200,7 @@ const RAW_SOURCE_CONTRACTS = Object.freeze({
     sourceLabel: 'Sổ quỹ từ fundLedgers canonical',
     ssotRule: 'Fund ledger = fundLedgers canonical, loại cancelled/deleted/reversed/unconfirmed.',
     fundSource: 'fundLedgers',
+    balancePolicy: FUND_BALANCE_POLICY_TEXT,
     visibleOnUi: true,
     visibleInExcel: true,
     visibleForRoles: ['admin', 'manager', 'accountant'],
@@ -214,6 +218,7 @@ const RAW_SOURCE_CONTRACTS = Object.freeze({
     sourceLabel: 'Số dư quỹ/tài khoản từ fundLedgers canonical',
     ssotRule: 'Fund balance = cumulative fundLedgers canonical; không dùng cashbooks/bankbooks làm nguồn chính.',
     fundSource: 'fundLedgers',
+    balancePolicy: FUND_BALANCE_POLICY_TEXT,
     visibleOnUi: true,
     visibleInExcel: true,
     visibleForRoles: ['admin', 'manager', 'accountant'],
@@ -231,6 +236,7 @@ const RAW_SOURCE_CONTRACTS = Object.freeze({
     sourceLabel: 'Phiếu thu/chi từ fundLedgers canonical',
     ssotRule: 'Receipt/list = fundLedgers canonical; phiếu thu công nợ liên kết debtCollections nếu có.',
     fundSource: 'fundLedgers',
+    balancePolicy: FUND_BALANCE_POLICY_TEXT,
     visibleOnUi: true,
     visibleInExcel: true,
     visibleForRoles: ['admin', 'manager', 'accountant'],
@@ -248,6 +254,7 @@ const RAW_SOURCE_CONTRACTS = Object.freeze({
     sourceLabel: 'Chốt tiền ngày từ fundLedgers canonical và phiên quỹ nếu có',
     ssotRule: 'Cash daily closing = fundLedgers canonical; over/short exception đối chiếu phiên quỹ.',
     fundSource: 'fundLedgers',
+    balancePolicy: FUND_BALANCE_POLICY_TEXT,
     visibleOnUi: true,
     visibleInExcel: true,
     visibleForRoles: ['admin', 'accountant'],
@@ -554,6 +561,7 @@ function normalizeContract(code, contract = {}) {
     debtSource: contract.debtSource ?? null,
     inventorySource: contract.inventorySource ?? null,
     fundSource: contract.fundSource ?? null,
+    balancePolicy: contract.balancePolicy ?? null,
     deliverySource: contract.deliverySource ?? null,
     importSource: contract.importSource ?? null,
     fileSource: contract.fileSource || null,

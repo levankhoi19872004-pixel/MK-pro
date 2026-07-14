@@ -18,6 +18,7 @@ const OrderPaymentAllocationService = require('../src/services/accounting/OrderP
 const OrderPaymentDebtReconcileService = require('../src/services/accounting/OrderPaymentDebtReconcileService');
 
 const TITLE = 'ORDER_PAYMENT_ALLOCATIONS_BATCH_RECONCILE_AND_REPAIR';
+const OPA_FUND_POSTING_RETIRED_CODE = 'ORDER_PAYMENT_ALLOCATION_FUND_POSTING_RETIRED';
 const ACTIVE_EXCLUDED_STATUSES = ['reversed', 'void', 'voided', 'cancelled', 'canceled', 'deleted', 'removed', 'superseded'];
 const ACTIVE_ORDER_STATUSES = ['delivered', 'delivery_confirmed', 'delivery_closed', 'closeout', 'closeout_confirmed', 'closed', 'completed', 'accounting_confirmed', 'posted'];
 const ISSUE_GROUPS = ['missingAllocations', 'missingRewardLedgers', 'missingArLedgers', 'missingFundLedgers', 'amountConflicts', 'invalidAllocations', 'manualReviewRequired', 'debtDiffs', 'errors'];
@@ -71,7 +72,11 @@ function parseArgs(argv = process.argv.slice(2)) {
     if (arg === '--apply') out.apply = true;
     else if (arg === '--fix-missing-reward-ledgers') out.fixMissingRewardLedgers = true;
     else if (arg === '--fix-missing-ar-ledgers') out.fixMissingArLedgers = true;
-    else if (arg === '--fix-missing-fund-ledgers') out.fixMissingFundLedgers = true;
+    else if (arg === '--fix-missing-fund-ledgers') {
+      const error = new Error('ORDER_PAYMENT_ALLOCATION fund posting is retired; delivery remittance owns fund balance.');
+      error.code = OPA_FUND_POSTING_RETIRED_CODE;
+      throw error;
+    }
     else if (arg === '--json') out.json = true;
     else if (arg === '--strict') out.strict = true;
     else if (arg === '--only-missing-allocations') out.onlyMissingAllocations = true;
@@ -699,7 +704,7 @@ async function processOneOrder(order = {}, context = {}) {
       writes.createdRewardLedgers += rewardCount;
     }
 
-    const expectedFunds = expectedFundRows(allocation);
+    const expectedFunds = [];
     const missingFundRows = [];
     for (const expected of expectedFunds) {
       const actual = await findActiveFundLedgerByExpected(expected, tx);
@@ -733,8 +738,9 @@ async function processOneOrder(order = {}, context = {}) {
       }
     }
     if (options.apply && options.fixMissingFundLedgers && missingFundRows.length) {
-      const postedFunds = await OrderPaymentAllocationService.postFundLedgersFromAllocation(allocation, { ...tx, actor: 'backfill-order-payment-allocations' });
-      writes.createdFundLedgers += Array.isArray(postedFunds) ? postedFunds.length : 0;
+      throw Object.assign(new Error('ORDER_PAYMENT_ALLOCATION fund posting is retired; delivery remittance owns fund balance.'), {
+        code: OPA_FUND_POSTING_RETIRED_CODE
+      });
     }
 
     const shouldReconcileDebt = options.onlyDebtDiff || options.fixDebtBalance;
@@ -893,19 +899,20 @@ function printText(result = {}) {
 }
 
 async function main() {
-  const options = parseArgs();
-  await connectDB();
+  let options = { json: process.argv.includes('--json'), strict: false };
   let result;
   try {
+    options = parseArgs();
+    await connectDB();
     result = await auditAndMaybeApply(options);
     if (options.json) console.log(JSON.stringify(result, null, 2));
     else printText(result);
   } catch (err) {
-    if (options.json) console.log(JSON.stringify({ title: TITLE, error: err && err.message ? err.message : String(err || 'unknown error') }, null, 2));
+    if (options.json) console.log(JSON.stringify({ title: TITLE, code: err && err.code, error: err && err.message ? err.message : String(err || 'unknown error') }, null, 2));
     else console.error('[backfill-order-payment-allocations] failed:', err && err.stack ? err.stack : err);
     process.exitCode = 1;
   } finally {
-    await mongoose.connection.close();
+    if (mongoose.connection.readyState) await mongoose.connection.close();
   }
   if (options.strict && result && result.issueCount) process.exitCode = 2;
 }

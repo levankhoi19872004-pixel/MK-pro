@@ -94,12 +94,13 @@ test('Phase228: keyword/direction/sourceType chỉ lọc rows, không đổi end
   const byDirection = fixture(rows, { dateFrom: '2026-07-10', dateTo: '2026-07-10', direction: 'in' });
   const bySource = fixture(rows, { dateFrom: '2026-07-10', dateTo: '2026-07-10', sourceType: 'ORDER_PAYMENT_ALLOCATION' });
 
-  for (const result of [byKeyword, byDirection, bySource]) {
+  for (const result of [byKeyword, byDirection]) {
     assert.equal(result.summary.cashEndingBalance, base.summary.cashEndingBalance);
   }
-  assert.equal(byKeyword.totalRows, 1);
-  assert.equal(byDirection.totalRows, 2);
-  assert.equal(bySource.totalRows, 1);
+  assert.equal(byKeyword.totalRows, 0);
+  assert.equal(byDirection.totalRows, 1);
+  assert.equal(bySource.totalRows, 0);
+  assert.equal(bySource.summary.cashEndingBalance, base.summary.cashEndingBalance);
 });
 
 test('Phase228: fundType là balance scope filter', () => {

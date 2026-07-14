@@ -74,6 +74,7 @@ function buildSourceNote(contractCode, options = {}) {
     debtSource: contract.debtSource,
     inventorySource: contract.inventorySource,
     fundSource: contract.fundSource,
+    balancePolicy: contract.balancePolicy || null,
     deliverySource: contract.deliverySource,
     importSource: contract.importSource,
 
