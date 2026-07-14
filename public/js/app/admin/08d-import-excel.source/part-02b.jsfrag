@@ -243,8 +243,6 @@ async function previewImportExcelSilent(){
     throw new Error('Backend preview không trả importSessionId sau khi tạo phiên. Hệ thống đã dừng để tránh poll phiên giả.');
   }
 
-  // Backend đang chạy async preview: 202 queued.
-  // Không render ngay, phải poll session đến khi preview_ready.
   if(res.status===202||json.accepted||String(json.status||'').toLowerCase()==='queued'){
     console.info('[IMPORT_PREVIEW_POST_ACCEPTED]',{sessionId,status:json.status||'queued'});
     return await waitImportPreviewSession(sessionId);
@@ -307,7 +305,6 @@ function startImportCommitProgressPolling(sessionId,selectedCount){
         }
       }
     }catch(_){
-      // Request commit chính vẫn là nguồn kết quả; lỗi polling không được làm hỏng import.
     }
     if(!stopped)timer=setTimeout(poll,1200);
   };
@@ -316,6 +313,7 @@ function startImportCommitProgressPolling(sessionId,selectedCount){
 }
 
 async function refreshAfterImport(type){
+  const businessType=normalizeImportBusinessType(type);
   if(['promotionProductRules','promotionGroupItems','promotionGroupRules','promotionQuantityGroupDiscounts','promotionCustomerOrderValueDiscounts'].includes(type)){
     if(typeof window.reloadPromotionRules==='function')await window.reloadPromotionRules();
     return;
@@ -327,7 +325,7 @@ async function refreshAfterImport(type){
 
   const tasks=[];
   const add=(fn)=>{if(typeof fn==='function')tasks.push(Promise.resolve().then(fn));};
-  if(type==='salesOrders'){
+  if(businessType==='salesOrders'){
     add(loadSalesOrders);add(loadStock);
   }else if(type==='products'){
     add(loadProducts);add(loadStock);
@@ -437,7 +435,7 @@ function renderImportShortageReview(review){
 }
 
 async function openImportShortageReviewModal(options={}){
-  if(importDataType?.value!=='salesOrders'||!importPreviewSessionId)return null;
+  if(!isSalesOrderImportType()||!importPreviewSessionId)return null;
   const selected=getSelectedImportRowsWithIndexes();
   if(!selected.length)return null;
   const hasShortage=selected.some(({row})=>row&&row.hasShortage);
@@ -495,7 +493,7 @@ async function confirmImportShortageReviewAndCommit(mode){
     await commitImportExcelCore({confirmedShortageReview:true});
   }catch(err){
     showMessage(importDataMessage,err.message,true);
-    if(String(err.message||'').includes('thay đổi'))await openImportShortageReviewModal({manual:true});
+    if(isImportShortageReviewRecoverableCode(err.code)||String(err.message||'').includes('thay đổi'))await openImportShortageReviewModal({manual:true});
   }finally{
     if(button)button.disabled=false;
   }

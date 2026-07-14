@@ -5,10 +5,27 @@ const SELECTIVE_UPDATE_IMPORT_TYPES=new Set(['products','customers','users']);
 const IMPORT_SESSION_ROWS_PAGE_SIZE=500;
 const IMPORT_SESSION_ROWS_MAX=20000;
 const PROMOTION_CATALOG_IMPORT_TYPES=new Set(['promotionProductRules','promotionGroupItems']);
+const IMPORT_SHORTAGE_REVIEW_RECOVERABLE_CODES=new Set([
+  'IMPORT_SHORTAGE_REVIEW_REQUIRED',
+  'IMPORT_SHORTAGE_REVIEW_INCOMPLETE',
+  'IMPORT_SHORTAGE_REVIEW_STALE',
+  'IMPORT_SHORTAGE_REVIEW_INVALID_MODE'
+]);
 let importPreviewProgramGroups=[];
 let importSelectedProgramCodeSet=new Set();
 let currentImportSource='none';
 let currentImportSourceLabel='';
+function normalizeImportBusinessType(type=importDataType?.value){
+  const rawType=String(type||'').trim();
+  if(rawType==='salesOrdersS3')return 'salesOrders';
+  return rawType;
+}
+function isSalesOrderImportType(type=importDataType?.value){
+  return normalizeImportBusinessType(type)==='salesOrders';
+}
+function isImportShortageReviewRecoverableCode(code){
+  return IMPORT_SHORTAGE_REVIEW_RECOVERABLE_CODES.has(String(code||'').trim());
+}
 function normalizeImportSourceName(source){
   const value=String(source||'').trim().toLowerCase();
   if(value==='paste'||value==='clipboard-paste'||value==='excel-paste')return 'paste';

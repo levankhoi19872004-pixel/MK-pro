@@ -74,7 +74,7 @@ let box=document.getElementById("importShortageActions");if(!box){box=document.c
 ;if(importPreviewSummary&&importPreviewSummary.parentNode){importPreviewSummary.parentNode.insertBefore(box,importPreviewSummary)
 }else if(importDataMessage&&importDataMessage.parentNode){importDataMessage.parentNode.insertBefore(box,importDataMessage.nextSibling)}}return box}
 function renderImportShortageActions(rows=[]){const box=ensureImportShortageActions();if(!box)return;const shortageRows=rows.filter(r=>r&&r.hasShortage)
-;if(importDataType?.value!=="salesOrders"||!shortageRows.length){box.innerHTML="";box.style.display="none";importShortageActionMode="";return}
+;if(!isSalesOrderImportType()||!shortageRows.length){box.innerHTML="";box.style.display="none";importShortageActionMode="";return}
 const shortageQty=shortageRows.reduce((sum,row)=>sum+Number(row.shortageQuantity||0),0);const shortageAmount=shortageRows.reduce((sum,row)=>sum+Number(row.shortageAmount||0),0)
 ;box.style.display="flex";importShortageActionMode="";if(commitImportButton)commitImportButton.disabled=false
 ;box.innerHTML=`\n    <div class="import-shortage-actions-text">\n      <b>Có ${formatNumber(shortageRows.length)} đơn vượt tồn</b>\n      <span>SL thiếu: ${displayImportAggregateQty(shortageQty)} · Cắt: ${money(shortageAmount)}</span>\n    </div>\n    <button type="button" class="secondary" id="reopenImportShortageReviewButton">Mở review</button>`

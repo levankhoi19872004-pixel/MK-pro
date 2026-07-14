@@ -1,0 +1,23 @@
+{
+  "phase": "Phase257A-R2",
+  "generatedAt": "2026-07-14T02:02:46.253Z",
+  "runtime": "test/helpers/importShortageRuntimeHarness.js with generated import bundles",
+  "rawImportType": "salesOrdersS3",
+  "canonicalBusinessType": "salesOrders",
+  "previewButtonClicked": true,
+  "previewApiCalled": true,
+  "previewRequestType": "salesOrdersS3",
+  "previewReturnedShortage": true,
+  "reviewBannerVisible": true,
+  "reviewApiCalled": true,
+  "modalVisible": true,
+  "shortageRowsRendered": 1,
+  "commitCalledBeforeReview": false,
+  "threeButtonsPresent": true,
+  "consoleErrors": [],
+  "browserVerification": {
+    "attempted": true,
+    "passed": false,
+    "reason": "Browser tool blocked data: and file:// local harness URLs by URL policy; no raw CDP or alternate browser workaround used."
+  }
+}

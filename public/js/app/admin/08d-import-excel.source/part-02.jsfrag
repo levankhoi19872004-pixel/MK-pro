@@ -268,7 +268,7 @@ function renderImportShortageActions(rows=[]){
   const box=ensureImportShortageActions();
   if(!box)return;
   const shortageRows=rows.filter(r=>r&&r.hasShortage);
-  if(importDataType?.value!=='salesOrders'||!shortageRows.length){
+  if(!isSalesOrderImportType()||!shortageRows.length){
     box.innerHTML='';
     box.style.display='none';
     importShortageActionMode='';

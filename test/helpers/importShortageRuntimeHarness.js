@@ -176,9 +176,11 @@ class FakeElement {
     const evt = event || { type: '' };
     evt.target = evt.target || this;
     const prop = `on${evt.type}`;
-    if (typeof this[prop] === 'function') this[prop](evt);
-    (this.eventListeners.get(evt.type) || []).forEach((handler) => handler(evt));
-    return true;
+    const results = [];
+    if (typeof this[prop] === 'function') results.push(this[prop](evt));
+    (this.eventListeners.get(evt.type) || []).forEach((handler) => results.push(handler(evt)));
+    const pending = results.filter((result) => result && typeof result.then === 'function');
+    return pending.length ? Promise.all(pending).then(() => true) : true;
   }
 
   click() {
@@ -195,6 +197,25 @@ class FakeElement {
       if (node !== this && matchesSelector(node, selector)) matches.push(node);
     });
     return matches;
+  }
+}
+
+class FakeFormData {
+  constructor() {
+    this.entriesList = [];
+  }
+
+  append(name, value) {
+    this.entriesList.push([String(name), value]);
+  }
+
+  get(name) {
+    const entry = this.entriesList.find(([key]) => key === String(name));
+    return entry ? entry[1] : null;
+  }
+
+  getAll(name) {
+    return this.entriesList.filter(([key]) => key === String(name)).map(([, value]) => value);
   }
 }
 
@@ -297,6 +318,20 @@ function createImportShortageRuntime(options = {}) {
   const document = new FakeDocument();
   seedDocumentElements(document);
   const fetchCalls = [];
+  const rawImportType = options.rawImportType || 'salesOrders';
+  const sessionId = options.sessionId || 'IMP-257A-R1';
+  const previewRows = options.previewRows || [{
+    documentCode: 'SO-S3',
+    customerName: 'Customer S3',
+    productCode: 'SP-S3',
+    productName: 'Product S3',
+    valid: true,
+    canImport: true,
+    hasShortage: true,
+    shortageQuantity: 3,
+    shortageAmount: 36000,
+    rowNo: 3
+  }];
   const window = {
     document,
     console,
@@ -312,6 +347,7 @@ function createImportShortageRuntime(options = {}) {
     IMPORT_PREVIEW_RENDER_LIMIT: 120,
     __reportsModuleLoaded: false,
     __commitCalled: false,
+    __loadCalls: [],
     confirm: () => true,
     getComputedStyle: getComputedStyleFor
   };
@@ -320,6 +356,7 @@ function createImportShortageRuntime(options = {}) {
     document,
     console,
     URLSearchParams,
+    FormData: FakeFormData,
     setTimeout: (fn) => {
       if (typeof fn === 'function') fn();
       return 1;
@@ -348,7 +385,17 @@ function createImportShortageRuntime(options = {}) {
     showMessage: (_target, message, isError) => {
       window.__lastMessage = { message: String(message || ''), isError: Boolean(isError) };
     },
+    renderImportWarningModal() {},
     resetForm() {},
+    loadSalesOrders: async () => { window.__loadCalls.push('loadSalesOrders'); },
+    loadStock: async () => { window.__loadCalls.push('loadStock'); },
+    loadProducts: async () => { window.__loadCalls.push('loadProducts'); },
+    loadCustomers: async () => { window.__loadCalls.push('loadCustomers'); },
+    loadUsers: async () => { window.__loadCalls.push('loadUsers'); },
+    loadImportOrders: async () => { window.__loadCalls.push('loadImportOrders'); },
+    loadDebts: async () => { window.__loadCalls.push('loadDebts'); },
+    loadReceipts: async () => { window.__loadCalls.push('loadReceipts'); },
+    loadCashbook: async () => { window.__loadCalls.push('loadCashbook'); },
     URL: window.URL,
     Blob: window.Blob
   };
@@ -373,23 +420,14 @@ function createImportShortageRuntime(options = {}) {
   ].forEach((file) => vm.runInContext(readProjectFile(file), context, { filename: file }));
 
   vm.runInContext(`
-    importDataType.value='salesOrders';
-    importPreviewSessionId='IMP-257A-R1';
-    importPreviewRows=[{
-      documentCode:'SO-S3',
-      customerName:'Customer S3',
-      productCode:'SP-S3',
-      productName:'Product S3',
-      valid:true,
-      canImport:true,
-      hasShortage:true,
-      shortageQuantity:3,
-      shortageAmount:36000,
-      rowNo:3
-    }];
-    importSelectedRowKeySet.add(getImportRowSelectKey(importPreviewRows[0],0));
-    commitImportExcelCore=async function(){window.__commitCalled=true;};
+    importDataType.value=${JSON.stringify(rawImportType)};
+    importPreviewSessionId=${JSON.stringify(sessionId)};
+    importPreviewRows=${JSON.stringify(previewRows)};
+    if(importPreviewRows[0])importSelectedRowKeySet.add(getImportRowSelectKey(importPreviewRows[0],0));
   `, context);
+  if (options.stubCommitCore !== false) {
+    vm.runInContext('commitImportExcelCore=async function(){window.__commitCalled=true;};', context);
+  }
   fetchCalls.length = 0;
 
   return { context, window, document, fetchCalls, vm };

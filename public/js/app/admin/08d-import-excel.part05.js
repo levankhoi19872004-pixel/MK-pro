@@ -77,10 +77,10 @@ const res=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}?t=$
 ;const status=String(json.status||"").toLowerCase();if(status==="failed"){showMessage(importDataMessage,json.errorMessage||json.message||"Import thất bại",true);stopped=true;return
 }if(res.ok&&json.ok){if(status==="importing"||status==="processing"){showMessage(importDataMessage,describeImportCommitProgress(json.progress||{},selectedCount))
 }else if(status==="done"){stopped=true;return}}}catch(_){}if(!stopped)timer=setTimeout(poll,1200)};timer=setTimeout(poll,500);return()=>{stopped=true;if(timer)clearTimeout(timer)}}
-async function refreshAfterImport(type){
-if(["promotionProductRules","promotionGroupItems","promotionGroupRules","promotionQuantityGroupDiscounts","promotionCustomerOrderValueDiscounts"].includes(type)){
+async function refreshAfterImport(type){const businessType=normalizeImportBusinessType(type)
+;if(["promotionProductRules","promotionGroupItems","promotionGroupRules","promotionQuantityGroupDiscounts","promotionCustomerOrderValueDiscounts"].includes(type)){
 if(typeof window.reloadPromotionRules==="function")await window.reloadPromotionRules();return}if(type==="users"){if(typeof loadUsers==="function")await loadUsers();return}
-const tasks=[];const add=fn=>{if(typeof fn==="function")tasks.push(Promise.resolve().then(fn))};if(type==="salesOrders"){add(loadSalesOrders);add(loadStock)
+const tasks=[];const add=fn=>{if(typeof fn==="function")tasks.push(Promise.resolve().then(fn))};if(businessType==="salesOrders"){add(loadSalesOrders);add(loadStock)
 }else if(type==="products"){add(loadProducts);add(loadStock)}else if(type==="customers"){add(loadCustomers)}else if(type==="openingStock"){add(loadStock);add(loadProducts)
 }else if(type==="importOrders"){add(loadImportOrders)}else if(type==="openingDebt"){add(loadDebts)}else if(type==="debtCollections"){add(loadDebts);add(loadReceipts)
 ;add(loadCashbook)}else if(type==="cashbook"){add(loadCashbook)}if(tasks.length)await Promise.allSettled(tasks)}function getSelectedImportRowsWithIndexes(){
@@ -111,7 +111,7 @@ status:review.status||"pending",items:items,summary:summary};const meta=document
 ;if(summaryBox)summaryBox.innerHTML=`<span>Đơn đã chọn: <strong>${formatNumber(summary.selectedOrderCount||0)}</strong></span><span>Đơn thiếu: <strong>${formatNumber(summary.shortageOrderCount||0)}</strong></span><span>Sản phẩm: <strong>${formatNumber(summary.productCount||0)}</strong></span><span>Dòng thiếu: <strong>${formatNumber(items.length)}</strong></span>`
 ;const body=document.getElementById("importShortageReviewTable")
 ;if(body)body.innerHTML=items.length?items.map(item=>`<tr>\n    <td>${escapeImportHtml(item.documentCode||"")}</td>\n    <td>${escapeImportHtml(item.customerName||item.customerCode||"")}</td>\n    <td>${escapeImportHtml(item.productCode||"")}</td>\n    <td>${escapeImportHtml(item.productName||"")}</td>\n    <td class="number">${displayImportQtyTL(item.requestedQuantity||0,item)}</td>\n    <td class="number">${displayImportQtyTL(item.availableQuantity||0,item)}</td>\n    <td class="number"><strong>${displayImportQtyTL(item.missingQuantity||0,item)}</strong></td>\n    <td class="number">${money(item.cutAmount||0)}</td>\n  </tr>`).join(""):'<tr><td colspan="8">Không có dòng thiếu hàng trong phạm vi đã chọn.</td></tr>'
-;showImportShortageReviewModal()}async function openImportShortageReviewModal(options={}){if(importDataType?.value!=="salesOrders"||!importPreviewSessionId)return null
+;showImportShortageReviewModal()}async function openImportShortageReviewModal(options={}){if(!isSalesOrderImportType()||!importPreviewSessionId)return null
 ;const selected=getSelectedImportRowsWithIndexes();if(!selected.length)return null;const hasShortage=selected.some(({row:row})=>row&&row.hasShortage)
 ;if(!hasShortage&&!options.manual)return null;if(options.auto&&(importShortageReviewState.autoOpened||importShortageReviewState.loading))return null
 ;importShortageReviewState.loading=true;try{const params=new URLSearchParams;const selection=buildImportShortageReviewSelectionPayload()
@@ -133,4 +133,5 @@ body:JSON.stringify({mode:mode,fingerprint:importShortageReviewState.fingerprint
 mode:mode,fingerprint:json.fingerprint||importShortageReviewState.fingerprint,
 selectedScopeFingerprint:json.selectedScopeFingerprint||importShortageReviewState.selectedScopeFingerprint};importShortageActionMode=mode;closeImportShortageReviewModal()
 ;await commitImportExcelCore({confirmedShortageReview:true})}catch(err){showMessage(importDataMessage,err.message,true)
-;if(String(err.message||"").includes("thay đổi"))await openImportShortageReviewModal({manual:true})}finally{if(button)button.disabled=false}}
+;if(isImportShortageReviewRecoverableCode(err.code)||String(err.message||"").includes("thay đổi"))await openImportShortageReviewModal({manual:true})}finally{
+if(button)button.disabled=false}}

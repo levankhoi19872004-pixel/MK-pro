@@ -61,7 +61,7 @@ async function commitImportExcelCore(options={}){
     const selectedRows=selectedIndexedRows.map(({row})=>row);
     if(!selectedRows.length){showMessage(importDataMessage,'Bạn chưa chọn đơn/dòng nào để import',true);return;}
 
-    if(importDataType.value==='salesOrders'&&!options.confirmedShortageReview){
+    if(isSalesOrderImportType()&&!options.confirmedShortageReview){
       const hasSelectedShortage=selectedIndexedRows.some(({row})=>row&&row.hasShortage);
       if(hasSelectedShortage){
         await openImportShortageReviewModal({manual:true});
@@ -99,7 +99,7 @@ async function commitImportExcelCore(options={}){
     });
     let json=await res.json().catch(()=>({ok:false,message:`API import không trả JSON hợp lệ (HTTP ${res.status})`}));
     if(!json.ok){
-      if(String(json.code||'').startsWith('IMPORT_SHORTAGE_REVIEW_'))await openImportShortageReviewModal({manual:true});
+      if(isImportShortageReviewRecoverableCode(json.code))await openImportShortageReviewModal({manual:true});
       throw new Error(json.error||json.message||'Import thất bại');
     }
     if(json.accepted&&json.jobId){
@@ -146,12 +146,12 @@ async function commitImportExcelCore(options={}){
       commitImportButton.textContent='Import các dòng đã chọn';
     }
 
-    if(importDataType.value==='salesOrders'){
+    if(isSalesOrderImportType()){
       if(salesOrderSourceFilter)salesOrderSourceFilter.value='DMS';
     }
 
     await refreshAfterImport(importDataType.value);
-    if(importDataType.value==='salesOrders')await loadImportShortageReports();
+    if(isSalesOrderImportType())await loadImportShortageReports();
   }catch(err){
     if(err&&err.name==='AbortError')return;
     if(commitImportButton){

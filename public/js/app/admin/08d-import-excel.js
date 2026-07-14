@@ -1,7 +1,11 @@
 /* GENERATED FILE — edit public/js/app/admin/08d-import-excel.source/part-01.jsfrag, public/js/app/admin/08d-import-excel.source/part-01b.jsfrag, public/js/app/admin/08d-import-excel.source/part-02.jsfrag, public/js/app/admin/08d-import-excel.source/part-02b.jsfrag, public/js/app/admin/08d-import-excel.source/part-03.jsfrag and run npm run build:source-bundles. */
 "use strict";const SELECTIVE_UPDATE_IMPORT_TYPES=new Set(["products","customers","users"]);const IMPORT_SESSION_ROWS_PAGE_SIZE=500;const IMPORT_SESSION_ROWS_MAX=2e4
-;const PROMOTION_CATALOG_IMPORT_TYPES=new Set(["promotionProductRules","promotionGroupItems"]);let importPreviewProgramGroups=[];let importSelectedProgramCodeSet=new Set
-;let currentImportSource="none";let currentImportSourceLabel="";function normalizeImportSourceName(source){const value=String(source||"").trim().toLowerCase()
+;const PROMOTION_CATALOG_IMPORT_TYPES=new Set(["promotionProductRules","promotionGroupItems"])
+;const IMPORT_SHORTAGE_REVIEW_RECOVERABLE_CODES=new Set(["IMPORT_SHORTAGE_REVIEW_REQUIRED","IMPORT_SHORTAGE_REVIEW_INCOMPLETE","IMPORT_SHORTAGE_REVIEW_STALE","IMPORT_SHORTAGE_REVIEW_INVALID_MODE"])
+;let importPreviewProgramGroups=[];let importSelectedProgramCodeSet=new Set;let currentImportSource="none";let currentImportSourceLabel=""
+;function normalizeImportBusinessType(type=importDataType?.value){const rawType=String(type||"").trim();if(rawType==="salesOrdersS3")return"salesOrders";return rawType}
+function isSalesOrderImportType(type=importDataType?.value){return normalizeImportBusinessType(type)==="salesOrders"}function isImportShortageReviewRecoverableCode(code){
+return IMPORT_SHORTAGE_REVIEW_RECOVERABLE_CODES.has(String(code||"").trim())}function normalizeImportSourceName(source){const value=String(source||"").trim().toLowerCase()
 ;if(value==="paste"||value==="clipboard-paste"||value==="excel-paste")return"paste";if(value==="file"||value==="excel-file"||value==="import-session-status")return"file"
 ;return value||"none"}function inferImportPreviewSource(result={}){const explicit=normalizeImportSourceName(result.source||result.importSource||result.sourceType)
 ;if(explicit==="paste")return"paste";const names=[...Array.isArray(result.fileNames)?result.fileNames:[],result.fileName].filter(Boolean).map(v=>String(v).toLowerCase())
