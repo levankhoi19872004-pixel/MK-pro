@@ -35,17 +35,15 @@ test('Phase257A shortage review popup exposes exactly the pre-commit choices', (
 });
 
 test('Phase257A shortage review API routes are mounted before generic session route', () => {
-  const excelRoutes = read('src/routes/excelImportRoutes.js');
-  const runtimeRoutes = read('src/routes/importRuntimeRoutes.js');
+  const indexRoutes = read('src/routes/index.js');
+  const importExportRoutes = read('src/routes/importExportRoutes.js');
   const excelController = read('src/controllers/excelImportController.js');
-  const runtimeController = read('src/controllers/importRuntimeController.js');
 
-  assert.ok(excelRoutes.indexOf("'/sessions/:sessionId/shortage-review'") < excelRoutes.indexOf("'/sessions/:sessionId'"));
-  assert.ok(runtimeRoutes.indexOf("'/sessions/:sessionId/shortage-review'") < runtimeRoutes.indexOf("'/sessions/:sessionId'"));
-  assert.match(excelRoutes, /router\.put\('\/sessions\/:sessionId\/shortage-review'/);
-  assert.match(runtimeRoutes, /router\.put\('\/sessions\/:sessionId\/shortage-review'/);
+  assert.match(indexRoutes, /const \{ importRouter, exportRouter \} = require\('\.\/importExportRoutes'\)/);
+  assert.match(indexRoutes, /app\.use\('\/api\/import', importRouter\)/);
+  assert.ok(importExportRoutes.indexOf("'/sessions/:sessionId/shortage-review'") < importExportRoutes.indexOf("'/sessions/:sessionId'"));
+  assert.match(importExportRoutes, /importRouter\.get\('\/sessions\/:sessionId\/shortage-review', excelImportController\.shortageReview\)/);
+  assert.match(importExportRoutes, /importRouter\.put\('\/sessions\/:sessionId\/shortage-review', excelImportController\.confirmShortageReview\)/);
   assert.match(excelController, /importShortageReviewService\.getReview/);
   assert.match(excelController, /importShortageReviewService\.confirmReview/);
-  assert.match(runtimeController, /importShortageReviewService\.getReview/);
-  assert.match(runtimeController, /importShortageReviewService\.confirmReview/);
 });

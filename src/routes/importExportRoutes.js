@@ -33,6 +33,8 @@ importRouter.post(
 importRouter.post('/direct', controller.directImport);
 
 importRouter.get('/sessions/:sessionId/rows', controller.sessionRows);
+importRouter.get('/sessions/:sessionId/shortage-review', excelImportController.shortageReview);
+importRouter.put('/sessions/:sessionId/shortage-review', excelImportController.confirmShortageReview);
 importRouter.get('/sessions/:sessionId', controller.sessionStatus);
 importRouter.post('/sessions/:sessionId/commit', controller.commitImport);
 importRouter.post('/commit', controller.commitImport);

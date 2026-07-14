@@ -1,0 +1,41 @@
+{
+  "generatedAt": "2026-07-14T08:34:10.163Z",
+  "canonicalRoute": {
+    "mountPrefix": "/api/import",
+    "routerModule": "src/routes/importExportRoutes.js",
+    "mountedByIndex": true,
+    "getShortageReviewMounted": true,
+    "putShortageReviewMounted": true,
+    "shortageReviewBeforeGenericSession": true
+  },
+  "deadRouteDefinitions": {
+    "excelImportRoutesMounted": false,
+    "importRuntimeRoutesMounted": false
+  },
+  "getRequest": {
+    "url": "/api/import/sessions/TEST-SESSION/shortage-review",
+    "status": 200,
+    "globalApi404": false,
+    "controllerReached": true,
+    "ok": true,
+    "itemCount": 1
+  },
+  "putRequest": {
+    "url": "/api/import/sessions/TEST-SESSION/shortage-review",
+    "status": 200,
+    "globalApi404": false,
+    "controllerReached": true,
+    "ok": true,
+    "mode": "exclude_shortage_quantity"
+  },
+  "workflow": {
+    "rawImportType": "salesOrdersS3",
+    "previewReturnedShortage": true,
+    "reviewGetSucceeded": true,
+    "modalVisible": true,
+    "shortageRowsRendered": 1,
+    "reviewPutSucceeded": true,
+    "commitCalledAfterReview": true,
+    "reviewMode": "exclude_shortage_quantity"
+  }
+}
