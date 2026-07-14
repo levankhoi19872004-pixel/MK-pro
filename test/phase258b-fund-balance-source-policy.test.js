@@ -19,6 +19,8 @@ function row(overrides = {}) {
     account: 'CASH',
     direction: 'in',
     amount: 33101000,
+    deliveryDate: '2026-07-14',
+    deliveryStaffCode: 'GH-TEST',
     accountingConfirmed: true,
     accountingStatus: 'confirmed',
     status: 'posted',
@@ -27,14 +29,15 @@ function row(overrides = {}) {
   };
 }
 
-test('Phase258B: ORDER_PAYMENT_ALLOCATION aliases are non-balance, DELIVERY_CASH_SUBMISSION affects balance', () => {
-  assert.equal(FundLedgerBalancePolicy.affectsFundBalance(row({ sourceType: 'ORDER_PAYMENT_ALLOCATION' })), false);
-  assert.equal(FundLedgerBalancePolicy.affectsFundBalance(row({ refType: 'ORDER_PAYMENT_ALLOCATION' })), false);
-  assert.equal(FundLedgerBalancePolicy.affectsFundBalance(row({ referenceType: 'ORDER_PAYMENT_ALLOCATION' })), false);
+test('Phase258C: ORDER_PAYMENT_ALLOCATION is preserved unless historical ownership proves supersession', () => {
+  assert.equal(FundLedgerBalancePolicy.affectsFundBalance(row({ sourceType: 'ORDER_PAYMENT_ALLOCATION' })), true);
+  assert.equal(FundLedgerBalancePolicy.affectsFundBalance(row({ refType: 'ORDER_PAYMENT_ALLOCATION' })), true);
+  assert.equal(FundLedgerBalancePolicy.affectsFundBalance(row({ referenceType: 'ORDER_PAYMENT_ALLOCATION' })), true);
+  assert.equal(FundLedgerBalancePolicy.affectsFundBalance(row({ sourceType: 'ORDER_PAYMENT_ALLOCATION' }), { classification: 'PROVEN_DUPLICATE' }), false);
   assert.equal(FundLedgerBalancePolicy.affectsFundBalance(row({ sourceType: 'DELIVERY_CASH_SUBMISSION' })), true);
 });
 
-test('Phase258B: canonical FundBalanceReadService excludes OPA from summary and rows', () => {
+test('Phase258C: canonical FundBalanceReadService excludes only proven OPA duplicate from summary and rows', () => {
   const rows = [
     row({ id: 'OPA-1', sourceType: 'ORDER_PAYMENT_ALLOCATION' }),
     row({ id: 'NQGH-1', sourceType: 'DELIVERY_CASH_SUBMISSION' })
@@ -53,8 +56,7 @@ test('Phase258B: canonical FundBalanceReadService excludes OPA from summary and 
 test('Phase258B: canonical Mongo filter and dashboard recent transactions share balance policy', () => {
   const filter = FundBalanceReadService.fundLedgerCanonicalFilter({});
   const serialized = util.inspect(filter, { depth: 20 });
-  assert.match(serialized, /ORDER_PAYMENT_ALLOCATION/);
-  assert.match(serialized, /\$nor/);
+  assert.doesNotMatch(serialized, /ORDER_PAYMENT_ALLOCATION/);
 
   const dashboardSource = FundDashboardReadService.getFundDashboard.toString();
   assert.match(dashboardSource, /loadRecentTransactions/);
@@ -64,6 +66,6 @@ test('Phase258B: canonical Mongo filter and dashboard recent transactions share 
 test('Phase258B: source contract states OPA is non-balance and remittance owns delivery fund balance', () => {
   const note = buildSourceNote('fund-ledger');
   assert.match(note.balancePolicy, /ORDER_PAYMENT_ALLOCATION/);
-  assert.match(note.balancePolicy, /does not affect fund balance/);
+  assert.match(note.balancePolicy, /preserved for legacy-only history/);
   assert.match(note.balancePolicy, /DELIVERY_CASH_SUBMISSION/);
 });

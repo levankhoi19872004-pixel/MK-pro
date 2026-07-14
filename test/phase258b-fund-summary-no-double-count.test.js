@@ -26,17 +26,22 @@ function ledger(overrides = {}) {
   };
 }
 
-test('Phase258B: FundSummaryDomain excludes OPA and counts delivery remittance once', () => {
+test('Phase258C: FundSummaryDomain preserves OPA row-level unless ownership context proves duplicate', () => {
   const normalized = [
     fundSummaryService.normalizeLedgerForSummary(ledger({ id: 'OPA-1', idempotencyKey: 'OPA-1', sourceType: 'ORDER_PAYMENT_ALLOCATION' })),
+    fundSummaryService.normalizeLedgerForSummary(
+      ledger({ id: 'OPA-DUP', idempotencyKey: 'OPA-DUP', sourceType: 'ORDER_PAYMENT_ALLOCATION' }),
+      { classification: 'PROVEN_DUPLICATE' }
+    ),
     fundSummaryService.normalizeLedgerForSummary(ledger({ id: 'NQGH-1', idempotencyKey: 'NQGH-1', sourceType: 'DELIVERY_CASH_SUBMISSION' }))
   ];
-  assert.equal(normalized[0], null);
-  assert.ok(normalized[1]);
+  assert.ok(normalized[0]);
+  assert.equal(normalized[1], null);
+  assert.ok(normalized[2]);
   const summary = fundSummaryService.summarizeNormalizedTransactions(normalized);
-  assert.equal(summary.totals.totalDeposited, 33101000);
-  assert.equal(summary.totals.depositVoucherCount, 1);
-  assert.equal(summary.rows.length, 1);
+  assert.equal(summary.totals.totalDeposited, 66202000);
+  assert.equal(summary.totals.depositVoucherCount, 2);
+  assert.equal(summary.rows.length, 2);
 });
 
 test('Phase258B: FundSummary runtime and export pipelines include balance-affecting source policy', () => {
@@ -44,5 +49,5 @@ test('Phase258B: FundSummary runtime and export pipelines include balance-affect
   const pipeline = fundSummaryService.buildNormalizedVoucherPipeline(filters);
   const source = util.inspect(pipeline, { depth: 30 });
   assert.match(source, /ORDER_PAYMENT_ALLOCATION/);
-  assert.match(source, /\$nor/);
+  assert.match(source, /phase258cOpaSupersededByDcs/);
 });

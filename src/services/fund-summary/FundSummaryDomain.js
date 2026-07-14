@@ -233,11 +233,11 @@ function classifyTransaction(entry = {}) {
   return 'OTHER';
 }
 
-function normalizeLedgerForSummary(entry = {}) {
+function normalizeLedgerForSummary(entry = {}, context = {}) {
   const status = lower(entry.status);
   if (BLOCKED_LEDGER_STATUSES.includes(status) || entry.isDeleted === true || entry.deletedAt) return null;
   const sourceType = upper(entry.sourceType || entry.refType || entry.referenceType || 'UNKNOWN');
-  if (!FundLedgerBalancePolicy.affectsFundBalance(entry)) return null;
+  if (!FundLedgerBalancePolicy.affectsFundBalance(entry, context)) return null;
   if (status && !ACTIVE_LEDGER_STATUSES.includes(status)) return null;
   const amount = Math.abs(safeMoney(entry.amount ?? entry.debit ?? entry.credit));
   if (!amount) return null;

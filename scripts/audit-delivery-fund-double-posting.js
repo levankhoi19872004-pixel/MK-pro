@@ -105,23 +105,33 @@ function summarizeRows(rows = [], options = {}) {
   const opa = emptyTotals();
   const submission = emptyTotals();
   const raw = emptyTotals();
-  const canonical = emptyTotals();
   const affectedDates = new Set();
   const affectedDeliveryStaff = new Set();
+  const scopedRows = [];
 
   for (const row of rows) {
     const date = ledgerDate(row);
     if (!date || date < options.dateFrom || date > options.dateTo) continue;
     if (options.fundType && ledgerFundType(row) !== options.fundType) continue;
     if (options.delivery && ![row.deliveryStaffCode, row.deliveryStaffName].some((value) => lower(value).includes(lower(options.delivery)))) continue;
+    scopedRows.push(row);
     const sourceType = sourceTypeOf(row);
     add(raw, row);
     if (sourceType === 'ORDER_PAYMENT_ALLOCATION') add(opa, row);
     if (sourceType === 'DELIVERY_CASH_SUBMISSION') add(submission, row);
-    if (FundLedgerBalancePolicy.affectsFundBalance(row) && FundBalanceReadService.isCanonicalFundLedgerRow(row)) add(canonical, row);
     affectedDates.add(date);
     if (row.deliveryStaffCode || row.deliveryStaffName) affectedDeliveryStaff.add(text(row.deliveryStaffCode || row.deliveryStaffName));
   }
+  const canonicalResult = FundBalanceReadService.calculateFixture(scopedRows, {
+    dateFrom: options.dateFrom,
+    dateTo: options.dateTo,
+    full: true,
+    fundType: options.fundType || ''
+  });
+  const canonical = {
+    cash: canonicalResult.summary.cashInPeriod,
+    bank: canonicalResult.summary.bankInPeriod
+  };
 
   return {
     orderPaymentAllocationFund: opa,

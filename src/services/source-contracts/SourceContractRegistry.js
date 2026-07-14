@@ -2,7 +2,7 @@
 
 const REPORTING_SNAPSHOT_COLLECTION = ['reporting', 'snapshots'].join('_');
 const INVENTORY_SNAPSHOT_COLLECTION = ['inventory', 'Snapshots'].join('');
-const FUND_BALANCE_POLICY_TEXT = 'Fund balance = realized balance-affecting fundLedgers only; ORDER_PAYMENT_ALLOCATION is allocation/accounting evidence and does not affect fund balance; confirmed DELIVERY_CASH_SUBMISSION owns delivery cash/bank fund balance.';
+const FUND_BALANCE_POLICY_TEXT = 'Fund balance = canonical fundLedgers with historical ownership resolution; ORDER_PAYMENT_ALLOCATION is preserved for legacy-only history and excluded only when proven superseded by DELIVERY_CASH_SUBMISSION; confirmed DELIVERY_CASH_SUBMISSION owns current delivery cash/bank fund balance.';
 
 const RAW_SOURCE_CONTRACTS = Object.freeze({
   'dashboard-sales-today': {

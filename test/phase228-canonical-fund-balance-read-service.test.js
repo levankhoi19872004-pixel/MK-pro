@@ -97,9 +97,9 @@ test('Phase228: keyword/direction/sourceType chỉ lọc rows, không đổi end
   for (const result of [byKeyword, byDirection]) {
     assert.equal(result.summary.cashEndingBalance, base.summary.cashEndingBalance);
   }
-  assert.equal(byKeyword.totalRows, 0);
-  assert.equal(byDirection.totalRows, 1);
-  assert.equal(bySource.totalRows, 0);
+  assert.equal(byKeyword.totalRows, 1);
+  assert.equal(byDirection.totalRows, 2);
+  assert.equal(bySource.totalRows, 1);
   assert.equal(bySource.summary.cashEndingBalance, base.summary.cashEndingBalance);
 });
 

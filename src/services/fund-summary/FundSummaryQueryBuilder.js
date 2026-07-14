@@ -10,6 +10,7 @@ const { text, upper, constants: domainConstants } = require('./FundSummaryDomain
 const { vietnamUtcRange } = require('./FundSummaryFilters');
 
 const { ACTIVE_LEDGER_STATUSES, BLOCKED_LEDGER_STATUSES } = domainConstants;
+const HistoricalFundOwnershipPolicy = FundLedgerBalancePolicy.HistoricalFundOwnershipPolicy;
 
 function mongoString(expression) {
   return {
@@ -502,11 +503,135 @@ function baseNormalizationStages(filters) {
     },
     { $addFields: { _transactionClass: transactionClassExpression() } },
     { $match: { _normalizedAmount: { $gt: 0 }, _transactionClass: { $ne: 'OTHER' } } },
+    {
+      $addFields: {
+        _fundCanonicalSourceType: '$_sourceTypeUpper',
+        _fundDirection: '$_effectiveDirection',
+        _fundAmount: '$_normalizedAmount',
+        _fundOwnershipStaff: {
+          $toUpper: mongoFirstText(['$deliveryStaffCode', '$deliveryCode', '$nvghCode', '$deliveryStaffName'])
+        },
+        _fundOwnershipDeliveryDate: mongoString('$deliveryDate')
+      }
+    },
+    {
+      $addFields: {
+        _fundOwnershipGroupKey: {
+          $cond: [
+            {
+              $and: [
+                { $gt: [{ $strLenCP: '$_fundOwnershipStaff' }, 0] },
+                { $gt: [{ $strLenCP: '$_fundOwnershipDeliveryDate' }, 0] },
+                { $gt: [{ $strLenCP: mongoString('$fundType') }, 0] }
+              ]
+            },
+            {
+              $concat: [
+                '$_fundOwnershipStaff',
+                '|',
+                '$_fundOwnershipDeliveryDate',
+                '|',
+                { $toLower: mongoString('$fundType') }
+              ]
+            },
+            ''
+          ]
+        },
+        _fundOwnershipPartitionKey: {
+          $cond: [
+            {
+              $and: [
+                {
+                  $in: [
+                    '$_fundCanonicalSourceType',
+                    [
+                      HistoricalFundOwnershipPolicy.ORDER_PAYMENT_ALLOCATION,
+                      HistoricalFundOwnershipPolicy.DELIVERY_CASH_SUBMISSION
+                    ]
+                  ]
+                },
+                { $gt: [{ $strLenCP: '$_fundOwnershipGroupKey' }, 0] }
+              ]
+            },
+            '$_fundOwnershipGroupKey',
+            { $concat: ['ROW|', { $toString: '$_id' }] }
+          ]
+        }
+      }
+    },
+    ...historicalOwnershipResolutionStages(),
     lookupBySource(ExpenseVoucher.collection.name, 'expenseSource', ['EXPENSE_VOUCHER'], filters.multiTenant),
     lookupBySource(DebtCollection.collection.name, 'debtSource', ['DEBTCOLLECTION', 'DEBT_COLLECTION'], filters.multiTenant),
     lookupBySource(SupplierPayment.collection.name, 'supplierSource', ['SUPPLIERPAYMENT', 'SUPPLIER_PAYMENT'], filters.multiTenant),
     lookupBySource(Receipt.collection.name, 'receiptSource', ['AR_RECEIPT', 'RECEIPT'], filters.multiTenant),
     ...buildIdentityStages()
+  ];
+}
+
+function historicalOwnershipResolutionStages() {
+  return [
+    {
+      $setWindowFields: {
+        partitionBy: '$_fundOwnershipPartitionKey',
+        output: {
+          _phase258cOpaGroupAmount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$_fundCanonicalSourceType', HistoricalFundOwnershipPolicy.ORDER_PAYMENT_ALLOCATION] },
+                    { $eq: ['$_fundDirection', 'in'] }
+                  ]
+                },
+                '$_fundAmount',
+                0
+              ]
+            },
+            window: { documents: ['unbounded', 'unbounded'] }
+          },
+          _phase258cDcsGroupAmount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$_fundCanonicalSourceType', HistoricalFundOwnershipPolicy.DELIVERY_CASH_SUBMISSION] },
+                    { $eq: ['$_fundDirection', 'in'] }
+                  ]
+                },
+                '$_fundAmount',
+                0
+              ]
+            },
+            window: { documents: ['unbounded', 'unbounded'] }
+          },
+          _phase258cDcsGroupRows: {
+            $sum: {
+              $cond: [
+                { $eq: ['$_fundCanonicalSourceType', HistoricalFundOwnershipPolicy.DELIVERY_CASH_SUBMISSION] },
+                1,
+                0
+              ]
+            },
+            window: { documents: ['unbounded', 'unbounded'] }
+          }
+        }
+      }
+    },
+    {
+      $addFields: {
+        _phase258cOpaSupersededByDcs: {
+          $and: [
+            { $eq: ['$_fundCanonicalSourceType', HistoricalFundOwnershipPolicy.ORDER_PAYMENT_ALLOCATION] },
+            { $eq: ['$_fundDirection', 'in'] },
+            { $gt: [{ $strLenCP: '$_fundOwnershipGroupKey' }, 0] },
+            { $gt: ['$_phase258cOpaGroupAmount', 0] },
+            { $eq: ['$_phase258cOpaGroupAmount', '$_phase258cDcsGroupAmount'] },
+            { $gt: ['$_phase258cDcsGroupRows', 0] }
+          ]
+        }
+      }
+    },
+    { $match: { _phase258cOpaSupersededByDcs: { $ne: true } } }
   ];
 }
 
@@ -700,6 +825,7 @@ function summarySort(filters) {
 
 module.exports = {
   buildNormalizedVoucherPipeline,
+  historicalOwnershipResolutionStages,
   personGroupStages,
   summarySort
 };

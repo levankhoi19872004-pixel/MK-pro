@@ -1,7 +1,10 @@
 'use strict';
 
-const NON_BALANCE_SOURCE_TYPES = Object.freeze(new Set([
-  'ORDER_PAYMENT_ALLOCATION'
+const HistoricalFundOwnershipPolicy = require('./HistoricalFundOwnershipPolicy');
+
+const NON_BALANCE_SOURCE_TYPES = Object.freeze(new Set());
+const HISTORICAL_OWNERSHIP_SOURCE_TYPES = Object.freeze(new Set([
+  HistoricalFundOwnershipPolicy.ORDER_PAYMENT_ALLOCATION
 ]));
 
 function text(value = '') {
@@ -12,8 +15,13 @@ function canonicalFundSourceType(row = {}) {
   return text(row.sourceType || row.refType || row.referenceType || '').toUpperCase();
 }
 
-function affectsFundBalance(row = {}) {
-  return !NON_BALANCE_SOURCE_TYPES.has(canonicalFundSourceType(row));
+function affectsFundBalance(row = {}, context = {}) {
+  const sourceType = canonicalFundSourceType(row);
+  if (NON_BALANCE_SOURCE_TYPES.has(sourceType)) return false;
+  if (HISTORICAL_OWNERSHIP_SOURCE_TYPES.has(sourceType)) {
+    return HistoricalFundOwnershipPolicy.isBalanceAffecting(row, context);
+  }
+  return true;
 }
 
 function nonBalanceSourceMongoNor() {
@@ -22,6 +30,7 @@ function nonBalanceSourceMongoNor() {
     const exact = new RegExp(`^${sourceType}$`, 'i');
     branches.push({ sourceType: exact }, { refType: exact }, { referenceType: exact });
   }
+  if (!branches.length) return {};
   return { $nor: branches };
 }
 
@@ -31,8 +40,10 @@ function balanceAffectingMongoFilter() {
 
 module.exports = {
   NON_BALANCE_SOURCE_TYPES,
+  HISTORICAL_OWNERSHIP_SOURCE_TYPES,
   canonicalFundSourceType,
   affectsFundBalance,
   nonBalanceSourceMongoNor,
-  balanceAffectingMongoFilter
+  balanceAffectingMongoFilter,
+  HistoricalFundOwnershipPolicy
 };

@@ -9,6 +9,7 @@ const {
   stringExpression
 } = require('../dashboard/DashboardMongoExpressions');
 const FundLedgerBalancePolicy = require('./FundLedgerBalancePolicy');
+const HistoricalFundOwnershipPolicy = FundLedgerBalancePolicy.HistoricalFundOwnershipPolicy;
 
 const DEFAULT_TIMEZONE = dateUtil.VIETNAM_TIME_ZONE || 'Asia/Ho_Chi_Minh';
 const DEFAULT_LIMIT = 50;
@@ -231,6 +232,13 @@ function normalizationStages(timezone = DEFAULT_TIMEZONE) {
     {
       $set: {
         _fundBusinessDate: canonicalBusinessDateExpression(timezone),
+        _fundCanonicalSourceType: {
+          $toUpper: firstNonBlankExpression(['sourceType', 'refType', 'referenceType'], '')
+        },
+        _fundOwnershipDeliveryDate: normalizedDateFieldExpression('deliveryDate'),
+        _fundOwnershipStaff: {
+          $toUpper: firstNonBlankExpression(['deliveryStaffCode', 'deliveryCode', 'nvghCode', 'deliveryStaffName'], '')
+        },
         _fundType: normalizedFundTypeExpression(),
         _fundDirection: normalizedDirectionExpression(),
         _fundAmount: normalizedAmountExpression(),
@@ -266,6 +274,34 @@ function normalizationStages(timezone = DEFAULT_TIMEZONE) {
             { $multiply: ['$_fundAmount', -1] },
             '$_fundAmount'
           ]
+        },
+        _fundOwnershipGroupKey: {
+          $cond: [
+            {
+              $and: [
+                { $gt: [{ $strLenCP: '$_fundOwnershipStaff' }, 0] },
+                { $gt: [{ $strLenCP: '$_fundOwnershipDeliveryDate' }, 0] },
+                { $gt: [{ $strLenCP: '$_fundType' }, 0] }
+              ]
+            },
+            { $concat: ['$_fundOwnershipStaff', '|', '$_fundOwnershipDeliveryDate', '|', '$_fundType'] },
+            ''
+          ]
+        },
+        _fundOwnershipPartitionKey: {
+          $cond: [
+            {
+              $and: [
+                { $in: ['$_fundCanonicalSourceType', [
+                  HistoricalFundOwnershipPolicy.ORDER_PAYMENT_ALLOCATION,
+                  HistoricalFundOwnershipPolicy.DELIVERY_CASH_SUBMISSION
+                ]] },
+                { $gt: [{ $strLenCP: '$_fundOwnershipGroupKey' }, 0] }
+              ]
+            },
+            '$_fundOwnershipGroupKey',
+            { $concat: ['ROW|', { $toString: '$_id' }] }
+          ]
         }
       }
     },
@@ -274,6 +310,117 @@ function normalizationStages(timezone = DEFAULT_TIMEZONE) {
         _fundPartitionKey: { $concat: ['$_fundType', ':', '$_fundAccount'] }
       }
     }
+  ];
+}
+
+function historicalOwnershipResolutionStages() {
+  return [
+    {
+      $setWindowFields: {
+        partitionBy: '$_fundOwnershipPartitionKey',
+        output: {
+          _phase258cOpaGroupAmount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$_fundCanonicalSourceType', HistoricalFundOwnershipPolicy.ORDER_PAYMENT_ALLOCATION] },
+                    { $eq: ['$_fundDirection', 'in'] }
+                  ]
+                },
+                '$_fundAmount',
+                0
+              ]
+            },
+            window: { documents: ['unbounded', 'unbounded'] }
+          },
+          _phase258cDcsGroupAmount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$_fundCanonicalSourceType', HistoricalFundOwnershipPolicy.DELIVERY_CASH_SUBMISSION] },
+                    { $eq: ['$_fundDirection', 'in'] }
+                  ]
+                },
+                '$_fundAmount',
+                0
+              ]
+            },
+            window: { documents: ['unbounded', 'unbounded'] }
+          },
+          _phase258cOpaGroupRows: {
+            $sum: {
+              $cond: [
+                { $eq: ['$_fundCanonicalSourceType', HistoricalFundOwnershipPolicy.ORDER_PAYMENT_ALLOCATION] },
+                1,
+                0
+              ]
+            },
+            window: { documents: ['unbounded', 'unbounded'] }
+          },
+          _phase258cDcsGroupRows: {
+            $sum: {
+              $cond: [
+                { $eq: ['$_fundCanonicalSourceType', HistoricalFundOwnershipPolicy.DELIVERY_CASH_SUBMISSION] },
+                1,
+                0
+              ]
+            },
+            window: { documents: ['unbounded', 'unbounded'] }
+          }
+        }
+      }
+    },
+    {
+      $set: {
+        _phase258cOpaSupersededByDcs: {
+          $and: [
+            { $eq: ['$_fundCanonicalSourceType', HistoricalFundOwnershipPolicy.ORDER_PAYMENT_ALLOCATION] },
+            { $eq: ['$_fundDirection', 'in'] },
+            { $gt: [{ $strLenCP: '$_fundOwnershipGroupKey' }, 0] },
+            { $gt: ['$_phase258cOpaGroupAmount', 0] },
+            { $eq: ['$_phase258cOpaGroupAmount', '$_phase258cDcsGroupAmount'] },
+            { $gt: ['$_phase258cDcsGroupRows', 0] }
+          ]
+        },
+        _phase258cOwnershipClassification: {
+          $switch: {
+            branches: [
+              {
+                case: {
+                  $and: [
+                    { $eq: ['$_fundCanonicalSourceType', HistoricalFundOwnershipPolicy.ORDER_PAYMENT_ALLOCATION] },
+                    { $eq: ['$_fundDirection', 'in'] },
+                    { $gt: [{ $strLenCP: '$_fundOwnershipGroupKey' }, 0] },
+                    { $gt: ['$_phase258cOpaGroupAmount', 0] },
+                    { $eq: ['$_phase258cOpaGroupAmount', '$_phase258cDcsGroupAmount'] },
+                    { $gt: ['$_phase258cDcsGroupRows', 0] }
+                  ]
+                },
+                then: HistoricalFundOwnershipPolicy.CLASSIFICATION.PROVEN_DUPLICATE
+              },
+              {
+                case: {
+                  $and: [
+                    { $eq: ['$_fundCanonicalSourceType', HistoricalFundOwnershipPolicy.ORDER_PAYMENT_ALLOCATION] },
+                    { $gt: ['$_phase258cDcsGroupAmount', 0] },
+                    { $ne: ['$_phase258cOpaGroupAmount', '$_phase258cDcsGroupAmount'] }
+                  ]
+                },
+                then: HistoricalFundOwnershipPolicy.CLASSIFICATION.PARTIAL_OVERLAP
+              },
+              {
+                case: { $eq: ['$_fundCanonicalSourceType', HistoricalFundOwnershipPolicy.ORDER_PAYMENT_ALLOCATION] },
+                then: HistoricalFundOwnershipPolicy.CLASSIFICATION.LEGACY_ONLY
+              }
+            ],
+            default: HistoricalFundOwnershipPolicy.CLASSIFICATION.NOT_APPLICABLE
+          }
+        }
+      }
+    },
+    { $match: { _phase258cOpaSupersededByDcs: { $ne: true } } }
   ];
 }
 
@@ -358,6 +505,7 @@ function buildSummaryPipeline(filters = {}) {
     ...normalizationStages(filters.timezone),
     { $match: buildNormalizedScopeMatch(filters) },
     { $match: { _fundBusinessDate: { $lte: filters.dateTo } } },
+    ...historicalOwnershipResolutionStages(),
     {
       $group: {
         _id: { fundType: '$_fundType', account: '$_fundAccount' },
@@ -432,6 +580,7 @@ function buildRowsPipeline(filters = {}) {
     ...normalizationStages(filters.timezone),
     { $match: buildNormalizedScopeMatch(filters) },
     { $match: { _fundBusinessDate: { $lte: filters.dateTo } } },
+    ...historicalOwnershipResolutionStages(),
     {
       $setWindowFields: {
         partitionBy: '$_fundPartitionKey',
@@ -564,7 +713,11 @@ function mapRuntimeRow(row = {}) {
   const plain = { ...row };
   for (const key of [
     '_fundBusinessDate', '_fundType', '_fundDirection', '_fundAmount', '_fundSignedAmount',
-    '_fundAccount', '_fundPartitionKey', '_fundCreatedAtSort', '_runningBalanceAfterTransaction'
+    '_fundAccount', '_fundPartitionKey', '_fundCreatedAtSort', '_runningBalanceAfterTransaction',
+    '_fundCanonicalSourceType', '_fundOwnershipDeliveryDate', '_fundOwnershipStaff',
+    '_fundOwnershipGroupKey', '_fundOwnershipPartitionKey', '_phase258cOpaGroupAmount', '_phase258cDcsGroupAmount',
+    '_phase258cOpaGroupRows', '_phase258cDcsGroupRows', '_phase258cOpaSupersededByDcs',
+    '_phase258cOwnershipClassification'
   ]) delete plain[key];
   const amount = number(row._fundAmount);
   const direction = row._fundDirection === 'out' ? 'out' : 'in';
@@ -743,9 +896,17 @@ function fixtureMatchesListing(row = {}, normalized = {}, filters = {}) {
  */
 function calculateFixture(rows = [], query = {}) {
   const filters = normalizeQuery(query);
-  const canonicalRows = rows
+  const baseCanonicalRows = rows
     .filter(isCanonicalFundLedgerRow)
-    .filter((row) => fixtureMatchesScope(row, filters))
+    .filter((row) => fixtureMatchesScope(row, filters));
+  const ownershipByLedgerId = HistoricalFundOwnershipPolicy.classifyOwnership(
+    baseCanonicalRows.filter((row) => {
+      const date = canonicalDateOfRow(row, filters.timezone);
+      return date && date <= filters.dateTo;
+    })
+  );
+  const canonicalRows = baseCanonicalRows
+    .filter((row) => FundLedgerBalancePolicy.affectsFundBalance(row, { ownershipByLedgerId }))
     .map((row) => {
       const fundType = fundTypeOfRow(row);
       const account = accountOfRow(row, fundType);
@@ -825,7 +986,8 @@ function calculateFixture(rows = [], query = {}) {
     summary: { ...summary, filteredRowsTotalIn, filteredRowsTotalOut },
     rows: paged,
     totalRows: desc.length,
-    excludedLedgerCount: rows.length - canonicalRows.length
+    excludedLedgerCount: rows.length - canonicalRows.length,
+    ownershipClassifications: Array.from(ownershipByLedgerId.values())
   };
 }
 
@@ -837,6 +999,7 @@ module.exports = {
   fundLedgerCanonicalFilter,
   canonicalBusinessDateExpression,
   normalizationStages,
+  historicalOwnershipResolutionStages,
   buildBalanceScopeMatch,
   buildEarlyDateMatch,
   buildListingMatch,

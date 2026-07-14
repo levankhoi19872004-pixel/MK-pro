@@ -23,6 +23,7 @@ function ledger(overrides = {}) {
     direction: 'in',
     amount: 0,
     sourceType: 'DELIVERY_CASH_SUBMISSION',
+    deliveryDate: '2026-07-14',
     deliveryStaffCode: 'ghth',
     deliveryStaffName: 'GH Thanh',
     accountingConfirmed: true,

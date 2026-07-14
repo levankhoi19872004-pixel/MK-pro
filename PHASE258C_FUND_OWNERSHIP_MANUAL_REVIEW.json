@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-07-14T00:00:00.000+07:00",
+  "mode": "fixture/test evidence",
+  "productionEvidenceStatus": "not_run_in_local_workspace",
+  "rows": [
+    {
+      "classification": "PARTIAL_OVERLAP",
+      "reason": "aggregate_amount_mismatch_manual_review_required",
+      "example": {
+        "opaCash": 33101000,
+        "dcsCash": 30000000,
+        "autoExcludeWholeOpa": false
+      }
+    },
+    {
+      "classification": "AMBIGUOUS",
+      "reason": "missing_delivery_staff_or_delivery_date",
+      "autoExcludeOpa": false
+    }
+  ],
+  "productionManualReviewCommand": "node scripts/audit-historical-fund-ownership-reconciliation.js --opening-date=2026-07-14 --json"
+}

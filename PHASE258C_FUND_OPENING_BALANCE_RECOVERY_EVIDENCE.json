@@ -1,0 +1,48 @@
+{
+  "generatedAt": "2026-07-14T00:00:00.000+07:00",
+  "mode": "fixture/test evidence",
+  "productionEvidenceStatus": "not_run_in_local_workspace",
+  "fixtureCases": {
+    "exactDuplicate": {
+      "opaCash": 33101000,
+      "dcsCash": 33101000,
+      "phase258bStyleRawInflow": 66202000,
+      "phase258cCanonicalInflow": 33101000,
+      "provenDuplicateRemoved": 33101000
+    },
+    "legacyOnly": {
+      "opaCash": 20000000,
+      "dcsCash": 0,
+      "phase258cCanonicalInflow": 20000000,
+      "legacyOnlyRestored": 20000000
+    },
+    "partialOverlap": {
+      "opaCash": 33101000,
+      "dcsCash": 30000000,
+      "classification": "PARTIAL_OVERLAP",
+      "autoExcludeWholeOpa": false,
+      "manualReviewRequired": true
+    },
+    "delayedRemittance": {
+      "deliveryDate": "2026-07-13",
+      "remittanceDate": "2026-07-14",
+      "beforeRemittanceEndingBalance": 20000000,
+      "remittanceDayOpeningBalance": 0,
+      "remittanceDayInflow": 20000000
+    }
+  },
+  "balanceBeforePolicyPhase258B": {
+    "cash": "fixture-dependent",
+    "bank": "fixture-dependent"
+  },
+  "balanceByPhase258B": {
+    "cash": "production audit required",
+    "bank": "production audit required"
+  },
+  "balanceByPhase258C": {
+    "cash": "production audit required",
+    "bank": "production audit required"
+  },
+  "cashResult": "covered by tests; production value requires DB audit",
+  "bankResult": "covered by tests; production value requires DB audit"
+}
