@@ -85,7 +85,7 @@
         "src/services/fundService.source/part-02b.jsfrag",
         "src/services/fundService.source/part-03.jsfrag"
       ],
-      "sourceSha256": "b2ab9c7f7b5016cce8d8ed0dfc2dda9d230e95ea705faa3d3e781d38ca0143c5"
+      "sourceSha256": "f4eb4a79a715c53f3f71380b3736c3e00a00edafb145eae718895cbd8111bfc4"
     },
     {
       "target": "src/services/inventoryService.js",

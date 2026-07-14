@@ -53,8 +53,10 @@ test('preview dùng API nghiệp vụ hiện hữu và tổng tiền chuẩn t�
   assert.match(service, /reportCurrentOrderBankAmount/);
   assert.match(service, /reportOldDebtCashAmount/);
   assert.match(service, /reportOldDebtBankAmount/);
-  assert.match(service, /listDeliveryTodayOrdersCompact/);
+  assert.match(service, /DeliveryPaymentStateReadService\.resolvePaymentStatesForOrders/);
+  assert.match(service, /DeliveryPaymentStateReadService\.stateForOrder/);
   assert.match(service, /normalizeText\(pickDeliveryStaffCode\(row\)/);
+  assert.doesNotMatch(service, /numberFromRow\(row, \['cashAmount', 'cashCollected'\]\)/);
 });
 
 test('CSS hỗ trợ popup rộng, KPI và bảng cuộn trực quan', () => {

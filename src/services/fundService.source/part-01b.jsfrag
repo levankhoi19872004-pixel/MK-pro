@@ -12,11 +12,26 @@ async function buildDeliverySubmissionDraft(query = {}) {
     normalizeText(pickDeliveryStaffCode(row) || row.deliveryStaffCode) === selectedStaffCode
   ));
   if (!orders.length) return { error: 'Không có đơn giao để tạo phiếu nộp quỹ', status: 404 };
-  const deliveryStaffName = orders.find((row) => row.deliveryStaffName)?.deliveryStaffName || deliveryStaffCode;
-  const reportCurrentOrderCashAmount = orders.reduce((sum, row) => sum + numberFromRow(row, ['cashAmount', 'cashCollected']), 0);
-  const reportCurrentOrderBankAmount = orders.reduce((sum, row) => sum + numberFromRow(row, ['bankAmount', 'bankCollected', 'transferAmount']), 0);
-  const reportOldDebtCashAmount = orders.reduce((sum, row) => sum + numberFromRow(row, ['oldDebtCashCollected', 'debtCashCollected', 'arCashCollected']), 0);
-  const reportOldDebtBankAmount = orders.reduce((sum, row) => sum + numberFromRow(row, ['oldDebtBankCollected', 'debtBankCollected', 'arBankCollected']), 0);
+  const canonicalPaymentStates = await DeliveryPaymentStateReadService.resolvePaymentStatesForOrders(orders);
+  const resolvedOrders = orders.map((row) => {
+    const paymentState = DeliveryPaymentStateReadService.stateForOrder(row, canonicalPaymentStates.statesByIdentity);
+    return {
+      ...row,
+      cashAmount: money(paymentState.cashAmount),
+      bankAmount: money(paymentState.bankAmount),
+      rewardAmount: money(paymentState.rewardAmount),
+      bonusAmount: money(paymentState.rewardAmount),
+      deliveryPaymentStateSource: paymentState.source && paymentState.source.paymentState,
+      latestCorrectionVersion: paymentState.latestCorrectionVersion || 0,
+      paymentAllocationCode: paymentState.paymentAllocationCode || '',
+      stalePaymentAllocationIgnored: paymentState.stalePaymentAllocationIgnored === true
+    };
+  });
+  const deliveryStaffName = resolvedOrders.find((row) => row.deliveryStaffName)?.deliveryStaffName || deliveryStaffCode;
+  const reportCurrentOrderCashAmount = resolvedOrders.reduce((sum, row) => sum + money(row.cashAmount), 0);
+  const reportCurrentOrderBankAmount = resolvedOrders.reduce((sum, row) => sum + money(row.bankAmount), 0);
+  const reportOldDebtCashAmount = resolvedOrders.reduce((sum, row) => sum + numberFromRow(row, ['oldDebtCashCollected', 'debtCashCollected', 'arCashCollected']), 0);
+  const reportOldDebtBankAmount = resolvedOrders.reduce((sum, row) => sum + numberFromRow(row, ['oldDebtBankCollected', 'debtBankCollected', 'arBankCollected']), 0);
   const reportCashAmount = reportCurrentOrderCashAmount + reportOldDebtCashAmount;
   const reportBankAmount = reportCurrentOrderBankAmount + reportOldDebtBankAmount;
   const code = deliverySubmissionCode(deliveryDate, deliveryStaffCode);
@@ -45,8 +60,8 @@ async function buildDeliverySubmissionDraft(query = {}) {
     reportCurrentOrderBankAmount,
     reportOldDebtCashAmount,
     reportOldDebtBankAmount,
-    orderCodes: orders.map((row) => row.orderCode || row.code || '').filter(Boolean),
-    orderIds: orders.map((row) => row.id || '').filter(Boolean),
+    orderCodes: resolvedOrders.map((row) => row.orderCode || row.code || '').filter(Boolean),
+    orderIds: resolvedOrders.map((row) => row.id || '').filter(Boolean),
     note: String(query.note || '').trim(),
     createdBy: String(query.createdBy || '').trim(),
     createdAt: query.createdAt || dateUtil.nowIso(),
@@ -57,7 +72,7 @@ async function buildDeliverySubmissionDraft(query = {}) {
   draft.status = String(query.status || draft.status || 'pending').trim();
   draft.fundPosted = false;
   draft.hasPostedLines = false;
-  return { draft, orders, deliverySummary: data.summary || data.kpi || {} };
+  return { draft, orders: resolvedOrders, deliverySummary: data.summary || data.kpi || {} };
 }
 
 async function createDeliveryCashSubmission(body = {}) {

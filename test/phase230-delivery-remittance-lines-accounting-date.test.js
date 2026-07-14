@@ -122,6 +122,25 @@ function makeHarness(initialSubmission, options = {}) {
     'src/utils/transaction.util.js': { withMongoTransaction: async (work) => work({ id: 'TEST_SESSION' }) },
     'src/services/master-order/masterOrderDelivery.service.js': {
       listDeliveryTodayOrdersCompact: async () => ({ orders: structuredClone(deliveryOrders), summary: {} })
+    },
+    'src/services/delivery/DeliveryPaymentStateReadService.js': {
+      resolvePaymentStatesForOrders: async (orders = []) => ({
+        statesByIdentity: new Map(orders.flatMap((row) => {
+          const state = {
+            cashAmount: row.cashAmount || 0,
+            bankAmount: row.bankAmount || 0,
+            rewardAmount: row.rewardAmount || row.bonusAmount || 0,
+            source: { paymentState: 'orders.top-level' }
+          };
+          return [[row.id, state], [row.orderCode, state], [row.code, state]].filter(([key]) => key);
+        }))
+      }),
+      stateForOrder: (row, map) => map.get(row.id) || map.get(row.orderCode) || map.get(row.code) || {
+        cashAmount: row.cashAmount || 0,
+        bankAmount: row.bankAmount || 0,
+        rewardAmount: row.rewardAmount || row.bonusAmount || 0,
+        source: { paymentState: 'orders.top-level' }
+      }
     }
   });
 

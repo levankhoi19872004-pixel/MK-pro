@@ -11,6 +11,7 @@ const deliveryCashShortageRepository = require('../repositories/deliveryCashShor
 const deliveryShortageRepaymentRepository = require('../repositories/deliveryShortageRepaymentRepository');
 const auditService = require('./auditService');
 const FundBalanceReadService = require('./accounting/FundBalanceReadService');
+const DeliveryPaymentStateReadService = require('./delivery/DeliveryPaymentStateReadService');
 const {
   normalizeLines: normalizeRemittanceLines,
   linesFromLegacyAmounts,
@@ -402,4 +403,3 @@ function numberFromRow(row, keys = []) {
   }
   return 0;
 }
-

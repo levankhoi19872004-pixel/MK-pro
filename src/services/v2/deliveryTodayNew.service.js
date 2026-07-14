@@ -8,6 +8,7 @@ const { buildSourceNote } = require('../source-contracts/SourceNoteBuilder');
 const deliveryTodayCanonicalOrderReader = require('../delivery/deliveryTodayCanonicalOrderReader');
 const { calculateDeliveryTodayKpi } = require('../delivery/deliveryTodayKpiCalculator');
 const { evaluateCloseoutEligibility } = require('../accounting/closeout/CloseoutEligibility');
+const DeliveryPaymentStateReadService = require('../delivery/DeliveryPaymentStateReadService');
 
 
 function buildDeliveryTodaySourceNotes(query = {}) {
@@ -637,45 +638,27 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     return true;
   });
   const closeout = closeoutOf(order);
-  const latestVersion = latestVersionForOrder(order, versionsByKey);
-  const rawPostedAllocation = allocationForOrder(order, allocationsByKey);
-  const postedAllocation = allocationIsCurrentForVersion(rawPostedAllocation, latestVersion) ? rawPostedAllocation : null;
-  const stalePaymentAllocation = Boolean(rawPostedAllocation && !postedAllocation && latestVersion);
+  const paymentState = DeliveryPaymentStateReadService.resolvePaymentStateForOrder(order, versionsByKey, allocationsByKey);
+  const latestVersion = paymentState.latestVersion || null;
+  const rawPostedAllocation = paymentState.rawPostedAllocation || null;
+  const postedAllocation = paymentState.postedAllocation || null;
+  const stalePaymentAllocation = paymentState.stalePaymentAllocationIgnored === true;
   const originalAmount = postedAllocation
     ? money(postedAllocation.receivableAmount)
     : money((latestVersion && (latestVersion.originalAmount ?? latestVersion.saleAmount)) ?? closeout.originalAmount ?? orderAmount(order));
   const legacyReturnedAmount = money(uniqueReturns.reduce((sum, row) => sum + money(row.amount), 0));
   const returnedAmount = postedAllocation ? money(postedAllocation.returnAmount) : money((latestVersion && (latestVersion.returnedAmount ?? latestVersion.returnAmount)) ?? legacyReturnedAmount);
-  const baseBreakdown = moneyBreakdownForOrder(order);
-  const adjustedCashAmount = postedAllocation
-    ? money(postedAllocation.cashAmount)
-    : (latestVersion
-      ? money(latestVersion.cashAmount ?? latestVersion.newCashAmount ?? latestVersion.cashCollectedAmount ?? baseBreakdown.cashAmount)
-      : baseBreakdown.cashAmount);
-  const bankAmount = postedAllocation
-    ? money(postedAllocation.bankAmount)
-    : (latestVersion
-      ? money(latestVersion.bankAmount ?? latestVersion.newBankAmount ?? baseBreakdown.bankAmount)
-      : baseBreakdown.bankAmount);
-  const rewardAmount = postedAllocation
-    ? money(postedAllocation.rewardAmount)
-    : (latestVersion
-      ? money(latestVersion.rewardAmount ?? latestVersion.newRewardAmount ?? baseBreakdown.rewardAmount)
-      : baseBreakdown.rewardAmount);
-  const offsetAmount = postedAllocation ? 0 : (latestVersion ? 0 : baseBreakdown.offsetAmount);
-  const collected = postedAllocation
-    ? money(adjustedCashAmount + bankAmount + rewardAmount)
-    : (latestVersion
-      ? money(latestVersion.collectedAmount ?? latestVersion.newCollectedAmount ?? (adjustedCashAmount + bankAmount + rewardAmount + offsetAmount))
-      : money(baseBreakdown.collectedAmount || collectedAmount(order)));
-  const preferredDebtAmount = postedAllocation
-    ? money(postedAllocation.debtAmount ?? postedAllocation.normalizedDebtAmount ?? postedAllocation.rawDebtAmount)
-    : (latestVersion
-      ? money(latestVersion.finalDebtAmount ?? latestVersion.debtAmount)
-      : (closeout.finalDebtAmount !== undefined ? money(closeout.finalDebtAmount) : undefined));
-  const preferredDebtSource = postedAllocation
-    ? 'orderPaymentAllocations.current'
-    : (latestVersion ? 'deliveryCloseoutVersions.latest' : (closeout.finalDebtAmount !== undefined ? 'salesOrders.deliveryCloseout' : 'computed-formula'));
+  const adjustedCashAmount = money(paymentState.cashAmount);
+  const bankAmount = money(paymentState.bankAmount);
+  const rewardAmount = money(paymentState.rewardAmount);
+  const offsetAmount = money(paymentState.offsetAmount);
+  const collected = money(paymentState.collectedAmount || collectedAmount(order));
+  const preferredDebtAmount = paymentState.debtAmount !== undefined
+    ? money(paymentState.debtAmount)
+    : (closeout.finalDebtAmount !== undefined ? money(closeout.finalDebtAmount) : undefined);
+  const preferredDebtSource = paymentState.source && paymentState.source.paymentState !== 'orders.top-level'
+    ? paymentState.source.paymentState
+    : (closeout.finalDebtAmount !== undefined ? 'salesOrders.deliveryCloseout' : 'computed-formula');
   const kpi = calculateDeliveryTodayKpi({
     receivableAmount: originalAmount,
     cashAmount: adjustedCashAmount,

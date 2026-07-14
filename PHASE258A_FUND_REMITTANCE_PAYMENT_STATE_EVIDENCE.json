@@ -1,0 +1,37 @@
+{
+  "order": {
+    "orderCode": "B0039325",
+    "deliveryDate": "2026-07-11",
+    "deliveryStaffCode": "ghtp"
+  },
+  "legacyStoredState": {
+    "cashAmount": 7587000,
+    "bankAmount": 0,
+    "rewardAmount": 0
+  },
+  "canonicalState": {
+    "cashAmount": 0,
+    "bankAmount": 0,
+    "rewardAmount": 8300000,
+    "debtAmount": 3657117,
+    "source": "orderPaymentAllocations.current"
+  },
+  "fundPreviewBefore": {
+    "orderCashAmount": 7587000,
+    "reportCashAmount": 10953000,
+    "submittedCashAmount": 3366000,
+    "differenceCashAmount": -7587000
+  },
+  "fundPreviewAfter": {
+    "orderCashAmount": 0,
+    "reportCashAmount": 3366000,
+    "submittedCashAmount": 3366000,
+    "differenceCashAmount": 0,
+    "matchStatus": "matched"
+  },
+  "crossScreenConsistency": {
+    "deliveryTodayCashAmount": 0,
+    "fundPreviewCashAmount": 0,
+    "matched": true
+  }
+}

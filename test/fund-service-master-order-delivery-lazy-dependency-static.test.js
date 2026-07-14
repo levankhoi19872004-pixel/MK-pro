@@ -28,8 +28,8 @@ test('fundService lazily resolves the delivery-only master order service', () =>
 
   assert.match(
     source,
-    /listDeliveryTodayOrdersCompact/,
-    'delivery cash submission draft should prefer the compact delivery query through the lazy delivery service'
+    /DeliveryPaymentStateReadService/,
+    'delivery cash submission draft should resolve canonical payment state before building fund totals'
   );
 });
 
