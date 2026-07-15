@@ -1,0 +1,131 @@
+{
+  "ok": true,
+  "scannedFiles": 769,
+  "findingCount": 15,
+  "summary": {
+    "P1_REVIEW_REQUIRED": 14,
+    "P2_REVIEW_ALLOWED_SCOPE": 1
+  },
+  "findings": [
+    {
+      "id": "summaryAfterLimit",
+      "file": "E:\\MK-pro\\src\\engines\\delivery.legacy.engine.source\\part-03.jsfrag",
+      "line": 193,
+      "severity": "P1_REVIEW_REQUIRED",
+      "allowed": false,
+      "evidence": ".limit(limit).lean(); const returnOrders = docs.map(canonicalizeReturnDocument).filter((row) => String(query.includeZeroValue ?? query.showZero ?? '0') === '1' || hasPositiveReturnDocument(row)); const rows = returnOrders.flatMap((r"
+    },
+    {
+      "id": "summaryAfterLimit",
+      "file": "E:\\MK-pro\\src\\repositories\\productRepository.js",
+      "line": 127,
+      "severity": "P1_REVIEW_REQUIRED",
+      "allowed": false,
+      "evidence": ".limit(page.limit).lean(), Product.countDocuments(filter) ]); return { rows, meta: buildPageMeta({ ...page, total }) }; } async function search(query = {}) { const q = searchKeyword(query); const limit = Math.min(Number.parseIn"
+    },
+    {
+      "id": "truncatedKpiWorkingSet",
+      "file": "E:\\MK-pro\\src\\services\\accounting\\arCustomerDebtReadModel.service.js",
+      "line": 692,
+      "severity": "P1_REVIEW_REQUIRED",
+      "allowed": false,
+      "evidence": "limit; const pagedOrders = visibleOrders.slice(skip, skip + limit); const visibleCustomerKeys = new Set(customers.map((row) => firstText(row, ['customerCode', 'customerId', 'customerName']))); const pagedCustomers = customers.filter(("
+    },
+    {
+      "id": "truncatedKpiWorkingSet",
+      "file": "E:\\MK-pro\\src\\services\\accounting\\FundDashboardReadService.js",
+      "line": 396,
+      "severity": "P1_REVIEW_REQUIRED",
+      "allowed": false,
+      "evidence": "limit = DEFAULT_CASH_IN_TRANSIT_LIMIT) { const allItems = (rows || []) .map((row) => normalizeCashInTransitRow(row, row.asOf || '')) .filter((row) => row.remainingAmount > 0) .sort((a, b) => b.ageDays - a.ageDays || b.remainin"
+    },
+    {
+      "id": "truncatedKpiWorkingSet",
+      "file": "E:\\MK-pro\\src\\services\\arDebtReadModel.service.js",
+      "line": 546,
+      "severity": "P1_REVIEW_REQUIRED",
+      "allowed": false,
+      "evidence": "limit, rows: rows.slice(skip, skip + limit) }; } async function readModelRows(Model, filters = {}) { const query = Model.find({}); if (typeof query.lean === 'function') query.lean(); const rows = await query; return applyFilters(ro"
+    },
+    {
+      "id": "summaryAfterLimit",
+      "file": "E:\\MK-pro\\src\\services\\DebtReadService.js",
+      "line": 310,
+      "severity": "P1_REVIEW_REQUIRED",
+      "allowed": false,
+      "evidence": ".limit(5000); q = withSession(q, options.session || query.session); return q.lean(); } async function getCustomerDebts(query = {}) { const scopedQuery = { ...query, limit: query.limit || 100, includePaid: query.includePai"
+    },
+    {
+      "id": "summaryAfterLimit",
+      "file": "E:\\MK-pro\\src\\services\\events\\notificationService.js",
+      "line": 137,
+      "severity": "P1_REVIEW_REQUIRED",
+      "allowed": false,
+      "evidence": ".limit(pageLimit(options.limit, 10, 20)).lean() ]); return { unreadCount, criticalUnreadCount, latest: latest.map(publicNotification) }; } async function list(user = {}, query = {}) { if (!isMongooseReady()) return { pa"
+    },
+    {
+      "id": "truncatedKpiWorkingSet",
+      "file": "E:\\MK-pro\\src\\services\\fundService.source\\part-02b.jsfrag",
+      "line": 42,
+      "severity": "P1_REVIEW_REQUIRED",
+      "allowed": false,
+      "evidence": "limit: 500 } ); const pendingAmount = repayments .filter((row) => String(row.status || '').toLowerCase() === 'pending') .reduce((sum, row) => sum + money(row.amount), 0); return { shortage, repayments, summary"
+    },
+    {
+      "id": "pageTotalAsGlobalTotal",
+      "file": "E:\\MK-pro\\src\\services\\master-order\\deliveryOrdersCompact.impl.js",
+      "line": 398,
+      "severity": "P1_REVIEW_REQUIRED",
+      "allowed": false,
+      "evidence": "limit) break; } if (rows.length >= limit) break; } const summary = rows.reduce((acc, row) => { acc.total"
+    },
+    {
+      "id": "truncatedKpiWorkingSet",
+      "file": "E:\\MK-pro\\src\\services\\master-order\\deliveryOrdersCompact.impl.js",
+      "line": 398,
+      "severity": "P1_REVIEW_REQUIRED",
+      "allowed": false,
+      "evidence": "limit) break; } if (rows.length >= limit) break; } const summary = rows.reduce((acc, row) => { acc.totalReceivable += toNumber(row.totalAmount); acc.cashAmount += toNumber(row.cashAmount); acc.bankAmount += toNumber"
+    },
+    {
+      "id": "summaryAfterLimit",
+      "file": "E:\\MK-pro\\src\\services\\mobile\\catalog.service.js",
+      "line": 257,
+      "severity": "P1_REVIEW_REQUIRED",
+      "allowed": false,
+      "evidence": ".limit(limit) .lean(), Customer.countDocuments(filter) ]); const rawCustomers = rows.map(stripMongoFields); const salesMonth = customerMonthlySalesService.normalizeMonthKey(query.month); const [monthlySales, d"
+    },
+    {
+      "id": "summaryAfterLimit",
+      "file": "E:\\MK-pro\\src\\services\\reports\\InformationReportService.js",
+      "line": 191,
+      "severity": "P1_REVIEW_REQUIRED",
+      "allowed": false,
+      "evidence": ".limit(MAX_ROWS).lean(); const products = rows.map(productRow); return { products, summary: { rowCount: products.length, activeCount: products.filter("
+    },
+    {
+      "id": "truncatedKpiWorkingSet",
+      "file": "E:\\MK-pro\\src\\services\\reports\\InformationReportService.js",
+      "line": 230,
+      "severity": "P1_REVIEW_REQUIRED",
+      "allowed": false,
+      "evidence": "limit(MAX_ROWS).lean(); const codes = rows.map((row) => row.code || row.customerCode); const [debtMap, salesMap] = await Promise.all([customerDebtMap(codes), customerMonthlySalesMap(codes, query)]); const customers = rows.map((row) =>"
+    },
+    {
+      "id": "truncatedKpiWorkingSet",
+      "file": "E:\\MK-pro\\src\\services\\v2\\debtNew.service.js",
+      "line": 573,
+      "severity": "P2_REVIEW_ALLOWED_SCOPE",
+      "allowed": true,
+      "evidence": "limit = Math.max(1, Math.min(500, Number(normalizedQuery.ledgerLimit || normalizedQuery.limit || 500))); const ledgerRows = await arLedgerReadService.getActiveDebtReadModelLedgers({ ...normalizedQuery, limit, status: 'all' }"
+    },
+    {
+      "id": "exportScopeDrift",
+      "file": "E:\\MK-pro\\public\\js\\app\\admin\\08f-vat-export.js",
+      "line": 78,
+      "severity": "P1_REVIEW_REQUIRED",
+      "allowed": false,
+      "evidence": "exportParams(invoiceType,options={}){ const filters=validateFilters(); const params=new URLSearchParams({invoiceType,limit"
+    }
+  ]
+}

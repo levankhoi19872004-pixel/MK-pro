@@ -251,12 +251,14 @@ async function loadReturnOrders(){
       Array.isArray(json.rows) ? json.rows :
       Array.isArray(json.items) ? json.items :
       Array.isArray(json.data) ? json.data : [];
-    const rows = rawRows.filter(row => (typeof isActiveDocument === 'function' ? isActiveDocument(row) : true));
-    const totalValue=rows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
+    const rows = rawRows;
+    const summary=json.summary||{};
+    const totalRows=Number(summary.count??json.pagination?.totalRows??rows.length);
+    const totalValue=Number(summary.totalAmount??summary.totalValue??0);
     const dateLabel=dateFrom&&dateTo
       ? (dateFrom===dateTo ? formatDateVN(dateFrom) : `${formatDateVN(dateFrom)} - ${formatDateVN(dateTo)}`)
       : (dateFrom ? `Từ ${formatDateVN(dateFrom)}` : (dateTo ? `Đến ${formatDateVN(dateTo)}` : 'Tất cả ngày'));
-    if(returnOrderCount) returnOrderCount.innerHTML=`${rows.length} phiếu · ${escapeHtml(dateLabel)} · Tổng giảm nợ ${money(totalValue)} · Nhấn một phiếu để mở chi tiết · <strong>Readonly</strong>`;
+    if(returnOrderCount) returnOrderCount.innerHTML=`${totalRows} phiếu · ${escapeHtml(dateLabel)} · Tổng giảm nợ ${money(totalValue)} · Nhấn một phiếu để mở chi tiết · <strong>Readonly</strong>`;
     returnOrdersCache=rows;
     if(!rows.length){
       selectedReturnOrderKey='';

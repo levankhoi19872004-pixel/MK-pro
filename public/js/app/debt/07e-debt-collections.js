@@ -14,19 +14,15 @@ function debtCollectionMethodName(method){
   if(value==='other')return 'Khác';
   return 'Tiền mặt';
 }
-function debtCollectionRowMatches(row={}, q=''){
-  const key=String(q||'').trim().toLowerCase();
-  if(!key)return true;
-  return [row.code,row.customerCode,row.customerName,row.collectorCode,row.collectorName,row.note]
-    .some(v=>String(v||'').toLowerCase().includes(key));
-}
 function renderDebtCollections(rows=[], summary={}){
-  const visible=rows.filter(row=>debtCollectionRowMatches(row, debtCollectionSearchInput?debtCollectionSearchInput.value:''));
-  if(debtCollectionTotalKpi)debtCollectionTotalKpi.textContent=money(summary.totalAmount ?? visible.reduce((s,row)=>s+Number(row.amount||0),0));
+  const visible=Array.isArray(rows)?rows:[];
+  const totalRows=Number(summary.count??visible.length);
+  const totalAmount=Number(summary.totalAmount??visible.reduce((s,row)=>s+Number(row.amount||0),0));
+  if(debtCollectionTotalKpi)debtCollectionTotalKpi.textContent=money(totalAmount);
   if(debtCollectionSubmittedKpi)debtCollectionSubmittedKpi.textContent=money(summary.submittedCount ?? visible.filter(row=>row.status==='submitted').length);
   if(debtCollectionConfirmedKpi)debtCollectionConfirmedKpi.textContent=money(summary.confirmedCount ?? visible.filter(row=>row.status==='accounting_confirmed').length);
   if(debtCollectionRejectedKpi)debtCollectionRejectedKpi.textContent=money(summary.rejectedCount ?? visible.filter(row=>row.status==='rejected').length);
-  if(debtCollectionCount)debtCollectionCount.textContent=`${visible.length} phiếu thu nợ · Tổng ${money(visible.reduce((s,row)=>s+Number(row.amount||0),0))}`;
+  if(debtCollectionCount)debtCollectionCount.textContent=`${totalRows} phiếu thu nợ · Tổng ${money(totalAmount)}`;
   if(!debtCollectionTable)return;
   if(!visible.length){
     debtCollectionTable.innerHTML='<tr><td colspan="8" class="empty-cell">Không có phiếu thu nợ phù hợp.</td></tr>';
@@ -78,6 +74,7 @@ async function loadDebtCollections(){
     if(debtCollectionCollectorTypeFilter&&debtCollectionCollectorTypeFilter.value)params.set('collectorType',debtCollectionCollectorTypeFilter.value);
     if(debtCollectionDateFrom&&debtCollectionDateFrom.value)params.set('fromDate',debtCollectionDateFrom.value);
     if(debtCollectionDateTo&&debtCollectionDateTo.value)params.set('toDate',debtCollectionDateTo.value);
+    if(debtCollectionSearchInput&&debtCollectionSearchInput.value.trim())params.set('q',debtCollectionSearchInput.value.trim());
     params.set('limit','300');
     try{
       if(debtCollectionCount)debtCollectionCount.textContent='Đang tải phiếu thu nợ...';
@@ -163,4 +160,3 @@ if(reloadDebtCollectionsButton)reloadDebtCollectionsButton.addEventListener('cli
 if(debtCollectionSearchInput)debtCollectionSearchInput.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();loadDebtCollections();}});
 if(debtCollectionDateFrom&&!debtCollectionDateFrom.value)debtCollectionDateFrom.value=today();
 if(debtCollectionDateTo&&!debtCollectionDateTo.value)debtCollectionDateTo.value=today();
-

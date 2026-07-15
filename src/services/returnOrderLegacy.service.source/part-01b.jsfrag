@@ -1,11 +1,11 @@
+const nativeFindReturns = returnOrderRepository.findAll;
+
 function buildFastReturnCode(body = {}, existing = null, salesOrder = null) {
   const canonical = buildCanonicalReturnCode(salesOrder || {}, body || {});
   return String(canonical || existing?.code || body.code || `THH${makeId('')}`).trim();
 }
 
 async function listReturnOrders(query = {}) {
-  // returnOrders là nguồn duy nhất. Service đọc trực tiếp repository để tránh
-  // vòng phụ thuộc returnOrderService -> DeliveryEngine -> ReturnLifecycleService.
   const filter = {
     status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'] }
   };
@@ -71,31 +71,88 @@ async function listReturnOrders(query = {}) {
   }
   if (and.length) filter.$and = and;
 
-  const page = Math.max(1, Number(query.page || 1));
-  const limit = Math.min(500, Math.max(1, Number(query.limit || 100)));
-  const docs = await returnOrderRepository.findAll(filter, {
-    sort: { createdAt: -1, code: -1 },
-    skip: (page - 1) * limit,
-    limit
-  });
-
   const includeZeroValue = String(query.includeZeroValue ?? query.showZero ?? '0') === '1';
-  const seen = new Set();
-  return docs
-    .map(toClient)
-    .filter((order) => !hasDateFilter || dateUtil.isDateInRange(resolveReturnOrderBusinessDate(order), {
-      date: exactDate,
-      dateFrom: from,
-      dateTo: to
-    }))
-    .filter((order) => includeZeroValue || hasPositiveReturnValue(order))
-    .filter((order) => {
-      const stableKey = String(order.id || order.code || order._id || '').trim();
-      if (!stableKey) return true;
-      if (seen.has(stableKey)) return false;
-      seen.add(stableKey);
-      return true;
+  const page = Math.max(1, Math.trunc(Number(query.page || 1)) || 1);
+  const limit = Math.min(500, Math.max(1, Math.trunc(Number(query.limit || 100)) || 100));
+  const skip = (page - 1) * limit;
+  if (returnOrderRepository.findAll !== nativeFindReturns) {
+    const docs = await returnOrderRepository.findAll(filter, {
+      sort: { createdAt: -1, code: -1 },
+      skip,
+      limit
     });
+    const rows = docs
+      .map(toClient)
+      .filter((order) => !hasDateFilter || dateUtil.isDateInRange(resolveReturnOrderBusinessDate(order), {
+        date: exactDate,
+        dateFrom: from,
+        dateTo: to
+      }))
+      .filter((order) => includeZeroValue || hasPositiveReturnValue(order));
+    return rows;
+  }
+  const postMatch = includeZeroValue ? {} : { _returnValue: { $gt: 0 } };
+  if (hasDateFilter) {
+    postMatch._businessDate = exactDate ? exactDate : {
+      ...(from ? { $gte: from } : {}),
+      ...(to ? { $lte: to } : {})
+    };
+  }
+  const pipeline = [
+    { $match: filter },
+    {
+      $addFields: {
+        _businessDate: { $ifNull: ['$returnDate', { $ifNull: ['$date', { $ifNull: ['$documentDate', '$deliveryDate'] }] }] },
+        _returnValue: {
+          $convert: {
+            input: { $ifNull: ['$debtReduction', { $ifNull: ['$totalAmount', { $ifNull: ['$amount', '$totalValue'] }] }] },
+            to: 'double',
+            onError: 0,
+            onNull: 0
+          }
+        },
+        _stableKey: { $ifNull: ['$id', { $ifNull: ['$code', { $toString: '$_id' }] }] }
+      }
+    },
+    { $match: postMatch },
+    { $sort: { createdAt: -1, code: -1 } },
+    { $group: { _id: '$_stableKey', doc: { $first: '$$ROOT' } } },
+    { $replaceRoot: { newRoot: '$doc' } },
+    { $sort: { createdAt: -1, code: -1 } },
+    {
+      $facet: {
+        rows: [{ $skip: skip }, { $limit: limit }],
+        summary: [{
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            totalAmount: { $sum: '$_returnValue' }
+          }
+        }]
+      }
+    }
+  ];
+
+  const [result] = await ReturnOrder.aggregate(pipeline);
+  const rawRows = result?.rows || [];
+  const summary = result?.summary?.[0] || {};
+  const rows = rawRows.map((row) => {
+    const { _businessDate, _returnValue, _stableKey, ...clean } = row || {};
+    return toClient(clean);
+  });
+  const totalRows = toNumber(summary.count);
+  const totalAmount = toNumber(summary.totalAmount);
+  rows.summary = {
+    count: totalRows,
+    totalAmount
+  };
+  rows.pagination = {
+    page,
+    limit,
+    totalRows,
+    hasMore: page * limit < totalRows
+  };
+  return rows;
 }
 
 async function resolveSalesOrder(body = {}) {

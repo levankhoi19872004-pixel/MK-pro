@@ -1426,6 +1426,7 @@
       state.hasSearched = true;
       setResultSectionsVisible(true);
       applySummary(data.summary || json.summary || {});
+      if(data.summary&&data.summary.truncatedWorkingSet)setMessage('KPI Công nợ (New) đang tính trên tập đọc giới hạn. Hãy thu hẹp bộ lọc hoặc dùng Sổ công nợ AR để xem tổng full scope.',true);
       renderDebtSourceNote(data.sourceNote || json.sourceNote || null);
       renderCustomers();
       renderEmptyState(state.customers.length ? '' : 'Không tìm thấy dữ liệu phù hợp với điều kiện tìm kiếm.');

@@ -12,7 +12,7 @@
         "src/services/returnOrderLegacy.service.source/part-03.jsfrag",
         "src/services/returnOrderLegacy.service.source/part-04.jsfrag"
       ],
-      "sourceSha256": "7566dbf60a3046a266fc542a336e9e97e5c073bb391b6f10b26d7f0ca0d4894f"
+      "sourceSha256": "87d2a14432882cee911b34569f81c7edba8e6c4b7e42b9aa41547048fa40e864"
     },
     {
       "target": "src/services/importExportLegacy.service.js",
@@ -32,7 +32,7 @@
         "src/services/reportLegacy.service.source/part-02.jsfrag",
         "src/services/reportLegacy.service.source/part-03.jsfrag"
       ],
-      "sourceSha256": "1a4fcd059e01560ba010554e8652d18a420a67243e306a6cadc4811d39223ce7"
+      "sourceSha256": "8946050d8df89ebeff087f33977cda4da5218ff62527d0e46c740e2f5aea3367"
     },
     {
       "target": "src/services/orderLegacy.service.js",
@@ -177,7 +177,7 @@
         "public/js/app/debt/07f-fund-ledger.source/part-02b.jsfrag",
         "public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag"
       ],
-      "sourceSha256": "b744d0b30e49f8f73370ae625347d7cc2acc90a7b35dba4ca8ad9abf77082335",
+      "sourceSha256": "9cbaa5493f52b1e001788d0e382bf579bf6eeefe120bc07ec6f083c3dbf2b3e0",
       "runtimeFiles": [
         "public/js/app/debt/07f-fund-ledger.js",
         "public/js/app/debt/07f-fund-ledger.part02.js",

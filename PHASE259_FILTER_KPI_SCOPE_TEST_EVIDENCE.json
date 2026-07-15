@@ -1,0 +1,51 @@
+{
+  "phase": "259",
+  "generatedAt": "2026-07-15T00:00:00+07:00",
+  "commands": [
+    {
+      "command": "node --test test/phase259-filter-kpi-scope-governance.test.js test/return-order-filter-redesign-regression.test.js test/return-order-list-popup-regression.test.js",
+      "status": "PASS",
+      "tests": 12
+    },
+    {
+      "command": "npm run check:syntax",
+      "status": "PASS",
+      "evidence": "SYNTAX_OK 1519 JavaScript files"
+    },
+    {
+      "command": "npm run check:source-bundles",
+      "status": "PASS",
+      "evidence": "[source-bundles] OK 19 bundles"
+    },
+    {
+      "command": "npm run check:source-size",
+      "status": "PASS",
+      "evidence": "[source-size-budget] OK"
+    },
+    {
+      "command": "npm run docs:check",
+      "status": "PASS",
+      "evidence": "OpenAPI document is up to date. Scanned operations: 368."
+    },
+    {
+      "command": "node scripts/audit-filter-kpi-scope.js --json",
+      "status": "PASS_WITH_CANDIDATES",
+      "scannedFiles": 769,
+      "findingCount": 15,
+      "p1ReviewRequired": 14,
+      "p2AllowedScope": 1
+    },
+    {
+      "command": "npm test",
+      "status": "FAIL_BASELINE_OR_UNRELATED_AFTER_PHASE_TARGETS",
+      "notes": [
+        "Initial full run exposed Return Orders aggregate timeout; fixed and targeted Return Orders tests now pass.",
+        "Remaining failures observed outside Phase259 scope included app trust proxy static, sales-order delete/cancel legacy tests, source-artifact-clean verifier, and unrelated baseline-style failures."
+      ]
+    }
+  ],
+  "notes": [
+    "No AR/Fund/Inventory/Delivery writer was changed.",
+    "Audit candidates outside migrated scope are recorded in PHASE259A_FILTER_KPI_SCOPE_EVIDENCE.json."
+  ]
+}

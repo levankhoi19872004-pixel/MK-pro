@@ -8,6 +8,7 @@ const ArPostingService = require('../domain/posting/ArPostingService');
 const FundPostingService = require('../domain/posting/FundPostingService');
 const dateUtil = require('../utils/date.util');
 const { makeId, toNumber } = require('../utils/common.util');
+const { escapeRegex } = require('../utils/query.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const DebtCollectionPolicy = require('../policies/debtCollection.policy');
 const { emitDomainEventSafe } = require('./events/domainEventBus');
@@ -223,39 +224,92 @@ async function submitDebtCollection({ body = {}, mobileUser = {} } = {}) {
   });
 }
 
-function buildListFilter(query = {}) {
+function normalizeDebtCollectionScope(query = {}) {
+  const page = Math.max(1, Math.trunc(Number(query.page || 1)) || 1);
+  const limit = Math.min(Math.max(Math.trunc(Number(query.limit || 200)) || 200, 1), 1000);
+  return {
+    q: text(query.q || query.search || query.keyword || '').slice(0, 100),
+    status: text(query.status || ''),
+    collectorType: text(query.collectorType || ''),
+    customerCode: text(query.customerCode || ''),
+    collectorCode: text(query.collectorCode || ''),
+    fromDate: dateUtil.toDateOnly(query.fromDate || query.dateFrom || ''),
+    toDate: dateUtil.toDateOnly(query.toDate || query.dateTo || ''),
+    page,
+    limit,
+    skip: (page - 1) * limit
+  };
+}
+
+function buildListFilter(scope = {}) {
   const filter = {};
-  const status = text(query.status || '');
-  if (status && status !== 'all') filter.status = status;
-  const fromDate = dateUtil.toDateOnly(query.fromDate || query.dateFrom || '');
-  const toDate = dateUtil.toDateOnly(query.toDate || query.dateTo || '');
-  if (fromDate || toDate) {
+  if (scope.status && scope.status !== 'all') filter.status = scope.status;
+  if (scope.fromDate || scope.toDate) {
     filter.submittedAt = {};
-    if (fromDate) filter.submittedAt.$gte = `${fromDate}T00:00:00.000Z`;
-    if (toDate) filter.submittedAt.$lte = `${toDate}T23:59:59.999Z`;
+    if (scope.fromDate) filter.submittedAt.$gte = `${scope.fromDate}T00:00:00.000Z`;
+    if (scope.toDate) filter.submittedAt.$lte = `${scope.toDate}T23:59:59.999Z`;
   }
-  if (query.collectorType) filter.collectorType = text(query.collectorType);
-  if (query.customerCode) filter.customerCode = text(query.customerCode);
-  if (query.collectorCode) filter.collectorCode = text(query.collectorCode);
+  if (scope.collectorType) filter.collectorType = scope.collectorType;
+  if (scope.customerCode) filter.customerCode = scope.customerCode;
+  if (scope.collectorCode) filter.collectorCode = scope.collectorCode;
+  if (scope.q) {
+    const rx = new RegExp(escapeRegex(scope.q), 'i');
+    filter.$or = [
+      { code: rx },
+      { customerCode: rx },
+      { customerName: rx },
+      { collectorCode: rx },
+      { collectorName: rx },
+      { note: rx }
+    ];
+  }
   return filter;
 }
 
 async function listDebtCollections(query = {}) {
-  const limit = Math.min(Math.max(Number(query.limit || 200), 1), 1000);
-  const items = await DebtCollection.find(buildListFilter(query))
-    .sort({ submittedAt: -1, createdAt: -1, code: -1 })
-    .limit(limit)
-    .lean();
+  const scope = normalizeDebtCollectionScope(query);
+  const filter = buildListFilter(scope);
+  const [items, summaryRows, totalRows] = await Promise.all([
+    DebtCollection.find(filter)
+      .sort({ submittedAt: -1, createdAt: -1, code: -1 })
+      .skip(scope.skip)
+      .limit(scope.limit)
+      .lean(),
+    DebtCollection.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          totalAmount: { $sum: { $convert: { input: '$amount', to: 'double', onError: 0, onNull: 0 } } },
+          count: { $sum: 1 },
+          submittedCount: { $sum: { $cond: [{ $eq: ['$status', 'submitted'] }, 1, 0] } },
+          confirmedCount: { $sum: { $cond: [{ $eq: ['$status', 'accounting_confirmed'] }, 1, 0] } },
+          rejectedCount: { $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] } }
+        }
+      }
+    ]),
+    DebtCollection.countDocuments(filter)
+  ]);
+  const summary = summaryRows[0] || {};
 
-  const summary = {
-    totalAmount: items.reduce((sum, row) => sum + money(row.amount), 0),
-    count: items.length,
-    submittedCount: items.filter((row) => row.status === 'submitted').length,
-    confirmedCount: items.filter((row) => row.status === 'accounting_confirmed').length,
-    rejectedCount: items.filter((row) => row.status === 'rejected').length
+  return {
+    items,
+    summary: {
+      totalAmount: money(summary.totalAmount),
+      count: Number(summary.count || 0),
+      submittedCount: Number(summary.submittedCount || 0),
+      confirmedCount: Number(summary.confirmedCount || 0),
+      rejectedCount: Number(summary.rejectedCount || 0)
+    },
+    pagination: {
+      page: scope.page,
+      limit: scope.limit,
+      totalRows,
+      totalPages: totalRows ? Math.ceil(totalRows / scope.limit) : 0,
+      hasMore: scope.page * scope.limit < totalRows
+    },
+    scope: { type: 'EXACT_SCOPE' }
   };
-
-  return { items, summary };
 }
 
 
@@ -514,6 +568,7 @@ module.exports = {
     ensureDebtCollectionLocks,
     buildCollectorFields,
     buildListFilter,
+    normalizeDebtCollectionScope,
     normalizePaymentMethod,
     canCreateDebtCollection: DebtCollectionPolicy.canCreateDebtCollection,
     debtCollectionCreateScopeForUser: DebtCollectionPolicy.debtCollectionCreateScopeForUser,

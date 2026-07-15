@@ -581,6 +581,14 @@ async function listCustomers(query = {}, options = {}) {
     projection: AR_LEDGER_DEBT_HOT_PATH_PROJECTION
   });
   const grouped = groupLedgers(ledgerRows, normalizedQuery);
+  const boundedSummary = ledgerRows.length >= limit;
+  if (grouped.summary) {
+    grouped.summary.scopeType = 'EXACT_SCOPE';
+    grouped.summary.boundedLedgerRead = true;
+    grouped.summary.ledgerLimit = limit;
+    grouped.summary.ledgerRowsRead = ledgerRows.length;
+    grouped.summary.truncatedWorkingSet = boundedSummary;
+  }
   const [allocationRows, pendingRows] = await Promise.all([
     loadPaymentAllocationsForOrders(grouped.orders || [], options).catch(() => []),
     loadPendingCollectionsForOrders(grouped.orders || [], options).catch(() => [])
@@ -589,7 +597,7 @@ async function listCustomers(query = {}, options = {}) {
   await attachCollectibleState(grouped, pendingAmountByOrder(pendingRows));
   return {
     ...grouped,
-    sourceNote: buildDebtSourceNote('debt-by-customer', normalizedQuery),
+    sourceNote: buildDebtSourceNote('debt-by-customer', normalizedQuery, boundedSummary ? ['KPI công nợ New đang bị giới hạn bởi ledgerLimit; cần thu hẹp bộ lọc hoặc dùng báo cáo AR Ledger để xem full scope.'] : []),
     diagnostics: {
       source: 'debt-new-v2-ar-debt-read-model',
       endpoint: '/api/new/debt/customers',
@@ -604,6 +612,7 @@ async function listCustomers(query = {}, options = {}) {
         boundedLedgerRead: true,
         ledgerLimit: limit,
         ledgerRowsRead: ledgerRows.length,
+        truncatedWorkingSet: boundedSummary,
         nPlusOneGuard: 'single arLedgers read plus two independent batch joins; no per-order query',
         parallelBatchReads: grouped.orders && grouped.orders.length ? ['orderPaymentAllocations', 'debtCollections'] : [],
         projections: [

@@ -20,6 +20,9 @@ router.get('/', requireRole(['admin', 'accountant', 'manager']), [
   query('deliveryStaffCode').optional().isString().trim(),
   query('fromDate').optional().isISO8601().withMessage('fromDate không hợp lệ'),
   query('toDate').optional().isISO8601().withMessage('toDate không hợp lệ'),
+  query('q').optional().isString().trim().isLength({ max: 100 }).withMessage('q không hợp lệ'),
+  query('search').optional().isString().trim().isLength({ max: 100 }).withMessage('search không hợp lệ'),
+  query('page').optional().isInt({ min: 1 }).withMessage('page không hợp lệ'),
   query('limit').optional().isInt({ min: 1, max: 1000 }).withMessage('limit không hợp lệ')
 ], validateRequest, controller.list);
 

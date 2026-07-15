@@ -789,6 +789,17 @@ async function listFundLedgers(query = {}, options = {}) {
       total,
       totalPages: total ? Math.ceil(total / filters.limit) : 0,
       hasMore: filters.full ? false : filters.page * filters.limit < total
+    },
+    scope: {
+      type: 'MIXED_SCOPE',
+      balances: {
+        type: 'GLOBAL_EXPLICIT_SCOPE',
+        ignoredListFilters: ['q', 'direction', 'sourceType']
+      },
+      transactionTotals: {
+        type: 'EXACT_SCOPE',
+        filters: ['dateFrom', 'dateTo', 'fundType', 'account', 'q', 'direction', 'sourceType']
+      }
     }
   };
 

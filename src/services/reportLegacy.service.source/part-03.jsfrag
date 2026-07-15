@@ -25,25 +25,39 @@ async function debtArLedger(query = {}) {
     const rx = new RegExp(escapeRegExp(query.q || query.keyword || query.search), 'i');
     pushDebtLedgerAnd(match, { $or: [{ code: rx }, { refCode: rx }, { orderCode: rx }, { salesOrderCode: rx }, { customerCode: rx }, { customerName: rx }, { customerId: rx }, { type: rx }, { note: rx }] });
   }
-  const rows = await runReportSource('sổ công nợ', query, () =>
+  const [rows, totals] = await runReportSource('sổ công nợ', query, () => Promise.all([
     ArLedger.find(match)
       .select(DEBT_AR_LEDGER_DETAIL_PROJECTION)
       .sort({ date: -1, createdAt: -1 })
       .skip(skip)
       .limit(limit + 1)
-      .lean()
-  );
+      .lean(),
+    ArLedger.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: null,
+          arLedgerCount: { $sum: 1 },
+          totalDebit: { $sum: numberExpression(['debit'], 0) },
+          totalCredit: { $sum: numberExpression(['credit'], 0) }
+        }
+      }
+    ])
+  ]));
+  const fullSummary = totals?.[0] || {};
+  const totalRows = toNumber(fullSummary.arLedgerCount);
   const hasMore = rows.length > limit;
   const data = hasMore ? rows.slice(0, limit) : rows;
   const arLedger = data.map(normalizeArLedgerEntry);
   const summary = {
     page,
     limit,
-    hasMore,
-    arLedgerCount: arLedger.length,
-    totalDebit: sum(arLedger, (row) => row.debit),
-    totalCredit: sum(arLedger, (row) => row.credit),
-    totalDebt: sum(arLedger, (row) => row.balanceEffect),
+    hasMore: page * limit < totalRows,
+    totalRows,
+    arLedgerCount: totalRows,
+    totalDebit: toNumber(fullSummary.totalDebit),
+    totalCredit: toNumber(fullSummary.totalCredit),
+    totalDebt: toNumber(fullSummary.totalDebit) - toNumber(fullSummary.totalCredit),
     arWarningCount: 0,
     optimized: true
   };

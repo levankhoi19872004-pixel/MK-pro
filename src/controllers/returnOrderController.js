@@ -16,8 +16,17 @@ function createEngine() {
 
 async function list(req, res) {
   try {
-    const returnOrders = await returnOrderService.listReturnOrders(req.query || {});
-    res.json({ ok: true, source: 'mongo-route', returnOrders, returns: returnOrders });
+    const result = await returnOrderService.listReturnOrders(req.query || {});
+    const returnOrders = Array.isArray(result) ? result : (result.returnOrders || result.rows || result.items || []);
+    res.json({
+      ok: true,
+      source: 'mongo-route',
+      returnOrders,
+      returns: returnOrders,
+      summary: result.summary || {},
+      pagination: result.pagination || null,
+      scope: result.scope || { type: 'EXACT_SCOPE' }
+    });
   } catch (err) {
     const requestId = String(req.requestId || req.headers?.['x-request-id'] || `return-${Date.now()}`);
     console.error('[RETURN_ORDER_LIST_FAILED]', {

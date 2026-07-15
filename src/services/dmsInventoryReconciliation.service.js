@@ -666,8 +666,9 @@ async function getLatest({ type = '', search = '', page = 1, limit = 100, forceR
 
   const dmsItems = dmsItemsFromSnapshotRows(snapshotRows);
   const liveRows = await buildComparisonRows(dmsItems, { forceInventoryRefresh: forceRefresh === true });
-  const liveSummary = buildSummary(liveRows);
-  const filteredRows = filterAndSortComparisonRows(liveRows, { type, search });
+  const searchScopedRows = filterAndSortComparisonRows(liveRows, { search });
+  const liveSummary = buildSummary(searchScopedRows);
+  const filteredRows = filterAndSortComparisonRows(searchScopedRows, { type });
   const total = filteredRows.length;
   const pageRows = filteredRows.slice((safePage - 1) * safeLimit, safePage * safeLimit);
 
@@ -692,6 +693,11 @@ async function getLatest({ type = '', search = '', page = 1, limit = 100, forceR
     inventorySource: 'inventories',
     comparisonMode: 'live_inventory_vs_dms_snapshot',
     comparisonGeneratedAt: dateUtil.nowIso(),
+    scope: {
+      type: 'FACET_SCOPE',
+      baseFilters: ['search'],
+      facetDimensions: ['type']
+    },
     forceRefreshed: forceRefresh === true
   };
 }

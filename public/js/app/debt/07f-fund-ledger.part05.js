@@ -1,12 +1,13 @@
 /* GENERATED FILE — edit public/js/app/debt/07f-fund-ledger.source/part-01.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-01b.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-02.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-02b.jsfrag, public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag and run npm run build:source-bundles. */
 function renderFundLedgerSummary(s={}){const cashEnding=Number(s.cashEndingBalance??s.cashBalance??0);const bankEnding=Number(s.bankEndingBalance??s.bankBalance??0)
-;const totalInPeriod=Number(s.totalInPeriod??s.totalIn??0);const totalOutPeriod=Number(s.totalOutPeriod??s.totalOut??0)
+;const totalInPeriod=Number(s.filteredRowsTotalIn??s.totalInPeriod??s.totalIn??0);const totalOutPeriod=Number(s.filteredRowsTotalOut??s.totalOutPeriod??s.totalOut??0)
 ;const dateFrom=String(s.period&&s.period.dateFrom||fundDateFrom&&fundDateFrom.value||"");const dateTo=String(s.period&&s.period.dateTo||fundDateTo&&fundDateTo.value||"")
 ;if(fundCashBalanceKpi)fundCashBalanceKpi.textContent=money(cashEnding);if(fundBankBalanceKpi)fundBankBalanceKpi.textContent=money(bankEnding)
 ;if(fundTotalInKpi)fundTotalInKpi.textContent=money(totalInPeriod);if(fundTotalOutKpi)fundTotalOutKpi.textContent=money(totalOutPeriod)
-;if(fundCashBalanceLabel)fundCashBalanceLabel.textContent=`Tồn tiền mặt cuối ngày ${dateTo||""}`.trim()
-;if(fundBankBalanceLabel)fundBankBalanceLabel.textContent=`Tồn ngân hàng cuối ngày ${dateTo||""}`.trim();const period=`${dateFrom||""}${dateTo&&dateTo!==dateFrom?"–"+dateTo:""}`
-;if(fundTotalInLabel)fundTotalInLabel.textContent=`Tổng thu trong kỳ ${period}`.trim();if(fundTotalOutLabel)fundTotalOutLabel.textContent=`Tổng chi trong kỳ ${period}`.trim()
+;if(fundCashBalanceLabel)fundCashBalanceLabel.textContent=`Tồn tiền mặt toàn quỹ cuối ngày ${dateTo||""}`.trim()
+;if(fundBankBalanceLabel)fundBankBalanceLabel.textContent=`Tồn ngân hàng toàn quỹ cuối ngày ${dateTo||""}`.trim()
+;const period=`${dateFrom||""}${dateTo&&dateTo!==dateFrom?"–"+dateTo:""}`;if(fundTotalInLabel)fundTotalInLabel.textContent=`Tổng thu theo bộ lọc ${period}`.trim()
+;if(fundTotalOutLabel)fundTotalOutLabel.textContent=`Tổng chi theo bộ lọc ${period}`.trim()
 ;if(fundSummary)fundSummary.textContent=`Tiền mặt: đầu kỳ ${money(s.cashOpeningBalance||0)} · thu kỳ ${money(s.cashInPeriod??s.cashIn??0)} · chi kỳ ${money(s.cashOutPeriod??s.cashOut??0)} · cuối ngày ${money(cashEnding)} | Ngân hàng: đầu kỳ ${money(s.bankOpeningBalance||0)} · thu kỳ ${money(s.bankInPeriod??s.bankIn??0)} · chi kỳ ${money(s.bankOutPeriod??s.bankOut??0)} · cuối ngày ${money(bankEnding)}`
 }async function submitExpenseVoucher(event){event.preventDefault();const payload=Object.fromEntries(new FormData(expenseVoucherForm).entries())
 ;payload.amount=Number(payload.amount||0);try{const editing=fundEditing.type==="expense"&&fundEditing.id

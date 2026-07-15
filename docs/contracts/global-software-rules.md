@@ -36,6 +36,8 @@ Business event → write service có idempotency → canonical ledger/read model
 ## Static guard liên quan
 
 - `test/global-software-rules-static.test.js`
+- `docs/contracts/filter-kpi-scope-governance.md`
+- `scripts/audit-filter-kpi-scope.js`
 - `test/ar-ledger-access-contract-static.test.js`
 - `test/inventory-access-contract-static.test.js`
 - `test/fund-ledger-access-contract-static.test.js`

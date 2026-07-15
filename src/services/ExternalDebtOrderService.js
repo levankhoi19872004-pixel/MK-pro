@@ -6,6 +6,7 @@ const User = require('../models/User');
 const ArPostingService = require('../domain/posting/ArPostingService');
 const dateUtil = require('../utils/date.util');
 const { makeId, toNumber } = require('../utils/common.util');
+const { escapeRegex } = require('../utils/query.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 
 function text(value) {
@@ -59,17 +60,48 @@ function makeExternalDebtCode(documentDate = dateUtil.todayVN()) {
   return `NDNBLH${date}${entropy}`;
 }
 
-function buildListFilter(query = {}) {
+function normalizeExternalDebtScope(query = {}) {
+  const page = Math.max(1, Math.trunc(Number(query.page || 1)) || 1);
+  const limit = Math.min(Math.max(Math.trunc(Number(query.limit || 200)) || 200, 1), 1000);
+  return {
+    q: text(query.q || query.search || query.keyword).slice(0, 100),
+    status: text(query.status),
+    customerCode: text(query.customerCode),
+    salesStaffCode: text(query.salesStaffCode),
+    deliveryStaffCode: text(query.deliveryStaffCode),
+    fromDate: dateUtil.toDateOnly(query.fromDate || ''),
+    toDate: dateUtil.toDateOnly(query.toDate || ''),
+    page,
+    limit,
+    skip: (page - 1) * limit
+  };
+}
+
+function buildListFilter(scope = {}) {
   const filter = {};
-  const status = text(query.status);
-  if (status && status !== 'all') filter.status = status;
-  if (query.customerCode) filter.customerCode = text(query.customerCode);
-  if (query.salesStaffCode) filter.salesStaffCode = text(query.salesStaffCode);
-  if (query.deliveryStaffCode) filter.deliveryStaffCode = text(query.deliveryStaffCode);
-  if (query.fromDate || query.toDate) {
+  if (scope.status && scope.status !== 'all') filter.status = scope.status;
+  if (scope.customerCode) filter.customerCode = scope.customerCode;
+  if (scope.salesStaffCode) filter.salesStaffCode = scope.salesStaffCode;
+  if (scope.deliveryStaffCode) filter.deliveryStaffCode = scope.deliveryStaffCode;
+  if (scope.fromDate || scope.toDate) {
     filter.documentDate = {};
-    if (query.fromDate) filter.documentDate.$gte = dateUtil.toDateOnly(query.fromDate);
-    if (query.toDate) filter.documentDate.$lte = dateUtil.toDateOnly(query.toDate);
+    if (scope.fromDate) filter.documentDate.$gte = scope.fromDate;
+    if (scope.toDate) filter.documentDate.$lte = scope.toDate;
+  }
+  if (scope.q) {
+    const rx = new RegExp(escapeRegex(scope.q), 'i');
+    filter.$or = [
+      { code: rx },
+      { orderName: rx },
+      { customerCode: rx },
+      { customerName: rx },
+      { salesStaffCode: rx },
+      { salesStaffName: rx },
+      { deliveryStaffCode: rx },
+      { deliveryStaffName: rx },
+      { referenceCode: rx },
+      { reason: rx }
+    ];
   }
   return filter;
 }
@@ -298,18 +330,43 @@ async function createExternalDebtOrder(body = {}, actor = {}) {
 }
 
 async function listExternalDebtOrders(query = {}) {
-  const limit = Math.min(Math.max(Number(query.limit || 200), 1), 1000);
-  const items = await ExternalDebtOrder.find(buildListFilter(query))
-    .sort({ documentDate: -1, createdAt: -1, code: -1 })
-    .limit(limit)
-    .lean();
+  const scope = normalizeExternalDebtScope(query);
+  const filter = buildListFilter(scope);
+  const [items, summaryRows, totalRows] = await Promise.all([
+    ExternalDebtOrder.find(filter)
+      .sort({ documentDate: -1, createdAt: -1, code: -1 })
+      .skip(scope.skip)
+      .limit(scope.limit)
+      .lean(),
+    ExternalDebtOrder.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          count: { $sum: 1 },
+          totalAmount: { $sum: { $convert: { input: '$totalAmount', to: 'double', onError: 0, onNull: 0 } } },
+          remainingDebt: { $sum: { $convert: { input: '$remainingDebt', to: 'double', onError: 0, onNull: 0 } } }
+        }
+      }
+    ]),
+    ExternalDebtOrder.countDocuments(filter)
+  ]);
+  const summary = summaryRows[0] || {};
   return {
     items,
     summary: {
-      count: items.length,
-      totalAmount: items.reduce((sum, row) => sum + money(row.totalAmount), 0),
-      remainingDebt: items.reduce((sum, row) => sum + money(row.remainingDebt), 0)
-    }
+      count: Number(summary.count || 0),
+      totalAmount: money(summary.totalAmount),
+      remainingDebt: money(summary.remainingDebt)
+    },
+    pagination: {
+      page: scope.page,
+      limit: scope.limit,
+      totalRows,
+      totalPages: totalRows ? Math.ceil(totalRows / scope.limit) : 0,
+      hasMore: scope.page * scope.limit < totalRows
+    },
+    scope: { type: 'EXACT_SCOPE' }
   };
 }
 
@@ -320,6 +377,7 @@ module.exports = {
     staffCodeFilter,
     canonicalStaff,
     makeExternalDebtCode,
+    normalizeExternalDebtScope,
     buildListFilter,
     buildExternalDebtLedgerInput,
     ensureArLedgerForExternalDebtOrder
