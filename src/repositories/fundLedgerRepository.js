@@ -31,6 +31,8 @@ async function findByIdempotencyKey(idempotencyKey, options = {}) {
 async function aggregate(pipeline = [], options = {}) {
   let query = FundLedger.aggregate(Array.isArray(pipeline) ? pipeline : []);
   if (options.session && typeof query.session === 'function') query = query.session(options.session);
+  if (options.allowDiskUse !== undefined && typeof query.allowDiskUse === 'function') query = query.allowDiskUse(Boolean(options.allowDiskUse));
+  if (options.maxTimeMS && typeof query.option === 'function') query = query.option({ maxTimeMS: Number(options.maxTimeMS) });
   return query.exec();
 }
 

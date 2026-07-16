@@ -17,6 +17,13 @@ function renderFundLedgerSummary(s={}){
   if(fundSummary)fundSummary.textContent=`Tiền mặt: đầu kỳ ${money(s.cashOpeningBalance||0)} · thu kỳ ${money(s.cashInPeriod??s.cashIn??0)} · chi kỳ ${money(s.cashOutPeriod??s.cashOut??0)} · cuối ngày ${money(cashEnding)} | Ngân hàng: đầu kỳ ${money(s.bankOpeningBalance||0)} · thu kỳ ${money(s.bankInPeriod??s.bankIn??0)} · chi kỳ ${money(s.bankOutPeriod??s.bankOut??0)} · cuối ngày ${money(bankEnding)}`;
 }
 
+function renderFundLedgerSummaryError(){
+  if(fundCashBalanceKpi)fundCashBalanceKpi.textContent='—';
+  if(fundBankBalanceKpi)fundBankBalanceKpi.textContent='—';
+  if(fundTotalInKpi)fundTotalInKpi.textContent='—';
+  if(fundTotalOutKpi)fundTotalOutKpi.textContent='—';
+}
+
 
 
 async function submitExpenseVoucher(event){

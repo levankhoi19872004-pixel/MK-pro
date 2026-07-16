@@ -43,12 +43,14 @@ test('nút tạo và nút sửa mở đúng popup, lưu thành công đóng popu
 
 test('asset quỹ được cache-bust để trình duyệt nhận giao diện popup và bảng tiền cần thu mới', () => {
   const html = read('public/index.html');
+  const currentToken = 'phase260-fund-ledger-runtime-fix-v1';
   assert.match(html, /css\/overrides\/10-operational-01\.css\?v=return-order-nvgh-v1/);
   assert.match(html, /css\/overrides\/10-operational-04\.css\?v=phase79-source-split-v1/);
   assert.match(html, /00b-debt-return-fund-state\.js\?v=phase61-delivery-fund-split-tabs-v1/);
-  assert.match(html, /07f-fund-ledger\.js\?v=phase230-remittance-lines-v1/);
-  assert.match(html, /07f-fund-ledger\.part02\.js\?v=phase230-remittance-lines-v1/);
-  assert.match(html, /07f-fund-ledger\.part03\.js\?v=phase230-remittance-lines-v1/);
+  assert.equal(html.includes('07f-fund-ledger.js?v=phase230-remittance-lines-v1'), false);
+  assert.match(html, new RegExp(`07f-fund-ledger\\.js\\?v=${currentToken}`));
+  assert.match(html, new RegExp(`07f-fund-ledger\\.part02\\.js\\?v=${currentToken}`));
+  assert.match(html, new RegExp(`07f-fund-ledger\\.part03\\.js\\?v=${currentToken}`));
 });
 
 

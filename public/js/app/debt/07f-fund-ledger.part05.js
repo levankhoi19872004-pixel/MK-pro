@@ -9,13 +9,15 @@ function renderFundLedgerSummary(s={}){const cashEnding=Number(s.cashEndingBalan
 ;const period=`${dateFrom||""}${dateTo&&dateTo!==dateFrom?"–"+dateTo:""}`;if(fundTotalInLabel)fundTotalInLabel.textContent=`Tổng thu theo bộ lọc ${period}`.trim()
 ;if(fundTotalOutLabel)fundTotalOutLabel.textContent=`Tổng chi theo bộ lọc ${period}`.trim()
 ;if(fundSummary)fundSummary.textContent=`Tiền mặt: đầu kỳ ${money(s.cashOpeningBalance||0)} · thu kỳ ${money(s.cashInPeriod??s.cashIn??0)} · chi kỳ ${money(s.cashOutPeriod??s.cashOut??0)} · cuối ngày ${money(cashEnding)} | Ngân hàng: đầu kỳ ${money(s.bankOpeningBalance||0)} · thu kỳ ${money(s.bankInPeriod??s.bankIn??0)} · chi kỳ ${money(s.bankOutPeriod??s.bankOut??0)} · cuối ngày ${money(bankEnding)}`
-}async function submitExpenseVoucher(event){event.preventDefault();const payload=Object.fromEntries(new FormData(expenseVoucherForm).entries())
-;payload.amount=Number(payload.amount||0);try{const editing=fundEditing.type==="expense"&&fundEditing.id
-;const url=editing?`/api/funds/expenses/${encodeURIComponent(fundEditing.id)}`:"/api/funds/expenses";const res=await fetch(url,{method:editing?"PUT":"POST",headers:{
-"Content-Type":"application/json"},body:JSON.stringify(payload)});const json=await fundReadJsonResponse(res,editing?"Không cập nhật được phiếu chi":"Không ghi được phiếu chi")
-;if(!json.ok)throw new Error(json.message||"Không lưu được phiếu chi");expenseVoucherForm.reset();if(expenseVoucherForm.elements.date)expenseVoucherForm.elements.date.value=today()
-;fundResetEditing("expense");showMessage(expenseVoucherMessage,json.message||"Đã lưu phiếu chi");await loadExpenseVouchers();await fundRefreshAfterMutation()
-;closeFundVoucherModal("expense")}catch(err){showMessage(expenseVoucherMessage,err.message,true)}}async function submitFundTransfer(event){event.preventDefault()
+}function renderFundLedgerSummaryError(){if(fundCashBalanceKpi)fundCashBalanceKpi.textContent="—";if(fundBankBalanceKpi)fundBankBalanceKpi.textContent="—"
+;if(fundTotalInKpi)fundTotalInKpi.textContent="—";if(fundTotalOutKpi)fundTotalOutKpi.textContent="—"}async function submitExpenseVoucher(event){event.preventDefault()
+;const payload=Object.fromEntries(new FormData(expenseVoucherForm).entries());payload.amount=Number(payload.amount||0);try{
+const editing=fundEditing.type==="expense"&&fundEditing.id;const url=editing?`/api/funds/expenses/${encodeURIComponent(fundEditing.id)}`:"/api/funds/expenses"
+;const res=await fetch(url,{method:editing?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
+;const json=await fundReadJsonResponse(res,editing?"Không cập nhật được phiếu chi":"Không ghi được phiếu chi");if(!json.ok)throw new Error(json.message||"Không lưu được phiếu chi")
+;expenseVoucherForm.reset();if(expenseVoucherForm.elements.date)expenseVoucherForm.elements.date.value=today();fundResetEditing("expense")
+;showMessage(expenseVoucherMessage,json.message||"Đã lưu phiếu chi");await loadExpenseVouchers();await fundRefreshAfterMutation();closeFundVoucherModal("expense")}catch(err){
+showMessage(expenseVoucherMessage,err.message,true)}}async function submitFundTransfer(event){event.preventDefault()
 ;const payload=Object.fromEntries(new FormData(fundTransferForm).entries());payload.amount=Number(payload.amount||0);try{const editing=fundEditing.type==="transfer"&&fundEditing.id
 ;const url=editing?`/api/funds/transfers/${encodeURIComponent(fundEditing.id)}`:"/api/funds/transfers";const res=await fetch(url,{method:editing?"PUT":"POST",headers:{
 "Content-Type":"application/json"},body:JSON.stringify(payload)});const json=await fundReadJsonResponse(res,editing?"Không cập nhật được chuyển quỹ":"Không ghi được chuyển quỹ")

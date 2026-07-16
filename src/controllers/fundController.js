@@ -12,7 +12,7 @@ function sendResult(res, result, successMessage = 'OK', statusCode = 200) {
 
 async function listLedger(req, res) {
   try { sendResult(res, await fundService.listFundLedgers(req.query || {}), 'Đã tải sổ quỹ'); }
-  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được sổ quỹ fundLedgers', error: process.env.NODE_ENV === 'production' ? undefined : err.message }); }
+  catch (err) { res.status(err.status || 500).json({ ok: false, success: false, code: err.code || 'FUND_LEDGER_READ_FAILED', message: 'Không tải được sổ quỹ fundLedgers', error: process.env.NODE_ENV === 'production' ? undefined : err.message }); }
 }
 
 async function listDeliverySubmissions(req, res) {

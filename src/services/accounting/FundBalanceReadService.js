@@ -2,6 +2,7 @@
 
 const fundLedgerRepository = require('../../repositories/fundLedgerRepository');
 const dateUtil = require('../../utils/date.util');
+const { logger } = require('../../observability/logger');
 const {
   activeDocumentFilter,
   firstNonBlankExpression,
@@ -287,7 +288,11 @@ function normalizationStages(timezone = DEFAULT_TIMEZONE) {
             { $concat: ['$_fundOwnershipStaff', '|', '$_fundOwnershipDeliveryDate', '|', '$_fundType'] },
             ''
           ]
-        },
+        }
+      }
+    },
+    {
+      $set: {
         _fundOwnershipPartitionKey: {
           $cond: [
             {
@@ -734,17 +739,78 @@ function mapRuntimeRow(row = {}) {
   };
 }
 
+function safeErrorMessage(error = {}) {
+  return text(error.message).replace(/mongodb(\+srv)?:\/\/[^\s]+/gi, 'mongodb://***');
+}
+
+function fundLedgerErrorCode(operation) {
+  return operation === 'summary'
+    ? 'FUND_LEDGER_SUMMARY_AGGREGATION_FAILED'
+    : 'FUND_LEDGER_ROWS_AGGREGATION_FAILED';
+}
+
+function logFundLedgerReadError({ operation, error, durationMs, pipeline, filters }) {
+  logger.error({
+    event: 'fund_ledger_read_failed',
+    operation,
+    errorName: text(error?.name),
+    errorCode: error?.code,
+    errorCodeName: text(error?.codeName),
+    safeMessage: safeErrorMessage(error),
+    durationMs,
+    pipelineStageCount: Array.isArray(pipeline) ? pipeline.length : 0,
+    dateFrom: filters?.dateFrom || '',
+    dateTo: filters?.dateTo || '',
+    fundType: filters?.fundType || '',
+    account: filters?.account || '',
+    direction: filters?.direction || '',
+    sourceType: filters?.sourceType || '',
+    hasSearchQuery: Boolean(filters?.q)
+  }, 'Fund ledger read aggregation failed');
+}
+
+function createFundLedgerReadError({ operation, error, durationMs }) {
+  const wrapped = new Error('Khong tai duoc so quy fundLedgers');
+  wrapped.code = fundLedgerErrorCode(operation);
+  wrapped.status = 500;
+  wrapped.operation = operation;
+  wrapped.durationMs = durationMs;
+  wrapped.cause = error;
+  return wrapped;
+}
+
+async function runFundLedgerAggregation({ operation, pipeline, options = {}, filters = {} }) {
+  const startedAt = Date.now();
+  try {
+    const rows = await fundLedgerRepository.aggregate(pipeline, options);
+    return {
+      rows,
+      durationMs: Date.now() - startedAt,
+      pipelineStageCount: Array.isArray(pipeline) ? pipeline.length : 0
+    };
+  } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    logFundLedgerReadError({ operation, error, durationMs, pipeline, filters });
+    throw createFundLedgerReadError({ operation, error, durationMs });
+  }
+}
+
 async function getFundBalanceSummary(query = {}, options = {}) {
   const filters = query.dateFrom && query.dateTo && query.timezone ? query : normalizeQuery(query);
-  const rows = await fundLedgerRepository.aggregate(buildSummaryPipeline(filters), options);
-  return summarizeAccountRows(rows || [], filters);
+  const pipeline = buildSummaryPipeline(filters);
+  const result = await runFundLedgerAggregation({ operation: 'summary', pipeline, options, filters });
+  return summarizeAccountRows(result.rows || [], filters);
 }
 
 async function listFundLedgers(query = {}, options = {}) {
   const filters = normalizeQuery(query);
   // Two bounded aggregation queries: one summary and one windowed/paginated row query.
-  const summaryRows = await fundLedgerRepository.aggregate(buildSummaryPipeline(filters), options);
-  const rowResult = await fundLedgerRepository.aggregate(buildRowsPipeline(filters), options);
+  const summaryPipeline = buildSummaryPipeline(filters);
+  const rowsPipeline = buildRowsPipeline(filters);
+  const summaryResult = await runFundLedgerAggregation({ operation: 'summary', pipeline: summaryPipeline, options, filters });
+  const rowsResult = await runFundLedgerAggregation({ operation: 'rows', pipeline: rowsPipeline, options, filters });
+  const summaryRows = summaryResult.rows;
+  const rowResult = rowsResult.rows;
   const summary = summarizeAccountRows(summaryRows || [], filters);
   const facet = rowResult?.[0] || { rows: [], count: [], filteredTotals: [] };
   const rows = (facet.rows || []).map(mapRuntimeRow);
@@ -825,7 +891,15 @@ async function listFundLedgers(query = {}, options = {}) {
       bankOpeningBalance: summary.bankOpeningBalance,
       bankInPeriod: summary.bankInPeriod,
       bankOutPeriod: summary.bankOutPeriod,
-      bankEndingBalance: summary.bankEndingBalance
+      bankEndingBalance: summary.bankEndingBalance,
+      aggregationDurationsMs: {
+        summary: summaryResult.durationMs,
+        rows: rowsResult.durationMs
+      },
+      pipelineStageCounts: {
+        summary: summaryResult.pipelineStageCount,
+        rows: rowsResult.pipelineStageCount
+      }
     };
   }
   return response;
@@ -1019,6 +1093,8 @@ module.exports = {
   summarizeAccountRows,
   getFundBalanceSummary,
   listFundLedgers,
+  runFundLedgerAggregation,
+  createFundLedgerReadError,
   calculateFixture,
   canonicalDateOfRow,
   fundTypeOfRow,

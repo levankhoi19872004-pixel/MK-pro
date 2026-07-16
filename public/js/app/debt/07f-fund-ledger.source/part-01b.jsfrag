@@ -271,6 +271,7 @@ function loadFundLedger(){
       }).join(''):'<tr><td colspan="9">Chưa có phát sinh fundLedgers.</td></tr>';
     }
   }catch(err){
+    if(typeof renderFundLedgerSummaryError==='function')renderFundLedgerSummaryError();
     if(fundSummary)fundSummary.textContent='Lỗi tải sổ quỹ fundLedgers';
     if(fundLedgerTable)fundLedgerTable.innerHTML=`<tr><td colspan="9">${escapeHtml(err.message||'Lỗi tải fundLedgers')}</td></tr>`;
   }

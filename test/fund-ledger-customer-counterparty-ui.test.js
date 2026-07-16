@@ -70,10 +70,12 @@ test('Bảng Sổ quỹ sử dụng helper đối tượng theo nguồn', () => 
 test('index cache-busts các script Sổ quỹ đã sửa', () => {
   const file = path.join(ROOT, 'public/index.html');
   const source = require('./helpers/sourceBundle.util').readSource(file);
+  const currentToken = 'phase260-fund-ledger-runtime-fix-v1';
   assert.match(source, /01-utils-print-tabs\.js\?v=phase62-picking-zone-v1/);
-  assert.match(source, /07f-fund-ledger\.js\?v=phase230-remittance-lines-v1/);
-  assert.match(source, /07f-fund-ledger\.part02\.js\?v=phase230-remittance-lines-v1/);
-  assert.match(source, /07f-fund-ledger\.part03\.js\?v=phase230-remittance-lines-v1/);
-  assert.match(source, /07f-fund-ledger\.part04\.js\?v=phase230-remittance-lines-v1/);
-  assert.match(source, /07f-fund-ledger\.part05\.js\?v=phase230-remittance-lines-v1/);
+  assert.equal(source.includes('07f-fund-ledger.js?v=phase230-remittance-lines-v1'), false);
+  assert.match(source, new RegExp(`07f-fund-ledger\\.js\\?v=${currentToken}`));
+  assert.match(source, new RegExp(`07f-fund-ledger\\.part02\\.js\\?v=${currentToken}`));
+  assert.match(source, new RegExp(`07f-fund-ledger\\.part03\\.js\\?v=${currentToken}`));
+  assert.match(source, new RegExp(`07f-fund-ledger\\.part04\\.js\\?v=${currentToken}`));
+  assert.match(source, new RegExp(`07f-fund-ledger\\.part05\\.js\\?v=${currentToken}`));
 });

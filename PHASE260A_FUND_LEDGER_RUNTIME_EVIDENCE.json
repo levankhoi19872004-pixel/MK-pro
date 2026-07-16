@@ -1,0 +1,154 @@
+{
+  "phase": "PHASE260A_FUND_LEDGER_RUNTIME_READ_RECOVERY",
+  "generatedAt": "2026-07-16T00:42:47.149Z",
+  "mode": "read-only",
+  "before": {
+    "endpoint": "GET /api/funds/ledger",
+    "httpStatus": 500,
+    "symptom": "UI showed Loi tai so quy fundLedgers and KPI defaults appeared as 0",
+    "exactException": {
+      "operation": "summary and rows",
+      "errorName": "MongoServerError",
+      "errorCode": 34471,
+      "errorCodeName": "Location34471",
+      "safeMessage": "PlanExecutor error during aggregation :: caused by :: $strLenCP requires a string argument, found: missing",
+      "summaryDurationMs": 2812,
+      "rowsDurationMs": 43,
+      "summaryPipelineStageCount": 11,
+      "rowsPipelineStageCount": 12
+    },
+    "classification": "normalization stage failed before historical ownership/window result could be produced",
+    "frontendAssetToken": "phase230-remittance-lines-v1"
+  },
+  "after": {
+    "endpoint": "GET /api/funds/ledger",
+    "httpStatus": 200,
+    "cases": [
+      {
+        "name": "no_filter_default_today",
+        "summaryOk": true,
+        "rowsOk": true,
+        "serviceOk": true,
+        "rowCount": 0,
+        "totalRows": 0,
+        "scopeType": "MIXED_SCOPE"
+      },
+      {
+        "name": "date_filter_2026_07_01_to_2026_07_16",
+        "summaryOk": true,
+        "rowsOk": true,
+        "serviceOk": true,
+        "rowCount": 20,
+        "totalRows": 488,
+        "filteredRowsTotalIn": 3999438832,
+        "filteredRowsTotalOut": 2487491000,
+        "scopeType": "MIXED_SCOPE"
+      },
+      {
+        "name": "direction_filter_in",
+        "summaryOk": true,
+        "rowsOk": true,
+        "serviceOk": true,
+        "rowCount": 20,
+        "totalRows": 471,
+        "filteredRowsTotalIn": 3999438832,
+        "filteredRowsTotalOut": 0,
+        "scopeType": "MIXED_SCOPE"
+      },
+      {
+        "name": "source_type_delivery_cash_submission",
+        "summaryOk": true,
+        "rowsOk": true,
+        "serviceOk": true,
+        "rowCount": 20,
+        "totalRows": 71,
+        "filteredRowsTotalIn": 1453093924,
+        "filteredRowsTotalOut": 0,
+        "scopeType": "MIXED_SCOPE"
+      },
+      {
+        "name": "q_filter",
+        "summaryOk": true,
+        "rowsOk": true,
+        "serviceOk": true,
+        "rowCount": 20,
+        "totalRows": 464,
+        "filteredRowsTotalIn": 2341754864,
+        "filteredRowsTotalOut": 0,
+        "scopeType": "MIXED_SCOPE"
+      }
+    ],
+    "benchmark": {
+      "dateFrom": "2026-07-01",
+      "dateTo": "2026-07-16",
+      "totalMatchingRows": 488,
+      "outputRowCount": 200,
+      "summaryDurationMs": 3636,
+      "rowsDurationMs": 4000,
+      "totalRequestDurationMs": 4282,
+      "warmServiceDurationMs": 281,
+      "summaryPipelineStageCount": 12,
+      "rowsPipelineStageCount": 13
+    },
+    "observability": {
+      "event": "fund_ledger_read_failed",
+      "distinguishesOperations": [
+        "FUND_LEDGER_SUMMARY_AGGREGATION_FAILED",
+        "FUND_LEDGER_ROWS_AGGREGATION_FAILED"
+      ],
+      "logsSensitivePayload": false
+    },
+    "frontendAssetToken": "phase260-fund-ledger-runtime-fix-v1",
+    "kpiFailureDisplay": "dash_not_zero"
+  },
+  "allowDiskUse": {
+    "enabled": false,
+    "reason": "Exact failure was missing-field type correctness in normalization, not memory or disk spill."
+  },
+  "indexChanges": {
+    "added": false,
+    "reason": "No explain evidence for a new index was required to fix the 500."
+  },
+  "writerChanges": {
+    "fundWriterChanged": false,
+    "opaFundPostingReactivated": false,
+    "productionDataChanged": false
+  },
+  "verification": {
+    "targetedFundAndGovernanceTests": {
+      "status": "PASS",
+      "tests": 52
+    },
+    "checkSyntax": "PASS",
+    "buildSourceBundles": "PASS",
+    "checkSourceBundles": "PASS",
+    "checkSourceSize": "PASS",
+    "docsCheck": "PASS",
+    "npmTest": {
+      "status": "FAIL_BASELINE_UNRELATED",
+      "newFundLedgerRegression": false,
+      "failures": [
+        {
+          "test": "app-trust-proxy-static.test.js",
+          "classification": "PRE_EXISTING_CONTRACT_DRIFT",
+          "reason": "createApp() must exist; unrelated to Fund Ledger read path"
+        },
+        {
+          "test": "sales-order-delete-ui-scoped-static.test.js",
+          "classification": "PRE_EXISTING_CONTRACT_DRIFT",
+          "reason": "expected route regex differs because authorization middleware is present; unrelated to Fund Ledger"
+        },
+        {
+          "test": "sales-order-flow.test.js and sales-order-pending-cancel-no-stock-reversal.test.js",
+          "classification": "PRE_EXISTING_CONTRACT_DRIFT",
+          "reason": "legacy sales-order cancel expectations throw undefined status; unrelated to Fund Ledger"
+        },
+        {
+          "test": "source-artifact-clean-verifier.test.js",
+          "classification": "PRE_EXISTING_ENVIRONMENT_OR_ARTIFACT_FAILURE",
+          "reason": "artifact verifier clean ZIP case failed; unrelated to Fund Ledger runtime pipeline"
+        }
+      ]
+    }
+  }
+}
