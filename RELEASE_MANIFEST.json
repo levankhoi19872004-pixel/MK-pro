@@ -1,36 +1,70 @@
-{
-  "application": "MK-Pro",
-  "releasePhase": "Phase258C",
-  "releaseVersion": "1.0.0",
-  "version": "1.0.0",
-  "releaseId": "Phase258C-1.0.0-20260714134052",
-  "sourceSha256": "1a5a3ede570d12cf4fe52091666f4a5b11ca0f03b485f983ce043b49ce6c5782",
-  "sourceFileCount": 1659,
-  "bundleSha256": "524725496c7fbce1383a315658d379412e85a10d9371d5fb48fb256ce28b097e",
-  "bundleFileCount": 32,
-  "configurationVersion": "e1aabecef13e2ffdefc0ea4a1b4b9a97c136a9f41b5d61756894320a6aadc622",
-  "generatedAt": "2026-07-14T13:40:52.146Z",
-  "generatorVersion": "phase255a-r1-manifest-generator-v1",
-  "policyVersion": "phase255a-r1-release-policy-v1",
-  "packageLockSha256": "cd3be37b490ac75efdd0d9891f132754ea729a44cbc82b4b3e887efc7825d96d",
-  "sourceHashScope": [
-    "server.js",
-    "package.json",
-    "package-lock.json",
-    ".env.example",
-    ".env.production.example",
-    "src",
-    "services",
-    "scripts",
-    "test",
-    "public",
-    "templates",
-    "config",
-    "utils",
-    "docs/openapi.json"
-  ],
-  "environment": "production",
-  "gitCommit": "06dfc73f577c4f5da0efde9f70df7c143930941f",
-  "nodeVersion": "v24.16.0",
-  "databaseMigration": []
+﻿{
+    "application":  "MK-Pro",
+    "releasePhase":  "Phase260B",
+    "releaseVersion":  "1.0.0",
+    "releaseId":  "Phase260B-1.0.0-202607170003",
+    "generatedAt":  "2026-07-17T00:04:04.9898709Z",
+    "timezone":  "Asia/Bangkok",
+    "sourceBundleCheck":  "PASS: npm run check:source-bundles",
+    "openApiCheck":  "PASS: npm run docs:check",
+    "syntaxCheck":  "PASS: npm run check:syntax",
+    "phaseTest":  "PASS: node --test test\\\\phase260b-return-post-closeout-immutability.test.js",
+    "dataAudit":  {
+                      "command":  "node scripts\\\\audit-post-closeout-return-mutations.js --limit=5000",
+                      "status":  "BLOCKED_BY_MONGO_ATLAS_WHITELIST",
+                      "disconnectedEvidenceCommand":  "node scripts\\\\audit-post-closeout-return-mutations.js --limit=5000 --allow-disconnected",
+                      "disconnectedEvidenceStatus":  "GENERATED_READ_ONLY_EVIDENCE"
+                  },
+    "artifacts":  [
+                      {
+                          "path":  "MK-pro-phase260b-delivery-return-post-closeout-immutability-controlled-reversal-fixed.zip",
+                          "bytes":  5300816,
+                          "sha256":  "39b8aab0e7c49872549229cc3fb40a06f9f95c570545692a53a4ed37016feeb5"
+                      },
+                      {
+                          "path":  "PHASE260B_DELIVERY_RETURN_POST_CLOSEOUT_IMMUTABILITY_REPORT.md",
+                          "bytes":  4478,
+                          "sha256":  "a6d931cc98551a6181f938103986a6e37023a4f966299c218576d58cabaca4e6"
+                      },
+                      {
+                          "path":  "PHASE260B_RETURN_MUTATION_WRITER_INVENTORY.json",
+                          "bytes":  2460,
+                          "sha256":  "ce8df89ac0572c7ddcdb6b40028f82e6453852af17303665d5f8483740765265"
+                      },
+                      {
+                          "path":  "PHASE260B_POST_CLOSEOUT_RETURN_MUTATION_AUDIT.json",
+                          "bytes":  592,
+                          "sha256":  "87c9596bfd1f4dfd1d426ec31240abbf83b5417e0b1432d2efc2d0faa21da783"
+                      },
+                      {
+                          "path":  "PHASE260B_POST_CLOSEOUT_RETURN_MUTATION_AUDIT.csv",
+                          "bytes":  187,
+                          "sha256":  "5e268da867dcea259fdf5781b0d2e44712a28cc71a2ee27a671f9f0c2b2f4d50"
+                      },
+                      {
+                          "path":  "PHASE260B_POST_CLOSEOUT_RETURN_REPAIR_PLAN.json",
+                          "bytes":  390,
+                          "sha256":  "32bbd1b423415195c0735193654dc13b34bd3cd62109854d81cf0bb4d3a0817c"
+                      },
+                      {
+                          "path":  "PHASE260B_TEST_EVIDENCE.json",
+                          "bytes":  2795,
+                          "sha256":  "329e4a18081ba50c320c554bafc933a8901ad1ccadfb107f72afcb38a2808668"
+                      },
+                      {
+                          "path":  "scripts/audit-post-closeout-return-mutations.js",
+                          "bytes":  10774,
+                          "sha256":  "16ad1a945de72107473ecefe5195560e26119b9d7d9960541181b65d91e8307b"
+                      },
+                      {
+                          "path":  "scripts/plan-post-closeout-return-repair.js",
+                          "bytes":  3001,
+                          "sha256":  "25aaf2ba357bd1f6255680bb20aae7fa39d9bed3b12542a34eac13c9d919506e"
+                      },
+                      {
+                          "path":  "test/phase260b-return-post-closeout-immutability.test.js",
+                          "bytes":  6930,
+                          "sha256":  "827c410998eae936136ba8978910843997bf9e40b4739f76c5edc35bab804b08"
+                      }
+                  ]
 }

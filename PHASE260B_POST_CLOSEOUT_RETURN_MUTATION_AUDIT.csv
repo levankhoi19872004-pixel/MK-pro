@@ -1,0 +1,1 @@
+returnOrderId,returnOrderCode,orderId,orderCode,status,updatedAt,lockReason,lockAt,warehouseCheckStatus,stockInStatus,stockPosted,inventoryPosted,returnAmount,closeoutReturnAmount,issues

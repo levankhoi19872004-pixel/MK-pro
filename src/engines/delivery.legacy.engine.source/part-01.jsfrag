@@ -18,6 +18,7 @@ const {
   pickUserAccountSalesStaffCode,
   pickUserAccountDeliveryStaffCode
 } = require('../domain/staff/staffIdentity');
+const { assertEngineReturnMutationAllowed } = require('../services/returns/DeliveryReturnMutationGuard');
 
 function text(value) { return String(value == null ? '' : value).trim(); }
 function lower(value) { return text(value).toLowerCase(); }

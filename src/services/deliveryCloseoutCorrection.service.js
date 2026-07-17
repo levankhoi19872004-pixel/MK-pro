@@ -14,6 +14,10 @@ const ArDebtAdjustmentPostingService = require('./accounting/ArDebtAdjustmentPos
 const OrderPaymentAllocationService = require('./accounting/OrderPaymentAllocationService');
 const { emitDomainEventSafe } = require('./events/domainEventBus');
 const { EVENT_TYPES } = require('./events/domainEventTypes');
+const {
+  assertReturnMutationAllowed,
+  loadReturnMutationContext
+} = require('../domain/returns/ReturnMutationGuard');
 
 function text(value = '') {
   return String(value ?? '').trim();
@@ -242,7 +246,24 @@ function returnAdjustmentInputItems(input = {}) {
   if (input.returnAdjustment && Array.isArray(input.returnAdjustment.items)) return input.returnAdjustment.items;
   if (Array.isArray(input.returnAdjustmentItems)) return input.returnAdjustmentItems;
   if (Array.isArray(input.correctedReturnItems)) return input.correctedReturnItems;
+  if (Array.isArray(input.correctedReturnedItems)) return input.correctedReturnedItems;
+  if (Array.isArray(input.returnItems)) return input.returnItems;
+  if (Array.isArray(input.returnedItems)) return input.returnedItems;
   return [];
+}
+
+function hasPostCloseoutReturnMutationPayload(input = {}, normalizedItems = null) {
+  const items = normalizedItems || normalizeReturnAdjustmentItems(returnAdjustmentInputItems(input));
+  const hasItemDelta = items.some((item) => quantity(item.adjustmentQty ?? item.deltaReturnQty) !== 0 || money(item.adjustmentAmount ?? item.deltaReturnAmount) !== 0);
+  if (hasItemDelta) return true;
+  if (input.returnAdjustment && typeof input.returnAdjustment === 'object') {
+    const nested = input.returnAdjustment;
+    if (Array.isArray(nested.items) && nested.items.length > 0) return true;
+    if (hasOwnValue(nested, 'amount') && money(nested.amount) !== 0) return true;
+    if (hasOwnValue(nested, 'returnAdjustmentAmount') && money(nested.returnAdjustmentAmount) !== 0) return true;
+  }
+  if (hasOwnValue(input, 'returnAdjustmentAmount') && money(input.returnAdjustmentAmount) !== 0) return true;
+  return false;
 }
 
 function normalizeReturnAdjustmentItems(items = []) {
@@ -1439,8 +1460,20 @@ async function createCorrection(input = {}, options = {}) {
     if (existing) return loadIdempotentResult(existing, { ...options, session });
 
     const rawReturnAdjustmentItems = returnAdjustmentInputItems(input);
-  const returnAdjustmentItems = normalizeReturnAdjustmentItems(rawReturnAdjustmentItems);
+    const returnAdjustmentItems = normalizeReturnAdjustmentItems(rawReturnAdjustmentItems);
     const rawCashLines = input.correctedCashLines || input.cashAdjustmentLines || [];
+    if (hasPostCloseoutReturnMutationPayload(input, returnAdjustmentItems)) {
+      const context = await loadReturnMutationContext({ order, options: { ...options, session } });
+      assertReturnMutationAllowed({
+        order,
+        latestCloseoutVersion: context.latestCloseoutVersion,
+        allocation: context.allocation,
+        accountingLock: context.accountingLock,
+        warehouseLock: context.warehouseLock,
+        source: input.source || 'deliveryCloseoutCorrection.createCorrection',
+        operation: 'closeout_return_adjustment'
+      });
+    }
 
     const latest = await latestVersionForOriginal(original.id, { ...options, session });
     const baseSnapshot = latest || originalCloseout;
@@ -1560,13 +1593,15 @@ async function createCorrection(input = {}, options = {}) {
 
     const newCloseoutVersion = buildVersionSnapshot(order, baseSnapshot, correction, now);
 
-    const returnOrderAdjustment = await applyReturnOrderAdjustment({
-      order,
-      items: rawReturnAdjustmentItems,
-      actor,
-      reason: correction.reason || correction.auditReason,
-      note: correction.note
-    }, { ...options, session, now });
+    const returnOrderAdjustment = rawReturnAdjustmentItems.length
+      ? await applyReturnOrderAdjustment({
+        order,
+        items: rawReturnAdjustmentItems,
+        actor,
+        reason: correction.reason || correction.auditReason,
+        note: correction.note
+      }, { ...options, session, now })
+      : { returnUpdated: false, skipped: true, reason: 'payment_only_correction' };
 
     await DeliveryCloseoutCorrection.findOneAndUpdate(
       { idempotencyKey },

@@ -103,6 +103,8 @@ async function ensureReturnDraftForSalesOrder(order = {}, options = {}) {
     return { returnOrder: toClient(buildReturnDraftFromSalesOrder(order, null)), virtualDraft: true, skipped: 'no_return_quantity' };
   }
   if (isPostedReturnStatus(existing.status)) return { returnOrder: toClient(existing), skipped: 'posted' };
+  const mutationGuard = await guardLegacyReturnWrite(order, existing, options, 'u');
+  if (mutationGuard) return mutationGuard;
   const draft = buildReturnDraftFromSalesOrder(order, existing);
   if (!hasReturnQuantity(draft)) {
     const cleared = {
@@ -150,6 +152,8 @@ async function syncReturnDraftWithSalesOrder(order = {}, options = {}) {
 async function cancelReturnDraftForSalesOrder(order = {}, options = {}) {
   const existing = await findBySalesOrder(order);
   if (!existing) return { skipped: 'not_found' };
+  const mutationGuard = await guardLegacyReturnWrite(order, existing, options, 'x');
+  if (mutationGuard) return mutationGuard;
   if (isReturnOrderLockedForCancel(existing)) {
     return { error: 'Phiếu trả hàng đã nhập kho/ghi sổ. Vui lòng tạo phiếu đảo trước khi hủy đơn.', status: 400 };
   }
@@ -173,6 +177,8 @@ async function restoreReturnDraftForSalesOrder(order = {}, options = {}) {
   if (!existing) {
     return { returnOrder: toClient(buildReturnDraftFromSalesOrder(order, null)), virtualDraft: true, skipped: 'no_existing_return_order' };
   }
+  const mutationGuard = await guardLegacyReturnWrite(order, existing, options, 'r');
+  if (mutationGuard) return mutationGuard;
   const draft = buildReturnDraftFromSalesOrder(order, existing);
   if (!hasReturnQuantity(draft)) return { returnOrder: toClient(draft), virtualDraft: true, skipped: 'no_return_quantity' };
   draft.status = hasReturnQuantity(draft) ? RETURN_STATES.WAITING_RECEIVE : RETURN_STATES.DRAFT;
@@ -322,6 +328,8 @@ async function updateReturnDraftItemsBySalesOrder(salesOrderIdOrCode, body = {},
     // Chỉ dựng draft trong bộ nhớ. Nếu tổng returnQty > 0 mới upsert sau khi tính xong.
     current = buildReturnDraftFromSalesOrder(salesOrder, null);
   }
+  const mutationGuard = await guardLegacyReturnWrite(salesOrder, current, options, 'u');
+  if (mutationGuard) return mutationGuard;
   if (!current) return { error: 'Không tìm thấy đơn gốc để tạo/cập nhật phiếu trả hàng', status: 404 };
 
   const editGuard = guardReturnOrderEdit(current, 'Phiếu trả hàng đã nhập kho/ghi sổ, không được sửa. Vui lòng tạo phiếu đảo nếu khách lấy lại hàng.');
@@ -434,6 +442,8 @@ async function updateReturnDraftItemsBySalesOrder(salesOrderIdOrCode, body = {},
 async function cancelReturnOrderById(idOrCode, body = {}, options = {}) {
   const current = await returnOrderRepository.findByIdOrCode(idOrCode);
   if (!current) return { error: 'Không tìm thấy phiếu trả hàng', status: 404 };
+  const mutationGuard = await guardLegacyReturnWrite({}, current, options, 'x');
+  if (mutationGuard) return mutationGuard;
   const cancelGuard = guardReturnOrderCancel(current);
   if (cancelGuard) return cancelGuard;
   if ((current.returnMergeStatus || 'unmerged') === 'merged' || current.masterReturnOrderId || current.masterReturnOrderCode) {

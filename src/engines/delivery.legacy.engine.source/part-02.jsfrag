@@ -448,6 +448,8 @@ class DeliveryEngine {
     }
     assertDeliveryOwnership(order, body);
 
+    await assertEngineReturnMutationAllowed(this, order, body, options, returnMatchesOrder);
+
     const items = this.normalizeReturnItems(body.items, order);
     const totalAmount = items.reduce((sum, item) => sum + toNumber(item.returnAmount || item.amount), 0);
     const stableId = `RO-${orderCodeOf(order).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
@@ -515,4 +517,3 @@ class DeliveryEngine {
       message: items.length ? 'Đã lưu hàng trả' : 'Đã xóa hàng trả về 0'
     };
   }
-

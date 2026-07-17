@@ -88,7 +88,9 @@
   function today() { return new Date().toISOString().slice(0, 10); }
   function deriveCloseoutUiState(row) {
     var accountingStatus = String((row && row.accountingStatus) || '').toLowerCase();
-    var accountingConfirmed = Boolean(row && (row.accountingConfirmed === true || accountingStatus === 'confirmed'));
+    var closeoutStatus = String((row && (row.deliveryCloseoutStatus || row.closeoutStatus || row.status)) || '').toLowerCase();
+    if (row && row.deliveryCloseout && typeof row.deliveryCloseout === 'object') closeoutStatus = String(row.deliveryCloseout.status || closeoutStatus).toLowerCase();
+    var accountingConfirmed = Boolean(row && (row.accountingConfirmed === true || ['confirmed', 'accounting_confirmed', 'closed'].indexOf(accountingStatus) !== -1 || ['confirmed', 'accounting_confirmed', 'closed', 'corrected_confirmed'].indexOf(closeoutStatus) !== -1));
     var viewSelectable = Boolean(row && orderSelectionKey(row) && row.viewSelectable !== false && !orderCancelledOrDeleted(row));
     var eligibility = row && row.closeoutEligibility && typeof row.closeoutEligibility === 'object' ? row.closeoutEligibility : null;
     var closeoutEligibleEvidence = eligibility ? eligibility.eligible === true : row && row.closeoutEligible === true;
@@ -103,6 +105,7 @@
   }
 
   function isConfirmed(row) { return deriveCloseoutUiState(row).accountingConfirmed; }
+  function isReturnMutationLocked(row) { return isConfirmed(row); }
   function statusLabel(row) {
     return deriveCloseoutUiState(row).statusLabel;
   }
@@ -1713,6 +1716,7 @@
   }
 
   function currentReturnEditItems() {
+    if (isReturnMutationLocked(state.adjustmentRow)) return [];
     return (state.correctionReturnItems || []).map(function (item, index) {
       var input = document.querySelector('.deliveryNewReturnQtyInput[data-index="' + index + '"]');
       var newQty = qty(input ? input.value : item.newReturnQty);
@@ -1808,6 +1812,7 @@
     if (!state.correctionReturnItems.length) {
       return '<div class="empty-state">Đơn này chưa có danh sách hàng giao đủ để nhập hàng trả.</div>';
     }
+    var locked = isReturnMutationLocked(row);
     var body = state.correctionReturnItems.map(function (item, index) {
       var newQty = qty(item.newReturnQty);
       var deltaQty = newQty - qty(item.oldReturnQty);
@@ -1820,7 +1825,7 @@
         '<td class="num">' + money(item.unitPrice) + '</td>' +
         '<td class="num">' + money(num(item.deliveredQty) * num(item.unitPrice)) + '</td>' +
         '<td class="num">' + esc(item.oldReturnQty) + '</td>' +
-        '<td class="num"><input class="deliveryNewReturnQtyInput" data-index="' + index + '" inputmode="decimal" value="' + esc(item.newReturnQty) + '"></td>' +
+        '<td class="num"><input class="deliveryNewReturnQtyInput" data-index="' + index + '" inputmode="decimal" value="' + esc(item.newReturnQty) + '"' + (locked ? ' disabled aria-disabled="true"' : '') + '></td>' +
         '<td class="num" id="deliveryDeltaQty' + index + '">' + esc(deltaQty) + '</td>' +
         '<td class="num delivery-new-return" id="deliveryReturnAmount' + index + '">' + money(returnAmount) + '</td>' +
         '<td class="num delivery-new-return" id="deliveryDeltaAmount' + index + '">' + money(deltaAmount) + '</td>' +
@@ -2084,6 +2089,12 @@
     if (totals.correctedTotalCollected < 0) { setModalError('adjustment', 'Tổng tiền thu sau điều chỉnh không được âm.'); return; }
     var fullReturnItems = totals.returnItems;
     var correctedReturnItems = totals.returnItems.filter(function (item) { return qty(item.adjustmentQty) !== 0; });
+    var returnLocked = isReturnMutationLocked(row);
+    if (returnLocked) {
+      fullReturnItems = [];
+      correctedReturnItems = [];
+      totals.returnDelta = 0;
+    }
     var cashLines = [
       { paymentMethod: 'cash', oldAmount: totals.oldCash, newAmount: totals.newCash, adjustmentAmount: totals.newCash - totals.oldCash },
       { paymentMethod: 'bank', oldAmount: totals.oldBank, newAmount: totals.newBank, adjustmentAmount: totals.newBank - totals.oldBank },
@@ -2100,35 +2111,38 @@
     }
 
     try {
+      var payload = {
+        correctedCashLines: cashLines,
+        paymentCorrection: {
+          currentCashAmount: totals.oldCash,
+          correctedCashAmount: totals.newCash,
+          cashDeltaAmount: totals.cashDeltaAmount,
+          currentBankAmount: totals.oldBank,
+          correctedBankAmount: totals.newBank,
+          bankDeltaAmount: totals.bankDeltaAmount,
+          currentRewardAmount: totals.oldReward,
+          correctedRewardAmount: totals.newReward,
+          rewardDeltaAmount: totals.rewardDeltaAmount,
+          currentTotalCollected: totals.currentTotalCollected,
+          correctedTotalCollected: totals.correctedTotalCollected,
+          totalCollectedDelta: totals.totalCollectedDelta
+        },
+        reason: reason,
+        note: note
+      };
+      if (!returnLocked) {
+        payload.correctedReturnItems = correctedReturnItems;
+        payload.returnAdjustmentItems = fullReturnItems;
+        payload.returnAdjustment = {
+          source: 'delivery-adjustment-popup',
+          items: fullReturnItems
+        };
+        payload.returnAdjustmentAmount = totals.returnDelta;
+      }
       var res = await fetch(correctionEndpoint(row), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          correctedReturnItems: correctedReturnItems,
-          returnAdjustmentItems: fullReturnItems,
-          returnAdjustment: {
-            source: 'delivery-adjustment-popup',
-            items: fullReturnItems
-          },
-          returnAdjustmentAmount: totals.returnDelta,
-          correctedCashLines: cashLines,
-          paymentCorrection: {
-            currentCashAmount: totals.oldCash,
-            correctedCashAmount: totals.newCash,
-            cashDeltaAmount: totals.cashDeltaAmount,
-            currentBankAmount: totals.oldBank,
-            correctedBankAmount: totals.newBank,
-            bankDeltaAmount: totals.bankDeltaAmount,
-            currentRewardAmount: totals.oldReward,
-            correctedRewardAmount: totals.newReward,
-            rewardDeltaAmount: totals.rewardDeltaAmount,
-            currentTotalCollected: totals.currentTotalCollected,
-            correctedTotalCollected: totals.correctedTotalCollected,
-            totalCollectedDelta: totals.totalCollectedDelta
-          },
-          reason: reason,
-          note: note
-        })
+        body: JSON.stringify(payload)
       });
       var json = await readJsonResponse(res, 'Không tạo được điều chỉnh');
       setModalNotice('adjustment', json.message || (json.data && json.data.returnUpdated ? 'Đã cập nhật hàng trả.' : 'Đã lưu điều chỉnh.'), 'success');

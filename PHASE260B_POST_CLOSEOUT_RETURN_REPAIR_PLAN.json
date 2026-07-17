@@ -1,0 +1,19 @@
+{
+  "phase": "Phase260B",
+  "mode": "read_only_plan",
+  "apply": false,
+  "generatedAt": "2026-07-17T00:02:06.232Z",
+  "sourceAuditGeneratedAt": "2026-07-17T00:02:01.835Z",
+  "statuses": [
+    "NO_AUTO_REPAIR",
+    "MANUAL_REVIEW_REQUIRED",
+    "SAFE_REBUILD_CANDIDATE",
+    "REVERSAL_REQUIRED"
+  ],
+  "summary": {
+    "total": 0,
+    "byGroup": {},
+    "byStatus": {}
+  },
+  "items": []
+}

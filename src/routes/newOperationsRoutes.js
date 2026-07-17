@@ -7,6 +7,7 @@ const debtNewService = require('../services/v2/debtNew.service');
 const deliveryCloseoutCorrectionService = require('../services/deliveryCloseoutCorrection.service');
 const DeliveryAdjustmentCommitService = require('../services/delivery/DeliveryAdjustmentCommitService');
 const DeliveryAdjustmentBulkCommitService = require('../services/delivery/DeliveryAdjustmentBulkCommitService');
+const ReturnCorrectionRequestService = require('../services/returns/ReturnCorrectionRequestService');
 const DebtCollectionService = require('../services/DebtCollectionService');
 const manualDebtPostingService = require('../services/accounting/manualDebtPostingService');
 const AccountingCloseoutService = require('../services/accounting/AccountingCloseoutService');
@@ -290,6 +291,26 @@ router.post('/delivery-today/adjustments/bulk-commit', requireAuth, writeRoles, 
     });
   } catch (err) {
     return sendError(res, err, 'Không ghi nhận điều chỉnh hàng loạt');
+  }
+});
+
+router.post('/delivery-today/returns/:returnOrderId/correction-requests', requireAuth, writeRoles, async (req, res) => {
+  try {
+    const result = await ReturnCorrectionRequestService.createRequest({
+      returnOrderId: req.params.returnOrderId,
+      body: req.body || {},
+      actor: req.user || {}
+    });
+    return res.status(result.idempotent ? 200 : 201).json({
+      ok: true,
+      success: true,
+      message: result.idempotent ? 'Yêu cầu điều chỉnh hàng trả đã tồn tại.' : 'Đã tạo yêu cầu điều chỉnh hàng trả chờ duyệt.',
+      request: result.request,
+      data: result,
+      canonicalRoute: '/api/new/delivery-today/returns/:returnOrderId/correction-requests'
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không tạo được yêu cầu điều chỉnh hàng trả');
   }
 });
 

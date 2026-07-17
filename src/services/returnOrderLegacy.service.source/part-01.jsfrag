@@ -17,6 +17,7 @@ const ReturnOrder = require('../models/ReturnOrder');
 const StockTransaction = require('../models/StockTransaction');
 const ReturnStateMachine = require('../domain/lifecycle/ReturnStateMachine');
 const { RETURN_STATES } = ReturnStateMachine;
+const { guardLegacyReturnWrite } = require('./returns/ReturnOrderLegacyMutationGuard');
 
 const {
   pickSalesStaffCode,
@@ -393,4 +394,3 @@ async function findReturnOrdersBySalesOrderRefs(orders = [], options = {}) {
     }
   });
 }
-

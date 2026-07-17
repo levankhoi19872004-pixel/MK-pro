@@ -88,7 +88,7 @@ async function buildReturnOrderDocument(body = {}) {
     createdAt: existing?.createdAt || body.createdAt || dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
-  return { returnOrder, existing };
+  return { returnOrder, existing, salesOrder };
 }
 
 async function createReturnOrder(body = {}) {
@@ -102,7 +102,9 @@ async function createReturnOrder(body = {}) {
     stockPosted: false
   });
   if (built.error) return built;
-  const { returnOrder, existing } = built;
+  const { returnOrder, existing, salesOrder } = built;
+  const mutationGuard = await guardLegacyReturnWrite(salesOrder, existing || returnOrder, {}, 'c');
+  if (mutationGuard) return mutationGuard;
 
   const editGuard = guardReturnOrderEdit(existing, returnOrder);
   if (editGuard) return editGuard;
@@ -183,6 +185,8 @@ async function upsertDeliveryReturnOrder(body = {}, options = {}) {
   if (existing && ((existing.returnMergeStatus || 'unmerged') === 'merged' || existing.masterReturnOrderId || existing.masterReturnOrderCode)) {
     return { error: 'Phiếu trả hàng đã gộp đơn tổng, không được sửa từ màn giao hàng', status: 400 };
   }
+  const mutationGuard = await guardLegacyReturnWrite(salesOrder, existing || {}, options, 'l');
+  if (mutationGuard) return mutationGuard;
   if (existing) {
     const editGuard = guardReturnOrderEdit(existing, 'Phiếu trả hàng đã ghi sổ/kho đã nhận, không được sửa từ màn giao hàng');
     if (editGuard) return editGuard;
@@ -278,9 +282,12 @@ async function createPendingReturnOrder(body = {}, options = {}) {
     warehouseReceiveStatus: body.warehouseReceiveStatus || RETURN_STATES.WAITING_RECEIVE
   });
   if (built.error) return built;
-  const { returnOrder, existing } = built;
+  const { returnOrder, existing, salesOrder } = built;
   const pendingQty = toNumber(returnOrder.totalQuantity ?? 0)
     || (Array.isArray(returnOrder.items) ? returnOrder.items.reduce((sum, item) => sum + toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.quantity ?? item.qty ?? 0), 0) : 0);
+
+  const mutationGuard = await guardLegacyReturnWrite(salesOrder, existing || returnOrder, options, pendingQty > 0 ? 'c' : 'z');
+  if (mutationGuard) return mutationGuard;
 
   // Nếu nguồn web/ERP gửi danh sách trả = 0 thì không được tạo lại RO-DRAFT waiting_receive.
   // Chỉ clear phiếu tạm cũ nếu có, rồi trả về.

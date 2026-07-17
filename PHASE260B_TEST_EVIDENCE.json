@@ -1,0 +1,54 @@
+﻿{
+    "phase":  "Phase260B",
+    "generatedAt":  "2026-07-17T00:02:57.2015675Z",
+    "summary":  {
+                    "testsPassed":  true,
+                    "mongoAuditScannedRows":  0,
+                    "mongoAuditConnectionOk":  false,
+                    "mongoAuditNote":  "MongoDB Atlas connection blocked by whitelist in this environment; disconnected evidence was generated read-only."
+                },
+    "commands":  [
+                     {
+                         "command":  "node --test test\\\\phase260b-return-post-closeout-immutability.test.js",
+                         "status":  "PASS",
+                         "result":  "9 tests passed"
+                     },
+                     {
+                         "command":  "npm run check:source-bundles",
+                         "status":  "PASS",
+                         "result":  "19 bundles OK"
+                     },
+                     {
+                         "command":  "npm run docs:check",
+                         "status":  "PASS",
+                         "result":  "OpenAPI document is up to date; 369 operations"
+                     },
+                     {
+                         "command":  "npm run check:syntax",
+                         "status":  "PASS",
+                         "result":  "SYNTAX_OK 1528 JavaScript files"
+                     },
+                     {
+                         "command":  "node scripts\\\\audit-post-closeout-return-mutations.js --limit=5000",
+                         "status":  "BLOCKED",
+                         "result":  "MongoDB Atlas whitelist prevented connection"
+                     },
+                     {
+                         "command":  "node scripts\\\\audit-post-closeout-return-mutations.js --limit=5000 --allow-disconnected",
+                         "status":  "PASS_WITH_DISCONNECTED_EVIDENCE",
+                         "result":  "Evidence JSON/CSV and writer inventory generated with connection.ok=false"
+                     },
+                     {
+                         "command":  "node scripts\\\\plan-post-closeout-return-repair.js",
+                         "status":  "PASS",
+                         "result":  "Generated read-only repair plan, total 0 due disconnected audit"
+                     }
+                 ],
+    "artifacts":  [
+                      "PHASE260B_RETURN_MUTATION_WRITER_INVENTORY.json",
+                      "PHASE260B_POST_CLOSEOUT_RETURN_MUTATION_AUDIT.json",
+                      "PHASE260B_POST_CLOSEOUT_RETURN_MUTATION_AUDIT.csv",
+                      "PHASE260B_POST_CLOSEOUT_RETURN_REPAIR_PLAN.json",
+                      "PHASE260B_DELIVERY_RETURN_POST_CLOSEOUT_IMMUTABILITY_REPORT.md"
+                  ]
+}

@@ -12,7 +12,7 @@
         "src/services/returnOrderLegacy.service.source/part-03.jsfrag",
         "src/services/returnOrderLegacy.service.source/part-04.jsfrag"
       ],
-      "sourceSha256": "87d2a14432882cee911b34569f81c7edba8e6c4b7e42b9aa41547048fa40e864"
+      "sourceSha256": "31deb9f88176940e00969ec7e0983dcce6bd87d2a708d210008a60acc31b2f6a"
     },
     {
       "target": "src/services/importExportLegacy.service.js",
@@ -63,7 +63,7 @@
         "src/engines/delivery.legacy.engine.source/part-02.jsfrag",
         "src/engines/delivery.legacy.engine.source/part-03.jsfrag"
       ],
-      "sourceSha256": "3b40bfbdbe482b7e6ad95f8302e5677204b0cf50d5d705ee3343aeca264cc2a6"
+      "sourceSha256": "37279e8c7a237802dc398c992d02eac256035e2746ffa954dfa2dab9b39d0fdc"
     },
     {
       "target": "services/printDataBuilder.legacy.js",

@@ -1,0 +1,67 @@
+{
+  "phase": "Phase260B",
+  "generatedAt": "2026-07-17T00:01:56.781Z",
+  "mode": "static_writer_inventory",
+  "writers": [
+    {
+      "file": "src/engines/delivery.legacy.engine.source/part-02.jsfrag",
+      "entry": "DeliveryEngine.saveReturn",
+      "mutation": "createPendingReturn",
+      "guard": "assertReturnMutationAllowed"
+    },
+    {
+      "file": "src/services/mobile/delivery.service.js",
+      "entry": "createReturnFromDelivery",
+      "mutation": "DeliveryEngine.saveReturn",
+      "guard": "inherited_from_engine"
+    },
+    {
+      "file": "src/routes/deliveryRoutes.js",
+      "entry": "POST /api/delivery/return",
+      "mutation": "DeliveryEngine.saveReturn",
+      "guard": "inherited_from_engine"
+    },
+    {
+      "file": "src/routes/mobile/delivery.routes.js",
+      "entry": "POST /api/mobile/delivery/return",
+      "mutation": "mobile delivery service",
+      "guard": "inherited_from_engine"
+    },
+    {
+      "file": "src/services/mobile/MobileSyncService.js",
+      "entry": "delivery_return_save",
+      "mutation": "DeliveryEngine.saveReturn",
+      "guard": "offline disabled + inherited_from_engine + 409 conflict"
+    },
+    {
+      "file": "src/services/returnOrderLegacy.service.source/part-02.jsfrag",
+      "entry": "createReturnOrder/upsertDeliveryReturnOrder/createPendingReturnOrder",
+      "mutation": "returnOrderRepository.upsert/clear",
+      "guard": "guardLegacyReturnWrite -> assertReturnMutationAllowed"
+    },
+    {
+      "file": "src/services/returnOrderLegacy.service.source/part-03.jsfrag",
+      "entry": "ensure/cancel/restore/update/cancelById",
+      "mutation": "returnOrderRepository.upsert/clear",
+      "guard": "guardLegacyReturnWrite -> assertReturnMutationAllowed"
+    },
+    {
+      "file": "src/services/deliveryCloseoutCorrection.service.js",
+      "entry": "createCorrection",
+      "mutation": "applyReturnOrderAdjustment",
+      "guard": "post-closeout return payload rejected before apply"
+    },
+    {
+      "file": "src/routes/newOperationsRoutes.js",
+      "entry": "POST /api/new/delivery-today/returns/:returnOrderId/correction-requests",
+      "mutation": "controlled request only",
+      "guard": "roles + optimistic concurrency + no direct return mutation"
+    },
+    {
+      "file": "public/js/app/new/91-delivery-today-new.js",
+      "entry": "submitAdjustmentPopup",
+      "mutation": "correction payload builder",
+      "guard": "locked return fields omitted"
+    }
+  ]
+}
