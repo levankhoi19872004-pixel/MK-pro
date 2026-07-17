@@ -1,0 +1,217 @@
+{
+  "phase": "Phase260B-R1",
+  "generatedAt": "2026-07-17T00:48:48.338Z",
+  "mode": "static_contract_matrix",
+  "canonicalStatuses": {
+    "accounting": [
+      "confirmed",
+      "locked",
+      "posted",
+      "accounting_confirmed",
+      "closed",
+      "corrected_confirmed"
+    ],
+    "closeout": [
+      "confirmed",
+      "locked",
+      "posted",
+      "accounting_confirmed",
+      "closed",
+      "corrected_confirmed"
+    ],
+    "paymentAllocation": [
+      "confirmed",
+      "locked",
+      "posted",
+      "accounting_confirmed",
+      "closed",
+      "corrected_confirmed"
+    ],
+    "warehouse": [
+      "matched",
+      "confirmed",
+      "discrepancy"
+    ],
+    "stock": [
+      "ready",
+      "ready_to_stock_in",
+      "posted",
+      "stock_posted"
+    ]
+  },
+  "projectionFields": [
+    "_id",
+    "id",
+    "code",
+    "salesOrderId",
+    "salesOrderCode",
+    "orderId",
+    "orderCode",
+    "status",
+    "returnStatus",
+    "returnState",
+    "warehouseStatus",
+    "warehouseReceiveStatus",
+    "warehouseCheckStatus",
+    "warehouseConfirmed",
+    "warehouseChecked",
+    "warehouseCheckedAt",
+    "stockInStatus",
+    "inventoryStatus",
+    "inventoryPosted",
+    "inventoryPostingId",
+    "inventoryTransactionId",
+    "stockPosted",
+    "stockTransactionId",
+    "stockTransactionIds",
+    "accountingStatus",
+    "accountingConfirmed",
+    "active",
+    "isCurrentVersion",
+    "version",
+    "__v",
+    "updatedAt"
+  ],
+  "samples": [
+    {
+      "name": "pending return is editable",
+      "input": {
+        "returnOrder": {
+          "accountingStatus": "pending",
+          "warehouseCheckStatus": "pending",
+          "stockInStatus": "pending"
+        }
+      },
+      "expect": {
+        "accounting": false,
+        "warehouse": false
+      },
+      "actual": {
+        "accounting": false,
+        "accountingReason": "",
+        "warehouse": false,
+        "warehouseReason": ""
+      }
+    },
+    {
+      "name": "confirmed accounting locks mutation",
+      "input": {
+        "returnOrder": {
+          "accountingStatus": "confirmed"
+        }
+      },
+      "expect": {
+        "accounting": true
+      },
+      "actual": {
+        "accounting": false,
+        "accountingReason": "",
+        "warehouse": false,
+        "warehouseReason": ""
+      }
+    },
+    {
+      "name": "posted accounting locks mutation",
+      "input": {
+        "returnOrder": {
+          "accountingStatus": "posted"
+        }
+      },
+      "expect": {
+        "accounting": true
+      },
+      "actual": {
+        "accounting": false,
+        "accountingReason": "",
+        "warehouse": false,
+        "warehouseReason": ""
+      }
+    },
+    {
+      "name": "locked accounting locks mutation",
+      "input": {
+        "returnOrder": {
+          "accountingStatus": "locked"
+        }
+      },
+      "expect": {
+        "accounting": true
+      },
+      "actual": {
+        "accounting": false,
+        "accountingReason": "",
+        "warehouse": false,
+        "warehouseReason": ""
+      }
+    },
+    {
+      "name": "corrected closeout locks mutation",
+      "input": {
+        "latestCloseoutVersion": {
+          "status": "corrected_confirmed"
+        }
+      },
+      "expect": {
+        "accounting": true
+      },
+      "actual": {
+        "accounting": true,
+        "accountingReason": "latest_closeout_version_locked",
+        "warehouse": false,
+        "warehouseReason": ""
+      }
+    },
+    {
+      "name": "posted allocation locks mutation",
+      "input": {
+        "allocation": {
+          "status": "posted"
+        }
+      },
+      "expect": {
+        "accounting": true
+      },
+      "actual": {
+        "accounting": true,
+        "accountingReason": "payment_allocation_locked",
+        "warehouse": false,
+        "warehouseReason": ""
+      }
+    },
+    {
+      "name": "ready warehouse status locks direct item edit",
+      "input": {
+        "returnOrder": {
+          "warehouseCheckStatus": "checked",
+          "stockInStatus": "ready_to_stock_in"
+        }
+      },
+      "expect": {
+        "warehouse": true
+      },
+      "actual": {
+        "accounting": false,
+        "accountingReason": "",
+        "warehouse": true,
+        "warehouseReason": "warehouse_or_stock_locked"
+      }
+    },
+    {
+      "name": "stock posted locks warehouse mutation",
+      "input": {
+        "returnOrder": {
+          "stockPosted": true
+        }
+      },
+      "expect": {
+        "warehouse": true
+      },
+      "actual": {
+        "accounting": false,
+        "accountingReason": "",
+        "warehouse": true,
+        "warehouseReason": "warehouse_or_stock_locked"
+      }
+    }
+  ]
+}

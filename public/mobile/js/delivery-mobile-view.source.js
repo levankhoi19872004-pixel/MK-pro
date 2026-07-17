@@ -406,6 +406,7 @@ function renderWorkflowBar() {
 var bar = el('mWorkflowBar');
 if (!bar) return;
 var order = currentOrder();
+var returnLocked = isReturnMutationLocked(order);
 bar.className = 'm-workflow-bar delivery-one-hand-bar m-delivery-bottom-action';
 if (!isCustomerMode() || !order || state.tab === 'orders') {
 bar.hidden = true;
@@ -416,6 +417,10 @@ bar.hidden = false;
 bar.className = 'm-workflow-bar delivery-one-hand-bar m-delivery-bottom-action active';
 bar.classList.add('active');
 if (state.tab === 'products') {
+if (returnLocked) {
+bar.innerHTML = '<div class="m-workflow-actions step-only phase24 products readonly"><span class="m-readonly-note">Đơn đã được kế toán chốt. Hàng trả không thể thay đổi. Liên hệ kế toán nếu cần điều chỉnh.</span></div>';
+return;
+}
 bar.innerHTML = '<div class="m-workflow-actions step-only phase24 products">' +
 '<button id="mFullReturnOrder" type="button" class="danger"' + (state.fullReturnSubmitting ? ' disabled' : '') + '>' + (state.fullReturnSubmitting ? 'Đang xử lý...' : 'Trả hết đơn') + '</button>' +
 '<button type="submit" form="mProductReturnForm" class="primary" data-action="primary"' + (state.returnSubmitting ? ' disabled' : '') + '>' + (state.returnSubmitting ? 'Đang lưu...' : 'Xác nhận & thu') + '</button>' +
@@ -423,6 +428,10 @@ bar.innerHTML = '<div class="m-workflow-actions step-only phase24 products">' +
 return;
 }
 if (state.tab === 'returns') {
+if (returnLocked) {
+bar.innerHTML = '<div class="m-workflow-actions step-only phase24 returns readonly"><span class="m-readonly-note">Đơn đã được kế toán chốt. Hàng trả không thể thay đổi. Liên hệ kế toán nếu cần điều chỉnh.</span></div>';
+return;
+}
 if (!hasReturnedRowsForCurrentOrder(order)) {
 bar.innerHTML = '<div class="m-workflow-actions step-only phase24 returns empty">' +
 '<button type="button" class="primary" data-workflow-tab="products">Quay lại Hàng giao</button>' +
@@ -495,6 +504,25 @@ body.innerHTML = rows.map(renderOrderCard).join('');
 }
 }
 function currentOrder() { return window.DeliveryCore.state.selectedOrder; }
+var RETURN_LOCKED_STATUSES = ['confirmed', 'locked', 'posted', 'accounting_confirmed', 'closed', 'corrected_confirmed'];
+function hasReturnLockedStatus(value) {
+return RETURN_LOCKED_STATUSES.indexOf(String(value || '').toLowerCase()) !== -1;
+}
+function isReturnMutationLocked(order) {
+order = order || {};
+var closeout = order.deliveryCloseout && typeof order.deliveryCloseout === 'object' ? order.deliveryCloseout : {};
+return Boolean(order.returnMutationLocked === true ||
+(order.returnMutationLock && order.returnMutationLock.locked === true) ||
+order.accountingConfirmed === true ||
+order.accountingLocked === true ||
+hasReturnLockedStatus(order.accountingStatus) ||
+hasReturnLockedStatus(order.deliveryCloseoutStatus) ||
+hasReturnLockedStatus(order.closeoutStatus) ||
+hasReturnLockedStatus(closeout.status));
+}
+function returnLockedNotice() {
+return '<div class="m-empty soft m-return-readonly"><b>Đơn đã được kế toán chốt</b><span>Hàng trả không thể thay đổi. Liên hệ kế toán nếu cần điều chỉnh.</span></div>';
+}
 function debtMoneyValue(customer) {
 return num(customer && (customer.debtAmount || customer.debt || 0));
 }
@@ -1192,10 +1220,20 @@ function renderProducts(body) {
 var order = currentOrder();
 if (!order) { body.innerHTML = '<div class="m-empty">Chọn khách/đơn ở danh sách cần giao trước.</div>'; return; }
 var baseRows = buildReturnInputRows(order, returnsForOrder(order));
+var returnLocked = isReturnMutationLocked(order);
 var productKeyword = String(state.productSearchKeyword || '').toLowerCase().trim();
 var totalQty = baseRows.reduce(function (sum, it) { return sum + num(it.deliveredQty); }, 0);
 var totalAmount = baseRows.reduce(function (sum, it) { return sum + num(it.price) * num(it.deliveredQty); }, 0);
 var totalReturnAmount = baseRows.reduce(function (sum, it) { return sum + num(it.returnQty) * num(it.price); }, 0);
+if (returnLocked) {
+body.innerHTML = returnLockedNotice() + '<div class="m-return-scroll products-with-return-input">' +
+(baseRows.map(function (it) {
+var amount = num(it.returnQty) * num(it.price);
+return '<div class="m-product-row phase23"><div><b>' + esc(it.productCode) + '</b><small>' + esc(it.productName) + '</small><em>SL giao ' + money(it.deliveredQty) + ' · Giá ' + money(it.price) + ' · Tiền trả ' + money(amount) + '</em></div><div class="m-return-readonly-qty"><span>SL trả</span><b>' + esc(it.returnQty) + '</b></div></div>';
+}).join('') || '<div class="m-empty">Đơn chưa có dòng hàng để đối chiếu.</div>') +
+'</div><div class="m-return-total phase23"><span>Tổng hàng trả</span><b>' + money(totalReturnAmount) + '</b></div>';
+return;
+}
 body.innerHTML = '<section class="m-product-compact-brief phase24"><b>' + esc(baseRows.length) + ' dòng · ' + money(totalQty) + ' SL · Giá trị ' + money(totalAmount) + '</b><span>Nhập SL trả trên từng dòng hàng, sau đó bấm “Xác nhận & thu”.</span></section>' +
 '<label class="m-product-search"><span>Tìm hàng</span><input id="mProductSearch" type="search" placeholder="Tìm hàng" value="' + esc(state.productSearchKeyword || '') + '"></label>' +
 '<form id="mProductReturnForm" class="m-product-return-form"><div class="m-return-scroll products-with-return-input">' +
@@ -1293,6 +1331,16 @@ if (!order) { body.innerHTML = '<div class="m-empty">Chọn khách/đơn ở dan
 var rows = returnedRowsForOrder(order);
 var totalReturnAmount = rows.reduce(function (sum, it) { return sum + num(it.returnQty) * num(it.price); }, 0);
 var hasReturn = rows.length > 0;
+if (isReturnMutationLocked(order)) {
+body.innerHTML = returnLockedNotice() + (!hasReturn ? '<div class="m-return-total empty"><span>Tổng hàng trả</span><b>0</b></div>' : '<div class="m-return-scroll returns-only-list">' +
+rows.map(function (it) {
+var qtyText = ' · SL giao ' + money(it.deliveredQty);
+var amount = num(it.returnQty) * num(it.price);
+return '<div class="m-product-row phase23 returned-only"><div><b>' + esc(it.productCode) + '</b><small>' + esc(it.productName) + '</small><em>Giá ' + money(it.price) + qtyText + ' · Tiền trả ' + money(amount) + '</em></div><div class="m-return-readonly-qty"><span>SL trả</span><b>' + esc(it.returnQty) + '</b></div></div>';
+}).join('') +
+'</div><div class="m-return-total"><span>Tổng hàng trả</span><b>' + money(totalReturnAmount) + '</b></div>');
+return;
+}
 body.innerHTML = '<section class="m-workflow-step phase23 returns-only"><b>Hàng trả</b><span>Chỉ hiển thị sản phẩm đã có SL trả. Muốn thêm hàng trả mới, quay lại tab Hàng giao.</span></section>' +
 (!hasReturn ? '<div class="m-empty soft returns-only-empty"><b>Chưa có hàng trả cho đơn này</b><span>Nhập số lượng trả ở tab Hàng giao.</span><button type="button" data-workflow-tab="products">Quay lại Hàng giao</button></div>' : '') +
 (hasReturn ? '<form id="mReturnSaveForm"><div class="m-return-scroll returns-only-list">' +
@@ -1411,6 +1459,10 @@ return row;
 }
 async function saveReturn(event, options) {
 if (event && event.preventDefault) event.preventDefault();
+if (isReturnMutationLocked(currentOrder())) {
+msg('Đơn đã được kế toán chốt. Hàng trả không thể thay đổi. Liên hệ kế toán nếu cần điều chỉnh.', true);
+return;
+}
 if (state.returnSubmitting) return;
 options = options || {};
 try {
@@ -1432,6 +1484,10 @@ renderWorkflowBar();
 async function fullReturnOrder(event) {
 if (event && event.preventDefault) event.preventDefault();
 if (state.fullReturnSubmitting) return;
+if (isReturnMutationLocked(currentOrder())) {
+msg('Đơn đã được kế toán chốt. Hàng trả không thể thay đổi. Liên hệ kế toán nếu cần điều chỉnh.', true);
+return;
+}
 var order = currentOrder();
 if (!order) return;
 if (!window.confirm('Khách trả lại toàn bộ đơn này?\n\nToàn bộ hàng trong đơn sẽ được ghi nhận là hàng trả. Đơn sẽ thoát khỏi giao diện giao hàng hiện tại.')) return;

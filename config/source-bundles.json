@@ -12,7 +12,7 @@
         "src/services/returnOrderLegacy.service.source/part-03.jsfrag",
         "src/services/returnOrderLegacy.service.source/part-04.jsfrag"
       ],
-      "sourceSha256": "31deb9f88176940e00969ec7e0983dcce6bd87d2a708d210008a60acc31b2f6a"
+      "sourceSha256": "c6052b898a6930e2123deb824322379cac76b8c3c658cab73de62ddd3bbc2875"
     },
     {
       "target": "src/services/importExportLegacy.service.js",
@@ -189,11 +189,11 @@
     {
       "target": "public/mobile/js/delivery-mobile-view.js",
       "mode": "classic-single",
-      "sourceSha256": "c44ef26aaa4e1f1b1fb519251031c01f4072507bbac55dfc65a0b4b5513d1d0c",
+      "sourceSha256": "8a75c2dd2f689a56e5cde89977fb283f149bb1315f4b53d4484c2156640d967c",
       "canonicalSource": "public/mobile/js/delivery-mobile-view.source.js",
       "sourceMap": true,
       "sourceMapTarget": "public/mobile/js/delivery-mobile-view.js.map",
-      "executableSha256": "a73cb4a617a24c58e4803517c90eee36fb25a8a7810538aeb4f62169d734aff8"
+      "executableSha256": "c9cf529f4884778e6ab46abce4524a41d224dbb7a97be4d5227cab866038eebc"
     },
     {
       "target": "public/mobile/mobile.css",

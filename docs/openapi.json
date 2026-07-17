@@ -10476,6 +10476,286 @@
         ]
       }
     },
+    "/api/new/delivery-today/return-correction-requests/{id}": {
+      "get": {
+        "tags": [
+          "New"
+        ],
+        "summary": "GET /api/new/delivery-today/return-correction-requests/{id}",
+        "operationId": "getNewDeliveryTodayReturnCorrectionRequestsId",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/new/delivery-today/return-correction-requests/{id}/apply": {
+      "post": {
+        "tags": [
+          "New"
+        ],
+        "summary": "POST /api/new/delivery-today/return-correction-requests/{id}/apply",
+        "operationId": "postNewDeliveryTodayReturnCorrectionRequestsIdApply",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/new/delivery-today/return-correction-requests/{id}/approve": {
+      "post": {
+        "tags": [
+          "New"
+        ],
+        "summary": "POST /api/new/delivery-today/return-correction-requests/{id}/approve",
+        "operationId": "postNewDeliveryTodayReturnCorrectionRequestsIdApprove",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/new/delivery-today/return-correction-requests/{id}/finalize": {
+      "post": {
+        "tags": [
+          "New"
+        ],
+        "summary": "POST /api/new/delivery-today/return-correction-requests/{id}/finalize",
+        "operationId": "postNewDeliveryTodayReturnCorrectionRequestsIdFinalize",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/new/delivery-today/return-correction-requests/{id}/reject": {
+      "post": {
+        "tags": [
+          "New"
+        ],
+        "summary": "POST /api/new/delivery-today/return-correction-requests/{id}/reject",
+        "operationId": "postNewDeliveryTodayReturnCorrectionRequestsIdReject",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/new/delivery-today/return-correction-requests/{id}/stock-repost": {
+      "post": {
+        "tags": [
+          "New"
+        ],
+        "summary": "POST /api/new/delivery-today/return-correction-requests/{id}/stock-repost",
+        "operationId": "postNewDeliveryTodayReturnCorrectionRequestsIdStockRepost",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/new/delivery-today/return-correction-requests/{id}/warehouse-recheck": {
+      "post": {
+        "tags": [
+          "New"
+        ],
+        "summary": "POST /api/new/delivery-today/return-correction-requests/{id}/warehouse-recheck",
+        "operationId": "postNewDeliveryTodayReturnCorrectionRequestsIdWarehouseRecheck",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/new/delivery-today/returns/{returnOrderId}/correction-requests": {
       "post": {
         "tags": [

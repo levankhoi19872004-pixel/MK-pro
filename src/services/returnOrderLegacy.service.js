@@ -282,18 +282,19 @@ const s=await n.findByIdOrCode(t);if(!s)return{error:"Không tìm thấy phiếu
 status:400};const i={...s,...I.patchForState(s,p.CANCELLED),returnState:p.CANCELLED,warehouseReceiveStatus:"cancelled",accountingStatus:"cancelled",
 cancelReason:Ce(r,"Khách lấy lại hàng"),cancelledAt:e.nowIso(),updatedAt:e.nowIso()};await n.upsert(i,a)
 ;const c=s.salesOrderId||s.orderId||s.salesOrderCode||s.orderCode||"",l=c?await o.findByIdOrCode(c):null;return l&&await fe(l,{hasReturn:!1,returnOrderId:"",returnOrderCode:"",
-returnAmount:0},a),await Ie("cancel_return_order",s,i,i.cancelReason),{returnOrder:V(i)}}async function Ke(t,r={},o={}){const a=await n.findByIdOrCode(t);if(!a)return{
-error:"Không tìm thấy đơn chờ trả hàng",status:404};const s=he(a,"Phiếu trả hàng đã ghi sổ/kho, không được sửa");if(s)return s
-;if("merged"===(a.returnMergeStatus||"unmerged")||a.masterReturnOrderId||a.masterReturnOrderCode)return{
-error:"Phiếu trả hàng đã gộp đơn tổng trả hàng, không được sửa số lượng trả",status:400};const d=Array.isArray(r.items)?r.items:[],i=new Map;for(const e of d){
-const t=String(e.lineKey||_e(e)).trim();t&&i.set(t,e)}const c=(Array.isArray(a.items)?a.items:[]).map(e=>{
-const t=String(e.lineKey||_e(e)).trim(),r=i.get(t)||d.find(t=>String(t.productCode||t.code||"").trim()===String(e.productCode||"").trim()),n=u(r?r.returnQty??r.qtyReturn??r.returnQuantity??r.quantity??0:e.returnQty??e.qtyReturn??e.quantity??0),o=u(e.soldQty??e.quantitySold??0)
+returnAmount:0},a),await Ie("cancel_return_order",s,i,i.cancelReason),{returnOrder:V(i)}}async function Ke(t,r={},a={}){
+const s=await n.findByIdOrCode(t),d=s&&(s.salesOrderId||s.orderId||s.salesOrderCode||s.orderCode||""),i=d?await o.findByIdOrCode(d):null,c=s?await g(i||{},s,a,"u"):null
+;if(c)return c;if(!s)return{error:"Không tìm thấy đơn chờ trả hàng",status:404};const l=he(s,"Phiếu trả hàng đã ghi sổ/kho, không được sửa");if(l)return l
+;if("merged"===(s.returnMergeStatus||"unmerged")||s.masterReturnOrderId||s.masterReturnOrderCode)return{
+error:"Phiếu trả hàng đã gộp đơn tổng trả hàng, không được sửa số lượng trả",status:400};const h=Array.isArray(r.items)?r.items:[],m=new Map;for(const e of h){
+const t=String(e.lineKey||_e(e)).trim();t&&m.set(t,e)}const y=(Array.isArray(s.items)?s.items:[]).map(e=>{
+const t=String(e.lineKey||_e(e)).trim(),r=m.get(t)||h.find(t=>String(t.productCode||t.code||"").trim()===String(e.productCode||"").trim()),n=u(r?r.returnQty??r.qtyReturn??r.returnQuantity??r.quantity??0:e.returnQty??e.qtyReturn??e.quantity??0),o=u(e.soldQty??e.quantitySold??0)
 ;if(n<0)throw new Error("Số lượng trả không được âm");if(n>o)throw new Error(`Số lượng trả ${e.productCode||e.productName} không được lớn hơn số lượng bán`)
 ;const a=u(e.price??e.salePrice??e.unitPrice??0);return{...e,returnQty:n,qtyReturn:n,returnQuantity:n,returnedQty:n,quantity:n,qty:n,returnAmount:Math.round(n*a),
-amount:Math.round(n*a),lineKey:t}}),l=Te(c),h=l.totalReturnAmount>0||c.some(e=>u(e.returnQty)>0),m=h?p.WAITING_RECEIVE:p.CANCELLED,y=$e(r,{},a||{}),C={...a,...h?l:{totalQuantity:0,
-totalReturnAmount:0,totalAmount:0,amount:0,debtReduction:0},date:y,deliveryDate:y,documentDate:y,items:h?c:[],status:m,returnStatus:m,returnState:m,
-warehouseReceiveStatus:h?p.WAITING_RECEIVE:p.CANCELLED,accountingStatus:h?"pending":p.CANCELLED,cancelReason:"",cancelledAt:"",clearedAt:h?"":e.nowIso(),
-note:h?a.note:r.note||"Đã sửa hàng trả về 0",updatedAt:e.nowIso()};return await n.upsert(C,o),{returnOrder:V(C),cleared:!h}}module.exports={listReturnOrders:ne,
+amount:Math.round(n*a),lineKey:t}}),C=Te(y),f=C.totalReturnAmount>0||y.some(e=>u(e.returnQty)>0),I=f?p.WAITING_RECEIVE:p.CANCELLED,S=$e(r,{},s||{}),O={...s,...f?C:{totalQuantity:0,
+totalReturnAmount:0,totalAmount:0,amount:0,debtReduction:0},date:S,deliveryDate:S,documentDate:S,items:f?y:[],status:I,returnStatus:I,returnState:I,
+warehouseReceiveStatus:f?p.WAITING_RECEIVE:p.CANCELLED,accountingStatus:f?"pending":p.CANCELLED,cancelReason:"",cancelledAt:"",clearedAt:f?"":e.nowIso(),
+note:f?s.note:r.note||"Đã sửa hàng trả về 0",updatedAt:e.nowIso()};return await n.upsert(O,a),{returnOrder:V(O),cleared:!f}}module.exports={listReturnOrders:ne,
 createReturnOrder:ge,createPendingReturnOrder:ke,upsertDeliveryReturnOrder:Oe,buildCanonicalReturnCode:j,findExistingReturnOrderForSalesOrder:J,cancelDuplicateReturnOrders:X,
 confirmReceiveReturnOrder:Ae,stockInReturnOrder:we,confirmAccountingReturnOrder:Ne,ensureReturnDraftForSalesOrder:Le,syncReturnDraftWithSalesOrder:qe,
 cancelReturnDraftForSalesOrder:Me,restoreReturnDraftForSalesOrder:Qe,attachMasterOrderToReturnDrafts:Ve,detachMasterOrderFromReturnDrafts:be,getReturnOrderBySalesOrderKey:We,

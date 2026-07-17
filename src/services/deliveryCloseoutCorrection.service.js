@@ -258,7 +258,6 @@ function hasPostCloseoutReturnMutationPayload(input = {}, normalizedItems = null
   if (hasItemDelta) return true;
   if (input.returnAdjustment && typeof input.returnAdjustment === 'object') {
     const nested = input.returnAdjustment;
-    if (Array.isArray(nested.items) && nested.items.length > 0) return true;
     if (hasOwnValue(nested, 'amount') && money(nested.amount) !== 0) return true;
     if (hasOwnValue(nested, 'returnAdjustmentAmount') && money(nested.returnAdjustmentAmount) !== 0) return true;
   }
@@ -289,6 +288,11 @@ function normalizeReturnAdjustmentItems(items = []) {
       note: text(item.note || '')
     };
   });
+}
+
+function materialReturnAdjustmentItems(rawItems = []) {
+  return normalizeReturnAdjustmentItems(rawItems)
+    .filter((item) => quantity(item.adjustmentQty ?? item.deltaReturnQty) !== 0 || money(item.adjustmentAmount ?? item.deltaReturnAmount) !== 0);
 }
 
 function cashLineAdjustmentAmount(line = {}) {
@@ -1461,6 +1465,7 @@ async function createCorrection(input = {}, options = {}) {
 
     const rawReturnAdjustmentItems = returnAdjustmentInputItems(input);
     const returnAdjustmentItems = normalizeReturnAdjustmentItems(rawReturnAdjustmentItems);
+    const materialReturnItems = materialReturnAdjustmentItems(rawReturnAdjustmentItems);
     const rawCashLines = input.correctedCashLines || input.cashAdjustmentLines || [];
     if (hasPostCloseoutReturnMutationPayload(input, returnAdjustmentItems)) {
       const context = await loadReturnMutationContext({ order, options: { ...options, session } });
@@ -1593,10 +1598,10 @@ async function createCorrection(input = {}, options = {}) {
 
     const newCloseoutVersion = buildVersionSnapshot(order, baseSnapshot, correction, now);
 
-    const returnOrderAdjustment = rawReturnAdjustmentItems.length
+    const returnOrderAdjustment = materialReturnItems.length
       ? await applyReturnOrderAdjustment({
         order,
-        items: rawReturnAdjustmentItems,
+        items: materialReturnItems,
         actor,
         reason: correction.reason || correction.auditReason,
         note: correction.note

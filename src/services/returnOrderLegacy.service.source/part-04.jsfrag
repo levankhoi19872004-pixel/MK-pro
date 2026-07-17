@@ -7,6 +7,10 @@
 
 async function updateReturnDraftItems(idOrCode, body = {}, options = {}) {
   const current = await returnOrderRepository.findByIdOrCode(idOrCode);
+  const salesKey = current && (current.salesOrderId || current.orderId || current.salesOrderCode || current.orderCode || '');
+  const salesOrder = salesKey ? await orderRepository.findByIdOrCode(salesKey) : null;
+  const mutationGuard = current ? await guardLegacyReturnWrite(salesOrder || {}, current, options, 'u') : null;
+  if (mutationGuard) return mutationGuard;
   if (!current) return { error: 'Không tìm thấy đơn chờ trả hàng', status: 404 };
   const editGuard = guardReturnOrderEdit(current, 'Phiếu trả hàng đã ghi sổ/kho, không được sửa');
   if (editGuard) return editGuard;

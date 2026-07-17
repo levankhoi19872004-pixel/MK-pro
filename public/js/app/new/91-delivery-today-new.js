@@ -86,11 +86,16 @@
     return parseVietnameseMoney(inputValue);
   }
   function today() { return new Date().toISOString().slice(0, 10); }
+  var RETURN_LOCKED_STATUSES = ['confirmed', 'locked', 'posted', 'accounting_confirmed', 'closed', 'corrected_confirmed'];
+  function hasReturnLockedStatus(value) {
+    return RETURN_LOCKED_STATUSES.indexOf(String(value || '').toLowerCase()) !== -1;
+  }
   function deriveCloseoutUiState(row) {
     var accountingStatus = String((row && row.accountingStatus) || '').toLowerCase();
     var closeoutStatus = String((row && (row.deliveryCloseoutStatus || row.closeoutStatus || row.status)) || '').toLowerCase();
     if (row && row.deliveryCloseout && typeof row.deliveryCloseout === 'object') closeoutStatus = String(row.deliveryCloseout.status || closeoutStatus).toLowerCase();
-    var accountingConfirmed = Boolean(row && (row.accountingConfirmed === true || ['confirmed', 'accounting_confirmed', 'closed'].indexOf(accountingStatus) !== -1 || ['confirmed', 'accounting_confirmed', 'closed', 'corrected_confirmed'].indexOf(closeoutStatus) !== -1));
+    var backendLocked = Boolean(row && (row.returnMutationLocked === true || (row.returnMutationLock && row.returnMutationLock.locked === true)));
+    var accountingConfirmed = Boolean(row && (backendLocked || row.accountingConfirmed === true || hasReturnLockedStatus(accountingStatus) || hasReturnLockedStatus(closeoutStatus)));
     var viewSelectable = Boolean(row && orderSelectionKey(row) && row.viewSelectable !== false && !orderCancelledOrDeleted(row));
     var eligibility = row && row.closeoutEligibility && typeof row.closeoutEligibility === 'object' ? row.closeoutEligibility : null;
     var closeoutEligibleEvidence = eligibility ? eligibility.eligible === true : row && row.closeoutEligible === true;

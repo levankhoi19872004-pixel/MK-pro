@@ -99,7 +99,7 @@ test('Phase260B closeout correction rejects post-closeout return aliases before 
   const applyIndex = source.indexOf('applyReturnOrderAdjustment({', guardIndex);
   assert.ok(guardIndex > 0, 'post-closeout return payload guard must exist');
   assert.ok(applyIndex > guardIndex, 'guard must happen before applyReturnOrderAdjustment');
-  assert.match(source, /rawReturnAdjustmentItems\.length/);
+  assert.match(source, /materialReturnItems\.length/);
   assert.match(source, /payment_only_correction/);
 });
 
@@ -112,7 +112,9 @@ test('Phase260B controlled correction request route is role-gated and non-mutati
   assert.match(service, /function canonicalize\(value\)/);
   assert.doesNotMatch(service, /JSON\.stringify\(value \|\| \{\}, Object\.keys/);
   assert.match(service, /immutableSourceReturnOrder: true/);
-  assert.doesNotMatch(service, /returnOrderRepository\.upsert/);
+  assert.match(service, /createdFromCorrection: true/);
+  assert.match(service, /previousVersionId/);
+  assert.match(service, /warehouseCheckStatus: 'pending'/);
 });
 
 test('Phase260B desktop popup omits return fields when the order is locked', () => {

@@ -1,0 +1,88 @@
+{
+  "phase": "Phase260B-R1",
+  "generatedAt": "2026-07-17T00:50:00.793Z",
+  "summary": {
+    "status": "PASS_WITH_PRODUCTION_AUDIT_BLOCKED",
+    "mongoAuditStatus": "AUDIT_NOT_EXECUTED",
+    "mongoAuditConnection": {
+      "ok": false,
+      "code": "MongooseServerSelectionError",
+      "message": "Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"
+    }
+  },
+  "commands": [
+    {
+      "command": "node --check src\\services\\returns\\ReturnCorrectionRequestService.js; node --check src\\domain\\returns\\ReturnMutationGuard.js; node --check src\\services\\v2\\deliveryTodayNew.service.js; node --check public\\mobile\\js\\delivery-mobile-view.source.js; node --check src\\routes\\newOperationsRoutes.js",
+      "status": "PASS"
+    },
+    {
+      "command": "npm run source-bundles:refresh",
+      "status": "PASS"
+    },
+    {
+      "command": "node --test test\\phase260b-r1-return-controlled-reversal.test.js",
+      "status": "PASS",
+      "tests": 6
+    },
+    {
+      "command": "node --test test\\phase260b-return-post-closeout-immutability.test.js",
+      "status": "PASS",
+      "tests": 9
+    },
+    {
+      "command": "node --test test\\delivery-adjustment-returnorders-contract-static.test.js",
+      "status": "PASS",
+      "tests": 3
+    },
+    {
+      "command": "node --test test\\delivery-closeout-correction-contract-static.test.js",
+      "status": "PASS",
+      "tests": 12
+    },
+    {
+      "command": "node --test test\\delivery-adjustment-returnorders-contract-static.test.js test\\delivery-closeout-correction-contract-static.test.js test\\phase260b-r1-return-controlled-reversal.test.js test\\phase260b-return-post-closeout-immutability.test.js",
+      "status": "PASS",
+      "tests": 30
+    },
+    {
+      "command": "npm run check:syntax",
+      "status": "PASS",
+      "detail": "SYNTAX_OK 1530 JavaScript files"
+    },
+    {
+      "command": "npm run check:source-bundles",
+      "status": "PASS",
+      "detail": "OK 19 bundles"
+    },
+    {
+      "command": "npm run docs:generate",
+      "status": "PASS",
+      "detail": "OpenAPI generated, 376 operations, 7 new correction workflow operations"
+    },
+    {
+      "command": "npm run docs:check",
+      "status": "PASS"
+    },
+    {
+      "command": "node scripts\\audit-post-closeout-return-mutations.js --phase=Phase260B-R1 --order-codes=B0039602,B0039567 --limit=5000 --allow-disconnected",
+      "status": "BLOCKED_BY_MONGO_ATLAS_WHITELIST",
+      "detail": "Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"
+    },
+    {
+      "command": "node scripts\\plan-post-closeout-return-repair.js --phase=Phase260B-R1",
+      "status": "PASS",
+      "detail": "read-only plan generated"
+    }
+  ],
+  "artifacts": [
+    "PHASE260B_R1_DELIVERY_RETURN_CONTROLLED_REVERSAL_COMPLETION_REPORT.md",
+    "PHASE260B_R1_RETURN_MUTATION_WRITER_INVENTORY.json",
+    "PHASE260B_R1_CANONICAL_LOCK_STATUS_MATRIX.json",
+    "PHASE260B_R1_CONTROLLED_REVERSAL_STATE_MACHINE.json",
+    "PHASE260B_R1_POST_CLOSEOUT_RETURN_MUTATION_AUDIT.json",
+    "PHASE260B_R1_POST_CLOSEOUT_RETURN_MUTATION_AUDIT.csv",
+    "PHASE260B_R1_POST_CLOSEOUT_RETURN_REPAIR_PLAN.json",
+    "PHASE260B_R1_TEST_EVIDENCE.json",
+    "RELEASE_MANIFEST.json"
+  ]
+}

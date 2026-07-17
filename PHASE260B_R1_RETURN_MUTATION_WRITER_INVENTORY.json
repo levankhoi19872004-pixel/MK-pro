@@ -1,0 +1,99 @@
+{
+  "phase": "Phase260B-R1",
+  "generatedAt": "2026-07-17T00:48:15.775Z",
+  "mode": "static_writer_inventory",
+  "mutationGraph": {
+    "beforeR1": [
+      "delivery/mobile return save -> DeliveryEngine.saveReturn -> createPendingReturn",
+      "returnOrderLegacy.updateReturnDraftItems -> returnOrderRepository.upsert",
+      "desktop adjustment popup -> correction payload with returnAdjustment aliases",
+      "delivery closeout correction -> applyReturnOrderAdjustment"
+    ],
+    "afterR1": [
+      "all direct writers resolve ReturnMutationGuard lock projection before returnOrderRepository write",
+      "post-accounting desktop/mobile screens render return rows read-only and omit mutation payload",
+      "material return adjustment items only enter controlled correction path",
+      "approved correction creates superseding returnOrder version, reverses stock if needed, then waits warehouse/stock/accounting checkpoints"
+    ]
+  },
+  "writers": [
+    {
+      "file": "src/engines/delivery.legacy.engine.source/part-02.jsfrag",
+      "entry": "DeliveryEngine.saveReturn",
+      "mutation": "createPendingReturn",
+      "guard": "assertReturnMutationAllowed"
+    },
+    {
+      "file": "src/services/mobile/delivery.service.js",
+      "entry": "createReturnFromDelivery",
+      "mutation": "DeliveryEngine.saveReturn",
+      "guard": "inherited_from_engine"
+    },
+    {
+      "file": "src/routes/deliveryRoutes.js",
+      "entry": "POST /api/delivery/return",
+      "mutation": "DeliveryEngine.saveReturn",
+      "guard": "inherited_from_engine"
+    },
+    {
+      "file": "src/routes/mobile/delivery.routes.js",
+      "entry": "POST /api/mobile/delivery/return",
+      "mutation": "mobile delivery service",
+      "guard": "inherited_from_engine"
+    },
+    {
+      "file": "src/services/mobile/MobileSyncService.js",
+      "entry": "delivery_return_save",
+      "mutation": "DeliveryEngine.saveReturn",
+      "guard": "offline disabled + inherited_from_engine + 409 conflict"
+    },
+    {
+      "file": "src/services/returnOrderLegacy.service.source/part-02.jsfrag",
+      "entry": "createReturnOrder/upsertDeliveryReturnOrder/createPendingReturnOrder",
+      "mutation": "returnOrderRepository.upsert/clear",
+      "guard": "guardLegacyReturnWrite -> assertReturnMutationAllowed"
+    },
+    {
+      "file": "src/services/returnOrderLegacy.service.source/part-03.jsfrag",
+      "entry": "ensure/cancel/restore/update/cancelById",
+      "mutation": "returnOrderRepository.upsert/clear",
+      "guard": "guardLegacyReturnWrite -> assertReturnMutationAllowed"
+    },
+    {
+      "file": "src/services/returnOrderLegacy.service.source/part-04.jsfrag",
+      "entry": "updateReturnDraftItems",
+      "mutation": "returnOrderRepository.upsert",
+      "guard": "guardLegacyReturnWrite -> assertReturnMutationAllowed"
+    },
+    {
+      "file": "src/services/deliveryCloseoutCorrection.service.js",
+      "entry": "createCorrection",
+      "mutation": "applyReturnOrderAdjustment",
+      "guard": "material return items only; post-closeout no-op aliases ignored"
+    },
+    {
+      "file": "src/services/returns/ReturnCorrectionRequestService.js",
+      "entry": "approve/apply/warehouseRecheck/stockRepost/accountingFinalize",
+      "mutation": "controlled superseding returnOrder version + reversal/finalize services",
+      "guard": "role + state machine + expectedVersion + canonical posting services"
+    },
+    {
+      "file": "src/routes/newOperationsRoutes.js",
+      "entry": "POST /api/new/delivery-today/return-correction-requests/:id/*",
+      "mutation": "controlled workflow actions",
+      "guard": "admin/accountant/warehouse route roles"
+    },
+    {
+      "file": "public/js/app/new/91-delivery-today-new.js",
+      "entry": "submitAdjustmentPopup",
+      "mutation": "correction payload builder",
+      "guard": "locked return fields omitted"
+    },
+    {
+      "file": "public/mobile/js/delivery-mobile-view.source.js",
+      "entry": "saveReturn/fullReturnOrder/renderReturns",
+      "mutation": "mobile return save/full return UI",
+      "guard": "returnMutationLocked read-only + client-side blocked action"
+    }
+  ]
+}

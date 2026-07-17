@@ -1,0 +1,60 @@
+{
+  "phase": "Phase260B-R1",
+  "generatedAt": "2026-07-17T00:48:59.042Z",
+  "mode": "static_state_machine_contract",
+  "statuses": {
+    "PENDING_APPROVAL": "pending_approval",
+    "APPROVED": "approved",
+    "APPLYING": "applying",
+    "WAITING_WAREHOUSE_RECHECK": "waiting_warehouse_recheck",
+    "WAITING_STOCK_REPOST": "waiting_stock_repost",
+    "WAITING_ACCOUNTING_FINALIZE": "waiting_accounting_finalize",
+    "APPLIED": "applied",
+    "REJECTED": "rejected",
+    "FAILED": "failed"
+  },
+  "stateMachine": {
+    "pending_approval": [
+      "approved",
+      "rejected"
+    ],
+    "approved": [
+      "applying"
+    ],
+    "applying": [
+      "waiting_warehouse_recheck",
+      "failed"
+    ],
+    "waiting_warehouse_recheck": [
+      "waiting_stock_repost"
+    ],
+    "waiting_stock_repost": [
+      "waiting_accounting_finalize"
+    ],
+    "waiting_accounting_finalize": [
+      "applied"
+    ],
+    "applied": [],
+    "rejected": [],
+    "failed": [
+      "applying"
+    ]
+  },
+  "entrypoints": {
+    "create": "POST /api/new/delivery-today/returns/:returnOrderId/correction-requests",
+    "get": "GET /api/new/delivery-today/return-correction-requests/:id",
+    "approve": "POST /api/new/delivery-today/return-correction-requests/:id/approve",
+    "reject": "POST /api/new/delivery-today/return-correction-requests/:id/reject",
+    "apply": "POST /api/new/delivery-today/return-correction-requests/:id/apply",
+    "warehouseRecheck": "POST /api/new/delivery-today/return-correction-requests/:id/warehouse-recheck",
+    "stockRepost": "POST /api/new/delivery-today/return-correction-requests/:id/stock-repost",
+    "accountingFinalize": "POST /api/new/delivery-today/return-correction-requests/:id/finalize"
+  },
+  "guards": {
+    "approve": "admin/accountant role, separation of duties unless emergencyOverride",
+    "apply": "approved/failed only, expectedVersion, idempotent stock reversal, new inactive version",
+    "warehouseRecheck": "admin/warehouse role, new version warehouse check",
+    "stockRepost": "admin/warehouse role, InventoryPostingService.postReturnIn only",
+    "accountingFinalize": "admin/accountant role, requires stockPosted, DeliveryCloseoutVersion + OrderPaymentAllocationService finalize"
+  }
+}

@@ -2,11 +2,21 @@
 
 const DeliveryCloseoutVersion = require('../../models/DeliveryCloseoutVersion');
 const OrderPaymentAllocation = require('../../models/OrderPaymentAllocation');
+const {
+  ACCOUNTING_LOCKED_STATUSES,
+  CLOSEOUT_LOCKED_STATUSES,
+  PAYMENT_ALLOCATION_LOCKED_STATUSES,
+  WAREHOUSE_LOCKED_STATUSES,
+  STOCK_LOCKED_STATUSES,
+  RETURN_ORDER_LOCK_PROJECTION_FIELDS,
+  RETURN_ORDER_LOCK_PROJECTION
+} = require('./returnLockStatusContract');
 
-const ACCOUNTING_LOCKED_STATUSES = new Set(['confirmed', 'accounting_confirmed', 'closed']);
-const CLOSEOUT_LOCKED_STATUSES = new Set(['confirmed', 'accounting_confirmed', 'closed', 'corrected_confirmed']);
-const WAREHOUSE_LOCKED_STATUSES = new Set(['matched', 'confirmed', 'discrepancy']);
-const STOCK_LOCKED_STATUSES = new Set(['ready', 'ready_to_stock_in', 'posted', 'stock_posted']);
+const ACCOUNTING_LOCKED_STATUS_SET = new Set(ACCOUNTING_LOCKED_STATUSES);
+const CLOSEOUT_LOCKED_STATUS_SET = new Set(CLOSEOUT_LOCKED_STATUSES);
+const PAYMENT_ALLOCATION_LOCKED_STATUS_SET = new Set(PAYMENT_ALLOCATION_LOCKED_STATUSES);
+const WAREHOUSE_LOCKED_STATUS_SET = new Set(WAREHOUSE_LOCKED_STATUSES);
+const STOCK_LOCKED_STATUS_SET = new Set(STOCK_LOCKED_STATUSES);
 const ITEM_MUTATION_OPERATIONS = new Set([
   'create_return',
   'update_return',
@@ -73,16 +83,16 @@ function resolveDeliveryAccountingLockState({ order = {}, latestCloseoutVersion 
   if (accountingConfirmed) {
     locked = true;
     reason = 'accounting_confirmed';
-  } else if (ACCOUNTING_LOCKED_STATUSES.has(accountingStatus)) {
+  } else if (ACCOUNTING_LOCKED_STATUS_SET.has(accountingStatus)) {
     locked = true;
     reason = 'accounting_status_locked';
-  } else if (CLOSEOUT_LOCKED_STATUSES.has(inlineCloseoutStatus)) {
+  } else if (CLOSEOUT_LOCKED_STATUS_SET.has(inlineCloseoutStatus)) {
     locked = true;
     reason = 'delivery_closeout_locked';
-  } else if (CLOSEOUT_LOCKED_STATUSES.has(latestCloseoutStatus)) {
+  } else if (CLOSEOUT_LOCKED_STATUS_SET.has(latestCloseoutStatus)) {
     locked = true;
     reason = 'latest_closeout_version_locked';
-  } else if (ACCOUNTING_LOCKED_STATUSES.has(allocationStatus)) {
+  } else if (PAYMENT_ALLOCATION_LOCKED_STATUS_SET.has(allocationStatus)) {
     locked = true;
     reason = 'payment_allocation_locked';
   }
@@ -107,9 +117,9 @@ function resolveReturnWarehouseLockState(returnOrder = {}) {
   const stockPosted = Boolean(returnOrder.stockPosted || returnOrder.stockTransactionId || (Array.isArray(returnOrder.stockTransactionIds) && returnOrder.stockTransactionIds.length));
   const warehouseConfirmed = Boolean(returnOrder.warehouseConfirmed || returnOrder.warehouseChecked || returnOrder.warehouseCheckedAt);
   const locked = Boolean(
-    WAREHOUSE_LOCKED_STATUSES.has(warehouseCheckStatus)
+    WAREHOUSE_LOCKED_STATUS_SET.has(warehouseCheckStatus)
     || warehouseConfirmed
-    || STOCK_LOCKED_STATUSES.has(stockInStatus)
+    || STOCK_LOCKED_STATUS_SET.has(stockInStatus)
     || inventoryPosted
     || stockPosted
   );
@@ -262,8 +272,11 @@ function returnMutationErrorResult(err) {
 module.exports = {
   ACCOUNTING_LOCKED_STATUSES,
   CLOSEOUT_LOCKED_STATUSES,
+  PAYMENT_ALLOCATION_LOCKED_STATUSES,
   WAREHOUSE_LOCKED_STATUSES,
   STOCK_LOCKED_STATUSES,
+  RETURN_ORDER_LOCK_PROJECTION_FIELDS,
+  RETURN_ORDER_LOCK_PROJECTION,
   resolveDeliveryAccountingLockState,
   resolveReturnWarehouseLockState,
   assertReturnMutationAllowed,

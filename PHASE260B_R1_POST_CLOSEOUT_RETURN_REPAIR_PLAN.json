@@ -1,0 +1,22 @@
+{
+  "phase": "Phase260B-R1",
+  "mode": "read_only_plan",
+  "apply": false,
+  "status": "AUDIT_NOT_EXECUTED",
+  "generatedAt": "2026-07-17T00:48:25.754Z",
+  "sourceAuditGeneratedAt": "2026-07-17T00:48:20.825Z",
+  "sourceAuditStatus": "AUDIT_NOT_EXECUTED",
+  "statuses": [
+    "AUDIT_NOT_EXECUTED",
+    "NO_AUTO_REPAIR",
+    "MANUAL_REVIEW_REQUIRED",
+    "SAFE_REBUILD_CANDIDATE",
+    "REVERSAL_REQUIRED"
+  ],
+  "summary": {
+    "total": 0,
+    "byGroup": {},
+    "byStatus": {}
+  },
+  "items": []
+}

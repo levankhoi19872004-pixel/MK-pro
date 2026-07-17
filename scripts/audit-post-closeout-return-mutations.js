@@ -17,9 +17,6 @@ const {
 } = require('../src/domain/returns/ReturnMutationGuard');
 
 const ROOT = path.resolve(__dirname, '..');
-const JSON_OUT = path.join(ROOT, 'PHASE260B_POST_CLOSEOUT_RETURN_MUTATION_AUDIT.json');
-const CSV_OUT = path.join(ROOT, 'PHASE260B_POST_CLOSEOUT_RETURN_MUTATION_AUDIT.csv');
-const WRITER_OUT = path.join(ROOT, 'PHASE260B_RETURN_MUTATION_WRITER_INVENTORY.json');
 
 function clean(value = '') { return String(value ?? '').trim(); }
 function lower(value = '') { return clean(value).toLowerCase(); }
@@ -30,10 +27,34 @@ function money(value) {
 function unique(values = []) {
   return [...new Set(values.map(clean).filter(Boolean))];
 }
+function parsePhase(argv = process.argv.slice(2)) {
+  const flag = argv.find((item) => /^--phase=/.test(item));
+  return clean(flag ? flag.split('=')[1] : process.env.PHASE260B_AUDIT_PHASE) || 'Phase260B';
+}
+function artifactPrefix(phase = 'Phase260B') {
+  return lower(phase) === 'phase260b-r1' ? 'PHASE260B_R1' : 'PHASE260B';
+}
+function artifactPaths(argv = process.argv.slice(2)) {
+  const prefix = artifactPrefix(parsePhase(argv));
+  return {
+    json: path.join(ROOT, `${prefix}_POST_CLOSEOUT_RETURN_MUTATION_AUDIT.json`),
+    csv: path.join(ROOT, `${prefix}_POST_CLOSEOUT_RETURN_MUTATION_AUDIT.csv`),
+    writer: path.join(ROOT, `${prefix}_RETURN_MUTATION_WRITER_INVENTORY.json`)
+  };
+}
 function parseLimit(argv = process.argv.slice(2)) {
   const flag = argv.find((item) => /^--limit=/.test(item));
   const parsed = Number(flag ? flag.split('=')[1] : process.env.PHASE260B_AUDIT_LIMIT);
   return Number.isFinite(parsed) ? Math.max(1, Math.min(Math.floor(parsed), 50000)) : 5000;
+}
+function parseOrderCodes(argv = process.argv.slice(2)) {
+  const values = [];
+  for (const item of argv) {
+    if (/^--order-code=/.test(item)) values.push(item.split('=')[1]);
+    if (/^--order-codes=/.test(item)) values.push(...item.split('=')[1].split(','));
+  }
+  if (process.env.PHASE260B_AUDIT_ORDER_CODES) values.push(...process.env.PHASE260B_AUDIT_ORDER_CODES.split(','));
+  return unique(values);
 }
 function allowDisconnected(argv = process.argv.slice(2)) {
   return argv.includes('--allow-disconnected') || ['1', 'true', 'yes'].includes(lower(process.env.PHASE260B_AUDIT_ALLOW_DISCONNECTED));
@@ -76,19 +97,20 @@ function csvEscape(value) {
   const raw = clean(value);
   return /[",\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
 }
-function writeCsv(rows = []) {
+function writeCsv(rows = [], csvOut = artifactPaths().csv) {
   const headers = ['returnOrderId', 'returnOrderCode', 'orderId', 'orderCode', 'status', 'updatedAt', 'lockReason', 'lockAt', 'warehouseCheckStatus', 'stockInStatus', 'stockPosted', 'inventoryPosted', 'returnAmount', 'closeoutReturnAmount', 'issues'];
   const lines = [headers.join(',')];
   for (const row of rows) {
     lines.push(headers.map((header) => csvEscape(Array.isArray(row[header]) ? row[header].join('|') : row[header])).join(','));
   }
-  fs.writeFileSync(CSV_OUT, `${lines.join('\n')}\n`);
+  fs.writeFileSync(csvOut, `${lines.join('\n')}\n`);
 }
-function disconnectedReport(error) {
+function disconnectedReport(error, phase = 'Phase260B') {
   return {
-    phase: 'Phase260B',
+    phase,
     mode: 'read_only',
     dryRun: true,
+    status: 'AUDIT_NOT_EXECUTED',
     generatedAt: new Date().toISOString(),
     connection: {
       ok: false,
@@ -101,11 +123,25 @@ function disconnectedReport(error) {
     rows: []
   };
 }
-function writerInventory() {
+function writerInventory(phase = 'Phase260B') {
   return {
-    phase: 'Phase260B',
+    phase,
     generatedAt: new Date().toISOString(),
     mode: 'static_writer_inventory',
+    mutationGraph: {
+      beforeR1: [
+        'delivery/mobile return save -> DeliveryEngine.saveReturn -> createPendingReturn',
+        'returnOrderLegacy.updateReturnDraftItems -> returnOrderRepository.upsert',
+        'desktop adjustment popup -> correction payload with returnAdjustment aliases',
+        'delivery closeout correction -> applyReturnOrderAdjustment'
+      ],
+      afterR1: [
+        'all direct writers resolve ReturnMutationGuard lock projection before returnOrderRepository write',
+        'post-accounting desktop/mobile screens render return rows read-only and omit mutation payload',
+        'material return adjustment items only enter controlled correction path',
+        'approved correction creates superseding returnOrder version, reverses stock if needed, then waits warehouse/stock/accounting checkpoints'
+      ]
+    },
     writers: [
       { file: 'src/engines/delivery.legacy.engine.source/part-02.jsfrag', entry: 'DeliveryEngine.saveReturn', mutation: 'createPendingReturn', guard: 'assertReturnMutationAllowed' },
       { file: 'src/services/mobile/delivery.service.js', entry: 'createReturnFromDelivery', mutation: 'DeliveryEngine.saveReturn', guard: 'inherited_from_engine' },
@@ -114,17 +150,29 @@ function writerInventory() {
       { file: 'src/services/mobile/MobileSyncService.js', entry: 'delivery_return_save', mutation: 'DeliveryEngine.saveReturn', guard: 'offline disabled + inherited_from_engine + 409 conflict' },
       { file: 'src/services/returnOrderLegacy.service.source/part-02.jsfrag', entry: 'createReturnOrder/upsertDeliveryReturnOrder/createPendingReturnOrder', mutation: 'returnOrderRepository.upsert/clear', guard: 'guardLegacyReturnWrite -> assertReturnMutationAllowed' },
       { file: 'src/services/returnOrderLegacy.service.source/part-03.jsfrag', entry: 'ensure/cancel/restore/update/cancelById', mutation: 'returnOrderRepository.upsert/clear', guard: 'guardLegacyReturnWrite -> assertReturnMutationAllowed' },
-      { file: 'src/services/deliveryCloseoutCorrection.service.js', entry: 'createCorrection', mutation: 'applyReturnOrderAdjustment', guard: 'post-closeout return payload rejected before apply' },
-      { file: 'src/routes/newOperationsRoutes.js', entry: 'POST /api/new/delivery-today/returns/:returnOrderId/correction-requests', mutation: 'controlled request only', guard: 'roles + optimistic concurrency + no direct return mutation' },
-      { file: 'public/js/app/new/91-delivery-today-new.js', entry: 'submitAdjustmentPopup', mutation: 'correction payload builder', guard: 'locked return fields omitted' }
+      { file: 'src/services/returnOrderLegacy.service.source/part-04.jsfrag', entry: 'updateReturnDraftItems', mutation: 'returnOrderRepository.upsert', guard: 'guardLegacyReturnWrite -> assertReturnMutationAllowed' },
+      { file: 'src/services/deliveryCloseoutCorrection.service.js', entry: 'createCorrection', mutation: 'applyReturnOrderAdjustment', guard: 'material return items only; post-closeout no-op aliases ignored' },
+      { file: 'src/services/returns/ReturnCorrectionRequestService.js', entry: 'approve/apply/warehouseRecheck/stockRepost/accountingFinalize', mutation: 'controlled superseding returnOrder version + reversal/finalize services', guard: 'role + state machine + expectedVersion + canonical posting services' },
+      { file: 'src/routes/newOperationsRoutes.js', entry: 'POST /api/new/delivery-today/return-correction-requests/:id/*', mutation: 'controlled workflow actions', guard: 'admin/accountant/warehouse route roles' },
+      { file: 'public/js/app/new/91-delivery-today-new.js', entry: 'submitAdjustmentPopup', mutation: 'correction payload builder', guard: 'locked return fields omitted' },
+      { file: 'public/mobile/js/delivery-mobile-view.source.js', entry: 'saveReturn/fullReturnOrder/renderReturns', mutation: 'mobile return save/full return UI', guard: 'returnMutationLocked read-only + client-side blocked action' }
     ]
   };
 }
 
-async function audit() {
-  const limit = parseLimit();
+async function audit(argv = process.argv.slice(2)) {
+  const phase = parsePhase(argv);
+  const limit = parseLimit(argv);
+  const orderCodes = parseOrderCodes(argv);
   const rows = [];
-  const returnOrders = await ReturnOrder.find({}).sort({ updatedAt: -1, createdAt: -1 }).limit(limit).lean();
+  const filter = orderCodes.length ? {
+    $or: [
+      { code: { $in: orderCodes } },
+      { salesOrderCode: { $in: orderCodes } },
+      { orderCode: { $in: orderCodes } }
+    ]
+  } : {};
+  const returnOrders = await ReturnOrder.find(filter).sort({ updatedAt: -1, createdAt: -1 }).limit(limit).lean();
   for (const returnOrder of returnOrders) {
     const orderOr = orderOrForReturn(returnOrder);
     const order = orderOr.length ? await SalesOrder.findOne({ $or: orderOr }).lean() : null;
@@ -161,11 +209,12 @@ async function audit() {
     }
   }
   return {
-    phase: 'Phase260B',
+    phase,
     mode: 'read_only',
     dryRun: true,
     generatedAt: new Date().toISOString(),
     limit,
+    orderCodes,
     totalReturnOrdersScanned: returnOrders.length,
     issueRows: rows.length,
     mismatchRows: rows.filter((row) => row.issues.includes('RETURN_CLOSEOUT_SNAPSHOT_MISMATCH')).length,
@@ -174,22 +223,25 @@ async function audit() {
 }
 
 async function main() {
-  fs.writeFileSync(WRITER_OUT, `${JSON.stringify(writerInventory(), null, 2)}\n`);
+  const argv = process.argv.slice(2);
+  const phase = parsePhase(argv);
+  const paths = artifactPaths(argv);
+  fs.writeFileSync(paths.writer, `${JSON.stringify(writerInventory(phase), null, 2)}\n`);
   try {
     await connectDB();
   } catch (error) {
-    if (!allowDisconnected()) throw error;
-    const report = disconnectedReport(error);
-    fs.writeFileSync(JSON_OUT, `${JSON.stringify(report, null, 2)}\n`);
-    writeCsv(report.rows);
-    console.log(JSON.stringify({ ok: false, disconnected: true, json: path.basename(JSON_OUT), csv: path.basename(CSV_OUT), writerInventory: path.basename(WRITER_OUT), issueRows: 0 }, null, 2));
+    if (!allowDisconnected(argv)) throw error;
+    const report = disconnectedReport(error, phase);
+    fs.writeFileSync(paths.json, `${JSON.stringify(report, null, 2)}\n`);
+    writeCsv(report.rows, paths.csv);
+    console.log(JSON.stringify({ ok: false, disconnected: true, status: report.status, json: path.basename(paths.json), csv: path.basename(paths.csv), writerInventory: path.basename(paths.writer), issueRows: 0 }, null, 2));
     return;
   }
   try {
-    const report = await audit();
-    fs.writeFileSync(JSON_OUT, `${JSON.stringify(report, null, 2)}\n`);
-    writeCsv(report.rows);
-    console.log(JSON.stringify({ ok: true, json: path.basename(JSON_OUT), csv: path.basename(CSV_OUT), writerInventory: path.basename(WRITER_OUT), issueRows: report.issueRows }, null, 2));
+    const report = await audit(argv);
+    fs.writeFileSync(paths.json, `${JSON.stringify(report, null, 2)}\n`);
+    writeCsv(report.rows, paths.csv);
+    console.log(JSON.stringify({ ok: true, json: path.basename(paths.json), csv: path.basename(paths.csv), writerInventory: path.basename(paths.writer), issueRows: report.issueRows }, null, 2));
   } finally {
     await mongoose.connection.close().catch(() => {});
   }
@@ -202,4 +254,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { audit, writerInventory };
+module.exports = { audit, writerInventory, disconnectedReport, artifactPaths, parseOrderCodes };

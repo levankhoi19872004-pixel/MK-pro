@@ -18,6 +18,7 @@ const router = express.Router();
 const readRoles = requireRole(['admin', 'manager', 'accountant', 'warehouse']);
 const writeRoles = requireRole(['admin', 'manager', 'accountant']);
 const closeoutRoles = requireRole(['admin', 'accountant']);
+const warehouseRoles = requireRole(['admin', 'warehouse']);
 
 
 function sourceUser(req = {}) {
@@ -311,6 +312,80 @@ router.post('/delivery-today/returns/:returnOrderId/correction-requests', requir
     });
   } catch (err) {
     return sendError(res, err, 'Không tạo được yêu cầu điều chỉnh hàng trả');
+  }
+});
+
+router.get('/delivery-today/return-correction-requests/:id', requireAuth, readRoles, async (req, res) => {
+  try {
+    const request = await ReturnCorrectionRequestService.getRequest(req.params.id);
+    if (!request) return res.status(404).json({ ok: false, success: false, code: 'RETURN_CORRECTION_REQUEST_NOT_FOUND', message: 'Không tìm thấy yêu cầu điều chỉnh hàng trả' });
+    return res.json({
+      ok: true,
+      success: true,
+      requestId: request.id || request.correctionCode,
+      status: request.status,
+      currentStep: request.status,
+      oldReturnOrderVersion: request.metadata && request.metadata.oldReturnOrderVersion,
+      newReturnOrderVersion: request.metadata && request.metadata.newReturnOrderVersion,
+      nextRequiredAction: request.status === 'pending_approval' ? 'approve_or_reject' : request.status,
+      request
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không tải được yêu cầu điều chỉnh hàng trả');
+  }
+});
+
+router.post('/delivery-today/return-correction-requests/:id/approve', requireAuth, closeoutRoles, async (req, res) => {
+  try {
+    const result = await ReturnCorrectionRequestService.approveRequest(req.params.id, req.body || {}, req.user || {});
+    return res.json(result);
+  } catch (err) {
+    return sendError(res, err, 'Không duyệt được yêu cầu điều chỉnh hàng trả');
+  }
+});
+
+router.post('/delivery-today/return-correction-requests/:id/reject', requireAuth, closeoutRoles, async (req, res) => {
+  try {
+    const result = await ReturnCorrectionRequestService.rejectRequest(req.params.id, req.body || {}, req.user || {});
+    return res.json(result);
+  } catch (err) {
+    return sendError(res, err, 'Không từ chối được yêu cầu điều chỉnh hàng trả');
+  }
+});
+
+router.post('/delivery-today/return-correction-requests/:id/apply', requireAuth, closeoutRoles, async (req, res) => {
+  try {
+    const result = await ReturnCorrectionRequestService.applyRequest(req.params.id, req.body || {}, req.user || {});
+    return res.json(result);
+  } catch (err) {
+    return sendError(res, err, 'Không áp dụng được yêu cầu điều chỉnh hàng trả');
+  }
+});
+
+router.post('/delivery-today/return-correction-requests/:id/warehouse-recheck', requireAuth, warehouseRoles, async (req, res) => {
+  try {
+    const result = await ReturnCorrectionRequestService.warehouseRecheck(req.params.id, req.body || {}, req.user || {});
+    return res.json(result);
+  } catch (err) {
+    return sendError(res, err, 'Không xác nhận kiểm kho lại được');
+  }
+});
+
+router.post('/delivery-today/return-correction-requests/:id/stock-repost', requireAuth, warehouseRoles, async (req, res) => {
+  try {
+    const result = await ReturnCorrectionRequestService.stockRepost(req.params.id, req.body || {}, req.user || {});
+    return res.json(result);
+  } catch (err) {
+    return sendError(res, err, 'Không nhập kho lại được');
+  }
+});
+
+router.post('/delivery-today/return-correction-requests/:id/finalize', requireAuth, closeoutRoles, async (req, res) => {
+  try {
+    const result = await ReturnCorrectionRequestService.accountingFinalize(req.params.id, req.body || {}, req.user || {});
+    return res.json(result);
+  } catch (err) {
+    return sendError(res, err, 'Không chốt kế toán điều chỉnh hàng trả được');
   }
 });
 

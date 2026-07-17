@@ -30,7 +30,8 @@ test('delivery adjustment save applies returnAdjustment.items into returnOrders'
 test('delivery today popup loads canonical rows and sends full returnAdjustment payload', () => {
   assert.match(ui, /adjustmentReturnRowsEndpoint/);
   assert.match(ui, /loadCanonicalReturnRows\(row\)/);
-  assert.match(ui, /returnAdjustment:\s*\{\s*source: 'delivery-adjustment-popup',\s*items: fullReturnItems/s);
-  assert.match(ui, /returnAdjustmentItems: fullReturnItems/);
+  assert.match(ui, /if \(!returnLocked\)/);
+  assert.match(ui, /payload\.returnAdjustment\s*=\s*\{\s*source: 'delivery-adjustment-popup',\s*items: fullReturnItems/s);
+  assert.match(ui, /payload\.returnAdjustmentItems\s*=\s*fullReturnItems/);
   assert.match(ui, /item\.deliveredQty/);
 });

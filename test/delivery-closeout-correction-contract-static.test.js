@@ -123,6 +123,7 @@ test('Phase108 correction service preserves explicit zero corrected payment amou
 test('Phase109 correction versions store final payment state and do not replay deltas as current cash', () => {
   const service = read('src/services/deliveryCloseoutCorrection.service.js');
   const list = read('src/services/v2/deliveryTodayNew.service.js');
+  const paymentState = read('src/services/delivery/DeliveryPaymentStateReadService.js');
   assert.match(service, /correctionSemantics:[\s\S]*'final_state_value'/);
   assert.match(service, /function previousPaymentState\(snapshot = \{\}, order = \{\}\)/);
   assert.match(service, /finalPaymentStateFromInput\(input, rawCashLines, currentState\)/);
@@ -135,7 +136,8 @@ test('Phase109 correction versions store final payment state and do not replay d
   assert.doesNotMatch(service, /previousCash \+ cashAdjustmentAmount/);
   assert.doesNotMatch(service, /baseCashAmount \+ latestVersion\.totalCollectedDelta/);
   assert.doesNotMatch(list, /baseBreakdown\.cashAmount \+ money\(latestVersion\.cashAdjustmentAmount\)/);
-  assert.match(list, /latestVersion\.cashAmount \?\? latestVersion\.newCashAmount/);
+  assert.match(list, /DeliveryPaymentStateReadService\.resolvePaymentStateForOrder/);
+  assert.match(paymentState, /latestVersion\.cashAmount \?\? latestVersion\.newCashAmount/);
 });
 
 test('Phase109 correction versions expose final-state payment fields in models', () => {
@@ -163,4 +165,3 @@ test('Phase110 delivery closeout and AR-DEBT posting must include reward/TH in d
   assert.doesNotMatch(arOpen, /receivableAmount\s*-\s*cashAmount\s*-\s*bankAmount\s*-\s*returnAmount/);
   assert.doesNotMatch(closeout, /receivableAmount\s*-\s*cashAmount\s*-\s*bankAmount\s*-\s*returnAmount/);
 });
-

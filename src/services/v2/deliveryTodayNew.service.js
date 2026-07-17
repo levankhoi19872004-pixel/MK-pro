@@ -9,6 +9,10 @@ const deliveryTodayCanonicalOrderReader = require('../delivery/deliveryTodayCano
 const { calculateDeliveryTodayKpi } = require('../delivery/deliveryTodayKpiCalculator');
 const { evaluateCloseoutEligibility } = require('../accounting/closeout/CloseoutEligibility');
 const DeliveryPaymentStateReadService = require('../delivery/DeliveryPaymentStateReadService');
+const {
+  RETURN_ORDER_LOCK_PROJECTION,
+  resolveDeliveryAccountingLockState
+} = require('../../domain/returns/ReturnMutationGuard');
 
 
 function buildDeliveryTodaySourceNotes(query = {}) {
@@ -51,9 +55,13 @@ const RETURN_ORDER_HOT_PATH_PROJECTION = [
   'amount', 'totalAmount', 'returnAmount', 'refundAmount', 'netAmount', 'receivableAmount',
   'items', 'returnItems', 'products', 'lines',
   'status', 'returnStatus', 'returnState',
-  'accountingStatus', 'warehouseStatus', 'warehouseReceiveStatus', 'stockReceiveStatus', 'stockPosted',
+  'accountingStatus', 'accountingConfirmed', 'warehouseStatus', 'warehouseReceiveStatus', 'stockReceiveStatus',
+  'warehouseCheckStatus', 'warehouseConfirmed', 'warehouseCheckedAt', 'stockInStatus',
+  'inventoryPosted', 'inventoryTransactionId', 'stockPosted', 'stockTransactionId', 'stockTransactionIds',
+  'active', 'isCurrentVersion', 'version', 'updatedAt',
   'note', 'accountingNote', 'returnDate', 'date', 'documentDate', 'createdAt',
-  'deleted', 'isDeleted'
+  'deleted', 'isDeleted',
+  RETURN_ORDER_LOCK_PROJECTION
 ].join(' ');
 
 const CLOSEOUT_VERSION_HOT_PATH_PROJECTION = [
@@ -694,6 +702,11 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
   const viewSelectable = !cancelledOrDeleted;
   const closeoutEligibility = evaluateCloseoutEligibility(order, { confirmedCloseout });
   const closeoutEligible = closeoutEligibility.eligible === true;
+  const returnMutationLock = resolveDeliveryAccountingLockState({
+    order,
+    latestCloseoutVersion: latestVersion,
+    allocation: postedAllocation
+  });
   return {
     id: text(order.id || order._id),
     orderId: text(order.id || order._id),
@@ -720,7 +733,9 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     soldItems: compactOrderItems(order.soldItems || order.items || order.orderItems || order.products || order.lines || []),
     closeoutStatus: latestVersion ? text(latestVersion.status || 'corrected_confirmed') : closeoutStatus(order),
     deliveryCloseoutStatus: confirmedCloseout ? 'closed' : text(order.deliveryCloseoutStatus || closeout.deliveryCloseoutStatus || ''),
-    accountingConfirmed: confirmedCloseout,
+    accountingConfirmed: confirmedCloseout || returnMutationLock.locked,
+    returnMutationLocked: returnMutationLock.locked,
+    returnMutationLock,
     viewSelectable,
     closeoutEligible,
     closeoutEligibility,
