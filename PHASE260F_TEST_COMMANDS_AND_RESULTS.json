@@ -1,0 +1,54 @@
+{
+  "generatedAt": "2026-07-18T00:36:34.165Z",
+  "baseline": "MK-pro-phase260e-canonical-ar-source-posting-fixed.zip",
+  "baselineSha256": "43dd771217d6c05eb3d7fd54c4e3797a0d98568a3e2590e9165d89c91fea2e0f",
+  "gitCommit": "507b2a8e8d300b1853d1d9985eb54b5783fe9661",
+  "checkpoint": "Phase260F-R3",
+  "commands": [
+    {
+      "command": "node --test test\\phase260f-evidence-gated-adjustment-projection.test.js",
+      "status": "PASS",
+      "tests": 5
+    },
+    {
+      "command": "node --test test\\phase260e-canonical-ar-source-posting.test.js test\\phase260d-ownership-resolver.test.js",
+      "status": "PASS",
+      "tests": 14
+    },
+    {
+      "command": "node --test test\\ar-customer-debt-read-model-ssot.test.js test\\ar-debt-read-model-v2-categories.test.js test\\phase91-new-services-contract.test.js",
+      "status": "PASS",
+      "tests": 38
+    },
+    {
+      "command": "node --test test\\phase260c-r1-stop-the-bleeding.test.js test\\phase260c-r2-controlled-repair.test.js test\\phase260c-r3-legacy-debt-projection.test.js",
+      "status": "PASS",
+      "tests": 16
+    },
+    {
+      "command": "node --test test\\mobile-debt-canonical-correction-identity.test.js test\\ar-ledger-read-standard.test.js",
+      "status": "PASS",
+      "tests": 8
+    },
+    {
+      "command": "npm run check:syntax",
+      "status": "PASS",
+      "detail": "SYNTAX_OK 1554 JavaScript files"
+    },
+    {
+      "command": "npm run check:source-bundles",
+      "status": "PASS",
+      "detail": "[source-bundles] OK 19 bundles"
+    }
+  ],
+  "actualResult": "PASS",
+  "scannedCount": 0,
+  "classifiedCount": 0,
+  "backfilledCount": 0,
+  "alreadyCanonicalCount": 0,
+  "unresolvedCount": 0,
+  "failedCount": 0,
+  "skippedReason": "",
+  "warnings": [],
+  "sha256": "computed in PHASE260F_CHANGED_FILES.json"
+}

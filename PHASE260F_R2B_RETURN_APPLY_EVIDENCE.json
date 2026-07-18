@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-07-18T00:36:34.165Z",
+  "baseline": "MK-pro-phase260e-canonical-ar-source-posting-fixed.zip",
+  "baselineSha256": "43dd771217d6c05eb3d7fd54c4e3797a0d98568a3e2590e9165d89c91fea2e0f",
+  "gitCommit": "507b2a8e8d300b1853d1d9985eb54b5783fe9661",
+  "checkpoint": "Phase260F-R2B",
+  "commands": [],
+  "actualResult": "PRODUCTION_BACKFILL_NOT_EXECUTED",
+  "scannedCount": 0,
+  "classifiedCount": 0,
+  "backfilledCount": 0,
+  "alreadyCanonicalCount": 0,
+  "unresolvedCount": 0,
+  "failedCount": 0,
+  "skippedReason": "production_audit_not_executed",
+  "warnings": [
+    "Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"
+  ],
+  "sha256": "computed in PHASE260F_CHANGED_FILES.json",
+  "status": "PRODUCTION_BACKFILL_NOT_EXECUTED",
+  "sourceAuditStatus": "PRODUCTION_AUDIT_NOT_EXECUTED"
+}

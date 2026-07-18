@@ -41,6 +41,7 @@ function ledger(category, debit, credit, overrides = {}) {
     amount,
     direction: side,
     amountField: side,
+    correctionId: overrides.correctionId,
     idempotencyKey: overrides.idempotencyKey || `${category}:P260E:${overrides.sourceId || 'SO-P260E'}`
   };
 }
@@ -69,14 +70,16 @@ test('Phase260E retires AR-DEBT-ADJUSTMENT posting facade', async () => {
   );
 });
 
-test('Phase260E legacy adjustment is not selected into canonical balance', () => {
-  assert.equal(ACTIVE_DEBT_READ_MODEL_CATEGORIES.includes('AR-DEBT-ADJUSTMENT'), false);
+test('Phase260F legacy adjustment remains projectable until canonical replacement is verified', () => {
+  assert.equal(ACTIVE_DEBT_READ_MODEL_CATEGORIES.includes('AR-DEBT-ADJUSTMENT'), true);
   const result = debtNew.groupLedgers([
     ledger('AR-DEBT-OPEN', 100000, 0, { id: 'OPEN-1', idempotencyKey: 'AR-DEBT-OPEN:SO-P260E' }),
-    ledger('AR-DEBT-ADJUSTMENT', 0, 25000, { id: 'ADJ-1', sourceType: 'DELIVERY_CLOSEOUT_CORRECTION', idempotencyKey: 'AR-DEBT-ADJUSTMENT:SO-P260E:ADJ-1' })
+    ledger('AR-DEBT-ADJUSTMENT', 0, 25000, { id: 'ADJ-1', sourceType: 'DELIVERY_CLOSEOUT_CORRECTION', correctionId: 'DCOC-P260E-1', idempotencyKey: 'AR-DEBT-ADJUSTMENT:SO-P260E:ADJ-1' })
   ], { status: 'all' });
-  assert.equal(result.summary.totalDebt, 100000);
-  assert.equal(result.ledgers.some((row) => row.category === 'AR-DEBT-ADJUSTMENT'), false);
+  assert.equal(result.summary.totalDebt, 75000);
+  const adjustment = result.ledgers.find((row) => row.category === 'AR-DEBT-ADJUSTMENT');
+  assert.equal(adjustment.legacyFallback, true);
+  assert.equal(adjustment.warningCode, 'LEGACY_ADJUSTMENT_INCLUDED_UNTIL_CANONICAL_BACKFILL');
 });
 
 test('Phase260E external debt participates as customer-scope debit', () => {

@@ -1,0 +1,257 @@
+{
+  "generatedAt": "2026-07-18T00:39:19.918Z",
+  "baseline": "MK-pro-phase260e-canonical-ar-source-posting-fixed.zip",
+  "baselineSha256": "43dd771217d6c05eb3d7fd54c4e3797a0d98568a3e2590e9165d89c91fea2e0f",
+  "gitCommit": "507b2a8e8d300b1853d1d9985eb54b5783fe9661",
+  "checkpoint": "Phase260F-R4",
+  "commands": [],
+  "actualResult": "CHANGED_FILES_RECORDED",
+  "scannedCount": 0,
+  "classifiedCount": 0,
+  "backfilledCount": 0,
+  "alreadyCanonicalCount": 0,
+  "unresolvedCount": 0,
+  "failedCount": 0,
+  "skippedReason": "",
+  "warnings": [
+    "Production audit/backfill not executed; see evidence artifacts."
+  ],
+  "sha256": "self hash not embedded",
+  "files": [
+    {
+      "path": "src/domain/ar/legacyAdjustmentProjectionPolicy.js",
+      "bytes": 9229,
+      "sha256": "d65f0586f53c556c7692173825b52e0587dc88e9bcd78c009efde6097465ba04"
+    },
+    {
+      "path": "src/domain/ar/arDebtCategoryRegistry.js",
+      "bytes": 6430,
+      "sha256": "caab7d2a90645b6924ce9c5ec3e1b77bbbddb2e2dcecab03ad98e0359feed5c0"
+    },
+    {
+      "path": "src/domain/ar/debtLedgerSemanticRegistry.js",
+      "bytes": 8094,
+      "sha256": "02c41809790def9fefe61cfa81cf1136a2d915707de4419784c388458249e8b3"
+    },
+    {
+      "path": "src/services/v2/debtNew.service.js",
+      "bytes": 52800,
+      "sha256": "48704c2d2c1bacd60cf104d25850d30d6ff585618a4c01b4f8fb259b211e60df"
+    },
+    {
+      "path": "src/services/arLedgerRead.service.js",
+      "bytes": 21192,
+      "sha256": "3e99a73ff65bd9faee4a99e57aaab95027c828819b107abe9f6e85872d46dd36"
+    },
+    {
+      "path": "src/services/accounting/arCustomerDebtReadModel.service.js",
+      "bytes": 35186,
+      "sha256": "50948433608d1d8ce97e6253adabaa5b12ff412d419225b1c4ede2035039b74e"
+    },
+    {
+      "path": "src/services/mobile/mobileDebtQuery.service.js",
+      "bytes": 27573,
+      "sha256": "c7641c28c1b14cf87484e06b89486c0873e2f157b337a968583d2278081c5ab4"
+    },
+    {
+      "path": "scripts/phase260f/audit-legacy-adjustment-business-source.js",
+      "bytes": 13219,
+      "sha256": "7cb36a3552e0bafe79faa5cbd718a7a846a085499b896e657cfc50ccd6102896"
+    },
+    {
+      "path": "scripts/phase260f/build-legacy-adjustment-backfill-plan.js",
+      "bytes": 6257,
+      "sha256": "e3a5a6eb72ec899a49817af57565e36ff700644b9a10f8d3eed451fdb3cf5f1c"
+    },
+    {
+      "path": "test/phase260f-evidence-gated-adjustment-projection.test.js",
+      "bytes": 7527,
+      "sha256": "9dbc02d2322b32977dd0272abbaea12dc832c5b03a558a7abde9692a1bd8cfdd"
+    },
+    {
+      "path": "test/phase260e-canonical-ar-source-posting.test.js",
+      "bytes": 6643,
+      "sha256": "c1c1e46cf80a94f0cf03e082d9a4994b19d324ce7a12f246b141963dfb3a2aff"
+    },
+    {
+      "path": "test/phase260d-ownership-resolver.test.js",
+      "bytes": 6382,
+      "sha256": "1ebdeb27f11049f1868e5c1628849257cc5a8bb0ef1abf89a3148781bdd746d6"
+    },
+    {
+      "path": "RELEASE_MANIFEST.json",
+      "bytes": 2067,
+      "sha256": "fa49170deb97484f75de0bf554a67687bfea5d08e9bd244e3511f2bef4d611f3"
+    },
+    {
+      "path": "PHASE260F_CHANGED_FILES.json",
+      "bytes": 8846,
+      "sha256": "83797b1070bc36a5cc07943bbe6d149df6a936eefdd288c757c05b1a950272a6"
+    },
+    {
+      "path": "PHASE260F_ORDER_CUSTOMER_RECONCILIATION.json",
+      "bytes": 953,
+      "sha256": "d2265401724467d143c1e5426327eeb38ed8dd6b03316b53cddbe24c444d74c2"
+    },
+    {
+      "path": "PHASE260F_PRODUCTION_AUDIT_EVIDENCE.json",
+      "bytes": 1041,
+      "sha256": "def31035b479718ff751006298b75111e3cae940ab771bc3669b95e82e088fea"
+    },
+    {
+      "path": "PHASE260F_PRODUCTION_BACKFILL_EVIDENCE.json",
+      "bytes": 1045,
+      "sha256": "afb5bd186257d5e97ab86dc8e3149252aa87a50279d534ab0f7b7ab1a82e401b"
+    },
+    {
+      "path": "PHASE260F_R0_ADJUSTMENT_WRITER_VERIFICATION.json",
+      "bytes": 1189,
+      "sha256": "bbf8595608855482c16319d26a2148b6f2aa2012230d6eed7d239284dfc77a48"
+    },
+    {
+      "path": "PHASE260F_R0_BASELINE_REPORT.md",
+      "bytes": 1076,
+      "sha256": "83726b9a8755650ce50cb4aa6cf2dbbf426989c6da05906bce42afe2a0e35b3e"
+    },
+    {
+      "path": "PHASE260F_R0_RUNTIME_GRAPH.json",
+      "bytes": 2241,
+      "sha256": "0fac3d795e3c56e654fb1489637fc5c75926eb9492b5ed129e7443655876fb8f"
+    },
+    {
+      "path": "PHASE260F_R1_BACKFILL_PLAN.csv",
+      "bytes": 155,
+      "sha256": "b212d389ca6d92349c9355978656e08e1a33b87976afdea8fc4082590ce54ee0"
+    },
+    {
+      "path": "PHASE260F_R1_BACKFILL_PLAN.json",
+      "bytes": 740,
+      "sha256": "d90a3e6261c6387823fd92c35ef4ef3c24e0f8f1c06f2ce09de3cf5c9eb84a0a"
+    },
+    {
+      "path": "PHASE260F_R1_FORENSIC_REPORT.md",
+      "bytes": 903,
+      "sha256": "87e8eb21667863f6711932375071c16950387d771d34485b43279e798f293b19"
+    },
+    {
+      "path": "PHASE260F_R1_LEGACY_ADJUSTMENT_AUDIT.csv",
+      "bytes": 173,
+      "sha256": "2ee5f88724a2fbb710eeed6bc7874b538614c7cba09bb34e69b2ed4f5552ba95"
+    },
+    {
+      "path": "PHASE260F_R1_LEGACY_ADJUSTMENT_AUDIT.json",
+      "bytes": 812,
+      "sha256": "27a3606d46c6bbd1521feaab30fa1c3e79cb2a221bd733a2dbbff7dd80b626ea"
+    },
+    {
+      "path": "PHASE260F_R2A_PAYMENT_APPLY_EVIDENCE.json",
+      "bytes": 1046,
+      "sha256": "ec30eea51d8c6922f32f45a8162970f490b93d10f8a9adf65e5062d7aff659a4"
+    },
+    {
+      "path": "PHASE260F_R2A_PAYMENT_BACKFILL_REPORT.md",
+      "bytes": 228,
+      "sha256": "293b59fb7809da98faf511aaaee4cf0c01e4a455f35c8bd599d3ff421ed4252f"
+    },
+    {
+      "path": "PHASE260F_R2A_PAYMENT_DRY_RUN.json",
+      "bytes": 1106,
+      "sha256": "a00f2de706c285ad9a4b2dfdabfb998469f95178449c10bfef90229625afef37"
+    },
+    {
+      "path": "PHASE260F_R2A_TEST_EVIDENCE.json",
+      "bytes": 1072,
+      "sha256": "3f64a68d8a6e644b875336c604838eb7b0ea3cf17f8df25cc5812cd85d23b1b1"
+    },
+    {
+      "path": "PHASE260F_R2B_RETURN_APPLY_EVIDENCE.json",
+      "bytes": 1046,
+      "sha256": "a4c025037d3c5264c1235c4741524fe49c0074f71d5df413cc7a4d4a0b0ab47c"
+    },
+    {
+      "path": "PHASE260F_R2B_RETURN_BACKFILL_REPORT.md",
+      "bytes": 209,
+      "sha256": "5ab17c6ee123ff6fcb93307bf6301f33bd35caa1befb39bee4e32bcc703ce56c"
+    },
+    {
+      "path": "PHASE260F_R2B_RETURN_DRY_RUN.json",
+      "bytes": 1104,
+      "sha256": "073bc158b68d5758dd62aa4e926b2e4d210fa5e359d7a9e7e1bb7e393dd51779"
+    },
+    {
+      "path": "PHASE260F_R2B_TEST_EVIDENCE.json",
+      "bytes": 1098,
+      "sha256": "801d2867f72e62da6b14ca89a556bb3c7c7395a6933449621c1035c7735cfef2"
+    },
+    {
+      "path": "PHASE260F_R2C_APPLY_EVIDENCE.json",
+      "bytes": 1046,
+      "sha256": "3b465b9ee065e5467ef1cb887686d80f418bbbab165aa8c71c6d319fde8e190e"
+    },
+    {
+      "path": "PHASE260F_R2C_REWARD_MANUAL_PLAN.json",
+      "bytes": 1094,
+      "sha256": "9d954dd484850a70b893249fed2cfea94fe43974d09bd3eb19a86373d2c5476a"
+    },
+    {
+      "path": "PHASE260F_R2C_REWARD_MANUAL_REPORT.md",
+      "bytes": 241,
+      "sha256": "5f30dadb726f3c2d7a84c3664417ded53230428c6741190f20068d906c4de253"
+    },
+    {
+      "path": "PHASE260F_R2C_TEST_EVIDENCE.json",
+      "bytes": 1054,
+      "sha256": "586791adb594edcefc3dedddef10675f1a190adbd1d57843dad297458f0819b4"
+    },
+    {
+      "path": "PHASE260F_R3_B0038754_EVIDENCE.json",
+      "bytes": 1310,
+      "sha256": "76679254e9d7e1242414ec6e18a21a7ff4276191c4567bf968d346a05143cb3c"
+    },
+    {
+      "path": "PHASE260F_R3_PROJECTION_POLICY_REPORT.md",
+      "bytes": 871,
+      "sha256": "d534456baf4fe3911cece6183c991893fcc7093d67889241ff4dca8f03064bb6"
+    },
+    {
+      "path": "PHASE260F_R3_RECONCILIATION_EVIDENCE.json",
+      "bytes": 1042,
+      "sha256": "ae43e5f995f9764d146bcfc09a583f0bcda40b1671583f1c47fd2288e3861b48"
+    },
+    {
+      "path": "PHASE260F_R3_RUNTIME_GRAPH.json",
+      "bytes": 2241,
+      "sha256": "0fac3d795e3c56e654fb1489637fc5c75926eb9492b5ed129e7443655876fb8f"
+    },
+    {
+      "path": "PHASE260F_R3_TEST_EVIDENCE.json",
+      "bytes": 1809,
+      "sha256": "292e95befeec5692d4a7cc855c087cd2ca416cd2ae7e21cea5320489d0e16b18"
+    },
+    {
+      "path": "PHASE260F_RELEASE_REPORT.md",
+      "bytes": 551,
+      "sha256": "9183f08b70337ca72b742e8a8011044ffa4b55b3f05d2ee9f9da6213de7ec5e3"
+    },
+    {
+      "path": "PHASE260F_SUMMARY.md",
+      "bytes": 692,
+      "sha256": "f7afc5ebb4bafb85004782d1aece4e5dda0f24843ec281a0c0054d63974dea18"
+    },
+    {
+      "path": "PHASE260F_TEST_COMMANDS_AND_RESULTS.json",
+      "bytes": 1809,
+      "sha256": "292e95befeec5692d4a7cc855c087cd2ca416cd2ae7e21cea5320489d0e16b18"
+    },
+    {
+      "path": "PHASE260F_UNRESOLVED_ADJUSTMENTS.json",
+      "bytes": 805,
+      "sha256": "aac44976daed1b82513b4fc3521e6f70924aa7377412046cb0490e4ec029d8c1"
+    },
+    {
+      "path": "MK-pro-phase260f-r4-legacy-adjustment-canonical-backfill-fixed.zip.sha256",
+      "bytes": 133,
+      "sha256": "0b5ae88cc1456202de60b8e5c698a2362c6b55a94d9c2aaea5bcd7d30f20e6a4"
+    }
+  ]
+}

@@ -17,6 +17,12 @@ const {
 } = require('../../utils/debtOrderIdentity.util');
 const { projectBalanceFromTotals, applyDebtProjection } = require('../accounting/LegacyDebtProjector');
 const { resolveDebtLedgerOwnership } = require('../../domain/ar/DebtLedgerOwnershipResolver');
+const {
+  isLegacyAdjustment,
+  ledgerId: legacyAdjustmentLedgerId,
+  classifyLegacyAdjustmentProjection,
+  annotateLegacyAdjustmentProjection
+} = require('../../domain/ar/legacyAdjustmentProjectionPolicy');
 
 
 function buildDebtSourceNote(code, query = {}, warnings = []) {
@@ -432,10 +438,14 @@ function normalizeLedger(row = {}) {
     amount: money(amounts.amount),
     effect: money(amounts.debit - amounts.credit),
     netEffect: money(amounts.debit - amounts.credit),
-    projectionIncluded: true,
-    exclusionReason: '',
+    projectionIncluded: row.projectionIncluded !== false,
+    projectionStatus: text(row.projectionStatus || ''),
+    exclusionReason: text(row.exclusionReason || ''),
+    replacedByLedgerId: text(row.replacedByLedgerId || ''),
+    legacyFallback: row.legacyFallback === true,
     legacyAdjustment: upper(row.category) === 'AR-DEBT-ADJUSTMENT',
-    warningCode: upper(row.category) === 'AR-DEBT-ADJUSTMENT' ? 'LEGACY_AR_DEBT_ADJUSTMENT_RETIRED' : ''
+    warningCode: text(row.warningCode || ''),
+    adjustmentProjectionPolicy: text(row.adjustmentProjectionPolicy || '')
   };
 }
 
@@ -454,14 +464,24 @@ function sourceLabel(row = {}) {
 
 function movementFromLedger(row = {}, projection = {}) {
   const normalized = normalizeLedger(row);
-  const included = projection.includedIds?.has(normalized.id) || projection.includedIds?.has(normalized.code);
-  let exclusionReason = '';
-  let warningCode = '';
+  const policy = projection.policyById?.get(normalized.id) || projection.policyById?.get(normalized.code);
+  const included = policy
+    ? policy.projectionIncluded !== false
+    : (projection.includedIds?.has(normalized.id) || projection.includedIds?.has(normalized.code));
+  let exclusionReason = policy?.exclusionReason || '';
+  let warningCode = policy?.warningCode || '';
+  let projectionStatus = policy?.projectionStatus || '';
+  let legacyFallback = policy?.legacyFallback === true;
+  let replacedByLedgerId = policy?.replacedByLedgerId || '';
   if (included) {
-    exclusionReason = '';
+    exclusionReason = exclusionReason || '';
   } else if (normalized.category === 'AR-DEBT-ADJUSTMENT') {
-    exclusionReason = 'LEGACY_ADJUSTMENT_RETIRED_FROM_CANONICAL_BALANCE';
-    warningCode = 'LEGACY_AR_DEBT_ADJUSTMENT_RETIRED';
+    const adjustmentPolicy = classifyLegacyAdjustmentProjection(normalized);
+    exclusionReason = exclusionReason || adjustmentPolicy.exclusionReason || 'NOT_INCLUDED_IN_CANONICAL_BALANCE';
+    warningCode = warningCode || adjustmentPolicy.warningCode || '';
+    projectionStatus = projectionStatus || adjustmentPolicy.projectionStatus || '';
+    legacyFallback = legacyFallback || adjustmentPolicy.legacyFallback === true;
+    replacedByLedgerId = replacedByLedgerId || adjustmentPolicy.replacedByLedgerId || '';
   } else if (projection.shadowedIds?.has(normalized.id) || projection.shadowedIds?.has(normalized.code)) {
     exclusionReason = 'PROJECTION_SHADOW';
   } else if (projection.duplicateIds?.has(normalized.id) || projection.duplicateIds?.has(normalized.code)) {
@@ -492,6 +512,9 @@ function movementFromLedger(row = {}, projection = {}) {
     active: row.active === true,
     projectionIncluded: Boolean(included),
     exclusionReason,
+    replacedByLedgerId,
+    projectionStatus,
+    legacyFallback,
     legacyAdjustment: normalized.category === 'AR-DEBT-ADJUSTMENT',
     warningCode,
     sourceLabel: sourceLabel(normalized),
@@ -517,7 +540,11 @@ async function loadCustomerHistoryMovements(customerCode = '', grouped = {}, opt
     includedIds: new Set((grouped.ledgers || []).flatMap((row) => [ledgerId(row), text(row.code)].filter(Boolean))),
     shadowedIds: new Set((grouped.shadowedLedgers || []).flatMap((row) => [ledgerId(row), text(row.code)].filter(Boolean))),
     duplicateIds: new Set((grouped.duplicateEntries || grouped.duplicateLedgers || []).flatMap((row) => [ledgerId(row), text(row.code)].filter(Boolean))),
-    unresolvedIds: new Set((grouped.unresolvedLedgers || []).flatMap((row) => [ledgerId(row), text(row.code)].filter(Boolean)))
+    unresolvedIds: new Set((grouped.unresolvedLedgers || []).flatMap((row) => [ledgerId(row), text(row.code)].filter(Boolean))),
+    policyById: new Map((grouped.allLedgers || []).flatMap((row) => {
+      const keys = [ledgerId(row), text(row.code)].filter(Boolean);
+      return keys.map((key) => [key, row]);
+    }))
   };
   return (Array.isArray(rows) ? rows : []).map((row) => movementFromLedger(row, projection));
 }
@@ -537,7 +564,23 @@ function groupLedgers(ledgerRows = [], query = {}) {
     .map(normalizeLedger);
 
   const ownership = resolveDebtLedgerOwnership(ledgers);
-  const selectedLedgers = ownership.selectedEntries;
+  const annotatedLedgers = annotateLegacyAdjustmentProjection(ledgers, ownership);
+  const annotatedById = new Map(annotatedLedgers.flatMap((row) => [legacyAdjustmentLedgerId(row), text(row.code)].filter(Boolean).map((key) => [key, row])));
+  const selectedLedgers = [];
+  const selectedKeys = new Set();
+  function pushSelected(row = {}) {
+    const annotated = annotatedById.get(legacyAdjustmentLedgerId(row)) || annotatedById.get(text(row.code)) || row;
+    if (isLegacyAdjustment(annotated) && annotated.projectionIncluded === false) return;
+    const key = legacyAdjustmentLedgerId(annotated) || text(annotated.code);
+    if (key && selectedKeys.has(key)) return;
+    if (key) selectedKeys.add(key);
+    selectedLedgers.push(annotated);
+  }
+  for (const row of ownership.selectedEntries || []) pushSelected(row);
+  for (const row of ownership.unresolvedEntries || []) {
+    const annotated = annotatedById.get(legacyAdjustmentLedgerId(row)) || annotatedById.get(text(row.code)) || row;
+    if (isLegacyAdjustment(annotated) && annotated.projectionIncluded !== false) pushSelected(annotated);
+  }
 
   const orderMap = new Map();
   for (const ledger of selectedLedgers) {
@@ -570,7 +613,10 @@ function groupLedgers(ledgerRows = [], query = {}) {
         rawDebt: 0,
         ledgerCount: 0,
         categories: {},
-        lastDebtDate: ''
+        lastDebtDate: '',
+        legacyFallbackCount: 0,
+        unresolvedAdjustmentCount: 0,
+        hasUnresolvedProjection: false
       });
     }
     const order = orderMap.get(key);
@@ -589,6 +635,11 @@ function groupLedgers(ledgerRows = [], query = {}) {
     order.credit += ledger.credit;
     order.ledgerCount += 1;
     order.categories[ledger.category] = (order.categories[ledger.category] || 0) + ledger.effect;
+    if (ledger.legacyFallback) order.legacyFallbackCount += 1;
+    if (ledger.projectionStatus === 'UNRESOLVED' || ledger.warningCode === 'LEGACY_ADJUSTMENT_SOURCE_UNRESOLVED') {
+      order.unresolvedAdjustmentCount += 1;
+      order.hasUnresolvedProjection = true;
+    }
     if (!order.lastDebtDate || ledger.date > order.lastDebtDate) order.lastDebtDate = ledger.date;
     if (!order.orderDate || ledger.date < order.orderDate) order.orderDate = ledger.date;
   }
@@ -634,6 +685,9 @@ function groupLedgers(ledgerRows = [], query = {}) {
         orderCount: 0,
         ledgerCount: 0,
         lastDebtDate: '',
+        legacyFallbackCount: 0,
+        unresolvedAdjustmentCount: 0,
+        hasUnresolvedProjection: false,
         orders: []
       });
     }
@@ -649,6 +703,9 @@ function groupLedgers(ledgerRows = [], query = {}) {
     customer.creditBalanceAmount += order.creditBalanceAmount;
     customer.orderCount += 1;
     customer.ledgerCount += order.ledgerCount;
+    customer.legacyFallbackCount += order.legacyFallbackCount || 0;
+    customer.unresolvedAdjustmentCount += order.unresolvedAdjustmentCount || 0;
+    customer.hasUnresolvedProjection = customer.hasUnresolvedProjection || order.hasUnresolvedProjection === true;
     customer.orders.push(order);
     if (!customer.salesStaffCode && order.salesStaffCode) customer.salesStaffCode = order.salesStaffCode;
     if (!customer.salesStaffName && order.salesStaffName) customer.salesStaffName = order.salesStaffName;
@@ -699,10 +756,12 @@ function groupLedgers(ledgerRows = [], query = {}) {
   summary.shadowedLedgerCount = ownership.shadowedEntries.length;
   summary.duplicateLedgerCount = ownership.duplicateEntries.length;
   summary.unresolvedLedgerCount = ownership.unresolvedEntries.length;
+  summary.legacyFallbackAdjustmentCount = selectedLedgers.filter((row) => row.legacyFallback === true).length;
+  summary.unresolvedAdjustmentCount = selectedLedgers.filter((row) => row.projectionStatus === 'UNRESOLVED' || row.warningCode === 'LEGACY_ADJUSTMENT_SOURCE_UNRESOLVED').length;
 
   return {
     ledgers: selectedLedgers,
-    allLedgers: ledgers,
+    allLedgers: annotatedLedgers,
     shadowedLedgers: ownership.shadowedEntries,
     duplicateGroups: ownership.duplicateGroups,
     unresolvedLedgers: ownership.unresolvedEntries,

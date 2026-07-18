@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-07-18T00:36:34.165Z",
+  "baseline": "MK-pro-phase260e-canonical-ar-source-posting-fixed.zip",
+  "baselineSha256": "43dd771217d6c05eb3d7fd54c4e3797a0d98568a3e2590e9165d89c91fea2e0f",
+  "gitCommit": "507b2a8e8d300b1853d1d9985eb54b5783fe9661",
+  "checkpoint": "Phase260F-R4",
+  "commands": [],
+  "actualResult": "FIXTURE_RECONCILIATION_PASS_PRODUCTION_RECONCILIATION_NOT_EXECUTED",
+  "scannedCount": 0,
+  "classifiedCount": 0,
+  "backfilledCount": 0,
+  "alreadyCanonicalCount": 0,
+  "unresolvedCount": 0,
+  "failedCount": 0,
+  "skippedReason": "",
+  "warnings": [],
+  "sha256": "computed in PHASE260F_CHANGED_FILES.json",
+  "web": "PASS via DebtNew fixtures",
+  "mobile": "PASS via mobile/read-model targeted tests",
+  "export": "source-bundle/static reader parity only; production export reconciliation not executed",
+  "report": "arCustomerDebtReadModel targeted tests PASS",
+  "productionStatus": "PROJECTION_CUTOVER_BLOCKED"
+}

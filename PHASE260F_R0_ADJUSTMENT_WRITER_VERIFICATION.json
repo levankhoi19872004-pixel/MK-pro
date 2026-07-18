@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-07-18T00:36:34.165Z",
+  "baseline": "MK-pro-phase260e-canonical-ar-source-posting-fixed.zip",
+  "baselineSha256": "43dd771217d6c05eb3d7fd54c4e3797a0d98568a3e2590e9165d89c91fea2e0f",
+  "gitCommit": "507b2a8e8d300b1853d1d9985eb54b5783fe9661",
+  "checkpoint": "Phase260F-R0",
+  "commands": [
+    "node --test test\\phase260e-canonical-ar-source-posting.test.js"
+  ],
+  "actualResult": "WRITER_RETIRED_VERIFIED_STATIC_AND_TESTED",
+  "scannedCount": 0,
+  "classifiedCount": 0,
+  "backfilledCount": 0,
+  "alreadyCanonicalCount": 0,
+  "unresolvedCount": 0,
+  "failedCount": 0,
+  "skippedReason": "",
+  "warnings": [],
+  "sha256": "computed in PHASE260F_CHANGED_FILES.json",
+  "writerFacade": "src/services/accounting/ArDebtAdjustmentPostingService.postAdjustment returns skipped/throws AR_DEBT_ADJUSTMENT_POSTING_RETIRED",
+  "activeCallerRisk": [
+    "OrderPaymentDebtReconcileService and deliveryCloseoutCorrection still contain legacy builder/caller strings but facade retirement prevents new posting through central service in tested path. Direct legacy construction remains a static risk requiring production caller audit before claiming PASS."
+  ],
+  "pass": true
+}

@@ -1,0 +1,40 @@
+{
+  "generatedAt": "2026-07-18T00:36:34.165Z",
+  "baseline": "MK-pro-phase260e-canonical-ar-source-posting-fixed.zip",
+  "baselineSha256": "43dd771217d6c05eb3d7fd54c4e3797a0d98568a3e2590e9165d89c91fea2e0f",
+  "gitCommit": "507b2a8e8d300b1853d1d9985eb54b5783fe9661",
+  "checkpoint": "Phase260F-R3",
+  "commands": [],
+  "actualResult": "B0038754_FIXTURE_RECONCILIATION_PASS_PRODUCTION_SOURCE_UNKNOWN",
+  "scannedCount": 0,
+  "classifiedCount": 0,
+  "backfilledCount": 0,
+  "alreadyCanonicalCount": 0,
+  "unresolvedCount": 0,
+  "failedCount": 0,
+  "skippedReason": "",
+  "warnings": [],
+  "sha256": "computed in PHASE260F_CHANGED_FILES.json",
+  "productionEvidence": "PRODUCTION_AUDIT_NOT_EXECUTED",
+  "sourceOfCredit150000": "UNKNOWN_UNTIL_PRODUCTION_AUDIT",
+  "beforeBackfillFixture": {
+    "debit": 1329232,
+    "legacyAdjustmentCredit": 150000,
+    "receiptCredit": 1179232,
+    "totalCredit": 1329232,
+    "rawBalance": 0,
+    "debtAmount": 0,
+    "creditBalance": 0,
+    "adjustmentPolicy": "legacyFallback true"
+  },
+  "afterBackfillFixture": {
+    "debit": 1329232,
+    "canonicalReplacementCredit": 150000,
+    "receiptCredit": 1179232,
+    "legacyAdjustmentIncluded": false,
+    "exclusionReason": "CANONICAL_REPLACEMENT_VERIFIED",
+    "rawBalance": 0,
+    "debtAmount": 0,
+    "creditBalance": 0
+  }
+}

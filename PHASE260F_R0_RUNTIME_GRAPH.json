@@ -1,0 +1,49 @@
+{
+  "generatedAt": "2026-07-18T00:36:34.165Z",
+  "baseline": "MK-pro-phase260e-canonical-ar-source-posting-fixed.zip",
+  "baselineSha256": "43dd771217d6c05eb3d7fd54c4e3797a0d98568a3e2590e9165d89c91fea2e0f",
+  "gitCommit": "507b2a8e8d300b1853d1d9985eb54b5783fe9661",
+  "checkpoint": "Phase260F-R0",
+  "commands": [],
+  "actualResult": "RUNTIME_GRAPH_RECORDED",
+  "scannedCount": 0,
+  "classifiedCount": 0,
+  "backfilledCount": 0,
+  "alreadyCanonicalCount": 0,
+  "unresolvedCount": 0,
+  "failedCount": 0,
+  "skippedReason": "",
+  "warnings": [],
+  "sha256": "computed in PHASE260F_CHANGED_FILES.json",
+  "graphs": {
+    "history": [
+      "public/js/app/new/92-debt-new.js renderDebtHistoryTab uses backend row.debit/row.credit",
+      "routes/controllers for /api/new/debt/customers/:customerCode/detail",
+      "src/services/v2/debtNew.service customerDetail",
+      "loadCustomerHistoryMovements queries raw arLedgers",
+      "movementFromLedger now attaches projectionIncluded/exclusionReason/replacedByLedgerId/legacyFallback/warningCode"
+    ],
+    "orderDebt": [
+      "Debt New frontend requests backend DTO, no frontend balance recompute",
+      "src/services/v2/debtNew.service listCustomers/groupLedgers",
+      "buildActiveDebtReadModelLedgerMatch reads ACTIVE_DEBT_READ_MODEL_CATEGORIES including AR-DEBT-ADJUSTMENT",
+      "resolveDebtLedgerOwnership",
+      "legacyAdjustmentProjectionPolicy evidence gate",
+      "sum selected debit/credit into order rawBalance/debtAmount/creditBalance"
+    ],
+    "customerList": [
+      "listCustomers",
+      "groupLedgers orders",
+      "customer aggregation from same selected ledgers"
+    ],
+    "sharedReaders": [
+      "src/services/arLedgerRead.service applies selectLegacyAdjustmentProjectedRows",
+      "src/services/accounting/arCustomerDebtReadModel.service applies selectLegacyAdjustmentProjectedRows",
+      "src/services/mobile/mobileDebtQuery.service annotates selected mobile rows with same policy"
+    ]
+  },
+  "rootCause": {
+    "historySawCredit": "History reads raw AR movement debit/credit.",
+    "orderDebtMissedCreditBeforeFix": "Phase260E category registry and semantic registry excluded AR-DEBT-ADJUSTMENT from projection before replacement evidence existed."
+  }
+}

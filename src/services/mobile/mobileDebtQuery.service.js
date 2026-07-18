@@ -11,6 +11,7 @@ const { escapeRegex } = require('../../utils/query.util');
 const { DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
 const { projectBalanceFromTotals } = require('../accounting/LegacyDebtProjector');
 const { resolveDebtLedgerOwnership } = require('../../domain/ar/DebtLedgerOwnershipResolver');
+const { annotateLegacyAdjustmentProjection, isLegacyAdjustment } = require('../../domain/ar/legacyAdjustmentProjectionPolicy');
 const arBalanceService = require('../accounting/arBalanceService');
 const arLedgerUtil = require('../../utils/arLedger.util');
 const {
@@ -65,7 +66,8 @@ const DEBT_LEDGER_PROJECTION = [
   'status', 'lifecycleStatus', 'account', 'accountingConfirmed', 'accountingStatus', 'entryType', 'active',
   'reversed', 'isDeleted', 'deleted', 'deletedAt', 'date', 'documentDate', 'createdAt',
   'salesStaffCode', 'salesStaffName', 'salesmanCode', 'salesmanName', 'nvbhCode', 'nvbhName',
-  'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'nvghCode', 'nvghName'
+  'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'nvghCode', 'nvghName',
+  'metadata'
 ].join(' ');
 
 function text(value) {
@@ -412,8 +414,28 @@ function customerKeyOf(row = {}) {
 
 function groupOrders(rows = [], query = {}) {
   const map = new Map();
-  const ownership = resolveDebtLedgerOwnership((rows || []).filter(isMobileCanonicalDebtLedger));
-  for (const row of ownership.selectedEntries || []) {
+  const debtRows = (rows || []).filter(isMobileCanonicalDebtLedger);
+  const ownership = resolveDebtLedgerOwnership(debtRows);
+  const annotated = annotateLegacyAdjustmentProjection(debtRows, ownership);
+  const annotatedById = new Map(annotated.flatMap((row) => [row.ledgerId, row.id, row.code, row._id, row.idempotencyKey].map(text).filter(Boolean).map((key) => [key, row])));
+  const selectedRows = [];
+  const selectedKeys = new Set();
+  function pushSelected(row = {}) {
+    const key = text(row.ledgerId || row.id || row.code || row._id || row.idempotencyKey);
+    const projected = annotatedById.get(key) || row;
+    if (isLegacyAdjustment(projected) && projected.projectionIncluded === false) return;
+    const selectedKey = text(projected.ledgerId || projected.id || projected.code || projected._id || projected.idempotencyKey);
+    if (selectedKey && selectedKeys.has(selectedKey)) return;
+    if (selectedKey) selectedKeys.add(selectedKey);
+    selectedRows.push(projected);
+  }
+  for (const row of ownership.selectedEntries || []) pushSelected(row);
+  for (const row of ownership.unresolvedEntries || []) {
+    const key = text(row.ledgerId || row.id || row.code || row._id || row.idempotencyKey);
+    const projected = annotatedById.get(key) || row;
+    if (isLegacyAdjustment(projected) && projected.projectionIncluded !== false) pushSelected(projected);
+  }
+  for (const row of selectedRows) {
     if (!keywordMatches(row, query.q || query.customerKeyword || query.search)) continue;
 
     const customerKey = customerKeyOf(row);

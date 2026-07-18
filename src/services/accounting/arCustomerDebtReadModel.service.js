@@ -2,9 +2,10 @@
 
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
-const { DEBT_ZERO_TOLERANCE, hasOpenDebt } = require('../../constants/finance.constants');
+const { DEBT_ZERO_TOLERANCE, hasOpenDebt, normalizeDebtAmount } = require('../../constants/finance.constants');
 const { canProjectCanonicalAccountingLedgerToDebtReadModel, ACCOUNTING_READ_MODEL_PROJECTABLE_CATEGORIES, normalizeAccountingAmount, validateArLedgerContract } = require('../../domain/ar/arLedgerValidator');
 const { filterReadModelEligibleArLedgers } = require('../../domain/ar/arLedgerQueryPolicy');
+const { selectLegacyAdjustmentProjectedRows } = require('../../domain/ar/legacyAdjustmentProjectionPolicy');
 const arLedgerReadService = require('../arLedgerRead.service');
 const { projectBalanceFromTotals, applyDebtProjection } = require('./LegacyDebtProjector');
 
@@ -490,9 +491,13 @@ function finalizeOrder(row, options = {}) {
   row.debit = Math.round(row.arSaleAmount + row.returnReversalAmount + row.adjustmentDebitAmount);
   row.credit = Math.round(row.totalCredit);
   const projection = applyDebtProjection(row, { debit: row.totalDebit, credit: row.totalCredit }, options);
+  const normalizedBalance = normalizeDebtAmount(projection.rawBalance, options.tolerance || DEBT_ZERO_TOLERANCE);
   row.remainingDebt = projection.rawBalance;
-  row.remainingDebtDisplay = projection.debtAmount;
-  row.debt = projection.debtAmount;
+  row.remainingDebtDisplay = normalizedBalance;
+  row.debt = normalizedBalance;
+  row.debtAmount = normalizedBalance;
+  row.creditBalance = normalizedBalance < 0 ? Math.abs(normalizedBalance) : 0;
+  row.creditBalanceAmount = row.creditBalance;
   row.date = row.date || row.documentDate || row.dueDate;
   row.documentDate = row.documentDate || row.date;
   row.dueDate = row.dueDate || row.documentDate;
@@ -500,8 +505,8 @@ function finalizeOrder(row, options = {}) {
   row.agingDays = row.ageDays;
   row.isOverdue = projection.hasOpenDebt && row.ageDays > 0;
   row.overdueDays = row.isOverdue ? row.ageDays : 0;
-  if (projection.isOverpaid) row.debtStatus = 'overpaid';
-  else if (projection.hasOpenDebt) row.debtStatus = row.isOverdue ? 'overdue' : 'open';
+  if (normalizedBalance < 0) row.debtStatus = 'overpaid';
+  else if (normalizedBalance > 0) row.debtStatus = row.isOverdue ? 'overdue' : 'open';
   else row.debtStatus = projection.displayStatus;
   row.status = row.debtStatus === 'settled_by_tolerance' ? 'paid' : row.debtStatus;
   return row;
@@ -668,7 +673,7 @@ function buildPersonSummary(orderRows = [], options = {}) {
 
 function buildCustomerDebtReadModelFromLedgers(ledgerRows = [], query = {}, options = {}) {
   const tolerance = Number.isFinite(Number(options.tolerance)) ? Number(options.tolerance) : DEBT_ZERO_TOLERANCE;
-  const eligibleLedgerRows = filterReadModelEligibleArLedgers((Array.isArray(ledgerRows) ? ledgerRows : []).filter(isActiveConfirmedArDebtLedger));
+  const eligibleLedgerRows = selectLegacyAdjustmentProjectedRows(filterReadModelEligibleArLedgers((Array.isArray(ledgerRows) ? ledgerRows : []).filter(isActiveConfirmedArDebtLedger)));
   const normalizedLedgers = eligibleLedgerRows.map(normalizeLedger).filter((row) => row.orderKey);
   const orderMap = new Map();
 

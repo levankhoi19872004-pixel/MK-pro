@@ -117,7 +117,7 @@ test('Phase260D/260E return effect keeps AR-RETURN and excludes retired correcti
   assert.equal(result.ledgers.some((row) => row.category === 'AR-DEBT-ADJUSTMENT'), false);
 });
 
-test('Phase260D/260E credit adjustment remains document credit but is retired from projection', () => {
+test('Phase260F credit adjustment remains document credit and projects as fallback when no replacement exists', () => {
   const adjustment = ledger('AR-DEBT-ADJUSTMENT', 92211, {
     side: 'credit',
     id: 'ADJ-CREDIT-B0039602',
@@ -126,9 +126,9 @@ test('Phase260D/260E credit adjustment remains document credit but is retired fr
     correctionId: 'DCOC-B0039602'
   });
   const ownership = resolveDebtLedgerOwnership([adjustment]);
-  assert.equal(ownership.selectedEntries.length, 0);
-  assert.equal(ownership.unsupportedEntries[0].debit, 0);
-  assert.equal(ownership.unsupportedEntries[0].credit, 92211);
-  assert.equal(ownership.unsupportedEntries[0].ownershipEffect, -92211);
-  assert.equal(ownership.unsupportedEntries[0].ownershipClassification, 'UNSUPPORTED');
+  assert.equal(ownership.selectedEntries.length, 1);
+  assert.equal(ownership.selectedEntries[0].debit, 0);
+  assert.equal(ownership.selectedEntries[0].credit, 92211);
+  assert.equal(ownership.selectedEntries[0].ownershipEffect, -92211);
+  assert.equal(ownership.selectedEntries[0].ownershipClassification, 'SELECTED');
 });

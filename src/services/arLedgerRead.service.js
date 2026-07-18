@@ -24,6 +24,7 @@ const {
   ACTIVE_DEBT_READ_MODEL_CATEGORIES,
   canProjectDetailedAccountingCategoryBySource
 } = require('../domain/ar/arDebtCategoryRegistry');
+const { selectLegacyAdjustmentProjectedRows } = require('../domain/ar/legacyAdjustmentProjectionPolicy');
 
 let models = null;
 function getModels() {
@@ -61,7 +62,7 @@ function normalizeAndValidateRows(rows = [], filters = {}) {
     }
   }
 
-  const eligibleRows = filterReadModelEligibleArLedgers(rawCanonicalLedgers);
+  const eligibleRows = selectLegacyAdjustmentProjectedRows(filterReadModelEligibleArLedgers(rawCanonicalLedgers));
   const eligibleSet = new Set(eligibleRows);
   for (const row of rawCanonicalLedgers) {
     if (!eligibleSet.has(row) && isArDebtReversalLedger(row)) {
@@ -90,12 +91,12 @@ function normalizeAndValidateActiveDebtRows(rows = [], filters = {}) {
   const rejectedLedgers = [];
   for (const row of Array.isArray(rows) ? rows : []) {
     if (canProjectCanonicalAccountingLedgerToDebtReadModel(row) && canonicalRowMatchesFilters(row, filters)) {
-      canonicalLedgers.push(normalizeCanonicalLedgerRow(row));
+      canonicalLedgers.push(row);
     } else {
       rejectedLedgers.push({ ledgerId: clean(row.id || row.code || row._id), validation: validateArLedgerContract(row) });
     }
   }
-  return { canonicalLedgers, rejectedLedgers };
+  return { canonicalLedgers: selectLegacyAdjustmentProjectedRows(canonicalLedgers).map(normalizeCanonicalLedgerRow), rejectedLedgers };
 }
 
 
