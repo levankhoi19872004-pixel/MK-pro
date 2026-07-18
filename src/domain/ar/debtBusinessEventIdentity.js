@@ -1,6 +1,7 @@
 'use strict';
 
 const { SEMANTIC_ROLES, semanticRoleForLedger } = require('./debtLedgerSemanticRegistry');
+const { financialComponentForLedger, componentSourceIdentity } = require('./debtFinancialComponent');
 
 function text(value = '') {
   return String(value ?? '').trim();
@@ -105,6 +106,8 @@ function sourceVersion(ledger = {}) {
 
 function buildDebtBusinessEventIdentity(input = {}) {
   const semanticRole = input.semanticRole || semanticRoleForLedger(input);
+  const financialComponent = financialComponentForLedger(input);
+  const componentSource = componentSourceIdentity(input);
   const order = orderIdentity(input);
   const version = sourceVersion(input);
   let source = '';
@@ -135,26 +138,34 @@ function buildDebtBusinessEventIdentity(input = {}) {
       ok: false,
       code: 'MISSING_BUSINESS_EVENT_IDENTITY',
       semanticRole: semanticRole || SEMANTIC_ROLES.UNSUPPORTED,
+      financialComponent,
       businessEventIdentity: '',
       sourceKind,
-      evidenceFields: { order, source, version }
+      componentSourceIdentity: componentSource,
+      evidenceFields: { order, source, version, financialComponent, componentSourceIdentity: componentSource }
     };
   }
 
   const identityRole = semanticRole === SEMANTIC_ROLES.CORRECTION_DELTA && sourceKind === 'return'
     ? SEMANTIC_ROLES.RETURN_REDUCTION
     : semanticRole;
-  const parts = [identityRole, sourceKind, source];
+  const sourceType = semanticRole === SEMANTIC_ROLES.PAYMENT_REDUCTION
+    ? (firstText(input, ['sourceType', 'refType', 'source']) || sourceKind)
+    : sourceKind;
+  const parts = [identityRole, financialComponent, `${sourceType}:${source}`];
   if (semanticRole !== SEMANTIC_ROLES.OPENING_OBLIGATION && order) parts.push(`order:${order}`);
+  if (componentSource) parts.push(`component:${componentSource}`);
   if (version) parts.push(`v:${version}`);
 
   return {
     ok: true,
     code: 'OK',
     semanticRole,
+    financialComponent,
     businessEventIdentity: parts.map(normalizePart).join('|'),
     sourceKind,
-    evidenceFields: { order, source, version }
+    componentSourceIdentity: componentSource,
+    evidenceFields: { order, source, sourceType, version, financialComponent, componentSourceIdentity: componentSource }
   };
 }
 
@@ -166,5 +177,7 @@ module.exports = {
   correctionIdentity,
   originalLedgerIdentity,
   sourceVersion,
+  financialComponentForLedger,
+  componentSourceIdentity,
   buildDebtBusinessEventIdentity
 };

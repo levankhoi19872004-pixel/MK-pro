@@ -82,15 +82,16 @@ test('Phase260D mixed opening family selects AR-DEBT-OPEN and shadows AR-SALE', 
   assert.equal(result.summary.shadowedLedgerCount, 1);
 });
 
-test('Phase260D mixed payment family selects AR-DEBT-PAYMENT and shadows AR-RECEIPT', () => {
+test('Phase260G mixed payment components keeps AR-DEBT-PAYMENT and AR-RECEIPT isolated', () => {
   const rows = [
     ledger('AR-DEBT-OPEN', 100000, { side: 'debit', id: 'OPEN-PAY' }),
     ledger('AR-RECEIPT', 40000, { side: 'credit', id: 'AR-RECEIPT-DC1', sourceType: 'DEBTCOLLECTION', sourceId: 'DC1', receiptId: 'DC1' }),
     ledger('AR-DEBT-PAYMENT', 40000, { side: 'credit', id: 'AR-DEBT-PAYMENT-DC1', sourceType: 'DEBT_RECEIPT', sourceId: 'DC1', receiptId: 'DC1' })
   ];
   const result = debtNew.groupLedgers(rows, { status: 'all' });
-  assert.equal(result.summary.totalDebt, 60000);
-  assert.deepEqual(result.shadowedLedgers.map((row) => row.category), ['AR-RECEIPT']);
+  assert.equal(result.summary.totalDebt, 20000);
+  assert.deepEqual(result.ledgers.map((row) => row.category).sort(), ['AR-DEBT-OPEN', 'AR-DEBT-PAYMENT', 'AR-RECEIPT'].sort());
+  assert.equal(result.shadowedLedgers.length, 0);
 });
 
 test('Phase260D same amount but distinct immutable payment source is not deduplicated', () => {

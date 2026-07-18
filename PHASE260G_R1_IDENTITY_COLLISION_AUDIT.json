@@ -1,0 +1,166 @@
+{
+  "generatedAt": "2026-07-18T08:10:16.968Z",
+  "baseline": "MK-pro-phase260f-r4-legacy-adjustment-canonical-backfill-fixed.zip",
+  "baselineSha256": "6e0204bf67c0fbb16ae69bd800687d42cb604fa24af1a66ac192c439194f319f",
+  "gitCommit": "b8636e566d87e76cc8f1b5ebd419cb76cf252451",
+  "checkpoint": "Phase260G-R1",
+  "command": "",
+  "actualResult": "IDENTITY_COLLISION_REPRODUCED_BEFORE_FIX_AND_ISOLATED_AFTER_FIX",
+  "scannedCount": 0,
+  "identityGroupCount": 3,
+  "selectedCount": 3,
+  "shadowedCount": 0,
+  "unresolvedCount": 0,
+  "warnings": [],
+  "sha256": "see PHASE260G_CHANGED_FILES.json",
+  "beforeFix": {
+    "selected": [
+      "AR-SALE-B0039294",
+      "AR-REWARD-ALLOWANCE-B0039294"
+    ],
+    "shadowed": [
+      "AR-RECEIPT-CASH-B0039294"
+    ],
+    "collisionIdentity": "PAYMENT_REDUCTION|PAYMENT|OPA-B0039294-V1|ORDER:SO-B0039294|V:1",
+    "reasonCode": "CANONICAL_DEBT_PAYMENT_SHADOWS_LEGACY_AR_RECEIPT"
+  },
+  "afterFix": {
+    "selected": [
+      {
+        "ledgerId": "AR-SALE-B0039294",
+        "category": "AR-SALE",
+        "semanticRole": "OPENING_OBLIGATION",
+        "financialComponent": "OPENING",
+        "componentSourceIdentity": "OPENING",
+        "businessEventIdentity": "OPENING_OBLIGATION|OPENING|ORDER:SO-B0039294|COMPONENT:OPENING|V:1",
+        "reasonCode": "SINGLE_OWNER"
+      },
+      {
+        "ledgerId": "AR-RECEIPT-CASH-B0039294",
+        "category": "AR-RECEIPT-CASH",
+        "semanticRole": "PAYMENT_REDUCTION",
+        "financialComponent": "CASH",
+        "componentSourceIdentity": "CASH",
+        "businessEventIdentity": "PAYMENT_REDUCTION|CASH|ORDER_PAYMENT_ALLOCATION:OPA-B0039294-V1|ORDER:SO-B0039294|COMPONENT:CASH|V:1",
+        "reasonCode": "SINGLE_OWNER"
+      },
+      {
+        "ledgerId": "AR-REWARD-ALLOWANCE-B0039294",
+        "category": "AR-REWARD-ALLOWANCE",
+        "semanticRole": "PAYMENT_REDUCTION",
+        "financialComponent": "REWARD_ALLOWANCE",
+        "componentSourceIdentity": "REWARD_ALLOWANCE",
+        "businessEventIdentity": "PAYMENT_REDUCTION|REWARD_ALLOWANCE|ORDER_PAYMENT_ALLOCATION:OPA-B0039294-V1|ORDER:SO-B0039294|COMPONENT:REWARD_ALLOWANCE|V:1",
+        "reasonCode": "SINGLE_OWNER"
+      }
+    ],
+    "shadowed": [],
+    "decisions": [
+      {
+        "semanticRole": "OPENING_OBLIGATION",
+        "businessEventIdentity": "OPENING_OBLIGATION|OPENING|ORDER:SO-B0039294|COMPONENT:OPENING|V:1",
+        "selectedLedgerIds": [
+          "AR-SALE-B0039294"
+        ],
+        "shadowedLedgerIds": [],
+        "duplicateLedgerIds": [],
+        "selectedFamily": "LEGACY_SALES_AR",
+        "reasonCode": "SINGLE_OWNER",
+        "classification": "DISTINCT_BUSINESS_EVENTS",
+        "evidenceFields": [
+          {
+            "ledgerId": "AR-SALE-B0039294",
+            "category": "AR-SALE",
+            "ledgerFamily": "LEGACY_SALES_AR",
+            "financialComponent": "OPENING",
+            "componentSourceIdentity": "OPENING",
+            "sourceType": "ORDER_PAYMENT_ALLOCATION",
+            "sourceId": "OPA-B0039294-v1",
+            "sourceVersion": "1",
+            "evidence": {
+              "order": "SO-B0039294",
+              "source": "SO-B0039294",
+              "sourceType": "order",
+              "version": "1",
+              "financialComponent": "OPENING",
+              "componentSourceIdentity": "OPENING"
+            }
+          }
+        ],
+        "confidencePolicy": "CONTRACT_MATCH",
+        "autoResolved": true,
+        "groupKey": "OPENING_OBLIGATION::OPENING_OBLIGATION|OPENING|ORDER:SO-B0039294|COMPONENT:OPENING|V:1"
+      },
+      {
+        "semanticRole": "PAYMENT_REDUCTION",
+        "businessEventIdentity": "PAYMENT_REDUCTION|CASH|ORDER_PAYMENT_ALLOCATION:OPA-B0039294-V1|ORDER:SO-B0039294|COMPONENT:CASH|V:1",
+        "selectedLedgerIds": [
+          "AR-RECEIPT-CASH-B0039294"
+        ],
+        "shadowedLedgerIds": [],
+        "duplicateLedgerIds": [],
+        "selectedFamily": "LEGACY_RECEIPT_AR",
+        "reasonCode": "SINGLE_OWNER",
+        "classification": "DISTINCT_BUSINESS_EVENTS",
+        "evidenceFields": [
+          {
+            "ledgerId": "AR-RECEIPT-CASH-B0039294",
+            "category": "AR-RECEIPT-CASH",
+            "ledgerFamily": "LEGACY_RECEIPT_AR",
+            "financialComponent": "CASH",
+            "componentSourceIdentity": "CASH",
+            "sourceType": "ORDER_PAYMENT_ALLOCATION",
+            "sourceId": "OPA-B0039294-v1",
+            "sourceVersion": "1",
+            "evidence": {
+              "order": "SO-B0039294",
+              "source": "OPA-B0039294-v1",
+              "sourceType": "ORDER_PAYMENT_ALLOCATION",
+              "version": "1",
+              "financialComponent": "CASH",
+              "componentSourceIdentity": "CASH"
+            }
+          }
+        ],
+        "confidencePolicy": "CONTRACT_MATCH",
+        "autoResolved": true,
+        "groupKey": "PAYMENT_REDUCTION::PAYMENT_REDUCTION|CASH|ORDER_PAYMENT_ALLOCATION:OPA-B0039294-V1|ORDER:SO-B0039294|COMPONENT:CASH|V:1"
+      },
+      {
+        "semanticRole": "PAYMENT_REDUCTION",
+        "businessEventIdentity": "PAYMENT_REDUCTION|REWARD_ALLOWANCE|ORDER_PAYMENT_ALLOCATION:OPA-B0039294-V1|ORDER:SO-B0039294|COMPONENT:REWARD_ALLOWANCE|V:1",
+        "selectedLedgerIds": [
+          "AR-REWARD-ALLOWANCE-B0039294"
+        ],
+        "shadowedLedgerIds": [],
+        "duplicateLedgerIds": [],
+        "selectedFamily": "CANONICAL_DEBT",
+        "reasonCode": "SINGLE_OWNER",
+        "classification": "DISTINCT_BUSINESS_EVENTS",
+        "evidenceFields": [
+          {
+            "ledgerId": "AR-REWARD-ALLOWANCE-B0039294",
+            "category": "AR-REWARD-ALLOWANCE",
+            "ledgerFamily": "CANONICAL_DEBT",
+            "financialComponent": "REWARD_ALLOWANCE",
+            "componentSourceIdentity": "REWARD_ALLOWANCE",
+            "sourceType": "ORDER_PAYMENT_ALLOCATION",
+            "sourceId": "OPA-B0039294-v1",
+            "sourceVersion": "1",
+            "evidence": {
+              "order": "SO-B0039294",
+              "source": "OPA-B0039294-v1",
+              "sourceType": "ORDER_PAYMENT_ALLOCATION",
+              "version": "1",
+              "financialComponent": "REWARD_ALLOWANCE",
+              "componentSourceIdentity": "REWARD_ALLOWANCE"
+            }
+          }
+        ],
+        "confidencePolicy": "CONTRACT_MATCH",
+        "autoResolved": true,
+        "groupKey": "PAYMENT_REDUCTION::PAYMENT_REDUCTION|REWARD_ALLOWANCE|ORDER_PAYMENT_ALLOCATION:OPA-B0039294-V1|ORDER:SO-B0039294|COMPONENT:REWARD_ALLOWANCE|V:1"
+      }
+    ]
+  }
+}

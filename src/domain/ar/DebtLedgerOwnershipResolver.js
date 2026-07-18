@@ -55,6 +55,8 @@ function normalizeEntry(row = {}, index = 0) {
     businessEventIdentityOk: identity.ok,
     businessEventIdentityCode: identity.code,
     businessEventSourceKind: identity.sourceKind,
+    financialComponent: identity.financialComponent,
+    componentSourceIdentity: identity.componentSourceIdentity,
     businessEventEvidenceFields: identity.evidenceFields,
     projectionPolicy: registry.projectionPolicy,
     ownershipEffect: ledgerEffect(row)
@@ -148,6 +150,8 @@ function buildDecision(groupKey, entries, outcome) {
       ledgerId: row.ledgerId,
       category: row.category,
       ledgerFamily: row.ledgerFamily,
+      financialComponent: row.financialComponent || '',
+      componentSourceIdentity: row.componentSourceIdentity || '',
       sourceType: row.sourceType || '',
       sourceId: row.sourceId || '',
       sourceVersion: row.sourceVersion || row.metadata?.sourceVersion || '',

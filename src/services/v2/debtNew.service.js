@@ -23,6 +23,10 @@ const {
   classifyLegacyAdjustmentProjection,
   annotateLegacyAdjustmentProjection
 } = require('../../domain/ar/legacyAdjustmentProjectionPolicy');
+const {
+  financialComponentForLedger,
+  componentSourceIdentity
+} = require('../../domain/ar/debtFinancialComponent');
 
 
 function buildDebtSourceNote(code, query = {}, warnings = []) {
@@ -56,6 +60,7 @@ const AR_LEDGER_DEBT_HOT_PATH_PROJECTION = [
   'correctionId', 'correctionCode', 'correctionSourceId', 'correctionSourceCode',
   'returnOrderId', 'returnOrderCode',
   'receiptId', 'debtCollectionId', 'allocationId', 'orderPaymentAllocationId', 'paymentAllocationId',
+  'componentId', 'componentCode', 'componentKey', 'financialComponent', 'financialComponentId', 'financialComponentCode',
   'sourceVersion', 'version', 'originalLedgerId', 'reversedLedgerId', 'reversalOf',
   'customerCode', 'customerName',
   'salesStaffCode', 'salesStaffName', 'salesmanCode', 'salesmanName', 'nvbhCode', 'nvbhName',
@@ -412,6 +417,9 @@ function normalizeLedger(row = {}) {
     returnOrderCode: text(row.returnOrderCode),
     receiptId: text(row.receiptId || row.debtCollectionId),
     allocationId: text(row.allocationId || row.orderPaymentAllocationId || row.paymentAllocationId),
+    componentId: text(row.componentId || row.componentCode || row.componentKey || row.financialComponentId || row.financialComponentCode),
+    financialComponent: text(row.financialComponent || financialComponentForLedger(row)),
+    componentSourceIdentity: text(row.componentSourceIdentity || componentSourceIdentity(row)),
     sourceVersion: text(row.sourceVersion || row.version || row.metadata?.sourceVersion),
     originalLedgerId: text(row.originalLedgerId || row.reversedLedgerId || row.reversalOf || row.metadata?.originalLedgerId),
     idempotencyKey: text(row.idempotencyKey),
@@ -570,11 +578,12 @@ function groupLedgers(ledgerRows = [], query = {}) {
   const selectedKeys = new Set();
   function pushSelected(row = {}) {
     const annotated = annotatedById.get(legacyAdjustmentLedgerId(row)) || annotatedById.get(text(row.code)) || row;
-    if (isLegacyAdjustment(annotated) && annotated.projectionIncluded === false) return;
-    const key = legacyAdjustmentLedgerId(annotated) || text(annotated.code);
+    const projected = isLegacyAdjustment(annotated) ? annotated : row;
+    if (isLegacyAdjustment(projected) && projected.projectionIncluded === false) return;
+    const key = legacyAdjustmentLedgerId(projected) || text(projected.code);
     if (key && selectedKeys.has(key)) return;
     if (key) selectedKeys.add(key);
-    selectedLedgers.push(annotated);
+    selectedLedgers.push(projected);
   }
   for (const row of ownership.selectedEntries || []) pushSelected(row);
   for (const row of ownership.unresolvedEntries || []) {

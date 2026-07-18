@@ -59,7 +59,9 @@ const MOBILE_DEBIT_SEED_CATEGORIES = Object.freeze([
 
 const DEBT_LEDGER_PROJECTION = [
   'id', 'code', 'type', 'category', 'ledgerType', 'source', 'sourceType', 'sourceId', 'sourceCode',
-  'sourceOrderId', 'sourceOrderCode', 'returnOrderId', 'returnOrderCode', 'receiptId', 'allocationId', 'correctionId', 'originalLedgerId', 'sourceVersion', 'idempotencyKey',
+  'sourceOrderId', 'sourceOrderCode', 'returnOrderId', 'returnOrderCode', 'receiptId', 'allocationId', 'orderPaymentAllocationId', 'paymentAllocationId',
+  'componentId', 'componentCode', 'componentKey', 'financialComponent', 'financialComponentId', 'financialComponentCode',
+  'correctionId', 'originalLedgerId', 'sourceVersion', 'idempotencyKey',
   'refType', 'refId', 'refCode', 'orderId', 'orderCode', 'salesOrderId', 'salesOrderCode',
   'customerId', 'customerCode', 'customerName', 'customerPhone', 'phone', 'customerAddress', 'address',
   'debit', 'credit', 'amount', 'arDebit', 'arCredit', 'totalAmount', 'value',
@@ -422,7 +424,8 @@ function groupOrders(rows = [], query = {}) {
   const selectedKeys = new Set();
   function pushSelected(row = {}) {
     const key = text(row.ledgerId || row.id || row.code || row._id || row.idempotencyKey);
-    const projected = annotatedById.get(key) || row;
+    const annotatedRow = annotatedById.get(key) || row;
+    const projected = isLegacyAdjustment(annotatedRow) ? annotatedRow : row;
     if (isLegacyAdjustment(projected) && projected.projectionIncluded === false) return;
     const selectedKey = text(projected.ledgerId || projected.id || projected.code || projected._id || projected.idempotencyKey);
     if (selectedKey && selectedKeys.has(selectedKey)) return;

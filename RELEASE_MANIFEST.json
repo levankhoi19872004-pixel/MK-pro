@@ -1,29 +1,20 @@
 {
   "application": "MK-Pro",
-  "releasePhase": "Phase260F",
+  "releasePhase": "Phase260G",
   "releaseVersion": "1.0.0",
-  "releaseId": "Phase260F-1.0.0-20260718",
-  "generatedAt": "2026-07-18T00:39:10.036Z",
+  "releaseId": "Phase260G-1.0.0-20260718",
+  "generatedAt": "2026-07-18T08:11:08.169Z",
   "timezone": "Asia/Bangkok",
-  "baseline": "MK-pro-phase260e-canonical-ar-source-posting-fixed.zip",
-  "baselineSha256": "43dd771217d6c05eb3d7fd54c4e3797a0d98568a3e2590e9165d89c91fea2e0f",
-  "zip": "MK-pro-phase260f-r4-legacy-adjustment-canonical-backfill-fixed.zip",
-  "zipSha256": "6e0204bf67c0fbb16ae69bd800687d42cb604fa24af1a66ac192c439194f319f",
+  "baseline": "MK-pro-phase260f-r4-legacy-adjustment-canonical-backfill-fixed.zip",
+  "baselineSha256": "6e0204bf67c0fbb16ae69bd800687d42cb604fa24af1a66ac192c439194f319f",
+  "zip": "MK-pro-phase260g-payment-financial-component-identity-fixed.zip",
+  "zipSha256": "5214b8988a902b62082e0f895e01a70b0860b6155fd41f67cfa2e0ae1573ed8e",
   "sourceBundleCheck": "PASS: npm run check:source-bundles",
   "syntaxCheck": "PASS: npm run check:syntax",
-  "phaseTests": "PASS: Phase260F/D/E/C targeted tests",
+  "phaseTests": "PASS: Phase260G targeted tests",
   "productionAudit": {
     "status": "PRODUCTION_AUDIT_NOT_EXECUTED",
-    "scannedCount": 0,
-    "productionRepaired": false
-  },
-  "productionBackfill": {
-    "status": "PRODUCTION_BACKFILL_NOT_EXECUTED",
-    "backfilledCount": 0
-  },
-  "projectionCutover": {
-    "status": "PROJECTION_CUTOVER_BLOCKED_FOR_PRODUCTION",
-    "fixturePolicyPass": true
+    "productionFixed": false
   },
   "noSchemaChange": true,
   "noPackageChange": true,
@@ -31,20 +22,16 @@
   "noDebtV2": true,
   "noNewCollection": true,
   "noFundInventoryChange": true,
+  "noRepair": true,
   "changedFiles": [
-    "src/domain/ar/legacyAdjustmentProjectionPolicy.js",
-    "src/domain/ar/arDebtCategoryRegistry.js",
-    "src/domain/ar/debtLedgerSemanticRegistry.js",
+    "src/domain/ar/debtFinancialComponent.js",
+    "src/domain/ar/debtBusinessEventIdentity.js",
+    "src/domain/ar/DebtLedgerOwnershipResolver.js",
     "src/services/v2/debtNew.service.js",
-    "src/services/arLedgerRead.service.js",
-    "src/services/accounting/arCustomerDebtReadModel.service.js",
     "src/services/mobile/mobileDebtQuery.service.js",
-    "scripts/phase260f/audit-legacy-adjustment-business-source.js",
-    "scripts/phase260f/build-legacy-adjustment-backfill-plan.js",
-    "test/phase260f-evidence-gated-adjustment-projection.test.js",
-    "test/phase260e-canonical-ar-source-posting.test.js",
+    "test/phase260g-financial-component-identity.test.js",
     "test/phase260d-ownership-resolver.test.js"
   ],
-  "zipBytes": 5438018,
-  "manifestNote": "Workspace manifest records final ZIP SHA256 after package creation; the ZIP was built before this post-package hash update."
+  "zipBytes": 5425195,
+  "manifestNote": "Sidecar SHA256 is authoritative for the final ZIP; workspace manifest is updated after package creation."
 }

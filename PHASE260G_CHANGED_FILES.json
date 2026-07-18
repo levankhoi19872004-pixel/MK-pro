@@ -1,0 +1,123 @@
+{
+  "generatedAt": "2026-07-18T08:11:08.171Z",
+  "baseline": "MK-pro-phase260f-r4-legacy-adjustment-canonical-backfill-fixed.zip",
+  "baselineSha256": "6e0204bf67c0fbb16ae69bd800687d42cb604fa24af1a66ac192c439194f319f",
+  "gitCommit": "b8636e566d87e76cc8f1b5ebd419cb76cf252451",
+  "checkpoint": "Phase260G-R3",
+  "command": "",
+  "actualResult": "CHANGED_FILES_RECORDED",
+  "scannedCount": 0,
+  "identityGroupCount": 0,
+  "selectedCount": 0,
+  "shadowedCount": 0,
+  "unresolvedCount": 0,
+  "warnings": [],
+  "sha256": "see PHASE260G_CHANGED_FILES.json",
+  "files": [
+    {
+      "path": "src/domain/ar/debtFinancialComponent.js",
+      "bytes": 3119,
+      "sha256": "5c84fa2086b668f75206c28d9aaf1599346e6ab7f8e498ba119954cf9714efab"
+    },
+    {
+      "path": "src/domain/ar/debtBusinessEventIdentity.js",
+      "bytes": 5259,
+      "sha256": "d70561dfa13f21db4a5963570abe9353ab9d9e3fc2cf46bd3a06ddf23ba90b59"
+    },
+    {
+      "path": "src/domain/ar/DebtLedgerOwnershipResolver.js",
+      "bytes": 8766,
+      "sha256": "e2337b67e7ae241547f7b5ab69ff9dfb931a1242a0a8ef8e71624ce60d651de1"
+    },
+    {
+      "path": "src/services/v2/debtNew.service.js",
+      "bytes": 53438,
+      "sha256": "6d12ded3ef4a78bc419b627364e0cdcaddc797eaf91cded76f910bbc97ccb52f"
+    },
+    {
+      "path": "src/services/mobile/mobileDebtQuery.service.js",
+      "bytes": 27828,
+      "sha256": "a91c36d918e0a009856260fc1c7f0787fd0fa3ae140446e5e32cf9a8a774388f"
+    },
+    {
+      "path": "test/phase260g-financial-component-identity.test.js",
+      "bytes": 8583,
+      "sha256": "5566d75c6db7adf32f4f7348f8fb51fd638b5bd7f2a51a6696e876e979a75c66"
+    },
+    {
+      "path": "test/phase260d-ownership-resolver.test.js",
+      "bytes": 6476,
+      "sha256": "ded8485f4aefc727e84a0b3dbdef2358cf21b7a685fce4b3dd2b85b8179befa3"
+    },
+    {
+      "path": "PHASE260G_B0039294_REGRESSION_EVIDENCE.json",
+      "bytes": 903,
+      "sha256": "6f69eecb5fc3b91cc602c8aa8aa27f4c13cc9c50e9fd0c88f2f9422d109ee04b"
+    },
+    {
+      "path": "PHASE260G_CHANGED_FILES.json",
+      "bytes": 3838,
+      "sha256": "fcd0bb6fc8d75fe1f5ff495f32f7842dba63e63811c8cb353996b637c21c4b87"
+    },
+    {
+      "path": "PHASE260G_CROSS_READER_RECONCILIATION.json",
+      "bytes": 895,
+      "sha256": "d9e07a2e4a380eac2a0f16e4a5ce836e63755b5923912e764c3def2173201c1b"
+    },
+    {
+      "path": "PHASE260G_FINANCIAL_COMPONENT_CONTRACT.json",
+      "bytes": 1398,
+      "sha256": "dd7a810749614508ba19e0f572bfb6a358c4d2b7ef3ff8b8545b9efba51f3e4a"
+    },
+    {
+      "path": "PHASE260G_IDENTITY_CONTRACT.md",
+      "bytes": 391,
+      "sha256": "84fb69f883018b84392db048974b4b2992e9b0b9e37e295b7e98e996678c84d9"
+    },
+    {
+      "path": "PHASE260G_PERFORMANCE_EVIDENCE.json",
+      "bytes": 906,
+      "sha256": "53340c043702756bafe7ea91015f637819d7ee1dc5f52ff58eb7a0199d917597"
+    },
+    {
+      "path": "PHASE260G_R1_IDENTITY_COLLISION_AUDIT.json",
+      "bytes": 6519,
+      "sha256": "e5ace168905ba0409274727ee631324473455c786c6bd03330934fb78ebacc80"
+    },
+    {
+      "path": "PHASE260G_R1_ROOT_CAUSE_REPORT.md",
+      "bytes": 776,
+      "sha256": "ffd9f493fd14525a8968f2ed21aa9f1c1eb91c228b11c8609334c9d8703f116e"
+    },
+    {
+      "path": "PHASE260G_R1_RUNTIME_GRAPH.json",
+      "bytes": 1369,
+      "sha256": "d276e5f296ce48dc2e45a834a9f8a5811957d8dae100d31ac61a749b1b931aec"
+    },
+    {
+      "path": "PHASE260G_RELEASE_REPORT.md",
+      "bytes": 573,
+      "sha256": "146aee40be9a656fb31db352bffc13d071bfb9b5736ea044f391c9927e3122fb"
+    },
+    {
+      "path": "PHASE260G_RESOLVER_CHANGE_REPORT.md",
+      "bytes": 347,
+      "sha256": "4faf0226f0f9d6af6cd4aca42429c80a7eb2c7ad664c53cd207fb0a6e35b8392"
+    },
+    {
+      "path": "PHASE260G_TEST_EVIDENCE.json",
+      "bytes": 1641,
+      "sha256": "8158e5d7e9858356efd0c79da5ad4187dc89b149b934e386b455b3d6077023e0"
+    },
+    {
+      "path": "RELEASE_MANIFEST.json",
+      "bytes": 1504,
+      "sha256": "bcc89b926779817b1ae9b0634f0edbb5a229f3945740abd3caf107f4a879f921"
+    },
+    {
+      "path": "MK-pro-phase260g-payment-financial-component-identity-fixed.zip.sha256",
+      "bytes": 130,
+      "sha256": "8638ef4e4241e2b2f3871993007c84a2ba39a639a982f3525f5ee9ad024b3241"
+    }
+  ]
+}
