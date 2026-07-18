@@ -8,7 +8,9 @@ const DebtCollection = require('../../models/DebtCollection');
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
 const { escapeRegex } = require('../../utils/query.util');
-const { normalizeDebtAmount, DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
+const { DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
+const { projectBalanceFromTotals } = require('../accounting/LegacyDebtProjector');
+const { resolveDebtLedgerOwnership } = require('../../domain/ar/DebtLedgerOwnershipResolver');
 const arBalanceService = require('../accounting/arBalanceService');
 const arLedgerUtil = require('../../utils/arLedger.util');
 const {
@@ -56,7 +58,7 @@ const MOBILE_DEBIT_SEED_CATEGORIES = Object.freeze([
 
 const DEBT_LEDGER_PROJECTION = [
   'id', 'code', 'type', 'category', 'ledgerType', 'source', 'sourceType', 'sourceId', 'sourceCode',
-  'sourceOrderId', 'sourceOrderCode', 'returnOrderId', 'returnOrderCode', 'idempotencyKey',
+  'sourceOrderId', 'sourceOrderCode', 'returnOrderId', 'returnOrderCode', 'receiptId', 'allocationId', 'correctionId', 'originalLedgerId', 'sourceVersion', 'idempotencyKey',
   'refType', 'refId', 'refCode', 'orderId', 'orderCode', 'salesOrderId', 'salesOrderCode',
   'customerId', 'customerCode', 'customerName', 'customerPhone', 'phone', 'customerAddress', 'address',
   'debit', 'credit', 'amount', 'arDebit', 'arCredit', 'totalAmount', 'value',
@@ -410,8 +412,8 @@ function customerKeyOf(row = {}) {
 
 function groupOrders(rows = [], query = {}) {
   const map = new Map();
-  for (const row of rows || []) {
-    if (!isMobileCanonicalDebtLedger(row)) continue;
+  const ownership = resolveDebtLedgerOwnership((rows || []).filter(isMobileCanonicalDebtLedger));
+  for (const row of ownership.selectedEntries || []) {
     if (!keywordMatches(row, query.q || query.customerKeyword || query.search)) continue;
 
     const customerKey = customerKeyOf(row);
@@ -465,7 +467,13 @@ function groupOrders(rows = [], query = {}) {
   return Array.from(map.values()).map((order) => {
     order.debit = Math.round(order.debit);
     order.credit = Math.round(order.credit);
-    order.debt = normalizeDebtAmount(order.debit - order.credit);
+    const projection = projectBalanceFromTotals({ debit: order.debit, credit: order.credit }, { tolerance: DEBT_ZERO_TOLERANCE });
+    order.rawBalance = projection.rawBalance;
+    order.debt = projection.debtAmount;
+    order.debtAmount = projection.debtAmount;
+    order.creditBalance = projection.creditBalance;
+    order.creditBalanceAmount = projection.creditBalanceAmount;
+    order.displayStatus = projection.displayStatus;
     order.ledgerCategories = Array.from(order.ledgerCategories).sort();
     return order;
   });
@@ -489,6 +497,9 @@ function buildCustomersFromOrders(orders = [], includePaid = false) {
         deliveryStaffCode: text(order.deliveryStaffCode),
         deliveryStaffName: text(order.deliveryStaffName),
         debtAmount: 0,
+        creditBalance: 0,
+        creditBalanceAmount: 0,
+        rawBalance: 0,
         debit: 0,
         credit: 0,
         orderCount: 0,
@@ -504,14 +515,20 @@ function buildCustomersFromOrders(orders = [], includePaid = false) {
     target.salesmanName = target.salesStaffName;
     target.debit += toNumber(order.debit);
     target.credit += toNumber(order.credit);
-    target.debtAmount += toNumber(order.debt);
-    if (order.debt > DEBT_ZERO_TOLERANCE) target.orderCount += 1;
+    target.debtAmount += toNumber(order.debtAmount ?? order.debt);
+    target.creditBalance += toNumber(order.creditBalance);
+    target.creditBalanceAmount += toNumber(order.creditBalanceAmount ?? order.creditBalance);
+    target.rawBalance += toNumber(order.rawBalance);
+    if ((order.debtAmount ?? order.debt) > DEBT_ZERO_TOLERANCE) target.orderCount += 1;
     if (order.documentDate && (!target.oldestDebtDate || order.documentDate < target.oldestDebtDate)) target.oldestDebtDate = order.documentDate;
     if (includePaid || order.debt > DEBT_ZERO_TOLERANCE) target.orders.push(order);
   }
   return Array.from(map.values()).map((customer) => ({
     ...customer,
-    debtAmount: normalizeDebtAmount(customer.debtAmount),
+    debtAmount: Math.max(0, Math.round(customer.debtAmount)),
+    creditBalance: Math.max(0, Math.round(customer.creditBalance)),
+    creditBalanceAmount: Math.max(0, Math.round(customer.creditBalanceAmount)),
+    rawBalance: Math.round(customer.rawBalance),
     debit: Math.round(customer.debit),
     credit: Math.round(customer.credit)
   }));
@@ -552,7 +569,7 @@ async function getMobileCustomerDebts(query = {}) {
     const orders = (row.orders || []).map((order) => {
       const keys = expandOrderKeys([order.salesOrderCode, order.orderCode, order.salesOrderId, order.orderId]);
       const pendingCollectedAmount = Math.max(0, keys.reduce((sum, key) => sum + toNumber(pending.byOrder.get(key) || 0), 0));
-      const debt = normalizeDebtAmount(order.debt);
+      const debt = Math.max(0, toNumber(order.debtAmount ?? order.debt));
       return {
         ...order,
         salesOrderId: text(order.salesOrderId || order.orderId),
@@ -560,11 +577,14 @@ async function getMobileCustomerDebts(query = {}) {
         orderDate: dateUtil.toDateOnly(order.orderDate || order.documentDate || ''),
         documentDate: dateUtil.toDateOnly(order.documentDate || order.orderDate || ''),
         debt,
+        debtAmount: debt,
+        creditBalance: Math.max(0, toNumber(order.creditBalance)),
+        creditBalanceAmount: Math.max(0, toNumber(order.creditBalanceAmount ?? order.creditBalance)),
         pendingCollectedAmount,
-        availableDebt: Math.max(0, normalizeDebtAmount(debt - pendingCollectedAmount))
+        availableDebt: Math.max(0, debt - pendingCollectedAmount)
       };
     });
-    const debtAmount = normalizeDebtAmount(row.debtAmount);
+    const debtAmount = Math.max(0, toNumber(row.debtAmount));
     const orderPending = orders.reduce((sum, order) => sum + toNumber(order.pendingCollectedAmount), 0);
     const pendingCollectedAmount = Math.max(0, orderPending || toNumber(pending.byCustomer.get(customerKey) || 0));
     return {
@@ -580,8 +600,11 @@ async function getMobileCustomerDebts(query = {}) {
       deliveryStaffCode: text(row.deliveryStaffCode),
       deliveryStaffName: text(row.deliveryStaffName),
       debtAmount,
+      creditBalance: Math.max(0, toNumber(row.creditBalance)),
+      creditBalanceAmount: Math.max(0, toNumber(row.creditBalanceAmount ?? row.creditBalance)),
+      rawBalance: toNumber(row.rawBalance),
       pendingCollectedAmount,
-      availableDebtAmount: Math.max(0, normalizeDebtAmount(debtAmount - pendingCollectedAmount)),
+      availableDebtAmount: Math.max(0, debtAmount - pendingCollectedAmount),
       orderCount: Math.max(0, toNumber(row.orderCount)),
       oldestDebtDate: dateUtil.toDateOnly(row.oldestDebtDate || ''),
       orders,
@@ -602,6 +625,7 @@ async function getMobileCustomerDebts(query = {}) {
   const totalRows = visibleCustomers.length;
   const visibleOrders = visibleCustomers.flatMap((row) => row.orders || []);
   const totalDebt = visibleCustomers.reduce((sum, row) => sum + Math.max(0, toNumber(row.debtAmount)), 0);
+  const creditBalanceAmount = visibleCustomers.reduce((sum, row) => sum + Math.max(0, toNumber(row.creditBalanceAmount ?? row.creditBalance)), 0);
   const totalDebit = visibleOrders.reduce((sum, row) => sum + toNumber(row.debit), 0);
   const totalCredit = visibleOrders.reduce((sum, row) => sum + toNumber(row.credit), 0);
   const pagination = buildPagination({ page, limit, totalRows });
@@ -613,11 +637,12 @@ async function getMobileCustomerDebts(query = {}) {
     ledgerCollection: 'arLedgers',
     readModelVersion: 'mobile-canonical-ar-ledger-v3',
     summary: {
-      totalDebt: normalizeDebtAmount(totalDebt),
+      totalDebt: Math.max(0, Math.round(totalDebt)),
+      creditBalanceAmount: Math.max(0, Math.round(creditBalanceAmount)),
       totalDebit: Math.round(totalDebit),
       totalCredit: Math.round(totalCredit),
       pendingCollected: Math.max(0, toNumber(pending.total)),
-      availableDebt: Math.max(0, normalizeDebtAmount(totalDebt - toNumber(pending.total))),
+      availableDebt: Math.max(0, Math.round(totalDebt - toNumber(pending.total))),
       customerCount: totalRows,
       orderCount: visibleOrders.filter((order) => order.debt > DEBT_ZERO_TOLERANCE).length,
       source: 'arLedgers',

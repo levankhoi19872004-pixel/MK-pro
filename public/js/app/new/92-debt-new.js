@@ -51,14 +51,18 @@
   }
   function parseVndAmount(value) {
     var raw = String(value == null ? '' : value);
+    var sign = raw.indexOf('-') >= 0 ? -1 : 1;
     var n = Number(raw.replace(/[^0-9]/g, ''));
-    return Number.isFinite(n) ? Math.round(n) : 0;
+    return Number.isFinite(n) ? Math.round(n) * sign : 0;
   }
   function num(value) { return parseVndAmount(value); }
   function money(value) { return parseVndAmount(value).toLocaleString('vi-VN'); }
   function orderKey(order) { return String((order && (order.orderCode || order.salesOrderCode || order.orderId || order.salesOrderId || order.id)) || ''); }
   function orderRemainingDebt(order) {
-    return Math.max(0, parseVndAmount(order && (order.debt ?? order.remainingDebt ?? order.availableDebt ?? order.availableDebtAmount ?? order.debtAmount ?? 0)));
+    return Math.max(0, parseVndAmount(order && (order.debtAmount ?? order.debt ?? order.remainingDebtDisplay ?? order.remainingDebt ?? 0)));
+  }
+  function orderCreditBalance(order) {
+    return Math.max(0, parseVndAmount(order && (order.creditBalance ?? order.creditBalanceAmount ?? 0)));
   }
   function orderPendingCollectionAmount(order) {
     return Math.max(0, parseVndAmount(order && (order.pendingCollectionAmount ?? order.pendingCollectedAmount ?? 0)));
@@ -67,7 +71,7 @@
     if (order && order.availableToCollect != null) return Math.max(0, parseVndAmount(order.availableToCollect));
     if (order && order.availableDebt != null) return Math.max(0, parseVndAmount(order.availableDebt));
     if (order && order.availableDebtAmount != null) return Math.max(0, parseVndAmount(order.availableDebtAmount));
-    return Math.max(0, orderRemainingDebt(order) - orderPendingCollectionAmount(order));
+    return orderRemainingDebt(order);
   }
   function remainingDebtOf(order) { return orderRemainingDebt(order); }
   function pendingCollectedOf(order) { return orderPendingCollectionAmount(order); }
@@ -623,7 +627,34 @@
     clearPopupNotice();
     renderCustomers();
     renderDebtCustomerModal();
+    loadDebtCustomerDetail(index);
     loadCollections({ scope: 'popup', silent: true });
+  }
+
+  async function loadDebtCustomerDetail(index) {
+    var customer = state.customers[index];
+    if (!customer || !customer.customerCode) return;
+    customer.detailLoading = true;
+    try {
+      var params = new URLSearchParams(filters());
+      params.set('status', 'all');
+      var res = await fetch('/api/new/debt/customers/' + encodeURIComponent(customer.customerCode) + '/detail?' + params.toString());
+      var json = await res.json();
+      if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Khong tai duoc lich su cong no');
+      var data = json.data || json;
+      var merged = data.customer || customer;
+      state.customers[index] = Object.assign({}, customer, merged, {
+        orders: data.debtOrders || merged.orders || customer.orders || [],
+        movements: data.movements || merged.movements || [],
+        detailLoading: false,
+        detailLoaded: true
+      });
+      if (state.selectedIndex === index) renderDebtCustomerModal();
+    } catch (err) {
+      customer.detailLoading = false;
+      customer.detailError = err.message || 'Khong tai duoc lich su cong no';
+      if (state.selectedIndex === index) renderDebtCustomerModal();
+    }
   }
 
   function closeDebtCustomerModal() {
@@ -747,17 +778,13 @@
   }
 
   function renderDebtHistoryTab(customer) {
-    var orders = Array.isArray(customer && customer.orders) ? customer.orders : [];
-    var rows = [];
-    orders.forEach(function (order) {
-      var categories = order.categories || {};
-      Object.keys(categories).forEach(function (category) {
-        rows.push({ date: order.lastDebtDate || order.orderDate || '', category: category, orderCode: order.orderCode || order.orderId || '', debit: category.indexOf('PAYMENT') >= 0 ? 0 : categories[category], credit: category.indexOf('PAYMENT') >= 0 ? Math.abs(categories[category]) : 0, note: 'Từ AR-DEBT read model' });
-      });
-    });
-    if (!rows.length) return '<div class="debt-new-movement-empty">Chưa có lịch sử công nợ chi tiết trong dữ liệu trả về.</div>';
-    return '<div class="debt-new-modal-table-wrap"><table class="new-table debt-new-modal-table"><thead><tr><th>Ngày</th><th>Loại ledger</th><th>Mã đơn</th><th>Debit</th><th>Credit</th><th>Ghi chú / source</th></tr></thead><tbody>' + rows.map(function (row) {
-      return '<tr><td>' + esc(row.date) + '</td><td>' + esc(row.category) + '</td><td>' + esc(row.orderCode) + '</td><td class="new-money">' + money(row.debit) + '</td><td class="new-money new-credit">' + money(row.credit) + '</td><td>' + esc(row.note) + '</td></tr>';
+    if (customer && customer.detailLoading) return '<div class="debt-new-movement-empty">Dang tai lich su cong no...</div>';
+    if (customer && customer.detailError) return '<div class="debt-new-movement-empty">' + esc(customer.detailError) + '</div>';
+    var rows = Array.isArray(customer && customer.movements) ? customer.movements : [];
+    if (!rows.length) return '<div class="debt-new-movement-empty">Chua co lich su cong no chi tiet trong du lieu tra ve.</div>';
+    return '<div class="debt-new-modal-table-wrap"><table class="new-table debt-new-modal-table"><thead><tr><th>Ngay</th><th>Loai ledger</th><th>Ma don</th><th>Debit</th><th>Credit</th><th>Ghi chu / source</th></tr></thead><tbody>' + rows.map(function (row) {
+      var source = row.note || [row.sourceLabel, row.sourceType, row.sourceCode || row.sourceId, row.exclusionReason || row.warningCode].filter(Boolean).join(' - ');
+      return '<tr><td>' + esc(row.occurredAt || row.date) + '</td><td>' + esc(row.category) + '</td><td>' + esc(row.orderCode) + '</td><td class="new-money">' + money(row.debit) + '</td><td class="new-money new-credit">' + money(row.credit) + '</td><td>' + esc(source) + '</td></tr>';
     }).join('') + '</tbody></table></div>';
   }
 
@@ -1260,7 +1287,7 @@
     var today = todayForInput();
     modal.innerHTML = '<div class="debt-new-modal-card debt-new-manual-card" role="dialog" aria-modal="true" aria-label="Tạo công nợ thủ công">' +
       '<div class="debt-new-modal-header">' +
-        '<div class="debt-new-modal-titlebar"><div><h3>Tạo công nợ thủ công</h3><p class="muted">Dùng cho công nợ ban đầu hoặc công nợ ngoài bán hàng. Backend sinh AR-DEBT-ADJUSTMENT canonical, không tạo đơn bán/trả hàng giả.</p></div><button type="button" class="debt-new-modal-close debt-new-manual-close" aria-label="Đóng popup tạo công nợ">Đóng</button></div>' +
+        '<div class="debt-new-modal-titlebar"><div><h3>Tạo công nợ thủ công</h3><p class="muted">Dùng cho công nợ ban đầu hoặc công nợ ngoài bán hàng. Backend sinh AR-EXTERNAL-DEBT canonical, không tạo đơn bán/trả hàng giả.</p></div><button type="button" class="debt-new-modal-close debt-new-manual-close" aria-label="Đóng popup tạo công nợ">Đóng</button></div>' +
         manualDebtNoticeHtml() +
       '</div>' +
       '<div class="debt-new-modal-body">' +

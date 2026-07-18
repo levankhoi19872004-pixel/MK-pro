@@ -1,0 +1,45 @@
+{
+  "generatedAt": "2026-07-17T09:53:36.743Z",
+  "phase": "Phase260C-R3",
+  "fixtures": [
+    {
+      "orderCode": "B0039602",
+      "totalDebit": 7788690,
+      "totalCredit": 7880901,
+      "rawBalance": -92211,
+      "debtAmount": 0,
+      "creditBalance": 92211,
+      "status": "overpaid"
+    },
+    {
+      "orderCode": "B0039125",
+      "totalDebit": 2078626,
+      "totalCredit": 0,
+      "rawBalance": 2078626,
+      "debtAmount": 2078626,
+      "creditBalance": 0,
+      "status": "open"
+    },
+    {
+      "customerCode": "4501189",
+      "orderScope": [
+        "B0039125",
+        "B0039602"
+      ],
+      "rawBalance": 1986415,
+      "debtAmount": 2078626,
+      "creditBalance": 92211,
+      "autoOffsetApplied": false
+    }
+  ],
+  "ledgerCategoriesCovered": [
+    "AR-DEBT-OPEN",
+    "AR-DEBT-PAYMENT",
+    "AR-DEBT-ADJUSTMENT"
+  ],
+  "repairCategoriesCovered": [
+    "AR-DEBT-ADJUSTMENT controlled reversal",
+    "AR-DEBT-ADJUSTMENT correct delta"
+  ],
+  "conclusion": "Mixed debit/credit ledgers project by signed balance per order; customer display separates positive debt from credit balance and does not offset across orders."
+}

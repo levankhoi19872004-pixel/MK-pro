@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-07-17T09:51:55.899Z",
+  "phase": "Phase260C-R2",
+  "mode": "controlled_repair_plan",
+  "status": "AUDIT_NOT_EXECUTED",
+  "apply": false,
+  "sourceAuditStatus": "AUDIT_NOT_EXECUTED",
+  "sourceAuditGeneratedAt": "2026-07-17T09:51:51.890Z",
+  "summary": {
+    "total": 0,
+    "autoApplicable": 0,
+    "byClassification": {}
+  },
+  "items": []
+}

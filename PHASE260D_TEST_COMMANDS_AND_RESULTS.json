@@ -1,0 +1,70 @@
+{
+  "generatedAt": "2026-07-17T10:12:02.877Z",
+  "phase": "Phase260D",
+  "commands": [
+    {
+      "command": "node --check src\\domain\\ar\\debtLedgerSemanticRegistry.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node --check src\\domain\\ar\\debtBusinessEventIdentity.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node --check src\\domain\\ar\\DebtLedgerOwnershipResolver.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node --check src\\services\\v2\\debtNew.service.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node --check src\\services\\mobile\\mobileDebtQuery.service.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node --check scripts\\phase260d\\audit-mixed-ledger-ownership.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node --check scripts\\phase260d\\plan-duplicate-business-event-repair.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node --check scripts\\phase260d\\apply-duplicate-business-event-repair.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node --test test\\phase260d-ownership-resolver.test.js test\\phase260d-runtime-guards.test.js test\\phase260d-audit-repair.test.js",
+      "status": "PASS",
+      "tests": 15
+    },
+    {
+      "command": "node --test test\\phase260c-r1-stop-the-bleeding.test.js test\\phase260c-r2-controlled-repair.test.js test\\phase260c-r3-legacy-debt-projection.test.js",
+      "status": "PASS",
+      "tests": 16
+    },
+    {
+      "command": "node scripts\\phase260d\\audit-mixed-ledger-ownership.js --order-codes=B0039284,B0038752,B0038748,B0038741,B0039602 --limit=5000 --allow-disconnected",
+      "status": "PRODUCTION_AUDIT_NOT_EXECUTED"
+    },
+    {
+      "command": "node scripts\\phase260d\\plan-duplicate-business-event-repair.js",
+      "status": "PRODUCTION_AUDIT_NOT_EXECUTED"
+    },
+    {
+      "command": "node scripts\\phase260d\\apply-duplicate-business-event-repair.js",
+      "status": "DRY_RUN_ONLY"
+    },
+    {
+      "command": "npm run check:syntax",
+      "status": "PASS",
+      "detail": "SYNTAX_OK 1547 JavaScript files"
+    },
+    {
+      "command": "npm run check:source-bundles",
+      "status": "PASS",
+      "detail": "[source-bundles] OK 19 bundles"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "generatedAt": "2026-07-17T10:11:08.579Z",
+  "phase": "Phase260D",
+  "sourceFiles": [
+    "src/domain/ar/debtLedgerSemanticRegistry.js",
+    "src/domain/ar/debtBusinessEventIdentity.js",
+    "src/domain/ar/DebtLedgerOwnershipResolver.js",
+    "src/domain/ar/arDebtCategoryRegistry.js",
+    "src/services/v2/debtNew.service.js",
+    "src/services/mobile/mobileDebtQuery.service.js",
+    "scripts/phase260d/audit-mixed-ledger-ownership.js",
+    "scripts/phase260d/plan-duplicate-business-event-repair.js",
+    "scripts/phase260d/apply-duplicate-business-event-repair.js",
+    "test/phase260d-ownership-resolver.test.js",
+    "test/phase260d-runtime-guards.test.js",
+    "test/phase260d-audit-repair.test.js"
+  ],
+  "artifactFiles": [
+    "PHASE260D_R0_PHASE260C_VERIFICATION_REPORT.md",
+    "PHASE260D_R0_BASELINE_EVIDENCE.json",
+    "PHASE260D_R1_LEDGER_WRITER_READER_INVENTORY.json",
+    "PHASE260D_R1_CATEGORY_SEMANTIC_REGISTRY.json",
+    "PHASE260D_R1_LEDGER_FAMILY_REGISTRY.json",
+    "PHASE260D_R1_BUSINESS_EVENT_IDENTITY_CONTRACT.md",
+    "PHASE260D_R1_LEDGER_FAMILY_OWNERSHIP_REPORT.md",
+    "PHASE260D_R3_MIXED_LEDGER_AUDIT.json",
+    "PHASE260D_R3_MIXED_LEDGER_AUDIT.csv",
+    "PHASE260D_R3_DUPLICATE_BUSINESS_EVENT_PLAN.json",
+    "PHASE260D_R3_DUPLICATE_BUSINESS_EVENT_PLAN.csv",
+    "PHASE260D_R3_APPLY_EVIDENCE.json",
+    "PHASE260D_R4_RUNTIME_GUARD_REPORT.md",
+    "PHASE260D_R4_STATIC_CONTRACT_EVIDENCE.json",
+    "PHASE260D_R4_FULL_REGRESSION_EVIDENCE.json",
+    "PHASE260D_R4_PERFORMANCE_EVIDENCE.json",
+    "PHASE260D_PRODUCTION_CASE_EVIDENCE.json",
+    "PHASE260D_MIXED_LEDGER_OWNERSHIP_SUMMARY.md"
+  ],
+  "explicitlyNotChanged": [
+    "package.json",
+    "MongoDB schema/index policy",
+    "inventories",
+    "fundLedgers"
+  ]
+}

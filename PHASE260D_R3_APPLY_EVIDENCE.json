@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-07-17T10:09:57.912Z",
+  "phase": "Phase260D-R3",
+  "mode": "dry_run",
+  "apply": false,
+  "dryRun": true,
+  "mutation": false,
+  "planPath": "E:\\MK-pro\\PHASE260D_R3_DUPLICATE_BUSINESS_EVENT_PLAN.json",
+  "repairRunId": "PHASE260D-R3-1784282997912",
+  "results": [],
+  "status": "DRY_RUN_ONLY"
+}

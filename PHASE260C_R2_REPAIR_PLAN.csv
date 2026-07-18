@@ -1,0 +1,1 @@
+repairItemId,orderCode,customerCode,correctionId,ledgerId,classification,reasonCode,currentDebit,currentCredit,actualDebtEffect,expectedDebtDelta,difference,reverseOriginal.credit,correctDeltaEntry.credit,autoApplicable,risk,proposedAction,skipReason

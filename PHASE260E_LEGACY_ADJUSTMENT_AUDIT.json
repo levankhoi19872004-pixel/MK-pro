@@ -1,0 +1,21 @@
+{
+  "generatedAt": "2026-07-17T23:59:16.979Z",
+  "phase": "Phase260E",
+  "mode": "dry_run_read_only",
+  "status": "PRODUCTION_AUDIT_NOT_EXECUTED",
+  "mutation": false,
+  "orderCodes": [
+    "B0039284",
+    "B0038752",
+    "B0038748",
+    "B0038741",
+    "B0039602"
+  ],
+  "scannedCount": 0,
+  "changedCount": 0,
+  "skippedReason": "MONGO_CONNECTION_FAILED",
+  "warnings": [
+    "Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"
+  ],
+  "rows": []
+}

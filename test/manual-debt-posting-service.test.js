@@ -5,7 +5,7 @@ const test = require('node:test');
 const { validateArLedgerContract } = require('../src/domain/ar/arLedgerValidator');
 const manualDebtPostingService = require('../src/services/accounting/manualDebtPostingService');
 
-test('manual debt writer builds canonical AR-DEBT-ADJUSTMENT debit ledger without salesOrder/returnOrder writes', () => {
+test('manual debt writer builds canonical AR-EXTERNAL-DEBT debit ledger without salesOrder/returnOrder writes', () => {
   const normalized = manualDebtPostingService.normalizeManualDebtInput({
     customerCode: 'BBHOASON',
     debtType: 'OPENING_DEBT',
@@ -25,10 +25,10 @@ test('manual debt writer builds canonical AR-DEBT-ADJUSTMENT debit ledger withou
     deliveryStaff: { code: 'ghth', name: 'Thành GH Tiền Hải' }
   });
 
-  assert.equal(ledger.category, 'AR-DEBT-ADJUSTMENT');
-  assert.equal(ledger.ledgerType, 'AR-DEBT-ADJUSTMENT');
+  assert.equal(ledger.category, 'AR-EXTERNAL-DEBT');
+  assert.equal(ledger.ledgerType, 'AR-EXTERNAL-DEBT');
   assert.equal(ledger.entryType, 'normal');
-  assert.equal(ledger.sourceType, 'MANUAL_DEBT');
+  assert.equal(ledger.sourceType, 'externalDebt');
   assert.equal(ledger.debit, 1000000);
   assert.equal(ledger.credit, 0);
   assert.equal(ledger.direction, 'debit');
@@ -38,7 +38,7 @@ test('manual debt writer builds canonical AR-DEBT-ADJUSTMENT debit ledger withou
   assert.equal(ledger.accountingConfirmed, true);
   assert.equal(ledger.accountingStatus, 'confirmed');
   assert.equal(ledger.metadata.debtType, 'OPENING_DEBT');
-  assert.match(ledger.idempotencyKey, /^AR-DEBT-ADJUSTMENT:/);
+  assert.match(ledger.idempotencyKey, /^AR-EXTERNAL-DEBT:/);
   assert.equal(validateArLedgerContract(ledger).ok, true);
 });
 
@@ -76,7 +76,7 @@ test('createManualDebt validates customer/staff and persists one AR ledger throu
 
     assert.equal(result.created, true);
     assert.equal(created.length, 1);
-    assert.equal(created[0].sourceType, 'MANUAL_DEBT');
+    assert.equal(created[0].sourceType, 'externalDebt');
     assert.equal(created[0].customerCode, 'C001');
     assert.equal(created[0].salesStaffCode, 'S001');
     assert.equal(created[0].deliveryStaffCode, 'D001');

@@ -1,0 +1,34 @@
+{
+  "generatedAt": "2026-07-17T10:12:02.877Z",
+  "phase": "Phase260D",
+  "baseline": {
+    "artifact": "MK-pro-phase260c-r3-legacy-debt-stabilization-fixed.zip",
+    "sha256": "cc14f710a99f66df27cc7ff1fb33b06c4e2ff085a6315c2a1deddae90bcb4e8d",
+    "verified": true
+  },
+  "productionAudit": {
+    "status": "PRODUCTION_AUDIT_NOT_EXECUTED",
+    "repaired": false,
+    "cases": [
+      "B0039284",
+      "B0038752",
+      "B0038748",
+      "B0038741",
+      "B0039602"
+    ]
+  },
+  "tests": {
+    "phase260cRegression": "PASS",
+    "phase260dTests": "PASS",
+    "syntaxCheck": "PASS",
+    "sourceBundleCheck": "PASS"
+  },
+  "safety": {
+    "hardDelete": false,
+    "confirmedLedgerUpdate": false,
+    "appendOnlyRepair": true,
+    "defaultDryRun": true,
+    "packageJsonChanged": false,
+    "schemaChanged": false
+  }
+}

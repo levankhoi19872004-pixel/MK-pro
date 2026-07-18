@@ -1,0 +1,40 @@
+{
+  "generatedAt": "2026-07-18T00:00:42.118Z",
+  "baseline": "MK-pro-phase260d-mixed-ledger-family-ownership-fixed.zip",
+  "baselineSha256": "5cd4430188826e141ea250d6b2621cd2aac73f7997293f531b201469dc7ee2b2",
+  "gitCommit": "5001e448f02095879466746f93930c5fbc85ec42",
+  "scannedCount": 0,
+  "changedCount": 0,
+  "skippedReason": "MONGO_CONNECTION_FAILED",
+  "warnings": [
+    "Could not connect to any servers in your MongoDB Atlas cluster. One common reason is that you're trying to access the database from an IP that isn't whitelisted. Make sure your current IP address is on your Atlas cluster's IP whitelist: https://www.mongodb.com/docs/atlas/security-whitelist/"
+  ],
+  "artifact": "PHASE260E_READER_RECONCILIATION_EVIDENCE.json",
+  "actualResult": "DEBT_NEW_CUSTOMER_READ_MODEL_AND_FRONTEND_HISTORY_USE_DOCUMENT_DEBIT_CREDIT",
+  "commands": [
+    "node --test test\\phase260c-r3-legacy-debt-projection.test.js",
+    "node --test test\\phase260e-canonical-ar-source-posting.test.js",
+    "node --test test\\phase260d-ownership-resolver.test.js test\\phase260d-runtime-guards.test.js test\\phase260d-audit-repair.test.js"
+  ],
+  "readers": {
+    "customerList": "Debt New grouped selected ledgers only",
+    "customerDetail": "raw AR movements with projectionIncluded/exclusionReason",
+    "orderList": "same grouped order projection",
+    "orderDetail": "same detail movements",
+    "history": "document debit/credit DTO only",
+    "export": "inventory only in this phase; report reader not widened",
+    "mobile": "inherits registry categories and Phase260D resolver/projector",
+    "report": "not changed; risk recorded for follow-up full report parity"
+  },
+  "productionCases": {
+    "status": "PRODUCTION_AUDIT_NOT_EXECUTED",
+    "cases": [
+      "B0039284",
+      "B0038752",
+      "B0038748",
+      "B0038741",
+      "B0039602"
+    ],
+    "productionFixed": false
+  }
+}

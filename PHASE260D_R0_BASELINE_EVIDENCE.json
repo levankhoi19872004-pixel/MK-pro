@@ -1,0 +1,61 @@
+{
+  "generatedAt": "2026-07-17T10:05:00.000Z",
+  "phase": "Phase260D-R0",
+  "baselineFilename": "MK-pro-phase260c-r3-legacy-debt-stabilization-fixed.zip",
+  "baselineSha256": "cc14f710a99f66df27cc7ff1fb33b06c4e2ff085a6315c2a1deddae90bcb4e8d",
+  "manifest": "RELEASE_MANIFEST.json",
+  "manifestReleasePhase": "Phase260C-R3",
+  "repositoryComplete": true,
+  "packageJsonRead": true,
+  "phase260cArtifactsRead": [
+    "PHASE260C_LEGACY_DEBT_STABILIZATION_SUMMARY.md",
+    "PHASE260C_CHANGED_FILES.json",
+    "PHASE260C_TEST_COMMANDS_AND_RESULTS.json",
+    "PHASE260C_RELEASE_EVIDENCE.json",
+    "PHASE260C_R1_STOP_THE_BLEEDING_REPORT.md",
+    "PHASE260C_R1_WRITER_OWNERSHIP_AUDIT.json",
+    "PHASE260C_R1_TEST_EVIDENCE.json",
+    "PHASE260C_R2_CONTROLLED_REPAIR_REPORT.md",
+    "PHASE260C_R2_DEBT_CORRECTION_AUDIT.json",
+    "PHASE260C_R2_REPAIR_PLAN.json",
+    "PHASE260C_R2_APPLY_EVIDENCE.json",
+    "PHASE260C_R3_LEGACY_DEBT_PROJECTION_REPORT.md",
+    "PHASE260C_R3_READER_RUNTIME_GRAPH.json",
+    "PHASE260C_R3_PROJECTION_TEST_EVIDENCE.json",
+    "PHASE260C_R3_MIXED_LEDGER_DIAGNOSTICS.json",
+    "RELEASE_MANIFEST.json"
+  ],
+  "phase260cRetest": [
+    {
+      "command": "node --test test\\phase260c-r1-stop-the-bleeding.test.js",
+      "status": "PASS",
+      "tests": 6
+    },
+    {
+      "command": "node --test test\\phase260c-r2-controlled-repair.test.js",
+      "status": "PASS",
+      "tests": 5
+    },
+    {
+      "command": "node --test test\\phase260c-r3-legacy-debt-projection.test.js",
+      "status": "PASS",
+      "tests": 5
+    }
+  ],
+  "sourceChecks": {
+    "correctionUsesEventDelta": true,
+    "correctionPostAdjustmentReconcileDebtFalse": true,
+    "returnIncreaseCannotCreateDebit": true,
+    "repairDoesNotHardDeleteConfirmedLedger": true,
+    "projectorUsesDebitCreditDocumentAmounts": true
+  },
+  "productionAudit": {
+    "status": "AUDIT_NOT_EXECUTED_BLOCKED_BY_MONGO_ATLAS_WHITELIST",
+    "scannedCount": 0,
+    "mutationAttempted": false
+  },
+  "warnings": [
+    "Working tree contains uncommitted Phase260C files from the previous checkpoint; Phase260D continues from that baseline and does not revert them."
+  ],
+  "result": "PHASE260C_BASELINE_ACCEPTABLE"
+}

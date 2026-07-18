@@ -2,15 +2,11 @@
 
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
-const {
-  DEBT_ZERO_TOLERANCE,
-  normalizeDebtAmount,
-  hasOpenDebt,
-  isOverpaid
-} = require('../../constants/finance.constants');
-const { isPhase87ReadModelArDebtLedger, PHASE87_READ_MODEL_CATEGORIES, normalizeAccountingAmount, validateArLedgerContract } = require('../../domain/ar/arLedgerValidator');
+const { DEBT_ZERO_TOLERANCE, hasOpenDebt } = require('../../constants/finance.constants');
+const { canProjectCanonicalAccountingLedgerToDebtReadModel, ACCOUNTING_READ_MODEL_PROJECTABLE_CATEGORIES, normalizeAccountingAmount, validateArLedgerContract } = require('../../domain/ar/arLedgerValidator');
 const { filterReadModelEligibleArLedgers } = require('../../domain/ar/arLedgerQueryPolicy');
 const arLedgerReadService = require('../arLedgerRead.service');
+const { projectBalanceFromTotals, applyDebtProjection } = require('./LegacyDebtProjector');
 
 const INACTIVE_AR_STATUSES = Object.freeze([
   'void',
@@ -351,14 +347,14 @@ async function buildScopedMongoMatch(query = {}) {
 function isActiveConfirmedArDebtLedger(row = {}) {
   const statuses = [row.status, row.lifecycleStatus].map(lower).filter(Boolean);
   if (statuses.some((status) => INACTIVE_AR_STATUSES.includes(status))) return false;
-  return isPhase87ReadModelArDebtLedger(row) && PHASE87_READ_MODEL_CATEGORIES.includes(upper(row.category));
+  return canProjectCanonicalAccountingLedgerToDebtReadModel(row);
 }
 
 function normalizeArCategory(row = {}) {
   return upper(row.category);
 }
 function normalizeLedgerAmounts(row = {}, category = normalizeArCategory(row)) {
-  if (!PHASE87_READ_MODEL_CATEGORIES.includes(category)) {
+  if (!ACCOUNTING_READ_MODEL_PROJECTABLE_CATEGORIES.includes(category)) {
     return { amount: 0, debit: 0, credit: 0, direction: '', amountField: '' };
   }
   return normalizeAccountingAmount(row);
@@ -459,6 +455,11 @@ function ensureOrderGroup(map, ledger = {}) {
       remainingDebtDisplay: 0,
       debt: 0,
       rawDebt: 0,
+      rawBalance: 0,
+      balance: 0,
+      debtAmount: 0,
+      creditBalance: 0,
+      creditBalanceAmount: 0,
       debtStatus: 'paid',
       status: 'paid',
       ageDays: 0,
@@ -488,32 +489,32 @@ function finalizeOrder(row, options = {}) {
   row.totalCredit = Math.round(row.totalCredit);
   row.debit = Math.round(row.arSaleAmount + row.returnReversalAmount + row.adjustmentDebitAmount);
   row.credit = Math.round(row.totalCredit);
-  row.remainingDebt = Math.round(row.totalDebit - row.totalCredit);
-  row.remainingDebtDisplay = normalizeDebtAmount(row.remainingDebt, options.tolerance || DEBT_ZERO_TOLERANCE);
-  row.debt = row.remainingDebtDisplay;
-  row.rawDebt = row.remainingDebt;
+  const projection = applyDebtProjection(row, { debit: row.totalDebit, credit: row.totalCredit }, options);
+  row.remainingDebt = projection.rawBalance;
+  row.remainingDebtDisplay = projection.debtAmount;
+  row.debt = projection.debtAmount;
   row.date = row.date || row.documentDate || row.dueDate;
   row.documentDate = row.documentDate || row.date;
   row.dueDate = row.dueDate || row.documentDate;
   row.ageDays = row.documentDate ? Math.max(0, daysBetween(today, row.documentDate)) : 0;
   row.agingDays = row.ageDays;
-  row.isOverdue = hasOpenDebt(row.remainingDebtDisplay) && row.ageDays > 0;
+  row.isOverdue = projection.hasOpenDebt && row.ageDays > 0;
   row.overdueDays = row.isOverdue ? row.ageDays : 0;
-  if (isOverpaid(row.remainingDebtDisplay)) row.debtStatus = 'overpaid';
-  else if (hasOpenDebt(row.remainingDebtDisplay)) row.debtStatus = row.isOverdue ? 'overdue' : 'open';
-  else row.debtStatus = Math.abs(row.remainingDebt) > 0 ? 'settled_by_tolerance' : 'paid';
+  if (projection.isOverpaid) row.debtStatus = 'overpaid';
+  else if (projection.hasOpenDebt) row.debtStatus = row.isOverdue ? 'overdue' : 'open';
+  else row.debtStatus = projection.displayStatus;
   row.status = row.debtStatus === 'settled_by_tolerance' ? 'paid' : row.debtStatus;
   return row;
 }
 
 function includeOrderByStatus(row = {}, query = {}) {
   const status = lower(query.status || 'open');
-  const debt = normalizeDebtAmount(row.remainingDebtDisplay ?? row.remainingDebt, DEBT_ZERO_TOLERANCE);
-  if (!status || ['open', 'unpaid', 'debt', 'khach_con_no', 'khách còn nợ'].includes(status)) return hasOpenDebt(debt);
+  const projection = projectBalanceFromTotals({ rawBalance: row.rawBalance ?? row.balance ?? row.remainingDebt }, { tolerance: DEBT_ZERO_TOLERANCE });
+  if (!status || ['open', 'unpaid', 'debt', 'khach_con_no', 'khách còn nợ'].includes(status)) return projection.hasOpenDebt;
   if (status === 'all') return true;
-  if (['paid', 'settled', 'done', 'het_no', 'hết nợ'].includes(status)) return !hasOpenDebt(debt) && !isOverpaid(debt);
-  if (['overpaid', 'credit', 'du_co', 'dư có'].includes(status)) return isOverpaid(debt);
-  if (status === 'overdue') return hasOpenDebt(debt) && row.isOverdue;
+  if (['paid', 'settled', 'done', 'het_no', 'hết nợ'].includes(status)) return !projection.hasOpenDebt && !projection.isOverpaid;
+  if (['overpaid', 'credit', 'du_co', 'dư có'].includes(status)) return projection.isOverpaid;
+  if (status === 'overdue') return projection.hasOpenDebt && row.isOverdue;
   return row.status === status || row.debtStatus === status;
 }
 
@@ -540,6 +541,11 @@ function buildCustomerSummary(orderRows = [], options = {}) {
         credit: 0,
         debt: 0,
         rawDebt: 0,
+        rawBalance: 0,
+        balance: 0,
+        debtAmount: 0,
+        creditBalance: 0,
+        creditBalanceAmount: 0,
         receiptAmount: 0,
         returnAmount: 0,
         bonusAmount: 0,
@@ -561,17 +567,22 @@ function buildCustomerSummary(orderRows = [], options = {}) {
     if (!target.deliveryStaffCode && order.deliveryStaffCode) target.deliveryStaffCode = order.deliveryStaffCode;
     if (!target.deliveryStaffName && order.deliveryStaffName) target.deliveryStaffName = order.deliveryStaffName;
 
-    target.totalDebt += order.remainingDebt;
-    target.totalDebtDisplay += order.remainingDebtDisplay;
+    target.totalDebt += money(order.debtAmount ?? order.remainingDebtDisplay);
+    target.totalDebtDisplay += money(order.debtAmount ?? order.remainingDebtDisplay);
     target.debit += order.debit;
     target.credit += order.credit;
-    target.rawDebt += order.remainingDebt;
-    target.debt += order.remainingDebtDisplay;
+    target.rawDebt += order.rawBalance ?? order.remainingDebt;
+    target.rawBalance += order.rawBalance ?? order.remainingDebt;
+    target.balance += order.rawBalance ?? order.remainingDebt;
+    target.debt += money(order.debtAmount ?? order.remainingDebtDisplay);
+    target.debtAmount += money(order.debtAmount ?? order.remainingDebtDisplay);
+    target.creditBalance += money(order.creditBalance);
+    target.creditBalanceAmount += money(order.creditBalanceAmount ?? order.creditBalance);
     target.receiptAmount += order.receiptAmount;
     target.returnAmount += order.returnAmount;
     target.bonusAmount += order.bonusAmount;
     target.orderCount += 1;
-    if (hasOpenDebt(order.remainingDebtDisplay)) target.orderDebtCount += 1;
+    if (money(order.debtAmount ?? order.remainingDebtDisplay) > 0 && order.debtStatus !== 'settled_by_tolerance') target.orderDebtCount += 1;
     if (order.isOverdue) target.overdueCount += 1;
     target.oldestDebtAge = Math.max(target.oldestDebtAge, order.ageDays || 0);
     target.overdueDays = Math.max(target.overdueDays, order.overdueDays || 0);
@@ -581,10 +592,16 @@ function buildCustomerSummary(orderRows = [], options = {}) {
 
   return Array.from(map.values()).map((customer) => {
     customer.totalDebt = Math.round(customer.totalDebt);
-    customer.totalDebtDisplay = normalizeDebtAmount(customer.totalDebt, options.tolerance || DEBT_ZERO_TOLERANCE);
+    customer.totalDebtDisplay = Math.round(customer.totalDebtDisplay);
     customer.debt = customer.totalDebtDisplay;
-    customer.rawDebt = customer.totalDebt;
-    customer.status = isOverpaid(customer.debt) ? 'overpaid' : (hasOpenDebt(customer.debt) ? (customer.overdueCount > 0 ? 'overdue' : 'open') : 'paid');
+    customer.debtAmount = customer.totalDebtDisplay;
+    customer.rawDebt = Math.round(customer.rawDebt);
+    customer.rawBalance = Math.round(customer.rawBalance);
+    customer.balance = Math.round(customer.balance);
+    customer.creditBalance = Math.round(customer.creditBalance);
+    customer.creditBalanceAmount = Math.round(customer.creditBalanceAmount);
+    customer.displayStatus = customer.debt > 0 ? (customer.overdueCount > 0 ? 'overdue' : 'open') : (customer.creditBalance > 0 ? 'overpaid' : 'paid');
+    customer.status = customer.displayStatus;
     customer.debtZeroTolerance = options.tolerance || DEBT_ZERO_TOLERANCE;
     customer.orders.sort((a, b) => text(a.documentDate).localeCompare(text(b.documentDate)) || text(a.orderCode).localeCompare(text(b.orderCode)));
     return customer;
@@ -634,7 +651,7 @@ function buildPersonSummary(orderRows = [], options = {}) {
     target.receiptAmount += row.receiptAmount;
     target.returnAmount += row.returnAmount;
     target.bonusAmount += row.bonusAmount;
-    target.debt += row.remainingDebtDisplay;
+    target.debt += row.debtAmount ?? row.remainingDebtDisplay;
     target.maxOverdueDays = Math.max(target.maxOverdueDays, row.overdueDays || 0);
     target.maxAgingDays = Math.max(target.maxAgingDays, row.agingDays || 0);
   }
@@ -685,7 +702,7 @@ function buildCustomerDebtReadModelFromLedgers(ledgerRows = [], query = {}, opti
   allOrders.sort((a, b) => b.remainingDebtDisplay - a.remainingDebtDisplay || text(a.documentDate).localeCompare(text(b.documentDate)) || text(a.orderCode).localeCompare(text(b.orderCode)));
   const visibleOrders = allOrders.filter((row) => includeOrderByStatus(row, query));
   const customers = buildCustomerSummary(visibleOrders, { tolerance });
-  const openOrders = allOrders.filter((row) => hasOpenDebt(row.remainingDebtDisplay));
+  const openOrders = allOrders.filter((row) => row.debtAmount > 0 && row.debtStatus !== 'settled_by_tolerance');
   const openCustomers = buildCustomerSummary(openOrders, { tolerance });
   const page = Math.max(1, Math.floor(toNumber(query.page) || 1));
   const limit = Math.min(Math.max(1, Math.floor(toNumber(query.limit) || 50)), 200);
@@ -705,9 +722,10 @@ function buildCustomerDebtReadModelFromLedgers(ledgerRows = [], query = {}, opti
     hasMore: visibleOrders.length > skip + limit,
     tolerance,
     debtZeroTolerance: tolerance,
-    totalDebt: openOrders.reduce((sum, row) => sum + Math.max(0, row.remainingDebtDisplay), 0),
-    totalPositiveDebt: openOrders.reduce((sum, row) => sum + Math.max(0, row.remainingDebtDisplay), 0),
-    totalOverpaid: allOrders.filter((row) => isOverpaid(row.remainingDebtDisplay)).reduce((sum, row) => sum + Math.abs(row.remainingDebtDisplay), 0),
+    totalDebt: openOrders.reduce((sum, row) => sum + Math.max(0, row.debtAmount), 0),
+    totalPositiveDebt: openOrders.reduce((sum, row) => sum + Math.max(0, row.debtAmount), 0),
+    totalOverpaid: allOrders.reduce((sum, row) => sum + Math.max(0, row.creditBalance), 0),
+    creditBalanceAmount: allOrders.reduce((sum, row) => sum + Math.max(0, row.creditBalanceAmount ?? row.creditBalance), 0),
     totalDebit: visibleOrders.reduce((sum, row) => sum + row.debit, 0),
     totalCredit: visibleOrders.reduce((sum, row) => sum + row.credit, 0),
     customerDebtCount: openCustomers.length,

@@ -1,0 +1,46 @@
+{
+  "generatedAt": "2026-07-17T09:53:36.743Z",
+  "releasePhase": "Phase260C",
+  "commands": [
+    {
+      "command": "node --test test\\phase260c-r1-stop-the-bleeding.test.js",
+      "status": "PASS",
+      "tests": 6
+    },
+    {
+      "command": "node --test test\\phase260c-r2-controlled-repair.test.js",
+      "status": "PASS",
+      "tests": 5
+    },
+    {
+      "command": "node --test test\\phase260c-r3-legacy-debt-projection.test.js",
+      "status": "PASS",
+      "tests": 5
+    },
+    {
+      "command": "npm run check:syntax",
+      "status": "PASS",
+      "detail": "SYNTAX_OK 1538 JavaScript files"
+    },
+    {
+      "command": "npm run check:source-bundles",
+      "status": "PASS",
+      "detail": "[source-bundles] OK 19 bundles"
+    },
+    {
+      "command": "node scripts\\phase260c\\audit-post-closeout-debt-correction.js --order-codes=B0039602 --limit=5000 --allow-disconnected",
+      "status": "AUDIT_NOT_EXECUTED",
+      "detail": "MongoDB Atlas IP whitelist blocked connection; no mutation attempted"
+    },
+    {
+      "command": "node scripts\\phase260c\\plan-post-closeout-debt-repair.js",
+      "status": "PASS",
+      "detail": "Plan generated from AUDIT_NOT_EXECUTED input with 0 items"
+    },
+    {
+      "command": "node scripts\\phase260c\\apply-post-closeout-debt-repair.js",
+      "status": "PASS",
+      "detail": "DRY_RUN_ONLY, mutation false"
+    }
+  ]
+}

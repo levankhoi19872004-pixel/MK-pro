@@ -8,8 +8,8 @@ const dateUtil = require('../../utils/date.util');
 const { makeId, toNumber } = require('../../utils/common.util');
 const { assertValidArLedgerContract } = require('../../domain/ar/arLedgerValidator');
 
-const CATEGORY = 'AR-DEBT-ADJUSTMENT';
-const SOURCE_TYPE = 'MANUAL_DEBT';
+const CATEGORY = 'AR-EXTERNAL-DEBT';
+const SOURCE_TYPE = 'externalDebt';
 const DEBT_TYPES = Object.freeze({
   OPENING_DEBT: 'Công nợ ban đầu',
   MANUAL_DEBT: 'Công nợ ngoài bán hàng',
@@ -207,9 +207,9 @@ function buildManualDebtLedger(input = {}, resolved = {}) {
 
   const ledger = {
     tenantId: normalized.tenantId,
-    id: `AR-DEBT-ADJUSTMENT-${source.sourceId}`,
-    code: `AR-DEBT-ADJUSTMENT-${source.sourceCode}`,
-    type: 'ar_debt_adjustment',
+    id: `AR-EXTERNAL-${source.sourceId}`,
+    code: `AR-EXTERNAL-${source.sourceCode}`,
+    type: 'ar_external_debt',
     account: 'AR',
     category: CATEGORY,
     ledgerType: CATEGORY,
@@ -221,7 +221,7 @@ function buildManualDebtLedger(input = {}, resolved = {}) {
     refType: SOURCE_TYPE,
     refId: source.sourceId,
     refCode: source.sourceCode,
-    orderType: 'manual_debt',
+    orderType: 'external_debt',
     orderId: source.sourceId,
     orderCode: source.sourceCode,
     salesOrderId: source.sourceId,
@@ -269,7 +269,7 @@ function buildManualDebtLedger(input = {}, resolved = {}) {
       referenceNo: normalized.referenceNo
     }],
     metadata: {
-      postingContract: 'manualDebt/v1',
+      postingContract: 'manualDebtExternalDebt/v1',
       sourceTypeCanonical: SOURCE_TYPE,
       debtType: normalized.debtType,
       debtTypeLabel: normalized.debtTypeLabel,

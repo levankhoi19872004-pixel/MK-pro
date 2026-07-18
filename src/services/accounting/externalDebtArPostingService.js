@@ -184,6 +184,7 @@ function buildExternalDebtLedgerEntry(input = {}, normalized = null) {
     type: LEDGER_TYPE,
     ledgerType: LEDGER_TYPE_CANONICAL,
     category: LEDGER_TYPE_CANONICAL,
+    entryType: 'normal',
     direction: 'debit',
     account: 'AR',
     orderType: 'external_debt',

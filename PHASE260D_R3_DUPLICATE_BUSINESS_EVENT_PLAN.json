@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-07-17T10:09:50.715Z",
+  "phase": "Phase260D-R3",
+  "mode": "controlled_duplicate_business_event_plan",
+  "status": "PRODUCTION_AUDIT_NOT_EXECUTED",
+  "apply": false,
+  "sourceAuditStatus": "PRODUCTION_AUDIT_NOT_EXECUTED",
+  "sourceAuditGeneratedAt": "2026-07-17T10:09:43.768Z",
+  "summary": {
+    "total": 0,
+    "projectionShadowOnly": 0,
+    "actualDuplicateFinancialEffect": 0,
+    "mutationAllowed": 0
+  },
+  "items": []
+}

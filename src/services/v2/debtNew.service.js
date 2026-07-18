@@ -1,6 +1,6 @@
 'use strict';
 
-const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../../constants/finance.constants');
+const { DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
 const { normalizeAccountingAmount, canProjectCanonicalAccountingLedgerToDebtReadModel } = require('../../domain/ar/arLedgerValidator');
 const {
   ACTIVE_DEBT_READ_MODEL_CATEGORIES,
@@ -15,6 +15,8 @@ const {
   canonicalDebtOrderIdentity,
   debtOrderAliasKeys
 } = require('../../utils/debtOrderIdentity.util');
+const { projectBalanceFromTotals, applyDebtProjection } = require('../accounting/LegacyDebtProjector');
+const { resolveDebtLedgerOwnership } = require('../../domain/ar/DebtLedgerOwnershipResolver');
 
 
 function buildDebtSourceNote(code, query = {}, warnings = []) {
@@ -47,13 +49,15 @@ const AR_LEDGER_DEBT_HOT_PATH_PROJECTION = [
   'canonicalOrderId', 'canonicalOrderCode', 'canonicalOrderKey', 'orderKey',
   'correctionId', 'correctionCode', 'correctionSourceId', 'correctionSourceCode',
   'returnOrderId', 'returnOrderCode',
+  'receiptId', 'debtCollectionId', 'allocationId', 'orderPaymentAllocationId', 'paymentAllocationId',
+  'sourceVersion', 'version', 'originalLedgerId', 'reversedLedgerId', 'reversalOf',
   'customerCode', 'customerName',
   'salesStaffCode', 'salesStaffName', 'salesmanCode', 'salesmanName', 'nvbhCode', 'nvbhName',
   'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'nvghCode', 'nvghName',
   'date', 'documentDate', 'createdAt',
   'debit', 'credit', 'amount', 'direction', 'amountField',
   'accountingConfirmed', 'accountingStatus', 'active', 'reversed', 'isDeleted', 'deleted', 'deletedAt',
-  'status', 'idempotencyKey', 'source'
+  'status', 'idempotencyKey', 'source', 'metadata'
 ].join(' ');
 const DEBT_COLLECTION_PENDING_HOT_PATH_PROJECTION = [
   '_id', 'id', 'code', 'status', 'amount', 'submittedAt', 'createdAt',
@@ -87,6 +91,15 @@ function upper(value = '') {
 function money(value) {
   const n = Number(value || 0);
   return Number.isFinite(n) ? Math.round(n) : 0;
+}
+
+function ledgerId(row = {}) {
+  return text(row.ledgerId || row.id || row.code || row._id || row.idempotencyKey);
+}
+
+function exactRegex(value = '') {
+  const raw = text(value);
+  return raw ? new RegExp(`^${raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') : null;
 }
 
 function escapeRegExp(value = '') {
@@ -212,11 +225,18 @@ function pendingCollectionsForDebtNewOrder(order = {}, pending = {}) {
 async function attachCollectibleState(grouped = {}, pending = {}) {
   const orders = Array.isArray(grouped.orders) ? grouped.orders : [];
   for (const order of orders) {
-    const remainingDebt = Math.max(0, normalizeDebtAmount(order.remainingDebt ?? order.debt ?? order.debtAmount ?? 0, DEBT_ZERO_TOLERANCE));
+    const projection = projectBalanceFromTotals({ rawBalance: order.rawBalance ?? order.rawDebt ?? order.balance ?? (money(order.debit) - money(order.credit)) }, { tolerance: DEBT_ZERO_TOLERANCE });
+    const debtAmount = projection.debtAmount;
     const pendingCollectedAmount = pendingAmountForDebtNewOrder(order, pending);
-    const availableToCollect = Math.max(0, normalizeDebtAmount(remainingDebt - pendingCollectedAmount, DEBT_ZERO_TOLERANCE));
-    order.remainingDebt = remainingDebt;
-    order.debtAmount = normalizeDebtAmount(order.debtAmount ?? order.debt ?? remainingDebt, DEBT_ZERO_TOLERANCE);
+    const availableToCollect = Math.max(0, money(debtAmount - pendingCollectedAmount));
+    order.rawBalance = projection.rawBalance;
+    order.balance = projection.balance;
+    order.rawDebt = projection.rawDebt;
+    order.remainingDebt = debtAmount;
+    order.debt = debtAmount;
+    order.debtAmount = debtAmount;
+    order.creditBalance = projection.creditBalance;
+    order.creditBalanceAmount = projection.creditBalanceAmount;
     order.pendingCollectionAmount = pendingCollectedAmount;
     order.pendingCollectedAmount = pendingCollectedAmount;
     order.availableToCollect = availableToCollect;
@@ -380,6 +400,16 @@ function normalizeLedger(row = {}) {
     sourceId: rawSourceId,
     sourceCode: rawSourceCode,
     sourceType: upper(row.sourceType || row.refType),
+    refId: text(row.refId),
+    refCode: text(row.refCode),
+    returnOrderId: text(row.returnOrderId),
+    returnOrderCode: text(row.returnOrderCode),
+    receiptId: text(row.receiptId || row.debtCollectionId),
+    allocationId: text(row.allocationId || row.orderPaymentAllocationId || row.paymentAllocationId),
+    sourceVersion: text(row.sourceVersion || row.version || row.metadata?.sourceVersion),
+    originalLedgerId: text(row.originalLedgerId || row.reversedLedgerId || row.reversalOf || row.metadata?.originalLedgerId),
+    idempotencyKey: text(row.idempotencyKey),
+    metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata : {},
     correctionId: text(row.correctionId || identity.correctionSourceId),
     correctionCode: text(row.correctionCode || identity.correctionSourceCode),
     correctionSourceId: text(identity.correctionSourceId),
@@ -400,8 +430,96 @@ function normalizeLedger(row = {}) {
     debit: money(amounts.debit),
     credit: money(amounts.credit),
     amount: money(amounts.amount),
-    effect: money(amounts.debit - amounts.credit)
+    effect: money(amounts.debit - amounts.credit),
+    netEffect: money(amounts.debit - amounts.credit),
+    projectionIncluded: true,
+    exclusionReason: '',
+    legacyAdjustment: upper(row.category) === 'AR-DEBT-ADJUSTMENT',
+    warningCode: upper(row.category) === 'AR-DEBT-ADJUSTMENT' ? 'LEGACY_AR_DEBT_ADJUSTMENT_RETIRED' : ''
   };
+}
+
+function sourceLabel(row = {}) {
+  const category = upper(row.category || row.ledgerType);
+  const sourceType = upper(row.sourceType || row.refType || row.source);
+  if (category === 'AR-DEBT-OPEN') return 'Closeout';
+  if (['AR-DEBT-PAYMENT', 'AR-RECEIPT', 'AR-RECEIPT-CASH', 'AR-RECEIPT-BANK'].includes(category)) return 'Receipt / payment allocation';
+  if (category === 'AR-RETURN') return 'Return';
+  if (['AR-REWARD-ALLOWANCE', 'AR-BONUS', 'AR-ALLOWANCE', 'AR-BONUS-ALLOWANCE'].includes(category)) return 'Reward / allowance';
+  if (['AR-EXTERNAL', 'AR-EXTERNAL-DEBT'].includes(category)) return 'External debt';
+  if (category.endsWith('-REVERSAL')) return 'Reversal';
+  if (category === 'AR-DEBT-ADJUSTMENT') return 'Legacy adjustment';
+  return sourceType || 'AR ledger';
+}
+
+function movementFromLedger(row = {}, projection = {}) {
+  const normalized = normalizeLedger(row);
+  const included = projection.includedIds?.has(normalized.id) || projection.includedIds?.has(normalized.code);
+  let exclusionReason = '';
+  let warningCode = '';
+  if (included) {
+    exclusionReason = '';
+  } else if (normalized.category === 'AR-DEBT-ADJUSTMENT') {
+    exclusionReason = 'LEGACY_ADJUSTMENT_RETIRED_FROM_CANONICAL_BALANCE';
+    warningCode = 'LEGACY_AR_DEBT_ADJUSTMENT_RETIRED';
+  } else if (projection.shadowedIds?.has(normalized.id) || projection.shadowedIds?.has(normalized.code)) {
+    exclusionReason = 'PROJECTION_SHADOW';
+  } else if (projection.duplicateIds?.has(normalized.id) || projection.duplicateIds?.has(normalized.code)) {
+    exclusionReason = 'ACTUAL_DUPLICATE_FINANCIAL_EFFECT';
+    warningCode = 'MANUAL_REVIEW_REQUIRED';
+  } else if (projection.unresolvedIds?.has(normalized.id) || projection.unresolvedIds?.has(normalized.code)) {
+    exclusionReason = 'UNRESOLVED_BUSINESS_EVENT_IDENTITY';
+    warningCode = 'UNRESOLVED';
+  } else {
+    exclusionReason = 'NOT_INCLUDED_IN_CANONICAL_BALANCE';
+  }
+  return {
+    ledgerId: normalized.id,
+    occurredAt: normalized.date,
+    date: normalized.date,
+    category: normalized.category,
+    ledgerType: normalized.ledgerType,
+    orderId: normalized.orderId,
+    orderCode: normalized.orderCode,
+    debit: normalized.debit,
+    credit: normalized.credit,
+    amount: normalized.amount,
+    netEffect: normalized.netEffect,
+    sourceType: normalized.sourceType,
+    sourceId: normalized.sourceId,
+    sourceCode: normalized.sourceCode,
+    accountingStatus: text(row.accountingStatus),
+    active: row.active === true,
+    projectionIncluded: Boolean(included),
+    exclusionReason,
+    legacyAdjustment: normalized.category === 'AR-DEBT-ADJUSTMENT',
+    warningCode,
+    sourceLabel: sourceLabel(normalized),
+    note: [sourceLabel(normalized), exclusionReason].filter(Boolean).join(' - ')
+  };
+}
+
+async function loadCustomerHistoryMovements(customerCode = '', grouped = {}, options = {}) {
+  const rx = exactRegex(customerCode);
+  if (!rx) return [];
+  const { ArLedger } = getDebtNewModels();
+  let query = ArLedger.find({
+    account: 'AR',
+    $or: [{ customerCode: rx }, { customerId: rx }]
+  });
+  if (options.session && typeof query.session === 'function') query = query.session(options.session);
+  if (typeof query.select === 'function') query = query.select(AR_LEDGER_DEBT_HOT_PATH_PROJECTION);
+  if (typeof query.sort === 'function') query = query.sort({ date: 1, createdAt: 1, _id: 1 });
+  if (typeof query.limit === 'function') query = query.limit(Math.max(1, Math.min(1000, Number(options.historyLimit || 500) || 500)));
+  if (typeof query.lean === 'function') query = query.lean();
+  const rows = await query;
+  const projection = {
+    includedIds: new Set((grouped.ledgers || []).flatMap((row) => [ledgerId(row), text(row.code)].filter(Boolean))),
+    shadowedIds: new Set((grouped.shadowedLedgers || []).flatMap((row) => [ledgerId(row), text(row.code)].filter(Boolean))),
+    duplicateIds: new Set((grouped.duplicateEntries || grouped.duplicateLedgers || []).flatMap((row) => [ledgerId(row), text(row.code)].filter(Boolean))),
+    unresolvedIds: new Set((grouped.unresolvedLedgers || []).flatMap((row) => [ledgerId(row), text(row.code)].filter(Boolean)))
+  };
+  return (Array.isArray(rows) ? rows : []).map((row) => movementFromLedger(row, projection));
 }
 
 function groupLedgers(ledgerRows = [], query = {}) {
@@ -418,8 +536,11 @@ function groupLedgers(ledgerRows = [], query = {}) {
     })
     .map(normalizeLedger);
 
+  const ownership = resolveDebtLedgerOwnership(ledgers);
+  const selectedLedgers = ownership.selectedEntries;
+
   const orderMap = new Map();
-  for (const ledger of ledgers) {
+  for (const ledger of selectedLedgers) {
     const key = `${ledger.customerCode || ledger.customerName}::${ledger.orderKey}`;
     if (!orderMap.has(key)) {
       orderMap.set(key, {
@@ -475,17 +596,18 @@ function groupLedgers(ledgerRows = [], query = {}) {
   let orders = Array.from(orderMap.values()).map((row) => {
     row.debit = money(row.debit);
     row.credit = money(row.credit);
-    row.rawDebt = money(row.debit - row.credit);
-    row.debt = normalizeDebtAmount(row.rawDebt, DEBT_ZERO_TOLERANCE);
-    row.remainingDebt = row.debt;
-    row.status = hasOpenDebt(row.debt) ? 'open' : (row.debt < 0 ? 'overpaid' : 'paid');
+    const projection = applyDebtProjection(row, { debit: row.debit, credit: row.credit }, { tolerance: DEBT_ZERO_TOLERANCE });
+    row.debt = projection.debtAmount;
+    row.remainingDebt = projection.debtAmount;
+    row.status = projection.status;
+    row.displayStatus = projection.displayStatus;
     return row;
   });
 
   const status = text(query.status || '').toLowerCase();
-  if (!status || status === 'open') orders = orders.filter((row) => hasOpenDebt(row.debt));
-  else if (status === 'paid') orders = orders.filter((row) => !hasOpenDebt(row.debt) && row.debt === 0);
-  else if (status === 'overpaid') orders = orders.filter((row) => row.debt < 0);
+  if (!status || status === 'open') orders = orders.filter((row) => row.debtAmount > 0 && row.displayStatus !== 'settled_by_tolerance');
+  else if (status === 'paid') orders = orders.filter((row) => row.debtAmount === 0 && row.creditBalance === 0);
+  else if (status === 'overpaid') orders = orders.filter((row) => row.creditBalance > 0);
   else if (status !== 'all') orders = orders.filter((row) => row.status === status);
 
   const customerMap = new Map();
@@ -504,6 +626,11 @@ function groupLedgers(ledgerRows = [], query = {}) {
         credit: 0,
         debt: 0,
         rawDebt: 0,
+        rawBalance: 0,
+        balance: 0,
+        debtAmount: 0,
+        creditBalance: 0,
+        creditBalanceAmount: 0,
         orderCount: 0,
         ledgerCount: 0,
         lastDebtDate: '',
@@ -513,8 +640,13 @@ function groupLedgers(ledgerRows = [], query = {}) {
     const customer = customerMap.get(key);
     customer.debit += order.debit;
     customer.credit += order.credit;
-    customer.rawDebt += order.rawDebt;
-    customer.debt += order.debt;
+    customer.rawDebt += order.rawBalance ?? order.rawDebt;
+    customer.rawBalance += order.rawBalance ?? order.rawDebt;
+    customer.balance += order.rawBalance ?? order.rawDebt;
+    customer.debt += order.debtAmount;
+    customer.debtAmount += order.debtAmount;
+    customer.creditBalance += order.creditBalance;
+    customer.creditBalanceAmount += order.creditBalanceAmount;
     customer.orderCount += 1;
     customer.ledgerCount += order.ledgerCount;
     customer.orders.push(order);
@@ -529,9 +661,15 @@ function groupLedgers(ledgerRows = [], query = {}) {
     row.debit = money(row.debit);
     row.credit = money(row.credit);
     row.rawDebt = money(row.rawDebt);
-    row.debt = normalizeDebtAmount(row.rawDebt, DEBT_ZERO_TOLERANCE);
-    row.remainingDebt = row.debt;
-    row.status = hasOpenDebt(row.debt) ? 'open' : (row.debt < 0 ? 'overpaid' : 'paid');
+    row.rawBalance = money(row.rawBalance);
+    row.balance = money(row.balance);
+    row.debt = money(row.debtAmount);
+    row.debtAmount = row.debt;
+    row.remainingDebt = row.debtAmount;
+    row.creditBalance = money(row.creditBalance);
+    row.creditBalanceAmount = money(row.creditBalanceAmount);
+    row.displayStatus = row.debtAmount > 0 ? 'open' : (row.creditBalance > 0 ? 'overpaid' : 'paid');
+    row.status = row.displayStatus;
     row.orders.sort((a, b) => Math.abs(b.debt) - Math.abs(a.debt));
     return row;
   }).sort((a, b) => Math.abs(b.debt) - Math.abs(a.debt) || a.customerName.localeCompare(b.customerName, 'vi'));
@@ -539,14 +677,14 @@ function groupLedgers(ledgerRows = [], query = {}) {
   const summary = customers.reduce((acc, row) => {
     acc.customerCount += 1;
     acc.orderCount += row.orderCount;
-    acc.debtOrderCount += row.orders.filter((order) => hasOpenDebt(order.debt)).length;
-    acc.totalDebt += row.debt;
+    acc.debtOrderCount += row.orders.filter((order) => order.debtAmount > 0 && order.displayStatus !== 'settled_by_tolerance').length;
+    acc.totalDebt += row.debtAmount;
     acc.totalDebit += row.debit;
     acc.totalCredit += row.credit;
-    acc.creditBalanceAmount += row.debt < 0 ? Math.abs(row.debt) : 0;
-    acc.openCustomerCount += hasOpenDebt(row.debt) ? 1 : 0;
-    acc.paidCustomerCount += !hasOpenDebt(row.debt) && row.debt === 0 ? 1 : 0;
-    acc.overpaidCustomerCount += row.debt < 0 ? 1 : 0;
+    acc.creditBalanceAmount += row.creditBalanceAmount;
+    acc.openCustomerCount += row.debtAmount > 0 ? 1 : 0;
+    acc.paidCustomerCount += row.debtAmount === 0 && row.creditBalanceAmount === 0 ? 1 : 0;
+    acc.overpaidCustomerCount += row.creditBalanceAmount > 0 ? 1 : 0;
     acc.ledgerCount += row.ledgerCount;
     return acc;
   }, { ...emptySummary(), ledgerCount: ledgers.length });
@@ -557,7 +695,24 @@ function groupLedgers(ledgerRows = [], query = {}) {
   summary.creditBalanceAmount = money(summary.creditBalanceAmount);
   summary.overdueAmount = money(summary.overdueAmount);
 
-  return { ledgers, orders, customers, summary };
+  summary.selectedLedgerCount = selectedLedgers.length;
+  summary.shadowedLedgerCount = ownership.shadowedEntries.length;
+  summary.duplicateLedgerCount = ownership.duplicateEntries.length;
+  summary.unresolvedLedgerCount = ownership.unresolvedEntries.length;
+
+  return {
+    ledgers: selectedLedgers,
+    allLedgers: ledgers,
+    shadowedLedgers: ownership.shadowedEntries,
+    duplicateGroups: ownership.duplicateGroups,
+    unresolvedLedgers: ownership.unresolvedEntries,
+    unsupportedLedgers: ownership.unsupportedEntries,
+    ownershipDecisions: ownership.ownershipDecisions,
+    ownershipDiagnostics: ownership.diagnostics,
+    orders,
+    customers,
+    summary
+  };
 }
 
 async function listCustomers(query = {}, options = {}) {
@@ -649,7 +804,8 @@ async function customerDetail(query = {}, options = {}) {
   }
   const result = await listCustomers({ ...query, customerCode, status: query.status || 'all' }, options);
   const customer = (result.customers || []).find((row) => upper(row.customerCode) === upper(customerCode)) || (result.customers || [])[0] || null;
-  const movements = (result.ledgers || []).filter((row) => upper(row.customerCode) === upper(customerCode));
+  const movements = await loadCustomerHistoryMovements(customerCode, result, options);
+  if (customer) customer.movements = movements;
   return {
     ok: true,
     customer,
@@ -661,7 +817,8 @@ async function customerDetail(query = {}, options = {}) {
       source: 'debt-new-detail-ar-debt-read-model',
       endpoint: '/api/new/debt/customers/:customerCode/detail',
       searchCriteriaRequired: false,
-      allowedCategories: ALLOWED_CATEGORIES
+      allowedCategories: ALLOWED_CATEGORIES,
+      historyContract: 'DOCUMENT_DEBIT_CREDIT_NO_FRONTEND_DIRECTION_INFERENCE'
     }
   };
 }
@@ -892,5 +1049,5 @@ module.exports = {
   customerDetail,
   suggestions,
   setModelsForTest,
-  _private: { normalizeLedger, orderKey, debtNewOrderKeys, pendingAmountByOrder, attachPendingCollectionState, loadPendingDebtCollectionsForOrders, hasSearchCriteria, emptyListResult, emptySummary, emptySuggestionResult, suggestionLimit, staffSuggestionLimit, allowEmptySuggestion, findSuggestionLedgers }
+  _private: { normalizeLedger, movementFromLedger, loadCustomerHistoryMovements, orderKey, debtNewOrderKeys, pendingAmountByOrder, attachPendingCollectionState, loadPendingDebtCollectionsForOrders, hasSearchCriteria, emptyListResult, emptySummary, emptySuggestionResult, suggestionLimit, staffSuggestionLimit, allowEmptySuggestion, findSuggestionLedgers }
 };

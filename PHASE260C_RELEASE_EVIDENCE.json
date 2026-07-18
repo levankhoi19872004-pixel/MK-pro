@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-07-17T09:53:36.743Z",
+  "releasePhase": "Phase260C-R3",
+  "status": "READY_FOR_REVIEW",
+  "zip": "MK-pro-phase260c-r3-legacy-debt-stabilization-fixed.zip",
+  "manifest": "RELEASE_MANIFEST.json",
+  "tests": "PHASE260C_TEST_COMMANDS_AND_RESULTS.json",
+  "changedFiles": "PHASE260C_CHANGED_FILES.json",
+  "auditStatus": "AUDIT_NOT_EXECUTED_BLOCKED_BY_MONGO_ATLAS_WHITELIST",
+  "mutationAttempted": false,
+  "notes": [
+    "R2 real DB audit/apply requires Atlas whitelist access before production repair.",
+    "No package.json or MongoDB schema changes."
+  ],
+  "zipBytes": 88345,
+  "zipSha256": "cc14f710a99f66df27cc7ff1fb33b06c4e2ff085a6315c2a1deddae90bcb4e8d",
+  "updatedAt": "2026-07-17T09:54:01.769Z"
+}

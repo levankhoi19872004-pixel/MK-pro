@@ -7,6 +7,10 @@ const paymentRepository = require('../../repositories/paymentRepository');
 const arDebtReadModel = require('../arDebtReadModel.service');
 const DeliveryCloseoutService = require('./DeliveryCloseoutService');
 const OrderPaymentDebtReconcileService = require('./OrderPaymentDebtReconcileService');
+const { buildCorrectionDebtDeltaMetadata } = require('../../domain/accounting/correctionDebtDelta');
+
+const localAdjustmentLocks = new Map();
+const RETIRED_REASON = 'AR_DEBT_ADJUSTMENT_POSTING_RETIRED';
 
 function clean(value = '') {
   return String(value ?? '').trim();
@@ -103,6 +107,21 @@ function buildAdjustmentLedger(order = {}, context = {}, options = {}) {
     returnAdjustmentAmount: money(context.returnAdjustmentAmount),
     cashAdjustmentAmount: money(context.cashAdjustmentAmount),
     returnOrderIds: Array.isArray(context.returnOrderIds) ? context.returnOrderIds : [],
+    metadata: {
+      ...(context.metadata || {}),
+      ...buildCorrectionDebtDeltaMetadata({
+        receivableDelta: context.receivableDelta,
+        cashDelta: context.cashDelta,
+        bankDelta: context.bankDelta,
+        rewardDelta: context.rewardDelta,
+        returnDelta: context.returnDelta ?? context.returnAdjustmentAmount
+      }, context.deltaDebt ?? context.debtAdjustmentAmount, {
+        correctionId: clean(context.correctionId || sourceId),
+        correctionVersion: version,
+        sourceOrderId: salesOrderId,
+        sourceOrderCode: salesOrderCode
+      })
+    },
     reason,
     correctedBy: clean(context.correctedBy || options.actor || 'accountant'),
     correctedAt: clean(context.correctedAt || now),
@@ -111,6 +130,27 @@ function buildAdjustmentLedger(order = {}, context = {}, options = {}) {
     createdBy: clean(context.correctedBy || options.actor || 'accountant'),
     note: clean(options.note || `Điều chỉnh công nợ sau correction chốt giao hàng ${salesOrderCode}: delta=${money(context.deltaDebt ?? context.debtAdjustmentAmount)}`)
   };
+}
+
+function samePostedAmount(existing = {}, entry = {}) {
+  return money(existing.debit) === money(entry.debit)
+    && money(existing.credit) === money(entry.credit)
+    && money(existing.amount) === money(entry.amount);
+}
+
+async function withAdjustmentLock(idempotencyKey = '', work) {
+  const key = clean(idempotencyKey);
+  if (!key) return work();
+  while (localAdjustmentLocks.has(key)) await localAdjustmentLocks.get(key);
+  let release;
+  const waiter = new Promise((resolve) => { release = resolve; });
+  localAdjustmentLocks.set(key, waiter);
+  try {
+    return await work();
+  } finally {
+    localAdjustmentLocks.delete(key);
+    release();
+  }
 }
 
 
@@ -188,27 +228,57 @@ async function postAdjustmentByDebtReconcile(order = {}, context = {}, options =
 }
 
 async function postAdjustment(order = {}, context = {}, options = {}) {
+  const result = {
+    posted: false,
+    skipped: true,
+    reason: RETIRED_REASON,
+    code: RETIRED_REASON,
+    retired: true,
+    entry: null
+  };
+  if (options.throwOnRetired === true || context.throwOnRetired === true) {
+    const err = new Error('AR debt adjustment posting is retired; use canonical AR source posting instead.');
+    err.code = RETIRED_REASON;
+    err.status = 409;
+    err.result = result;
+    throw err;
+  }
+  return result;
+
   if (options.reconcileDebt === true || context.reconcileDebt === true || context.reconcileAllocation) {
     return postAdjustmentByDebtReconcile(order, context, options);
   }
   const entry = buildAdjustmentLedger(order, context, options);
   if (!entry) return { posted: false, skipped: true, reason: 'zero_delta' };
-  const existing = await paymentRepository.findAll({
-    idempotencyKey: entry.idempotencyKey,
-    active: true,
-    reversed: { $ne: true },
-    category: 'AR-DEBT-ADJUSTMENT'
-  }, { ...options, limit: 5 });
-  if (Array.isArray(existing) && existing.length) return { posted: false, idempotent: true, entry: existing[0] };
-  const saved = await paymentRepository.upsert(entry, options);
-  if (options.skipReadModelRebuild !== true) {
-    await arDebtReadModel.rebuildDebtForSource(entry.salesOrderId || entry.orderId || entry.sourceId, { ...options, dryRun: options.dryRunReadModel === true });
-  }
-  return { posted: true, entry: saved || entry };
+  return withAdjustmentLock(entry.idempotencyKey, async () => {
+    const existing = await paymentRepository.findAll({
+      idempotencyKey: entry.idempotencyKey,
+      active: true,
+      reversed: { $ne: true },
+      category: 'AR-DEBT-ADJUSTMENT'
+    }, { ...options, limit: 5 });
+    if (Array.isArray(existing) && existing.length) {
+      if (!samePostedAmount(existing[0], entry)) {
+        const err = new Error('Cùng idempotencyKey AR-DEBT-ADJUSTMENT nhưng payload debit/credit khác.');
+        err.code = 'IDEMPOTENCY_PAYLOAD_MISMATCH';
+        err.status = 409;
+        err.existing = { id: existing[0].id, code: existing[0].code, debit: money(existing[0].debit), credit: money(existing[0].credit), amount: money(existing[0].amount) };
+        err.next = { id: entry.id, code: entry.code, debit: entry.debit, credit: entry.credit, amount: entry.amount };
+        throw err;
+      }
+      return { posted: false, idempotent: true, entry: existing[0] };
+    }
+    const saved = await paymentRepository.upsert(entry, options);
+    if (options.skipReadModelRebuild !== true) {
+      await arDebtReadModel.rebuildDebtForSource(entry.salesOrderId || entry.orderId || entry.sourceId, { ...options, dryRun: options.dryRunReadModel === true });
+    }
+    return { posted: true, entry: saved || entry };
+  });
 }
 
 module.exports = {
   buildAdjustmentLedger,
   postAdjustment,
-  _internal: { money, adjustmentSide, shortHash, buildReconcileAllocationFromContext }
+  RETIRED_REASON,
+  _internal: { money, adjustmentSide, shortHash, buildReconcileAllocationFromContext, samePostedAmount, withAdjustmentLock }
 };

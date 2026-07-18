@@ -15,6 +15,11 @@ const OrderPaymentAllocationService = require('./accounting/OrderPaymentAllocati
 const { emitDomainEventSafe } = require('./events/domainEventBus');
 const { EVENT_TYPES } = require('./events/domainEventTypes');
 const {
+  calculateCorrectionDebtDelta,
+  assertCorrectionDebtDeltaPolicy,
+  buildCorrectionDebtDeltaMetadata
+} = require('../domain/accounting/correctionDebtDelta');
+const {
   assertReturnMutationAllowed,
   loadReturnMutationContext
 } = require('../domain/returns/ReturnMutationGuard');
@@ -163,6 +168,22 @@ function previousPaymentState(snapshot = {}, order = {}) {
   const debtAmount = previousDebtAmount(snapshot, order);
   const collectedAmount = money(cashAmount + bankAmount + rewardAmount);
   return { receivableAmount, returnAmount, cashAmount, bankAmount, rewardAmount, collectedAmount, debtAmount };
+}
+
+function correctionDeltaInput({
+  receivableDelta = 0,
+  cashDelta = 0,
+  bankDelta = 0,
+  rewardDelta = 0,
+  returnDelta = 0
+} = {}) {
+  return {
+    receivableDelta: money(receivableDelta),
+    cashDelta: money(cashDelta),
+    bankDelta: money(bankDelta),
+    rewardDelta: money(rewardDelta),
+    returnDelta: money(returnDelta)
+  };
 }
 
 
@@ -1288,6 +1309,12 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
   const bankDeltaAmount = money(nextPaymentState.bankAmount - currentState.bankAmount);
   const rewardDeltaAmount = money(nextPaymentState.rewardAmount - currentState.rewardAmount);
   const cashAdjustmentAmount = money(cashDeltaAmount + bankDeltaAmount + rewardDeltaAmount);
+  const deltaInput = correctionDeltaInput({
+    cashDelta: cashDeltaAmount,
+    bankDelta: bankDeltaAmount,
+    rewardDelta: rewardDeltaAmount,
+    returnDelta: returnAdjustmentAmount
+  });
   const debtCalculation = calculateDeliveryDebtAmount({
     receivableAmount: currentState.receivableAmount,
     cashAmount: nextPaymentState.cashAmount,
@@ -1296,7 +1323,9 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
     returnAmount: newReturnAmount
   });
   const newDebtAmount = money(debtCalculation.debtAmount);
-  const debtAdjustmentAmount = money(newDebtAmount - currentState.debtAmount);
+  const debtAdjustmentAmount = assertCorrectionDebtDeltaPolicy(deltaInput, {
+    debtDelta: calculateCorrectionDebtDelta(deltaInput)
+  });
   const calculated = {
     returnAdjustmentItems,
     cashAdjustmentLines,
@@ -1507,6 +1536,12 @@ async function createCorrection(input = {}, options = {}) {
     const bankDeltaAmount = money(nextPaymentState.bankAmount - previousBank);
     const rewardDeltaAmount = money(nextPaymentState.rewardAmount - previousReward);
     const cashAdjustmentAmount = money(cashDeltaAmount + bankDeltaAmount + rewardDeltaAmount);
+    const deltaInput = correctionDeltaInput({
+      cashDelta: cashDeltaAmount,
+      bankDelta: bankDeltaAmount,
+      rewardDelta: rewardDeltaAmount,
+      returnDelta: returnAdjustmentAmount
+    });
     const debtCalculation = calculateDeliveryDebtAmount({
       receivableAmount: sale,
       cashAmount: nextPaymentState.cashAmount,
@@ -1515,13 +1550,21 @@ async function createCorrection(input = {}, options = {}) {
       returnAmount: newReturnAmount
     });
     const newDebtAmount = money(debtCalculation.debtAmount);
-    const debtAdjustmentAmount = money(newDebtAmount - previousDebt);
+    const debtAdjustmentAmount = assertCorrectionDebtDeltaPolicy(deltaInput, {
+      debtDelta: calculateCorrectionDebtDelta(deltaInput)
+    });
 
     const calculated = {
       returnAdjustmentItems,
       cashAdjustmentLines,
       returnAdjustmentAmount,
       cashAdjustmentAmount,
+      metadata: buildCorrectionDebtDeltaMetadata(deltaInput, debtAdjustmentAmount, {
+        correctionId,
+        correctionVersion: newCloseoutVersionNo,
+        sourceOrderId: orderId(order),
+        sourceOrderCode: orderCode(order)
+      }),
       debtAdjustmentAmount,
       currentState,
       finalState: { ...nextPaymentState, returnAmount: newReturnAmount, debtAmount: newDebtAmount }
@@ -1627,7 +1670,6 @@ async function createCorrection(input = {}, options = {}) {
     });
 
     const adjustment = await ArDebtAdjustmentPostingService.postAdjustment(order, {
-      reconcileDebt: true,
       correctionId,
       correctionCode,
       sourceId: correctionId,
@@ -1644,6 +1686,11 @@ async function createCorrection(input = {}, options = {}) {
       newFinalDebtAmount: correction.newDebtAmount,
       deltaDebt: debtAdjustmentAmount,
       debtAdjustmentAmount,
+      receivableDelta: deltaInput.receivableDelta,
+      cashDelta: deltaInput.cashDelta,
+      bankDelta: deltaInput.bankDelta,
+      rewardDelta: deltaInput.rewardDelta,
+      returnDelta: deltaInput.returnDelta,
       receivableAmount: sale,
       cashAmount: nextPaymentState.cashAmount,
       bankAmount: nextPaymentState.bankAmount,
@@ -1685,7 +1732,7 @@ async function createCorrection(input = {}, options = {}) {
       reason: correction.auditReason || correction.reason || 'Điều chỉnh không ghi lý do',
       correctedBy: actor,
       correctedAt: now
-    }, { ...options, session, actor, reconcileDebt: true, sourceType: 'DELIVERY_CLOSEOUT_CORRECTION', sourceId: correctionId, sourceCode: correctionCode, sourceModel: 'deliveryCloseoutCorrections' });
+    }, { ...options, session, actor, reconcileDebt: false, sourceType: 'DELIVERY_CLOSEOUT_CORRECTION', sourceId: correctionId, sourceCode: correctionCode, sourceModel: 'deliveryCloseoutCorrections' });
 
     const ledgerEntry = adjustment && (adjustment.entry || adjustment.arDebtAdjustmentLedger || adjustment);
     if (ledgerEntry && ledgerEntry.code) {

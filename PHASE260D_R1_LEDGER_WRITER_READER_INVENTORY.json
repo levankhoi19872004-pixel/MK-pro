@@ -1,0 +1,146 @@
+{
+  "generatedAt": "2026-07-17T10:11:08.579Z",
+  "phase": "Phase260D-R1",
+  "scope": "arLedgers writer/reader ownership inventory",
+  "baseline": {
+    "artifact": "MK-pro-phase260c-r3-legacy-debt-stabilization-fixed.zip",
+    "sha256": "cc14f710a99f66df27cc7ff1fb33b06c4e2ff085a6315c2a1deddae90bcb4e8d"
+  },
+  "writers": [
+    {
+      "file": "src/services/accounting/OrderPaymentAllocationService.js",
+      "functions": [
+        "postArLedgersFromAllocation",
+        "buildArLedgerRows"
+      ],
+      "collection": "arLedgers",
+      "categories": [
+        "AR-SALE",
+        "AR-RECEIPT-CASH",
+        "AR-RECEIPT-BANK",
+        "AR-REWARD-ALLOWANCE",
+        "AR-RETURN"
+      ],
+      "idempotency": "OPA:<allocation.idempotencyKey>:<suffix>",
+      "ownershipRisk": "legacy family can overlap canonical debt family; projection resolver must select one owner by businessEventIdentity"
+    },
+    {
+      "file": "src/domain/settlement/DeliverySettlementService.js",
+      "functions": [
+        "finalize settlement / delivery closeout AR posting path"
+      ],
+      "collection": "arLedgers",
+      "categories": [
+        "AR-DEBT-OPEN"
+      ],
+      "idempotency": "delivery closeout/source scoped idempotency",
+      "ownershipRisk": "canonical opening obligation shadows legacy AR-SALE for same order identity"
+    },
+    {
+      "file": "src/services/accounting/returnArPostingService.js",
+      "functions": [
+        "postReturnOrderToAR",
+        "buildReturnARLedgerEntry"
+      ],
+      "collection": "arLedgers",
+      "categories": [
+        "AR-RETURN"
+      ],
+      "idempotency": "AR-RETURN:<returnKey>",
+      "ownershipRisk": "dedicated return family shadows correction return effect for same return identity"
+    },
+    {
+      "file": "src/services/accounting/ArDebtAdjustmentPostingService.js",
+      "functions": [
+        "postAdjustment",
+        "buildAdjustmentLedger"
+      ],
+      "collection": "arLedgers",
+      "categories": [
+        "AR-DEBT-ADJUSTMENT"
+      ],
+      "idempotency": "source/correction scoped Phase260C event-delta lock",
+      "ownershipRisk": "correction delta must not reconstruct final debt state or duplicate dedicated return posting"
+    },
+    {
+      "file": "src/services/accounting/manualDebtPostingService.js",
+      "functions": [
+        "postManualDebtAdjustment"
+      ],
+      "collection": "arLedgers",
+      "categories": [
+        "AR-DEBT-ADJUSTMENT"
+      ],
+      "idempotency": "manual adjustment conflict guard",
+      "ownershipRisk": "manual adjustment is separate semantic role and cannot be inferred as correction duplicate"
+    },
+    {
+      "file": "src/services/accounting/externalDebtArPostingService.js",
+      "functions": [
+        "external debt AR posting"
+      ],
+      "collection": "arLedgers",
+      "categories": [
+        "AR-EXTERNAL-DEBT"
+      ],
+      "idempotency": "external debt scoped",
+      "ownershipRisk": "outside Phase260D mixed-family resolver registry; remains unsupported/customer-scope until separate contract"
+    },
+    {
+      "file": "src/repositories/paymentRepository.js",
+      "functions": [
+        "upsert / findAll"
+      ],
+      "collection": "arLedgers",
+      "categories": [
+        "repository only"
+      ],
+      "idempotency": "writer-provided idempotencyKey",
+      "ownershipRisk": "central write transport; domain writer must own category semantics"
+    }
+  ],
+  "readers": [
+    {
+      "file": "src/services/v2/debtNew.service.js",
+      "role": "primary Debt New read model",
+      "Phase260DChange": "uses resolveDebtLedgerOwnership before grouping and LegacyDebtProjector for debit-credit projection"
+    },
+    {
+      "file": "src/services/mobile/mobileDebtQuery.service.js",
+      "role": "mobile debt read model",
+      "Phase260DChange": "uses same resolver/projector path and exposes creditBalance/rawBalance"
+    },
+    {
+      "file": "src/services/accounting/arCustomerDebtReadModel.service.js",
+      "role": "AR customer debt read model",
+      "Phase260CStatus": "uses LegacyDebtProjector and remains under Phase260C regression"
+    },
+    {
+      "file": "src/services/reports/DebtReportService.js",
+      "role": "debt report reader",
+      "Phase260DStatus": "inventory only; no writer behavior changed"
+    },
+    {
+      "file": "src/services/DebtReadService.js",
+      "role": "legacy read service",
+      "Phase260DStatus": "inventory only; shared projection guard preferred for future migration"
+    },
+    {
+      "file": "public/js/app/new/92-debt-new.js",
+      "role": "Debt New browser UI",
+      "Phase260DChange": "does not recompute available debt from pending collection; consumes backend DTO"
+    }
+  ],
+  "ownershipBoundary": {
+    "inventorySSoT": "inventories",
+    "arSSoT": "arLedgers",
+    "fundSSoT": "fundLedgers",
+    "returnSSoT": "returnOrders",
+    "warehouse": "MAIN",
+    "notTouched": [
+      "inventories",
+      "fundLedgers",
+      "returnOrders lifecycle/schema"
+    ]
+  }
+}

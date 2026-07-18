@@ -1,0 +1,36 @@
+{
+  "generatedAt": "2026-07-17T09:53:36.743Z",
+  "phase": "Phase260C-R3",
+  "tests": [
+    {
+      "command": "node --check src\\services\\accounting\\LegacyDebtProjector.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node --check src\\services\\accounting\\arCustomerDebtReadModel.service.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node --check src\\services\\v2\\debtNew.service.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node --check public\\js\\app\\new\\92-debt-new.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node --test test\\phase260c-r3-legacy-debt-projection.test.js",
+      "status": "PASS",
+      "tests": 5
+    }
+  ],
+  "acceptance": {
+    "b0039602": {
+      "rawBalance": -92211,
+      "debtAmount": 0,
+      "creditBalance": 92211
+    },
+    "noAutoOffsetAcrossOrders": true,
+    "frontendDebtCalculation": "backend DTO fields only"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-07-17T09:52:03.362Z",
+  "phase": "Phase260C-R2",
+  "mode": "dry_run",
+  "apply": false,
+  "dryRun": true,
+  "mutation": false,
+  "planPath": "E:\\MK-pro\\PHASE260C_R2_REPAIR_PLAN.json",
+  "repairRunId": "PHASE260C-R2-1784281923362",
+  "results": [],
+  "status": "DRY_RUN_ONLY"
+}

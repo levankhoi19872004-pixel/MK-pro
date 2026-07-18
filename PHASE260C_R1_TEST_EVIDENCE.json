@@ -1,0 +1,36 @@
+{
+  "generatedAt": "2026-07-17T09:41:58.256Z",
+  "baseline": "Phase260B-R1 working baseline",
+  "phase": "Phase260C-R1",
+  "checkpoint": "Stop The Bleeding",
+  "status": "PASS",
+  "commands": [
+    {
+      "command": "node --check src/domain/accounting/correctionDebtDelta.js",
+      "result": "PASS"
+    },
+    {
+      "command": "node --check src/services/accounting/ArDebtAdjustmentPostingService.js",
+      "result": "PASS"
+    },
+    {
+      "command": "node --check src/services/deliveryCloseoutCorrection.service.js",
+      "result": "PASS"
+    },
+    {
+      "command": "node --check test/phase260c-r1-stop-the-bleeding.test.js",
+      "result": "PASS"
+    },
+    {
+      "command": "node --test test/phase260c-r1-stop-the-bleeding.test.js",
+      "result": "PASS",
+      "tests": 6
+    }
+  ],
+  "scannedCount": 0,
+  "changedCount": 5,
+  "skippedReason": "Production audit/apply belongs to R2",
+  "warnings": [
+    "Git commit skipped because existing Phase260B-R1 worktree changes are not committed."
+  ]
+}

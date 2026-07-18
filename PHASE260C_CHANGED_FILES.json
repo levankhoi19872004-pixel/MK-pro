@@ -1,0 +1,104 @@
+{
+  "generatedAt": "2026-07-17T09:53:36.743Z",
+  "releasePhase": "Phase260C",
+  "changedFiles": [
+    {
+      "path": "src/domain/accounting/correctionDebtDelta.js",
+      "checkpoint": "R1",
+      "type": "new",
+      "purpose": "Event-delta debt adjustment formula and guard rails"
+    },
+    {
+      "path": "src/services/accounting/ArDebtAdjustmentPostingService.js",
+      "checkpoint": "R1",
+      "type": "modified",
+      "purpose": "Idempotent event-delta AR debt adjustment posting"
+    },
+    {
+      "path": "src/services/deliveryCloseoutCorrection.service.js",
+      "checkpoint": "R1",
+      "type": "modified",
+      "purpose": "Stop post-closeout return from final-state debt reconstruction"
+    },
+    {
+      "path": "test/phase260c-r1-stop-the-bleeding.test.js",
+      "checkpoint": "R1",
+      "type": "new",
+      "purpose": "R1 regression tests"
+    },
+    {
+      "path": "scripts/phase260c/audit-post-closeout-debt-correction.js",
+      "checkpoint": "R2",
+      "type": "new",
+      "purpose": "Read-only audit of wrong post-closeout debt adjustments"
+    },
+    {
+      "path": "scripts/phase260c/plan-post-closeout-debt-repair.js",
+      "checkpoint": "R2",
+      "type": "new",
+      "purpose": "Controlled repair plan builder"
+    },
+    {
+      "path": "scripts/phase260c/apply-post-closeout-debt-repair.js",
+      "checkpoint": "R2",
+      "type": "new",
+      "purpose": "Guarded dry-run/apply repair executor"
+    },
+    {
+      "path": "test/phase260c-r2-controlled-repair.test.js",
+      "checkpoint": "R2",
+      "type": "new",
+      "purpose": "R2 audit/plan/apply tests"
+    },
+    {
+      "path": "src/services/accounting/LegacyDebtProjector.js",
+      "checkpoint": "R3",
+      "type": "new",
+      "purpose": "Shared debit-credit projection with separate debtAmount and creditBalance"
+    },
+    {
+      "path": "src/services/accounting/arCustomerDebtReadModel.service.js",
+      "checkpoint": "R3",
+      "type": "modified",
+      "purpose": "Legacy customer debt reader uses projector and does not auto-offset credit balances"
+    },
+    {
+      "path": "src/services/v2/debtNew.service.js",
+      "checkpoint": "R3",
+      "type": "modified",
+      "purpose": "Debt-new reader returns backend DTO debtAmount/creditBalance/availableToCollect"
+    },
+    {
+      "path": "public/js/app/new/92-debt-new.js",
+      "checkpoint": "R3",
+      "type": "modified",
+      "purpose": "Frontend reads backend DTO and preserves negative values for display"
+    },
+    {
+      "path": "test/phase260c-r3-legacy-debt-projection.test.js",
+      "checkpoint": "R3",
+      "type": "new",
+      "purpose": "R3 projection and frontend static tests"
+    }
+  ],
+  "artifactFiles": [
+    "PHASE260C_R1_WRITER_OWNERSHIP_AUDIT.json",
+    "PHASE260C_R1_STOP_THE_BLEEDING_REPORT.md",
+    "PHASE260C_R1_TEST_EVIDENCE.json",
+    "PHASE260C_R2_CONTROLLED_REPAIR_REPORT.md",
+    "PHASE260C_R2_DEBT_CORRECTION_AUDIT.json",
+    "PHASE260C_R2_DEBT_CORRECTION_AUDIT.csv",
+    "PHASE260C_R2_REPAIR_PLAN.json",
+    "PHASE260C_R2_REPAIR_PLAN.csv",
+    "PHASE260C_R2_APPLY_EVIDENCE.json",
+    "PHASE260C_R3_READER_RUNTIME_GRAPH.json",
+    "PHASE260C_R3_MIXED_LEDGER_DIAGNOSTICS.json",
+    "PHASE260C_R3_PROJECTION_TEST_EVIDENCE.json",
+    "PHASE260C_R3_LEGACY_DEBT_PROJECTION_REPORT.md",
+    "PHASE260C_LEGACY_DEBT_STABILIZATION_SUMMARY.md",
+    "PHASE260C_CHANGED_FILES.json",
+    "PHASE260C_TEST_COMMANDS_AND_RESULTS.json",
+    "PHASE260C_RELEASE_EVIDENCE.json",
+    "RELEASE_MANIFEST.json"
+  ]
+}

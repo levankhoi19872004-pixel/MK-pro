@@ -1,0 +1,106 @@
+{
+  "generatedAt": "2026-07-17T09:41:35.193Z",
+  "baseline": "MK-pro-phase260b-r1-delivery-return-controlled-reversal-completion-fixed(1).zip / working repo with Phase260B-R1 changes",
+  "phase": "Phase260C-R1",
+  "status": "WRITER_OWNERSHIP_IDENTIFIED",
+  "singleWriterOwnership": {
+    "postCloseoutReturnFinancialEffect": "DeliveryCloseoutCorrectionService -> ArDebtAdjustmentPostingService.postAdjustment direct EVENT_DELTA_ONLY",
+    "dedicatedReturnArWriter": "returnArPostingService posts AR-RETURN for confirmed returnOrders/accounting confirmation, not the post-closeout correction delta writer",
+    "decision": "Correction remains temporary legacy hotfix writer for post-closeout return delta; no dual writer retained for the same correction event."
+  },
+  "inventory": [
+    {
+      "file": "src/services/deliveryCloseoutCorrection.service.js",
+      "function": "createCorrection",
+      "trigger": "POST /api/new/delivery-today/closeouts/:id/corrections and wrappers addReturn/reduceReturn",
+      "sourceCollection": "deliveryCloseoutCorrections, deliveryCloseoutVersions, returnOrders",
+      "targetCollection": "arLedgers via ArDebtAdjustmentPostingService",
+      "ledgerCategory": "AR-DEBT-ADJUSTMENT",
+      "debitCreditPolicy": "EVENT_DELTA_ONLY: debtDelta=receivableDelta-cashDelta-bankDelta-rewardDelta-returnDelta",
+      "idempotencyPolicy": "AR-DEBT-ADJUSTMENT idempotencyKey plus payload mismatch guard",
+      "transactionPolicy": "withOptionalMongoTransaction shared session",
+      "activeRuntimeCaller": true,
+      "retryReplay": "same idempotency no second effect; mismatch throws",
+      "writerReader": "writer",
+      "risk": "P0 if reverted to reconcileDebt final-state",
+      "proposedAction": "patched in R1"
+    },
+    {
+      "file": "src/services/accounting/ArDebtAdjustmentPostingService.js",
+      "function": "postAdjustment/buildAdjustmentLedger",
+      "trigger": "delivery closeout correction and manual callers",
+      "sourceCollection": "deliveryCloseoutCorrections/order context",
+      "targetCollection": "arLedgers",
+      "ledgerCategory": "AR-DEBT-ADJUSTMENT",
+      "debitCreditPolicy": "delta>0 debit, delta<0 credit, zero skip",
+      "idempotencyPolicy": "local lock + active idempotency lookup + payload mismatch guard",
+      "transactionPolicy": "passes session to repository",
+      "activeRuntimeCaller": true,
+      "retryReplay": "idempotent",
+      "writerReader": "writer",
+      "risk": "Medium for non-correction callers; formula remains compatible",
+      "proposedAction": "patched in R1"
+    },
+    {
+      "file": "src/services/accounting/OrderPaymentDebtReconcileService.js",
+      "function": "reconcileOrderDebt",
+      "trigger": "order payment allocation repair/reconcile scripts",
+      "sourceCollection": "orderPaymentAllocations + arLedgers",
+      "targetCollection": "arLedgers",
+      "ledgerCategory": "AR-DEBT-ADJUSTMENT",
+      "debitCreditPolicy": "expected final debt minus current AR balance",
+      "idempotencyPolicy": "DEBT-RECONCILE key",
+      "transactionPolicy": "session-aware",
+      "activeRuntimeCaller": true,
+      "retryReplay": "idempotent/manual-review guards",
+      "writerReader": "writer",
+      "risk": "Not suitable for post-closeout return correction with confirmed receipts",
+      "proposedAction": "excluded from R1 closeout correction writer path"
+    },
+    {
+      "file": "src/services/accounting/returnArPostingService.js",
+      "function": "postReturnOrderToAR",
+      "trigger": "accounting confirm / return AR repair",
+      "sourceCollection": "returnOrders",
+      "targetCollection": "arLedgers",
+      "ledgerCategory": "AR-RETURN",
+      "debitCreditPolicy": "return amount as credit",
+      "idempotencyPolicy": "AR-RETURN:returnOrder stable key",
+      "transactionPolicy": "session-aware",
+      "activeRuntimeCaller": true,
+      "retryReplay": "duplicate guard",
+      "writerReader": "writer",
+      "risk": "Dual-write risk only if correction also posts AR-RETURN; not observed in R1 path",
+      "proposedAction": "leave unchanged"
+    },
+    {
+      "file": "src/services/accounting/OrderPaymentAllocationService.js",
+      "function": "buildAndPostFromCloseout",
+      "trigger": "delivery closeout/accounting finalize",
+      "sourceCollection": "deliveryCloseoutVersions",
+      "targetCollection": "orderPaymentAllocations/arLedgers",
+      "ledgerCategory": "AR-DEBT-OPEN/AR-DEBT-PAYMENT allocation effects",
+      "debitCreditPolicy": "allocation breakdown",
+      "idempotencyPolicy": "OPA key",
+      "transactionPolicy": "session-aware",
+      "activeRuntimeCaller": true,
+      "retryReplay": "allocation idempotency",
+      "writerReader": "writer",
+      "risk": "Not modified in R1",
+      "proposedAction": "audit only"
+    }
+  ],
+  "answers": {
+    "postCloseoutReturnWriter": "DeliveryCloseoutCorrectionService -> ArDebtAdjustmentPostingService direct AR-DEBT-ADJUSTMENT",
+    "multipleWriters": "R1 excludes OrderPaymentDebtReconcileService from this path; returnArPostingService remains separate AR-RETURN writer for confirmed returnOrders",
+    "returnDoubleCount": "R1 posts only correction event delta; no AR-RETURN is created by correction path",
+    "paymentConfirmedCategory": "confirmed debt receipt is independent AR receipt/debt payment writer outside correction delta",
+    "correctionSnapshotUse": "snapshot retained for version/allocation audit, not for financial effect",
+    "debtNewReads": "legacy debt readers read arLedgers categories",
+    "frontendBalanceCalc": "R3 audit pending",
+    "replayRepairJobs": "R2 audit pending"
+  },
+  "warnings": [
+    "Production Mongo audit not executed in R1 checkpoint."
+  ]
+}

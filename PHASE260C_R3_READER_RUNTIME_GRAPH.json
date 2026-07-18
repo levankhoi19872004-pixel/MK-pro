@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-07-17T09:53:36.743Z",
+  "phase": "Phase260C-R3",
+  "purpose": "Legacy debt projection stabilization runtime graph",
+  "ssot": "arLedgers",
+  "graph": [
+    {
+      "node": "arLedgers",
+      "role": "source_of_truth",
+      "rule": "active accounting-confirmed AR debt ledger rows only"
+    },
+    {
+      "node": "LegacyDebtProjector.projectBalanceFromTotals",
+      "role": "projection",
+      "formula": "rawBalance = totalDebit - totalCredit; debtAmount = max(rawBalance, 0); creditBalance = max(-rawBalance, 0)"
+    },
+    {
+      "node": "arCustomerDebtReadModel.service",
+      "role": "legacy_customer_reader",
+      "output": [
+        "rawBalance",
+        "debtAmount",
+        "creditBalance",
+        "displayStatus"
+      ]
+    },
+    {
+      "node": "debtNew.service",
+      "role": "new_debt_reader",
+      "output": [
+        "rawBalance",
+        "debtAmount",
+        "creditBalance",
+        "availableToCollect"
+      ]
+    },
+    {
+      "node": "public/js/app/new/92-debt-new.js",
+      "role": "frontend_display",
+      "rule": "reads backend DTO fields; no available debt rebuild by pending subtraction"
+    }
+  ],
+  "excludedSources": [
+    "inventorySnapshots",
+    "salesOrders debt cache",
+    "arDebtOrders",
+    "arDebtCustomers"
+  ],
+  "tolerancePolicy": "DEBT_ZERO_TOLERANCE affects displayStatus only; rawBalance/debtAmount/creditBalance remain explicit projection fields"
+}

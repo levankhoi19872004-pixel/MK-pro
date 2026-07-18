@@ -1,0 +1,78 @@
+{
+  "generatedAt": "2026-07-17T10:11:08.579Z",
+  "phase": "Phase260D-R1",
+  "ledgerFamilies": {
+    "LEGACY_SALES_AR": "LEGACY_SALES_AR",
+    "LEGACY_RECEIPT_AR": "LEGACY_RECEIPT_AR",
+    "CANONICAL_DEBT": "CANONICAL_DEBT",
+    "CORRECTION_DEBT": "CORRECTION_DEBT",
+    "RETURN_DEBT": "RETURN_DEBT",
+    "REVERSAL_DEBT": "REVERSAL_DEBT",
+    "CUSTOMER_SCOPE_DEBT": "CUSTOMER_SCOPE_DEBT",
+    "UNKNOWN": "UNKNOWN"
+  },
+  "families": [
+    {
+      "family": "LEGACY_SALES_AR",
+      "categories": [
+        "AR-SALE"
+      ],
+      "ownershipPolicy": "projection shadow when canonical debt family exists for same business event"
+    },
+    {
+      "family": "LEGACY_RECEIPT_AR",
+      "categories": [
+        "AR-RECEIPT",
+        "AR-RECEIPT-CASH",
+        "AR-RECEIPT-BANK"
+      ],
+      "ownershipPolicy": "projection shadow when canonical debt family exists for same business event"
+    },
+    {
+      "family": "CANONICAL_DEBT",
+      "categories": [
+        "AR-DEBT-OPEN",
+        "AR-DEBT-PAYMENT",
+        "AR-DEBT-VOID",
+        "AR-REWARD-ALLOWANCE",
+        "AR-BONUS",
+        "AR-ALLOWANCE"
+      ],
+      "ownershipPolicy": "preferred owner over legacy sales/receipt families for same immutable business event"
+    },
+    {
+      "family": "CORRECTION_DEBT",
+      "categories": [
+        "AR-DEBT-ADJUSTMENT",
+        "AR-ADJUSTMENT"
+      ],
+      "ownershipPolicy": "selected only when not shadowed by dedicated return or canonical family"
+    },
+    {
+      "family": "RETURN_DEBT",
+      "categories": [
+        "AR-RETURN"
+      ],
+      "ownershipPolicy": "preferred owner over correction return effect for same return event"
+    },
+    {
+      "family": "REVERSAL_DEBT",
+      "categories": [
+        "AR-SALE-REVERSAL",
+        "AR-RETURN-REVERSAL",
+        "AR-RECEIPT-REVERSAL"
+      ],
+      "ownershipPolicy": "diagnostic or unsupported"
+    },
+    {
+      "family": "CUSTOMER_SCOPE_DEBT",
+      "categories": [],
+      "ownershipPolicy": "diagnostic or unsupported"
+    },
+    {
+      "family": "UNKNOWN",
+      "categories": [],
+      "ownershipPolicy": "diagnostic or unsupported"
+    }
+  ]
+}

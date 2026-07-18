@@ -1,0 +1,261 @@
+{
+  "generatedAt": "2026-07-17T10:11:08.579Z",
+  "phase": "Phase260D-R1",
+  "semanticRoles": {
+    "OPENING_OBLIGATION": "OPENING_OBLIGATION",
+    "PAYMENT_REDUCTION": "PAYMENT_REDUCTION",
+    "RETURN_REDUCTION": "RETURN_REDUCTION",
+    "CORRECTION_DELTA": "CORRECTION_DELTA",
+    "MANUAL_ADJUSTMENT": "MANUAL_ADJUSTMENT",
+    "REVERSAL": "REVERSAL",
+    "VOID": "VOID",
+    "CUSTOMER_SCOPE_OBLIGATION": "CUSTOMER_SCOPE_OBLIGATION",
+    "DIAGNOSTIC_ONLY": "DIAGNOSTIC_ONLY",
+    "UNSUPPORTED": "UNSUPPORTED"
+  },
+  "categories": {
+    "AR-DEBT-OPEN": {
+      "category": "AR-DEBT-OPEN",
+      "ledgerFamily": "CANONICAL_DEBT",
+      "semanticRole": "OPENING_OBLIGATION",
+      "balanceImpacting": true,
+      "expectedSourceType": [
+        "SALES_ORDER_DELIVERY_CLOSEOUT"
+      ],
+      "directionPolicy": "DEBIT_ONLY",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [
+        "AR-SALE"
+      ],
+      "replacementFamily": "",
+      "projectionPolicy": "SELECT_BY_OWNERSHIP_RESOLVER"
+    },
+    "AR-SALE": {
+      "category": "AR-SALE",
+      "ledgerFamily": "LEGACY_SALES_AR",
+      "semanticRole": "OPENING_OBLIGATION",
+      "balanceImpacting": true,
+      "expectedSourceType": [
+        "ORDER_PAYMENT_ALLOCATION",
+        "SALES_ORDER",
+        "SALES_ORDER_DELIVERY_CLOSEOUT"
+      ],
+      "directionPolicy": "DEBIT_ONLY",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [
+        "AR-DEBT-OPEN"
+      ],
+      "replacementFamily": "CANONICAL_DEBT",
+      "projectionPolicy": "SELECT_BY_OWNERSHIP_RESOLVER"
+    },
+    "AR-DEBT-PAYMENT": {
+      "category": "AR-DEBT-PAYMENT",
+      "ledgerFamily": "CANONICAL_DEBT",
+      "semanticRole": "PAYMENT_REDUCTION",
+      "balanceImpacting": true,
+      "expectedSourceType": [
+        "ORDER_PAYMENT_ALLOCATION",
+        "DEBT_RECEIPT",
+        "DEBTCOLLECTION"
+      ],
+      "directionPolicy": "CREDIT_ONLY",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [
+        "AR-RECEIPT",
+        "AR-RECEIPT-CASH",
+        "AR-RECEIPT-BANK"
+      ],
+      "replacementFamily": "",
+      "projectionPolicy": "SELECT_BY_OWNERSHIP_RESOLVER"
+    },
+    "AR-RECEIPT": {
+      "category": "AR-RECEIPT",
+      "ledgerFamily": "LEGACY_RECEIPT_AR",
+      "semanticRole": "PAYMENT_REDUCTION",
+      "balanceImpacting": true,
+      "expectedSourceType": [
+        "DEBTCOLLECTION",
+        "ORDER_PAYMENT_ALLOCATION"
+      ],
+      "directionPolicy": "CREDIT_ONLY",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [
+        "AR-DEBT-PAYMENT"
+      ],
+      "replacementFamily": "CANONICAL_DEBT",
+      "projectionPolicy": "SELECT_BY_OWNERSHIP_RESOLVER"
+    },
+    "AR-RECEIPT-CASH": {
+      "category": "AR-RECEIPT-CASH",
+      "ledgerFamily": "LEGACY_RECEIPT_AR",
+      "semanticRole": "PAYMENT_REDUCTION",
+      "balanceImpacting": true,
+      "expectedSourceType": [
+        "DEBTCOLLECTION",
+        "ORDER_PAYMENT_ALLOCATION"
+      ],
+      "directionPolicy": "CREDIT_ONLY",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [
+        "AR-DEBT-PAYMENT"
+      ],
+      "replacementFamily": "CANONICAL_DEBT",
+      "projectionPolicy": "SELECT_BY_OWNERSHIP_RESOLVER"
+    },
+    "AR-RECEIPT-BANK": {
+      "category": "AR-RECEIPT-BANK",
+      "ledgerFamily": "LEGACY_RECEIPT_AR",
+      "semanticRole": "PAYMENT_REDUCTION",
+      "balanceImpacting": true,
+      "expectedSourceType": [
+        "DEBTCOLLECTION",
+        "ORDER_PAYMENT_ALLOCATION"
+      ],
+      "directionPolicy": "CREDIT_ONLY",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [
+        "AR-DEBT-PAYMENT"
+      ],
+      "replacementFamily": "CANONICAL_DEBT",
+      "projectionPolicy": "SELECT_BY_OWNERSHIP_RESOLVER"
+    },
+    "AR-RETURN": {
+      "category": "AR-RETURN",
+      "ledgerFamily": "RETURN_DEBT",
+      "semanticRole": "RETURN_REDUCTION",
+      "balanceImpacting": true,
+      "expectedSourceType": [
+        "RETURN_ORDER",
+        "ORDER_PAYMENT_ALLOCATION"
+      ],
+      "directionPolicy": "CREDIT_ONLY",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [
+        "AR-DEBT-ADJUSTMENT"
+      ],
+      "replacementFamily": "",
+      "projectionPolicy": "SELECT_BY_OWNERSHIP_RESOLVER"
+    },
+    "AR-DEBT-ADJUSTMENT": {
+      "category": "AR-DEBT-ADJUSTMENT",
+      "ledgerFamily": "CORRECTION_DEBT",
+      "semanticRole": "CORRECTION_DELTA",
+      "balanceImpacting": true,
+      "expectedSourceType": [
+        "DELIVERY_CLOSEOUT_CORRECTION",
+        "MANUAL_ADJUSTMENT",
+        "REPAIR"
+      ],
+      "directionPolicy": "EITHER_SIDE",
+      "mayCoexistWith": [
+        "AR-DEBT-OPEN",
+        "AR-DEBT-PAYMENT"
+      ],
+      "cannotCoexistWith": [],
+      "replacementFamily": "",
+      "projectionPolicy": "SELECT_BY_OWNERSHIP_RESOLVER"
+    },
+    "AR-DEBT-VOID": {
+      "category": "AR-DEBT-VOID",
+      "ledgerFamily": "CANONICAL_DEBT",
+      "semanticRole": "VOID",
+      "balanceImpacting": true,
+      "expectedSourceType": [],
+      "directionPolicy": "EITHER_SIDE",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [],
+      "replacementFamily": "",
+      "projectionPolicy": "SELECT_BY_OWNERSHIP_RESOLVER"
+    },
+    "AR-SALE-REVERSAL": {
+      "category": "AR-SALE-REVERSAL",
+      "ledgerFamily": "REVERSAL_DEBT",
+      "semanticRole": "REVERSAL",
+      "balanceImpacting": false,
+      "expectedSourceType": [],
+      "directionPolicy": "CREDIT_ONLY",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [],
+      "replacementFamily": "",
+      "projectionPolicy": "DIAGNOSTIC_ONLY"
+    },
+    "AR-RETURN-REVERSAL": {
+      "category": "AR-RETURN-REVERSAL",
+      "ledgerFamily": "REVERSAL_DEBT",
+      "semanticRole": "REVERSAL",
+      "balanceImpacting": false,
+      "expectedSourceType": [],
+      "directionPolicy": "DEBIT_ONLY",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [],
+      "replacementFamily": "",
+      "projectionPolicy": "DIAGNOSTIC_ONLY"
+    },
+    "AR-RECEIPT-REVERSAL": {
+      "category": "AR-RECEIPT-REVERSAL",
+      "ledgerFamily": "REVERSAL_DEBT",
+      "semanticRole": "REVERSAL",
+      "balanceImpacting": false,
+      "expectedSourceType": [],
+      "directionPolicy": "DEBIT_ONLY",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [],
+      "replacementFamily": "",
+      "projectionPolicy": "DIAGNOSTIC_ONLY"
+    },
+    "AR-REWARD-ALLOWANCE": {
+      "category": "AR-REWARD-ALLOWANCE",
+      "ledgerFamily": "CANONICAL_DEBT",
+      "semanticRole": "PAYMENT_REDUCTION",
+      "balanceImpacting": true,
+      "expectedSourceType": [
+        "ORDER_PAYMENT_ALLOCATION"
+      ],
+      "directionPolicy": "CREDIT_ONLY",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [],
+      "replacementFamily": "",
+      "projectionPolicy": "SELECT_BY_OWNERSHIP_RESOLVER"
+    },
+    "AR-BONUS": {
+      "category": "AR-BONUS",
+      "ledgerFamily": "CANONICAL_DEBT",
+      "semanticRole": "PAYMENT_REDUCTION",
+      "balanceImpacting": true,
+      "expectedSourceType": [
+        "ORDER_PAYMENT_ALLOCATION"
+      ],
+      "directionPolicy": "CREDIT_ONLY",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [],
+      "replacementFamily": "",
+      "projectionPolicy": "SELECT_BY_OWNERSHIP_RESOLVER"
+    },
+    "AR-ALLOWANCE": {
+      "category": "AR-ALLOWANCE",
+      "ledgerFamily": "CANONICAL_DEBT",
+      "semanticRole": "PAYMENT_REDUCTION",
+      "balanceImpacting": true,
+      "expectedSourceType": [
+        "ORDER_PAYMENT_ALLOCATION"
+      ],
+      "directionPolicy": "CREDIT_ONLY",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [],
+      "replacementFamily": "",
+      "projectionPolicy": "SELECT_BY_OWNERSHIP_RESOLVER"
+    },
+    "AR-ADJUSTMENT": {
+      "category": "AR-ADJUSTMENT",
+      "ledgerFamily": "CORRECTION_DEBT",
+      "semanticRole": "MANUAL_ADJUSTMENT",
+      "balanceImpacting": true,
+      "expectedSourceType": [],
+      "directionPolicy": "EITHER_SIDE",
+      "mayCoexistWith": [],
+      "cannotCoexistWith": [],
+      "replacementFamily": "",
+      "projectionPolicy": "SELECT_BY_OWNERSHIP_RESOLVER"
+    }
+  }
+}

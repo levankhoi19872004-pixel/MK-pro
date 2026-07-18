@@ -1,0 +1,1 @@
+orderId,orderCode,customerCode,correctionId,correctionVersion,ledgerId,category,currentDebit,currentCredit,actualDebtEffect,expectedDebtDelta,difference,returnDelta,cashDelta,bankDelta,rewardDelta,receivableDelta,alreadyReversed,alreadyRepaired,classification,reasonCode,autoApplicable,risk,proposedAction

@@ -1,0 +1,1 @@
+repairItemId,orderCode,customerCode,semanticRole,businessEventIdentity,classification,reasonCode,projectionShadowedLedgerIds,actualDuplicateLedgerIds,currentNetEffect,expectedNetEffect,duplicateNetEffect,mutationAllowed,autoApplicable,proposedAction,skipReason,risk
