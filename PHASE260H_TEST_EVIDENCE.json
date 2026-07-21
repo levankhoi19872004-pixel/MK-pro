@@ -1,0 +1,87 @@
+{
+  "phase": "Phase260H",
+  "status": "PASS",
+  "sourceZip": "MK-pro-phase260g-payment-financial-component-identity-fixed.zip",
+  "outputZip": "MK-pro-phase260h-warehouse-login-app-target-contract-fixed.zip",
+  "commands": [
+    {
+      "command": "node --test test/phase260h-warehouse-login-app-target-contract.test.js",
+      "exitCode": 0,
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "npm run check:syntax",
+      "exitCode": 0,
+      "passed": 1558,
+      "failed": 0,
+      "skipped": 0,
+      "note": "SYNTAX_OK 1558 JavaScript files"
+    },
+    {
+      "command": "node --test test/access-cookie-csrf-security.test.js test/refresh-token-cookie-security.test.js test/web-auth-rate-limit-static.test.js test/web-auth-fetch-boundary-static.test.js test/mobile-routes-compat.test.js test/mobile-modular-route-boundary-behavior.test.js test/role-catalog-consistency.test.js",
+      "exitCode": 0,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "npm test",
+      "exitCode": 1,
+      "passed": 2019,
+      "failed": 45,
+      "skipped": 3,
+      "note": "Full regression executed and failed on pre-existing/out-of-scope governance, UI, sales-order, artifact-verifier, and source-size tests."
+    }
+  ],
+  "targetedTests": {
+    "passed": 20,
+    "failed": 0,
+    "skipped": 0
+  },
+  "fullRegression": {
+    "executed": true,
+    "passed": 2019,
+    "failed": 45,
+    "skipped": 3,
+    "reasonIfNotExecuted": null,
+    "exitCode": 1,
+    "outOfScopeFailures": [
+      "Express app configures trust proxy before rate limiters",
+      "AR access audit has no unclassified P0/P1 violations after Phase81 governance",
+      "Debt New exposes manual debt popup and posts to canonical new debt API",
+      "Phase92 correction service stays ledger-safe and writes returnOrders only through repository boundary",
+      "delivery mobile bundle no longer contains stale renderCustomerContext bar reference",
+      "Delivery Today selected/KPI/toolbar static cases",
+      "enterprise/global API/graceful shutdown governance cases",
+      "Phase242C/Phase246/Phase247 release governance cases",
+      "Track D release/source verifier cases",
+      "sales-order cancel regression cases",
+      "source artifact verifier/source-size budget cases"
+    ]
+  },
+  "roleTargetMatrixVerified": true,
+  "backendAuthorizationVerified": true,
+  "openRedirectCheck": "PASS",
+  "unknownTargetFailsClosed": true,
+  "unknownRoleFailsClosed": true,
+  "changedFiles": [
+    "public/login.html",
+    "public/js/auth-login.js",
+    "public/mobile/login.html",
+    "public/mobile/js/auth.js"
+  ],
+  "createdFiles": [
+    "public/js/app-target-contract.js",
+    "test/phase260h-warehouse-login-app-target-contract.test.js",
+    "PHASE260H_TEST_EVIDENCE.json",
+    "PHASE260H_WAREHOUSE_LOGIN_APP_TARGET_CONTRACT_REPORT.md",
+    "RELEASE_MANIFEST.json"
+  ],
+  "outOfScopeFilesChanged": [],
+  "knownRisks": [
+    "Full npm test currently fails on unrelated baseline tests outside Phase260H scope; Phase260H targeted and auth/static/mobile regression tests pass.",
+    "Client-side contract only gates navigation UX; backend authorization remains the enforced security boundary."
+  ]
+}

@@ -1,37 +1,43 @@
 {
   "application": "MK-Pro",
-  "releasePhase": "Phase260G",
+  "phase": "Phase260H",
   "releaseVersion": "1.0.0",
-  "releaseId": "Phase260G-1.0.0-20260718",
-  "generatedAt": "2026-07-18T08:11:08.169Z",
+  "releaseId": "Phase260H-1.0.0-20260721",
+  "generatedAt": "2026-07-21T10:37:25.1750655+07:00",
   "timezone": "Asia/Bangkok",
-  "baseline": "MK-pro-phase260f-r4-legacy-adjustment-canonical-backfill-fixed.zip",
-  "baselineSha256": "6e0204bf67c0fbb16ae69bd800687d42cb604fa24af1a66ac192c439194f319f",
-  "zip": "MK-pro-phase260g-payment-financial-component-identity-fixed.zip",
-  "zipSha256": "5214b8988a902b62082e0f895e01a70b0860b6155fd41f67cfa2e0ae1573ed8e",
-  "sourceBundleCheck": "PASS: npm run check:source-bundles",
-  "syntaxCheck": "PASS: npm run check:syntax",
-  "phaseTests": "PASS: Phase260G targeted tests",
-  "productionAudit": {
-    "status": "PRODUCTION_AUDIT_NOT_EXECUTED",
-    "productionFixed": false
-  },
-  "noSchemaChange": true,
-  "noPackageChange": true,
-  "noHardDelete": true,
-  "noDebtV2": true,
-  "noNewCollection": true,
-  "noFundInventoryChange": true,
-  "noRepair": true,
+  "sourceArtifact": "MK-pro-phase260g-payment-financial-component-identity-fixed.zip",
+  "outputArtifact": "MK-pro-phase260h-warehouse-login-app-target-contract-fixed.zip",
+  "outputArtifactSha256": "42635ec80fc4c2ba72cee4fe7db5d8561c82954cb6c3d0754b041dfc25c8a39a",
+  "outputArtifactBytes": 5459949,
   "changedFiles": [
-    "src/domain/ar/debtFinancialComponent.js",
-    "src/domain/ar/debtBusinessEventIdentity.js",
-    "src/domain/ar/DebtLedgerOwnershipResolver.js",
-    "src/services/v2/debtNew.service.js",
-    "src/services/mobile/mobileDebtQuery.service.js",
-    "test/phase260g-financial-component-identity.test.js",
-    "test/phase260d-ownership-resolver.test.js"
+    "public/login.html",
+    "public/js/auth-login.js",
+    "public/mobile/login.html",
+    "public/mobile/js/auth.js"
   ],
-  "zipBytes": 5425195,
-  "manifestNote": "Sidecar SHA256 is authoritative for the final ZIP; workspace manifest is updated after package creation."
+  "createdFiles": [
+    "public/js/app-target-contract.js",
+    "test/phase260h-warehouse-login-app-target-contract.test.js",
+    "PHASE260H_TEST_EVIDENCE.json",
+    "PHASE260H_WAREHOUSE_LOGIN_APP_TARGET_CONTRACT_REPORT.md",
+    "RELEASE_MANIFEST.json"
+  ],
+  "testEvidenceFile": "PHASE260H_TEST_EVIDENCE.json",
+  "reportFile": "PHASE260H_WAREHOUSE_LOGIN_APP_TARGET_CONTRACT_REPORT.md",
+  "verificationStatus": {
+    "phase260hTargetedTests": "PASS",
+    "syntaxCheck": "PASS",
+    "authStaticMobileRegression": "PASS",
+    "fullRegression": "FAIL_OUT_OF_SCOPE_BASELINE",
+    "zipCleanCheck": "PASS"
+  },
+  "securityScope": {
+    "noSchemaChange": true,
+    "noPackageChange": true,
+    "noLoginApiChange": true,
+    "noJwtChange": true,
+    "noSessionCookiePolicyChange": true,
+    "backendWarehouseGuardPreserved": true,
+    "noFinanceInventoryDebtFundBusinessChange": true
+  }
 }

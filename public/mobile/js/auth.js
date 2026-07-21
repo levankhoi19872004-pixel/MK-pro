@@ -3,13 +3,21 @@ import { setMessage } from './ui.js';
 
 const form = document.getElementById('loginForm');
 const message = document.getElementById('loginMessage');
+const appTargetContract = window.AppTargetContract || null;
+const roleHomeTargets = Object.freeze({
+  delivery: 'delivery',
+  sales: 'sales',
+  warehouse: 'warehouse',
+  admin: 'sales',
+  accountant: 'web',
+  manager: 'web'
+});
 
 function getRoleHome(user) {
-  if (user?.role === 'delivery') return './delivery.html';
-  if (user?.role === 'sales') return './sales.html';
-  if (user?.role === 'warehouse') return './warehouse.html';
-  if (user?.role === 'admin') return './sales.html';
-  if (user?.role === 'accountant') return '../index.html';
+  const role = appTargetContract?.normalizeRole(user?.role) || String(user?.role || '').trim().toLowerCase();
+  const targetKey = roleHomeTargets[role] || '';
+  const targetUrl = appTargetContract?.getTargetUrl(targetKey) || '';
+  if (targetUrl) return targetUrl.replace(/^\/mobile\//, './').replace(/^\//, '../');
   return './login.html';
 }
 

@@ -6,7 +6,7 @@
   <title>KHO Minh Khai Pro - Đăng nhập</title>
   <link rel="stylesheet" href="/style.css?v=auth-login-v1" />
   <style>
-    body{min-height:100vh;display:grid;place-items:center;background:#eef3fb;margin:0;font-family:Arial,sans-serif}.login-shell{width:min(440px,92vw);background:#fff;border:1px solid #d9e3f2;border-radius:18px;padding:24px;box-shadow:0 18px 45px rgba(15,34,67,.14)}.login-brand h1{margin:0 0 6px;color:#12346b}.login-brand p{margin:0 0 18px;color:#64748b}.login-form{display:grid;gap:12px}.login-form label{font-weight:700;color:#334155}.login-form input,.login-form select{height:44px;border:1px solid #cbd5e1;border-radius:10px;padding:0 12px}.login-form button{height:46px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:800;cursor:pointer}.login-links{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:14px}.login-links a{text-align:center;text-decoration:none;background:#f1f5f9;border:1px solid #dbe5f3;border-radius:10px;padding:10px 6px;color:#1e3a8a;font-weight:700}.message{min-height:20px;color:#b91c1c}.hint{font-size:12px;color:#64748b;margin-top:10px;line-height:1.45}
+    body{min-height:100vh;display:grid;place-items:center;background:#eef3fb;margin:0;font-family:Arial,sans-serif}.login-shell{width:min(440px,92vw);background:#fff;border:1px solid #d9e3f2;border-radius:18px;padding:24px;box-shadow:0 18px 45px rgba(15,34,67,.14)}.login-brand h1{margin:0 0 6px;color:#12346b}.login-brand p{margin:0 0 18px;color:#64748b}.login-form{display:grid;gap:12px}.login-form label{font-weight:700;color:#334155}.login-form input,.login-form select{height:44px;border:1px solid #cbd5e1;border-radius:10px;padding:0 12px}.login-form button{height:46px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:800;cursor:pointer}.login-links{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:14px}.login-links a{text-align:center;text-decoration:none;background:#f1f5f9;border:1px solid #dbe5f3;border-radius:10px;padding:10px 6px;color:#1e3a8a;font-weight:700;line-height:1.25;min-width:0}.message{min-height:20px;color:#b91c1c}.hint{font-size:12px;color:#64748b;margin-top:10px;line-height:1.45}@media(max-width:420px){.login-shell{padding:20px}.login-links{grid-template-columns:repeat(2,minmax(0,1fr))}}
   </style>
 </head>
 <body>
@@ -21,21 +21,15 @@
       <label>Mật khẩu</label>
       <input id="password" name="password" type="password" autocomplete="current-password" required placeholder="Nhập mật khẩu" />
       <label>Vào màn hình</label>
-      <select id="targetApp" name="targetApp">
-        <option value="web">Phần mềm quản trị</option>
-        <option value="sales">App bán hàng</option>
-        <option value="delivery">App giao hàng</option>
-      </select>
+      <select id="targetApp" name="targetApp" data-default-target="web"></select>
       <button type="submit">Đăng nhập</button>
     </form>
-    <div class="login-links">
-      <a href="/">Phần mềm</a>
-      <a href="/mobile/sales.html">Bán hàng</a>
-      <a href="/mobile/delivery.html">Giao hàng</a>
+    <div id="loginQuickLinks" class="login-links">
     </div>
     <p id="loginMessage" class="message"></p>
-    <p class="hint">Phân quyền: admin vào được tất cả; sales vào App bán hàng; delivery vào App giao hàng; accountant/manager/warehouse vào phần mềm theo nghiệp vụ được phân công.</p>
+    <p class="hint">Phân quyền: admin vào theo cấu hình quản trị; sales dùng App bán hàng; delivery dùng App giao hàng; warehouse có App thủ kho riêng và vẫn vào phần mềm theo nghiệp vụ được phân công; accountant/manager vào phần mềm quản trị theo quyền được phân công.</p>
   </main>
-  <script src="/js/auth-login.js?v=auth-login-v1"></script>
+  <script src="/js/app-target-contract.js?v=phase260h-app-target-contract-v1"></script>
+  <script src="/js/auth-login.js?v=phase260h-app-target-contract-v1"></script>
 </body>
 </html>
