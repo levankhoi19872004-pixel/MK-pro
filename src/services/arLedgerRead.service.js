@@ -25,6 +25,8 @@ const {
   canProjectDetailedAccountingCategoryBySource
 } = require('../domain/ar/arDebtCategoryRegistry');
 const { selectLegacyAdjustmentProjectedRows } = require('../domain/ar/legacyAdjustmentProjectionPolicy');
+const { canonicalDebtOrderIdentity, debtOrderAliasKeys } = require('../utils/debtOrderIdentity.util');
+const { stripStaffScopeFilters } = require('../domain/ar/debtOrderStaffScope');
 
 let models = null;
 function getModels() {
@@ -172,11 +174,21 @@ function appendOrderKeyCondition(match, keys = []) {
       { sourceId: { $in: keys } },
       { salesOrderId: { $in: keys } },
       { orderId: { $in: keys } },
+      { sourceOrderId: { $in: keys } },
+      { canonicalOrderId: { $in: keys } },
+      { canonicalOrderKey: { $in: keys } },
+      { orderKey: { $in: keys } },
       { refId: { $in: keys } },
       { sourceCode: { $in: keys } },
       { salesOrderCode: { $in: keys } },
       { orderCode: { $in: keys } },
-      { refCode: { $in: keys } }
+      { sourceOrderCode: { $in: keys } },
+      { canonicalOrderCode: { $in: keys } },
+      { refCode: { $in: keys } },
+      { 'metadata.salesOrderId': { $in: keys } },
+      { 'metadata.orderId': { $in: keys } },
+      { 'metadata.salesOrderCode': { $in: keys } },
+      { 'metadata.orderCode': { $in: keys } }
     ]
   };
   if (!Array.isArray(match.$and)) match.$and = [];
@@ -313,6 +325,273 @@ async function inspectActiveDebtReadModelLedgersByOrderKeys(orderKeys = [], filt
     canonicalLedgers: canonicalResult.canonicalLedgers,
     rawActiveConfirmedLedgers: rawActiveConfirmedRows.map((row) => ledgerSummary(row, [])),
     excludedLedgers
+  };
+}
+
+
+const DEFAULT_ORDER_SCOPE_LIMIT = 20000;
+const DEFAULT_SCOPE_KEY_BATCH_SIZE = 400;
+const DEFAULT_SCOPE_LEDGER_LIMIT = 100000;
+
+function boundedPositiveInteger(value, fallback, max) {
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, max);
+}
+
+function mongoTextExpression(fieldExpression) {
+  return {
+    $trim: {
+      input: {
+        $toString: { $ifNull: [fieldExpression, ''] }
+      }
+    }
+  };
+}
+
+function firstNonEmptyMongoExpression(expressions = []) {
+  const values = expressions.map((expression) => (
+    typeof expression === 'string' && expression.startsWith('$')
+      ? mongoTextExpression(expression)
+      : expression
+  ));
+  return values.reduceRight((fallback, expression) => ({
+    $cond: [
+      { $gt: [{ $strLenCP: expression }, 0] },
+      expression,
+      fallback
+    ]
+  }), '');
+}
+
+function canonicalOrderKeyMongoExpression() {
+  const correctionSource = firstNonEmptyMongoExpression([
+    '$correctionSourceCode', '$correctionCode', '$correctionSourceId', '$correctionId',
+    '$sourceCode', '$refCode', '$sourceId', '$refId', '$code', '$id'
+  ]);
+  const parsedSalesOrder = {
+    $let: {
+      vars: {
+        match: {
+          $regexFind: {
+            input: correctionSource,
+            regex: /SO[0-9]{8,}/i
+          }
+        }
+      },
+      in: { $ifNull: ['$$match.match', ''] }
+    }
+  };
+  return firstNonEmptyMongoExpression([
+    '$canonicalOrderKey', '$canonicalOrderId', '$salesOrderId', '$orderId', '$sourceOrderId',
+    '$metadata.salesOrderId', '$metadata.orderId', '$orderKey',
+    parsedSalesOrder,
+    '$canonicalOrderCode', '$salesOrderCode', '$orderCode', '$sourceOrderCode',
+    '$metadata.salesOrderCode', '$metadata.orderCode', '$sourceId', '$refId', '$sourceCode', '$refCode'
+  ]);
+}
+
+function buildActiveDebtOrderScopeCandidatePipeline(filters = {}, options = {}) {
+  const maxOrderScopes = boundedPositiveInteger(options.maxOrderScopes, DEFAULT_ORDER_SCOPE_LIMIT, 100000);
+  const match = buildActiveDebtReadModelLedgerMatch({ ...filters, status: 'all' });
+  const aliasFields = [
+    'canonicalOrderKey', 'canonicalOrderId', 'canonicalOrderCode', 'orderKey',
+    'salesOrderId', 'orderId', 'sourceOrderId', 'refId', 'sourceId',
+    'salesOrderCode', 'orderCode', 'sourceOrderCode', 'refCode', 'sourceCode',
+    'returnOrderId', 'returnOrderCode', 'idempotencyKey', 'code', 'id',
+    'metadata.salesOrderId', 'metadata.orderId', 'metadata.salesOrderCode', 'metadata.orderCode'
+  ];
+  const aliasExpressions = aliasFields.map((field) => mongoTextExpression(`$${field}`));
+  return [
+    { $match: match },
+    {
+      $project: {
+        _id: 1,
+        canonicalOrderKey: canonicalOrderKeyMongoExpression(),
+        customerCode: mongoTextExpression('$customerCode'),
+        customerName: mongoTextExpression('$customerName'),
+        aliases: aliasExpressions
+      }
+    },
+    { $match: { canonicalOrderKey: { $ne: '' } } },
+    {
+      $group: {
+        _id: '$canonicalOrderKey',
+        customerCode: { $first: '$customerCode' },
+        customerName: { $first: '$customerName' },
+        aliasGroups: { $push: '$aliases' }
+      }
+    },
+    { $sort: { customerCode: 1, _id: 1 } },
+    { $limit: maxOrderScopes + 1 }
+  ];
+}
+
+function normalizeOrderScopeRows(rows = []) {
+  return (Array.isArray(rows) ? rows : []).map((row) => {
+    const aliases = Array.from(new Set([
+      clean(row._id),
+      ...(Array.isArray(row.aliases) ? row.aliases : []),
+      ...(Array.isArray(row.aliasGroups) ? row.aliasGroups.flat(Infinity) : [])
+    ].map(clean).filter(Boolean)));
+    return {
+      orderKey: clean(row.orderKey || row._id || aliases[0]),
+      customerCode: clean(row.customerCode),
+      customerName: clean(row.customerName),
+      aliases
+    };
+  }).filter((row) => row.orderKey && row.aliases.length);
+}
+
+function buildOrderScopesFromCandidateLedgers(rows = []) {
+  const map = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const identity = canonicalDebtOrderIdentity(row);
+    const orderKey = clean(identity.canonicalOrderKey || row.orderKey || row.sourceId || row.sourceCode || row.id || row.code);
+    if (!orderKey) continue;
+    if (!map.has(orderKey)) {
+      map.set(orderKey, {
+        orderKey,
+        customerCode: clean(row.customerCode),
+        customerName: clean(row.customerName),
+        aliases: new Set()
+      });
+    }
+    const scope = map.get(orderKey);
+    for (const alias of debtOrderAliasKeys(row)) scope.aliases.add(alias);
+    scope.aliases.add(orderKey);
+  }
+  return Array.from(map.values()).map((row) => ({
+    orderKey: row.orderKey,
+    customerCode: row.customerCode,
+    customerName: row.customerName,
+    aliases: Array.from(row.aliases).map(clean).filter(Boolean)
+  }));
+}
+
+async function discoverActiveDebtOrderScopes(filters = {}, options = {}) {
+  const { ArLedger } = getModels();
+  const maxOrderScopes = boundedPositiveInteger(options.maxOrderScopes, DEFAULT_ORDER_SCOPE_LIMIT, 100000);
+  let scopes = [];
+  let strategy = 'mongo-aggregation-order-scope';
+
+  if (ArLedger && typeof ArLedger.aggregate === 'function' && options.disableAggregation !== true) {
+    let aggregate = ArLedger.aggregate(buildActiveDebtOrderScopeCandidatePipeline(filters, { maxOrderScopes }));
+    if (aggregate && typeof aggregate.allowDiskUse === 'function') aggregate = aggregate.allowDiskUse(true);
+    if (options.session && aggregate && typeof aggregate.session === 'function') aggregate = aggregate.session(options.session);
+    const rows = aggregate && typeof aggregate.exec === 'function' ? await aggregate.exec() : await aggregate;
+    scopes = normalizeOrderScopeRows(rows);
+  } else {
+    strategy = 'query-fallback-order-scope';
+    const normalized = normalizeArDebtFilters({ ...filters, status: 'all' });
+    const rows = await queryRows(ArLedger, buildActiveDebtReadModelLedgerMatch(normalized), {
+      ...options,
+      limit: undefined,
+      projection: options.scopeProjection || [
+        '_id', 'id', 'code', 'category', 'ledgerType', 'sourceType',
+        'sourceId', 'sourceCode', 'salesOrderId', 'salesOrderCode', 'orderId', 'orderCode',
+        'sourceOrderId', 'sourceOrderCode', 'refId', 'refCode', 'canonicalOrderId', 'canonicalOrderCode', 'canonicalOrderKey', 'orderKey',
+        'returnOrderId', 'returnOrderCode', 'idempotencyKey', 'customerCode', 'customerName',
+        'salesStaffCode', 'salesmanCode', 'nvbhCode', 'deliveryStaffCode', 'deliveryCode', 'nvghCode',
+        'account', 'accountingConfirmed', 'accountingStatus', 'active', 'reversed', 'isDeleted', 'deleted', 'deletedAt', 'status',
+        'date', 'createdAt', 'debit', 'credit', 'amount', 'direction', 'amountField', 'metadata'
+      ].join(' ')
+    });
+    const result = normalizeAndValidateActiveDebtRows(rows, normalized);
+    scopes = buildOrderScopesFromCandidateLedgers(result.canonicalLedgers);
+  }
+
+  if (scopes.length > maxOrderScopes) {
+    const error = new Error(`Phạm vi công nợ có hơn ${maxOrderScopes} đơn. Hãy thu hẹp điều kiện tìm kiếm.`);
+    error.code = 'DEBT_ORDER_SCOPE_TOO_LARGE';
+    error.status = 422;
+    error.maxOrderScopes = maxOrderScopes;
+    throw error;
+  }
+
+  return {
+    scopes,
+    diagnostics: {
+      strategy,
+      candidateOrderCount: scopes.length,
+      maxOrderScopes,
+      partial: false
+    }
+  };
+}
+
+function exactScopeLedgerFilters(filters = {}) {
+  const stripped = stripStaffScopeFilters(filters);
+  return {
+    tenantId: clean(stripped.tenantId),
+    dateFrom: clean(stripped.dateFrom || stripped.fromDate || stripped.from),
+    dateTo: clean(stripped.dateTo || stripped.toDate || stripped.to),
+    status: 'all'
+  };
+}
+
+async function getActiveDebtReadModelLedgersForOrderScopes(scopes = [], filters = {}, options = {}) {
+  const batchSize = boundedPositiveInteger(options.scopeKeyBatchSize, DEFAULT_SCOPE_KEY_BATCH_SIZE, 1000);
+  const maxLedgerRows = boundedPositiveInteger(options.maxLedgerRows, DEFAULT_SCOPE_LEDGER_LIMIT, 500000);
+  const aliases = Array.from(new Set((Array.isArray(scopes) ? scopes : [])
+    .flatMap((scope) => [scope.orderKey, ...(Array.isArray(scope.aliases) ? scope.aliases : [])])
+    .map(clean)
+    .filter(Boolean)));
+  if (!aliases.length) {
+    return { ledgers: [], diagnostics: { aliasCount: 0, batchCount: 0, ledgerRowsRead: 0, maxLedgerRows, partial: false } };
+  }
+
+  const scopedFilters = exactScopeLedgerFilters(filters);
+  const rows = [];
+  const seen = new Set();
+  let batchCount = 0;
+  for (let index = 0; index < aliases.length; index += batchSize) {
+    const batch = aliases.slice(index, index + batchSize);
+    batchCount += 1;
+    const batchRows = await getActiveDebtReadModelLedgersByOrderKeys(batch, scopedFilters, {
+      ...options,
+      limit: undefined
+    });
+    for (const row of Array.isArray(batchRows) ? batchRows : []) {
+      const key = clean(row.id || row.code || row._id || row.idempotencyKey)
+        || `${clean(row.customerCode)}::${clean(row.sourceId || row.sourceCode)}::${clean(row.category)}::${rows.length}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push(row);
+      if (rows.length > maxLedgerRows) {
+        const error = new Error(`Phạm vi công nợ có hơn ${maxLedgerRows} bút toán. Hãy thu hẹp điều kiện tìm kiếm.`);
+        error.code = 'DEBT_LEDGER_SCOPE_TOO_LARGE';
+        error.status = 422;
+        error.maxLedgerRows = maxLedgerRows;
+        throw error;
+      }
+    }
+  }
+  return {
+    ledgers: rows,
+    diagnostics: {
+      aliasCount: aliases.length,
+      batchCount,
+      ledgerRowsRead: rows.length,
+      maxLedgerRows,
+      partial: false
+    }
+  };
+}
+
+async function getExactActiveDebtReadModelScope(filters = {}, options = {}) {
+  const discovery = await discoverActiveDebtOrderScopes(filters, options);
+  const ledgerResult = await getActiveDebtReadModelLedgersForOrderScopes(discovery.scopes, filters, options);
+  return {
+    scopes: discovery.scopes,
+    canonicalLedgers: ledgerResult.ledgers,
+    diagnostics: {
+      ...discovery.diagnostics,
+      ...ledgerResult.diagnostics,
+      exactScope: true,
+      filterBeforeAggregation: false,
+      rawLedgerLimitApplied: false
+    }
   };
 }
 
@@ -465,6 +744,10 @@ module.exports = {
   getSignedArAmount,
   getCanonicalArLedgers,
   getActiveDebtReadModelLedgers,
+  discoverActiveDebtOrderScopes,
+  getActiveDebtReadModelLedgersForOrderScopes,
+  getExactActiveDebtReadModelScope,
+  buildActiveDebtOrderScopeCandidatePipeline,
   findArLedgerRowsByRawMatch,
   getCanonicalLedgersByRawMatch,
   getCanonicalLedgersByCustomer,
@@ -479,6 +762,10 @@ module.exports = {
   _internal: {
     normalizeAndValidateRows,
     normalizeAndValidateActiveDebtRows,
+    normalizeOrderScopeRows,
+    buildOrderScopesFromCandidateLedgers,
+    exactScopeLedgerFilters,
+    canonicalOrderKeyMongoExpression,
     aggregateRowsByOrder,
     aggregateRowsByCustomer,
     appendOrderKeyCondition,

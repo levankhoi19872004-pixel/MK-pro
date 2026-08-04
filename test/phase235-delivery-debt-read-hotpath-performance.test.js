@@ -158,7 +158,7 @@ test('Phase235 Delivery Today keeps fixed query count and hot-path projections',
   }
 });
 
-test('Phase235 Debt New applies ArLedger limit and projections before grouping', async () => {
+test('Phase235 Debt New reads exact order scope and never truncates raw ledgers before grouping', async () => {
   const state = tracker();
   debtNewService.setModelsForTest({
     ArLedger: model('ArLedger', arLedgerRows(2000), state),
@@ -170,26 +170,20 @@ test('Phase235 Debt New applies ArLedger limit and projections before grouping',
     const result = await debtNewService.listCustomers({
       customerCode: 'C1',
       status: 'all',
-      limit: 500
+      customerLimit: 500
     });
 
-    assert.equal(state.counts.ArLedger, 1);
+    assert.equal(result.ledgers.length, 2000);
+    assert.equal(result.summary.ledgerRowsRead, 2000);
+    assert.equal(result.summary.truncatedWorkingSet, false);
+    assert.equal(result.summary.rawLedgerLimitApplied, false);
+    assert.equal(result.diagnostics.performance.exactOrderScope, true);
+    assert.equal(result.diagnostics.performance.boundedLedgerRead, false);
+    assert.equal(result.diagnostics.scope.filterBeforeAggregation, false);
+    assert.equal(state.limits.some((item) => item.name === 'ArLedger'), false);
     assert.equal(state.counts.OrderPaymentAllocation, 1);
     assert.equal(state.counts.DebtCollection, 1);
-    assert.deepEqual(state.limits.map((item) => [item.name, item.value]), [
-      ['ArLedger', 500],
-      ['OrderPaymentAllocation', 5000],
-      ['DebtCollection', 5000]
-    ]);
-    assert.equal(state.rowsReturned.ArLedger, 500);
-    assert.equal(result.ledgers.length, 500);
-    assert.equal(result.diagnostics.performance.queryCount, 3);
-    assert.equal(result.diagnostics.performance.boundedLedgerRead, true);
-    assert.deepEqual(state.selects.map((item) => item.name), [
-      'ArLedger',
-      'OrderPaymentAllocation',
-      'DebtCollection'
-    ]);
+    assert.ok((state.counts.ArLedger || 0) >= 2, 'fallback uses scope discovery plus batched full-ledger reads');
   } finally {
     debtNewService.setModelsForTest(null);
   }

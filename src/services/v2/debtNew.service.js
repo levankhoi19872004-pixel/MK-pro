@@ -18,6 +18,10 @@ const {
 const { projectBalanceFromTotals, applyDebtProjection } = require('../accounting/LegacyDebtProjector');
 const { resolveDebtLedgerOwnership } = require('../../domain/ar/DebtLedgerOwnershipResolver');
 const {
+  resolveCanonicalOrderStaffOwnership,
+  orderMatchesStaffScope
+} = require('../../domain/ar/debtOrderStaffScope');
+const {
   isLegacyAdjustment,
   ledgerId: legacyAdjustmentLedgerId,
   classifyLegacyAdjustmentProjection,
@@ -533,17 +537,15 @@ function movementFromLedger(row = {}, projection = {}) {
 async function loadCustomerHistoryMovements(customerCode = '', grouped = {}, options = {}) {
   const rx = exactRegex(customerCode);
   if (!rx) return [];
-  const { ArLedger } = getDebtNewModels();
-  let query = ArLedger.find({
+  const rows = await arLedgerReadService.findArLedgerRowsByRawMatch({
     account: 'AR',
     $or: [{ customerCode: rx }, { customerId: rx }]
+  }, {
+    session: options.session,
+    projection: AR_LEDGER_DEBT_HOT_PATH_PROJECTION,
+    sort: { date: 1, createdAt: 1, _id: 1 },
+    limit: Math.max(1, Math.min(1000, Number(options.historyLimit || 500) || 500))
   });
-  if (options.session && typeof query.session === 'function') query = query.session(options.session);
-  if (typeof query.select === 'function') query = query.select(AR_LEDGER_DEBT_HOT_PATH_PROJECTION);
-  if (typeof query.sort === 'function') query = query.sort({ date: 1, createdAt: 1, _id: 1 });
-  if (typeof query.limit === 'function') query = query.limit(Math.max(1, Math.min(1000, Number(options.historyLimit || 500) || 500)));
-  if (typeof query.lean === 'function') query = query.lean();
-  const rows = await query;
   const projection = {
     includedIds: new Set((grouped.ledgers || []).flatMap((row) => [ledgerId(row), text(row.code)].filter(Boolean))),
     shadowedIds: new Set((grouped.shadowedLedgers || []).flatMap((row) => [ledgerId(row), text(row.code)].filter(Boolean))),
@@ -591,6 +593,12 @@ function groupLedgers(ledgerRows = [], query = {}) {
     if (isLegacyAdjustment(annotated) && annotated.projectionIncluded !== false) pushSelected(annotated);
   }
 
+  // Staff scope is an order-level property. Resolve it from the complete set
+  // of canonical ledgers for each order before applying NVBH/NVGH filters.
+  // This prevents payment/return ledgers with missing staff fields from being
+  // excluded before debit/credit aggregation.
+  const canonicalStaffOwnership = resolveCanonicalOrderStaffOwnership(selectedLedgers);
+
   const orderMap = new Map();
   for (const ledger of selectedLedgers) {
     const key = `${ledger.customerCode || ledger.customerName}::${ledger.orderKey}`;
@@ -612,10 +620,15 @@ function groupLedgers(ledgerRows = [], query = {}) {
         correctionSourceCode: ledger.correctionSourceCode || (isCloseoutCorrectionKey(ledger.sourceCode) ? ledger.sourceCode : ''),
         identityWarning: ledger.identityWarning || '',
         orderDate: ledger.date,
-        salesStaffCode: ledger.salesStaffCode,
-        salesStaffName: ledger.salesStaffName,
-        deliveryStaffCode: ledger.deliveryStaffCode,
-        deliveryStaffName: ledger.deliveryStaffName,
+        salesStaffCode: (canonicalStaffOwnership.get(key)?.sales?.code || ledger.salesStaffCode),
+        salesStaffName: (canonicalStaffOwnership.get(key)?.sales?.name || ledger.salesStaffName),
+        deliveryStaffCode: (canonicalStaffOwnership.get(key)?.delivery?.code || ledger.deliveryStaffCode),
+        deliveryStaffName: (canonicalStaffOwnership.get(key)?.delivery?.name || ledger.deliveryStaffName),
+        staffOwnershipConflict: Boolean(canonicalStaffOwnership.get(key)?.sales?.conflict || canonicalStaffOwnership.get(key)?.delivery?.conflict),
+        staffOwnershipDiagnostics: canonicalStaffOwnership.get(key) ? {
+          salesConflictingCodes: canonicalStaffOwnership.get(key).sales.conflictingCodes,
+          deliveryConflictingCodes: canonicalStaffOwnership.get(key).delivery.conflictingCodes
+        } : null,
         debit: 0,
         credit: 0,
         debt: 0,
@@ -663,6 +676,8 @@ function groupLedgers(ledgerRows = [], query = {}) {
     row.displayStatus = projection.displayStatus;
     return row;
   });
+
+  orders = orders.filter((row) => orderMatchesStaffScope(row, query));
 
   const status = text(query.status || '').toLowerCase();
   if (!status || status === 'open') orders = orders.filter((row) => row.debtAmount > 0 && row.displayStatus !== 'settled_by_tolerance');
@@ -767,6 +782,7 @@ function groupLedgers(ledgerRows = [], query = {}) {
   summary.unresolvedLedgerCount = ownership.unresolvedEntries.length;
   summary.legacyFallbackAdjustmentCount = selectedLedgers.filter((row) => row.legacyFallback === true).length;
   summary.unresolvedAdjustmentCount = selectedLedgers.filter((row) => row.projectionStatus === 'UNRESOLVED' || row.warningCode === 'LEGACY_ADJUSTMENT_SOURCE_UNRESOLVED').length;
+  summary.staffOwnershipConflictOrderCount = orders.filter((row) => row.staffOwnershipConflict === true).length;
 
   return {
     ledgers: selectedLedgers,
@@ -783,6 +799,59 @@ function groupLedgers(ledgerRows = [], query = {}) {
   };
 }
 
+function customerPageContract(query = {}) {
+  const page = Math.max(1, Math.floor(Number(query.page || query.customerPage || 1)) || 1);
+  const requestedLimit = Number(query.customerLimit || query.pageSize || query.limit || 500);
+  const limit = Math.max(1, Math.min(500, Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 500));
+  return { page, limit, skip: (page - 1) * limit };
+}
+
+function ledgerBelongsToPage(row = {}, customerCodes = new Set(), orderKeys = new Set()) {
+  const customerCode = upper(row.customerCode || row.customerId);
+  if (customerCode && customerCodes.has(customerCode)) return true;
+  return debtNewOrderKeys(row).some((key) => orderKeys.has(upper(key)));
+}
+
+function paginateGroupedCustomers(grouped = {}, query = {}) {
+  const { page, limit, skip } = customerPageContract(query);
+  const allCustomers = Array.isArray(grouped.customers) ? grouped.customers : [];
+  const customers = allCustomers.slice(skip, skip + limit);
+  const customerCodes = new Set(customers.map((row) => upper(row.customerCode || row.id)).filter(Boolean));
+  const orders = customers.flatMap((row) => Array.isArray(row.orders) ? row.orders : []);
+  const orderKeys = new Set(orders.flatMap(debtNewOrderKeys).map(upper).filter(Boolean));
+  const totalRows = allCustomers.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / limit));
+  const pageFilter = (row) => ledgerBelongsToPage(row, customerCodes, orderKeys);
+  const output = {
+    ...grouped,
+    customers,
+    orders,
+    ledgers: (grouped.ledgers || []).filter(pageFilter),
+    allLedgers: (grouped.allLedgers || []).filter(pageFilter),
+    shadowedLedgers: (grouped.shadowedLedgers || []).filter(pageFilter),
+    unresolvedLedgers: (grouped.unresolvedLedgers || []).filter(pageFilter),
+    unsupportedLedgers: (grouped.unsupportedLedgers || []).filter(pageFilter),
+    pagination: {
+      page,
+      limit,
+      totalRows,
+      total: totalRows,
+      totalPages,
+      hasMore: page < totalPages,
+      nextPage: page < totalPages ? page + 1 : null,
+      exactCustomerPagination: true,
+      appliedAfterOrderAggregation: true
+    }
+  };
+  if (output.summary) {
+    output.summary.pageCustomerCount = customers.length;
+    output.summary.pageOrderCount = orders.length;
+    output.summary.customerPage = page;
+    output.summary.customerPageLimit = limit;
+  }
+  return output;
+}
+
 async function listCustomers(query = {}, options = {}) {
   const startedAt = Date.now();
   if (!hasSearchCriteria(query)) {
@@ -793,62 +862,77 @@ async function listCustomers(query = {}, options = {}) {
     const textSearch = text(normalizedQuery.customerName || normalizedQuery.phone);
     if (textSearch) normalizedQuery.q = textSearch;
   }
-  const limit = Math.max(1, Math.min(500, Number(normalizedQuery.ledgerLimit || normalizedQuery.limit || 500)));
-  const ledgerRows = await arLedgerReadService.getActiveDebtReadModelLedgers({
+
+  const exactScope = await arLedgerReadService.getExactActiveDebtReadModelScope({
     ...normalizedQuery,
-    limit,
     status: 'all'
   }, {
     ...options,
-    limit,
     projection: AR_LEDGER_DEBT_HOT_PATH_PROJECTION
   });
-  const grouped = groupLedgers(ledgerRows, normalizedQuery);
-  const boundedSummary = ledgerRows.length >= limit;
+  const grouped = groupLedgers(exactScope.canonicalLedgers, normalizedQuery);
   if (grouped.summary) {
-    grouped.summary.scopeType = 'EXACT_SCOPE';
-    grouped.summary.boundedLedgerRead = true;
-    grouped.summary.ledgerLimit = limit;
-    grouped.summary.ledgerRowsRead = ledgerRows.length;
-    grouped.summary.truncatedWorkingSet = boundedSummary;
+    grouped.summary.scopeType = 'EXACT_ORDER_SCOPE';
+    grouped.summary.boundedLedgerRead = false;
+    grouped.summary.ledgerLimit = null;
+    grouped.summary.ledgerRowsRead = exactScope.canonicalLedgers.length;
+    grouped.summary.truncatedWorkingSet = false;
+    grouped.summary.rawLedgerLimitApplied = false;
+    grouped.summary.candidateOrderCount = exactScope.scopes.length;
   }
+
   const [allocationRows, pendingRows] = await Promise.all([
     loadPaymentAllocationsForOrders(grouped.orders || [], options).catch(() => []),
     loadPendingCollectionsForOrders(grouped.orders || [], options).catch(() => [])
   ]);
   attachPaymentAllocationState(grouped, allocationRows);
   await attachCollectibleState(grouped, pendingAmountByOrder(pendingRows));
+
+  const paged = paginateGroupedCustomers(grouped, normalizedQuery);
+  const warnings = [];
+  if ((grouped.summary?.staffOwnershipConflictOrderCount || 0) > 0) {
+    warnings.push('Có đơn chứa nhiều mã nhân viên trên các bút toán; hệ thống đã dùng quyền sở hữu canonical của đơn và ghi diagnostics để đối chiếu.');
+  }
+  const scopeQueryCount = exactScope.diagnostics.strategy === 'mongo-aggregation-order-scope'
+    ? 1 + Number(exactScope.diagnostics.batchCount || 0)
+    : 1 + Number(exactScope.diagnostics.batchCount || 0);
   return {
-    ...grouped,
-    sourceNote: buildDebtSourceNote('debt-by-customer', normalizedQuery, boundedSummary ? ['KPI công nợ New đang bị giới hạn bởi ledgerLimit; cần thu hẹp bộ lọc hoặc dùng báo cáo AR Ledger để xem full scope.'] : []),
+    ...paged,
+    sourceNote: buildDebtSourceNote('debt-by-customer', normalizedQuery, warnings),
     diagnostics: {
-      source: 'debt-new-v2-ar-debt-read-model',
+      source: 'debt-new-v2-exact-order-scope-ar-ledgers',
       endpoint: '/api/new/debt/customers',
       hasSearchCriteria: hasSearchCriteria(query),
       searchCriteriaRequired: false,
       allowedCategories: ALLOWED_CATEGORIES,
       excludedLegacyCategories: EXCLUDED_DEBT_READ_MODEL_CATEGORIES,
+      scope: exactScope.diagnostics,
+      pagination: paged.pagination,
       performance: {
         durationMs: Math.max(0, Date.now() - startedAt),
-        queryCount: ((grouped.orders || []).length ? 3 : 1),
-        fixedQueryCount: true,
-        boundedLedgerRead: true,
-        ledgerLimit: limit,
-        ledgerRowsRead: ledgerRows.length,
-        truncatedWorkingSet: boundedSummary,
-        nPlusOneGuard: 'single arLedgers read plus two independent batch joins; no per-order query',
+        queryCount: scopeQueryCount + ((grouped.orders || []).length ? 2 : 0),
+        fixedQueryCount: false,
+        exactOrderScope: true,
+        boundedLedgerRead: false,
+        rawLedgerLimitApplied: false,
+        ledgerRowsRead: exactScope.canonicalLedgers.length,
+        truncatedWorkingSet: false,
+        candidateOrderCount: exactScope.scopes.length,
+        orderKeyBatchCount: Number(exactScope.diagnostics.batchCount || 0),
+        nPlusOneGuard: 'order-scope discovery plus batched full-ledger reads; no per-order query',
         parallelBatchReads: grouped.orders && grouped.orders.length ? ['orderPaymentAllocations', 'debtCollections'] : [],
         projections: [
+          'ar-ledger-order-scope-candidate-v1',
           'ar-ledger-debt-hot-path-v1',
           'order-payment-allocation-debt-hot-path-v1',
           'debt-collection-pending-hot-path-v1'
         ]
       },
+      assignmentPolicy: 'NVBH/NVGH are resolved at canonical order scope before staff filtering; all eligible debit/credit ledgers for matching orders are aggregated.',
       writePolicy: 'read-only from canonical arLedgers; payment allocation detail is joined from orderPaymentAllocations; submitted debt collections do not reduce official debt until accounting confirm'
     }
   };
 }
-
 
 
 

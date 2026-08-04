@@ -54,18 +54,21 @@ function buildMobileDebtNewQuery({ query = {}, mobileUser = {}, user = {} } = {}
   const includePaid = String(query.includePaid || '0') === '1';
   const status = text(query.status) || (includePaid ? 'all' : 'open');
 
+  const pagination = parseMobilePagination(query, { defaultLimit: 30, maxLimit: 100 });
   const scopedQuery = {
     ...query,
     status,
     includePendingCollections: query.includePendingCollections ?? '1',
     source: 'mobile-sales-debtnew',
-    // DebtNewService uses limit as ledgerLimit. Mobile page limit must not truncate
-    // canonical AR rows before grouping, so keep the web-like default ledger window.
-    ledgerLimit: query.ledgerLimit || query.rawLimit || 500
+    page: pagination.page,
+    customerLimit: pagination.limit
   };
 
+  // Raw ledger limits are retired. DebtNewService discovers the exact order
+  // scope first and applies pagination only after canonical order/customer
+  // aggregation.
   delete scopedQuery.limit;
-  delete scopedQuery.page;
+  delete scopedQuery.ledgerLimit;
   delete scopedQuery.rawLimit;
 
   if (query.customerKeyword && !scopedQuery.q) scopedQuery.q = query.customerKeyword;
@@ -249,15 +252,24 @@ function mapDebtNewSummaryToMobile(result = {}, items = [], allCustomers = []) {
 
 function mapDebtNewResultToMobileDebtResponse(result = {}, options = {}) {
   const query = options.query || {};
-  const { page, limit, skip } = parseMobilePagination(query, { defaultLimit: 30, maxLimit: 100 });
+  const requested = parseMobilePagination(query, { defaultLimit: 30, maxLimit: 100 });
   const allCustomers = (Array.isArray(result.customers) ? result.customers : []).map(mapDebtNewCustomerToMobile);
   const includePaid = String(query.includePaid || '0') === '1';
   const visibleCustomers = includePaid ? allCustomers : allCustomers.filter((row) => row.debtAmount > 0 || row.pendingCollectedAmount > 0);
-  const items = visibleCustomers.slice(skip, skip + limit);
-  const pagination = buildPagination({ page, limit, totalRows: visibleCustomers.length });
-  pagination.total = pagination.totalRows;
-  pagination.nextPage = pagination.hasMore ? page + 1 : null;
-  pagination.totalPages = pagination.totalPages || Math.ceil((pagination.totalRows || 0) / limit);
+  const backendPagination = result.pagination && result.pagination.exactCustomerPagination === true
+    ? result.pagination
+    : null;
+  const items = backendPagination ? visibleCustomers : visibleCustomers.slice(requested.skip, requested.skip + requested.limit);
+  const pagination = backendPagination
+    ? {
+        ...backendPagination,
+        total: backendPagination.totalRows,
+        nextPage: backendPagination.hasMore ? backendPagination.page + 1 : null
+      }
+    : buildPagination({ page: requested.page, limit: requested.limit, totalRows: visibleCustomers.length });
+  pagination.total = pagination.total ?? pagination.totalRows;
+  pagination.nextPage = pagination.nextPage ?? (pagination.hasMore ? pagination.page + 1 : null);
+  pagination.totalPages = pagination.totalPages || Math.ceil((pagination.totalRows || 0) / pagination.limit);
 
   return {
     ok: true,

@@ -89,7 +89,9 @@ test('mobile debt query builder scopes sales mobile user by exact NVBH code', ()
   assert.equal(scoped.salesStaffCode, '42162');
   assert.equal(scoped.collectorType, 'sales');
   assert.equal(scoped.status, 'open');
-  assert.equal(scoped.ledgerLimit, 500);
-  assert.equal(Object.prototype.hasOwnProperty.call(scoped, 'page'), false);
+  assert.equal(scoped.page, 2);
+  assert.equal(scoped.customerLimit, 10);
+  assert.equal(Object.prototype.hasOwnProperty.call(scoped, 'ledgerLimit'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(scoped, 'rawLimit'), false);
   assert.equal(Object.prototype.hasOwnProperty.call(scoped, 'limit'), false);
 });
