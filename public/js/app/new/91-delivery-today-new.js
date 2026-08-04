@@ -12,7 +12,7 @@
       active: { search: -1, salesman: -1, delivery: -1 },
       loading: { search: false, salesman: false, delivery: false }
     },
-    versionCache: {}, correctionReturnItems: [], adjustmentRow: null, adjustmentViewOnly: false, activeTab: 'overview', selectedSalesmanKeys: {}, salesmanGroups: [], selectedOrderIds: new Set(), closeoutBusy: false, bulkAdjustmentBusy: false, modalNotice: { closeout: null, adjustment: null }, modalLoading: { closeout: false, adjustment: false }, deepLinkTargetKey: '', deepLinkRequestSeq: 0, deepLinkAppliedHash: '', commandLocks: {}, loadAbortController: null, sourceMeta: null, sourceBreakdown: null
+    versionCache: {}, correctionReturnItems: [], adjustmentRow: null, adjustmentViewOnly: false, activeTab: 'overview', adjustmentDirty: { payment: false, returns: false }, adjustmentPaymentDraft: null, selectedSalesmanKeys: {}, salesmanGroups: [], selectedOrderIds: new Set(), closeoutBusy: false, bulkAdjustmentBusy: false, modalNotice: { closeout: null, adjustment: null }, modalLoading: { closeout: false, adjustment: false }, deepLinkTargetKey: '', deepLinkRequestSeq: 0, deepLinkAppliedHash: '', commandLocks: {}, loadAbortController: null, sourceMeta: null, sourceBreakdown: null
   };
 
   function byId(id) { return document.getElementById(id); }
@@ -1674,7 +1674,10 @@
       if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tải được dữ liệu hàng trả');
       var rows = json.returnRows || (json.data && json.data.returnRows) || json.rows || [];
       if (state.adjustmentRow && rowKey(state.adjustmentRow) === rowKey(row)) {
-        state.correctionReturnItems = normalizeReturnEditRows(rows);
+        if (!(state.adjustmentDirty && state.adjustmentDirty.returns)) {
+          state.correctionReturnItems = normalizeReturnEditRows(rows);
+        }
+        refreshAdjustmentDirtyState(row);
         renderAdjustmentTab(row);
       }
     } catch (err) {
@@ -1682,6 +1685,90 @@
         setModalNotice('adjustment', (err.message || 'Không tải được dữ liệu hàng trả') + '. Tạm hiển thị dữ liệu đang có trên danh sách.', 'warning');
       }
     }
+  }
+
+  function paymentBaseline(row) {
+    return {
+      cashAmount: parseVietnameseMoney(row && row.cashAmount),
+      bankAmount: parseVietnameseMoney(row && row.bankAmount),
+      rewardAmount: parseVietnameseMoney(row && row.rewardAmount) + parseVietnameseMoney(row && row.offsetAmount)
+    };
+  }
+
+  function resetAdjustmentDraft(row) {
+    var baseline = paymentBaseline(row);
+    state.adjustmentPaymentDraft = {
+      cashAmount: baseline.cashAmount,
+      bankAmount: baseline.bankAmount,
+      rewardAmount: baseline.rewardAmount
+    };
+    state.adjustmentDirty = { payment: false, returns: false };
+  }
+
+  function capturePaymentDraftFromInputs(row) {
+    var baseline = paymentBaseline(row);
+    var draft = state.adjustmentPaymentDraft || baseline;
+    var cashInput = byId('deliveryAdjustCashNew');
+    var bankInput = byId('deliveryAdjustBankNew');
+    var rewardInput = byId('deliveryAdjustRewardNew');
+    state.adjustmentPaymentDraft = {
+      cashAmount: readCorrectedMoney(cashInput ? cashInput.value : draft.cashAmount, baseline.cashAmount),
+      bankAmount: readCorrectedMoney(bankInput ? bankInput.value : draft.bankAmount, baseline.bankAmount),
+      rewardAmount: readCorrectedMoney(rewardInput ? rewardInput.value : draft.rewardAmount, baseline.rewardAmount)
+    };
+    return state.adjustmentPaymentDraft;
+  }
+
+  function refreshAdjustmentDirtyState(row) {
+    var baseline = paymentBaseline(row);
+    var draft = capturePaymentDraftFromInputs(row);
+    var paymentDirty = num(draft.cashAmount) !== num(baseline.cashAmount)
+      || num(draft.bankAmount) !== num(baseline.bankAmount)
+      || num(draft.rewardAmount) !== num(baseline.rewardAmount);
+    var returnDirty = (state.correctionReturnItems || []).some(function (item) {
+      return qty(item.newReturnQty) !== qty(item.oldReturnQty);
+    });
+    state.adjustmentDirty = { payment: paymentDirty, returns: returnDirty };
+    return state.adjustmentDirty;
+  }
+
+  function expectedAdjustmentVersion(row) {
+    if (!row) return '';
+    var closeout = row.deliveryCloseout && typeof row.deliveryCloseout === 'object' ? row.deliveryCloseout : {};
+    var candidates = [
+      row.latestCorrectionVersion,
+      row.correctionVersion,
+      row.closeoutVersion,
+      closeout.closeoutVersion,
+      closeout.version,
+      row.version
+    ];
+    for (var index = 0; index < candidates.length; index += 1) {
+      var value = candidates[index];
+      if (value === undefined || value === null || value === '') continue;
+      var numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric <= 0) continue;
+      return String(value);
+    }
+    return '0';
+  }
+
+  function operationIntentForPopup(row, paymentChanged, returnChanged) {
+    if (isConfirmed(row)) return 'POST_CLOSEOUT_CORRECTION';
+    if (paymentChanged && returnChanged) return 'COMBINED';
+    if (returnChanged) return 'RETURN_ONLY';
+    return 'PAYMENT_ONLY';
+  }
+
+  function minimalReturnMutationItems(items) {
+    return (Array.isArray(items) ? items : []).map(function (item) {
+      return {
+        productCode: item.productCode || '',
+        productName: item.productName || '',
+        newReturnQty: qty(item.newReturnQty),
+        desiredReturnQty: qty(item.newReturnQty)
+      };
+    });
   }
 
   function buildReturnEditItems(row) {
@@ -1748,16 +1835,18 @@
   function totalsFromPopup(row) {
     var returnItems = currentReturnEditItems();
     var oldReturn = num(row.returnedAmount);
-    var returnAfter = returnItems.length
-      ? returnItems.reduce(function (sum, item) { return sum + Math.round(qty(item.newReturnQty) * num(item.unitPrice)); }, 0)
-      : oldReturn;
-    var returnDelta = returnItems.length ? (returnAfter - oldReturn) : 0;
-    var oldCash = parseVietnameseMoney(row.cashAmount);
-    var oldBank = parseVietnameseMoney(row.bankAmount);
-    var oldReward = parseVietnameseMoney(row.rewardAmount) + parseVietnameseMoney(row.offsetAmount);
-    var newCash = readCorrectedMoney(byId('deliveryAdjustCashNew') ? byId('deliveryAdjustCashNew').value : '', oldCash);
-    var newBank = readCorrectedMoney(byId('deliveryAdjustBankNew') ? byId('deliveryAdjustBankNew').value : '', oldBank);
-    var newReward = readCorrectedMoney(byId('deliveryAdjustRewardNew') ? byId('deliveryAdjustRewardNew').value : '', oldReward);
+    var returnDelta = returnItems.reduce(function (sum, item) {
+      return sum + num(item.adjustmentAmount);
+    }, 0);
+    var returnAfter = oldReturn + returnDelta;
+    var baseline = paymentBaseline(row);
+    var paymentDraft = capturePaymentDraftFromInputs(row);
+    var oldCash = baseline.cashAmount;
+    var oldBank = baseline.bankAmount;
+    var oldReward = baseline.rewardAmount;
+    var newCash = paymentDraft.cashAmount;
+    var newBank = paymentDraft.bankAmount;
+    var newReward = paymentDraft.rewardAmount;
     var currentCashAmount = oldCash;
     var correctedCashAmount = newCash;
     var currentBankAmount = oldBank;
@@ -1876,16 +1965,17 @@
     var currentCash = parseVietnameseMoney(row.cashAmount);
     var currentBank = parseVietnameseMoney(row.bankAmount);
     var reward = parseVietnameseMoney(row.rewardAmount) + parseVietnameseMoney(row.offsetAmount);
+    var draft = state.adjustmentPaymentDraft || { cashAmount: currentCash, bankAmount: currentBank, rewardAmount: reward };
     var warning = (currentCash < 0 || currentBank < 0 || reward < 0)
       ? '<div class="delivery-new-safe-note delivery-new-correction-warning">Dữ liệu tiền thu hiện tại đang âm. Vui lòng kiểm tra phiên điều chỉnh trước hoặc chạy audit dữ liệu; vẫn có thể nhập giá trị đúng không âm để tạo version điều chỉnh.</div>'
       : '';
     return warning + '<div class="delivery-new-form-grid">' +
       '<label>Tiền mặt hiện tại<input disabled value="' + esc(money(currentCash)) + '"></label>' +
-      '<label>Tiền mặt sau điều chỉnh<input id="deliveryAdjustCashNew" class="delivery-new-money-input" inputmode="numeric" placeholder="Nhập số tiền cuối cùng" value="' + esc(money(Math.max(0, currentCash))) + '"></label>' +
+      '<label>Tiền mặt sau điều chỉnh<input id="deliveryAdjustCashNew" class="delivery-new-money-input" inputmode="numeric" placeholder="Nhập số tiền cuối cùng" value="' + esc(money(Math.max(0, draft.cashAmount))) + '"></label>' +
       '<label>Chuyển khoản hiện tại<input disabled value="' + esc(money(currentBank)) + '"></label>' +
-      '<label>Chuyển khoản sau điều chỉnh<input id="deliveryAdjustBankNew" class="delivery-new-money-input" inputmode="numeric" placeholder="Nhập số tiền cuối cùng" value="' + esc(money(Math.max(0, currentBank))) + '"></label>' +
+      '<label>Chuyển khoản sau điều chỉnh<input id="deliveryAdjustBankNew" class="delivery-new-money-input" inputmode="numeric" placeholder="Nhập số tiền cuối cùng" value="' + esc(money(Math.max(0, draft.bankAmount))) + '"></label>' +
       '<label>Trả thưởng hiện tại<input disabled value="' + esc(money(reward)) + '"></label>' +
-      '<label>Trả thưởng sau điều chỉnh<input id="deliveryAdjustRewardNew" class="delivery-new-money-input" inputmode="numeric" placeholder="Nhập số tiền cuối cùng" value="' + esc(money(Math.max(0, reward))) + '"></label>' +
+      '<label>Trả thưởng sau điều chỉnh<input id="deliveryAdjustRewardNew" class="delivery-new-money-input" inputmode="numeric" placeholder="Nhập số tiền cuối cùng" value="' + esc(money(Math.max(0, draft.rewardAmount))) + '"></label>' +
       '</div>' +
       '<div class="delivery-new-safe-note delivery-new-final-amount-note">Nhập số tiền cuối cùng muốn ghi nhận. Hệ thống lưu giá trị này làm trạng thái mới; chênh lệch chỉ dùng để ghi lịch sử.</div>' +
       '<div class="delivery-new-preview-cards">' +
@@ -1965,17 +2055,24 @@
           setModalError('adjustment', 'Số lượng trả không được vượt quá số lượng giao.');
         }
         if (item) item.newReturnQty = qty(input.value);
+        refreshAdjustmentDirtyState(row);
         updateAdjustmentPreview(row);
       });
     });
     ['deliveryAdjustCashNew', 'deliveryAdjustBankNew', 'deliveryAdjustRewardNew'].forEach(function (id) {
       var el = byId(id);
       if (el) {
-        el.addEventListener('input', function () { updateAdjustmentPreview(row); });
+        el.addEventListener('input', function () {
+          capturePaymentDraftFromInputs(row);
+          refreshAdjustmentDirtyState(row);
+          updateAdjustmentPreview(row);
+        });
         el.addEventListener('blur', function () {
           if (hasMoneyInputValue(el.value)) {
             el.value = formatVietnameseMoney(el.value);
           }
+          capturePaymentDraftFromInputs(row);
+          refreshAdjustmentDirtyState(row);
           updateAdjustmentPreview(row);
         });
       }
@@ -2011,6 +2108,7 @@
     if (!modal) return;
     state.adjustmentRow = row;
     state.activeTab = options.activeTab || (viewOnly ? 'history' : 'payments');
+    resetAdjustmentDraft(row);
     clearModalNotice('adjustment');
     if (viewOnly) setModalNotice('adjustment', 'Đang mở chi tiết điều chỉnh từ thông báo. Màn này ở chế độ xem, không lưu sửa đổi.', 'info');
     state.correctionReturnItems = buildReturnEditItems(row);
@@ -2047,6 +2145,8 @@
 
     Array.prototype.forEach.call(modal.querySelectorAll('[data-tab]'), function (btn) {
       btn.addEventListener('click', function () {
+        capturePaymentDraftFromInputs(row);
+        refreshAdjustmentDirtyState(row);
         state.activeTab = btn.dataset.tab;
         modal.querySelectorAll('[data-tab]').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === state.activeTab); });
         renderAdjustmentTab(row);
@@ -2077,6 +2177,8 @@
     state.adjustmentRow = null;
     state.adjustmentViewOnly = false;
     state.correctionReturnItems = [];
+    state.adjustmentPaymentDraft = null;
+    state.adjustmentDirty = { payment: false, returns: false };
     state.activeTab = 'overview';
     clearModalNotice('adjustment');
   }
@@ -2087,24 +2189,25 @@
     var noteEl = byId('deliveryAdjustmentNote');
     var reason = reasonEl ? reasonEl.value.trim() : '';
     var note = noteEl ? noteEl.value.trim() : '';
+    capturePaymentDraftFromInputs(row);
     var totals = totalsFromPopup(row);
     if (totals.newCash < 0) { setModalError('adjustment', 'Tiền mặt sau điều chỉnh không được âm.'); return; }
     if (totals.newBank < 0) { setModalError('adjustment', 'Chuyển khoản sau điều chỉnh không được âm.'); return; }
     if (totals.newReward < 0) { setModalError('adjustment', 'Trả thưởng sau điều chỉnh không được âm.'); return; }
     if (totals.correctedTotalCollected < 0) { setModalError('adjustment', 'Tổng tiền thu sau điều chỉnh không được âm.'); return; }
-    var fullReturnItems = totals.returnItems;
-    var correctedReturnItems = totals.returnItems.filter(function (item) { return qty(item.adjustmentQty) !== 0; });
+
     var returnLocked = isReturnMutationLocked(row);
-    if (returnLocked) {
-      fullReturnItems = [];
-      correctedReturnItems = [];
-      totals.returnDelta = 0;
-    }
+    var correctedReturnItems = returnLocked ? [] : totals.returnItems.filter(function (item) {
+      return qty(item.adjustmentQty) !== 0;
+    });
     var cashLines = [
       { paymentMethod: 'cash', oldAmount: totals.oldCash, newAmount: totals.newCash, adjustmentAmount: totals.newCash - totals.oldCash },
       { paymentMethod: 'bank', oldAmount: totals.oldBank, newAmount: totals.newBank, adjustmentAmount: totals.newBank - totals.oldBank },
       { paymentMethod: 'reward', oldAmount: totals.oldReward, newAmount: totals.newReward, adjustmentAmount: totals.newReward - totals.oldReward }
     ].filter(function (line) { return num(line.adjustmentAmount) !== 0; });
+    var paymentChanged = cashLines.length > 0;
+    var returnChanged = correctedReturnItems.length > 0;
+    state.adjustmentDirty = { payment: paymentChanged, returns: returnChanged };
 
     if (correctedReturnItems.some(function (item) { return qty(item.newReturnQty) < 0; })) {
       setModalError('adjustment', 'Số lượng trả không được âm.');
@@ -2117,33 +2220,24 @@
 
     try {
       var payload = {
-        correctedCashLines: cashLines,
-        paymentCorrection: {
-          currentCashAmount: totals.oldCash,
-          correctedCashAmount: totals.newCash,
-          cashDeltaAmount: totals.cashDeltaAmount,
-          currentBankAmount: totals.oldBank,
-          correctedBankAmount: totals.newBank,
-          bankDeltaAmount: totals.bankDeltaAmount,
-          currentRewardAmount: totals.oldReward,
-          correctedRewardAmount: totals.newReward,
-          rewardDeltaAmount: totals.rewardDeltaAmount,
-          currentTotalCollected: totals.currentTotalCollected,
-          correctedTotalCollected: totals.correctedTotalCollected,
-          totalCollectedDelta: totals.totalCollectedDelta
-        },
+        changeType: operationIntentForPopup(row, paymentChanged, returnChanged),
         reason: reason,
         note: note
       };
-      if (!returnLocked) {
-        payload.correctedReturnItems = correctedReturnItems;
-        payload.returnAdjustmentItems = fullReturnItems;
-        payload.returnAdjustment = {
-          source: 'delivery-adjustment-popup',
-          items: fullReturnItems
+      var expectedVersion = expectedAdjustmentVersion(row);
+      if (expectedVersion) payload.expectedVersion = expectedVersion;
+
+      if (paymentChanged || !returnChanged) {
+        payload.paymentCorrection = {
+          correctedCashAmount: totals.newCash,
+          correctedBankAmount: totals.newBank,
+          correctedRewardAmount: totals.newReward
         };
-        payload.returnAdjustmentAmount = totals.returnDelta;
       }
+      if (returnChanged) {
+        payload.returnAdjustmentItems = minimalReturnMutationItems(correctedReturnItems);
+      }
+
       var res = await fetch(correctionEndpoint(row), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

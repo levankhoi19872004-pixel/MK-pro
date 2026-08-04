@@ -23,6 +23,11 @@ const {
   assertReturnMutationAllowed,
   loadReturnMutationContext
 } = require('../domain/returns/ReturnMutationGuard');
+const DeliveryPaymentStateReadService = require('./delivery/DeliveryPaymentStateReadService');
+const {
+  ADJUSTMENT_INTENTS,
+  resolveDeliveryAdjustmentCommand
+} = require('../domain/accounting/deliveryAdjustmentCommand');
 
 function text(value = '') {
   return String(value ?? '').trim();
@@ -216,6 +221,182 @@ function openOrderPaymentState(order = {}) {
   return { receivableAmount, returnAmount, cashAmount, bankAmount, rewardAmount, collectedAmount, debtAmount };
 }
 
+
+async function canonicalOpenOrderPaymentState(order = {}, options = {}) {
+  const fallback = openOrderPaymentState(order);
+  let resolved = null;
+  try {
+    const result = await DeliveryPaymentStateReadService.resolvePaymentStatesForOrders([order], {
+      session: options.session,
+      models: options.paymentStateModels
+    });
+    resolved = result && Array.isArray(result.states) ? result.states[0] : null;
+  } catch (error) {
+    if (options.allowCanonicalStateFallback === true) {
+      resolved = null;
+    } else {
+      error.code = error.code || 'CANONICAL_PAYMENT_STATE_READ_FAILED';
+      error.status = error.status || 503;
+      throw error;
+    }
+  }
+
+  if (!resolved) {
+    return {
+      ...fallback,
+      canonicalSource: 'salesOrders.deliveryCloseout_or_order',
+      latestCorrectionVersion: 0,
+      paymentAllocationCode: '',
+      stalePaymentAllocationIgnored: false
+    };
+  }
+
+  const source = text(resolved.source && resolved.source.paymentState) || 'orders.top-level';
+  const hasExternalCanonicalSnapshot = source === 'orderPaymentAllocations.current'
+    || source === 'deliveryCloseoutVersions.latest';
+  const receivableAmount = hasExternalCanonicalSnapshot
+    ? money(resolved.receivableAmount)
+    : fallback.receivableAmount;
+  const returnAmount = hasExternalCanonicalSnapshot
+    ? money(resolved.returnAmount)
+    : fallback.returnAmount;
+  const cashAmount = money(resolved.cashAmount);
+  const bankAmount = money(resolved.bankAmount);
+  const rewardAmount = money(resolved.rewardAmount);
+  const debtCalculation = calculateDeliveryDebtAmount({
+    receivableAmount,
+    cashAmount,
+    bankAmount,
+    rewardAmount,
+    returnAmount
+  });
+  const debtAmount = hasExternalCanonicalSnapshot && resolved.debtAmount !== undefined
+    ? normalizeDebtAmount(resolved.debtAmount)
+    : money(debtCalculation.debtAmount);
+
+  return {
+    receivableAmount,
+    returnAmount,
+    cashAmount,
+    bankAmount,
+    rewardAmount,
+    collectedAmount: money(cashAmount + bankAmount + rewardAmount),
+    debtAmount,
+    canonicalSource: source,
+    latestCorrectionVersion: Number(resolved.latestCorrectionVersion || 0) || 0,
+    paymentAllocationCode: text(resolved.paymentAllocationCode),
+    stalePaymentAllocationIgnored: resolved.stalePaymentAllocationIgnored === true
+  };
+}
+
+function canonicalAdjustmentVersion(order = {}, state = {}) {
+  const latestCorrectionVersion = Number(state.latestCorrectionVersion || 0) || 0;
+  if (latestCorrectionVersion > 0) return String(latestCorrectionVersion);
+  const closeout = closeoutOf(order);
+  const closeoutVersion = Number(closeout.closeoutVersion || closeout.version || 0) || 0;
+  if (closeoutVersion > 0) return String(closeoutVersion);
+  return String(Number(order.version || 0) || 0);
+}
+
+function assertExpectedAdjustmentVersion(input = {}, currentVersion = '') {
+  if (!hasOwnValue(input, 'expectedVersion')) return;
+  const expectedVersion = text(input.expectedVersion);
+  const actualVersion = text(currentVersion);
+  if (expectedVersion === actualVersion) return;
+  const err = new Error('Dữ liệu điều chỉnh đã thay đổi. Vui lòng tải lại trước khi lưu.');
+  err.code = 'STALE_ADJUSTMENT_VERSION';
+  err.status = 409;
+  err.data = { expectedVersion, actualVersion };
+  throw err;
+}
+
+function buildAdjustmentRequestFingerprint(input = {}, command = {}, nextPaymentState = {}) {
+  return hash(stableJson({
+    intent: text(command.intent || command.operationIntent),
+    operationIntent: text(command.operationIntent),
+    payment: {
+      cashAmount: money(nextPaymentState.cashAmount),
+      bankAmount: money(nextPaymentState.bankAmount),
+      rewardAmount: money(nextPaymentState.rewardAmount)
+    },
+    returnItems: command.materialReturnItems || [],
+    reason: correctionReason(input),
+    note: text(input.note || '')
+  }));
+}
+
+function buildOpenOrderIdempotencyKey(input = {}, order = {}, requestFingerprint = '') {
+  const explicit = text(input.idempotencyKey);
+  if (explicit) return explicit;
+  const identity = orderId(order) || orderCode(order) || originalCloseoutIdentity(order).id;
+  return `DELIVERY_OPEN_ADJUSTMENT:${identity}:${requestFingerprint}`;
+}
+
+function assertIdempotencyFingerprint(existing = {}, requestFingerprint = '') {
+  const existingFingerprint = text(existing.metadata && existing.metadata.requestFingerprint);
+  if (!existingFingerprint || existingFingerprint === text(requestFingerprint)) return;
+  const err = new Error('Idempotency key đã được dùng cho một nội dung điều chỉnh khác.');
+  err.code = 'IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD';
+  err.status = 409;
+  err.data = { expectedFingerprint: existingFingerprint, receivedFingerprint: text(requestFingerprint) };
+  throw err;
+}
+
+function optimisticOrderLookup(order = {}) {
+  const base = buildOrderLookup(orderId(order) || orderCode(order));
+  const clauses = [base];
+  const version = Number(order.version || 0) || 0;
+  if (order.version === undefined || order.version === null || order.version === '') {
+    clauses.push({ $or: [{ version: { $exists: false } }, { version: 0 }] });
+  } else {
+    clauses.push({ version });
+  }
+  if (hasOwnValue(order, 'updatedAt')) clauses.push({ updatedAt: order.updatedAt });
+  return clauses.length === 1 ? base : { $and: clauses };
+}
+
+function matchedWriteCount(result = {}) {
+  if (Number.isFinite(Number(result.matchedCount))) return Number(result.matchedCount);
+  if (Number.isFinite(Number(result.n))) return Number(result.n);
+  if (Number.isFinite(Number(result.modifiedCount)) && Number(result.modifiedCount) > 0) return 1;
+  return 0;
+}
+
+function staleWriteError(order = {}, expectedVersion = '') {
+  const err = new Error('Dữ liệu điều chỉnh đã thay đổi trong lúc lưu. Vui lòng tải lại và thử lại.');
+  err.code = 'STALE_ADJUSTMENT_VERSION';
+  err.status = 409;
+  err.data = {
+    orderId: orderId(order),
+    orderCode: orderCode(order),
+    expectedVersion: text(expectedVersion)
+  };
+  return err;
+}
+
+function openIdempotentResult(existing = {}) {
+  return {
+    success: true,
+    idempotent: true,
+    preCloseoutAdjustment: true,
+    correction: existing,
+    newCloseout: {
+      cashAmount: money(existing.newCashAmount),
+      bankAmount: money(existing.newBankAmount),
+      rewardAmount: money(existing.newRewardAmount),
+      returnAmount: money(existing.newReturnAmount),
+      finalDebtAmount: money(existing.newDebtAmount),
+      debtAmount: money(existing.newDebtAmount)
+    },
+    newCloseoutVersion: null,
+    arDebtAdjustmentLedger: null,
+    arDebtAdjustment: { posted: false, skipped: true, reason: 'pre_closeout_no_ledger' },
+    returnOrderAdjustment: { returnUpdated: false, skipped: true, reason: 'idempotent_replay' },
+    returnUpdated: false,
+    message: 'Yêu cầu điều chỉnh đã được xử lý trước đó; không ghi trùng dữ liệu.'
+  };
+}
+
 function paymentMethodOf(line = {}) {
   const method = text(line.paymentMethod || line.method || line.type || 'cash').toLowerCase();
   if (['bank', 'transfer', 'ck', 'wire', 'bank_transfer'].includes(method)) return 'bank';
@@ -255,12 +436,20 @@ function buildFinalPaymentLines(currentState = {}, nextState = {}) {
 }
 
 function itemAdjustmentAmount(item = {}) {
-  if (item.adjustmentAmount !== undefined) return money(item.adjustmentAmount);
+  const hasQuantityState = [
+    'oldReturnQty', 'currentReturnQty', 'oldQty', 'oldQuantity',
+    'newReturnQty', 'desiredReturnQty', 'newQty', 'newQuantity', 'returnQty', 'qty'
+  ].some((key) => hasOwnValue(item, key));
+  if (hasQuantityState) {
+    const oldQty = quantity(item.oldReturnQty ?? item.currentReturnQty ?? item.oldQty ?? item.oldQuantity ?? 0);
+    const newQty = quantity(item.newReturnQty ?? item.desiredReturnQty ?? item.newQty ?? item.newQuantity ?? item.returnQty ?? item.qty ?? oldQty);
+    const price = money(item.unitPrice ?? item.salePrice ?? item.price ?? item.finalPrice ?? 0);
+    return money((newQty - oldQty) * price);
+  }
   if (item.oldAmount !== undefined || item.newAmount !== undefined) return money(item.newAmount) - money(item.oldAmount);
-  const oldQty = quantity(item.oldReturnQty ?? item.currentReturnQty ?? item.oldQty ?? item.oldQuantity ?? 0);
-  const newQty = quantity(item.newReturnQty ?? item.desiredReturnQty ?? item.newQty ?? item.newQuantity ?? item.returnQty ?? item.qty ?? oldQty);
-  const price = money(item.unitPrice ?? item.salePrice ?? item.price ?? item.finalPrice ?? 0);
-  return money((newQty - oldQty) * price);
+  if (item.adjustmentAmount !== undefined) return money(item.adjustmentAmount);
+  if (item.deltaReturnAmount !== undefined) return money(item.deltaReturnAmount);
+  return 0;
 }
 
 function returnAdjustmentInputItems(input = {}) {
@@ -271,19 +460,6 @@ function returnAdjustmentInputItems(input = {}) {
   if (Array.isArray(input.returnItems)) return input.returnItems;
   if (Array.isArray(input.returnedItems)) return input.returnedItems;
   return [];
-}
-
-function hasPostCloseoutReturnMutationPayload(input = {}, normalizedItems = null) {
-  const items = normalizedItems || normalizeReturnAdjustmentItems(returnAdjustmentInputItems(input));
-  const hasItemDelta = items.some((item) => quantity(item.adjustmentQty ?? item.deltaReturnQty) !== 0 || money(item.adjustmentAmount ?? item.deltaReturnAmount) !== 0);
-  if (hasItemDelta) return true;
-  if (input.returnAdjustment && typeof input.returnAdjustment === 'object') {
-    const nested = input.returnAdjustment;
-    if (hasOwnValue(nested, 'amount') && money(nested.amount) !== 0) return true;
-    if (hasOwnValue(nested, 'returnAdjustmentAmount') && money(nested.returnAdjustmentAmount) !== 0) return true;
-  }
-  if (hasOwnValue(input, 'returnAdjustmentAmount') && money(input.returnAdjustmentAmount) !== 0) return true;
-  return false;
 }
 
 function normalizeReturnAdjustmentItems(items = []) {
@@ -316,6 +492,75 @@ function materialReturnAdjustmentItems(rawItems = []) {
     .filter((item) => quantity(item.adjustmentQty ?? item.deltaReturnQty) !== 0 || money(item.adjustmentAmount ?? item.deltaReturnAmount) !== 0);
 }
 
+
+function hasReturnQuantityState(item = {}) {
+  return [
+    'oldReturnQty', 'currentReturnQty', 'oldQty', 'oldQuantity',
+    'newReturnQty', 'desiredReturnQty', 'newQty', 'newQuantity', 'returnQty', 'qty'
+  ].some((key) => hasOwnValue(item, key));
+}
+
+async function canonicalizeReturnAdjustmentItems(order = {}, rawItems = [], options = {}) {
+  const preliminary = normalizeReturnAdjustmentItems(rawItems);
+  const candidates = preliminary.filter((item) => (
+    quantity(item.adjustmentQty ?? item.deltaReturnQty) !== 0
+    || money(item.adjustmentAmount ?? item.deltaReturnAmount) !== 0
+  ));
+  if (!candidates.length) return preliminary;
+  if (!(Array.isArray(rawItems) && rawItems.some(hasReturnQuantityState))) return preliminary;
+
+  const detail = await buildDeliveryAdjustmentReturnRows(
+    { orderId: orderId(order), orderCode: orderCode(order) },
+    { ...options, order }
+  );
+  const rows = Array.isArray(detail.returnRows) ? detail.returnRows : [];
+
+  return preliminary.map((item, index) => {
+    const raw = rawItems[index] || {};
+    if (!hasReturnQuantityState(raw)) return item;
+    const canonical = rows.find((row) => (
+      (text(item.productCode) && text(row.productCode) === text(item.productCode))
+      || (text(item.productName) && text(row.productName).toLowerCase() === text(item.productName).toLowerCase())
+    ));
+    if (!canonical) {
+      const err = new Error('Dòng hàng trả không tồn tại trong dữ liệu giao hàng chuẩn của đơn.');
+      err.code = 'RETURN_ADJUSTMENT_PRODUCT_NOT_IN_ORDER';
+      err.status = 400;
+      err.data = {
+        orderId: orderId(order),
+        orderCode: orderCode(order),
+        productCode: text(item.productCode),
+        productName: text(item.productName)
+      };
+      throw err;
+    }
+    const oldReturnQty = quantity(canonical.currentReturnQty);
+    const newReturnQty = quantity(
+      raw.newReturnQty ?? raw.desiredReturnQty ?? raw.newQty ?? raw.newQuantity
+      ?? raw.returnQty ?? raw.qty ?? oldReturnQty
+    );
+    const unitPrice = money(canonical.unitPrice);
+    const adjustmentQty = quantity(newReturnQty - oldReturnQty);
+    const adjustmentAmount = money(adjustmentQty * unitPrice);
+    return {
+      ...item,
+      productCode: text(canonical.productCode || item.productCode),
+      productName: text(canonical.productName || item.productName),
+      oldReturnQty,
+      currentReturnQty: oldReturnQty,
+      newReturnQty,
+      desiredReturnQty: newReturnQty,
+      deliveredQty: quantity(canonical.deliveredQty),
+      unitPrice,
+      adjustmentQty,
+      deltaReturnQty: adjustmentQty,
+      adjustmentAmount,
+      deltaReturnAmount: adjustmentAmount,
+      canonicalReturnStateSource: 'orders.items + returnOrders.items'
+    };
+  });
+}
+
 function cashLineAdjustmentAmount(line = {}) {
   const currentAmount = firstExplicitMoneyValue(line, ['oldAmount', 'currentAmount', 'previousAmount'], 0);
   const correctedAmount = firstExplicitMoneyValue(line, ['newAmount', 'correctedAmount', 'finalAmount', 'amount'], currentAmount);
@@ -336,10 +581,6 @@ function normalizeCashAdjustmentLines(lines = []) {
       correctionSemantics: 'corrected_final_amount'
     };
   });
-}
-
-function sumAdjustments(rows = []) {
-  return (Array.isArray(rows) ? rows : []).reduce((sum, row) => sum + money(row.adjustmentAmount), 0);
 }
 
 function validateCorrectionInput(input = {}, calculated = {}) {
@@ -396,14 +637,16 @@ function correctionAuditReason(input = {}) {
 
 function buildIdempotencyKey(input = {}, order = {}) {
   const closeout = originalCloseoutIdentity(order);
+  const materialReturnItems = materialReturnAdjustmentItems(returnAdjustmentInputItems(input));
   return [
     'DELIVERY_CLOSEOUT_CORRECTION',
     closeout.id,
-    hash(stableJson(returnAdjustmentInputItems(input))),
+    text(input.changeType || input.adjustmentIntent || input.commandIntent || 'LEGACY_INFERRED'),
+    hash(stableJson(materialReturnItems)),
     hash(stableJson(input.correctedCashLines || input.cashAdjustmentLines || [])),
     hash(stableJson(input.paymentCorrection || {})),
-    hash(stableJson({ returnAdjustmentAmount: money(input.returnAdjustmentAmount), cashAdjustmentAmount: money(input.cashAdjustmentAmount), debtAdjustmentAmount: input.debtAdjustmentAmount === undefined ? null : money(input.debtAdjustmentAmount) })),
-    hash(correctionReason(input))
+    hash(correctionReason(input)),
+    hash(text(input.note || ''))
   ].join(':');
 }
 
@@ -1296,14 +1539,36 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
   const session = options.session;
   const now = options.now || dateUtil.nowIso();
   const actor = actorName(input.actor || options.actor || input.createdBy || input.correctedBy || 'accountant');
-  const currentState = openOrderPaymentState(order);
+  const currentState = await canonicalOpenOrderPaymentState(order, options);
   const rawReturnAdjustmentItems = returnAdjustmentInputItems(input);
-  const returnAdjustmentItems = normalizeReturnAdjustmentItems(rawReturnAdjustmentItems);
+  const normalizedReturnItems = await canonicalizeReturnAdjustmentItems(order, rawReturnAdjustmentItems, { ...options, session });
   const rawCashLines = input.correctedCashLines || input.cashAdjustmentLines || [];
-  const explicitReturnAdjustment = input.returnAdjustmentAmount !== undefined ? money(input.returnAdjustmentAmount) : null;
-  const returnAdjustmentAmount = money(explicitReturnAdjustment === null ? sumAdjustments(returnAdjustmentItems) : explicitReturnAdjustment);
-  const newReturnAmount = money(currentState.returnAmount + returnAdjustmentAmount);
   const nextPaymentState = finalPaymentStateFromInput(input, rawCashLines, currentState);
+  const command = resolveDeliveryAdjustmentCommand({
+    input,
+    currentState,
+    nextPaymentState,
+    normalizedReturnItems,
+    closeoutConfirmed: false
+  });
+  const requestFingerprint = buildAdjustmentRequestFingerprint(input, command, nextPaymentState);
+  const idempotencyKey = buildOpenOrderIdempotencyKey(input, order, requestFingerprint);
+
+  let existingQuery = DeliveryCloseoutCorrection.findOne({ idempotencyKey });
+  if (existingQuery && typeof existingQuery.lean === 'function') existingQuery = existingQuery.lean();
+  if (session && existingQuery && typeof existingQuery.session === 'function') existingQuery = existingQuery.session(session);
+  const existing = await existingQuery;
+  if (existing) {
+    assertIdempotencyFingerprint(existing, requestFingerprint);
+    return openIdempotentResult(existing);
+  }
+
+  const currentAdjustmentVersion = canonicalAdjustmentVersion(order, currentState);
+  assertExpectedAdjustmentVersion(input, currentAdjustmentVersion);
+
+  const returnAdjustmentItems = command.materialReturnItems;
+  const returnAdjustmentAmount = money(command.returnAdjustmentAmount);
+  const newReturnAmount = money(currentState.returnAmount + returnAdjustmentAmount);
   const cashAdjustmentLines = buildFinalPaymentLines(currentState, nextPaymentState);
   const cashDeltaAmount = money(nextPaymentState.cashAmount - currentState.cashAmount);
   const bankDeltaAmount = money(nextPaymentState.bankAmount - currentState.bankAmount);
@@ -1323,9 +1588,9 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
     returnAmount: newReturnAmount
   });
   const newDebtAmount = money(debtCalculation.debtAmount);
-  const debtAdjustmentAmount = assertCorrectionDebtDeltaPolicy(deltaInput, {
-    debtDelta: calculateCorrectionDebtDelta(deltaInput)
-  });
+  // Pre-closeout adjustments use the general event-delta formula only. The
+  // POST_CLOSEOUT_* policy is intentionally not executed for an open order.
+  const debtAdjustmentAmount = calculateCorrectionDebtDelta(deltaInput);
   const calculated = {
     returnAdjustmentItems,
     cashAdjustmentLines,
@@ -1333,16 +1598,22 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
     cashAdjustmentAmount,
     debtAdjustmentAmount,
     currentState,
-    finalState: { ...nextPaymentState, returnAmount: newReturnAmount, debtAmount: newDebtAmount }
+    finalState: {
+      ...nextPaymentState,
+      receivableAmount: currentState.receivableAmount,
+      returnAmount: newReturnAmount,
+      debtAmount: newDebtAmount
+    }
   };
   validateCorrectionInput(input, calculated);
 
   const original = originalCloseoutIdentity(order);
   const baseId = orderId(order) || orderCode(order) || original.id;
-  const correctionId = text(input.id || `DCOA-${baseId}-${Date.now()}-${shortHash(stableJson(input))}`);
+  const correctionId = text(input.id || `DCOA-${baseId}-${shortHash(idempotencyKey)}`);
   const correctionCode = text(input.correctionCode || input.code || correctionId);
   const collectedWithoutReward = money(nextPaymentState.cashAmount + nextPaymentState.bankAmount);
   const closeout = closeoutOf(order);
+  const nextOrderVersion = (Number(order.version || 0) || 0) + 1;
   const nextCloseout = {
     ...closeout,
     id: text(closeout.id || closeout.closeoutId || original.id),
@@ -1363,6 +1634,8 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
     adjustedBeforeCloseout: true,
     adjustedBeforeCloseoutAt: now,
     adjustedBeforeCloseoutBy: actor,
+    adjustmentIntent: command.intent,
+    adjustmentOperationIntent: command.operationIntent,
     updatedAt: now,
     updatedBy: actor
   };
@@ -1419,35 +1692,65 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
     debtAdjustmentAmount,
     returnAdjustmentItems,
     cashAdjustmentLines,
+    changeType: command.intent,
+    operationIntent: command.operationIntent,
     reason: correctionReason(input),
     auditReason: correctionAuditReason(input),
     note: text(input.note || ''),
     status: 'open_order_adjusted',
     sourceType: 'DELIVERY_OPEN_ADJUSTMENT',
-    idempotencyKey: text(input.idempotencyKey || `DELIVERY_OPEN_ADJUSTMENT:${correctionId}`),
+    idempotencyKey,
     createdBy: actor,
     createdAt: now,
     updatedAt: now,
-    auditTrail: [{ at: now, by: actor, action: 'UPDATE_DELIVERY_ORDER_BEFORE_CLOSEOUT', originalCloseoutId: original.id }],
-    metadata: { phase: 'Phase173', preCloseoutAdjustment: true, correctionSemantics: 'final_state_value', doesNotPostLedger: true }
+    auditTrail: [{
+      at: now,
+      by: actor,
+      action: command.operationIntent === ADJUSTMENT_INTENTS.PAYMENT_ONLY
+        ? 'UPDATE_DELIVERY_PAYMENT_BEFORE_CLOSEOUT'
+        : command.operationIntent === ADJUSTMENT_INTENTS.RETURN_ONLY
+          ? 'UPDATE_DELIVERY_RETURN_BEFORE_CLOSEOUT'
+          : 'UPDATE_DELIVERY_PAYMENT_AND_RETURN_BEFORE_CLOSEOUT',
+      originalCloseoutId: original.id
+    }],
+    metadata: {
+      phase: 'PhaseA2',
+      preCloseoutAdjustment: true,
+      correctionSemantics: 'final_state_value',
+      doesNotPostLedger: true,
+      doesNotPostArReceipt: true,
+      commandIntent: command.intent,
+      operationIntent: command.operationIntent,
+      explicitIntent: command.explicitIntent,
+      legacyIntentInferred: command.legacyInferred,
+      requestFingerprint,
+      canonicalStateSource: currentState.canonicalSource,
+      canonicalAdjustmentVersion: currentAdjustmentVersion,
+      nextOrderVersion,
+      ignoredLegacyReturnAggregate: command.ignoredLegacyReturnAggregate,
+      ignoredLegacyReturnAggregateAmount: command.ignoredLegacyReturnAggregateAmount,
+      clientReturnTotals: command.clientReturnTotals
+    }
   };
 
-  const returnOrderAdjustment = await applyReturnOrderAdjustment({
-    order,
-    items: rawReturnAdjustmentItems,
-    actor,
-    reason: correction.reason || correction.auditReason,
-    note: correction.note
-  }, { ...options, session, now });
+  const returnOrderAdjustment = returnAdjustmentItems.length
+    ? await applyReturnOrderAdjustment({
+      order,
+      items: returnAdjustmentItems,
+      actor,
+      reason: correction.reason || correction.auditReason,
+      note: correction.note
+    }, { ...options, session, now })
+    : { returnUpdated: false, skipped: true, reason: 'payment_only_command' };
 
   await DeliveryCloseoutCorrection.findOneAndUpdate(
-    { id: correctionId },
+    { idempotencyKey },
     { $setOnInsert: correction },
     { upsert: true, new: true, setDefaultsOnInsert: true, session }
   );
 
-  await SalesOrder.updateOne(
-    buildOrderLookup(orderId(order) || orderCode(order)),
+  const orderWrite = await SalesOrder.updateOne(
+    optimisticOrderLookup(order),
     {
       $set: {
         cashAmount: nextPaymentState.cashAmount,
@@ -1458,10 +1761,14 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
         debtAmount: newDebtAmount,
         deliveryCloseout: nextCloseout,
         updatedAt: now
-      }
+      },
+      $inc: { version: 1 }
     },
     { session }
   );
+  if (matchedWriteCount(orderWrite) !== 1) {
+    throw staleWriteError(order, currentAdjustmentVersion);
+  }
 
   return {
     success: true,
@@ -1473,7 +1780,9 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
     arDebtAdjustment: { posted: false, skipped: true, reason: 'pre_closeout_no_ledger' },
     returnOrderAdjustment,
     returnUpdated: Boolean(returnOrderAdjustment && returnOrderAdjustment.returnUpdated),
-    message: returnOrderAdjustment && returnOrderAdjustment.returnUpdated ? 'Đã cập nhật điều chỉnh trước chốt sổ và ghi nhận hàng trả.' : 'Đã cập nhật điều chỉnh trước chốt sổ; chưa sinh AR ledger.'
+    message: returnOrderAdjustment && returnOrderAdjustment.returnUpdated
+      ? 'Đã cập nhật điều chỉnh trước chốt sổ và ghi nhận hàng trả.'
+      : 'Đã cập nhật trạng thái tiền trước chốt sổ; không thay đổi hàng trả và chưa sinh AR ledger.'
   };
 }
 
@@ -1487,16 +1796,38 @@ async function createCorrection(input = {}, options = {}) {
     }
     const originalCloseout = assertConfirmedCloseout(order);
     const original = originalCloseoutIdentity(order);
+    const rawReturnAdjustmentItems = returnAdjustmentInputItems(input);
+    const normalizedReturnItems = await canonicalizeReturnAdjustmentItems(order, rawReturnAdjustmentItems, { ...options, session });
+    const rawCashLines = input.correctedCashLines || input.cashAdjustmentLines || [];
+
+    const latest = await latestVersionForOriginal(original.id, { ...options, session });
+    const baseSnapshot = latest || originalCloseout;
+    const currentState = previousPaymentState(baseSnapshot, order);
+    const previousVersion = latest ? Number(latest.closeoutVersion || 0) : original.version;
+    const nextPaymentState = finalPaymentStateFromInput(input, rawCashLines, currentState);
+    const command = resolveDeliveryAdjustmentCommand({
+      input,
+      currentState,
+      nextPaymentState,
+      normalizedReturnItems,
+      closeoutConfirmed: true
+    });
+    const requestFingerprint = buildAdjustmentRequestFingerprint(input, command, nextPaymentState);
     const idempotencyKey = text(input.idempotencyKey || buildIdempotencyKey(input, order));
 
-    const existing = await DeliveryCloseoutCorrection.findOne({ idempotencyKey }).lean().session(session);
-    if (existing) return loadIdempotentResult(existing, { ...options, session });
+    let existingQuery = DeliveryCloseoutCorrection.findOne({ idempotencyKey });
+    if (existingQuery && typeof existingQuery.lean === 'function') existingQuery = existingQuery.lean();
+    if (session && existingQuery && typeof existingQuery.session === 'function') existingQuery = existingQuery.session(session);
+    const existing = await existingQuery;
+    if (existing) {
+      assertIdempotencyFingerprint(existing, requestFingerprint);
+      return loadIdempotentResult(existing, { ...options, session });
+    }
 
-    const rawReturnAdjustmentItems = returnAdjustmentInputItems(input);
-    const returnAdjustmentItems = normalizeReturnAdjustmentItems(rawReturnAdjustmentItems);
-    const materialReturnItems = materialReturnAdjustmentItems(rawReturnAdjustmentItems);
-    const rawCashLines = input.correctedCashLines || input.cashAdjustmentLines || [];
-    if (hasPostCloseoutReturnMutationPayload(input, returnAdjustmentItems)) {
+    assertExpectedAdjustmentVersion(input, String(previousVersion));
+
+    const materialReturnItems = command.materialReturnItems;
+    if (command.returnChanged) {
       const context = await loadReturnMutationContext({ order, options: { ...options, session } });
       assertReturnMutationAllowed({
         order,
@@ -1509,10 +1840,6 @@ async function createCorrection(input = {}, options = {}) {
       });
     }
 
-    const latest = await latestVersionForOriginal(original.id, { ...options, session });
-    const baseSnapshot = latest || originalCloseout;
-    const currentState = previousPaymentState(baseSnapshot, order);
-    const previousVersion = latest ? Number(latest.closeoutVersion || 0) : original.version;
     const newCloseoutVersionNo = previousVersion + 1;
     const correctionId = text(input.id || `DCOC-${orderId(order) || orderCode(order)}-${newCloseoutVersionNo}-${shortHash(idempotencyKey)}`);
     const correctionCode = text(input.correctionCode || input.code || correctionId);
@@ -1526,11 +1853,10 @@ async function createCorrection(input = {}, options = {}) {
     const previousDebt = currentState.debtAmount;
     const sale = currentState.receivableAmount;
 
-    const explicitReturnAdjustment = input.returnAdjustmentAmount !== undefined ? money(input.returnAdjustmentAmount) : null;
-    const returnAdjustmentAmount = money(explicitReturnAdjustment === null ? sumAdjustments(returnAdjustmentItems) : explicitReturnAdjustment);
+    const returnAdjustmentItems = materialReturnItems;
+    const returnAdjustmentAmount = money(command.returnAdjustmentAmount);
     const newReturnAmount = money(previousReturn + returnAdjustmentAmount);
 
-    const nextPaymentState = finalPaymentStateFromInput(input, rawCashLines, currentState);
     const cashAdjustmentLines = buildFinalPaymentLines(currentState, nextPaymentState);
     const cashDeltaAmount = money(nextPaymentState.cashAmount - previousCash);
     const bankDeltaAmount = money(nextPaymentState.bankAmount - previousBank);
@@ -1550,8 +1876,10 @@ async function createCorrection(input = {}, options = {}) {
       returnAmount: newReturnAmount
     });
     const newDebtAmount = money(debtCalculation.debtAmount);
+    const finalStateDebtDelta = money(newDebtAmount - previousDebt);
     const debtAdjustmentAmount = assertCorrectionDebtDeltaPolicy(deltaInput, {
-      debtDelta: calculateCorrectionDebtDelta(deltaInput)
+      debtDelta: calculateCorrectionDebtDelta(deltaInput),
+      closeoutConfirmed: true
     });
 
     const calculated = {
@@ -1563,11 +1891,20 @@ async function createCorrection(input = {}, options = {}) {
         correctionId,
         correctionVersion: newCloseoutVersionNo,
         sourceOrderId: orderId(order),
-        sourceOrderCode: orderCode(order)
+        sourceOrderCode: orderCode(order),
+        commandIntent: command.intent,
+        operationIntent: command.operationIntent,
+        requestFingerprint,
+        finalStateDebtDelta
       }),
       debtAdjustmentAmount,
       currentState,
-      finalState: { ...nextPaymentState, returnAmount: newReturnAmount, debtAmount: newDebtAmount }
+      finalState: {
+        ...nextPaymentState,
+        receivableAmount: sale,
+        returnAmount: newReturnAmount,
+        debtAmount: newDebtAmount
+      }
     };
     validateCorrectionInput(input, calculated);
 
@@ -1626,6 +1963,8 @@ async function createCorrection(input = {}, options = {}) {
       debtAdjustmentAmount,
       returnAdjustmentItems,
       cashAdjustmentLines,
+      changeType: command.intent,
+      operationIntent: command.operationIntent,
       reason: correctionReason(input),
       auditReason: correctionAuditReason(input),
       note: text(input.note || ''),
@@ -1636,7 +1975,20 @@ async function createCorrection(input = {}, options = {}) {
       createdAt: now,
       updatedAt: now,
       auditTrail: [{ at: now, by: actor, action: 'CREATE_DELIVERY_CLOSEOUT_FINAL_STATE_CORRECTION', originalCloseoutId: original.id }],
-      metadata: { phase: 'Phase109', immutableContract: true, correctionSemantics: 'final_state_value' }
+      metadata: {
+        phase: 'PhaseA2',
+        immutableContract: true,
+        correctionSemantics: 'final_state_value',
+        commandIntent: command.intent,
+        operationIntent: command.operationIntent,
+        explicitIntent: command.explicitIntent,
+        legacyIntentInferred: command.legacyInferred,
+        requestFingerprint,
+        canonicalAdjustmentVersion: String(previousVersion),
+        ignoredLegacyReturnAggregate: command.ignoredLegacyReturnAggregate,
+        ignoredLegacyReturnAggregateAmount: command.ignoredLegacyReturnAggregateAmount,
+        clientReturnTotals: command.clientReturnTotals
+      }
     };
 
     const newCloseoutVersion = buildVersionSnapshot(order, baseSnapshot, correction, now);

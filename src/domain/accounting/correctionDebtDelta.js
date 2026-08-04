@@ -38,8 +38,15 @@ function assertCorrectionDebtDeltaPolicy(input = {}, options = {}) {
     : calculateCorrectionDebtDelta(input));
   const returnDelta = money(input.returnDelta);
 
+  // The POST_CLOSEOUT_* rules are not valid for an order that has not been
+  // canonically confirmed. Callers in the open-order path must either skip this
+  // policy or pass closeoutConfirmed:false explicitly.
+  if (options.closeoutConfirmed === false || options.scope === 'PRE_CLOSEOUT') {
+    return debtDelta;
+  }
+
   if (returnDelta > 0 && debtDelta > 0) {
-    const err = new Error('Post-closeout return tăng không được làm tăng công nợ.');
+    const err = new Error('Hàng trả sau chốt không được làm tăng công nợ.');
     err.code = 'POST_CLOSEOUT_RETURN_CANNOT_INCREASE_DEBT';
     err.status = 409;
     throw err;

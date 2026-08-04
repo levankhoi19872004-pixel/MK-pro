@@ -1,0 +1,68 @@
+{
+  "phase": "A1",
+  "artifact": "PHASE_A1_RED_TEST_EVIDENCE.json",
+  "generatedAtUtc": "2026-08-04T03:54:00.624927+00:00",
+  "sourceZip": "MK-pro-main(1).zip",
+  "productionCodeModified": false,
+  "testFile": "test/phase-a1-delivery-adjustment-payment-return-isolation.red.test.js",
+  "framework": "node:test",
+  "commands": [
+    {
+      "command": "node --test test/phase-a1-delivery-adjustment-payment-return-isolation.red.test.js",
+      "workingDirectory": "MK-pro-main",
+      "exitCode": 1,
+      "expectedPhaseResult": "RED",
+      "tests": 3,
+      "passed": 2,
+      "failed": 1,
+      "skipped": 0,
+      "durationMs": 57.004089,
+      "failedTest": "A1 RED: B0040961 payment-only save must not contain any return mutation fields",
+      "failure": {
+        "code": "ERR_ASSERTION",
+        "message": "PAYMENT_ONLY must omit returnAdjustmentAmount",
+        "actual": 1931784,
+        "expected": "undefined"
+      },
+      "stdout": "TAP version 13\n# Subtest: A1 diagnostic: unchanged return quantities still leak a positive return mutation into the payment save request\nok 1 - A1 diagnostic: unchanged return quantities still leak a positive return mutation into the payment save request\n  ---\n  duration_ms: 5.265441\n  type: 'test'\n  ...\n# Subtest: A1 RED: B0040961 payment-only save must not contain any return mutation fields\nnot ok 2 - A1 RED: B0040961 payment-only save must not contain any return mutation fields\n  ---\n  duration_ms: 2.567123\n  type: 'test'\n  location: '/mnt/data/mk_phase_a1_work/MK-pro-main/test/phase-a1-delivery-adjustment-payment-return-isolation.red.test.js:147:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    PAYMENT_ONLY must omit returnAdjustmentAmount\n    + actual - expected\n    \n    + 1931784\n    - undefined\n    \n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  actual: 1931784\n  operator: 'strictEqual'\n  stack: |-\n    TestContext.<anonymous> (/mnt/data/mk_phase_a1_work/MK-pro-main/test/phase-a1-delivery-adjustment-payment-return-isolation.red.test.js:157:10)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)\n  ...\n# Subtest: A1 diagnostic: leaked payload reproduces POST_CLOSEOUT_RETURN_CANNOT_INCREASE_DEBT in the real domain policy\nok 3 - A1 diagnostic: leaked payload reproduces POST_CLOSEOUT_RETURN_CANNOT_INCREASE_DEBT in the real domain policy\n  ---\n  duration_ms: 0.486933\n  type: 'test'\n  ...\n1..3\n# tests 3\n# suites 0\n# pass 2\n# fail 1\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 57.004089\n"
+    },
+    {
+      "command": "npm ci --ignore-scripts --no-audit --no-fund",
+      "workingDirectory": "MK-pro-main",
+      "exitCode": 1,
+      "purpose": "Attempt to install dependencies for the wider test suite",
+      "environmentLimitation": "Isolated registry returned 404 for zip-stream@4.1.1; no node_modules retained"
+    }
+  ],
+  "reproduction": {
+    "orderCode": "B0040961",
+    "receivableAmount": 1931784,
+    "currentCashAmount": 1932000,
+    "correctedCashAmount": 0,
+    "currentBankAmount": 0,
+    "currentRewardAmount": 0,
+    "listReturnedAmount": 1931784,
+    "userChangedReturnQuantity": false,
+    "capturedReturnAdjustmentAmount": 1931784,
+    "cashDelta": -1932000,
+    "returnDelta": 1931784,
+    "calculatedDebtDelta": 216,
+    "domainErrorCode": "POST_CLOSEOUT_RETURN_CANNOT_INCREASE_DEBT",
+    "domainHttpStatus": 409
+  },
+  "diagnosticTests": [
+    {
+      "name": "unchanged return quantities still leak a positive return mutation into the payment save request",
+      "status": "PASS"
+    },
+    {
+      "name": "leaked payload reproduces POST_CLOSEOUT_RETURN_CANNOT_INCREASE_DEBT in the real domain policy",
+      "status": "PASS"
+    }
+  ],
+  "redGate": {
+    "status": "OPEN",
+    "mustBecomeGreenIn": "Phase A2/A3",
+    "acceptance": "A payment-only request omits all return mutation fields and produces returnDelta=0"
+  }
+}

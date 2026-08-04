@@ -34,10 +34,10 @@ test('delivery today list ignores stale orderPaymentAllocation when a newer clos
   assert.match(deliveryTodayService, /deliveryCloseoutVersions\(latest correction; stale orderPaymentAllocation ignored\)/);
 });
 
-test('frontend sends reward final state in manual adjustment payload', () => {
+test('frontend sends reward final state and leaves reward delta calculation to the backend', () => {
   assert.match(deliveryTodayUi, /correctedRewardAmount:\s*totals\.newReward/);
-  assert.match(deliveryTodayUi, /rewardDeltaAmount:\s*totals\.rewardDeltaAmount/);
-  assert.match(deliveryTodayUi, /paymentMethod:\s*'reward'/);
+  assert.doesNotMatch(deliveryTodayUi, /payload[\s\S]{0,500}rewardDeltaAmount:\s*totals\.rewardDeltaAmount/);
+  assert.match(deliveryTodayUi, /var rewardDeltaAmount = correctedRewardAmount - currentRewardAmount/);
 });
 
 

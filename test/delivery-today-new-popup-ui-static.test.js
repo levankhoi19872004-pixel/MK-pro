@@ -31,10 +31,14 @@ test('Delivery Today New adjustment popup has business tabs and delivery return 
   assert.match(source, /adjustmentAmount/);
 });
 
-test('Delivery Today New adjustment popup posts only Phase92 correction contract', () => {
+test('Delivery Today New adjustment popup posts the intent-isolated correction contract', () => {
   assert.match(source, /\/api\/new\/delivery-today\/closeouts\//);
-  assert.match(source, /correctedReturnItems/);
-  assert.match(source, /correctedCashLines/);
+  assert.match(source, /changeType:\s*operationIntentForPopup/);
+  assert.match(source, /payload\.paymentCorrection/);
+  assert.match(source, /payload\.returnAdjustmentItems\s*=\s*minimalReturnMutationItems/);
+  assert.doesNotMatch(source, /payload\.correctedCashLines\s*=/);
+  assert.doesNotMatch(source, /payload\.correctedReturnItems\s*=/);
+  assert.doesNotMatch(source, /payload\.returnAdjustmentAmount\s*=/);
   assert.match(source, /reason/);
   assert.match(source, /note/);
   assert.doesNotMatch(source, /\/api\/return-orders/);
@@ -94,9 +98,9 @@ test('Phase108 payment correction preserves explicit zero final amounts on the f
   assert.match(source, /function readCorrectedMoney\(inputValue, fallbackValue\)/);
   assert.match(source, /String\(input\)\.trim\(\) !== ''/);
   assert.match(source, /return parseVietnameseMoney\(inputValue\)/);
-  assert.match(source, /var newCash = readCorrectedMoney\([\s\S]*oldCash\)/);
-  assert.match(source, /var newBank = readCorrectedMoney\([\s\S]*oldBank\)/);
-  assert.match(source, /var newReward = readCorrectedMoney\([\s\S]*oldReward\)/);
+  assert.match(source, /cashAmount:\s*readCorrectedMoney\(cashInput \? cashInput\.value : draft\.cashAmount, baseline\.cashAmount\)/);
+  assert.match(source, /bankAmount:\s*readCorrectedMoney\(bankInput \? bankInput\.value : draft\.bankAmount, baseline\.bankAmount\)/);
+  assert.match(source, /rewardAmount:\s*readCorrectedMoney\(rewardInput \? rewardInput\.value : draft\.rewardAmount, baseline\.rewardAmount\)/);
   assert.doesNotMatch(source, /parseVietnameseMoney\([^\n]+\)\s*\|\|\s*oldCash/);
   assert.doesNotMatch(source, /parseVietnameseMoney\([^\n]+\)\s*\|\|\s*currentCashAmount/);
   assert.doesNotMatch(source, /correctedCashAmount\s*\|\|\s*currentCashAmount/);

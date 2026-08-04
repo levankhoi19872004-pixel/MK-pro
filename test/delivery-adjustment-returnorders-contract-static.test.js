@@ -27,11 +27,14 @@ test('delivery adjustment save applies returnAdjustment.items into returnOrders'
   assert.match(service, /returnAdjustmentInputItems\(input\)/);
 });
 
-test('delivery today popup loads canonical rows and sends full returnAdjustment payload', () => {
+test('delivery today popup loads canonical rows and sends only explicit changed return lines', () => {
   assert.match(ui, /adjustmentReturnRowsEndpoint/);
   assert.match(ui, /loadCanonicalReturnRows\(row\)/);
-  assert.match(ui, /if \(!returnLocked\)/);
-  assert.match(ui, /payload\.returnAdjustment\s*=\s*\{\s*source: 'delivery-adjustment-popup',\s*items: fullReturnItems/s);
-  assert.match(ui, /payload\.returnAdjustmentItems\s*=\s*fullReturnItems/);
-  assert.match(ui, /item\.deliveredQty/);
+  assert.match(ui, /minimalReturnMutationItems/);
+  assert.match(ui, /payload\.returnAdjustmentItems\s*=\s*minimalReturnMutationItems\(correctedReturnItems\)/);
+  assert.match(ui, /var returnChanged = correctedReturnItems\.length > 0/);
+  assert.match(ui, /changeType:\s*operationIntentForPopup/);
+  assert.doesNotMatch(ui, /payload\.returnAdjustmentAmount\s*=/);
+  assert.doesNotMatch(ui, /payload\.correctedReturnItems\s*=/);
+  assert.doesNotMatch(ui, /items:\s*fullReturnItems/);
 });

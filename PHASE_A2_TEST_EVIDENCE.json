@@ -1,0 +1,186 @@
+{
+  "phase": "A2",
+  "generatedAt": "2026-08-04T04:16:26.910942+00:00",
+  "sourceArtifact": "MK-pro-phase-a1-delivery-adjustment-audit-red-test.zip",
+  "nodeVersion": "v22.16.0",
+  "scope": {
+    "backend": true,
+    "domain": true,
+    "dataBoundary": true,
+    "frontendProductionModified": false
+  },
+  "caseB0040961": {
+    "receivableAmount": 1931784,
+    "currentCashAmount": 1932000,
+    "nextCashAmount": 0,
+    "currentReturnAmount": 1931784,
+    "nextReturnAmount": 1931784,
+    "cashDelta": -1932000,
+    "returnDelta": 0,
+    "nextDebtAmount": 0,
+    "commandIntent": "PAYMENT_ONLY",
+    "returnOrdersReadCount": 0,
+    "returnOrdersWriteCount": 0,
+    "arAdjustmentWriteCount": 0,
+    "arReceiptWriteCount": 0,
+    "orderWriteCount": 1,
+    "correctionAuditWriteCount": 1,
+    "status": "PASS"
+  },
+  "changedFiles": [
+    {
+      "path": "src/domain/accounting/deliveryAdjustmentCommand.js",
+      "type": "added",
+      "addedLines": 274,
+      "deletedLines": 0
+    },
+    {
+      "path": "src/services/deliveryCloseoutCorrection.service.js",
+      "type": "modified",
+      "addedLines": 420,
+      "deletedLines": 68
+    },
+    {
+      "path": "src/domain/accounting/correctionDebtDelta.js",
+      "type": "modified",
+      "addedLines": 8,
+      "deletedLines": 1
+    },
+    {
+      "path": "test/phase-a2-delivery-adjustment-backend.test.js",
+      "type": "added",
+      "addedLines": 543,
+      "deletedLines": 0
+    }
+  ],
+  "frontendIntegrity": {
+    "path": "public/js/app/new/91-delivery-today-new.js",
+    "phaseA1Sha256": "9b3af1875b8ed33414d5e1ba6579c1eefd9f1d180736c526a2bbd4806c77773a",
+    "phaseA2Sha256": "9b3af1875b8ed33414d5e1ba6579c1eefd9f1d180736c526a2bbd4806c77773a",
+    "unchanged": true
+  },
+  "errorContract": [
+    {
+      "code": "INVALID_ADJUSTMENT_INTENT",
+      "status": 400,
+      "tested": true
+    },
+    {
+      "code": "PAYMENT_ONLY_CONTAINS_RETURN_MUTATION",
+      "status": 400,
+      "tested": true
+    },
+    {
+      "code": "RETURN_TOTAL_MISMATCH",
+      "status": 400,
+      "tested": true
+    },
+    {
+      "code": "STALE_ADJUSTMENT_VERSION",
+      "status": 409,
+      "tested": true
+    },
+    {
+      "code": "POST_CLOSEOUT_RETURN_CANNOT_INCREASE_DEBT",
+      "status": 409,
+      "tested": true
+    },
+    {
+      "code": "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
+      "status": 409,
+      "tested": true
+    },
+    {
+      "code": "RETURN_ADJUSTMENT_PRODUCT_NOT_IN_ORDER",
+      "status": 400,
+      "tested": true
+    }
+  ],
+  "commands": [
+    {
+      "name": "selected_backend_and_regression_tests",
+      "command": "node --test test/phase-a2-delivery-adjustment-backend.test.js test/delivery-closeout-correction-contract-static.test.js test/delivery-adjustment-returnorders-contract-static.test.js test/delivery-adjustment-reward-allocation-integration-static.test.js test/delivery-closeout-correction-no-change-optional-reason.test.js test/delivery-adjustment-bulk-commit-static.test.js",
+      "exitCode": 0,
+      "tests": 40,
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 120.536514,
+      "log": ".phase-a2-evidence/selected-tests.log"
+    },
+    {
+      "name": "a2_runtime_behavior_tests",
+      "command": "node --test test/phase-a2-delivery-adjustment-backend.test.js",
+      "exitCode": 0,
+      "tests": 12,
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 83.589291
+    },
+    {
+      "name": "syntax_check",
+      "command": "npm run check:syntax",
+      "exitCode": 0,
+      "result": "SYNTAX_OK 1561 JavaScript files",
+      "log": ".phase-a2-evidence/check-syntax.log"
+    },
+    {
+      "name": "a1_frontend_red_after_a2",
+      "command": "node --test test/phase-a1-delivery-adjustment-payment-return-isolation.red.test.js",
+      "exitCode": 1,
+      "tests": 3,
+      "passed": 2,
+      "failed": 1,
+      "skipped": 0,
+      "durationMs": 46.985428,
+      "classification": "EXPECTED_DEFERRED_TO_PHASE_A3",
+      "failure": "PAYMENT_ONLY must omit returnAdjustmentAmount; actual 1931784",
+      "log": ".phase-a2-evidence/a1-red-after-a2.log"
+    },
+    {
+      "name": "dependency_based_runtime_regressions",
+      "command": "node --test test/phase260c-r1-stop-the-bleeding.test.js test/closeout-correction-add-return.test.js test/closeout-correction-reduce-return.test.js",
+      "exitCode": 1,
+      "tests": 3,
+      "passed": 0,
+      "failed": 3,
+      "classification": "ENVIRONMENT_BLOCKED",
+      "failure": "Cannot find module 'mongoose'",
+      "rootCause": "node_modules absent; Phase A1 npm ci blocked by isolated registry 404 for zip-stream@4.1.1",
+      "log": ".phase-a2-evidence/runtime-dependency-blocked.log"
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "A2-AC-01",
+      "status": "PASS"
+    },
+    {
+      "id": "A2-AC-02",
+      "status": "PASS"
+    },
+    {
+      "id": "A2-AC-03",
+      "status": "PASS"
+    },
+    {
+      "id": "A2-AC-04",
+      "status": "PASS"
+    },
+    {
+      "id": "A2-AC-05",
+      "status": "PASS"
+    },
+    {
+      "id": "A2-AC-06",
+      "status": "DEFERRED_TO_A3",
+      "reason": "A1 test asserts frontend payload isolation while A2 explicitly forbids frontend production changes"
+    }
+  ],
+  "knownLimitations": [
+    "Frontend still emits legacy return fields until Phase A3.",
+    "Full dependency/Mongo integration suite could not run in the isolated environment.",
+    "Legacy intent inference is a temporary compatibility bridge and should be retired after A3 rollout."
+  ]
+}

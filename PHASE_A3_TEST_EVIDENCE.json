@@ -1,0 +1,120 @@
+{
+  "phase": "A3_FRONTEND_UI_PAYLOAD_ISOLATION",
+  "generatedAt": "2026-08-04T04:32:22Z",
+  "environment": {
+    "node": "v22.16.0",
+    "npm": "10.9.2",
+    "nodeModulesPresent": false
+  },
+  "scope": {
+    "productionFilesChanged": [
+      "public/js/app/new/91-delivery-today-new.js"
+    ],
+    "backendProductionFilesChanged": [],
+    "testsChangedOrAdded": [
+      "test/phase-a1-delivery-adjustment-payment-return-isolation.red.test.js",
+      "test/phase-a2-delivery-adjustment-backend.test.js",
+      "test/phase-a3-delivery-adjustment-frontend-payload.test.js",
+      "test/delivery-adjustment-returnorders-contract-static.test.js",
+      "test/delivery-adjustment-reward-allocation-integration-static.test.js",
+      "test/delivery-today-new-popup-ui-static.test.js"
+    ]
+  },
+  "redGreen": {
+    "before": {
+      "workingTree": "Phase A2 baseline",
+      "command": "node --test test/phase-a1-delivery-adjustment-payment-return-isolation.red.test.js",
+      "exitCode": 1,
+      "tests": 3,
+      "passed": 2,
+      "failed": 1,
+      "failedTest": "A1 RED: B0040961 payment-only save must not contain any return mutation fields"
+    },
+    "after": {
+      "workingTree": "Phase A3 working copy",
+      "command": "node --test test/phase-a1-delivery-adjustment-payment-return-isolation.red.test.js",
+      "exitCode": 0,
+      "tests": 3,
+      "passed": 3,
+      "failed": 0
+    }
+  },
+  "commands": [
+    {
+      "name": "mandatory_phase_a3_suite",
+      "command": "node --test test/phase-a1-delivery-adjustment-payment-return-isolation.red.test.js test/phase-a2-delivery-adjustment-backend.test.js test/phase-a3-delivery-adjustment-frontend-payload.test.js test/delivery-adjustment-returnorders-contract-static.test.js test/delivery-today-new-popup-ui-static.test.js test/delivery-adjustment-reward-allocation-integration-static.test.js test/delivery-closeout-correction-contract-static.test.js",
+      "exitCode": 0,
+      "tests": 49,
+      "passed": 49,
+      "failed": 0,
+      "skipped": 0,
+      "log": "/.phase-a3-evidence/mandatory-tests.log"
+    },
+    {
+      "name": "javascript_syntax",
+      "command": "node scripts/check-js-syntax.js",
+      "exitCode": 0,
+      "filesChecked": 1562,
+      "result": "SYNTAX_OK",
+      "log": "/.phase-a3-evidence/syntax.log"
+    }
+  ],
+  "acceptance": {
+    "A3-AC-01_payment_only_has_no_return_fields": true,
+    "A3-AC-02_loading_return_data_does_not_create_delta": true,
+    "A3-AC-03_B0040961_cash_delta_minus_1932000_return_delta_0": true,
+    "A3-AC-04_return_only_payload_supported": true,
+    "A3-AC-05_popup_contract_regression_green": true,
+    "minimalPayloadAcceptedByA2Backend": true,
+    "returnOrdersWriteForPaymentOnly": 0,
+    "arReceiptOrArAdjustmentWriteForOpenPaymentOnly": 0
+  },
+  "files": [
+    {
+      "path": "public/js/app/new/91-delivery-today-new.js",
+      "sha256": "00c595b784793ec6df7ae239e9f008f09457d66caa2f6415e80c64228c6f4c6b",
+      "bytes": 151537,
+      "kind": "production_frontend"
+    },
+    {
+      "path": "test/phase-a1-delivery-adjustment-payment-return-isolation.red.test.js",
+      "sha256": "cf9c5727371c18afa0168d02bf8b5327da2b725167a88f897fc1c2d48748c432",
+      "bytes": 6115,
+      "kind": "test"
+    },
+    {
+      "path": "test/phase-a2-delivery-adjustment-backend.test.js",
+      "sha256": "273380dda915db5a0ff1edcab3a7194029f4abb1211019c73eaae02d329a1b92",
+      "bytes": 20258,
+      "kind": "test"
+    },
+    {
+      "path": "test/phase-a3-delivery-adjustment-frontend-payload.test.js",
+      "sha256": "93eab2637aa74f6c45eb94d893e2f9c90efd030a16c3ab1970f753e405ae69fa",
+      "bytes": 9395,
+      "kind": "test"
+    },
+    {
+      "path": "test/delivery-adjustment-returnorders-contract-static.test.js",
+      "sha256": "ddb87b5b3f9d34309eb40d138e2fd7b99154b9e9475cec0d10ab4b62b4292be3",
+      "bytes": 2203,
+      "kind": "test"
+    },
+    {
+      "path": "test/delivery-adjustment-reward-allocation-integration-static.test.js",
+      "sha256": "f6db82ebfdae9ce8e303c2e7cfc0d725f6ae3fbff141f20736584380a5bcdb51",
+      "bytes": 3655,
+      "kind": "test"
+    },
+    {
+      "path": "test/delivery-today-new-popup-ui-static.test.js",
+      "sha256": "d35eed5cf6f8b198c362d15ad08d763bc7c2fcaeecf3edba481f66b9333c0e1a",
+      "bytes": 6707,
+      "kind": "test"
+    }
+  ],
+  "limitations": [
+    "Full npm test was not run because the ZIP contains no node_modules and dependency-backed suites require mongoose and other installed packages.",
+    "The mandatory A1/A2/A3 runtime tests use Node built-ins and completed without external dependencies."
+  ]
+}

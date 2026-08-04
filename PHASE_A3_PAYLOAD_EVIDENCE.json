@@ -1,0 +1,111 @@
+{
+  "phase": "A3_FRONTEND_PAYLOAD_ISOLATION",
+  "scenario": {
+    "orderCode": "B0040961",
+    "receivableAmount": 1931784,
+    "currentCashAmount": 1932000,
+    "correctedCashAmount": 0,
+    "currentReturnAmount": 1931784,
+    "userChangedReturnQuantity": false
+  },
+  "before": {
+    "source": "Phase A2 frontend (unchanged legacy payload builder)",
+    "payload": {
+      "correctedCashLines": [
+        {
+          "paymentMethod": "cash",
+          "oldAmount": 1932000,
+          "newAmount": 0,
+          "adjustmentAmount": -1932000
+        }
+      ],
+      "paymentCorrection": {
+        "currentCashAmount": 1932000,
+        "correctedCashAmount": 0,
+        "cashDeltaAmount": -1932000,
+        "currentBankAmount": 0,
+        "correctedBankAmount": 0,
+        "bankDeltaAmount": 0,
+        "currentRewardAmount": 0,
+        "correctedRewardAmount": 0,
+        "rewardDeltaAmount": 0,
+        "currentTotalCollected": 1932000,
+        "correctedTotalCollected": 0,
+        "totalCollectedDelta": -1932000
+      },
+      "reason": "",
+      "note": "B0040961 evidence",
+      "correctedReturnItems": [],
+      "returnAdjustmentItems": [
+        {
+          "productKey": "SP01|Hàng trả hiện hữu|1931784",
+          "productCode": "SP01",
+          "productName": "Hàng trả hiện hữu",
+          "oldReturnQty": 2,
+          "currentReturnQty": 2,
+          "newReturnQty": 2,
+          "desiredReturnQty": 2,
+          "unitPrice": 1931784,
+          "deliveredQty": 5,
+          "adjustmentQty": 0,
+          "deltaReturnQty": 0,
+          "adjustmentAmount": 0,
+          "deltaReturnAmount": 0
+        }
+      ],
+      "returnAdjustment": {
+        "source": "delivery-adjustment-popup",
+        "items": [
+          {
+            "productKey": "SP01|Hàng trả hiện hữu|1931784",
+            "productCode": "SP01",
+            "productName": "Hàng trả hiện hữu",
+            "oldReturnQty": 2,
+            "currentReturnQty": 2,
+            "newReturnQty": 2,
+            "desiredReturnQty": 2,
+            "unitPrice": 1931784,
+            "deliveredQty": 5,
+            "adjustmentQty": 0,
+            "deltaReturnQty": 0,
+            "adjustmentAmount": 0,
+            "deltaReturnAmount": 0
+          }
+        ]
+      },
+      "returnAdjustmentAmount": 1931784
+    },
+    "calculated": {
+      "cashDeltaAmount": -1932000,
+      "returnDelta": 1931784,
+      "finalDebtAfter": -1931784
+    }
+  },
+  "after": {
+    "source": "Phase A3 frontend payload isolation",
+    "payload": {
+      "changeType": "PAYMENT_ONLY",
+      "reason": "",
+      "note": "B0040961 evidence",
+      "expectedVersion": "7",
+      "paymentCorrection": {
+        "correctedCashAmount": 0,
+        "correctedBankAmount": 0,
+        "correctedRewardAmount": 0
+      }
+    },
+    "calculated": {
+      "cashDeltaAmount": -1932000,
+      "returnDelta": 0,
+      "finalDebtAfter": 0
+    }
+  },
+  "assertions": {
+    "afterChangeType": "PAYMENT_ONLY",
+    "afterHasReturnAdjustmentAmount": false,
+    "afterHasReturnAdjustmentItems": false,
+    "afterHasCorrectedReturnItems": false,
+    "afterReturnDeltaIsZero": true,
+    "afterDebtIsZero": true
+  }
+}
