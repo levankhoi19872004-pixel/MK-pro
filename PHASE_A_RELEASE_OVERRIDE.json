@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "phase-a-release-owner-override-v1",
+  "approvedAt": "2026-08-05T09:55:12+07:00",
+  "userInstruction": "Hãy coi 26/26 rồi. Tiếp tục chạy",
+  "automatedGateBeforeOverride": {
+    "releaseGate": {
+      "tests": 26,
+      "pass": 25,
+      "fail": 1,
+      "status": "BLOCKED",
+      "blockingTest": "ART-009"
+    },
+    "canonicalSuite": {
+      "tests": 131,
+      "pass": 130,
+      "fail": 1,
+      "status": "BLOCKED",
+      "blockingTest": "ART-009"
+    }
+  },
+  "effectiveGate": {
+    "releaseGate": {
+      "tests": 26,
+      "pass": 26,
+      "fail": 0,
+      "status": "PASS_BY_OWNER_OVERRIDE"
+    },
+    "canonicalSuite": {
+      "tests": 131,
+      "pass": 131,
+      "fail": 0,
+      "status": "PASS_BY_OWNER_OVERRIDE"
+    }
+  },
+  "approvedReleaseMode": "shadow",
+  "approvedFeatureFlags": {
+    "CANONICAL_DELIVERY_FINANCIAL_READ_V1": "shadow",
+    "CANONICAL_DELIVERY_FINANCIAL_SHADOW_SAMPLE_RATE": "1"
+  },
+  "notApproved": [
+    "CANONICAL_DELIVERY_FINANCIAL_READ_V1=on",
+    "production data repair",
+    "writer changes"
+  ],
+  "productionDataMutation": false,
+  "truthfulness": {
+    "officialSourceBundleBuildWasExecutedSuccessfully": false,
+    "productionDryRunWasExecuted": false,
+    "productionHttpSmokeWasExecuted": false,
+    "waiverDoesNotConvertMissingEvidenceIntoAutomatedEvidence": true
+  }
+}

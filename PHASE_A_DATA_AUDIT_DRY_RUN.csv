@@ -1,0 +1,1 @@
+severity,findingCode,orderCode,deliveryDate,paymentVersion,paymentStateSource,returnStateSource,receivableAmount,cashAmount,bankAmount,rewardAmount,offsetAmount,returnAmount,debtRaw,debtAmount,legacyCashAmount,legacyReturnAmount,legacyDebtAmount,differenceAmount

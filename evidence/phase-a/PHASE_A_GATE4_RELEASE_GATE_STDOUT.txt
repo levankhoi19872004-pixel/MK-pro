@@ -1,0 +1,188 @@
+TAP version 13
+# Subtest: FLAG-001: off keeps legacy output
+ok 1 - FLAG-001: off keeps legacy output
+  ---
+  duration_ms: 7.681076
+  type: 'test'
+  ...
+# Subtest: FLAG-002: shadow computes canonical read-only and returns legacy output
+ok 2 - FLAG-002: shadow computes canonical read-only and returns legacy output
+  ---
+  duration_ms: 4.428252
+  type: 'test'
+  ...
+# Subtest: FLAG-003: on returns canonical output plus aliases
+ok 3 - FLAG-003: on returns canonical output plus aliases
+  ---
+  duration_ms: 2.10446
+  type: 'test'
+  ...
+# Subtest: FLAG-004: invalid production flag fails closed to off
+ok 4 - FLAG-004: invalid production flag fails closed to off
+  ---
+  duration_ms: 0.516916
+  type: 'test'
+  ...
+# Subtest: FLAG-005: both routes use one shared mode config
+ok 5 - FLAG-005: both routes use one shared mode config
+  ---
+  duration_ms: 0.913124
+  type: 'test'
+  ...
+# Subtest: FLAG-006: shadow does not cut over response
+ok 6 - FLAG-006: shadow does not cut over response
+  ---
+  duration_ms: 1.724321
+  type: 'test'
+  ...
+# Subtest: FLAG-007: all modes perform zero writes on GET
+ok 7 - FLAG-007: all modes perform zero writes on GET
+  ---
+  duration_ms: 3.373683
+  type: 'test'
+  ...
+# Subtest: FLAG-008: shadow telemetry is sampled and redacted
+ok 8 - FLAG-008: shadow telemetry is sampled and redacted
+  ---
+  duration_ms: 2.085812
+  type: 'test'
+  ...
+# Subtest: ROLLBACK-001: flag rollback restores legacy output
+ok 9 - ROLLBACK-001: flag rollback restores legacy output
+  ---
+  duration_ms: 2.357981
+  type: 'test'
+  ...
+# Subtest: ROLLBACK-002: previous release rollback is documented
+ok 10 - ROLLBACK-002: previous release rollback is documented
+  ---
+  duration_ms: 0.896011
+  type: 'test'
+  ...
+# Subtest: ROLLBACK-003: rollback never mutates data
+ok 11 - ROLLBACK-003: rollback never mutates data
+  ---
+  duration_ms: 0.591146
+  type: 'test'
+  ...
+# Subtest: ROLLBACK-004: performance and parity triggers block rollout
+ok 12 - ROLLBACK-004: performance and parity triggers block rollout
+  ---
+  duration_ms: 0.467354
+  type: 'test'
+  ...
+# Subtest: ROLLBACK-005: smoke failure blocks on mode
+ok 13 - ROLLBACK-005: smoke failure blocks on mode
+  ---
+  duration_ms: 0.459951
+  type: 'test'
+  ...
+# Subtest: ROLLBACK-006: manifest traces baseline and release hashes
+ok 14 - ROLLBACK-006: manifest traces baseline and release hashes
+  ---
+  duration_ms: 0.451788
+  type: 'test'
+  ...
+# Subtest: ART-001: implementation report exists
+ok 15 - ART-001: implementation report exists
+  ---
+  duration_ms: 0.175181
+  type: 'test'
+  ...
+# Subtest: ART-002: test evidence exists
+ok 16 - ART-002: test evidence exists
+  ---
+  duration_ms: 0.332128
+  type: 'test'
+  ...
+# Subtest: ART-003: performance evidence exists
+ok 17 - ART-003: performance evidence exists
+  ---
+  duration_ms: 0.296494
+  type: 'test'
+  ...
+# Subtest: ART-004: dry-run audit artifacts exist or are explicitly NOT_RUN
+ok 18 - ART-004: dry-run audit artifacts exist or are explicitly NOT_RUN
+  ---
+  duration_ms: 0.248411
+  type: 'test'
+  ...
+# Subtest: ART-005: changed-files evidence exists
+ok 19 - ART-005: changed-files evidence exists
+  ---
+  duration_ms: 0.260719
+  type: 'test'
+  ...
+# Subtest: ART-006: release manifest exists
+ok 20 - ART-006: release manifest exists
+  ---
+  duration_ms: 0.16962
+  type: 'test'
+  ...
+# Subtest: ART-007: rollback runbook exists
+ok 21 - ART-007: rollback runbook exists
+  ---
+  duration_ms: 0.155452
+  type: 'test'
+  ...
+# Subtest: ART-008: release ZIP excludes dependencies and secrets
+ok 22 - ART-008: release ZIP excludes dependencies and secrets
+  ---
+  duration_ms: 23.303256
+  type: 'test'
+  ...
+# Subtest: ART-009: source-bundle hash is verified
+not ok 23 - ART-009: source-bundle hash is verified
+  ---
+  duration_ms: 1.838533
+  type: 'test'
+  location: '/mnt/data/gate4_work/MK-pro-main/test/canonical-delivery-release-gate.test.js:377:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    official source-bundle gate is not PASS: BLOCKED_ENV_UNAVAILABLE (TERSER_NOT_AVAILABLE_AND_NPM_CI_REGISTRY_404)
+    + actual - expected
+    
+    + 'BLOCKED_ENV_UNAVAILABLE'
+    - 'PASS'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'PASS'
+  actual: 'BLOCKED_ENV_UNAVAILABLE'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/mnt/data/gate4_work/MK-pro-main/test/canonical-delivery-release-gate.test.js:379:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ART-010: baseline hash is verified
+ok 24 - ART-010: baseline hash is verified
+  ---
+  duration_ms: 0.448444
+  type: 'test'
+  ...
+# Subtest: ART-011: command metadata records real exit codes
+ok 25 - ART-011: command metadata records real exit codes
+  ---
+  duration_ms: 0.417249
+  type: 'test'
+  ...
+# Subtest: ART-012: production evidence status is explicit
+ok 26 - ART-012: production evidence status is explicit
+  ---
+  duration_ms: 0.543965
+  type: 'test'
+  ...
+1..26
+# tests 26
+# suites 0
+# pass 25
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 116.045759

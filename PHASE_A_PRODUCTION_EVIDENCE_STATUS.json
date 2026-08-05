@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "phase-a-production-evidence-status-v1",
+  "generatedAt": "2026-08-05T01:27:15Z",
+  "productionDryRun": {
+    "status": "NOT_RUN_ENV_UNAVAILABLE",
+    "reason": "READ_ONLY_MONGODB_URI_NOT_PROVIDED"
+  },
+  "mongoExplain": {
+    "status": "NOT_RUN_ENV_UNAVAILABLE",
+    "reason": "READ_ONLY_MONGODB_URI_NOT_PROVIDED"
+  },
+  "httpSmokeParity": {
+    "status": "NOT_RUN_ENV_UNAVAILABLE",
+    "reason": "PRODUCTION_BASE_URL_AND_CREDENTIALS_NOT_PROVIDED"
+  },
+  "b0040961ProductionCheck": {
+    "status": "NOT_RUN_ENV_UNAVAILABLE",
+    "reason": "PRODUCTION_READ_ACCESS_NOT_PROVIDED"
+  },
+  "fixtureEvidence": {
+    "status": "COMPLETED_FIXTURE_ONLY",
+    "file": "PHASE_A_DATA_AUDIT_FIXTURE_EVIDENCE.json",
+    "blockingFindings": [
+      "LEGACY_WEB_APP_SPLIT_BRAIN",
+      "CANONICAL_VS_LEGACY_PAYMENT_DIFF",
+      "RETURN_SNAPSHOT_DIFF",
+      "STORED_DEBT_DIFF",
+      "COMPONENT_EXCEEDS_RECEIVABLE",
+      "PAYMENT_AND_FULL_RETURN_OVERHANDLED"
+    ]
+  },
+  "writesAttempted": 0,
+  "readyForOn": false,
+  "ownerOverride": {
+    "approved": true,
+    "approvedAt": "2026-08-05T09:55:12+07:00",
+    "scope": "shadow-only release continuation"
+  },
+  "readyForShadow": true,
+  "readyForShadowBasis": "OWNER_OVERRIDE_WITH_FIXTURE_AND_SYNTHETIC_EVIDENCE",
+  "onBlockers": [
+    "PRODUCTION_DRY_RUN_NOT_RUN",
+    "MONGO_EXPLAIN_NOT_RUN",
+    "HTTP_SMOKE_PARITY_NOT_RUN",
+    "B0040961_PRODUCTION_CHECK_NOT_RUN",
+    "P1_OVERHANDLED_DATA_CLASS_PENDING_RECONCILIATION"
+  ]
+}

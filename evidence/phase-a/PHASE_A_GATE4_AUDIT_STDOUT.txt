@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "canonical-delivery-financial-audit-v1",
+  "policyVersion": "delivery-financial-audit-policy-v1",
+  "status": "NOT_RUN_ENV_UNAVAILABLE",
+  "dryRun": true,
+  "sourceSha256": "",
+  "filters": {
+    "from": "2026-08-01",
+    "to": "2026-08-04",
+    "orderCode": "",
+    "batchSize": 200,
+    "limit": 1000,
+    "sampleLimit": 50,
+    "json": "/mnt/data/PHASE_A_DATA_AUDIT_DRY_RUN.json",
+    "csv": "/mnt/data/PHASE_A_DATA_AUDIT_DRY_RUN.csv",
+    "explain": false,
+    "includeClean": false,
+    "dryRun": true
+  },
+  "startedAt": "2026-08-05T01:20:28.297Z",
+  "finishedAt": "2026-08-05T01:20:28.298Z",
+  "ordersScanned": 0,
+  "queryCount": {},
+  "summaryByCode": {},
+  "summaryBySeverity": {},
+  "samples": {},
+  "performance": {},
+  "writesAttempted": 0,
+  "redaction": {
+    "customerName": "omitted",
+    "phone": "omitted",
+    "address": "omitted"
+  },
+  "reason": "READ_ONLY_MONGODB_URI_NOT_PROVIDED",
+  "exitCode": 0
+}

@@ -4,17 +4,21 @@ const express = require('express');
 const SalesOrder = require('../models/SalesOrder');
 const MasterOrder = require('../models/MasterOrder');
 const ReturnOrder = require('../models/ReturnOrder');
+const OrderPaymentAllocation = require('../models/OrderPaymentAllocation');
+const DeliveryCloseoutVersion = require('../models/DeliveryCloseoutVersion');
 const StockTransaction = require('../models/StockTransaction');
 const ArLedger = require('../models/ArLedger');
 const User = require('../models/User');
 const { DeliveryEngine } = require('../engines/delivery.engine');
+const DeliveryPaymentStateReadService = require('../services/delivery/DeliveryPaymentStateReadService');
+const canonicalFinancialReadConfig = require('../config/canonicalDeliveryFinancialRead.config');
 const deliveryReconciliationService = require('../services/deliveryReconciliation.service');
 const deliveryRouteTrackingService = require('../services/deliveryRouteTracking.service');
 const { requireAuth, requireRole } = require('../middlewares/auth.middleware');
 const { withMongoTransaction } = require('../utils/transaction.util');
 
 const router = express.Router();
-const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger, User });
+const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, OrderPaymentAllocation, DeliveryCloseoutVersion, StockTransaction, ArLedger, User, DeliveryPaymentStateReadService });
 const deliveryReadRoles = requireRole(['delivery', 'admin', 'manager', 'accountant']);
 const deliveryWriteRoles = requireRole(['delivery', 'admin', 'manager']);
 
@@ -59,7 +63,7 @@ function sendError(res, err, fallback) {
 router.get('/orders', requireAuth, deliveryReadRoles, async (req, res) => {
   try {
     const query = bindDeliveryUser(req.query || {}, req.user);
-    const result = await engine.listOrders(query);
+    const result = await engine.listOrders(query, { financialReadMode: canonicalFinancialReadConfig.getCanonicalDeliveryFinancialReadMode() });
     return res.json({
       ok: true,
       success: true,
@@ -78,6 +82,11 @@ router.get('/orders', requireAuth, deliveryReadRoles, async (req, res) => {
       total: result.rows.length,
       summary: result.summary,
       reconciliation: result.reconciliation,
+      financialReadMode: result.financialReadMode,
+      financialContractVersion: result.financialContractVersion,
+      shadowSampleRate: result.shadowSampleRate,
+      shadowSampled: result.shadowSampled,
+      shadowDiffSummary: result.shadowDiffSummary,
       source: 'delivery-engine',
       canonicalRoute: '/api/delivery/orders'
     });

@@ -3,6 +3,7 @@
 const express = require('express');
 const { requireAuth, requireRole } = require('../middlewares/auth.middleware');
 const deliveryTodayNewService = require('../services/v2/deliveryTodayNew.service');
+const canonicalFinancialReadConfig = require('../config/canonicalDeliveryFinancialRead.config');
 const debtNewService = require('../services/v2/debtNew.service');
 const deliveryCloseoutCorrectionService = require('../services/deliveryCloseoutCorrection.service');
 const DeliveryAdjustmentCommitService = require('../services/delivery/DeliveryAdjustmentCommitService');
@@ -66,7 +67,7 @@ router.get('/delivery-today/suggestions', requireAuth, readRoles, async (req, re
 
 router.get('/delivery-today/orders', requireAuth, readRoles, async (req, res) => {
   try {
-    const result = await deliveryTodayNewService.listOrders(req.query || {});
+    const result = await deliveryTodayNewService.listOrders(req.query || {}, { financialReadMode: canonicalFinancialReadConfig.getCanonicalDeliveryFinancialReadMode() });
     return res.json({
       ok: true,
       success: true,

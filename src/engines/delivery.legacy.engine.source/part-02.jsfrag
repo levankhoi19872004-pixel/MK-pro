@@ -1,7 +1,7 @@
 /*masterOrderId:{$exists:true,$nin:[null, '']}*/
   const canonical = deliveryFinance.buildCanonicalDeliveryOrder(order, { returnItems, returnAmountOverride: returnAmount });
   const amounts = canonical.amounts || {};
-  return {
+  const legacyRow = {
     ...canonical,
     orderId: orderIdOf(order),
     orderCode: orderCodeOf(order),
@@ -34,6 +34,28 @@
       accountingStatus: text(order.accountingStatus || '')
     }
   };
+  if (!financialState || !financialState.financialContractVersion) return legacyRow;
+  const canonicalRow = DefaultDeliveryPaymentStateReadService.applyDeliveryFinancialCompatibility(
+    legacyRow,
+    financialState,
+    'delivery-app'
+  );
+  const canonicalAmounts = canonicalRow.amounts || {};
+  return {
+    ...canonicalRow,
+    reconciliation: buildOrderReconciliation(canonicalAmounts),
+    status: {
+      ...legacyRow.status,
+      paymentStatus: toNumber(financialState.openDebtAmount) <= 0
+        ? 'paid'
+        : (toNumber(financialState.totalHandledAmount) > 0 ? 'partial' : 'unpaid'),
+      returnStatus: toNumber(financialState.returnAmount) > 0 ? 'has_return' : 'none'
+    },
+    paymentVersion: financialState.paymentVersion,
+    paymentStateSource: financialState.paymentStateSource,
+    returnStateSource: financialState.returnStateSource,
+    financialContractVersion: financialState.financialContractVersion
+  };
 }
 
 function buildOrderReconciliation(amounts = {}) {
@@ -41,15 +63,17 @@ function buildOrderReconciliation(amounts = {}) {
   const cash = toNumber(amounts.cash ?? amounts.cashAmount);
   const bank = toNumber(amounts.bank ?? amounts.bankAmount);
   const reward = toNumber(amounts.reward ?? amounts.rewardAmount);
+  const offset = toNumber(amounts.offset ?? amounts.offsetAmount);
   const returnAmount = toNumber(amounts.returnAmount);
   const debt = normalizeDebtAmount(amounts.debt ?? amounts.debtAmount);
-  const processed = cash + bank + reward + returnAmount + debt;
+  const processed = cash + bank + reward + offset + returnAmount + debt;
   const difference = Math.round(receivable - processed);
   return {
     receivable,
     cash,
     bank,
     reward,
+    offset,
     returnAmount,
     debt,
     processed,
@@ -66,10 +90,31 @@ function summarizeOrders(rows = []) {
     acc.cash += toNumber(a.cash);
     acc.bank += toNumber(a.bank);
     acc.reward += toNumber(a.reward);
+    acc.offset += toNumber(a.offset ?? a.offsetAmount);
     acc.returnAmount += toNumber(a.returnAmount);
     acc.debt += normalizeDebtAmount(a.debt);
     return acc;
-  }, { receivable: 0, cash: 0, bank: 0, reward: 0, returnAmount: 0, debt: 0 });
+  }, { receivable: 0, cash: 0, bank: 0, reward: 0, offset: 0, returnAmount: 0, debt: 0 });
+}
+
+function summarizeFinancialRowDiffs(legacyRows = [], canonicalRows = []) {
+  const fields = ['receivable', 'cash', 'bank', 'reward', 'offset', 'returnAmount', 'debt'];
+  const mismatchCounts = Object.fromEntries(fields.map((field) => [field, 0]));
+  let mismatchedOrderCount = 0;
+  const canonicalByKey = new Map((canonicalRows || []).map((row) => [text(row.orderId || row.orderCode), row]));
+  for (const legacy of legacyRows || []) {
+    const canonical = canonicalByKey.get(text(legacy.orderId || legacy.orderCode));
+    if (!canonical) continue;
+    let mismatched = false;
+    for (const field of fields) {
+      if (toNumber(legacy.amounts && legacy.amounts[field]) !== toNumber(canonical.amounts && canonical.amounts[field])) {
+        mismatchCounts[field] += 1;
+        mismatched = true;
+      }
+    }
+    if (mismatched) mismatchedOrderCount += 1;
+  }
+  return { comparedOrderCount: Math.min(legacyRows.length, canonicalRows.length), mismatchedOrderCount, mismatchCounts };
 }
 
 const COMPLETED_DELIVERY_STATUSES = ['delivered', 'success', 'done', 'completed', 'accounting_confirmed'];
@@ -111,6 +156,9 @@ class DeliveryEngine {
     this.SalesOrder = models.SalesOrder;
     this.MasterOrder = models.MasterOrder;
     this.ReturnOrder = models.ReturnOrder;
+    this.OrderPaymentAllocation = models.OrderPaymentAllocation;
+    this.DeliveryCloseoutVersion = models.DeliveryCloseoutVersion;
+    this.DeliveryPaymentStateReadService = models.DeliveryPaymentStateReadService || DefaultDeliveryPaymentStateReadService;
     this.StockTransaction = models.StockTransaction;
     this.ArLedger = models.ArLedger;
     this.User = models.User;
@@ -416,14 +464,58 @@ class DeliveryEngine {
   }
 
   async listOrders(query = {}) {
+    const options = arguments[1] || {};
+    const financialReadMode = canonicalFinancialReadConfig.getCanonicalDeliveryFinancialReadMode(options);
+    const shadowSampleRate = canonicalFinancialReadConfig.getShadowSampleRate(options);
+    const canonicalComputationEnabled = canonicalFinancialReadConfig.shouldComputeCanonicalRead(financialReadMode, {
+      ...options,
+      shadowSampleRate
+    });
+    const shadowSampled = financialReadMode === canonicalFinancialReadConfig.MODES.SHADOW
+      ? canonicalComputationEnabled
+      : null;
     const orders = dedupeDeliveryOrders(await this.findOrders(query));
-    const returns = await this.findReturnOrdersFor(orders);
-    let rows = orders.map((order) => buildCanonicalOrder(order, returns.filter((ret) => returnMatchesOrder(ret, order))));
+    let rows;
+    let shadowDiffSummary = null;
+    if (!canonicalComputationEnabled) {
+      const returns = await this.findReturnOrdersFor(orders);
+      rows = orders.map((order) => buildCanonicalOrder(order, returns.filter((ret) => returnMatchesOrder(ret, order))));
+    } else {
+      const financialResult = await this.DeliveryPaymentStateReadService.resolvePaymentStatesForOrders(orders, {
+        models: {
+          OrderPaymentAllocation: this.OrderPaymentAllocation,
+          DeliveryCloseoutVersion: this.DeliveryCloseoutVersion,
+          ReturnOrder: this.ReturnOrder
+        },
+        includeReturnState: true
+      });
+      const returnRowsFor = (order) => this.DeliveryPaymentStateReadService
+        .returnRowsForOrder(order, financialResult.returnResult)
+        .map(canonicalizeReturnDocument)
+        .filter(hasPositiveReturnDocument);
+      const legacyRows = orders.map((order) => buildCanonicalOrder(order, returnRowsFor(order)));
+      const canonicalRows = orders.map((order) => buildCanonicalOrder(
+        order,
+        returnRowsFor(order),
+        this.DeliveryPaymentStateReadService.stateForOrder(order, financialResult.statesByIdentity)
+      ));
+      shadowDiffSummary = summarizeFinancialRowDiffs(legacyRows, canonicalRows);
+      rows = canonicalFinancialReadConfig.isCanonicalResponseEnabled(financialReadMode) ? canonicalRows : legacyRows;
+    }
     rows = dedupeDeliveryOrders(applyDeliveryStatusFilter(rows, query));
     if (truthy(query.checkStaffAssignment) || truthy(query.checkStaff) || truthy(query.staffCheck)) {
       rows = await this.enrichStaffAssignment(rows);
     }
-    return { rows, summary: summarizeOrders(rows), reconciliation: this.reconcileRows(rows) };
+    return {
+      rows,
+      summary: summarizeOrders(rows),
+      reconciliation: this.reconcileRows(rows),
+      financialReadMode,
+      financialContractVersion: DefaultDeliveryPaymentStateReadService.FINANCIAL_CONTRACT_VERSION,
+      shadowSampleRate,
+      shadowSampled,
+      shadowDiffSummary
+    };
   }
 
   normalizeReturnItems(sourceItems = [], order = {}) {

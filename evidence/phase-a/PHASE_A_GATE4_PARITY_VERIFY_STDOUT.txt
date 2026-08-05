@@ -1,0 +1,19 @@
+{
+  "status": "PASS_FIXTURE_ONLY",
+  "orderCode": "B0040961",
+  "fields": {
+    "receivableAmount": 1931784,
+    "cashAmount": 1932000,
+    "bankAmount": 0,
+    "rewardAmount": 0,
+    "offsetAmount": 0,
+    "totalCollectedAmount": 1932000,
+    "returnAmount": 1931784,
+    "debtRaw": -1932000,
+    "debtAmount": -1932000,
+    "paymentVersion": 1,
+    "paymentStateSource": "orderPaymentAllocations.current",
+    "returnStateSource": "returnOrders"
+  },
+  "productionHttpSmoke": "NOT_RUN_ENV_UNAVAILABLE"
+}

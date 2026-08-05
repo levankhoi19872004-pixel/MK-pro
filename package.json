@@ -160,7 +160,10 @@
     "audit:enterprise-surface": "node scripts/audit-enterprise-runtime-surface.js",
     "test:phase255b": "node --test test/phase255b-enterprise-route-static-entry-governance.test.js",
     "audit:scheduler-ownership": "node scripts/audit-scheduler-ownership.js",
-    "test:phase255c": "node --test test/phase255c-scheduler-ownership-readiness-governance.test.js"
+    "test:phase255c": "node --test test/phase255c-scheduler-ownership-readiness-governance.test.js",
+    "benchmark:canonical-delivery-financial": "node --expose-gc scripts/performance/benchmark-canonical-delivery-financial-read-model.js",
+    "audit:canonical-delivery-financial": "node scripts/audit-canonical-delivery-financial-read-model.js --dry-run",
+    "verify:canonical-delivery-parity": "node scripts/verify-canonical-delivery-api-parity.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

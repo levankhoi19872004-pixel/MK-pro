@@ -2,8 +2,16 @@
   'use strict';
 
   function toNumber(value) {
-    var n = Number(value || 0);
+    var n = Number(value == null || value === '' ? 0 : value);
     return Number.isFinite(n) ? n : 0;
+  }
+
+  function firstDefined() {
+    for (var i = 0; i < arguments.length; i += 1) {
+      var value = arguments[i];
+      if (value !== undefined && value !== null && value !== '') return value;
+    }
+    return undefined;
   }
 
   function text(value) {
@@ -101,8 +109,34 @@
 
   function normalizeOrder(order) {
     order = order || {};
-    var amounts = order.amounts || {};
+    var financial = order.financial && typeof order.financial === 'object' ? order.financial : {};
+    var amounts = order.amounts && typeof order.amounts === 'object' ? order.amounts : {};
     var items = Array.isArray(order.items) ? order.items : [];
+    var receivable = toNumber(firstDefined(financial.receivableAmount, order.receivableAmount, amounts.receivable, amounts.totalReceivable, order.totalReceivable, order.originalAmount, order.totalAmount, order.debtBeforeCollection));
+    var cash = toNumber(firstDefined(financial.cashAmount, amounts.cash, amounts.cashAmount, order.cashAmount, order.cashCollected, order.deliveryCashAmount));
+    var bank = toNumber(firstDefined(financial.bankAmount, amounts.bank, amounts.bankAmount, order.bankAmount, order.bankCollected, order.transferAmount));
+    var reward = toNumber(firstDefined(financial.rewardAmount, amounts.reward, amounts.rewardAmount, order.rewardAmount, order.bonusAmount));
+    var offset = toNumber(firstDefined(financial.offsetAmount, amounts.offset, amounts.offsetAmount, order.offsetAmount));
+    var returnAmount = toNumber(firstDefined(financial.returnAmount, amounts.returnAmount, order.returnAmount, order.returnedAmount, order.totalReturnAmount));
+    var totalCollected = toNumber(firstDefined(financial.totalCollectedAmount, order.totalCollectedAmount, order.collectedAmount, cash + bank + reward + offset));
+    var totalHandled = toNumber(firstDefined(financial.totalHandledAmount, amounts.processed, order.totalHandledAmount, order.processedAmount, totalCollected + returnAmount));
+    var debtRaw = toNumber(firstDefined(financial.debtRaw, order.debtRaw, receivable - totalHandled));
+    var debt = normalizeDebtAmount(firstDefined(financial.debtAmount, amounts.debt, amounts.debtAmount, order.debtAmount, order.debt, order.remainingAmount, debtRaw));
+    var openDebtAmount = toNumber(firstDefined(financial.openDebtAmount, amounts.openDebtAmount, order.openDebtAmount, order.remainingAmount, Math.max(0, debt)));
+    var hasCanonicalFinancialState = Boolean(financial.financialContractVersion || order.financialContractVersion);
+    var normalizedFinancial = Object.assign({}, financial, {
+      receivableAmount: receivable,
+      cashAmount: cash,
+      bankAmount: bank,
+      rewardAmount: reward,
+      offsetAmount: offset,
+      totalCollectedAmount: totalCollected,
+      returnAmount: returnAmount,
+      totalHandledAmount: totalHandled,
+      debtRaw: debtRaw,
+      debtAmount: debt,
+      openDebtAmount: openDebtAmount
+    });
     return Object.assign({}, order, {
       orderId: text(order.orderId || order.salesOrderId || order.id || order._id),
       orderCode: text(order.orderCode || order.salesOrderCode || order.code || order.displayOrderCode || order.id),
@@ -111,15 +145,43 @@
       customerCode: text(order.customerCode),
       customerName: text(order.customerName),
       items: items,
-      amounts: {
-        receivable: toNumber(amounts.receivable || amounts.totalReceivable || order.totalAmount || order.debtBeforeCollection),
-        cash: toNumber(amounts.cash || amounts.cashAmount || order.cashCollected || order.cashAmount),
-        bank: toNumber(amounts.bank || amounts.bankAmount || order.bankCollected || order.bankAmount || order.transferAmount),
-        reward: toNumber(amounts.reward || amounts.rewardAmount || order.rewardAmount || order.bonusAmount),
-        returnAmount: toNumber(amounts.returnAmount || order.returnAmount || order.returnedAmount),
-        processed: toNumber(amounts.processed || order.processedAmount || order.collectedAmount),
-        debt: normalizeDebtAmount(amounts.debt || amounts.debtAmount || order.debtAmount || order.debt)
-      },
+      financial: normalizedFinancial,
+      amounts: Object.assign({}, amounts, {
+        receivable: receivable,
+        totalReceivable: receivable,
+        cash: cash,
+        cashAmount: cash,
+        bank: bank,
+        bankAmount: bank,
+        reward: reward,
+        rewardAmount: reward,
+        offset: offset,
+        offsetAmount: offset,
+        returnAmount: returnAmount,
+        processed: totalHandled,
+        debt: debt,
+        debtAmount: debt,
+        openDebtAmount: openDebtAmount
+      }),
+      receivableAmount: receivable,
+      totalReceivable: receivable,
+      cashAmount: cash,
+      cashCollected: cash,
+      bankAmount: bank,
+      bankCollected: bank,
+      transferAmount: bank,
+      rewardAmount: reward,
+      offsetAmount: offset,
+      returnAmount: returnAmount,
+      returnedAmount: returnAmount,
+      totalCollectedAmount: totalCollected,
+      totalHandledAmount: totalHandled,
+      debtRaw: debtRaw,
+      debtAmount: debt,
+      debt: debt,
+      remainingAmount: openDebtAmount,
+      openDebtAmount: openDebtAmount,
+      _hasCanonicalFinancialState: hasCanonicalFinancialState,
       status: order.status && typeof order.status === 'object' ? order.status : {
         deliveryStatus: text(order.deliveryStatus || order.status || 'pending'),
         paymentStatus: text(order.paymentStatus || ''),
@@ -428,12 +490,40 @@
       return this.state.selectedOrder;
     },
 
-    calculateAmounts(order) {
+    calculateAmounts(order, options) {
       order = normalizeOrder(order);
+      options = options || {};
+      if (order._hasCanonicalFinancialState && options.isPreview !== true) {
+        return Object.assign({}, order.amounts, {
+          debtRaw: order.financial.debtRaw,
+          openDebtAmount: order.financial.openDebtAmount,
+          isPreview: false,
+          source: 'server-canonical'
+        });
+      }
       var amounts = order.amounts || {};
-      var processed = toNumber(amounts.cash) + toNumber(amounts.bank) + toNumber(amounts.reward) + toNumber(amounts.returnAmount);
-      var debt = normalizeDebtAmount(Math.max(0, toNumber(amounts.receivable) - processed));
-      return Object.assign({}, amounts, { processed: processed, debt: debt });
+      var receivable = toNumber(amounts.receivable);
+      var cash = toNumber(amounts.cash);
+      var bank = toNumber(amounts.bank);
+      var reward = toNumber(amounts.reward);
+      var offset = toNumber(amounts.offset);
+      var returnAmount = toNumber(amounts.returnAmount);
+      var processed = cash + bank + reward + offset + returnAmount;
+      var debtRaw = Math.round(receivable - processed);
+      return {
+        receivable: receivable,
+        cash: cash,
+        bank: bank,
+        reward: reward,
+        offset: offset,
+        returnAmount: returnAmount,
+        processed: processed,
+        debtRaw: debtRaw,
+        debt: Math.max(0, debtRaw),
+        openDebtAmount: Math.max(0, debtRaw),
+        isPreview: true,
+        source: 'local-preview'
+      };
     },
 
     buildReturnPayload(order, items, options) {

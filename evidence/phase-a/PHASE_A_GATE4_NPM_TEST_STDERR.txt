@@ -1,0 +1,16 @@
+[IMPORT_PREVIEW_WORKER_DISCONNECT] { sessionId: 'IMP-NO-MESSAGE', pid: 43210 }
+[source-size-budget] FAILED
+- src/services/returnOrderLegacy.service.js: 49719 bytes > budget 49152
+- src/engines/delivery.legacy.engine.js: 68638 bytes > budget 40960
+- public/mobile/js/delivery-mobile-view.js: 68323 bytes > budget 65536
+- public/mobile/js/delivery-mobile-view.source.js: 80411 bytes > budget 77824
+- public/mobile/js/delivery-mobile-view.js.map: 131406 bytes > budget 131072
+- src/engines/delivery.legacy.engine.source/part-01.jsfrag: 24699 bytes > budget 24576
+- src/engines/delivery.legacy.engine.source/part-02.jsfrag: 28705 bytes > budget 24576
+[RETIRED_ROUTE_HIT] {
+  route: 'test-mobile-legacy',
+  method: 'GET',
+  path: '/api/mobile-legacy/orders',
+  replacement: '/api/mobile',
+  count: 1
+}

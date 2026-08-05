@@ -19,6 +19,8 @@ const {
   pickUserAccountDeliveryStaffCode
 } = require('../domain/staff/staffIdentity');
 const { assertEngineReturnMutationAllowed } = require('../services/returns/DeliveryReturnMutationGuard');
+const DefaultDeliveryPaymentStateReadService = require('../services/delivery/DeliveryPaymentStateReadService');
+const canonicalFinancialReadConfig = require('../config/canonicalDeliveryFinancialRead.config');
 
 function text(value) { return String(value == null ? '' : value).trim(); }
 function lower(value) { return text(value).toLowerCase(); }
@@ -67,7 +69,7 @@ function returnOrderQtyFromItems(items = []) {
 }
 function hasPositiveReturnDocument(row = {}) {
   const items = Array.isArray(row.items) ? row.items : [];
-  return returnOrderAmountFromItems(items) > 0 || toNumber(row.totalAmount ?? row.totalReturnAmount ?? row.amount ?? row.debtReduction) > 0;
+  return returnOrderAmountFromItems(items) > 0 || toNumber(row.totalAmount ?? row.totalReturnAmount ?? row.returnAmount ?? row.amount ?? row.debtReduction) > 0;
 }
 function canonicalizeReturnDocument(row = {}) {
   const items = (Array.isArray(row.items) ? row.items : []).map((item) => {
@@ -94,7 +96,7 @@ function canonicalizeReturnDocument(row = {}) {
     };
   }).filter((item) => item.productCode || item.productName || toNumber(item.returnQty) > 0);
   const itemAmount = returnOrderAmountFromItems(items);
-  const totalAmount = itemAmount || Math.round(toNumber(row.totalAmount ?? row.totalReturnAmount ?? row.amount ?? row.debtReduction));
+  const totalAmount = itemAmount || Math.round(toNumber(row.totalAmount ?? row.totalReturnAmount ?? row.returnAmount ?? row.amount ?? row.debtReduction));
   const totalQuantity = returnOrderQtyFromItems(items) || toNumber(row.totalQuantity ?? row.quantity ?? row.qty);
   const id = text(row.id || row.code || row._id);
   const code = text(row.code || row.id || id);
@@ -612,6 +614,6 @@ function flattenReturnOrderRows(ro = {}, order = {}) {
   });
 }
 
-function buildCanonicalOrder(order = {}, relatedReturnOrders = []) {
+function buildCanonicalOrder(order = {}, relatedReturnOrders = [], financialState = null) {
   const returnItems = normalizeReturnItemsFromOrders(relatedReturnOrders);
   const returnAmount = returnItems.reduce((sum, item) => sum + toNumber(item.returnAmount || item.amount), 0);

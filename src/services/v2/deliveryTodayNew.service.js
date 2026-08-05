@@ -9,6 +9,7 @@ const deliveryTodayCanonicalOrderReader = require('../delivery/deliveryTodayCano
 const { calculateDeliveryTodayKpi } = require('../delivery/deliveryTodayKpiCalculator');
 const { evaluateCloseoutEligibility } = require('../accounting/closeout/CloseoutEligibility');
 const DeliveryPaymentStateReadService = require('../delivery/DeliveryPaymentStateReadService');
+const canonicalFinancialReadConfig = require('../../config/canonicalDeliveryFinancialRead.config');
 const {
   RETURN_ORDER_LOCK_PROJECTION,
   resolveDeliveryAccountingLockState
@@ -176,6 +177,8 @@ function hasSearchCriteria(query = {}) {
 }
 
 function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {
+  const financialReadMode = canonicalFinancialReadConfig.getCanonicalDeliveryFinancialReadMode();
+  const shadowSampleRate = canonicalFinancialReadConfig.getShadowSampleRate();
   return {
     rows: [],
     orders: [],
@@ -194,6 +197,11 @@ function emptyListResult(query = {}, reason = 'SEARCH_CRITERIA_REQUIRED') {
       hasSearchCriteria: hasSearchCriteria(query),
       writePolicy: 'read-only list; closeout must use POST /api/new/delivery-today/closeout; confirmed orders require DeliveryCloseoutCorrectionService; posted payment allocation comes from orderPaymentAllocations; latest correction comes from deliveryCloseoutVersions',
       debtZeroTolerance: DEBT_ZERO_TOLERANCE,
+      financialReadMode,
+      financialContractVersion: DeliveryPaymentStateReadService.FINANCIAL_CONTRACT_VERSION,
+      shadowSampleRate,
+      shadowSampled: financialReadMode === canonicalFinancialReadConfig.MODES.SHADOW ? false : null,
+      shadowDiffSummary: null,
       deliverySourceApplied: false,
       fallbackEnabled: false,
       matchKeys: []
@@ -447,6 +455,20 @@ function isValidReturn(row = {}) {
     && row.isDeleted !== true;
 }
 
+function buildReturnsMapFromRows(rows = []) {
+  const map = new Map();
+  for (const row of rows || []) {
+    if (!isValidReturn(row)) continue;
+    const normalized = normalizeReturn(row);
+    const keys = [normalized.orderId, normalized.orderCode].filter(Boolean);
+    for (const key of keys) {
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(normalized);
+    }
+  }
+  return map;
+}
+
 async function loadReturnsForOrders(orders = [], options = {}) {
   const ids = Array.from(new Set(orders.flatMap(orderBusinessIds).filter(Boolean)));
   if (!ids.length) return new Map();
@@ -467,17 +489,7 @@ async function loadReturnsForOrders(orders = [], options = {}) {
   query = applyProjection(query, RETURN_ORDER_HOT_PATH_PROJECTION);
   if (options.session && query && typeof query.session === 'function') query = query.session(options.session);
   const rows = query && typeof query.lean === 'function' ? await query.lean() : await query;
-  const map = new Map();
-  for (const row of rows || []) {
-    if (!isValidReturn(row)) continue;
-    const normalized = normalizeReturn(row);
-    const keys = [normalized.orderId, normalized.orderCode].filter(Boolean);
-    for (const key of keys) {
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(normalized);
-    }
-  }
-  return map;
+  return buildReturnsMapFromRows(rows || []);
 }
 
 
@@ -635,7 +647,7 @@ function collectedAmount(order = {}) {
   return money(closeout.collectedAmount ?? order.collectedAmount ?? order.deliveryCollectedAmount ?? order.paidAmount ?? order.paymentAmount ?? 0);
 }
 
-function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = new Map(), allocationsByKey = new Map()) {
+function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = new Map(), allocationsByKey = new Map(), canonicalPaymentState = null) {
   const ids = orderBusinessIds(order);
   const returns = ids.flatMap((id) => returnsByKey.get(id) || []);
   const seen = new Set();
@@ -646,21 +658,32 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     return true;
   });
   const closeout = closeoutOf(order);
-  const paymentState = DeliveryPaymentStateReadService.resolvePaymentStateForOrder(order, versionsByKey, allocationsByKey);
+  const canonicalMode = Boolean(canonicalPaymentState && canonicalPaymentState.financialContractVersion);
+  const paymentState = canonicalMode
+    ? canonicalPaymentState
+    : DeliveryPaymentStateReadService.resolvePaymentStateForOrder(order, versionsByKey, allocationsByKey);
   const latestVersion = paymentState.latestVersion || null;
   const rawPostedAllocation = paymentState.rawPostedAllocation || null;
   const postedAllocation = paymentState.postedAllocation || null;
   const stalePaymentAllocation = paymentState.stalePaymentAllocationIgnored === true;
-  const originalAmount = postedAllocation
-    ? money(postedAllocation.receivableAmount)
-    : money((latestVersion && (latestVersion.originalAmount ?? latestVersion.saleAmount)) ?? closeout.originalAmount ?? orderAmount(order));
+  const originalAmount = canonicalMode
+    ? money(paymentState.receivableAmount)
+    : (postedAllocation
+      ? money(postedAllocation.receivableAmount)
+      : money((latestVersion && (latestVersion.originalAmount ?? latestVersion.saleAmount)) ?? closeout.originalAmount ?? orderAmount(order)));
   const legacyReturnedAmount = money(uniqueReturns.reduce((sum, row) => sum + money(row.amount), 0));
-  const returnedAmount = postedAllocation ? money(postedAllocation.returnAmount) : money((latestVersion && (latestVersion.returnedAmount ?? latestVersion.returnAmount)) ?? legacyReturnedAmount);
+  const returnedAmount = canonicalMode
+    ? money(paymentState.returnAmount)
+    : (postedAllocation
+      ? money(postedAllocation.returnAmount)
+      : money((latestVersion && (latestVersion.returnedAmount ?? latestVersion.returnAmount)) ?? legacyReturnedAmount));
   const adjustedCashAmount = money(paymentState.cashAmount);
   const bankAmount = money(paymentState.bankAmount);
   const rewardAmount = money(paymentState.rewardAmount);
   const offsetAmount = money(paymentState.offsetAmount);
-  const collected = money(paymentState.collectedAmount || collectedAmount(order));
+  const collected = canonicalMode
+    ? money(paymentState.totalCollectedAmount)
+    : money(paymentState.collectedAmount ?? collectedAmount(order));
   const preferredDebtAmount = paymentState.debtAmount !== undefined
     ? money(paymentState.debtAmount)
     : (closeout.finalDebtAmount !== undefined ? money(closeout.finalDebtAmount) : undefined);
@@ -688,9 +711,9 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     rawDebtAmount: kpi.rawComputedDebtAmount,
     debtAmount: kpi.computedDebtAmount
   };
-  const rawFinalDebtAmount = kpi.rawComputedDebtAmount;
-  const finalDebtAmount = kpi.finalDebtAmount;
-  const computedDebtAmount = kpi.computedDebtAmount;
+  const rawFinalDebtAmount = canonicalMode ? money(paymentState.debtRaw) : kpi.rawComputedDebtAmount;
+  const finalDebtAmount = canonicalMode ? money(paymentState.debtAmount) : kpi.finalDebtAmount;
+  const computedDebtAmount = canonicalMode ? money(paymentState.debtAmount) : kpi.computedDebtAmount;
   const closeoutFinalDebt = finalDebtAmount;
   const confirmedCloseout = isConfirmedCloseout(order);
   const orderStatus = text(order.status || order.deliveryStatus || order.lifecycleStatus).toLowerCase();
@@ -707,7 +730,7 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     latestCloseoutVersion: latestVersion,
     allocation: postedAllocation
   });
-  return {
+  const row = {
     id: text(order.id || order._id),
     orderId: text(order.id || order._id),
     orderCode: orderCode(order),
@@ -797,6 +820,22 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     correctionRequired: confirmedCloseout,
     correctionMessage: confirmedCloseout ? 'Đơn đã xác nhận kế toán: mọi sửa đổi phải qua correction flow.' : ''
   };
+  if (!canonicalMode) return row;
+  return {
+    ...DeliveryPaymentStateReadService.applyDeliveryFinancialCompatibility(row, paymentState, 'delivery-today-web'),
+    originalAmount: money(paymentState.receivableAmount),
+    returnedAmount: money(paymentState.returnAmount),
+    collectedAmount: money(paymentState.totalCollectedAmount),
+    finalDebtAmount: money(paymentState.debtAmount),
+    rawFinalDebtAmount: money(paymentState.debtRaw),
+    computedDebtAmount: money(paymentState.debtAmount),
+    closeoutFinalDebtAmount: money(paymentState.debtAmount),
+    closeoutDelta: 0,
+    paymentVersion: paymentState.paymentVersion,
+    paymentStateSource: paymentState.paymentStateSource,
+    returnStateSource: paymentState.returnStateSource,
+    financialContractVersion: paymentState.financialContractVersion
+  };
 }
 
 function summarizeRows(rows = []) {
@@ -879,6 +918,26 @@ function summarizeGroups(rows = []) {
   return Array.from(map.values()).sort((a, b) => String(a.salesStaffCode || a.salesStaffName || a.key).localeCompare(String(b.salesStaffCode || b.salesStaffName || b.key), 'vi'));
 }
 
+function summarizeFinancialProjectionDiffs(legacyRows = [], canonicalRows = []) {
+  const fields = ['originalAmount', 'cashAmount', 'bankAmount', 'rewardAmount', 'offsetAmount', 'returnedAmount', 'finalDebtAmount'];
+  let mismatchedOrderCount = 0;
+  const mismatchCounts = Object.fromEntries(fields.map((field) => [field, 0]));
+  const canonicalByKey = new Map((canonicalRows || []).map((row) => [text(row.orderId || row.orderCode), row]));
+  for (const legacy of legacyRows || []) {
+    const canonical = canonicalByKey.get(text(legacy.orderId || legacy.orderCode));
+    if (!canonical) continue;
+    let mismatched = false;
+    for (const field of fields) {
+      if (money(legacy[field]) !== money(canonical[field])) {
+        mismatchCounts[field] += 1;
+        mismatched = true;
+      }
+    }
+    if (mismatched) mismatchedOrderCount += 1;
+  }
+  return { comparedOrderCount: Math.min(legacyRows.length, canonicalRows.length), mismatchedOrderCount, mismatchCounts };
+}
+
 async function listOrders(query = {}, options = {}) {
   const startedAt = Date.now();
   if (!hasSearchCriteria(query)) {
@@ -887,12 +946,48 @@ async function listOrders(query = {}, options = {}) {
   const canonicalResult = await loadCanonicalSalesOrders(query, options);
   const orders = canonicalResult.orders || [];
   const readerDiagnostics = canonicalResult.diagnostics || {};
-  const [returnsByKey, versionsByKey, allocationsByKey] = await Promise.all([
-    loadReturnsForOrders(orders, options),
-    loadLatestVersionsForOrders(orders, options),
-    loadAllocationsForOrders(orders, options)
-  ]);
-  const rows = orders.map((order) => summarizeOrder(order, returnsByKey, versionsByKey, allocationsByKey));
+  const financialReadMode = canonicalFinancialReadConfig.getCanonicalDeliveryFinancialReadMode(options);
+  const shadowSampleRate = canonicalFinancialReadConfig.getShadowSampleRate(options);
+  const canonicalComputationEnabled = canonicalFinancialReadConfig.shouldComputeCanonicalRead(financialReadMode, {
+    ...options,
+    shadowSampleRate
+  });
+  const shadowSampled = financialReadMode === canonicalFinancialReadConfig.MODES.SHADOW
+    ? canonicalComputationEnabled
+    : null;
+  let returnsByKey;
+  let versionsByKey;
+  let allocationsByKey;
+  let financialResult = null;
+  let shadowDiffSummary = null;
+  let rows;
+  if (!canonicalComputationEnabled) {
+    [returnsByKey, versionsByKey, allocationsByKey] = await Promise.all([
+      loadReturnsForOrders(orders, options),
+      loadLatestVersionsForOrders(orders, options),
+      loadAllocationsForOrders(orders, options)
+    ]);
+    rows = orders.map((order) => summarizeOrder(order, returnsByKey, versionsByKey, allocationsByKey));
+  } else {
+    financialResult = await DeliveryPaymentStateReadService.resolvePaymentStatesForOrders(orders, {
+      ...options,
+      models: getModels(),
+      includeReturnState: true
+    });
+    returnsByKey = buildReturnsMapFromRows(financialResult.returnResult && financialResult.returnResult.rows);
+    versionsByKey = financialResult.versionsByKey;
+    allocationsByKey = financialResult.allocationsByKey;
+    const legacyRows = orders.map((order) => summarizeOrder(order, returnsByKey, versionsByKey, allocationsByKey));
+    const canonicalRows = orders.map((order) => summarizeOrder(
+      order,
+      returnsByKey,
+      versionsByKey,
+      allocationsByKey,
+      DeliveryPaymentStateReadService.stateForOrder(order, financialResult.statesByIdentity)
+    ));
+    shadowDiffSummary = summarizeFinancialProjectionDiffs(legacyRows, canonicalRows);
+    rows = canonicalFinancialReadConfig.isCanonicalResponseEnabled(financialReadMode) ? canonicalRows : legacyRows;
+  }
   const summary = summarizeRows(rows);
   const groups = summarizeGroups(rows);
   const rowWarnings = rows.flatMap((row) => Array.isArray(row.kpiWarnings) ? row.kpiWarnings : []);
@@ -918,9 +1013,11 @@ async function listOrders(query = {}, options = {}) {
     primarySource: 'orders',
     reader: 'deliveryTodayCanonicalOrderReader',
     masterOrdersRole: 'metadata-only',
-    allocationPolicy: 'current-only; mismatched debt displays computed formula with warning',
-    closeoutVersionPolicy: 'latest-only',
-    returnPolicy: 'valid-returnOrders-only',
+    allocationPolicy: canonicalComputationEnabled
+      ? 'exact-version current allocation; stale/future/mismatched candidates are diagnostics only'
+      : 'legacy current allocation compatibility',
+    closeoutVersionPolicy: canonicalComputationEnabled ? 'latest eligible version fallback' : 'legacy latest-only',
+    returnPolicy: canonicalComputationEnabled ? 'returnOrders SSoT' : 'legacy valid-returnOrders compatibility',
     dateFilter: readerDiagnostics.dateFilter || null,
     readerDiagnostics
   };
@@ -943,6 +1040,11 @@ async function listOrders(query = {}, options = {}) {
       reader: 'deliveryTodayCanonicalOrderReader',
       writePolicy: 'read-only list; closeout must use POST /api/new/delivery-today/closeout; confirmed orders require DeliveryCloseoutCorrectionService; current payment allocation comes from orderPaymentAllocations; latest correction comes from deliveryCloseoutVersions',
       debtZeroTolerance: DEBT_ZERO_TOLERANCE,
+      financialReadMode,
+      financialContractVersion: DeliveryPaymentStateReadService.FINANCIAL_CONTRACT_VERSION,
+      shadowSampleRate,
+      shadowSampled,
+      shadowDiffSummary,
       deliverySourceApplied: false,
       fallbackEnabled: false,
       hasSearchCriteria: hasSearchCriteria(query),

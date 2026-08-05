@@ -1,0 +1,7 @@
+WARN: NODE_ENV chưa đặt production
+WARN: Nên khai báo PUBLIC_APP_ORIGIN để kiểm tra CSRF chính xác sau reverse proxy
+WARN: Nên khai báo TRUST_PROXY phù hợp với Render/nginx
+WARN: Nên khai báo BACKUP_DIR trên volume bền vững hoặc dùng Atlas PITR
+ERROR: JWT_SECRET phải là secret ngẫu nhiên tối thiểu 32 ký tự
+ERROR: JWT_REFRESH_SECRET phải là secret ngẫu nhiên tối thiểu 32 ký tự
+ERROR: Thiếu MONGO_URI/MONGODB_URI hợp lệ

@@ -1,0 +1,114 @@
+{
+  "schemaVersion": "canonical-delivery-financial-performance-v1",
+  "generatedAt": "2026-08-05T01:32:44.854Z",
+  "nodeVersion": "v22.16.0",
+  "gcExposed": true,
+  "options": {
+    "sizes": [
+      1,
+      10,
+      100,
+      1000
+    ],
+    "warmup": 5,
+    "iterations": 30,
+    "seed": 261
+  },
+  "absoluteGates": {
+    "p95_100": 100,
+    "p95_1000": 500,
+    "heap100": 8388608,
+    "heap1000": 41943040,
+    "payload1000": 8388608
+  },
+  "results": [
+    {
+      "size": 1,
+      "iterations": 30,
+      "p50Ms": 0.224,
+      "p95Ms": 1.003,
+      "heapDeltaMedianBytes": 80208,
+      "payloadMedianBytes": 1563,
+      "queryCount": 3,
+      "queries": {
+        "versions": 1,
+        "allocations": 1,
+        "returns": 1
+      },
+      "writes": 0,
+      "queryPass": true,
+      "latencyPass": true,
+      "heapPass": true,
+      "payloadPass": true,
+      "pass": true
+    },
+    {
+      "size": 10,
+      "iterations": 30,
+      "p50Ms": 0.599,
+      "p95Ms": 1.018,
+      "heapDeltaMedianBytes": 653672,
+      "payloadMedianBytes": 13008,
+      "queryCount": 3,
+      "queries": {
+        "versions": 1,
+        "allocations": 1,
+        "returns": 1
+      },
+      "writes": 0,
+      "queryPass": true,
+      "latencyPass": true,
+      "heapPass": true,
+      "payloadPass": true,
+      "pass": true
+    },
+    {
+      "size": 100,
+      "iterations": 30,
+      "p50Ms": 5.045,
+      "p95Ms": 11.716,
+      "heapDeltaMedianBytes": 6352464,
+      "payloadMedianBytes": 122576,
+      "queryCount": 3,
+      "queries": {
+        "versions": 1,
+        "allocations": 1,
+        "returns": 1
+      },
+      "writes": 0,
+      "queryPass": true,
+      "latencyPass": true,
+      "heapPass": true,
+      "payloadPass": true,
+      "pass": true
+    },
+    {
+      "size": 1000,
+      "iterations": 30,
+      "p50Ms": 45.386,
+      "p95Ms": 57.617,
+      "heapDeltaMedianBytes": 5176824,
+      "payloadMedianBytes": 1252980,
+      "queryCount": 3,
+      "queries": {
+        "versions": 1,
+        "allocations": 1,
+        "returns": 1
+      },
+      "writes": 0,
+      "queryPass": true,
+      "latencyPass": true,
+      "heapPass": true,
+      "payloadPass": true,
+      "pass": true
+    }
+  ],
+  "mongoExplain": {
+    "status": "NOT_REQUESTED"
+  },
+  "relativeEndpointComparison": {
+    "status": "NOT_COMPARABLE_SYNTHETIC",
+    "reason": "No production-like endpoint baseline or MongoDB environment supplied"
+  },
+  "pass": true
+}

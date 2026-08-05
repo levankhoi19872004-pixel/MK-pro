@@ -1,0 +1,162 @@
+{
+  "schemaVersion": "phase-a-release-manifest-v2-owner-override",
+  "generatedAt": "2026-08-05T01:37:05.131851+00:00",
+  "project": "MK-Pro",
+  "baseline": {
+    "name": "MK-pro-phase261-debt-new-canonical-staff-scope-fixed(2).zip",
+    "sha256": "08a10b69da53a7cd2b314f502b8d13e7f1274dd8098cb23ae26193024eace892"
+  },
+  "gate3Input": {
+    "name": "MK-pro-phaseA-gate3-web-app-canonical-integration-working.zip",
+    "sha256": "d01d5425a5355ed842ed056dbcd4dd3c1de8795ea1b9ced94c01277b25ca0b40"
+  },
+  "contractVersion": "delivery-financial-v1",
+  "sourceBundleCheck": {
+    "status": "PASS",
+    "passed": true,
+    "passBasis": "OWNER_OVERRIDE",
+    "automatedStatus": "BLOCKED_ENV_UNAVAILABLE",
+    "automatedPassed": false,
+    "reason": "TERSER_NOT_AVAILABLE_AND_NPM_CI_REGISTRY_404; explicitly waived by owner for shadow-only continuation.",
+    "buildExitCode": 1,
+    "checkExitCode": 1,
+    "evidence": [
+      "evidence/phase-a/PHASE_A_GATE4_NPM_CI_STDERR.txt",
+      "evidence/phase-a/PHASE_A_GATE4_SOURCE_BUNDLE_BUILD_STDERR.txt",
+      "evidence/phase-a/PHASE_A_GATE4_SOURCE_BUNDLE_CHECK_STDERR.txt"
+    ],
+    "waiverArtifact": "PHASE_A_RELEASE_EXCEPTION_APPROVAL.md"
+  },
+  "performance": {
+    "status": "PASS_SYNTHETIC",
+    "file": "PHASE_A_PERFORMANCE_EVIDENCE.json",
+    "sha256": "bdfd5777ce3d897b31052ba04cc767f51a27441fc24ced01ba26ad744ad63930",
+    "productionExplain": "NOT_RUN_ENV_UNAVAILABLE"
+  },
+  "productionEvidence": {
+    "status": "NOT_RUN_ENV_UNAVAILABLE",
+    "file": "PHASE_A_PRODUCTION_EVIDENCE_STATUS.json",
+    "sha256": "6c9f18e9003e6950080e65c2de04df09cb07b11029221629826db9e41d87140a"
+  },
+  "dataMutation": false,
+  "releaseArtifact": {
+    "type": "shadow-release-candidate",
+    "name": "MK-pro-phaseA-canonical-delivery-financial-read-model-fixed.zip",
+    "path": "/mnt/data/MK-pro-phaseA-canonical-delivery-financial-read-model-fixed.zip",
+    "sha256": "b05ae4263bf00f96238dbb175fb3b18ac680159acea9c3c3103dfb5c79e48bfb",
+    "sha256Kind": "source-content-tree; actual ZIP SHA-256 is in external sidecar manifest",
+    "deployable": true,
+    "deployableModes": [
+      "off",
+      "shadow"
+    ],
+    "notApprovedMode": "on",
+    "manifestLocation": "external-sidecar"
+  },
+  "decision": "READY_FOR_SHADOW_BY_OWNER_OVERRIDE",
+  "decisionReasons": [
+    "OWNER_ACCEPTED_ART009_EXCEPTION",
+    "FUNCTIONAL_PARITY_AND_CRITICAL_REGRESSION_PASS",
+    "PRODUCTION_DRY_RUN_EXPLAIN_SMOKE_STILL_PENDING",
+    "B0040961_CLASS_REQUIRES_SEPARATE_RECONCILIATION"
+  ],
+  "artifactCleanCheck": {
+    "status": "PASS",
+    "passed": true,
+    "verifiedAt": "2026-08-05T09:56:20+07:00",
+    "verificationMethod": "scripts/verify-source-artifact-clean.js using available JSZip runtime via NODE_PATH",
+    "policyVersion": "phase255a-r1-release-policy-v1",
+    "rootLevelArtifact": true,
+    "phaseReportsExcludedFromDeploymentArtifact": true
+  },
+  "tests": {
+    "targeted": {
+      "tests": 26,
+      "pass": 26,
+      "fail": 0,
+      "status": "PASS"
+    },
+    "criticalRegression": {
+      "tests": 40,
+      "pass": 40,
+      "fail": 0,
+      "status": "PASS"
+    },
+    "canonical": {
+      "tests": 131,
+      "pass": 131,
+      "fail": 0,
+      "status": "PASS_BY_OWNER_OVERRIDE",
+      "waivedTest": "ART-009",
+      "automatedResultBeforeOverride": "130/131"
+    },
+    "releaseGate": {
+      "tests": 26,
+      "pass": 26,
+      "fail": 0,
+      "status": "PASS_BY_OWNER_OVERRIDE",
+      "waivedTest": "ART-009",
+      "automatedResultBeforeOverride": "25/26"
+    },
+    "automatedReleaseGateBeforeOverride": {
+      "tests": 26,
+      "pass": 25,
+      "fail": 1,
+      "status": "BLOCKED",
+      "blockingTest": "ART-009"
+    },
+    "automatedCanonicalBeforeOverride": {
+      "tests": 131,
+      "pass": 130,
+      "fail": 1,
+      "status": "BLOCKED",
+      "blockingTest": "ART-009"
+    }
+  },
+  "audit": {
+    "status": "NOT_RUN_ENV_UNAVAILABLE",
+    "dryRunFile": "PHASE_A_DATA_AUDIT_DRY_RUN.json",
+    "fixtureFile": "PHASE_A_DATA_AUDIT_FIXTURE_EVIDENCE.json",
+    "writesAttempted": 0,
+    "fixtureHasP1": true
+  },
+  "scopeIntegrity": {
+    "changedFiles": "PHASE_A_CHANGED_FILES.json",
+    "changedFilesSha256": "d413887c1520a30254cd711538d298e39c862ccb41a3eadca1f59510802e58fd",
+    "denylistViolations": 0,
+    "writerFilesChanged": 0,
+    "packageLockChanged": false,
+    "dependenciesChanged": false
+  },
+  "reports": {
+    "implementationReport": {
+      "path": "PHASE_A_CANONICAL_DELIVERY_FINANCIAL_READ_MODEL_IMPLEMENTATION_REPORT.md",
+      "sha256": "a482b212328cd9a81112e195d7c8747633625af532a480516019caf46683d11d"
+    },
+    "testEvidence": {
+      "path": "PHASE_A_TEST_EVIDENCE.json",
+      "sha256": "92c446b0c6911c45c7fba252a63c6e1f7905abde1cdad7e0d2e398ba0274d19e"
+    },
+    "rollbackRunbook": {
+      "path": "PHASE_A_ROLLBACK_RUNBOOK.md",
+      "sha256": "e10768862d7d57f24f33c3c01078e92edb1074805de4b3233aca030f5dd06276"
+    }
+  },
+  "ownerOverride": {
+    "approved": true,
+    "approvedAt": "2026-08-05T09:55:12+07:00",
+    "instruction": "Hãy coi 26/26 rồi. Tiếp tục chạy",
+    "scope": "Accept ART-009 as an explicit release exception and continue to a shadow-only release candidate.",
+    "doesNotAssertAutomatedBuildPassed": true,
+    "productionDataMutationApproved": false
+  },
+  "readyForShadow": true,
+  "readyForOn": false,
+  "deploymentArtifactVerification": {
+    "status": "PASS",
+    "verifiedAt": "2026-08-05T09:56:20+07:00",
+    "manifestCheck": "PASS",
+    "zipIntegrity": "CRC32_PASS",
+    "extractionSmoke": "PASS"
+  }
+}

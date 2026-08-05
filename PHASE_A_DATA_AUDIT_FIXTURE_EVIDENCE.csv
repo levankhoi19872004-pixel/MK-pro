@@ -1,0 +1,7 @@
+severity,findingCode,orderCode,deliveryDate,paymentVersion,paymentStateSource,returnStateSource,receivableAmount,cashAmount,bankAmount,rewardAmount,offsetAmount,returnAmount,debtRaw,debtAmount,legacyCashAmount,legacyReturnAmount,legacyDebtAmount,differenceAmount
+P1,LEGACY_WEB_APP_SPLIT_BRAIN,B0040961,2026-08-04T10:00:00.000Z,1,orderPaymentAllocations.current,returnOrders,1931784,1932000,0,0,0,1931784,-1932000,-1932000,0,1931784,0,3864000
+P1,CANONICAL_VS_LEGACY_PAYMENT_DIFF,B0040961,2026-08-04T10:00:00.000Z,1,orderPaymentAllocations.current,returnOrders,1931784,1932000,0,0,0,1931784,-1932000,-1932000,0,1931784,0,1932000
+P1,RETURN_SNAPSHOT_DIFF,B0040961,2026-08-04T10:00:00.000Z,1,orderPaymentAllocations.current,returnOrders,1931784,1932000,0,0,0,1931784,-1932000,-1932000,0,0,0,1931784
+P1,STORED_DEBT_DIFF,B0040961,2026-08-04T10:00:00.000Z,1,orderPaymentAllocations.current,returnOrders,1931784,1932000,0,0,0,1931784,-1932000,-1932000,0,0,0,1932000
+P1,COMPONENT_EXCEEDS_RECEIVABLE,B0040961,2026-08-04T10:00:00.000Z,1,orderPaymentAllocations.current,returnOrders,1931784,1932000,0,0,0,1931784,-1932000,-1932000,0,0,0,1932000
+P1,PAYMENT_AND_FULL_RETURN_OVERHANDLED,B0040961,2026-08-04T10:00:00.000Z,1,orderPaymentAllocations.current,returnOrders,1931784,1932000,0,0,0,1931784,-1932000,-1932000,0,0,0,1932000

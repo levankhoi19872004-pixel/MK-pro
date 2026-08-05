@@ -1,0 +1,818 @@
+TAP version 13
+# Subtest: AUTH-001: delivery query remains scoped to assigned delivery staff
+ok 1 - AUTH-001: delivery query remains scoped to assigned delivery staff
+  ---
+  duration_ms: 2.219372
+  type: 'test'
+  ...
+# Subtest: AUTH-002: a delivery user cannot retain another delivery user filter
+ok 2 - AUTH-002: a delivery user cannot retain another delivery user filter
+  ---
+  duration_ms: 0.266737
+  type: 'test'
+  ...
+# Subtest: AUTH-003: query staff code cannot override token identity
+ok 3 - AUTH-003: query staff code cannot override token identity
+  ---
+  duration_ms: 0.140861
+  type: 'test'
+  ...
+# Subtest: AUTH-004: admin read access is preserved
+ok 4 - AUTH-004: admin read access is preserved
+  ---
+  duration_ms: 0.208772
+  type: 'test'
+  ...
+# Subtest: AUTH-005: manager read access is preserved
+ok 5 - AUTH-005: manager read access is preserved
+  ---
+  duration_ms: 0.409372
+  type: 'test'
+  ...
+# Subtest: AUTH-006: accountant read access is preserved
+ok 6 - AUTH-006: accountant read access is preserved
+  ---
+  duration_ms: 0.168879
+  type: 'test'
+  ...
+# Subtest: AUTH-007: unauthorized roles gain no read access
+ok 7 - AUTH-007: unauthorized roles gain no read access
+  ---
+  duration_ms: 0.616876
+  type: 'test'
+  ...
+# Subtest: AUTH-008: foreign-tenant payment and return candidates are never overlaid
+ok 8 - AUTH-008: foreign-tenant payment and return candidates are never overlaid
+  ---
+  duration_ms: 1.61024
+  type: 'test'
+  ...
+# Subtest: AUDIT-001: audit defaults to dry-run
+ok 9 - AUDIT-001: audit defaults to dry-run
+  ---
+  duration_ms: 0.913424
+  type: 'test'
+  ...
+# Subtest: AUDIT-002: audit rejects apply/write/fix flags
+ok 10 - AUDIT-002: audit rejects apply/write/fix flags
+  ---
+  duration_ms: 0.893228
+  type: 'test'
+  ...
+# Subtest: AUDIT-003: audit applies date filter
+ok 11 - AUDIT-003: audit applies date filter
+  ---
+  duration_ms: 0.937964
+  type: 'test'
+  ...
+# Subtest: AUDIT-004: audit applies exact order-code filter
+ok 12 - AUDIT-004: audit applies exact order-code filter
+  ---
+  duration_ms: 0.924999
+  type: 'test'
+  ...
+# Subtest: AUDIT-005: audit respects batch and hard limits without N+1
+ok 13 - AUDIT-005: audit respects batch and hard limits without N+1
+  ---
+  duration_ms: 5.716408
+  type: 'test'
+  ...
+# Subtest: AUDIT-006: audit classifies legacy Web/App split-brain
+ok 14 - AUDIT-006: audit classifies legacy Web/App split-brain
+  ---
+  duration_ms: 0.325614
+  type: 'test'
+  ...
+# Subtest: AUDIT-007: audit classifies stale and mismatched allocation versions
+ok 15 - AUDIT-007: audit classifies stale and mismatched allocation versions
+  ---
+  duration_ms: 0.424292
+  type: 'test'
+  ...
+# Subtest: AUDIT-008: audit classifies return snapshot difference
+ok 16 - AUDIT-008: audit classifies return snapshot difference
+  ---
+  duration_ms: 0.306129
+  type: 'test'
+  ...
+# Subtest: AUDIT-009: audit classifies stored debt difference
+ok 17 - AUDIT-009: audit classifies stored debt difference
+  ---
+  duration_ms: 0.259574
+  type: 'test'
+  ...
+# Subtest: AUDIT-010: audit classifies negative and overhandled money
+ok 18 - AUDIT-010: audit classifies negative and overhandled money
+  ---
+  duration_ms: 0.649996
+  type: 'test'
+  ...
+# Subtest: AUDIT-011: audit writes stable JSON atomically
+ok 19 - AUDIT-011: audit writes stable JSON atomically
+  ---
+  duration_ms: 1.194614
+  type: 'test'
+  ...
+# Subtest: AUDIT-012: audit writes stable CSV
+ok 20 - AUDIT-012: audit writes stable CSV
+  ---
+  duration_ms: 0.323763
+  type: 'test'
+  ...
+# Subtest: AUDIT-013: audit redacts PII and caps samples
+ok 21 - AUDIT-013: audit redacts PII and caps samples
+  ---
+  duration_ms: 2.611536
+  type: 'test'
+  ...
+# Subtest: AUDIT-014: audit uses severity exit-code contract
+ok 22 - AUDIT-014: audit uses severity exit-code contract
+  ---
+  duration_ms: 0.194897
+  type: 'test'
+  ...
+# Subtest: API-001 GREEN: B0040961-equivalent Web/App use the same canonical financial state
+ok 23 - API-001 GREEN: B0040961-equivalent Web/App use the same canonical financial state
+  ---
+  duration_ms: 5.00809
+  type: 'test'
+  ...
+# Subtest: API-002 GREEN: payment-only parity
+ok 24 - API-002 GREEN: payment-only parity
+  ---
+  duration_ms: 1.673913
+  type: 'test'
+  ...
+# Subtest: API-003 GREEN: return-only parity
+ok 25 - API-003 GREEN: return-only parity
+  ---
+  duration_ms: 1.308412
+  type: 'test'
+  ...
+# Subtest: API-004 GREEN: payment plus return parity
+ok 26 - API-004 GREEN: payment plus return parity
+  ---
+  duration_ms: 1.729792
+  type: 'test'
+  ...
+# Subtest: API-005 GREEN: unclosed embedded legacy fallback parity
+ok 27 - API-005 GREEN: unclosed embedded legacy fallback parity
+  ---
+  duration_ms: 1.236246
+  type: 'test'
+  ...
+# Subtest: API-006 GREEN: closed current allocation parity
+ok 28 - API-006 GREEN: closed current allocation parity
+  ---
+  duration_ms: 1.581182
+  type: 'test'
+  ...
+# Subtest: API-007 GREEN: stale allocation yields latest version parity
+ok 29 - API-007 GREEN: stale allocation yields latest version parity
+  ---
+  duration_ms: 1.175899
+  type: 'test'
+  ...
+# Subtest: API-008 GREEN: no allocation/version uses top-level legacy parity
+ok 30 - API-008 GREEN: no allocation/version uses top-level legacy parity
+  ---
+  duration_ms: 1.131235
+  type: 'test'
+  ...
+# Subtest: API-009 GREEN: explicit all-zero legacy fields remain zero
+ok 31 - API-009 GREEN: explicit all-zero legacy fields remain zero
+  ---
+  duration_ms: 1.964089
+  type: 'test'
+  ...
+# Subtest: API-010 GREEN: overpayment stays signed in both projections
+ok 32 - API-010 GREEN: overpayment stays signed in both projections
+  ---
+  duration_ms: 1.51802
+  type: 'test'
+  ...
+# Subtest: API-011 GREEN: unknown return state warning does not break parity
+ok 33 - API-011 GREEN: unknown return state warning does not break parity
+  ---
+  duration_ms: 2.863101
+  type: 'test'
+  ...
+# Subtest: API-012 GREEN: compatibility aliases equal canonical fields
+ok 34 - API-012 GREEN: compatibility aliases equal canonical fields
+  ---
+  duration_ms: 0.459545
+  type: 'test'
+  ...
+# Subtest: API wiring: both list paths call the shared batch resolver with canonical return state enabled
+ok 35 - API wiring: both list paths call the shared batch resolver with canonical return state enabled
+  ---
+  duration_ms: 1.627936
+  type: 'test'
+  ...
+# Subtest: RES-001: current allocation exact-version is selected
+ok 36 - RES-001: current allocation exact-version is selected
+  ---
+  duration_ms: 0.325152
+  type: 'test'
+  ...
+# Subtest: RES-002: stale allocation falls back to latest eligible closeout version
+ok 37 - RES-002: stale allocation falls back to latest eligible closeout version
+  ---
+  duration_ms: 5.177308
+  type: 'test'
+  ...
+# Subtest: RES-003: allocation version higher than effective version is not current
+ok 38 - RES-003: allocation version higher than effective version is not current
+  ---
+  duration_ms: 0.27157
+  type: 'test'
+  ...
+# Subtest: RES-004: latest eligible closeout version is selected when allocation is absent
+ok 39 - RES-004: latest eligible closeout version is selected when allocation is absent
+  ---
+  duration_ms: 0.15928
+  type: 'test'
+  ...
+# Subtest: RES-005: embedded deliveryCloseout is the first legacy fallback
+ok 40 - RES-005: embedded deliveryCloseout is the first legacy fallback
+  ---
+  duration_ms: 0.152702
+  type: 'test'
+  ...
+# Subtest: RES-006: top-level legacy fields are the final payment fallback
+ok 41 - RES-006: top-level legacy fields are the final payment fallback
+  ---
+  duration_ms: 0.116299
+  type: 'test'
+  ...
+# Subtest: RES-007: explicit zero is preserved by firstDefinedMoney and aliases
+ok 42 - RES-007: explicit zero is preserved by firstDefinedMoney and aliases
+  ---
+  duration_ms: 0.233334
+  type: 'test'
+  ...
+# Subtest: RES-008: null undefined and empty values continue to the next alias
+ok 43 - RES-008: null undefined and empty values continue to the next alias
+  ---
+  duration_ms: 0.220539
+  type: 'test'
+  ...
+# Subtest: RES-009: NaN Infinity and unparseable money fall through with diagnostics
+ok 44 - RES-009: NaN Infinity and unparseable money fall through with diagnostics
+  ---
+  duration_ms: 0.978612
+  type: 'test'
+  ...
+# Subtest: RES-010: duplicate financial candidates are ambiguous and never first-row-wins
+ok 45 - RES-010: duplicate financial candidates are ambiguous and never first-row-wins
+  ---
+  duration_ms: 0.264325
+  type: 'test'
+  ...
+# Subtest: RES-011: string id and orderCode typed identities resolve the same order
+ok 46 - RES-011: string id and orderCode typed identities resolve the same order
+  ---
+  duration_ms: 0.13103
+  type: 'test'
+  ...
+# Subtest: RES-012: negative input components are excluded and diagnosed
+ok 47 - RES-012: negative input components are excluded and diagnosed
+  ---
+  duration_ms: 0.151747
+  type: 'test'
+  ...
+# Subtest: RES-013: handled amount above receivable keeps signed debt and warning
+ok 48 - RES-013: handled amount above receivable keeps signed debt and warning
+  ---
+  duration_ms: 0.126331
+  type: 'test'
+  ...
+# Subtest: RES-014: debtRaw +1000 normalizes debtAmount to zero
+ok 49 - RES-014: debtRaw +1000 normalizes debtAmount to zero
+  ---
+  duration_ms: 0.109783
+  type: 'test'
+  ...
+# Subtest: RES-015: debtRaw -1000 normalizes debtAmount to zero
+ok 50 - RES-015: debtRaw -1000 normalizes debtAmount to zero
+  ---
+  duration_ms: 0.127899
+  type: 'test'
+  ...
+# Subtest: RES-016: absolute debtRaw 1001 remains signed
+ok 51 - RES-016: absolute debtRaw 1001 remains signed
+  ---
+  duration_ms: 0.119094
+  type: 'test'
+  ...
+# Subtest: RES-017: offset is subtracted exactly once
+ok 52 - RES-017: offset is subtracted exactly once
+  ---
+  duration_ms: 0.095563
+  type: 'test'
+  ...
+# Subtest: RES-018: empty order batch performs zero join queries
+ok 53 - RES-018: empty order batch performs zero join queries
+  ---
+  duration_ms: 0.155655
+  type: 'test'
+  ...
+# Subtest: RES-019: batch above 1000 fails before querying
+ok 54 - RES-019: batch above 1000 fails before querying
+  ---
+  duration_ms: 0.698112
+  type: 'test'
+  ...
+# Subtest: RES-020: tenant mismatch candidate is excluded
+ok 55 - RES-020: tenant mismatch candidate is excluded
+  ---
+  duration_ms: 0.161934
+  type: 'test'
+  ...
+# Subtest: FE-001 GREEN: canonical zero is preserved instead of falling through to stale aliases
+ok 56 - FE-001 GREEN: canonical zero is preserved instead of falling through to stale aliases
+  ---
+  duration_ms: 3.560662
+  type: 'test'
+  ...
+# Subtest: FE-002 GREEN: server debt is authoritative for a loaded canonical row
+ok 57 - FE-002 GREEN: server debt is authoritative for a loaded canonical row
+  ---
+  duration_ms: 2.056853
+  type: 'test'
+  ...
+# Subtest: FE-003 GREEN: local calculation only runs in explicit preview mode
+ok 58 - FE-003 GREEN: local calculation only runs in explicit preview mode
+  ---
+  duration_ms: 1.693633
+  type: 'test'
+  ...
+# Subtest: FE-004 GREEN: nested and top-level compatibility aliases equal canonical state
+ok 59 - FE-004 GREEN: nested and top-level compatibility aliases equal canonical state
+  ---
+  duration_ms: 1.68569
+  type: 'test'
+  ...
+# Subtest: FE-005 GREEN: zero money remains renderable as numeric zero
+ok 60 - FE-005 GREEN: zero money remains renderable as numeric zero
+  ---
+  duration_ms: 1.690235
+  type: 'test'
+  ...
+# Subtest: FE-006 GREEN: remaining amount uses canonical openDebtAmount
+ok 61 - FE-006 GREEN: remaining amount uses canonical openDebtAmount
+  ---
+  duration_ms: 1.857818
+  type: 'test'
+  ...
+# Subtest: FE-007 GREEN: Web popup consumes canonical-compatible row fields from backend
+ok 62 - FE-007 GREEN: Web popup consumes canonical-compatible row fields from backend
+  ---
+  duration_ms: 3.425578
+  type: 'test'
+  ...
+# Subtest: FE-008 GREEN: migrated money normalization contains no truthy fallback chains
+ok 63 - FE-008 GREEN: migrated money normalization contains no truthy fallback chains
+  ---
+  duration_ms: 0.68624
+  type: 'test'
+  ...
+# Subtest: PERF-001: 1 orders use exactly three canonical join queries
+ok 64 - PERF-001: 1 orders use exactly three canonical join queries
+  ---
+  duration_ms: 1.278366
+  type: 'test'
+  ...
+# Subtest: PERF-002: 10 orders use exactly three canonical join queries
+ok 65 - PERF-002: 10 orders use exactly three canonical join queries
+  ---
+  duration_ms: 3.427603
+  type: 'test'
+  ...
+# Subtest: PERF-003: 100 orders use exactly three canonical join queries
+ok 66 - PERF-003: 100 orders use exactly three canonical join queries
+  ---
+  duration_ms: 12.374284
+  type: 'test'
+  ...
+# Subtest: PERF-004: 1000 orders use exactly three canonical join queries
+ok 67 - PERF-004: 1000 orders use exactly three canonical join queries
+  ---
+  duration_ms: 105.764149
+  type: 'test'
+  ...
+# Subtest: PERF-005: empty list uses zero join queries
+ok 68 - PERF-005: empty list uses zero join queries
+  ---
+  duration_ms: 0.405619
+  type: 'test'
+  ...
+# Subtest: PERF-006: query count is constant and no model find occurs inside an order loop
+ok 69 - PERF-006: query count is constant and no model find occurs inside an order loop
+  ---
+  duration_ms: 96.464783
+  type: 'test'
+  ...
+# Subtest: PERF-007: p50 stays within the approved budget
+ok 70 - PERF-007: p50 stays within the approved budget
+  ---
+  duration_ms: 348.134415
+  type: 'test'
+  ...
+# Subtest: PERF-008: p95 stays within the approved budget
+ok 71 - PERF-008: p95 stays within the approved budget
+  ---
+  duration_ms: 0.166156
+  type: 'test'
+  ...
+# Subtest: PERF-009: heap delta stays within the approved budget
+ok 72 - PERF-009: heap delta stays within the approved budget
+  ---
+  duration_ms: 0.089291
+  type: 'test'
+  ...
+# Subtest: PERF-010: payload stays within the absolute response budget
+ok 73 - PERF-010: payload stays within the absolute response budget
+  ---
+  duration_ms: 0.128136
+  type: 'test'
+  ...
+# Subtest: PERF-011: candidate cap fails closed instead of truncating
+ok 74 - PERF-011: candidate cap fails closed instead of truncating
+  ---
+  duration_ms: 0.351482
+  type: 'test'
+  ...
+# Subtest: PERF-012: canonical GET-style financial read performs zero writes
+ok 75 - PERF-012: canonical GET-style financial read performs zero writes
+  ---
+  duration_ms: 3.370402
+  type: 'test'
+  ...
+# Subtest: RO-001: src/services/delivery/DeliveryPaymentStateReadService.js contains no database mutation call
+ok 76 - RO-001: src/services/delivery/DeliveryPaymentStateReadService.js contains no database mutation call
+  ---
+  duration_ms: 0.237571
+  type: 'test'
+  ...
+# Subtest: RO-001: src/services/delivery/financial/deliveryFinancialIdentity.js contains no database mutation call
+ok 77 - RO-001: src/services/delivery/financial/deliveryFinancialIdentity.js contains no database mutation call
+  ---
+  duration_ms: 0.046039
+  type: 'test'
+  ...
+# Subtest: RO-001: src/services/delivery/financial/deliveryMoneyContract.js contains no database mutation call
+ok 78 - RO-001: src/services/delivery/financial/deliveryMoneyContract.js contains no database mutation call
+  ---
+  duration_ms: 0.084707
+  type: 'test'
+  ...
+# Subtest: RO-001: src/services/delivery/financial/deliveryReturnStateReader.js contains no database mutation call
+ok 79 - RO-001: src/services/delivery/financial/deliveryReturnStateReader.js contains no database mutation call
+  ---
+  duration_ms: 0.046195
+  type: 'test'
+  ...
+# Subtest: RO-002: Web GET list canonical integration contains no write call
+ok 80 - RO-002: Web GET list canonical integration contains no write call
+  ---
+  duration_ms: 0.547129
+  type: 'test'
+  ...
+# Subtest: RO-003: App GET list canonical integration contains no write call
+ok 81 - RO-003: App GET list canonical integration contains no write call
+  ---
+  duration_ms: 0.963005
+  type: 'test'
+  ...
+# Subtest: RO-004: delivery POST writer routes remain present and transaction-wrapped
+ok 82 - RO-004: delivery POST writer routes remain present and transaction-wrapped
+  ---
+  duration_ms: 0.24428
+  type: 'test'
+  ...
+# Subtest: FLAG-001: off keeps legacy output
+ok 83 - FLAG-001: off keeps legacy output
+  ---
+  duration_ms: 1.81998
+  type: 'test'
+  ...
+# Subtest: FLAG-002: shadow computes canonical read-only and returns legacy output
+ok 84 - FLAG-002: shadow computes canonical read-only and returns legacy output
+  ---
+  duration_ms: 1.334808
+  type: 'test'
+  ...
+# Subtest: FLAG-003: on returns canonical output plus aliases
+ok 85 - FLAG-003: on returns canonical output plus aliases
+  ---
+  duration_ms: 0.590364
+  type: 'test'
+  ...
+# Subtest: FLAG-004: invalid production flag fails closed to off
+ok 86 - FLAG-004: invalid production flag fails closed to off
+  ---
+  duration_ms: 0.303887
+  type: 'test'
+  ...
+# Subtest: FLAG-005: both routes use one shared mode config
+ok 87 - FLAG-005: both routes use one shared mode config
+  ---
+  duration_ms: 0.409721
+  type: 'test'
+  ...
+# Subtest: FLAG-006: shadow does not cut over response
+ok 88 - FLAG-006: shadow does not cut over response
+  ---
+  duration_ms: 0.849022
+  type: 'test'
+  ...
+# Subtest: FLAG-007: all modes perform zero writes on GET
+ok 89 - FLAG-007: all modes perform zero writes on GET
+  ---
+  duration_ms: 0.960534
+  type: 'test'
+  ...
+# Subtest: FLAG-008: shadow telemetry is sampled and redacted
+ok 90 - FLAG-008: shadow telemetry is sampled and redacted
+  ---
+  duration_ms: 0.818871
+  type: 'test'
+  ...
+# Subtest: ROLLBACK-001: flag rollback restores legacy output
+ok 91 - ROLLBACK-001: flag rollback restores legacy output
+  ---
+  duration_ms: 0.484201
+  type: 'test'
+  ...
+# Subtest: ROLLBACK-002: previous release rollback is documented
+ok 92 - ROLLBACK-002: previous release rollback is documented
+  ---
+  duration_ms: 0.297859
+  type: 'test'
+  ...
+# Subtest: ROLLBACK-003: rollback never mutates data
+ok 93 - ROLLBACK-003: rollback never mutates data
+  ---
+  duration_ms: 0.273917
+  type: 'test'
+  ...
+# Subtest: ROLLBACK-004: performance and parity triggers block rollout
+ok 94 - ROLLBACK-004: performance and parity triggers block rollout
+  ---
+  duration_ms: 0.381533
+  type: 'test'
+  ...
+# Subtest: ROLLBACK-005: smoke failure blocks on mode
+ok 95 - ROLLBACK-005: smoke failure blocks on mode
+  ---
+  duration_ms: 0.245978
+  type: 'test'
+  ...
+# Subtest: ROLLBACK-006: manifest traces baseline and release hashes
+ok 96 - ROLLBACK-006: manifest traces baseline and release hashes
+  ---
+  duration_ms: 0.28862
+  type: 'test'
+  ...
+# Subtest: ART-001: implementation report exists
+ok 97 - ART-001: implementation report exists
+  ---
+  duration_ms: 0.110666
+  type: 'test'
+  ...
+# Subtest: ART-002: test evidence exists
+ok 98 - ART-002: test evidence exists
+  ---
+  duration_ms: 0.198446
+  type: 'test'
+  ...
+# Subtest: ART-003: performance evidence exists
+ok 99 - ART-003: performance evidence exists
+  ---
+  duration_ms: 0.347324
+  type: 'test'
+  ...
+# Subtest: ART-004: dry-run audit artifacts exist or are explicitly NOT_RUN
+ok 100 - ART-004: dry-run audit artifacts exist or are explicitly NOT_RUN
+  ---
+  duration_ms: 0.208997
+  type: 'test'
+  ...
+# Subtest: ART-005: changed-files evidence exists
+ok 101 - ART-005: changed-files evidence exists
+  ---
+  duration_ms: 0.237884
+  type: 'test'
+  ...
+# Subtest: ART-006: release manifest exists
+ok 102 - ART-006: release manifest exists
+  ---
+  duration_ms: 0.14051
+  type: 'test'
+  ...
+# Subtest: ART-007: rollback runbook exists
+ok 103 - ART-007: rollback runbook exists
+  ---
+  duration_ms: 0.133605
+  type: 'test'
+  ...
+# Subtest: ART-008: release ZIP excludes dependencies and secrets
+ok 104 - ART-008: release ZIP excludes dependencies and secrets
+  ---
+  duration_ms: 24.591322
+  type: 'test'
+  ...
+# Subtest: ART-009: source-bundle hash is verified
+not ok 105 - ART-009: source-bundle hash is verified
+  ---
+  duration_ms: 2.128549
+  type: 'test'
+  location: '/mnt/data/gate4_work/MK-pro-main/test/canonical-delivery-release-gate.test.js:377:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    official source-bundle gate is not PASS: BLOCKED_ENV_UNAVAILABLE (TERSER_NOT_AVAILABLE_AND_NPM_CI_REGISTRY_404)
+    + actual - expected
+    
+    + 'BLOCKED_ENV_UNAVAILABLE'
+    - 'PASS'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'PASS'
+  actual: 'BLOCKED_ENV_UNAVAILABLE'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/mnt/data/gate4_work/MK-pro-main/test/canonical-delivery-release-gate.test.js:379:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ART-010: baseline hash is verified
+ok 106 - ART-010: baseline hash is verified
+  ---
+  duration_ms: 0.234981
+  type: 'test'
+  ...
+# Subtest: ART-011: command metadata records real exit codes
+ok 107 - ART-011: command metadata records real exit codes
+  ---
+  duration_ms: 0.345194
+  type: 'test'
+  ...
+# Subtest: ART-012: production evidence status is explicit
+ok 108 - ART-012: production evidence status is explicit
+  ---
+  duration_ms: 0.315046
+  type: 'test'
+  ...
+# Subtest: RET-001: no returnOrders resolves zero from returnOrders source
+ok 109 - RET-001: no returnOrders resolves zero from returnOrders source
+  ---
+  duration_ms: 0.138152
+  type: 'test'
+  ...
+# Subtest: RET-002: one eligible returnOrder is totaled
+ok 110 - RET-002: one eligible returnOrder is totaled
+  ---
+  duration_ms: 0.223037
+  type: 'test'
+  ...
+# Subtest: RET-003: multiple eligible returnOrders are totaled
+ok 111 - RET-003: multiple eligible returnOrders are totaled
+  ---
+  duration_ms: 0.219781
+  type: 'test'
+  ...
+# Subtest: RET-004: cancelled return is excluded
+ok 112 - RET-004: cancelled return is excluded
+  ---
+  duration_ms: 0.161302
+  type: 'test'
+  ...
+# Subtest: RET-005: reversed or void legacy state is excluded
+ok 113 - RET-005: reversed or void legacy state is excluded
+  ---
+  duration_ms: 0.148948
+  type: 'test'
+  ...
+# Subtest: RET-006: deleted return is excluded
+ok 114 - RET-006: deleted return is excluded
+  ---
+  duration_ms: 0.265954
+  type: 'test'
+  ...
+# Subtest: RET-007: draft follows the audited operational contract
+ok 115 - RET-007: draft follows the audited operational contract
+  ---
+  duration_ms: 0.0828
+  type: 'test'
+  ...
+# Subtest: RET-008: waiting_receive follows the audited operational contract
+ok 116 - RET-008: waiting_receive follows the audited operational contract
+  ---
+  duration_ms: 0.052234
+  type: 'test'
+  ...
+# Subtest: RET-009: received follows the audited operational contract
+ok 117 - RET-009: received follows the audited operational contract
+  ---
+  duration_ms: 0.101142
+  type: 'test'
+  ...
+# Subtest: RET-010: accounting_confirmed follows the audited operational contract
+ok 118 - RET-010: accounting_confirmed follows the audited operational contract
+  ---
+  duration_ms: 0.11476
+  type: 'test'
+  ...
+# Subtest: RET-011: posted_to_ar follows the audited operational contract
+ok 119 - RET-011: posted_to_ar follows the audited operational contract
+  ---
+  duration_ms: 0.088042
+  type: 'test'
+  ...
+# Subtest: RET-012: unknown positive state is included with rollout warning
+ok 120 - RET-012: unknown positive state is included with rollout warning
+  ---
+  duration_ms: 0.258177
+  type: 'test'
+  ...
+# Subtest: RET-013: explicit zero total does not fall through to stale item aliases
+ok 121 - RET-013: explicit zero total does not fall through to stale item aliases
+  ---
+  duration_ms: 0.166196
+  type: 'test'
+  ...
+# Subtest: RET-014: item amount fallback is supported
+ok 122 - RET-014: item amount fallback is supported
+  ---
+  duration_ms: 0.319055
+  type: 'test'
+  ...
+# Subtest: RET-015: quantity multiplied by price fallback is integer VND
+ok 123 - RET-015: quantity multiplied by price fallback is integer VND
+  ---
+  duration_ms: 0.128045
+  type: 'test'
+  ...
+# Subtest: RET-016: matching both id and code does not double count
+ok 124 - RET-016: matching both id and code does not double count
+  ---
+  duration_ms: 0.184952
+  type: 'test'
+  ...
+# Subtest: RET-017: duplicate return identity is deduplicated with warning
+ok 125 - RET-017: duplicate return identity is deduplicated with warning
+  ---
+  duration_ms: 0.099869
+  type: 'test'
+  ...
+# Subtest: RET-018: allocation return snapshot cannot override returnOrders
+ok 126 - RET-018: allocation return snapshot cannot override returnOrders
+  ---
+  duration_ms: 0.415474
+  type: 'test'
+  ...
+# Subtest: RET-019: version return snapshot cannot override returnOrders
+ok 127 - RET-019: version return snapshot cannot override returnOrders
+  ---
+  duration_ms: 0.18226
+  type: 'test'
+  ...
+# Subtest: SRC-001: generated delivery engine identifies its canonical source fragments
+ok 128 - SRC-001: generated delivery engine identifies its canonical source fragments
+  ---
+  duration_ms: 0.96104
+  type: 'test'
+  ...
+# Subtest: SRC-002: generated mobile bundle identifies source-of-truth file
+ok 129 - SRC-002: generated mobile bundle identifies source-of-truth file
+  ---
+  duration_ms: 1.001616
+  type: 'test'
+  ...
+# Subtest: SRC-003: delivery engine generated runtime is assembled from reviewed source fragments
+ok 130 - SRC-003: delivery engine generated runtime is assembled from reviewed source fragments
+  ---
+  duration_ms: 2.07849
+  type: 'test'
+  ...
+# Subtest: SRC-004: source bundle registry hash matches canonical delivery engine source
+ok 131 - SRC-004: source bundle registry hash matches canonical delivery engine source
+  ---
+  duration_ms: 3.353494
+  type: 'test'
+  ...
+1..131
+# tests 131
+# suites 0
+# pass 130
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 811.705743

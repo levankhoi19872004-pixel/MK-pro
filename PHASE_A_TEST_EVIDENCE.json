@@ -1,0 +1,233 @@
+{
+  "schemaVersion": "phase-a-test-evidence-v1",
+  "generatedAt": "2026-08-05T01:35:59.961852+00:00",
+  "nodeVersion": "v22.16.0",
+  "npmVersion": "10.9.2",
+  "commands": [
+    {
+      "id": "ENV-001",
+      "command": "npm ci --ignore-scripts",
+      "exitCode": 1,
+      "status": "FAIL_ENV_REGISTRY_404",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_NPM_CI_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_NPM_CI_STDERR.txt",
+      "reason": "Internal package registry returned 404 for zip-stream; dependencies could not be restored from lockfile."
+    },
+    {
+      "id": "BUILD-001",
+      "command": "npm run build:source-bundles",
+      "exitCode": 1,
+      "status": "FAIL_ENV_MISSING_TERSER",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_SOURCE_BUNDLE_BUILD_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_SOURCE_BUNDLE_BUILD_STDERR.txt",
+      "reason": "Official builder cannot require terser."
+    },
+    {
+      "id": "BUILD-002",
+      "command": "npm run check:source-bundles",
+      "exitCode": 1,
+      "status": "FAIL_ENV_MISSING_TERSER",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_SOURCE_BUNDLE_CHECK_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_SOURCE_BUNDLE_CHECK_STDERR.txt",
+      "reason": "Official source-bundle verification cannot require terser."
+    },
+    {
+      "id": "SYNTAX-001",
+      "command": "npm run check:syntax",
+      "exitCode": 0,
+      "status": "PASS",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_SYNTAX_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_SYNTAX_STDERR.txt"
+    },
+    {
+      "id": "ARTIFACT-001",
+      "command": "npm run test:artifact-clean",
+      "exitCode": 1,
+      "status": "FAIL_ENV_MISSING_JSZIP",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_ARTIFACT_CLEAN_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_ARTIFACT_CLEAN_STDERR.txt",
+      "reason": "Artifact-clean verifier cannot require jszip."
+    },
+    {
+      "id": "TARGET-001",
+      "command": "node --require ./test/helpers/refactorReadCompat.js --test ... canonical data-audit + performance",
+      "exitCode": 0,
+      "status": "PASS",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_TARGETED_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_TARGETED_STDERR.txt",
+      "tapSummary": {
+        "tests": 26,
+        "pass": 26,
+        "fail": 0,
+        "todo": 0
+      }
+    },
+    {
+      "id": "PERF-001",
+      "command": "node --expose-gc scripts/performance/benchmark-canonical-delivery-financial-read-model.js --sizes=1,10,100,1000 --warmup=5 --iterations=30 --seed=261 --json=PHASE_A_PERFORMANCE_EVIDENCE.json",
+      "exitCode": 0,
+      "status": "PASS_SYNTHETIC",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_BENCHMARK_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_BENCHMARK_STDERR.txt"
+    },
+    {
+      "id": "AUDIT-001",
+      "command": "node scripts/audit-canonical-delivery-financial-read-model.js --from=2026-08-01 --to=2026-08-04 --batch-size=200 --limit=1000 --sample-limit=50 --json=PHASE_A_DATA_AUDIT_DRY_RUN.json --csv=PHASE_A_DATA_AUDIT_DRY_RUN.csv --dry-run",
+      "exitCode": 0,
+      "status": "NOT_RUN_ENV_UNAVAILABLE",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_AUDIT_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_AUDIT_STDERR.txt",
+      "reason": "Read-only MongoDB URI not provided; script emitted explicit NOT_RUN evidence and attempted zero writes."
+    },
+    {
+      "id": "PARITY-001",
+      "command": "node scripts/verify-canonical-delivery-api-parity.js",
+      "exitCode": 0,
+      "status": "PASS_FIXTURE_ONLY",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_PARITY_VERIFY_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_PARITY_VERIFY_STDERR.txt"
+    },
+    {
+      "id": "CANONICAL-001",
+      "command": "node --require ./test/helpers/refactorReadCompat.js --test ... test/canonical-delivery-*.test.js",
+      "exitCode": 1,
+      "status": "FAIL_EXPECTED_RELEASE_BLOCKER",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_CANONICAL_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_CANONICAL_STDERR.txt",
+      "tapSummary": {
+        "tests": 131,
+        "pass": 130,
+        "fail": 1,
+        "todo": 0
+      },
+      "reason": "Only ART-009 failed because official source-bundle gate is not PASS."
+    },
+    {
+      "id": "REGRESSION-001",
+      "command": "node --require ./test/helpers/refactorReadCompat.js --test ... 14 critical regression files",
+      "exitCode": 0,
+      "status": "PASS",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_REGRESSION_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_REGRESSION_STDERR.txt",
+      "tapSummary": {
+        "tests": 40,
+        "pass": 40,
+        "fail": 0,
+        "todo": 0
+      }
+    },
+    {
+      "id": "RELEASE-001",
+      "command": "node --require ./test/helpers/refactorReadCompat.js --test ... test/canonical-delivery-release-gate.test.js",
+      "exitCode": 1,
+      "status": "FAIL_EXPECTED_RELEASE_BLOCKER",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_RELEASE_GATE_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_RELEASE_GATE_STDERR.txt",
+      "tapSummary": {
+        "tests": 26,
+        "pass": 25,
+        "fail": 1,
+        "todo": 0
+      },
+      "reason": "Only ART-009 failed because sourceBundleCheck.status is BLOCKED_ENV_UNAVAILABLE."
+    },
+    {
+      "id": "FULL-001",
+      "command": "npm test",
+      "exitCode": 1,
+      "status": "FAIL_BASELINE_AND_ENVIRONMENT",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_NPM_TEST_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_NPM_TEST_STDERR.txt",
+      "tapSummary": {
+        "finalRunnerTests": 54,
+        "finalRunnerPass": 51,
+        "finalRunnerFail": 3
+      },
+      "reason": "Full runner reported multiple pre-existing/environment-dependent failures; critical scoped regression remained 40/40 PASS."
+    },
+    {
+      "id": "QUALITY-001",
+      "command": "npm run quality",
+      "exitCode": 1,
+      "status": "FAIL_TARGETED_BASELINE_ENVIRONMENT",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_QUALITY_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_QUALITY_STDERR.txt",
+      "tapSummary": {
+        "tests": 61,
+        "pass": 50,
+        "fail": 11,
+        "todo": 0
+      },
+      "reason": "Quality gate remained non-mutating but targeted tests failed in the dependency-limited environment."
+    },
+    {
+      "id": "PRODUCTION-001",
+      "command": "npm run check:production",
+      "exitCode": 1,
+      "status": "FAIL_ENV_CONFIGURATION",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_CHECK_PRODUCTION_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_CHECK_PRODUCTION_STDERR.txt",
+      "reason": "JWT secrets, production NODE_ENV and MONGO_URI are intentionally unavailable in this workspace."
+    },
+    {
+      "id": "MANIFEST-001",
+      "command": "npm run release:manifest:generate",
+      "exitCode": 1,
+      "status": "FAIL_MISSING_RELEASE_PHASE",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_RELEASE_MANIFEST_GENERATE_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_RELEASE_MANIFEST_GENERATE_STDERR.txt",
+      "reason": "Repository generator requires explicit --phase/RELEASE_PHASE."
+    },
+    {
+      "id": "MANIFEST-002",
+      "command": "npm run release:manifest:check",
+      "exitCode": 1,
+      "status": "FAIL_RELEASE_MANIFEST_MISSING",
+      "stdout": "evidence/phase-a/PHASE_A_GATE4_RELEASE_MANIFEST_CHECK_STDOUT.txt",
+      "stderr": "evidence/phase-a/PHASE_A_GATE4_RELEASE_MANIFEST_CHECK_STDERR.txt",
+      "reason": "Repository RELEASE_MANIFEST.json was not generated because release phase was not supplied; Phase A external manifest remains separate."
+    }
+  ],
+  "summary": {
+    "targetedTests": {
+      "tests": 26,
+      "pass": 26,
+      "fail": 0
+    },
+    "criticalRegression": {
+      "tests": 40,
+      "pass": 40,
+      "fail": 0
+    },
+    "canonicalSuite": {
+      "tests": 131,
+      "pass": 130,
+      "fail": 1,
+      "blockingTest": "ART-009"
+    },
+    "releaseGate": {
+      "tests": 26,
+      "pass": 25,
+      "fail": 1,
+      "blockingTest": "ART-009"
+    },
+    "performance": "PASS_SYNTHETIC",
+    "productionEvidence": "NOT_RUN_ENV_UNAVAILABLE",
+    "officialBundleGate": "FAIL_ENV_MISSING_TERSER",
+    "finalDecision": "NOT_READY"
+  },
+  "integrity": {
+    "dataMutation": false,
+    "writerFilesChanged": [],
+    "knownBlockingReasons": [
+      "OFFICIAL_SOURCE_BUNDLE_BUILD_CHECK_NOT_PASS",
+      "PRODUCTION_DRY_RUN_EXPLAIN_SMOKE_NOT_RUN",
+      "B0040961_EQUIVALENT_FIXTURE_HAS_P1_OVERHANDLED_FINDINGS"
+    ]
+  },
+  "notes": [
+    "No command is marked PASS unless its recorded exit code and assertions support that status.",
+    "Synthetic/fixture evidence is not represented as production evidence.",
+    "The verification ZIP is explicitly non-deployable while decision is NOT_READY."
+  ]
+}

@@ -1,0 +1,618 @@
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 quality
+> node scripts/run-quality-gate.js
+
+SYNTAX_OK 1583 JavaScript files
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 test:release-governance
+> node --test test/phase250b-scoped-selection-domain-isolation.test.js test/phase251-main-inventory-read-enforcement.test.js test/phase252-sales-order-authorization-boundary.test.js test/phase253-non-mutating-release-governance.test.js test/phase255a-optional-backend-route-lazy-load.test.js test/phase255a-r1-reproducible-release-finalization.test.js test/phase255b-enterprise-route-static-entry-governance.test.js test/phase255c-scheduler-ownership-readiness-governance.test.js
+
+TAP version 13
+# Subtest: tick NVBH changes salesman filter state but leaves order action selection unchanged
+ok 1 - tick NVBH changes salesman filter state but leaves order action selection unchanged
+  ---
+  duration_ms: 5.85197
+  type: 'test'
+  ...
+# Subtest: untick NVBH leaves selectedOrderIds unchanged
+ok 2 - untick NVBH leaves selectedOrderIds unchanged
+  ---
+  duration_ms: 2.864191
+  type: 'test'
+  ...
+# Subtest: tick order changes selectedOrderIds but leaves salesman filter state unchanged
+ok 3 - tick order changes selectedOrderIds but leaves salesman filter state unchanged
+  ---
+  duration_ms: 7.321795
+  type: 'test'
+  ...
+# Subtest: toggle all changes only selectable order keys in the visible order scope
+ok 4 - toggle all changes only selectable order keys in the visible order scope
+  ---
+  duration_ms: 3.08558
+  type: 'test'
+  ...
+# Subtest: changing NVBH filter does not change closeout payload candidates
+ok 5 - changing NVBH filter does not change closeout payload candidates
+  ---
+  duration_ms: 4.106236
+  type: 'test'
+  ...
+# Subtest: refetch reconciliation prunes missing order IDs and never auto-adds new rows
+ok 6 - refetch reconciliation prunes missing order IDs and never auto-adds new rows
+  ---
+  duration_ms: 5.429594
+  type: 'test'
+  ...
+# Subtest: salesman and order selection domains remain independent in both directions
+ok 7 - salesman and order selection domains remain independent in both directions
+  ---
+  duration_ms: 2.720175
+  type: 'test'
+  ...
+# Subtest: canonical availability and summary count only MAIN=100 from a 100/50/20/10 fixture
+ok 8 - canonical availability and summary count only MAIN=100 from a 100/50/20/10 fixture
+  ---
+  duration_ms: 5.990763
+  type: 'test'
+  ...
+# Subtest: sales-order stock validation uses the same MAIN-only availability result
+ok 9 - sales-order stock validation uses the same MAIN-only availability result
+  ---
+  duration_ms: 6.810289
+  type: 'test'
+  ...
+# Subtest: legacy getCurrentStock operational read applies MAIN predicate and does not merge HC/PC/missing rows
+ok 10 - legacy getCurrentStock operational read applies MAIN predicate and does not merge HC/PC/missing rows
+  ---
+  duration_ms: 5.958483
+  type: 'test'
+  ...
+# Subtest: reconciliation and reporting projection inventory pipelines start with exact MAIN match
+ok 11 - reconciliation and reporting projection inventory pipelines start with exact MAIN match
+  ---
+  duration_ms: 1.270404
+  type: 'test'
+  ...
+# Subtest: active product, mobile and inventory report paths share inventoryStockService
+ok 12 - active product, mobile and inventory report paths share inventoryStockService
+  ---
+  duration_ms: 1.053543
+  type: 'test'
+  ...
+# Subtest: MAIN policy never treats blank or legacy warehouse as MAIN
+ok 13 - MAIN policy never treats blank or legacy warehouse as MAIN
+  ---
+  duration_ms: 2.711012
+  type: 'test'
+  ...
+# Subtest: policy matrix: owner sales may update an editable order
+ok 14 - policy matrix: owner sales may update an editable order
+  ---
+  duration_ms: 1.816066
+  type: 'test'
+  ...
+# Subtest: policy matrix: cross-owner sales update and cancel are forbidden with 403
+ok 15 - policy matrix: cross-owner sales update and cancel are forbidden with 403
+  ---
+  duration_ms: 5.082516
+  type: 'test'
+  ...
+# Subtest: policy matrix: accounting-confirmed orders block owner update and cancel with 409
+ok 16 - policy matrix: accounting-confirmed orders block owner update and cancel with 409
+  ---
+  duration_ms: 0.531074
+  type: 'test'
+  ...
+# Subtest: policy matrix: admin update and accountant cancel follow existing broad role policy
+ok 17 - policy matrix: admin update and accountant cancel follow existing broad role policy
+  ---
+  duration_ms: 0.234696
+  type: 'test'
+  ...
+# Subtest: policy matrix: anonymous is 401; missing order is 404; version conflict is 409
+ok 18 - policy matrix: anonymous is 401; missing order is 404; version conflict is 409
+  ---
+  duration_ms: 0.263154
+  type: 'test'
+  ...
+# Subtest: policy matrix: merged/delivered/closed orders are state conflicts
+ok 19 - policy matrix: merged/delivered/closed orders are state conflicts
+  ---
+  duration_ms: 0.48914
+  type: 'test'
+  ...
+# Subtest: ownership aliases normalize code only and never compare actor/order names
+ok 20 - ownership aliases normalize code only and never compare actor/order names
+  ---
+  duration_ms: 0.231655
+  type: 'test'
+  ...
+# Subtest: middleware blocks cross-owner request before all writer/stock/AR/Fund/audit side effects
+ok 21 - middleware blocks cross-owner request before all writer/stock/AR/Fund/audit side effects
+  ---
+  duration_ms: 2.032163
+  type: 'test'
+  ...
+# Subtest: middleware allows owner and exposes one immutable authorization context to the controller boundary
+ok 22 - middleware allows owner and exposes one immutable authorization context to the controller boundary
+  ---
+  duration_ms: 0.640385
+  type: 'test'
+  ...
+# Subtest: command service repeats authorization before legacy writer and never invokes writer when denied
+ok 23 - command service repeats authorization before legacy writer and never invokes writer when denied
+  ---
+  duration_ms: 2.211284
+  type: 'test'
+  ...
+# Subtest: canonical web and mobile aliases all register the centralized mutation boundary
+ok 24 - canonical web and mobile aliases all register the centralized mutation boundary
+  ---
+  duration_ms: 0.953336
+  type: 'test'
+  ...
+# Subtest: controller passes actor/order/version and maps policy/service status instead of blanket 400
+ok 25 - controller passes actor/order/version and maps policy/service status instead of blanket 400
+  ---
+  duration_ms: 0.300525
+  type: 'test'
+  ...
+# Subtest: delete authorization runs before transaction, stock reverse and deletion side effects
+ok 26 - delete authorization runs before transaction, stock reverse and deletion side effects
+  ---
+  duration_ms: 0.345647
+  type: 'test'
+  ...
+# node:internal/modules/cjs/loader:1404
+#   throw err;
+#   ^
+# Error: Cannot find module 'jszip'
+# Require stack:
+# - /mnt/data/gate4_work/MK-pro-main/scripts/lib/zip-artifact.js
+# - /mnt/data/gate4_work/MK-pro-main/test/phase253-non-mutating-release-governance.test.js
+#     at Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
+#     at defaultResolveImpl (node:internal/modules/cjs/loader:1057:19)
+#     at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1062:22)
+#     at Function._load (node:internal/modules/cjs/loader:1211:37)
+#     at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+#     at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+#     at Module.require (node:internal/modules/cjs/loader:1487:12)
+#     at require (node:internal/modules/helpers:135:16)
+#     at Object.<anonymous> (/mnt/data/gate4_work/MK-pro-main/scripts/lib/zip-artifact.js:5:15)
+#     at Module._compile (node:internal/modules/cjs/loader:1730:14) {
+#   code: 'MODULE_NOT_FOUND',
+#   requireStack: [
+#     '/mnt/data/gate4_work/MK-pro-main/scripts/lib/zip-artifact.js',
+#     '/mnt/data/gate4_work/MK-pro-main/test/phase253-non-mutating-release-governance.test.js'
+#   ]
+# }
+# Node.js v22.16.0
+# Subtest: test/phase253-non-mutating-release-governance.test.js
+not ok 4 - test/phase253-non-mutating-release-governance.test.js
+  ---
+  duration_ms: 115.178432
+  type: 'test'
+  location: '/mnt/data/gate4_work/MK-pro-main/test/phase253-non-mutating-release-governance.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: all optional features disabled do not require route/controller modules and mount lightweight 404 handlers
+not ok 28 - all optional features disabled do not require route/controller modules and mount lightweight 404 handlers
+  ---
+  duration_ms: 16.569812
+  type: 'test'
+  location: '/mnt/data/gate4_work/MK-pro-main/test/phase255a-optional-backend-route-lazy-load.test.js:174:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Cannot find module 'express'
+    Require stack:
+    - /mnt/data/gate4_work/MK-pro-main/src/routes/productRoutes.js
+    - /mnt/data/gate4_work/MK-pro-main/src/routes/index.js
+    - /mnt/data/gate4_work/MK-pro-main/test/phase255a-optional-backend-route-lazy-load.test.js
+  code: 'MODULE_NOT_FOUND'
+  stack: |-
+    Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
+    defaultResolveImpl (node:internal/modules/cjs/loader:1057:19)
+    resolveForCJSWithHooks (node:internal/modules/cjs/loader:1062:22)
+    Function._load (node:internal/modules/cjs/loader:1211:37)
+    TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    Module.require (node:internal/modules/cjs/loader:1487:12)
+    require (node:internal/modules/helpers:135:16)
+    Object.<anonymous> (/mnt/data/gate4_work/MK-pro-main/src/routes/productRoutes.js:3:17)
+    Module._compile (node:internal/modules/cjs/loader:1730:14)
+  ...
+# Subtest: each feature enabled alone loads only its matching real router with feature and role guards intact
+not ok 29 - each feature enabled alone loads only its matching real router with feature and role guards intact
+  ---
+  duration_ms: 4.819787
+  type: 'test'
+  location: '/mnt/data/gate4_work/MK-pro-main/test/phase255a-optional-backend-route-lazy-load.test.js:212:1'
+  failureType: 'testCodeFailure'
+  error: 'Optional route bootstrap failed'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    registerOptionalApiRoutes (/mnt/data/gate4_work/MK-pro-main/src/routes/optionalRouteRegistry.js:137:11)
+    TestContext.<anonymous> (/mnt/data/gate4_work/MK-pro-main/test/phase255a-optional-backend-route-lazy-load.test.js:220:22)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: multiple enabled features mount in deterministic registry order and each route module is listed once
+not ok 30 - multiple enabled features mount in deterministic registry order and each route module is listed once
+  ---
+  duration_ms: 2.587414
+  type: 'test'
+  location: '/mnt/data/gate4_work/MK-pro-main/test/phase255a-optional-backend-route-lazy-load.test.js:254:1'
+  failureType: 'testCodeFailure'
+  error: 'Optional route bootstrap failed'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    registerOptionalApiRoutes (/mnt/data/gate4_work/MK-pro-main/src/routes/optionalRouteRegistry.js:137:11)
+    TestContext.<anonymous> (/mnt/data/gate4_work/MK-pro-main/test/phase255a-optional-backend-route-lazy-load.test.js:264:20)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: multi-tenant route is enabled only when TENANT_MODE is exactly multi after trim/lowercase
+ok 31 - multi-tenant route is enabled only when TENANT_MODE is exactly multi after trim/lowercase
+  ---
+  duration_ms: 1.178751
+  type: 'test'
+  ...
+# Subtest: boolean feature flags are enabled only by explicit truthy values
+ok 32 - boolean feature flags are enabled only by explicit truthy values
+  ---
+  duration_ms: 0.2755
+  type: 'test'
+  ...
+# Subtest: core route mount inventory remains present and in relative order
+not ok 33 - core route mount inventory remains present and in relative order
+  ---
+  duration_ms: 0.667366
+  type: 'test'
+  location: '/mnt/data/gate4_work/MK-pro-main/test/phase255a-optional-backend-route-lazy-load.test.js:316:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Cannot find module 'express'
+    Require stack:
+    - /mnt/data/gate4_work/MK-pro-main/src/routes/productRoutes.js
+    - /mnt/data/gate4_work/MK-pro-main/src/routes/index.js
+    - /mnt/data/gate4_work/MK-pro-main/test/phase255a-optional-backend-route-lazy-load.test.js
+  code: 'MODULE_NOT_FOUND'
+  stack: |-
+    Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
+    defaultResolveImpl (node:internal/modules/cjs/loader:1057:19)
+    resolveForCJSWithHooks (node:internal/modules/cjs/loader:1062:22)
+    Function._load (node:internal/modules/cjs/loader:1211:37)
+    TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    Module.require (node:internal/modules/cjs/loader:1487:12)
+    require (node:internal/modules/helpers:135:16)
+    Object.<anonymous> (/mnt/data/gate4_work/MK-pro-main/src/routes/productRoutes.js:3:17)
+    Module._compile (node:internal/modules/cjs/loader:1730:14)
+  ...
+# Subtest: enabled module load failure aborts registration without fake mounted state
+ok 34 - enabled module load failure aborts registration without fake mounted state
+  ---
+  duration_ms: 1.609014
+  type: 'test'
+  ...
+# Subtest: disabled prefix handler matches requireFeature response contract
+ok 35 - disabled prefix handler matches requireFeature response contract
+  ---
+  duration_ms: 0.468857
+  type: 'test'
+  ...
+# Subtest: optional route audit is non-mutating for source files
+not ok 36 - optional route audit is non-mutating for source files
+  ---
+  duration_ms: 241.565974
+  type: 'test'
+  location: '/mnt/data/gate4_work/MK-pro-main/test/phase255a-optional-backend-route-lazy-load.test.js:403:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Cannot find module 'express'
+    Require stack:
+    - /mnt/data/gate4_work/MK-pro-main/src/routes/productRoutes.js
+    - /mnt/data/gate4_work/MK-pro-main/src/routes/index.js
+    - /mnt/data/gate4_work/MK-pro-main/scripts/audit-optional-route-module-load.js
+    - /mnt/data/gate4_work/MK-pro-main/test/phase255a-optional-backend-route-lazy-load.test.js
+  code: 'MODULE_NOT_FOUND'
+  stack: |-
+    Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
+    defaultResolveImpl (node:internal/modules/cjs/loader:1057:19)
+    resolveForCJSWithHooks (node:internal/modules/cjs/loader:1062:22)
+    Function._load (node:internal/modules/cjs/loader:1211:37)
+    TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    Module.require (node:internal/modules/cjs/loader:1487:12)
+    require (node:internal/modules/helpers:135:16)
+    Object.<anonymous> (/mnt/data/gate4_work/MK-pro-main/src/routes/productRoutes.js:3:17)
+    Module._compile (node:internal/modules/cjs/loader:1730:14)
+  ...
+# node:internal/modules/cjs/loader:1404
+#   throw err;
+#   ^
+# Error: Cannot find module 'jszip'
+# Require stack:
+# - /mnt/data/gate4_work/MK-pro-main/scripts/lib/zip-artifact.js
+# - /mnt/data/gate4_work/MK-pro-main/test/phase255a-r1-reproducible-release-finalization.test.js
+#     at Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
+#     at defaultResolveImpl (node:internal/modules/cjs/loader:1057:19)
+#     at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1062:22)
+#     at Function._load (node:internal/modules/cjs/loader:1211:37)
+#     at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+#     at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+#     at Module.require (node:internal/modules/cjs/loader:1487:12)
+#     at require (node:internal/modules/helpers:135:16)
+#     at Object.<anonymous> (/mnt/data/gate4_work/MK-pro-main/scripts/lib/zip-artifact.js:5:15)
+#     at Module._compile (node:internal/modules/cjs/loader:1730:14) {
+#   code: 'MODULE_NOT_FOUND',
+#   requireStack: [
+#     '/mnt/data/gate4_work/MK-pro-main/scripts/lib/zip-artifact.js',
+#     '/mnt/data/gate4_work/MK-pro-main/test/phase255a-r1-reproducible-release-finalization.test.js'
+#   ]
+# }
+# Node.js v22.16.0
+# Subtest: test/phase255a-r1-reproducible-release-finalization.test.js
+not ok 6 - test/phase255a-r1-reproducible-release-finalization.test.js
+  ---
+  duration_ms: 129.73436
+  type: 'test'
+  location: '/mnt/data/gate4_work/MK-pro-main/test/phase255a-r1-reproducible-release-finalization.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/cjs/loader:1404
+#   throw err;
+#   ^
+# Error: Cannot find module 'express'
+# Require stack:
+# - /mnt/data/gate4_work/MK-pro-main/test/phase255b-enterprise-route-static-entry-governance.test.js
+#     at Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
+#     at defaultResolveImpl (node:internal/modules/cjs/loader:1057:19)
+#     at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1062:22)
+#     at Function._load (node:internal/modules/cjs/loader:1211:37)
+#     at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+#     at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+#     at Module.require (node:internal/modules/cjs/loader:1487:12)
+#     at require (node:internal/modules/helpers:135:16)
+#     at Object.<anonymous> (/mnt/data/gate4_work/MK-pro-main/test/phase255b-enterprise-route-static-entry-governance.test.js:9:17)
+#     at Module._compile (node:internal/modules/cjs/loader:1730:14) {
+#   code: 'MODULE_NOT_FOUND',
+#   requireStack: [
+#     '/mnt/data/gate4_work/MK-pro-main/test/phase255b-enterprise-route-static-entry-governance.test.js'
+#   ]
+# }
+# Node.js v22.16.0
+# Subtest: test/phase255b-enterprise-route-static-entry-governance.test.js
+not ok 7 - test/phase255b-enterprise-route-static-entry-governance.test.js
+  ---
+  duration_ms: 111.981342
+  type: 'test'
+  location: '/mnt/data/gate4_work/MK-pro-main/test/phase255b-enterprise-route-static-entry-governance.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: scheduler safe defaults are owner none with all jobs and strict readiness disabled
+ok 39 - scheduler safe defaults are owner none with all jobs and strict readiness disabled
+  ---
+  duration_ms: 8.515533
+  type: 'test'
+  ...
+# Subtest: scheduler owner enum accepts none/web/worker and rejects auto/both/random
+ok 40 - scheduler owner enum accepts none/web/worker and rejects auto/both/random
+  ---
+  duration_ms: 2.770429
+  type: 'test'
+  ...
+# Subtest: web owner loads and starts only explicitly enabled reconciliation job
+ok 41 - web owner loads and starts only explicitly enabled reconciliation job
+  ---
+  duration_ms: 3.698599
+  type: 'test'
+  ...
+# Subtest: owner mismatch and owner none do not load modules or start timers even when flags are true
+ok 42 - owner mismatch and owner none do not load modules or start timers even when flags are true
+  ---
+  duration_ms: 0.896579
+  type: 'test'
+  ...
+# Subtest: worker owner starts only enabled worker-owned jobs in deterministic order
+ok 43 - worker owner starts only enabled worker-owned jobs in deterministic order
+  ---
+  duration_ms: 3.924174
+  type: 'test'
+  ...
+# Subtest: orchestrator duplicate start and repeated stop are idempotent with reverse stop order
+ok 44 - orchestrator duplicate start and repeated stop are idempotent with reverse stop order
+  ---
+  duration_ms: 1.080092
+  type: 'test'
+  ...
+# Subtest: orchestrator fails closed on loader/start failure and reports the failed job
+ok 45 - orchestrator fails closed on loader/start failure and reports the failed job
+  ---
+  duration_ms: 1.189541
+  type: 'test'
+  ...
+# Subtest: reconciliation startup timer is created only when enabled and runOnStart are both true
+ok 46 - reconciliation startup timer is created only when enabled and runOnStart are both true
+  ---
+  duration_ms: 18.652829
+  type: 'test'
+  ...
+# Subtest: reconciliation scheduler preserves queue submission contract and scheduled idempotency bucket
+ok 47 - reconciliation scheduler preserves queue submission contract and scheduled idempotency bucket
+  ---
+  duration_ms: 3.250948
+  type: 'test'
+  ...
+# Subtest: Enterprise manual outbox drain support registers handlers without starting outbox timer
+ok 48 - Enterprise manual outbox drain support registers handlers without starting outbox timer
+  ---
+  duration_ms: 7.834893
+  type: 'test'
+  ...
+# Subtest: web app import with owner none and Enterprise off keeps scheduler job graph out of require.cache
+not ok 49 - web app import with owner none and Enterprise off keeps scheduler job graph out of require.cache
+  ---
+  duration_ms: 1.405001
+  type: 'test'
+  location: '/mnt/data/gate4_work/MK-pro-main/test/phase255c-scheduler-ownership-readiness-governance.test.js:210:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Cannot find module 'dotenv'
+    Require stack:
+    - /mnt/data/gate4_work/MK-pro-main/src/app.js
+    - /mnt/data/gate4_work/MK-pro-main/test/phase255c-scheduler-ownership-readiness-governance.test.js
+  code: 'MODULE_NOT_FOUND'
+  stack: |-
+    Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
+    defaultResolveImpl (node:internal/modules/cjs/loader:1057:19)
+    resolveForCJSWithHooks (node:internal/modules/cjs/loader:1062:22)
+    Function._load (node:internal/modules/cjs/loader:1211:37)
+    TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    Module.require (node:internal/modules/cjs/loader:1487:12)
+    require (node:internal/modules/helpers:135:16)
+    Object.<anonymous> (/mnt/data/gate4_work/MK-pro-main/src/app.js:10:1)
+    Module._compile (node:internal/modules/cjs/loader:1730:14)
+  ...
+# Subtest: worker dependency is advisory by default and strict mode requires healthy same-release worker
+ok 50 - worker dependency is advisory by default and strict mode requires healthy same-release worker
+  ---
+  duration_ms: 7.099217
+  type: 'test'
+  ...
+# Subtest: startup state stores scheduler ownership evidence without changing readiness lifecycle
+ok 51 - startup state stores scheduler ownership evidence without changing readiness lifecycle
+  ---
+  duration_ms: 0.536433
+  type: 'test'
+  ...
+# Subtest: worker entry passes hard-coded worker role to orchestrator before queue loop
+not ok 52 - worker entry passes hard-coded worker role to orchestrator before queue loop
+  ---
+  duration_ms: 0.731323
+  type: 'test'
+  location: '/mnt/data/gate4_work/MK-pro-main/test/phase255c-scheduler-ownership-readiness-governance.test.js:262:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Cannot find module 'dotenv'
+    Require stack:
+    - /mnt/data/gate4_work/MK-pro-main/scripts/background-job-worker.js
+    - /mnt/data/gate4_work/MK-pro-main/test/phase255c-scheduler-ownership-readiness-governance.test.js
+  code: 'MODULE_NOT_FOUND'
+  stack: |-
+    Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
+    defaultResolveImpl (node:internal/modules/cjs/loader:1057:19)
+    resolveForCJSWithHooks (node:internal/modules/cjs/loader:1062:22)
+    Function._load (node:internal/modules/cjs/loader:1211:37)
+    TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    Module.require (node:internal/modules/cjs/loader:1487:12)
+    require (node:internal/modules/helpers:135:16)
+    Object.<anonymous> (/mnt/data/gate4_work/MK-pro-main/scripts/background-job-worker.js:3:1)
+    Module._compile (node:internal/modules/cjs/loader:1730:14)
+  ...
+# Subtest: scheduler audit is deterministic and non-mutating
+ok 53 - scheduler audit is deterministic and non-mutating
+  ---
+  duration_ms: 236.941107
+  type: 'test'
+  ...
+# Subtest: scheduler interval configuration keeps existing operational defaults when jobs are explicitly enabled
+ok 54 - scheduler interval configuration keeps existing operational defaults when jobs are explicitly enabled
+  ---
+  duration_ms: 0.559171
+  type: 'test'
+  ...
+# Subtest: public runtime config summary exposes scheduler decisions without environment secrets
+ok 55 - public runtime config summary exposes scheduler decisions without environment secrets
+  ---
+  duration_ms: 0.51518
+  type: 'test'
+  ...
+# Subtest: all four job modules expose read-only operational state contract
+ok 56 - all four job modules expose read-only operational state contract
+  ---
+  duration_ms: 6.111282
+  type: 'test'
+  ...
+# Subtest: web bootstrap source contains no eager scheduler or default-handler imports
+ok 57 - web bootstrap source contains no eager scheduler or default-handler imports
+  ---
+  duration_ms: 0.271032
+  type: 'test'
+  ...
+# Subtest: system status reads scheduler runtime evidence without eager reconciliation job import
+ok 58 - system status reads scheduler runtime evidence without eager reconciliation job import
+  ---
+  duration_ms: 37.062657
+  type: 'test'
+  ...
+# Subtest: worker heartbeat ready metadata includes scheduler owner and started job IDs
+not ok 59 - worker heartbeat ready metadata includes scheduler owner and started job IDs
+  ---
+  duration_ms: 0.492048
+  type: 'test'
+  location: '/mnt/data/gate4_work/MK-pro-main/test/phase255c-scheduler-ownership-readiness-governance.test.js:374:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Cannot find module 'dotenv'
+    Require stack:
+    - /mnt/data/gate4_work/MK-pro-main/scripts/background-job-worker.js
+    - /mnt/data/gate4_work/MK-pro-main/test/phase255c-scheduler-ownership-readiness-governance.test.js
+  code: 'MODULE_NOT_FOUND'
+  stack: |-
+    Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
+    defaultResolveImpl (node:internal/modules/cjs/loader:1057:19)
+    resolveForCJSWithHooks (node:internal/modules/cjs/loader:1062:22)
+    Function._load (node:internal/modules/cjs/loader:1211:37)
+    TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    Module.require (node:internal/modules/cjs/loader:1487:12)
+    require (node:internal/modules/helpers:135:16)
+    Object.<anonymous> (/mnt/data/gate4_work/MK-pro-main/scripts/background-job-worker.js:3:1)
+    Module._compile (node:internal/modules/cjs/loader:1730:14)
+  ...
+# Subtest: unhealthy or stale worker heartbeat never satisfies strict readiness
+ok 60 - unhealthy or stale worker heartbeat never satisfies strict readiness
+  ---
+  duration_ms: 0.140394
+  type: 'test'
+  ...
+# Subtest: audit matrix distinguishes owner mismatch from disabled jobs without loading modules
+ok 61 - audit matrix distinguishes owner mismatch from disabled jobs without loading modules
+  ---
+  duration_ms: 0.498358
+  type: 'test'
+  ...
+1..61
+# tests 61
+# suites 0
+# pass 50
+# fail 11
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 879.067444
+[quality] NON_MUTATING_CHECK_OK sha256=c0e319c5d431c84642dc1c5ff38ad91f7779284bcdc191f3f658e33b6f0fcb16 files=2343

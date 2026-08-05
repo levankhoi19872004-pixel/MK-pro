@@ -1,0 +1,1 @@
+RELEASE_MANIFEST_ERROR Release phase is required. Use --phase <phase> or RELEASE_PHASE.

@@ -1,0 +1,250 @@
+TAP version 13
+# Subtest: current frontend keeps canonical /api/delivery route family for delivery app
+ok 1 - current frontend keeps canonical /api/delivery route family for delivery app
+  ---
+  duration_ms: 1.534782
+  type: 'test'
+  ...
+# Subtest: canonical /api/delivery routes expose stable success/data/message/error shape without breaking legacy keys
+ok 2 - canonical /api/delivery routes expose stable success/data/message/error shape without breaking legacy keys
+  ---
+  duration_ms: 0.452561
+  type: 'test'
+  ...
+# Subtest: compatibility /api/mobile/delivery routes stay mounted and use mobile auth/role guard
+ok 3 - compatibility /api/mobile/delivery routes stay mounted and use mobile auth/role guard
+  ---
+  duration_ms: 0.130691
+  type: 'test'
+  ...
+# Subtest: mobile compatibility service delegates write rules to DeliveryEngine owner-guarded methods
+ok 4 - mobile compatibility service delegates write rules to DeliveryEngine owner-guarded methods
+  ---
+  duration_ms: 0.232401
+  type: 'test'
+  ...
+# Subtest: mobile compatibility responses identify canonical route and expose success/data/error fields
+ok 5 - mobile compatibility responses identify canonical route and expose success/data/error fields
+  ---
+  duration_ms: 0.378946
+  type: 'test'
+  ...
+# Subtest: DeliveryEngine builds canonical order from returnOrders and reconciles money
+ok 6 - DeliveryEngine builds canonical order from returnOrders and reconciles money
+  ---
+  duration_ms: 1.504476
+  type: 'test'
+  ...
+# Subtest: DeliveryEngine reconciliation detects money mismatch
+ok 7 - DeliveryEngine reconciliation detects money mismatch
+  ---
+  duration_ms: 41.369559
+  type: 'test'
+  ...
+# Subtest: DeliveryEngine.listOrders filters NVBH and NVGH after loading canonical orders
+ok 8 - DeliveryEngine.listOrders filters NVBH and NVGH after loading canonical orders
+  ---
+  duration_ms: 3.754146
+  type: 'test'
+  ...
+# Subtest: GET /api/delivery/orders default processing list excludes delivered orders after confirm
+ok 9 - GET /api/delivery/orders default processing list excludes delivered orders after confirm
+  ---
+  duration_ms: 1.865428
+  type: 'test'
+  ...
+# Subtest: GET /api/delivery/orders can still show delivered orders when explicitly requested
+ok 10 - GET /api/delivery/orders can still show delivered orders when explicitly requested
+  ---
+  duration_ms: 1.635509
+  type: 'test'
+  ...
+# Subtest: GET /api/delivery/returns direct order query no longer falls back to SalesOrder.findOne when no returnOrders exist
+ok 11 - GET /api/delivery/returns direct order query no longer falls back to SalesOrder.findOne when no returnOrders exist
+  ---
+  duration_ms: 0.763537
+  type: 'test'
+  ...
+# Subtest: GET /api/delivery/returns direct order query flattens returnOrders without SalesOrder.findOne fallback
+ok 12 - GET /api/delivery/returns direct order query flattens returnOrders without SalesOrder.findOne fallback
+  ---
+  duration_ms: 0.731673
+  type: 'test'
+  ...
+# Subtest: phase42 index contract keeps delivery list and return lookup indexes explicit
+ok 13 - phase42 index contract keeps delivery list and return lookup indexes explicit
+  ---
+  duration_ms: 0.555877
+  type: 'test'
+  ...
+# Subtest: NVGH A cannot read direct return rows of NVGH B by guessing orderCode
+ok 14 - NVGH A cannot read direct return rows of NVGH B by guessing orderCode
+  ---
+  duration_ms: 0.304293
+  type: 'test'
+  ...
+# Subtest: admin-style delivery return lookup still reads direct return rows when ownership guard is not enforced
+ok 15 - admin-style delivery return lookup still reads direct return rows when ownership guard is not enforced
+  ---
+  duration_ms: 0.189322
+  type: 'test'
+  ...
+# Subtest: NVGH A cannot mutate return/payment/confirm for NVGH B order
+ok 16 - NVGH A cannot mutate return/payment/confirm for NVGH B order
+  ---
+  duration_ms: 2.361678
+  type: 'test'
+  ...
+# Subtest: mobile debts always binds delivery role to logged-in NVGH and ignores spoofed collector/staff scope
+ok 17 - mobile debts always binds delivery role to logged-in NVGH and ignores spoofed collector/staff scope
+  ---
+  duration_ms: 0.305176
+  type: 'test'
+  ...
+# Subtest: mobile debt collection ignores spoofed deliveryStaffCode for delivery user but preserves admin override
+ok 18 - mobile debt collection ignores spoofed deliveryStaffCode for delivery user but preserves admin override
+  ---
+  duration_ms: 0.289261
+  type: 'test'
+  ...
+# Subtest: Delivery Today canonical reader returns order from orders even when no masterOrder exists
+ok 19 - Delivery Today canonical reader returns order from orders even when no masterOrder exists
+  ---
+  duration_ms: 7.273976
+  type: 'test'
+  ...
+# Subtest: Delivery Today canonical reader enriches missing delivery staff from masterOrders metadata only
+ok 20 - Delivery Today canonical reader enriches missing delivery staff from masterOrders metadata only
+  ---
+  duration_ms: 1.565041
+  type: 'test'
+  ...
+# Subtest: closeout confirmed order patch contains only accounting closeout fields
+ok 21 - closeout confirmed order patch contains only accounting closeout fields
+  ---
+  duration_ms: 0.49171
+  type: 'test'
+  ...
+# Subtest: closeout confirmed order patch stores compact closeout without operational/history details
+ok 22 - closeout confirmed order patch stores compact closeout without operational/history details
+  ---
+  duration_ms: 0.354478
+  type: 'test'
+  ...
+# Subtest: mobile delivery list does not load the primary full snapshot
+ok 23 - mobile delivery list does not load the primary full snapshot
+  ---
+  duration_ms: 0.163485
+  type: 'test'
+  ...
+# Subtest: mobile delivery repository scopes Mongo queries by delivery date and staff code
+ok 24 - mobile delivery repository scopes Mongo queries by delivery date and staff code
+  ---
+  duration_ms: 0.169668
+  type: 'test'
+  ...
+# Subtest: mobile delivery response keeps ownership verification after scoped query
+ok 25 - mobile delivery response keeps ownership verification after scoped query
+  ---
+  duration_ms: 0.159436
+  type: 'test'
+  ...
+# Subtest: delivery cash record does not create AR-RECEIPT
+ok 26 - delivery cash record does not create AR-RECEIPT
+  ---
+  duration_ms: 0.225951
+  type: 'test'
+  ...
+# Subtest: returnOrders in Phase87 delivery closeout are operational and do not post AR-RETURN
+ok 27 - returnOrders in Phase87 delivery closeout are operational and do not post AR-RETURN
+  ---
+  duration_ms: 0.840627
+  type: 'test'
+  ...
+# Subtest: Phase87 active delivery closeout path does not call legacy AR posting APIs
+ok 28 - Phase87 active delivery closeout path does not call legacy AR posting APIs
+  ---
+  duration_ms: 1.656536
+  type: 'test'
+  ...
+# Subtest: order payment allocation has authoritative money picker that accepts explicit zero
+ok 29 - order payment allocation has authoritative money picker that accepts explicit zero
+  ---
+  duration_ms: 0.225961
+  type: 'test'
+  ...
+# Subtest: buildAllocationFromCloseout uses closeout/version final-state amounts before legacy order fallback
+ok 30 - buildAllocationFromCloseout uses closeout/version final-state amounts before legacy order fallback
+  ---
+  duration_ms: 0.228949
+  type: 'test'
+  ...
+# Subtest: legacy collectedAmount fallback is disabled when closeout explicitly carries zero cash/bank
+ok 31 - legacy collectedAmount fallback is disabled when closeout explicitly carries zero cash/bank
+  ---
+  duration_ms: 0.176516
+  type: 'test'
+  ...
+# Subtest: explicit debt conflict guard remains active
+ok 32 - explicit debt conflict guard remains active
+  ---
+  duration_ms: 0.100729
+  type: 'test'
+  ...
+# Subtest: Phase258A: Fund remittance uses canonical payment state and removes false B0039325 cash shortage
+ok 33 - Phase258A: Fund remittance uses canonical payment state and removes false B0039325 cash shortage
+  ---
+  duration_ms: 12.932293
+  type: 'test'
+  ...
+# Subtest: Phase258A: resolver keeps canonical zero and ignores stale allocation behind latest correction
+ok 34 - Phase258A: resolver keeps canonical zero and ignores stale allocation behind latest correction
+  ---
+  duration_ms: 1.51025
+  type: 'test'
+  ...
+# Subtest: ReturnStateMachine defines canonical A5 states and transitions
+ok 35 - ReturnStateMachine defines canonical A5 states and transitions
+  ---
+  duration_ms: 0.457765
+  type: 'test'
+  ...
+# Subtest: confirmReceiveReturnOrder only receives stock and does not post AR directly
+ok 36 - confirmReceiveReturnOrder only receives stock and does not post AR directly
+  ---
+  duration_ms: 2.093566
+  type: 'test'
+  ...
+# Subtest: AR return posting is blocked unless return order is accounting_confirmed
+ok 37 - AR return posting is blocked unless return order is accounting_confirmed
+  ---
+  duration_ms: 5.217567
+  type: 'test'
+  ...
+# Subtest: return edit/cancel paths use state machine guards
+ok 38 - return edit/cancel paths use state machine guards
+  ---
+  duration_ms: 2.51642
+  type: 'test'
+  ...
+# Subtest: return accounting API and migration script exist
+ok 39 - return accounting API and migration script exist
+  ---
+  duration_ms: 0.778633
+  type: 'test'
+  ...
+# Subtest: strict returnOrders fail without totalReturnAmount even if amount/debtReduction exist
+ok 40 - strict returnOrders fail without totalReturnAmount even if amount/debtReduction exist
+  ---
+  duration_ms: 0.908432
+  type: 'test'
+  ...
+1..40
+# tests 40
+# suites 0
+# pass 40
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 321.9454

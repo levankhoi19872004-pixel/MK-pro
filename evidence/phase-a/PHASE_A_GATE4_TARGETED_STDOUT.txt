@@ -1,0 +1,166 @@
+TAP version 13
+# Subtest: AUDIT-001: audit defaults to dry-run
+ok 1 - AUDIT-001: audit defaults to dry-run
+  ---
+  duration_ms: 1.45755
+  type: 'test'
+  ...
+# Subtest: AUDIT-002: audit rejects apply/write/fix flags
+ok 2 - AUDIT-002: audit rejects apply/write/fix flags
+  ---
+  duration_ms: 0.531195
+  type: 'test'
+  ...
+# Subtest: AUDIT-003: audit applies date filter
+ok 3 - AUDIT-003: audit applies date filter
+  ---
+  duration_ms: 0.692355
+  type: 'test'
+  ...
+# Subtest: AUDIT-004: audit applies exact order-code filter
+ok 4 - AUDIT-004: audit applies exact order-code filter
+  ---
+  duration_ms: 1.207887
+  type: 'test'
+  ...
+# Subtest: AUDIT-005: audit respects batch and hard limits without N+1
+ok 5 - AUDIT-005: audit respects batch and hard limits without N+1
+  ---
+  duration_ms: 9.584209
+  type: 'test'
+  ...
+# Subtest: AUDIT-006: audit classifies legacy Web/App split-brain
+ok 6 - AUDIT-006: audit classifies legacy Web/App split-brain
+  ---
+  duration_ms: 0.279102
+  type: 'test'
+  ...
+# Subtest: AUDIT-007: audit classifies stale and mismatched allocation versions
+ok 7 - AUDIT-007: audit classifies stale and mismatched allocation versions
+  ---
+  duration_ms: 0.353119
+  type: 'test'
+  ...
+# Subtest: AUDIT-008: audit classifies return snapshot difference
+ok 8 - AUDIT-008: audit classifies return snapshot difference
+  ---
+  duration_ms: 0.185047
+  type: 'test'
+  ...
+# Subtest: AUDIT-009: audit classifies stored debt difference
+ok 9 - AUDIT-009: audit classifies stored debt difference
+  ---
+  duration_ms: 0.519599
+  type: 'test'
+  ...
+# Subtest: AUDIT-010: audit classifies negative and overhandled money
+ok 10 - AUDIT-010: audit classifies negative and overhandled money
+  ---
+  duration_ms: 1.245921
+  type: 'test'
+  ...
+# Subtest: AUDIT-011: audit writes stable JSON atomically
+ok 11 - AUDIT-011: audit writes stable JSON atomically
+  ---
+  duration_ms: 1.037937
+  type: 'test'
+  ...
+# Subtest: AUDIT-012: audit writes stable CSV
+ok 12 - AUDIT-012: audit writes stable CSV
+  ---
+  duration_ms: 0.365381
+  type: 'test'
+  ...
+# Subtest: AUDIT-013: audit redacts PII and caps samples
+ok 13 - AUDIT-013: audit redacts PII and caps samples
+  ---
+  duration_ms: 2.409735
+  type: 'test'
+  ...
+# Subtest: AUDIT-014: audit uses severity exit-code contract
+ok 14 - AUDIT-014: audit uses severity exit-code contract
+  ---
+  duration_ms: 0.181928
+  type: 'test'
+  ...
+# Subtest: PERF-001: 1 orders use exactly three canonical join queries
+ok 15 - PERF-001: 1 orders use exactly three canonical join queries
+  ---
+  duration_ms: 1.12186
+  type: 'test'
+  ...
+# Subtest: PERF-002: 10 orders use exactly three canonical join queries
+ok 16 - PERF-002: 10 orders use exactly three canonical join queries
+  ---
+  duration_ms: 4.879316
+  type: 'test'
+  ...
+# Subtest: PERF-003: 100 orders use exactly three canonical join queries
+ok 17 - PERF-003: 100 orders use exactly three canonical join queries
+  ---
+  duration_ms: 13.633004
+  type: 'test'
+  ...
+# Subtest: PERF-004: 1000 orders use exactly three canonical join queries
+ok 18 - PERF-004: 1000 orders use exactly three canonical join queries
+  ---
+  duration_ms: 119.812185
+  type: 'test'
+  ...
+# Subtest: PERF-005: empty list uses zero join queries
+ok 19 - PERF-005: empty list uses zero join queries
+  ---
+  duration_ms: 0.455295
+  type: 'test'
+  ...
+# Subtest: PERF-006: query count is constant and no model find occurs inside an order loop
+ok 20 - PERF-006: query count is constant and no model find occurs inside an order loop
+  ---
+  duration_ms: 95.064746
+  type: 'test'
+  ...
+# Subtest: PERF-007: p50 stays within the approved budget
+ok 21 - PERF-007: p50 stays within the approved budget
+  ---
+  duration_ms: 326.222396
+  type: 'test'
+  ...
+# Subtest: PERF-008: p95 stays within the approved budget
+ok 22 - PERF-008: p95 stays within the approved budget
+  ---
+  duration_ms: 0.175079
+  type: 'test'
+  ...
+# Subtest: PERF-009: heap delta stays within the approved budget
+ok 23 - PERF-009: heap delta stays within the approved budget
+  ---
+  duration_ms: 0.199101
+  type: 'test'
+  ...
+# Subtest: PERF-010: payload stays within the absolute response budget
+ok 24 - PERF-010: payload stays within the absolute response budget
+  ---
+  duration_ms: 0.228492
+  type: 'test'
+  ...
+# Subtest: PERF-011: candidate cap fails closed instead of truncating
+ok 25 - PERF-011: candidate cap fails closed instead of truncating
+  ---
+  duration_ms: 0.581422
+  type: 'test'
+  ...
+# Subtest: PERF-012: canonical GET-style financial read performs zero writes
+ok 26 - PERF-012: canonical GET-style financial read performs zero writes
+  ---
+  duration_ms: 3.879441
+  type: 'test'
+  ...
+1..26
+# tests 26
+# suites 0
+# pass 26
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 632.877891
