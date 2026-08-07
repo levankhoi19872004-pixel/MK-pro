@@ -1,0 +1,10 @@
+{
+  "requirementId": "A5R2-REQ-006",
+  "green": {
+    "activeSlotHeldDuringAbortDrain": true,
+    "activeCountAfterCompletion": 0,
+    "newRequestPolicy": "reject at configured maxActive",
+    "listenerTimerCleanup": true,
+    "status": "PASS"
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "promptId": "PERF-A3A",
+  "title": "Delivery Orders DB-Native Read Optimization",
+  "generatedAt": "2026-08-06T04:19:57.702708+00:00",
+  "gate": "PASS_WITH_DEFERRED_RUNTIME",
+  "evidence": {
+    "E1": "PASS",
+    "E2": "PASS",
+    "E3": "DEFERRED_TO_PERF_A6"
+  },
+  "input": {
+    "name": "MK-pro-perf-a2c-idempotency-hardening-fixed.zip",
+    "sha256": "d0567b8fe159d7b403336cc4b07244124527a0fa1a9c1bb933324a1d74cbc18f",
+    "sizeBytes": 5637027
+  },
+  "output": {
+    "name": "MK-pro-perf-a3a-delivery-orders-fixed.zip",
+    "sha256": "fb68991248c32603420aa31a5146b9836d8ddb7a1545e5b39bb7bec7fb689e19",
+    "sizeBytes": 5666557,
+    "tree": {
+      "sha256": "1fadf4bb2327b9445ec333865c26f6276d70d1129daf56844e80d4bdb8d35c18",
+      "fileCount": 2243,
+      "sizeBytes": 19896694
+    }
+  },
+  "featureFlag": {
+    "name": "PERF_DELIVERY_CANONICAL_FILTER_V1",
+    "default": "OFF",
+    "offBehavior": "Legacy reader",
+    "onBehavior": "DB-native reader with explicit legacy fallback"
+  },
+  "tests": {
+    "redFirst": {
+      "status": "EXPECTED_FAIL",
+      "pass": 1,
+      "fail": 1,
+      "purpose": "Proves old overfetch and absent optimized contract"
+    },
+    "green": {
+      "status": "PASS",
+      "pass": 22,
+      "fail": 0
+    },
+    "fullDependencyFreePerfRegression": {
+      "status": "PASS",
+      "pass": 73,
+      "fail": 0
+    },
+    "javascriptSyntax": {
+      "status": "PASS",
+      "files": 1619
+    },
+    "packagedVerification": {
+      "status": "PASS",
+      "a3aExitCode": 0,
+      "fullExitCode": 0,
+      "syntaxExitCode": 0,
+      "offlineExitCode": 0
+    },
+    "notRunDependency": [
+      {
+        "test": "test/canonical-delivery-dual-api-parity.test.js",
+        "reason": "mongoose missing from source ZIP"
+      },
+      {
+        "test": "test/delivery-today-canonical-source-reader.test.js",
+        "reason": "mongoose missing from source ZIP"
+      }
+    ]
+  },
+  "correctness": {
+    "orderParity": "PASS",
+    "paginationParity": "PASS",
+    "financialParity": "PASS",
+    "maxDebtDeviation": 0,
+    "staffScopeLeaks": 0,
+    "dateScopeLeaks": 0,
+    "duplicateIdentities": 0,
+    "legacyMasterOrdersPreserved": true
+  },
+  "runtimeClaims": {
+    "productionP95": false,
+    "mongoExplainExecutionStats": false,
+    "productionIndexVerified": false
+  },
+  "prohibitedActions": {
+    "productionDatabaseModified": false,
+    "migrationRun": false,
+    "productionIndexApplied": false
+  },
+  "artifacts": [
+    {
+      "name": "PERF_A3A_DELIVERY_ORDERS_REPORT.md",
+      "sha256": "38d6479e8928abdec9590bb811a89685935da562d1772422f1de4981f3e3d326",
+      "sizeBytes": 5454
+    },
+    {
+      "name": "PERF_A3A_READER_PARITY.json",
+      "sha256": "b662aee93e48977c9f5c119bdd21cdd6530408adb0e569aa8fb875714c663e94",
+      "sizeBytes": 2413
+    },
+    {
+      "name": "PERF_A3A_PAGINATION_EVIDENCE.json",
+      "sha256": "e8e0c8422b7678a2dc3353479110b6018879b49ce1772be68e5b5db504fee580",
+      "sizeBytes": 1776
+    },
+    {
+      "name": "PERF_A3A_LOGICAL_WORK_COMPARISON.json",
+      "sha256": "60eb84b8f75667451333c7f36cd080caa2a7b777476149b479bf881c5aeb732c",
+      "sizeBytes": 3605
+    },
+    {
+      "name": "PERF_A3A_CHANGED_FILES.json",
+      "sha256": "98811e38225ee13a92b31c78191de813a8427a831a94ad2a705ae9bab21ea090",
+      "sizeBytes": 3713
+    },
+    {
+      "name": "MK-pro-perf-a3a-delivery-orders-fixed.zip",
+      "sha256": "fb68991248c32603420aa31a5146b9836d8ddb7a1545e5b39bb7bec7fb689e19",
+      "sizeBytes": 5666557
+    },
+    {
+      "name": "MK-pro-perf-a3a-delivery-orders-fixed.zip.sha256",
+      "sha256": "9c29bc01cdd4a8dc2e6e4d6bb63286ee7338d6482a67bd1d7ff54e9b73f0541f",
+      "sizeBytes": 133
+    },
+    {
+      "name": "PERF_A3A_PACKAGED_VERIFICATION.log",
+      "sha256": "bcc9426744dbb4541f48cf7d1cad2ba136e1725bee22445b8553a87b85cb16da",
+      "sizeBytes": 68
+    },
+    {
+      "name": "PERF_A3A_PACKAGED_GREEN_TEST.log",
+      "sha256": "392986bd209a7d23a75069fa7bf2b149ae2b6c6a8cdc547ce74e1aa5cfd7136a",
+      "sizeBytes": 4705
+    },
+    {
+      "name": "PERF_A3A_PACKAGED_FULL_REGRESSION.log",
+      "sha256": "d7e39475ff8acdffd4f6dca74af592db902f274c272c365fbb2a7ebe6ae5e8d9",
+      "sizeBytes": 15711
+    },
+    {
+      "name": "PERF_A3A_PACKAGED_SYNTAX.log",
+      "sha256": "09d46e1739670a8348c54fe910427a268c0480015a1703cbf4d6fd3f64c78133",
+      "sizeBytes": 32
+    },
+    {
+      "name": "PERF_A3A_PACKAGED_OFFLINE_RUN.log",
+      "sha256": "f27e0578556d367f7213766237b7e21dd72a884677c4c2fc40c56d46c2b112d2",
+      "sizeBytes": 5123
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "promptId": "PERF-A5",
+  "generatedAt": "2026-08-06T13:54:44+07:00",
+  "releasePolicy": "All performance behavior flags remain OFF; concurrency remains 1; telemetry remains enabled.",
+  "flags": [
+    {
+      "flag": "PERF_TELEMETRY_ENABLED",
+      "default": "true",
+      "module": "Global performance/API telemetry",
+      "dependency": "None; process-local metrics",
+      "rollback": "Set false only if telemetry overhead causes incident",
+      "productionEnableOrder": 0,
+      "a6Role": "Keep enabled to collect p50/p95/p99, DB query count, rows, 5xx and process metrics"
+    },
+    {
+      "flag": "PERF_BULK_BATCH_CONTEXT_V1",
+      "default": "0",
+      "module": "Bulk adjustment context",
+      "dependency": "A2A parity PASS; AR read boundary PASS",
+      "rollback": "Set 0 to use legacy per-order context",
+      "productionEnableOrder": 1
+    },
+    {
+      "flag": "PERF_BULK_CONCURRENCY",
+      "default": "1",
+      "module": "Bulk transaction orchestration",
+      "dependency": "Batch context complete; DB unique guard verified before >1",
+      "rollback": "Set 1 immediately",
+      "productionEnableOrder": 8,
+      "allowedCanary": [
+        2,
+        3
+      ],
+      "restriction": "Do not use >3; do not enable >1 before PERF-A6 E3"
+    },
+    {
+      "flag": "PERF_BULK_TRANSIENT_RETRY_LIMIT",
+      "default": "1",
+      "module": "Transient transaction retry",
+      "dependency": "Idempotency application guard",
+      "rollback": "Set 0",
+      "productionEnableOrder": 8,
+      "max": 2
+    },
+    {
+      "flag": "PERF_DELIVERY_CANONICAL_FILTER_V1",
+      "default": "0",
+      "module": "Delivery orders DB-native reader",
+      "dependency": "Desired indexes verified; legacy fallback telemetry",
+      "rollback": "Set 0",
+      "productionEnableOrder": 3
+    },
+    {
+      "flag": "PERF_SUGGESTIONS_SEARCH_V1",
+      "default": "0",
+      "module": "Normalized suggestions search",
+      "dependency": "Backfill coverage and indexes verified; fallback rate observed",
+      "rollback": "Set 0",
+      "productionEnableOrder": 4
+    },
+    {
+      "flag": "PERF_DASHBOARD_READ_MODEL_V2",
+      "default": "0",
+      "module": "Dashboard read model completeness",
+      "dependency": "Read model repaired/complete on real DB",
+      "rollback": "Set 0 for live/read-model legacy behavior",
+      "productionEnableOrder": 5
+    },
+    {
+      "flag": "PERF_DASHBOARD_CACHE_V2",
+      "default": "0",
+      "module": "Dashboard tagged cache",
+      "dependency": "Read model V2 or verified live fallback; mutation invalidation",
+      "rollback": "Set 0 and restart processes to clear local cache",
+      "productionEnableOrder": 6
+    },
+    {
+      "flag": "PERF_REPORT_DB_PAGINATION_V1",
+      "default": "0",
+      "module": "Report preview/background export",
+      "dependency": "Report parity PASS; worker operational readiness",
+      "rollback": "Set 0",
+      "productionEnableOrder": 7
+    },
+    {
+      "flag": "PERF_REPORT_CENTER_SNAPSHOT_V1",
+      "default": "0",
+      "module": "Data-quality snapshot read path",
+      "dependency": "Snapshot rebuilt and freshness verified",
+      "rollback": "Set 0",
+      "productionEnableOrder": 7
+    },
+    {
+      "flag": "DB_INDEX:uniq_arledger_idempotency_key_v1",
+      "default": "PENDING_PRODUCTION_APPLY",
+      "module": "AR database uniqueness",
+      "dependency": "Duplicate audit clean; explicit approved apply",
+      "rollback": "Approved manual rollback only; never auto-drop",
+      "productionEnableOrder": 2,
+      "autoApply": false
+    }
+  ]
+}

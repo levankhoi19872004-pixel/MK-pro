@@ -10,6 +10,13 @@ const {
   validateArLedgerContract
 } = require('../domain/ar/arLedgerContract');
 const arDebtReadModel = require('./arDebtReadModel.service');
+const {
+  normalizeIdempotencyKey,
+  assertNonNegativeLedgerAmounts,
+  compareFinancialPayload,
+  isMongoDuplicateKeyError,
+  createPayloadConflictError
+} = require('../domain/ar/arLedgerIdempotencyGuard');
 
 let models = null;
 function getModels() {
@@ -165,6 +172,60 @@ async function auditIssue(issue = {}, options = {}) {
   }
 }
 
+async function auditIdempotencyConflict({ idempotencyKey, comparison, existing = {}, incoming = {}, trigger = '' } = {}) {
+  const { AuditLog } = getModels();
+  if (!AuditLog || typeof AuditLog.create !== 'function') return { written: false, reason: 'AUDIT_MODEL_UNAVAILABLE' };
+  const payload = {
+    code: 'AR_LEDGER_IDEMPOTENCY_PAYLOAD_CONFLICT',
+    idempotencyKey,
+    trigger,
+    existingLedgerId: clean(existing.id || existing.code || existing._id),
+    incomingLedgerId: clean(incoming.id || incoming.code || incoming._id),
+    existingHash: comparison.existingHash,
+    incomingHash: comparison.incomingHash,
+    existingPayload: comparison.existingPayload,
+    incomingPayload: comparison.incomingPayload
+  };
+  try {
+    // Intentionally outside the business transaction so the P0 conflict audit
+    // survives the transaction abort that follows.
+    await AuditLog.create([{
+      type: 'AR_LEDGER_IDEMPOTENCY_CONFLICT',
+      action: 'ar_ledger_idempotency_payload_conflict',
+      severity: 'P0',
+      source: 'arPosting.service',
+      payload,
+      createdAt: dateUtil.nowIso()
+    }]);
+    return { written: true };
+  } catch (auditError) {
+    console.error('[arPosting] failed to persist idempotency conflict audit', {
+      idempotencyKey,
+      error: auditError?.message || String(auditError)
+    });
+    return { written: false, reason: 'AUDIT_WRITE_FAILED', error: auditError?.message || String(auditError) };
+  }
+}
+
+async function assertSameIdempotentPayload(existing, incoming, context = {}) {
+  const comparison = compareFinancialPayload(existing, incoming);
+  if (comparison.same) return existing;
+  const audit = await auditIdempotencyConflict({
+    idempotencyKey: incoming.idempotencyKey,
+    comparison,
+    existing,
+    incoming,
+    trigger: context.trigger || 'existing_result'
+  });
+  const error = createPayloadConflictError({
+    idempotencyKey: incoming.idempotencyKey,
+    comparison,
+    existingLedgerId: clean(existing.id || existing.code || existing._id)
+  });
+  error.audit = audit;
+  throw error;
+}
+
 async function withSourceLock(sourceId, fn) {
   const key = `AR-SALE:${sourceId}`;
   while (localLocks.has(key)) await localLocks.get(key);
@@ -245,7 +306,7 @@ async function confirmSalesOrderAR(input = {}) {
       session: input.session
     });
     assertValidArLedgerContract(ledger);
-    const saved = await findOneAndUpdateLean(ArLedger, { idempotencyKey: ledger.idempotencyKey }, { $setOnInsert: ledger }, { ...options, upsert: true });
+    const saved = await postArLedgerEntry(ledger, options);
     if (!isCanonicalArDebtLedger(saved)) assertValidArLedgerContract(saved);
 
     await updateOne(SalesOrder, {
@@ -291,14 +352,11 @@ async function findActiveCanonicalSale(sourceId, options = {}) {
 
 async function postArLedgerEntry(entry = {}, options = {}) {
   if (!entry || typeof entry !== 'object') return null;
-  const idempotencyKey = clean(entry.idempotencyKey);
-  if (!idempotencyKey) {
-    const err = new Error('AR ledger entry thiếu idempotencyKey.');
-    err.code = 'AR_LEDGER_IDEMPOTENCY_REQUIRED';
-    err.severity = 'P0';
-    throw err;
-  }
-  const result = validateArLedgerContract(entry);
+  const idempotencyKey = normalizeIdempotencyKey(entry.idempotencyKey);
+  const normalizedEntry = { ...entry, idempotencyKey };
+  assertNonNegativeLedgerAmounts(normalizedEntry);
+
+  const result = validateArLedgerContract(normalizedEntry);
   if (!result.ok) {
     const err = new Error(`Invalid canonical AR ledger ${result.ledgerId}: ${result.errors.map((item) => item.code).join(', ')}`);
     err.code = 'INVALID_AR_LEDGER_CONTRACT';
@@ -306,8 +364,39 @@ async function postArLedgerEntry(entry = {}, options = {}) {
     err.validation = result;
     throw err;
   }
+
   const { ArLedger } = getModels();
-  return findOneAndUpdateLean(ArLedger, { idempotencyKey }, { $setOnInsert: entry }, { ...options, upsert: true });
+  let saved;
+  try {
+    saved = await findOneAndUpdateLean(
+      ArLedger,
+      { idempotencyKey },
+      { $setOnInsert: normalizedEntry },
+      { ...options, upsert: true }
+    );
+  } catch (error) {
+    if (!isMongoDuplicateKeyError(error)) throw error;
+    const existing = await findOneLean(ArLedger, { idempotencyKey }, options);
+    if (!existing) {
+      error.code = 'AR_LEDGER_DUPLICATE_KEY_WITHOUT_EXISTING_RESULT';
+      error.severity = 'P0';
+      throw error;
+    }
+    return assertSameIdempotentPayload(existing, normalizedEntry, { trigger: 'mongo_duplicate_key' });
+  }
+
+  if (!saved) {
+    const existing = await findOneLean(ArLedger, { idempotencyKey }, options);
+    if (!existing) {
+      const error = new Error(`Không đọc được AR ledger sau idempotent upsert: ${idempotencyKey}`);
+      error.code = 'AR_LEDGER_IDEMPOTENT_UPSERT_RESULT_MISSING';
+      error.severity = 'P0';
+      throw error;
+    }
+    saved = existing;
+  }
+
+  return assertSameIdempotentPayload(saved, normalizedEntry, { trigger: 'upsert_result' });
 }
 
 async function reverseSalesOrderAR(input = {}) {
@@ -357,7 +446,7 @@ async function reverseSalesOrderAR(input = {}) {
 
     const reversal = buildArSaleReversalLedger(original, { accountant: actor, reason: input.reason || 'reverse AR-SALE' });
     assertValidArLedgerContract(reversal);
-    const savedReversal = await findOneAndUpdateLean(ArLedger, { idempotencyKey: reversal.idempotencyKey }, { $setOnInsert: reversal }, { ...options, upsert: true });
+    const savedReversal = await postArLedgerEntry(reversal, options);
 
     await updateOne(ArLedger, { idempotencyKey: original.idempotencyKey }, {
       $set: {
@@ -410,5 +499,12 @@ module.exports = {
   confirmSalesOrderAR,
   reverseSalesOrderAR,
   postArLedgerEntry,
-  setModelsForTest
+  setModelsForTest,
+  _idempotency: {
+    normalizeIdempotencyKey,
+    assertNonNegativeLedgerAmounts,
+    compareFinancialPayload,
+    isMongoDuplicateKeyError,
+    assertSameIdempotentPayload
+  }
 };

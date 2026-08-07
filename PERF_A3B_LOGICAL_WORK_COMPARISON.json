@@ -1,0 +1,37 @@
+{
+  "promptId": "PERF-A3B",
+  "evidence": "E2_DETERMINISTIC_OFFLINE",
+  "fixtureRows": 10000,
+  "comparisons": [
+    {
+      "case": "commonKeyword",
+      "legacyRowsScanned": 10000,
+      "optimizedRowsInspected": 43,
+      "legacyCandidateRows": 0,
+      "optimizedCandidateRows": 40,
+      "repositoryCalls": 4,
+      "candidateLimit": 40,
+      "logicalWorkReductionPct": 99.57,
+      "note": "Offline logical rows only; not Mongo docsExamined or production p95."
+    },
+    {
+      "case": "exactCustomerCode",
+      "legacyRowsScanned": 10000,
+      "optimizedRowsInspected": 510,
+      "legacyCandidateRows": 2,
+      "optimizedCandidateRows": 2,
+      "repositoryCalls": 6,
+      "candidateLimit": 40,
+      "logicalWorkReductionPct": 94.9,
+      "note": "Offline logical rows only; not Mongo docsExamined or production p95."
+    }
+  ],
+  "contract": {
+    "maximumOutputLimit": 10,
+    "maximumCandidateLimit": 80,
+    "defaultCandidateLimitFor10Results": 60,
+    "regexPolicy": "escaped anchored prefixes only on legacy fallback; normalized token fast path",
+    "productionP95Claimed": false
+  },
+  "pass": true
+}

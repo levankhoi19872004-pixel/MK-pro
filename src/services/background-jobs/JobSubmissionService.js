@@ -60,6 +60,34 @@ async function submitExport({ type, query = {}, user = {}, idempotencyKey = '' }
   });
 }
 
+async function submitContextExport({ payload = {}, user = {}, idempotencyKey = '' } = {}) {
+  const workerConfig = getRuntimeConfig().worker;
+  const sanitizedPayload = { ...(payload || {}), async: undefined };
+  delete sanitizedPayload.idempotencyKey;
+  const requestBucket = Math.floor(Date.now() / workerConfig.exportIdempotencyWindowMs);
+  const effectiveIdempotencyKey = String(idempotencyKey || '').trim() || BackgroundJobService.makeIdempotencyKey([
+    'report-context-export',
+    user.tenantId || user.tenantCode || '',
+    user.id || user._id || user.username || '',
+    stableJson(sanitizedPayload),
+    requestBucket
+  ]);
+  return BackgroundJobService.enqueue({
+    type: 'report_export_excel',
+    payload: {
+      request: sanitizedPayload,
+      currentUser: {
+        id: user.id || user._id || '', username: user.username || '', fullName: user.fullName || user.name || '',
+        role: user.role || '', tenantId: user.tenantId || user.tenantCode || ''
+      }
+    },
+    idempotencyKey: effectiveIdempotencyKey,
+    actor: user,
+    timeoutMs: workerConfig.exportJobTimeoutMs,
+    maxAttempts: workerConfig.exportJobMaxAttempts
+  });
+}
+
 async function submitImportPreview({ sessionId, type, files = [], userName = '', importMode = 'create' } = {}) {
   const importConfig = getRuntimeConfig().import;
   const artifacts = [];
@@ -157,4 +185,4 @@ async function submitReconciliation({ type = 'all', source = 'manual_api', check
   });
 }
 
-module.exports = { submitExport, submitImportPreview, submitImportCommit, submitReconciliation, _private: { stableJson } };
+module.exports = { submitExport, submitContextExport, submitImportPreview, submitImportCommit, submitReconciliation, _private: { stableJson } };

@@ -1,0 +1,270 @@
+{
+  "prompt_id": "PERF-A2C",
+  "title": "Idempotency Hardening và Duplicate Ledger Guard",
+  "generated_at": "2026-08-06T10:36:00+07:00",
+  "gate": "PASS_WITH_DEFERRED_RUNTIME",
+  "evidence": {
+    "E1": "PASS",
+    "E2": "PASS",
+    "E3": "DEFERRED_TO_PERF_A6"
+  },
+  "input": {
+    "zip": "MK-pro-perf-a2b-transaction-orchestration-fixed.zip",
+    "sha256": "c8779b361ad785a02f409a29a40ef822dbf97343149c64c25ed7560b3e24773f",
+    "baseline_tree_sha256": "250437a1855f09e779720d0c7bd13b35fd265773c367ae9f10b6c96f40abccbb",
+    "file_count": 2204,
+    "size_bytes": 19680109
+  },
+  "release_source": {
+    "tree_sha256": "8e891875377e8b4960461aa77db8a66c70c5eaa8ba5efcd25de41dcf9b17f3da",
+    "file_count": 2213,
+    "size_bytes": 19715455
+  },
+  "deployment_states": {
+    "APPLICATION_IDEMPOTENCY_GUARD": {
+      "state": "PASS",
+      "evidence": [
+        "E1",
+        "E2"
+      ],
+      "central_write_path": "src/services/arPosting.service.js"
+    },
+    "DATABASE_UNIQUE_INDEX": {
+      "state": "PENDING_PRODUCTION_APPLY",
+      "evidence_required": "E3",
+      "index_name": "uniq_arledger_idempotency_key_v1",
+      "applied_by_this_gate": false
+    },
+    "PRODUCTION_DUPLICATE_LEDGER_GUARANTEE": {
+      "state": "NOT_CLAIMED",
+      "reason": "Unique production index and production duplicate audit are not verified."
+    }
+  },
+  "tests": {
+    "performance_a1b_to_a2c": {
+      "command": "node --test test/performance/perf-a1b/*.test.js test/performance/perf-a2a/*.test.js test/performance/perf-a2b/*.test.js test/performance/perf-a2c/*.test.js",
+      "exit_code": 0,
+      "tests": 51,
+      "pass": 51,
+      "fail": 0,
+      "skipped": 0,
+      "log": "PERF_A2C_FULL_PERF_REGRESSION.log"
+    },
+    "ar_posting_core": {
+      "command": "node --test test/ar-sale-canonical-contract.test.js test/ar-sale-idempotency.test.js test/ar-sale-reversal-idempotency.test.js",
+      "exit_code": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "skipped": 0,
+      "log": "PERF_A2C_AR_POSTING_REGRESSION.log"
+    },
+    "dependency_limited": {
+      "command": "node --test test/phase258b-order-payment-allocation-no-fund-post.test.js",
+      "exit_code": 1,
+      "classification": "NOT_RUN_DEPENDENCY_FOR_1_SUBTEST",
+      "pass": 2,
+      "not_run": 1,
+      "reason": "MODULE_NOT_FOUND mongoose",
+      "log": "PERF_A2C_DEPENDENCY_NOT_RUN.log"
+    },
+    "syntax": {
+      "command": "node scripts/check-js-syntax.js",
+      "exit_code": 0,
+      "files_checked": 1609,
+      "log": "PERF_A2C_SYNTAX.log"
+    },
+    "red_first": {
+      "command": "node --test test/performance/perf-a2c/perf-a2c-red-race.test.js",
+      "exit_code": 1,
+      "expected_status": "EXPECTED_RED_FAIL",
+      "tests": 2,
+      "pass": 1,
+      "fail": 1,
+      "proof": {
+        "workers": 2,
+        "same_idempotency_key": true,
+        "both_prechecks_observed_missing": true,
+        "ledger_rows_created_without_db_unique_guard": 2,
+        "contract_missing_before_change": [
+          "normalizeIdempotencyKey",
+          "AR_LEDGER_IDEMPOTENCY_PAYLOAD_CONFLICT",
+          "isMongoDuplicateKeyError"
+        ]
+      },
+      "log": "PERF_A2C_RED_FIRST.log"
+    },
+    "green": {
+      "command": "node --test test/performance/perf-a2c/*.test.js",
+      "exit_code": 0,
+      "tests": 17,
+      "pass": 17,
+      "fail": 0,
+      "skipped": 0,
+      "scenarios": [
+        {
+          "id": "same_key_same_payload_concurrent",
+          "result": "PASS",
+          "ledger_count": 1,
+          "audit_count": 0
+        },
+        {
+          "id": "same_key_different_payload_concurrent",
+          "result": "PASS",
+          "ledger_count": 1,
+          "conflicting_worker": "FAIL_HARD",
+          "audit_severity": "P0"
+        },
+        {
+          "id": "same_key_same_payload_retry",
+          "result": "PASS",
+          "behavior": "IDEMPOTENT_EXISTING_RESULT"
+        },
+        {
+          "id": "unknown_commit_external_retry",
+          "result": "PASS",
+          "ledger_count": 1
+        },
+        {
+          "id": "empty_or_unstable_key",
+          "result": "PASS",
+          "behavior": "REJECT"
+        },
+        {
+          "id": "zero_amount_preserved",
+          "result": "PASS"
+        },
+        {
+          "id": "negative_amount_guard",
+          "result": "PASS",
+          "repository_writes": 0
+        },
+        {
+          "id": "debt_zero_tolerance_boundary",
+          "result": "PASS",
+          "boundary": 1000
+        },
+        {
+          "id": "transaction_rollback",
+          "result": "PASS",
+          "committed_ledgers": 0
+        },
+        {
+          "id": "duplicate_audit_read_only",
+          "result": "PASS"
+        },
+        {
+          "id": "pending_unique_index_registry",
+          "result": "PASS",
+          "auto_apply": false
+        }
+      ],
+      "log": "PERF_A2C_GREEN_TEST.log"
+    }
+  },
+  "changed_files": [
+    {
+      "path": "package.json",
+      "change": "modified",
+      "baseline_sha256": "f05b035e65aa3b959711e8718694ef6484d221dfcb137ebb20ce6bc1316dac90",
+      "sha256": "8a240d62a266c3063f753aca3b323e4152177d9551f1b088d58e577c2fe7af47",
+      "size_bytes": 15811
+    },
+    {
+      "path": "scripts/audit-ar-ledger-idempotency-duplicates.js",
+      "change": "added",
+      "sha256": "bf74eaa4a73f6d61a38ddd1e9294f1da1169290589286011d9bc5e94dfd63c25",
+      "size_bytes": 1635
+    },
+    {
+      "path": "scripts/create-ar-ledger-idempotency-unique-index.js",
+      "change": "added",
+      "sha256": "add0db5a4fc41d9e4c0a7016f92b9b8edae1eaf523f754521f0ad263c90fab72",
+      "size_bytes": 4779
+    },
+    {
+      "path": "scripts/lib/arLedgerIdempotencyAudit.js",
+      "change": "added",
+      "sha256": "e17f7485f543e4ad190b52359443337fa2bd5eed3d527c7578ead34c2561dd00",
+      "size_bytes": 3910
+    },
+    {
+      "path": "src/domain/ar/arLedgerIdempotencyGuard.js",
+      "change": "added",
+      "sha256": "893a3450aec88b67bdfab2e13bd0e6b65bdb3809621435d1b0b32eaa91bc0963",
+      "size_bytes": 5533
+    },
+    {
+      "path": "src/domain/ar/arLedgerIdempotencyIndexContract.js",
+      "change": "added",
+      "sha256": "7e8f861cdba54b69efb0adbffebee1a358f83677564d2395d42311e3198f05d4",
+      "size_bytes": 513
+    },
+    {
+      "path": "src/services/arPosting.service.js",
+      "change": "modified",
+      "baseline_sha256": "f692a245be0aad8d9d4989a85389cc7c3d8a1668f03934503d5e9cb6f1893732",
+      "sha256": "ee812ece0ba1b31888fb1c986d8ef0d0039a8bdfccc4831ecc29bbbfefcb5ae8",
+      "size_bytes": 18096
+    },
+    {
+      "path": "src/services/mongoIndexService.js",
+      "change": "modified",
+      "baseline_sha256": "b2056a6de2e622fdc9c22fbf76cc27baeacb4b31b685515e097445d0e247ba3b",
+      "sha256": "f0a290d7bc32089c2a77c2a14f48a66d0189bca982618ef1c7ba1d2c6a7a4eb9",
+      "size_bytes": 48542
+    },
+    {
+      "path": "test/performance/perf-a2c/deterministic-race-repository.js",
+      "change": "added",
+      "sha256": "1b6751e150969affeb1887d04fd065170065d618af4d890fe41b221bbdc9fe21",
+      "size_bytes": 826
+    },
+    {
+      "path": "test/performance/perf-a2c/perf-a2c-idempotency-hardening.test.js",
+      "change": "added",
+      "sha256": "05f4101cc67c43a97a42b3dc2085025a36fc0178995ace44863d7015e511032d",
+      "size_bytes": 10945
+    },
+    {
+      "path": "test/performance/perf-a2c/perf-a2c-migration-contract.test.js",
+      "change": "added",
+      "sha256": "e631299cb7b9c687c9df5bbc6fe69bf13334c558973065881f57764a8879a2dc",
+      "size_bytes": 1594
+    },
+    {
+      "path": "test/performance/perf-a2c/perf-a2c-red-race.test.js",
+      "change": "added",
+      "sha256": "e44dd12ccb7505709fd5ddfce510fe582eedf84468f9575dd541fb742b9d016a",
+      "size_bytes": 1188
+    }
+  ],
+  "mandatory_outputs": [
+    "PERF_A2C_IDEMPOTENCY_HARDENING_REPORT.md",
+    "PERF_A2C_RACE_TEST_EVIDENCE.json",
+    "PERF_A2C_INDEX_MIGRATION_PLAN.md",
+    "PERF_A2C_DUPLICATE_AUDIT_SCRIPT.md",
+    "PERF_A2C_DEPLOYMENT_PRECONDITIONS.json",
+    "PERF_A2C_MANIFEST.json",
+    "MK-pro-perf-a2c-idempotency-hardening-fixed.zip"
+  ],
+  "additional_evidence": [
+    "PERF_A2C_CHANGED_FILES.json",
+    "PERF_A2C_RED_FIRST.log",
+    "PERF_A2C_GREEN_TEST.log",
+    "PERF_A2C_FULL_PERF_REGRESSION.log",
+    "PERF_A2C_AR_POSTING_REGRESSION.log",
+    "PERF_A2C_DEPENDENCY_NOT_RUN.log",
+    "PERF_A2C_SYNTAX.log"
+  ],
+  "production_actions": {
+    "index_created": false,
+    "index_dropped": false,
+    "data_mutated": false,
+    "migration_run": false
+  },
+  "release_zip": {
+    "name": "MK-pro-perf-a2c-idempotency-hardening-fixed.zip",
+    "sha256": "RECORDED_EXTERNALLY_IN_SHA256_FILE_AFTER_PACKAGING"
+  }
+}

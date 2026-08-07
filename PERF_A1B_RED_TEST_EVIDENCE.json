@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "1.0",
+  "phase": "PERF-A1B",
+  "generatedAt": "2026-08-06T09:40:00+07:00",
+  "status": "PASS",
+  "command": "node --expose-gc --test test/performance/perf-a1b/perf-a1b-offline-repro.test.js",
+  "exitCode": 0,
+  "tests": [
+    {
+      "id": "A1B-E1-CALL-GRAPH",
+      "status": "PASS"
+    },
+    {
+      "id": "A1B-FIXTURE-COVERAGE",
+      "status": "PASS"
+    },
+    {
+      "id": "A1B-SPY-COUNTER",
+      "status": "PASS"
+    },
+    {
+      "id": "A1B-RED-LINEAR-GROWTH",
+      "status": "PASS"
+    },
+    {
+      "id": "A1B-FINANCIAL-FALLBACKS",
+      "status": "PASS"
+    },
+    {
+      "id": "A1B-ZERO-TOLERANCE-IDEMPOTENCY",
+      "status": "PASS"
+    },
+    {
+      "id": "A1B-ERROR-ISOLATION",
+      "status": "PASS"
+    },
+    {
+      "id": "A1B-DUPLICATE-CANONICAL-INPUT",
+      "status": "PASS"
+    },
+    {
+      "id": "A1B-CORRECTNESS-SNAPSHOT",
+      "status": "PASS"
+    }
+  ],
+  "notRun": [
+    {
+      "id": "MONGO-TRANSACTION-BEHAVIOR",
+      "status": "NOT_RUN",
+      "reason": "E3 deferred to PERF-A6; offline fake transaction only."
+    },
+    {
+      "id": "MONGO-EXPLAIN-EXECUTION-STATS",
+      "status": "NOT_RUN",
+      "reason": "No staging Mongo required for PERF-A1B."
+    },
+    {
+      "id": "PRODUCTION-P95",
+      "status": "NOT_RUN",
+      "reason": "E3 deferred to PERF-A6."
+    }
+  ],
+  "assertions": {
+    "findOrderPerInput": true,
+    "versionReturnAllocationPerInput": true,
+    "transactionPerInput": true,
+    "noBatchReadsUsed": true,
+    "repeatedArSafetyReads": true,
+    "repeatedIdempotencyReads": true
+  }
+}

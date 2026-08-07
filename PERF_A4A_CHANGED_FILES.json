@@ -1,0 +1,22 @@
+{
+  "added": [
+    "scripts/performance/perf-a4a/repair-dashboard-read-model.js",
+    "scripts/performance/perf-a4a/run-dashboard-repro.js",
+    "src/services/dashboard/DashboardReadModelCompletenessService.js",
+    "test/performance/perf-a4a/perf-a4a-cache-v2.test.js",
+    "test/performance/perf-a4a/perf-a4a-home-dashboard-cache-hit.test.js",
+    "test/performance/perf-a4a/perf-a4a-read-model-completeness.test.js",
+    "test/performance/perf-a4a/perf-a4a-red-cache-read-model.test.js",
+    "test/performance/perf-a4a/perf-a4a-static-contract.test.js"
+  ],
+  "modified": [
+    "ENVIRONMENT_VARIABLES.md",
+    "package.json",
+    "scripts/rebuild-dashboard-daily-stats.js",
+    "src/models/DashboardDailyStat.js",
+    "src/services/dashboard/DashboardCacheService.js",
+    "src/services/dashboard/DashboardDailyStatsService.js",
+    "src/services/dashboard/HomeDashboardService.js"
+  ],
+  "removed": []
+}

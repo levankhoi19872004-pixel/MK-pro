@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-08-06T16:21:22.681004+07:00",
+  "status": "PASS_E1_E2",
+  "debtDeviation": 0,
+  "duplicateLedgerApplicationTests": 0,
+  "returnParityPercent": 100,
+  "allocationCurrentVersionParityPercent": 100,
+  "zeroValueSemantics": true,
+  "nullUndefinedNaNGuards": true,
+  "negativeMoneyGuard": true,
+  "debtZeroTolerance": true,
+  "scopeIsolation": true,
+  "transactionFailureIsolation": true,
+  "idempotentRetry": true,
+  "sameIdentitySerialization": true,
+  "stableResultOrdering": true,
+  "reportDomainParity": true,
+  "dashboardCacheInvalidation": true,
+  "productionE3": "PENDING"
+}

@@ -1,0 +1,93 @@
+{
+  "promptId": "PERF-A4A",
+  "requirementId": "A4A-REQ-001/A4A-REQ-002/A4A-REQ-003",
+  "generatedAt": "2026-08-06T05:35:15.090506Z",
+  "status": "PASS_E1_E2",
+  "redFirst": {
+    "command": "node --test test/performance/perf-a4a/perf-a4a-red-cache-read-model.test.js",
+    "expectedExitCode": 1,
+    "tests": 3,
+    "pass": 1,
+    "expectedFail": 2,
+    "proof": {
+      "legacyKeysBefore": 2,
+      "legacyKeysRemainingAfterInvalidatePeriod": 2,
+      "bug": "invalidate(period) checked key.startsWith(`${period}:`) while keys start with sales-staff:/delivery-summary:"
+    },
+    "log": "PERF_A4A_RED_FIRST.log"
+  },
+  "green": {
+    "command": "node --test test/performance/perf-a4a/*.test.js",
+    "tests": 25,
+    "pass": 25,
+    "fail": 0,
+    "scenarios": [
+      "sales-staff period invalidation",
+      "delivery-summary period invalidation",
+      "module+period+scope exact invalidation",
+      "multi-scope isolation",
+      "global invalidation",
+      "exact tag matching without substring deletion",
+      "cache hit without live/read-model query",
+      "confirmed read-model mutation invalidation"
+    ]
+  },
+  "logicalFreshnessWork": {
+    "legacyStrictFreshnessFindOneCallsPerCacheRead": 7,
+    "v2MongoFreshnessCallsPerCacheRead": 0,
+    "v2Mechanism": "mutation-driven exact invalidation + source metadata + TTL defense"
+  },
+  "cacheContract": {
+    "version": "v2",
+    "canonicalKey": "dashboard-cache:v2:<module>:period=<period>:date=<date>:scope=<sha256-16>",
+    "tags": [
+      "module",
+      "period",
+      "scope",
+      "cache-version"
+    ],
+    "sourceTimestamp": true,
+    "sourceVersion": true,
+    "storeType": "process-local",
+    "isShared": false,
+    "sharedStoreAbstraction": true,
+    "safeFallback": "legacy TTL cache or live query",
+    "featureFlag": "PERF_DASHBOARD_CACHE_V2",
+    "default": "OFF"
+  },
+  "mutationCoverage": {
+    "wired": [
+      "Sales target save/import -> HomeDashboardService.invalidateDashboardCache(period)",
+      "DashboardDailyStat confirmed upsert -> DashboardCacheService.invalidate(period)"
+    ],
+    "deferredRuntimeValidation": [
+      "cross-process/shared-cache propagation",
+      "all production source mutation hooks",
+      "Redis/shared adapter deployment"
+    ]
+  },
+  "offlineRunner": {
+    "legacyRemainingKeysAfterPeriodInvalidation": 2,
+    "v2RemovedKeys": 2,
+    "v2RemainingSales": false,
+    "v2RemainingDelivery": false,
+    "legacyStrictFreshnessQueriesPerRead": 7,
+    "v2FreshnessQueriesPerRead": 0,
+    "cacheHitLiveQueries": 0,
+    "store": {
+      "type": "process-local",
+      "shared": false,
+      "cacheVersion": "v2",
+      "entryCount": 0,
+      "safeFallback": "legacy TTL cache or live query",
+      "sharedAdapterContract": [
+        "get",
+        "set",
+        "delete",
+        "clear",
+        "invalidateByTags",
+        "sourceVersion"
+      ]
+    }
+  }
+}

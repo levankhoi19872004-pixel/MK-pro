@@ -1,0 +1,136 @@
+{
+  "prompt_id": "PERF-A2C",
+  "generated_at": "2026-08-06T10:36:00+07:00",
+  "evidence_levels": [
+    "E1",
+    "E2"
+  ],
+  "red_first": {
+    "command": "node --test test/performance/perf-a2c/perf-a2c-red-race.test.js",
+    "exit_code": 1,
+    "expected_status": "EXPECTED_RED_FAIL",
+    "tests": 2,
+    "pass": 1,
+    "fail": 1,
+    "proof": {
+      "workers": 2,
+      "same_idempotency_key": true,
+      "both_prechecks_observed_missing": true,
+      "ledger_rows_created_without_db_unique_guard": 2,
+      "contract_missing_before_change": [
+        "normalizeIdempotencyKey",
+        "AR_LEDGER_IDEMPOTENCY_PAYLOAD_CONFLICT",
+        "isMongoDuplicateKeyError"
+      ]
+    },
+    "log": "PERF_A2C_RED_FIRST.log"
+  },
+  "green": {
+    "command": "node --test test/performance/perf-a2c/*.test.js",
+    "exit_code": 0,
+    "tests": 17,
+    "pass": 17,
+    "fail": 0,
+    "skipped": 0,
+    "scenarios": [
+      {
+        "id": "same_key_same_payload_concurrent",
+        "result": "PASS",
+        "ledger_count": 1,
+        "audit_count": 0
+      },
+      {
+        "id": "same_key_different_payload_concurrent",
+        "result": "PASS",
+        "ledger_count": 1,
+        "conflicting_worker": "FAIL_HARD",
+        "audit_severity": "P0"
+      },
+      {
+        "id": "same_key_same_payload_retry",
+        "result": "PASS",
+        "behavior": "IDEMPOTENT_EXISTING_RESULT"
+      },
+      {
+        "id": "unknown_commit_external_retry",
+        "result": "PASS",
+        "ledger_count": 1
+      },
+      {
+        "id": "empty_or_unstable_key",
+        "result": "PASS",
+        "behavior": "REJECT"
+      },
+      {
+        "id": "zero_amount_preserved",
+        "result": "PASS"
+      },
+      {
+        "id": "negative_amount_guard",
+        "result": "PASS",
+        "repository_writes": 0
+      },
+      {
+        "id": "debt_zero_tolerance_boundary",
+        "result": "PASS",
+        "boundary": 1000
+      },
+      {
+        "id": "transaction_rollback",
+        "result": "PASS",
+        "committed_ledgers": 0
+      },
+      {
+        "id": "duplicate_audit_read_only",
+        "result": "PASS"
+      },
+      {
+        "id": "pending_unique_index_registry",
+        "result": "PASS",
+        "auto_apply": false
+      }
+    ],
+    "log": "PERF_A2C_GREEN_TEST.log"
+  },
+  "regression": {
+    "performance_a1b_to_a2c": {
+      "command": "node --test test/performance/perf-a1b/*.test.js test/performance/perf-a2a/*.test.js test/performance/perf-a2b/*.test.js test/performance/perf-a2c/*.test.js",
+      "exit_code": 0,
+      "tests": 51,
+      "pass": 51,
+      "fail": 0,
+      "skipped": 0,
+      "log": "PERF_A2C_FULL_PERF_REGRESSION.log"
+    },
+    "ar_posting_core": {
+      "command": "node --test test/ar-sale-canonical-contract.test.js test/ar-sale-idempotency.test.js test/ar-sale-reversal-idempotency.test.js",
+      "exit_code": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "skipped": 0,
+      "log": "PERF_A2C_AR_POSTING_REGRESSION.log"
+    },
+    "dependency_limited": {
+      "command": "node --test test/phase258b-order-payment-allocation-no-fund-post.test.js",
+      "exit_code": 1,
+      "classification": "NOT_RUN_DEPENDENCY_FOR_1_SUBTEST",
+      "pass": 2,
+      "not_run": 1,
+      "reason": "MODULE_NOT_FOUND mongoose",
+      "log": "PERF_A2C_DEPENDENCY_NOT_RUN.log"
+    },
+    "syntax": {
+      "command": "node scripts/check-js-syntax.js",
+      "exit_code": 0,
+      "files_checked": 1609,
+      "log": "PERF_A2C_SYNTAX.log"
+    }
+  },
+  "production_claims": {
+    "application_guard_tested": true,
+    "database_unique_index_verified": false,
+    "production_duplicate_ledger_zero_claimed": false,
+    "production_index_applied": false
+  }
+}

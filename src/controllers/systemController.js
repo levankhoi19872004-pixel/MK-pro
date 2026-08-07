@@ -256,6 +256,20 @@ async function closeoutQueryAuditClear(req, res) {
 }
 
 
+
+async function startPerformanceMeasurementWindow(req, res) {
+  try { return res.json(await operationsService.startPerformanceMeasurementWindow(req.body || {})); }
+  catch (err) { return sendError(res, err, 'Khong bat dau duoc performance measurement window'); }
+}
+async function closePerformanceMeasurementWindow(req, res) {
+  try { return res.json(await operationsService.closePerformanceMeasurementWindow()); }
+  catch (err) { return sendError(res, err, 'Khong dong duoc performance measurement window'); }
+}
+async function exportPerformanceMeasurementWindow(req, res) {
+  try { return res.json(await operationsService.exportPerformanceMeasurementWindow(req.query?.windowId)); }
+  catch (err) { return sendError(res, err, 'Khong export duoc performance measurement window'); }
+}
+
 async function runReconciliation(req, res) {
   try {
     const type = req.body?.type || req.query?.type || 'all';
@@ -321,5 +335,8 @@ module.exports = {
   closeoutQueryAuditExport,
   closeoutQueryAuditClear,
   runReconciliation,
-  listReconciliationReports
+  listReconciliationReports,
+  startPerformanceMeasurementWindow,
+  closePerformanceMeasurementWindow,
+  exportPerformanceMeasurementWindow
 };

@@ -1,0 +1,10 @@
+{
+  "requirementId": "A5R2-REQ-013",
+  "status": "PASS",
+  "fixture": "100 orders x 1000 history rows",
+  "legacyUpperBoundPredicateCalls": 100000,
+  "indexedCandidateVisits": 1000,
+  "reductionPercent": 99,
+  "financialParityPercent": 100,
+  "logicalMongoReadsIncreased": false
+}

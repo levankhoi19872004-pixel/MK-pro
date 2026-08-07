@@ -1,0 +1,171 @@
+{
+  "promptId": "PERF-A3A",
+  "generatedAt": "2026-08-06T04:16:42.318Z",
+  "evidenceModel": {
+    "E1": "PASS",
+    "E2": "PASS",
+    "E3": "DEFERRED_TO_PERF_A6"
+  },
+  "fixture": {
+    "seed": "PERF-A3A-FIXTURE-V1",
+    "orders": 10000,
+    "masterOrders": 1000,
+    "closeoutVersions": 34996,
+    "allocations": 34996,
+    "returns": 770,
+    "target": {
+      "date": "2026-08-06",
+      "deliveryStaffCode": "D02",
+      "salesStaffCode": "S03"
+    }
+  },
+  "red": {
+    "readerMode": "legacy",
+    "dbLimit": 500,
+    "rawOrderCount": 500,
+    "returnedOrderCount": 58,
+    "filterLocation": "JavaScript after bounded DB read",
+    "paginationLocation": "slice after JavaScript filter",
+    "repository": {
+      "salesOrderQueries": 1,
+      "salesOrderRowsMatched": 2000,
+      "salesOrderRowsReturned": 500,
+      "masterOrderQueries": 1,
+      "masterOrderRowsReturned": 45
+    }
+  },
+  "green": {
+    "readerMode": "db-native",
+    "rowsProcessed": 202,
+    "canonicalRowsRead": 101,
+    "legacyRowsRead": 101,
+    "masterScopedRowsRead": 0,
+    "returnedOrderCount": 100,
+    "pagination": {
+      "page": 1,
+      "limit": 100,
+      "returned": 100,
+      "totalRows": null,
+      "totalPages": null,
+      "hasMore": true,
+      "nextCursor": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTA2VDIzOjAwOjAwLjAwMFoiLCJpZGVudGl0eSI6Im1vbmdvLTAwMDYwIn0",
+      "mode": "keyset-ready"
+    },
+    "repository": {
+      "salesOrderQueries": 2,
+      "salesOrderRowsMatched": 400,
+      "salesOrderRowsReturned": 202,
+      "masterOrderQueries": 2,
+      "masterOrderRowsReturned": 0
+    }
+  },
+  "parity": {
+    "page1IdsMatchOracle": true,
+    "page2IdsMatchOracle": true,
+    "page1OrderHash": "fd078ce082c8476d20def7828d79137d7b3f12e09dd313e8297f3e0b7c0aafa5",
+    "oraclePage1OrderHash": "fd078ce082c8476d20def7828d79137d7b3f12e09dd313e8297f3e0b7c0aafa5",
+    "page2OrderHash": "fb10cffad663ed90dae85f620ce18850ca86c21292e295b85d03652b55ca3ea6",
+    "oraclePage2OrderHash": "fb10cffad663ed90dae85f620ce18850ca86c21292e295b85d03652b55ca3ea6",
+    "pageOverlapCount": 0,
+    "financialSnapshotMatch": true,
+    "legacyFinancialSnapshotHash": "3621e1426c2daf77a8b0f9f91e2f8495075a8f37ba1f04f142dcad21fa0141d7",
+    "optimizedFinancialSnapshotHash": "3621e1426c2daf77a8b0f9f91e2f8495075a8f37ba1f04f142dcad21fa0141d7",
+    "maxDebtDeviation": 0,
+    "returnStateMatch": true,
+    "paymentStateMatch": true,
+    "staffScopeLeakCount": 0,
+    "dateScopeLeakCount": 0,
+    "duplicateIdentityCount": 0,
+    "legacyMasterAssignmentsPreserved": true
+  },
+  "pagination": {
+    "page1": {
+      "page": 1,
+      "limit": 100,
+      "returned": 100,
+      "totalRows": null,
+      "totalPages": null,
+      "hasMore": true,
+      "nextCursor": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTA2VDIzOjAwOjAwLjAwMFoiLCJpZGVudGl0eSI6Im1vbmdvLTAwMDYwIn0",
+      "mode": "keyset-ready"
+    },
+    "page2": {
+      "page": 1,
+      "limit": 100,
+      "returned": 100,
+      "totalRows": null,
+      "totalPages": null,
+      "hasMore": true,
+      "nextCursor": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTA2VDE4OjA1OjAwLjAwMFoiLCJpZGVudGl0eSI6Im1vbmdvLTAwMTg1In0",
+      "mode": "keyset"
+    },
+    "stableSort": {
+      "deliveryDateKey": -1,
+      "createdAt": -1,
+      "canonicalIdentity": -1
+    },
+    "page1Count": 100,
+    "page2Count": 100
+  },
+  "latestState": {
+    "legacy": {
+      "versionCalls": 1,
+      "allocationCalls": 1,
+      "returnCalls": 1,
+      "versionRowsRead": 298,
+      "allocationRowsRead": 298,
+      "returnRowsRead": 8
+    },
+    "optimized": {
+      "versionCalls": 1,
+      "allocationCalls": 2,
+      "returnCalls": 1,
+      "versionRowsRead": 100,
+      "allocationRowsRead": 100,
+      "returnRowsRead": 8
+    },
+    "versionCandidateReductionPercent": 66.44,
+    "allocationCandidateReductionPercent": 66.44,
+    "noGlobalLimitInOptimizedPipeline": true,
+    "financialSnapshotMatch": true
+  },
+  "logicalWorkByLimit": [
+    {
+      "limit": 50,
+      "legacyRowsProcessed": 500,
+      "optimizedRowsProcessed": 102,
+      "reductionPercent": 79.6,
+      "legacyRowsReturned": 50,
+      "optimizedRowsReturned": 50,
+      "legacyDurationMs": 203.775,
+      "optimizedDurationMs": 79.873,
+      "legacyHeapDeltaBytes": 4281360,
+      "optimizedHeapDeltaBytes": 1685776
+    },
+    {
+      "limit": 100,
+      "legacyRowsProcessed": 500,
+      "optimizedRowsProcessed": 202,
+      "reductionPercent": 59.6,
+      "legacyRowsReturned": 58,
+      "optimizedRowsReturned": 100,
+      "legacyDurationMs": 202.536,
+      "optimizedDurationMs": 112.706,
+      "legacyHeapDeltaBytes": 4557240,
+      "optimizedHeapDeltaBytes": 7339376
+    },
+    {
+      "limit": 200,
+      "legacyRowsProcessed": 1000,
+      "optimizedRowsProcessed": 400,
+      "reductionPercent": 60,
+      "legacyRowsReturned": 154,
+      "optimizedRowsReturned": 200,
+      "legacyDurationMs": 343.55,
+      "optimizedDurationMs": 168.922,
+      "legacyHeapDeltaBytes": 2084720,
+      "optimizedHeapDeltaBytes": 1092520
+    }
+  ],
+  "warning": "Offline duration and heap deltas compare deterministic algorithmic work only; they are not Mongo latency or production p95."
+}

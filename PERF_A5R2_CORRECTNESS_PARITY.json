@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-08-07T06:57:45+07:00",
+  "status": "PASS_E1_E2",
+  "debtDeviation": 0,
+  "duplicateLedgerApplicationTests": 0,
+  "returnParityPercent": 100,
+  "allocationParityPercent": 100,
+  "zeroValueSemantics": true,
+  "negativeMoneyGuard": true,
+  "debtZeroTolerance": true,
+  "scopeIsolation": true,
+  "transactionFailureIsolation": true,
+  "idempotentRetry": true,
+  "stableResultOrdering": true,
+  "productionE3": "PENDING"
+}

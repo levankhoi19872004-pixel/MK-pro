@@ -10,7 +10,7 @@ const { getRequestContext } = require('../../observability/requestContext');
 const { redactText, redactValue } = require('../../observability/redaction');
 
 const TERMINAL = new Set(['completed', 'failed', 'dead_letter', 'cancelled']);
-const CANCELLABLE_WHILE_RUNNING = new Set(['export_excel', 'import_preview']);
+const CANCELLABLE_WHILE_RUNNING = new Set(['export_excel', 'report_export_excel', 'import_preview']);
 const DEFAULT_LEASE_MS = Math.max(10_000, Number(process.env.BACKGROUND_JOB_LEASE_MS || 60_000));
 const JOB_RETENTION_MS = Math.max(60_000, Number(process.env.BACKGROUND_JOB_RETENTION_MS || 7 * 24 * 60 * 60 * 1000));
 const STACK_LIMIT = 8000;

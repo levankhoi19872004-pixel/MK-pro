@@ -3,6 +3,8 @@
 const fs = require('node:fs/promises');
 const ExcelInteractionService = require('../services/excel/ExcelInteractionService');
 const excelImportService = require('../services/excelImportService');
+const JobSubmissionService = require('../services/background-jobs/JobSubmissionService');
+const AsyncJobHttpAdapter = require('../services/background-jobs/AsyncJobHttpAdapter');
 
 function sendWorkbook(res, result) {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -27,6 +29,13 @@ function sendWorkbook(res, result) {
 
 async function exportWorkbook(req, res) {
   try {
+    const isReportExport = String(req.body?.type || '').trim().toUpperCase() === 'REPORT';
+    const asyncReportEnabled = ['1', 'true', 'yes', 'on'].includes(String(process.env.PERF_REPORT_DB_PAGINATION_V1 || '').trim().toLowerCase());
+    if (isReportExport && asyncReportEnabled) {
+      const idempotencyKey = String(req.headers['x-idempotency-key'] || req.body?.idempotencyKey || '').trim();
+      const submitted = await JobSubmissionService.submitContextExport({ payload: req.body || {}, user: req.user || {}, idempotencyKey });
+      return res.status(202).json(AsyncJobHttpAdapter.acceptedPayload(submitted, { source: 'report-center-context-export' }));
+    }
     const result = await ExcelInteractionService.exportWorkbook(req.body || {}, req.user || {});
     return sendWorkbook(res, result);
   } catch (err) {

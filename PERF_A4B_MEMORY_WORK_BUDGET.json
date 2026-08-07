@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0",
+  "prompt_id": "PERF-A4B",
+  "generated_at_utc": "2026-08-06T06:04:09Z",
+  "budgets": {
+    "preview": {
+      "default_limit": 50,
+      "hard_limit": 200,
+      "legacy_rows_materialized": 10000,
+      "optimized_rows_materialized": 50,
+      "reduction_percent": 99.5
+    },
+    "data_quality_read": {
+      "legacy_rows_materialized": 28000,
+      "optimized_snapshot_rows": 50,
+      "reduction_percent": 99.82,
+      "snapshot_max_rows": 5000,
+      "snapshot_max_bytes": 8388608
+    },
+    "export": {
+      "max_rows": 50000,
+      "max_bytes": 67108864,
+      "request_mode": "background_job",
+      "http_request_does_not_wait_for_workbook": true
+    },
+    "orchestration": {
+      "default_concurrency": 2,
+      "hard_cap": 3,
+      "default_timeout_ms": 30000,
+      "max_active_requests_process_local": 4,
+      "partial_result_default": false
+    }
+  },
+  "admission_control": {
+    "scope": "single Node.js process",
+    "shared_or_distributed": false,
+    "over_limit": "429 REPORT_ADMISSION_LIMIT_REACHED"
+  },
+  "abort_timeout": {
+    "parent_abort_propagated": true,
+    "per_report_timeout": true,
+    "data_quality_partial_result": false
+  },
+  "limitations": [
+    "Snapshot rebuild remains a background/admin operation and may materialize source-domain result sets; it is bounded and removed from the HTTP read path.",
+    "Excel generation occurs in a worker and is guarded, but is not claimed to be streaming.",
+    "Logical peak rows are not a direct measurement of V8 heap or Mongo docsExamined.",
+    "Production connection pool, worker capacity, heap, latency and p95 require PERF-A6 E3."
+  ]
+}

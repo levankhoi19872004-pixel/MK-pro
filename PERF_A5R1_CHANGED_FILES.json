@@ -1,0 +1,21 @@
+{
+  "generatedAt": "2026-08-06T16:21:22.681004+07:00",
+  "baselineReleaseSha": "c1670933d271d64762c679d3ac81419e92134564b7d8e0ab74edb260ea14b018",
+  "added": [
+    "src/observability/performanceMeasurementStore.js",
+    "test/performance/perf-a5r1/perf-a5r1-remediation.test.js",
+    "scripts/performance/perf-a5r1/run-remediation.js"
+  ],
+  "modified": [
+    "ENVIRONMENT_VARIABLES.md",
+    "package.json",
+    "src/middlewares/apiMonitor.middleware.js",
+    "src/services/operationsService.js",
+    "src/controllers/systemController.js",
+    "src/routes/systemRoutes.js",
+    "src/services/reports/ReportExecutionPolicy.js",
+    "src/services/reports/ReportCenterService.js",
+    "src/services/delivery/DeliveryAdjustmentBatchContextService.js"
+  ],
+  "removed": []
+}

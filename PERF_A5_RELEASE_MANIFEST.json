@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "application": "MK-Pro",
+  "promptId": "PERF-A5",
+  "generatedAt": "2026-08-06T13:54:44+07:00",
+  "releaseName": "MK-pro-performance-release-candidate.zip",
+  "releaseStatus": [
+    "ENGINEERING_VERIFIED",
+    "PRODUCTION_PERFORMANCE_PENDING"
+  ],
+  "inputZip": {
+    "name": "MK-pro-perf-a4b-report-center-fixed.zip",
+    "sha256": "d0b9e0205f65f18a5554b62e4b4fb9f9ed4ce745b32ed0519852010e63a14618"
+  },
+  "sourceIntegrity": {
+    "baselineZip": "MK-pro-phaseA-canonical-delivery-financial-read-model-fixed(1).zip",
+    "baselineSha256": "07d8b6cf20394bd63beddf736e163a7268c360f67fbf87f7a2dca0f500db456d",
+    "changedFilesArtifact": "PERF_A5_CHANGED_FILES.json"
+  },
+  "correctnessLock": "PASS",
+  "featureFlagMatrix": "PERF_A5_FEATURE_FLAG_MATRIX.json",
+  "rollbackRunbook": "PERF_A5_ROLLBACK_RUNBOOK.md",
+  "telemetryContract": "PERF_A5_A6_TELEMETRY_CONTRACT.json",
+  "productionPerformance": "PENDING_PERF_A6",
+  "forbiddenContents": {
+    "node_modules": false,
+    "dotEnv": false,
+    "customerDataDump": false,
+    "temporaryFiles": false
+  },
+  "databaseActions": {
+    "migrationRun": false,
+    "indexApplied": false,
+    "productionWrite": false
+  },
+  "releaseContract": {
+    "application": "MK-Pro",
+    "releasePhase": "PERF-A5",
+    "releaseVersion": "1.0.0",
+    "version": "1.0.0",
+    "releaseId": "PERF-A5-RC1",
+    "sourceSha256": "457a2355a4913d2a0f0f45040f88eada557b920491d130590107de4ba1166fb0",
+    "sourceFileCount": 1797,
+    "bundleSha256": "679eb120a8c0fd5933b564b9580b56b9de6d5f373cb74a253cd9f3a9a29af80a",
+    "bundleFileCount": 32,
+    "configurationVersion": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "generatedAt": "2026-08-06T06:40:00.000Z",
+    "generatorVersion": "phase255a-r1-manifest-generator-v1",
+    "policyVersion": "phase255a-r1-release-policy-v1",
+    "packageLockSha256": "cd3be37b490ac75efdd0d9891f132754ea729a44cbc82b4b3e887efc7825d96d",
+    "sourceHashScope": [
+      "server.js",
+      "package.json",
+      "package-lock.json",
+      ".env.example",
+      ".env.production.example",
+      "src",
+      "services",
+      "scripts",
+      "test",
+      "public",
+      "templates",
+      "config",
+      "utils",
+      "docs/openapi.json"
+    ],
+    "environment": "production",
+    "gitCommit": "unavailable",
+    "nodeVersion": "v22.16.0",
+    "databaseMigration": []
+  },
+  "fullTree": {
+    "fileCount": 2284,
+    "addedFromBaseline": 149,
+    "modifiedFromBaseline": 31,
+    "removedFromBaseline": 0
+  },
+  "testSummary": {
+    "performanceTests": "153/153 PASS",
+    "javascriptSyntax": "1656/1656 PASS",
+    "testFiles": {
+      "pass": 481,
+      "notRunEnvironment": 150,
+      "baselineUnrelatedFail": 37,
+      "newRegressionFail": 0
+    }
+  },
+  "p0BoundaryFix": {
+    "file": "src/services/delivery/DeliveryAdjustmentBatchContextService.js",
+    "change": "Direct ArLedger read replaced with arLedgerRead.service boundary plus fail-closed idempotency cap",
+    "verification": "14/14 targeted PASS"
+  }
+}

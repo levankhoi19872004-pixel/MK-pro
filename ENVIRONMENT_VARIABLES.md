@@ -259,3 +259,48 @@ READINESS_REQUIRE_BACKGROUND_WORKER=false
 ```
 
 Changing scheduler ownership requires a process restart. Request parameters and database values cannot change process ownership. `SCHEDULED_JOB_OWNER=web` is safe only when exactly one web instance owns timers. Reconciliation scheduling only enqueues `background_jobs`; a background worker is still required to execute that queue.
+
+## PERF-A3B — Delivery Suggestions Search
+
+- `PERF_SUGGESTIONS_SEARCH_V1=0` — mặc định giữ legacy suggestions reader.
+- `PERF_SUGGESTIONS_SEARCH_V1=1` — bật normalized, scope-first, bounded-candidate reader.
+- Chỉ bật sau khi chạy dry-run/backfill normalized fields và xác minh desired indexes tại PERF-A6.
+- Dry-run backfill: `npm run performance:perf-a3b:backfill:dry`.
+- Apply có xác nhận: `npm run performance:perf-a3b:backfill`.
+
+## PERF-A4A — Dashboard cache/read-model hardening
+
+```bash
+# Mặc định OFF: giữ cache/read-model legacy cho đến PERF-A6 canary.
+PERF_DASHBOARD_CACHE_V2=0
+PERF_DASHBOARD_READ_MODEL_V2=0
+
+# TTL vẫn là lớp phòng thủ, không thay mutation-driven invalidation.
+HOME_DASHBOARD_CACHE_TTL_MS=45000
+```
+
+- `PERF_DASHBOARD_CACHE_V2=1`: dùng canonical key, exact cache tags và process-local store abstraction. Store mặc định **không phải shared cache**.
+- `PERF_DASHBOARD_READ_MODEL_V2=1`: kiểm tra đủ từng ngày; thiếu ngày thì full live fallback có `meta.missingDates`, không silently mix nguồn.
+- Repair dry-run: `npm run performance:perf-a4a:repair:dry -- --period=YYYY-MM`.
+- Repair apply: `npm run performance:perf-a4a:repair -- --period=YYYY-MM`.
+## PERF-A4B — Report Center và heavy report orchestration
+
+| Biến | Mặc định | Ý nghĩa |
+|---|---:|---|
+| `PERF_REPORT_DB_PAGINATION_V1` | `0` | Bật preview query không truyền `full/export`, bounded fan-out và background export Report Center. |
+| `PERF_REPORT_CENTER_SNAPSHOT_V1` | `0` | Bật read path `data-quality` chỉ đọc snapshot versioned. |
+| `PERF_REPORT_FANOUT_CONCURRENCY` | `2` | Giới hạn task report chạy đồng thời; hard-cap trong code là 3. |
+| `PERF_REPORT_TIMEOUT_MS` | `30000` | Timeout mỗi report task trên read path. |
+| `PERF_REPORT_MAX_ACTIVE_REQUESTS` | `4` | Admission limit process-local cho request Report Center tối ưu. |
+| `PERF_REPORT_SNAPSHOT_STALE_MS` | `1800000` | Ngưỡng cảnh báo snapshot cũ. |
+| `PERF_REPORT_REBUILD_CONCURRENCY` | `2` | Concurrency khi rebuild snapshot ngoài request. |
+| `PERF_REPORT_REBUILD_TIMEOUT_MS` | `120000` | Timeout mỗi domain khi rebuild snapshot. |
+
+Hai feature flag mặc định OFF. Rebuild snapshot dry-run dùng `npm run performance:perf-a4b:snapshot:dry -- --dateFrom=YYYY-MM-DD --dateTo=YYYY-MM-DD`; apply yêu cầu command riêng có `--apply --confirm-rebuild`.
+
+
+## PERF-A5R1 telemetry/canary capture
+- `RELEASE_SHA` / `SOURCE_SHA` / `RELEASE_ID`: release metadata automatically attached to each performance measurement.
+- `INSTANCE_ID` (or platform `RENDER_INSTANCE_ID`): stable process-instance identity.
+- `PERF_MEASUREMENT_MAX_RECORDS`: bounded process-local measurement retention (default 5000).
+- `PERF_REPORT_DB_PAGINATION_ALLOWLIST`: comma-separated report codes allowed to use optimized pagination. Default empty; the global flag alone does not enable any report.

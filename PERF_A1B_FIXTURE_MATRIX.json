@@ -1,0 +1,1994 @@
+{
+  "schemaVersion": "1.0",
+  "deterministic": true,
+  "clock": "2026-08-01T00:00:00.000Z",
+  "randomSeed": null,
+  "batchSizes": [
+    1,
+    16,
+    26,
+    60,
+    100
+  ],
+  "zeroTolerance": 1000,
+  "specialValueEncoding": {
+    "undefined": "__UNDEFINED__",
+    "nan": "__NaN__"
+  },
+  "cases": [
+    {
+      "ordinal": 1,
+      "id": "current-allocation-valid",
+      "covers": [
+        "Current allocation hợp lệ"
+      ],
+      "scenarioConfig": {
+        "id": "current-allocation-valid",
+        "covers": [
+          "Current allocation hợp lệ"
+        ],
+        "allocationMode": "valid"
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0001",
+        "canonicalOrderCode": "PERF-ORD-0001",
+        "scenarioId": "current-allocation-valid",
+        "covers": [
+          "Current allocation hợp lệ"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0001",
+          "code": "PERF-ORD-0001",
+          "customerCode": "CUS-002",
+          "customerName": "Fixture Customer 2",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0001-v1",
+            "code": "DCO-PERF-ORD-0001-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 100000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 60000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0001-v2",
+          "code": "DCOV-PERF-ORD-0001-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 100000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 60000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0001",
+          "allocationCode": "OPA-PERF-ORD-0001",
+          "orderCode": "PERF-ORD-0001",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 100000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 60000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0001-1",
+            "orderCode": "PERF-ORD-0001",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 2,
+      "id": "allocation-stale",
+      "covers": [
+        "Allocation stale"
+      ],
+      "scenarioConfig": {
+        "id": "allocation-stale",
+        "covers": [
+          "Allocation stale"
+        ],
+        "allocationMode": "stale"
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0002",
+        "canonicalOrderCode": "PERF-ORD-0002",
+        "scenarioId": "allocation-stale",
+        "covers": [
+          "Allocation stale"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0002",
+          "code": "PERF-ORD-0002",
+          "customerCode": "CUS-003",
+          "customerName": "Fixture Customer 3",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0002-v1",
+            "code": "DCO-PERF-ORD-0002-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 110000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 70000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0002-v2",
+          "code": "DCOV-PERF-ORD-0002-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 110000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 70000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0002",
+          "allocationCode": "OPA-PERF-ORD-0002",
+          "orderCode": "PERF-ORD-0002",
+          "sourceVersion": 2,
+          "stale": true,
+          "receivableAmount": 110000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 70000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0002-1",
+            "orderCode": "PERF-ORD-0002",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 3,
+      "id": "allocation-version-mismatch",
+      "covers": [
+        "Allocation version mismatch"
+      ],
+      "scenarioConfig": {
+        "id": "allocation-version-mismatch",
+        "covers": [
+          "Allocation version mismatch"
+        ],
+        "allocationMode": "version_mismatch"
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0003",
+        "canonicalOrderCode": "PERF-ORD-0003",
+        "scenarioId": "allocation-version-mismatch",
+        "covers": [
+          "Allocation version mismatch"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0003",
+          "code": "PERF-ORD-0003",
+          "customerCode": "CUS-004",
+          "customerName": "Fixture Customer 4",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0003-v1",
+            "code": "DCO-PERF-ORD-0003-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 120000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 80000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0003-v2",
+          "code": "DCOV-PERF-ORD-0003-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 120000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 80000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0003",
+          "allocationCode": "OPA-PERF-ORD-0003",
+          "orderCode": "PERF-ORD-0003",
+          "sourceVersion": 1,
+          "stale": false,
+          "receivableAmount": 120000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 80000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0003-1",
+            "orderCode": "PERF-ORD-0003",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 4,
+      "id": "latest-closeout-version",
+      "covers": [
+        "Latest closeout version"
+      ],
+      "scenarioConfig": {
+        "id": "latest-closeout-version",
+        "covers": [
+          "Latest closeout version"
+        ],
+        "allocationMode": "missing",
+        "latestVersionMode": "present"
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0004",
+        "canonicalOrderCode": "PERF-ORD-0004",
+        "scenarioId": "latest-closeout-version",
+        "covers": [
+          "Latest closeout version"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0004",
+          "code": "PERF-ORD-0004",
+          "customerCode": "CUS-005",
+          "customerName": "Fixture Customer 5",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0004-v1",
+            "code": "DCO-PERF-ORD-0004-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 130000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 90000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0004-v2",
+          "code": "DCOV-PERF-ORD-0004-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 130000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 90000
+        },
+        "allocation": null,
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0004-1",
+            "orderCode": "PERF-ORD-0004",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 5,
+      "id": "legacy-fallback",
+      "covers": [
+        "Legacy fallback"
+      ],
+      "scenarioConfig": {
+        "id": "legacy-fallback",
+        "covers": [
+          "Legacy fallback"
+        ],
+        "allocationMode": "missing",
+        "latestVersionMode": "missing"
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0005",
+        "canonicalOrderCode": "PERF-ORD-0005",
+        "scenarioId": "legacy-fallback",
+        "covers": [
+          "Legacy fallback"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0005",
+          "code": "PERF-ORD-0005",
+          "customerCode": "CUS-006",
+          "customerName": "Fixture Customer 6",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0005-v1",
+            "code": "DCO-PERF-ORD-0005-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 140000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 100000
+          }
+        },
+        "latestVersion": null,
+        "allocation": null,
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0005-1",
+            "orderCode": "PERF-ORD-0005",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 6,
+      "id": "zero-money",
+      "covers": [
+        "Giá trị tiền bằng 0"
+      ],
+      "scenarioConfig": {
+        "id": "zero-money",
+        "covers": [
+          "Giá trị tiền bằng 0"
+        ],
+        "moneyOverride": {
+          "cashAmount": 0,
+          "bankAmount": 0,
+          "rewardAmount": 0,
+          "returnAmount": 0
+        }
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0006",
+        "canonicalOrderCode": "PERF-ORD-0006",
+        "scenarioId": "zero-money",
+        "covers": [
+          "Giá trị tiền bằng 0"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0006",
+          "code": "PERF-ORD-0006",
+          "customerCode": "CUS-007",
+          "customerName": "Fixture Customer 7",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0006-v1",
+            "code": "DCO-PERF-ORD-0006-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 100000,
+            "cashAmount": 0,
+            "bankAmount": 0,
+            "rewardAmount": 0,
+            "returnAmount": 0,
+            "debtAmount": 100000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0006-v2",
+          "code": "DCOV-PERF-ORD-0006-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 100000,
+          "cashAmount": 0,
+          "bankAmount": 0,
+          "rewardAmount": 0,
+          "returnAmount": 0,
+          "debtAmount": 100000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0006",
+          "allocationCode": "OPA-PERF-ORD-0006",
+          "orderCode": "PERF-ORD-0006",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 100000,
+          "cashAmount": 0,
+          "bankAmount": 0,
+          "rewardAmount": 0,
+          "returnAmount": 0,
+          "debtAmount": 100000
+        },
+        "returns": [],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 7,
+      "id": "null-money",
+      "covers": [
+        "Null"
+      ],
+      "scenarioConfig": {
+        "id": "null-money",
+        "covers": [
+          "Null"
+        ],
+        "moneyOverride": {
+          "cashAmount": null
+        }
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0007",
+        "canonicalOrderCode": "PERF-ORD-0007",
+        "scenarioId": "null-money",
+        "covers": [
+          "Null"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0007",
+          "code": "PERF-ORD-0007",
+          "customerCode": "CUS-008",
+          "customerName": "Fixture Customer 8",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0007-v1",
+            "code": "DCO-PERF-ORD-0007-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 110000,
+            "cashAmount": null,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 90000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0007-v2",
+          "code": "DCOV-PERF-ORD-0007-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 110000,
+          "cashAmount": null,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 90000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0007",
+          "allocationCode": "OPA-PERF-ORD-0007",
+          "orderCode": "PERF-ORD-0007",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 110000,
+          "cashAmount": null,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 90000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0007-1",
+            "orderCode": "PERF-ORD-0007",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 8,
+      "id": "undefined-money",
+      "covers": [
+        "Undefined"
+      ],
+      "scenarioConfig": {
+        "id": "undefined-money",
+        "covers": [
+          "Undefined"
+        ],
+        "moneyOverride": {
+          "bankAmount": "__UNDEFINED__"
+        }
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0008",
+        "canonicalOrderCode": "PERF-ORD-0008",
+        "scenarioId": "undefined-money",
+        "covers": [
+          "Undefined"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0008",
+          "code": "PERF-ORD-0008",
+          "customerCode": "CUS-009",
+          "customerName": "Fixture Customer 9",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0008-v1",
+            "code": "DCO-PERF-ORD-0008-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 120000,
+            "cashAmount": 20000,
+            "bankAmount": "__UNDEFINED__",
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 90000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0008-v2",
+          "code": "DCOV-PERF-ORD-0008-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 120000,
+          "cashAmount": 20000,
+          "bankAmount": "__UNDEFINED__",
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 90000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0008",
+          "allocationCode": "OPA-PERF-ORD-0008",
+          "orderCode": "PERF-ORD-0008",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 120000,
+          "cashAmount": 20000,
+          "bankAmount": "__UNDEFINED__",
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 90000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0008-1",
+            "orderCode": "PERF-ORD-0008",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 9,
+      "id": "nan-money",
+      "covers": [
+        "NaN"
+      ],
+      "scenarioConfig": {
+        "id": "nan-money",
+        "covers": [
+          "NaN"
+        ],
+        "moneyOverride": {
+          "rewardAmount": "__NaN__"
+        }
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0009",
+        "canonicalOrderCode": "PERF-ORD-0009",
+        "scenarioId": "nan-money",
+        "covers": [
+          "NaN"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0009",
+          "code": "PERF-ORD-0009",
+          "customerCode": "CUS-010",
+          "customerName": "Fixture Customer 10",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0009-v1",
+            "code": "DCO-PERF-ORD-0009-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 130000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": "__NaN__",
+            "returnAmount": 5000,
+            "debtAmount": 95000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0009-v2",
+          "code": "DCOV-PERF-ORD-0009-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 130000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": "__NaN__",
+          "returnAmount": 5000,
+          "debtAmount": 95000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0009",
+          "allocationCode": "OPA-PERF-ORD-0009",
+          "orderCode": "PERF-ORD-0009",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 130000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": "__NaN__",
+          "returnAmount": 5000,
+          "debtAmount": 95000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0009-1",
+            "orderCode": "PERF-ORD-0009",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 10,
+      "id": "duplicate-identity",
+      "covers": [
+        "Duplicate identity"
+      ],
+      "scenarioConfig": {
+        "id": "duplicate-identity",
+        "covers": [
+          "Duplicate identity"
+        ],
+        "duplicateReturnIdentity": true
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0010",
+        "canonicalOrderCode": "PERF-ORD-0010",
+        "scenarioId": "duplicate-identity",
+        "covers": [
+          "Duplicate identity"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0010",
+          "code": "PERF-ORD-0010",
+          "customerCode": "CUS-011",
+          "customerName": "Fixture Customer 11",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0010-v1",
+            "code": "DCO-PERF-ORD-0010-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 140000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 100000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0010-v2",
+          "code": "DCOV-PERF-ORD-0010-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 140000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 100000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0010",
+          "allocationCode": "OPA-PERF-ORD-0010",
+          "orderCode": "PERF-ORD-0010",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 140000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 100000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0010-1",
+            "orderCode": "PERF-ORD-0010",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          },
+          {
+            "id": "RET-PERF-ORD-0010-1",
+            "orderCode": "PERF-ORD-0010",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 11,
+      "id": "negative-money",
+      "covers": [
+        "Negative money"
+      ],
+      "scenarioConfig": {
+        "id": "negative-money",
+        "covers": [
+          "Negative money"
+        ],
+        "moneyOverride": {
+          "cashAmount": -5000
+        },
+        "validationError": "NEGATIVE_MONEY_GUARD"
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0011",
+        "canonicalOrderCode": "PERF-ORD-0011",
+        "scenarioId": "negative-money",
+        "covers": [
+          "Negative money"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0011",
+          "code": "PERF-ORD-0011",
+          "customerCode": "CUS-001",
+          "customerName": "Fixture Customer 1",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0011-v1",
+            "code": "DCO-PERF-ORD-0011-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 100000,
+            "cashAmount": -5000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 85000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0011-v2",
+          "code": "DCOV-PERF-ORD-0011-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 100000,
+          "cashAmount": -5000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 85000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0011",
+          "allocationCode": "OPA-PERF-ORD-0011",
+          "orderCode": "PERF-ORD-0011",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 100000,
+          "cashAmount": -5000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 85000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0011-1",
+            "orderCode": "PERF-ORD-0011",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": "NEGATIVE_MONEY_GUARD",
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 12,
+      "id": "debt-zero-tolerance-negative",
+      "covers": [
+        "Debt Zero Tolerance ±1.000"
+      ],
+      "scenarioConfig": {
+        "id": "debt-zero-tolerance-negative",
+        "covers": [
+          "Debt Zero Tolerance ±1.000"
+        ],
+        "arDeltaFromExpected": -1000
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0012",
+        "canonicalOrderCode": "PERF-ORD-0012",
+        "scenarioId": "debt-zero-tolerance-negative",
+        "covers": [
+          "Debt Zero Tolerance ±1.000"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0012",
+          "code": "PERF-ORD-0012",
+          "customerCode": "CUS-002",
+          "customerName": "Fixture Customer 2",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0012-v1",
+            "code": "DCO-PERF-ORD-0012-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 110000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 70000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0012-v2",
+          "code": "DCOV-PERF-ORD-0012-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 110000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 70000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0012",
+          "allocationCode": "OPA-PERF-ORD-0012",
+          "orderCode": "PERF-ORD-0012",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 110000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 70000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0012-1",
+            "orderCode": "PERF-ORD-0012",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 69000,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 13,
+      "id": "debt-zero-tolerance-positive",
+      "covers": [
+        "Debt Zero Tolerance ±1.000"
+      ],
+      "scenarioConfig": {
+        "id": "debt-zero-tolerance-positive",
+        "covers": [
+          "Debt Zero Tolerance ±1.000"
+        ],
+        "arDeltaFromExpected": 1000
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0013",
+        "canonicalOrderCode": "PERF-ORD-0013",
+        "scenarioId": "debt-zero-tolerance-positive",
+        "covers": [
+          "Debt Zero Tolerance ±1.000"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0013",
+          "code": "PERF-ORD-0013",
+          "customerCode": "CUS-003",
+          "customerName": "Fixture Customer 3",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0013-v1",
+            "code": "DCO-PERF-ORD-0013-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 120000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 80000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0013-v2",
+          "code": "DCOV-PERF-ORD-0013-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 120000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 80000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0013",
+          "allocationCode": "OPA-PERF-ORD-0013",
+          "orderCode": "PERF-ORD-0013",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 120000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 80000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0013-1",
+            "orderCode": "PERF-ORD-0013",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 81000,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 14,
+      "id": "with-return",
+      "covers": [
+        "Có return"
+      ],
+      "scenarioConfig": {
+        "id": "with-return",
+        "covers": [
+          "Có return"
+        ],
+        "returnAmount": 12000
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0014",
+        "canonicalOrderCode": "PERF-ORD-0014",
+        "scenarioId": "with-return",
+        "covers": [
+          "Có return"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0014",
+          "code": "PERF-ORD-0014",
+          "customerCode": "CUS-004",
+          "customerName": "Fixture Customer 4",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0014-v1",
+            "code": "DCO-PERF-ORD-0014-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 130000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 12000,
+            "debtAmount": 83000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0014-v2",
+          "code": "DCOV-PERF-ORD-0014-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 130000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 12000,
+          "debtAmount": 83000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0014",
+          "allocationCode": "OPA-PERF-ORD-0014",
+          "orderCode": "PERF-ORD-0014",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 130000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 12000,
+          "debtAmount": 83000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0014-1",
+            "orderCode": "PERF-ORD-0014",
+            "totalReturnAmount": 12000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 15,
+      "id": "without-return",
+      "covers": [
+        "Không return"
+      ],
+      "scenarioConfig": {
+        "id": "without-return",
+        "covers": [
+          "Không return"
+        ],
+        "returnAmount": 0
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0015",
+        "canonicalOrderCode": "PERF-ORD-0015",
+        "scenarioId": "without-return",
+        "covers": [
+          "Không return"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0015",
+          "code": "PERF-ORD-0015",
+          "customerCode": "CUS-005",
+          "customerName": "Fixture Customer 5",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0015-v1",
+            "code": "DCO-PERF-ORD-0015-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 140000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 0,
+            "debtAmount": 105000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0015-v2",
+          "code": "DCOV-PERF-ORD-0015-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 140000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 0,
+          "debtAmount": 105000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0015",
+          "allocationCode": "OPA-PERF-ORD-0015",
+          "orderCode": "PERF-ORD-0015",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 140000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 0,
+          "debtAmount": 105000
+        },
+        "returns": [],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 16,
+      "id": "existing-ar-ledger",
+      "covers": [
+        "Existing AR ledger"
+      ],
+      "scenarioConfig": {
+        "id": "existing-ar-ledger",
+        "covers": [
+          "Existing AR ledger"
+        ],
+        "arBalanceMode": "expected"
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0016",
+        "canonicalOrderCode": "PERF-ORD-0016",
+        "scenarioId": "existing-ar-ledger",
+        "covers": [
+          "Existing AR ledger"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0016",
+          "code": "PERF-ORD-0016",
+          "customerCode": "CUS-006",
+          "customerName": "Fixture Customer 6",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0016-v1",
+            "code": "DCO-PERF-ORD-0016-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 100000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 60000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0016-v2",
+          "code": "DCOV-PERF-ORD-0016-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 100000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 60000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0016",
+          "allocationCode": "OPA-PERF-ORD-0016",
+          "orderCode": "PERF-ORD-0016",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 100000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 60000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0016-1",
+            "orderCode": "PERF-ORD-0016",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 60000,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 17,
+      "id": "existing-idempotency-ledger",
+      "covers": [
+        "Existing idempotency ledger"
+      ],
+      "scenarioConfig": {
+        "id": "existing-idempotency-ledger",
+        "covers": [
+          "Existing idempotency ledger"
+        ],
+        "existingIdempotency": true
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0017",
+        "canonicalOrderCode": "PERF-ORD-0017",
+        "scenarioId": "existing-idempotency-ledger",
+        "covers": [
+          "Existing idempotency ledger"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0017",
+          "code": "PERF-ORD-0017",
+          "customerCode": "CUS-007",
+          "customerName": "Fixture Customer 7",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0017-v1",
+            "code": "DCO-PERF-ORD-0017-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 110000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 70000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0017-v2",
+          "code": "DCOV-PERF-ORD-0017-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 110000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 70000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0017",
+          "allocationCode": "OPA-PERF-ORD-0017",
+          "orderCode": "PERF-ORD-0017",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 110000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 70000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0017-1",
+            "orderCode": "PERF-ORD-0017",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": true,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 18,
+      "id": "no-ledger-post",
+      "covers": [
+        "Đơn không cần post ledger"
+      ],
+      "scenarioConfig": {
+        "id": "no-ledger-post",
+        "covers": [
+          "Đơn không cần post ledger"
+        ],
+        "arDeltaFromExpected": 500
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0018",
+        "canonicalOrderCode": "PERF-ORD-0018",
+        "scenarioId": "no-ledger-post",
+        "covers": [
+          "Đơn không cần post ledger"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0018",
+          "code": "PERF-ORD-0018",
+          "customerCode": "CUS-008",
+          "customerName": "Fixture Customer 8",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0018-v1",
+            "code": "DCO-PERF-ORD-0018-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 120000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 80000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0018-v2",
+          "code": "DCOV-PERF-ORD-0018-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 120000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 80000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0018",
+          "allocationCode": "OPA-PERF-ORD-0018",
+          "orderCode": "PERF-ORD-0018",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 120000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 80000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0018-1",
+            "orderCode": "PERF-ORD-0018",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 80500,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 19,
+      "id": "correction-required",
+      "covers": [
+        "Đơn cần correction"
+      ],
+      "scenarioConfig": {
+        "id": "correction-required",
+        "covers": [
+          "Đơn cần correction"
+        ],
+        "arBalanceMode": "zero"
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0019",
+        "canonicalOrderCode": "PERF-ORD-0019",
+        "scenarioId": "correction-required",
+        "covers": [
+          "Đơn cần correction"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0019",
+          "code": "PERF-ORD-0019",
+          "customerCode": "CUS-009",
+          "customerName": "Fixture Customer 9",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0019-v1",
+            "code": "DCO-PERF-ORD-0019-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 130000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 90000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0019-v2",
+          "code": "DCOV-PERF-ORD-0019-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 130000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 90000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0019",
+          "allocationCode": "OPA-PERF-ORD-0019",
+          "orderCode": "PERF-ORD-0019",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 130000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 90000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0019-1",
+            "orderCode": "PERF-ORD-0019",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    },
+    {
+      "ordinal": 20,
+      "id": "mid-batch-error",
+      "covers": [
+        "Một đơn lỗi giữa batch"
+      ],
+      "scenarioConfig": {
+        "id": "mid-batch-error",
+        "covers": [
+          "Một đơn lỗi giữa batch"
+        ],
+        "injectedError": "REPOSITORY_FAILURE_AFTER_PREFLIGHT"
+      },
+      "fixture": {
+        "inputRef": "PERF-ORD-0020",
+        "canonicalOrderCode": "PERF-ORD-0020",
+        "scenarioId": "mid-batch-error",
+        "covers": [
+          "Một đơn lỗi giữa batch"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0020",
+          "code": "PERF-ORD-0020",
+          "customerCode": "CUS-010",
+          "customerName": "Fixture Customer 10",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0020-v1",
+            "code": "DCO-PERF-ORD-0020-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 140000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 100000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0020-v2",
+          "code": "DCOV-PERF-ORD-0020-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 140000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 100000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0020",
+          "allocationCode": "OPA-PERF-ORD-0020",
+          "orderCode": "PERF-ORD-0020",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 140000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 100000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0020-1",
+            "orderCode": "PERF-ORD-0020",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": "REPOSITORY_FAILURE_AFTER_PREFLIGHT"
+      }
+    },
+    {
+      "ordinal": 21,
+      "id": "duplicate-canonical-input",
+      "covers": [
+        "Hai input trỏ cùng canonical order"
+      ],
+      "scenarioConfig": {
+        "id": "duplicate-canonical-input",
+        "covers": [
+          "Hai input trỏ cùng canonical order"
+        ],
+        "duplicateCanonicalOf": 0
+      },
+      "fixture": {
+        "inputRef": "ALIAS-PERF-ORD-0001-0021",
+        "canonicalOrderCode": "PERF-ORD-0001",
+        "scenarioId": "duplicate-canonical-input",
+        "covers": [
+          "Hai input trỏ cùng canonical order"
+        ],
+        "order": {
+          "id": "SO-PERF-ORD-0001",
+          "code": "PERF-ORD-0001",
+          "customerCode": "CUS-011",
+          "customerName": "Fixture Customer 11",
+          "deliveryDate": "2026-08-01",
+          "deliveryCloseout": {
+            "id": "DCO-PERF-ORD-0001-v1",
+            "code": "DCO-PERF-ORD-0001-v1",
+            "sourceVersion": 1,
+            "closeoutVersion": 1,
+            "receivableAmount": 100000,
+            "cashAmount": 20000,
+            "bankAmount": 10000,
+            "rewardAmount": 5000,
+            "returnAmount": 5000,
+            "debtAmount": 60000
+          }
+        },
+        "latestVersion": {
+          "id": "DCOV-PERF-ORD-0001-v2",
+          "code": "DCOV-PERF-ORD-0001-v2",
+          "sourceVersion": 2,
+          "closeoutVersion": 2,
+          "receivableAmount": 100000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 60000
+        },
+        "allocation": {
+          "id": "OPA-PERF-ORD-0001",
+          "allocationCode": "OPA-PERF-ORD-0001",
+          "orderCode": "PERF-ORD-0001",
+          "sourceVersion": 2,
+          "stale": false,
+          "receivableAmount": 100000,
+          "cashAmount": 20000,
+          "bankAmount": 10000,
+          "rewardAmount": 5000,
+          "returnAmount": 5000,
+          "debtAmount": 60000
+        },
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0001-1",
+            "orderCode": "PERF-ORD-0001",
+            "totalReturnAmount": 5000,
+            "status": "warehouse_received"
+          }
+        ],
+        "currentArBalance": 0,
+        "existingIdempotency": false,
+        "validationError": null,
+        "injectedError": null
+      }
+    }
+  ],
+  "generatedAt": "2026-08-06T09:40:00+07:00",
+  "batch60ScenarioSequence": [
+    {
+      "index": 0,
+      "inputRef": "PERF-ORD-0001",
+      "canonicalOrderCode": "PERF-ORD-0001",
+      "scenarioId": "current-allocation-valid"
+    },
+    {
+      "index": 1,
+      "inputRef": "PERF-ORD-0002",
+      "canonicalOrderCode": "PERF-ORD-0002",
+      "scenarioId": "allocation-stale"
+    },
+    {
+      "index": 2,
+      "inputRef": "PERF-ORD-0003",
+      "canonicalOrderCode": "PERF-ORD-0003",
+      "scenarioId": "allocation-version-mismatch"
+    },
+    {
+      "index": 3,
+      "inputRef": "PERF-ORD-0004",
+      "canonicalOrderCode": "PERF-ORD-0004",
+      "scenarioId": "latest-closeout-version"
+    },
+    {
+      "index": 4,
+      "inputRef": "PERF-ORD-0005",
+      "canonicalOrderCode": "PERF-ORD-0005",
+      "scenarioId": "legacy-fallback"
+    },
+    {
+      "index": 5,
+      "inputRef": "PERF-ORD-0006",
+      "canonicalOrderCode": "PERF-ORD-0006",
+      "scenarioId": "zero-money"
+    },
+    {
+      "index": 6,
+      "inputRef": "PERF-ORD-0007",
+      "canonicalOrderCode": "PERF-ORD-0007",
+      "scenarioId": "null-money"
+    },
+    {
+      "index": 7,
+      "inputRef": "PERF-ORD-0008",
+      "canonicalOrderCode": "PERF-ORD-0008",
+      "scenarioId": "undefined-money"
+    },
+    {
+      "index": 8,
+      "inputRef": "PERF-ORD-0009",
+      "canonicalOrderCode": "PERF-ORD-0009",
+      "scenarioId": "nan-money"
+    },
+    {
+      "index": 9,
+      "inputRef": "PERF-ORD-0010",
+      "canonicalOrderCode": "PERF-ORD-0010",
+      "scenarioId": "duplicate-identity"
+    },
+    {
+      "index": 10,
+      "inputRef": "PERF-ORD-0011",
+      "canonicalOrderCode": "PERF-ORD-0011",
+      "scenarioId": "negative-money"
+    },
+    {
+      "index": 11,
+      "inputRef": "PERF-ORD-0012",
+      "canonicalOrderCode": "PERF-ORD-0012",
+      "scenarioId": "debt-zero-tolerance-negative"
+    },
+    {
+      "index": 12,
+      "inputRef": "PERF-ORD-0013",
+      "canonicalOrderCode": "PERF-ORD-0013",
+      "scenarioId": "debt-zero-tolerance-positive"
+    },
+    {
+      "index": 13,
+      "inputRef": "PERF-ORD-0014",
+      "canonicalOrderCode": "PERF-ORD-0014",
+      "scenarioId": "with-return"
+    },
+    {
+      "index": 14,
+      "inputRef": "PERF-ORD-0015",
+      "canonicalOrderCode": "PERF-ORD-0015",
+      "scenarioId": "without-return"
+    },
+    {
+      "index": 15,
+      "inputRef": "PERF-ORD-0016",
+      "canonicalOrderCode": "PERF-ORD-0016",
+      "scenarioId": "existing-ar-ledger"
+    },
+    {
+      "index": 16,
+      "inputRef": "PERF-ORD-0017",
+      "canonicalOrderCode": "PERF-ORD-0017",
+      "scenarioId": "existing-idempotency-ledger"
+    },
+    {
+      "index": 17,
+      "inputRef": "PERF-ORD-0018",
+      "canonicalOrderCode": "PERF-ORD-0018",
+      "scenarioId": "no-ledger-post"
+    },
+    {
+      "index": 18,
+      "inputRef": "PERF-ORD-0019",
+      "canonicalOrderCode": "PERF-ORD-0019",
+      "scenarioId": "correction-required"
+    },
+    {
+      "index": 19,
+      "inputRef": "PERF-ORD-0020",
+      "canonicalOrderCode": "PERF-ORD-0020",
+      "scenarioId": "mid-batch-error"
+    },
+    {
+      "index": 20,
+      "inputRef": "ALIAS-PERF-ORD-0001-0021",
+      "canonicalOrderCode": "PERF-ORD-0001",
+      "scenarioId": "duplicate-canonical-input"
+    },
+    {
+      "index": 21,
+      "inputRef": "PERF-ORD-0022",
+      "canonicalOrderCode": "PERF-ORD-0022",
+      "scenarioId": "current-allocation-valid"
+    },
+    {
+      "index": 22,
+      "inputRef": "PERF-ORD-0023",
+      "canonicalOrderCode": "PERF-ORD-0023",
+      "scenarioId": "allocation-stale"
+    },
+    {
+      "index": 23,
+      "inputRef": "PERF-ORD-0024",
+      "canonicalOrderCode": "PERF-ORD-0024",
+      "scenarioId": "allocation-version-mismatch"
+    },
+    {
+      "index": 24,
+      "inputRef": "PERF-ORD-0025",
+      "canonicalOrderCode": "PERF-ORD-0025",
+      "scenarioId": "latest-closeout-version"
+    },
+    {
+      "index": 25,
+      "inputRef": "PERF-ORD-0026",
+      "canonicalOrderCode": "PERF-ORD-0026",
+      "scenarioId": "legacy-fallback"
+    },
+    {
+      "index": 26,
+      "inputRef": "PERF-ORD-0027",
+      "canonicalOrderCode": "PERF-ORD-0027",
+      "scenarioId": "zero-money"
+    },
+    {
+      "index": 27,
+      "inputRef": "PERF-ORD-0028",
+      "canonicalOrderCode": "PERF-ORD-0028",
+      "scenarioId": "null-money"
+    },
+    {
+      "index": 28,
+      "inputRef": "PERF-ORD-0029",
+      "canonicalOrderCode": "PERF-ORD-0029",
+      "scenarioId": "undefined-money"
+    },
+    {
+      "index": 29,
+      "inputRef": "PERF-ORD-0030",
+      "canonicalOrderCode": "PERF-ORD-0030",
+      "scenarioId": "nan-money"
+    },
+    {
+      "index": 30,
+      "inputRef": "PERF-ORD-0031",
+      "canonicalOrderCode": "PERF-ORD-0031",
+      "scenarioId": "duplicate-identity"
+    },
+    {
+      "index": 31,
+      "inputRef": "PERF-ORD-0032",
+      "canonicalOrderCode": "PERF-ORD-0032",
+      "scenarioId": "negative-money"
+    },
+    {
+      "index": 32,
+      "inputRef": "PERF-ORD-0033",
+      "canonicalOrderCode": "PERF-ORD-0033",
+      "scenarioId": "debt-zero-tolerance-negative"
+    },
+    {
+      "index": 33,
+      "inputRef": "PERF-ORD-0034",
+      "canonicalOrderCode": "PERF-ORD-0034",
+      "scenarioId": "debt-zero-tolerance-positive"
+    },
+    {
+      "index": 34,
+      "inputRef": "PERF-ORD-0035",
+      "canonicalOrderCode": "PERF-ORD-0035",
+      "scenarioId": "with-return"
+    },
+    {
+      "index": 35,
+      "inputRef": "PERF-ORD-0036",
+      "canonicalOrderCode": "PERF-ORD-0036",
+      "scenarioId": "without-return"
+    },
+    {
+      "index": 36,
+      "inputRef": "PERF-ORD-0037",
+      "canonicalOrderCode": "PERF-ORD-0037",
+      "scenarioId": "existing-ar-ledger"
+    },
+    {
+      "index": 37,
+      "inputRef": "PERF-ORD-0038",
+      "canonicalOrderCode": "PERF-ORD-0038",
+      "scenarioId": "existing-idempotency-ledger"
+    },
+    {
+      "index": 38,
+      "inputRef": "PERF-ORD-0039",
+      "canonicalOrderCode": "PERF-ORD-0039",
+      "scenarioId": "no-ledger-post"
+    },
+    {
+      "index": 39,
+      "inputRef": "PERF-ORD-0040",
+      "canonicalOrderCode": "PERF-ORD-0040",
+      "scenarioId": "correction-required"
+    },
+    {
+      "index": 40,
+      "inputRef": "PERF-ORD-0041",
+      "canonicalOrderCode": "PERF-ORD-0041",
+      "scenarioId": "mid-batch-error"
+    },
+    {
+      "index": 41,
+      "inputRef": "ALIAS-PERF-ORD-0022-0042",
+      "canonicalOrderCode": "PERF-ORD-0022",
+      "scenarioId": "duplicate-canonical-input"
+    },
+    {
+      "index": 42,
+      "inputRef": "PERF-ORD-0043",
+      "canonicalOrderCode": "PERF-ORD-0043",
+      "scenarioId": "current-allocation-valid"
+    },
+    {
+      "index": 43,
+      "inputRef": "PERF-ORD-0044",
+      "canonicalOrderCode": "PERF-ORD-0044",
+      "scenarioId": "allocation-stale"
+    },
+    {
+      "index": 44,
+      "inputRef": "PERF-ORD-0045",
+      "canonicalOrderCode": "PERF-ORD-0045",
+      "scenarioId": "allocation-version-mismatch"
+    },
+    {
+      "index": 45,
+      "inputRef": "PERF-ORD-0046",
+      "canonicalOrderCode": "PERF-ORD-0046",
+      "scenarioId": "latest-closeout-version"
+    },
+    {
+      "index": 46,
+      "inputRef": "PERF-ORD-0047",
+      "canonicalOrderCode": "PERF-ORD-0047",
+      "scenarioId": "legacy-fallback"
+    },
+    {
+      "index": 47,
+      "inputRef": "PERF-ORD-0048",
+      "canonicalOrderCode": "PERF-ORD-0048",
+      "scenarioId": "zero-money"
+    },
+    {
+      "index": 48,
+      "inputRef": "PERF-ORD-0049",
+      "canonicalOrderCode": "PERF-ORD-0049",
+      "scenarioId": "null-money"
+    },
+    {
+      "index": 49,
+      "inputRef": "PERF-ORD-0050",
+      "canonicalOrderCode": "PERF-ORD-0050",
+      "scenarioId": "undefined-money"
+    },
+    {
+      "index": 50,
+      "inputRef": "PERF-ORD-0051",
+      "canonicalOrderCode": "PERF-ORD-0051",
+      "scenarioId": "nan-money"
+    },
+    {
+      "index": 51,
+      "inputRef": "PERF-ORD-0052",
+      "canonicalOrderCode": "PERF-ORD-0052",
+      "scenarioId": "duplicate-identity"
+    },
+    {
+      "index": 52,
+      "inputRef": "PERF-ORD-0053",
+      "canonicalOrderCode": "PERF-ORD-0053",
+      "scenarioId": "negative-money"
+    },
+    {
+      "index": 53,
+      "inputRef": "PERF-ORD-0054",
+      "canonicalOrderCode": "PERF-ORD-0054",
+      "scenarioId": "debt-zero-tolerance-negative"
+    },
+    {
+      "index": 54,
+      "inputRef": "PERF-ORD-0055",
+      "canonicalOrderCode": "PERF-ORD-0055",
+      "scenarioId": "debt-zero-tolerance-positive"
+    },
+    {
+      "index": 55,
+      "inputRef": "PERF-ORD-0056",
+      "canonicalOrderCode": "PERF-ORD-0056",
+      "scenarioId": "with-return"
+    },
+    {
+      "index": 56,
+      "inputRef": "PERF-ORD-0057",
+      "canonicalOrderCode": "PERF-ORD-0057",
+      "scenarioId": "without-return"
+    },
+    {
+      "index": 57,
+      "inputRef": "PERF-ORD-0058",
+      "canonicalOrderCode": "PERF-ORD-0058",
+      "scenarioId": "existing-ar-ledger"
+    },
+    {
+      "index": 58,
+      "inputRef": "PERF-ORD-0059",
+      "canonicalOrderCode": "PERF-ORD-0059",
+      "scenarioId": "existing-idempotency-ledger"
+    },
+    {
+      "index": 59,
+      "inputRef": "PERF-ORD-0060",
+      "canonicalOrderCode": "PERF-ORD-0060",
+      "scenarioId": "no-ledger-post"
+    }
+  ]
+}

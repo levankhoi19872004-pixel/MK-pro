@@ -1,0 +1,51 @@
+{
+  "prompt_id": "PERF-A2C",
+  "gate": "PASS_WITH_DEFERRED_RUNTIME",
+  "states": {
+    "APPLICATION_IDEMPOTENCY_GUARD": {
+      "state": "PASS",
+      "evidence": [
+        "E1",
+        "E2"
+      ],
+      "central_write_path": "src/services/arPosting.service.js"
+    },
+    "DATABASE_UNIQUE_INDEX": {
+      "state": "PENDING_PRODUCTION_APPLY",
+      "evidence_required": "E3",
+      "index_name": "uniq_arledger_idempotency_key_v1",
+      "applied_by_this_gate": false
+    },
+    "PRODUCTION_DUPLICATE_LEDGER_GUARANTEE": {
+      "state": "NOT_CLAIMED",
+      "reason": "Unique production index and production duplicate audit are not verified."
+    }
+  },
+  "before_apply": [
+    "Deploy application guard and confirm no increase in 5xx.",
+    "Take a current backup/snapshot of arLedgers.",
+    "Run npm run audit:ar-ledger-idempotency:json against the target DB.",
+    "Require duplicateGroups=0, conflictingPayloadGroups=0, normalizedVariantGroups=0 and malformedKeys=0.",
+    "Run npm run mongo:ar-ledger-idempotency-unique-index:dry.",
+    "Approve a maintenance/canary window and verify connection privileges."
+  ],
+  "apply_command": "npm run mongo:ar-ledger-idempotency-unique-index",
+  "post_apply_verify": [
+    "Verify index uniq_arledger_idempotency_key_v1 exists, unique=true and partialFilterExpression matches contract.",
+    "Repeat same-key race test against staging Mongo.",
+    "Audit duplicate idempotency groups again.",
+    "Monitor duplicate-key conflicts, 5xx and transaction abort rate."
+  ],
+  "rollback": {
+    "automatic": false,
+    "application": "Rollback the release ZIP or restore the previous application image if contract incompatibility is found.",
+    "database": "Only after explicit approval: db.arLedgers.dropIndex(\"uniq_arledger_idempotency_key_v1\"). No script in this gate drops indexes automatically.",
+    "data_mutation": "No automatic delete, merge or repair is provided."
+  },
+  "prohibited_actions_confirmed": [
+    "No production index apply",
+    "No production index drop",
+    "No ledger delete or merge",
+    "No production duplicate=0 claim"
+  ]
+}

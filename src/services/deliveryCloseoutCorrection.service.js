@@ -226,11 +226,38 @@ async function canonicalOpenOrderPaymentState(order = {}, options = {}) {
   const fallback = openOrderPaymentState(order);
   let resolved = null;
   try {
-    const result = await DeliveryPaymentStateReadService.resolvePaymentStatesForOrders([order], {
-      session: options.session,
-      models: options.paymentStateModels
-    });
-    resolved = result && Array.isArray(result.states) ? result.states[0] : null;
+    const batchContextItem = options.batchContextItem && options.batchContextItem.complete === true
+      ? options.batchContextItem
+      : null;
+    if (batchContextItem
+      && batchContextItem.latestVersionLoaded === true
+      && batchContextItem.allocationLoaded === true
+      && batchContextItem.returnOrdersLoaded === true) {
+      const latestVersion = batchContextItem.latestVersion || null;
+      const currentAllocation = batchContextItem.currentAllocation || null;
+      const effectiveVersion = Number(latestVersion && (latestVersion.closeoutVersion || latestVersion.sourceVersion || latestVersion.version) || 0) || 0;
+      const allocationVersion = Number(currentAllocation && (currentAllocation.sourceVersion || currentAllocation.version) || 0) || 0;
+      const allocationCurrent = Boolean(currentAllocation && effectiveVersion > 0 && allocationVersion === effectiveVersion);
+      const returnState = DeliveryPaymentStateReadService._private.ReturnStateReader.resolveReturnStateForOrder(
+        order,
+        batchContextItem.returnOrders || []
+      );
+      resolved = DeliveryPaymentStateReadService.buildCanonicalDeliveryFinancialState(order, {
+        versionResolution: { row: latestVersion, ambiguous: false, candidates: latestVersion ? [latestVersion] : [], maxVersion: effectiveVersion },
+        allocationResolution: {
+          row: allocationCurrent ? currentAllocation : null,
+          reason: !currentAllocation ? 'ABSENT' : !effectiveVersion ? 'VERSION_UNVERIFIED' : allocationVersion < effectiveVersion ? 'STALE' : allocationVersion === effectiveVersion ? 'CURRENT' : 'VERSION_MISMATCH',
+          candidates: currentAllocation ? [currentAllocation] : []
+        },
+        returnState
+      }, { zeroTolerance: options.zeroTolerance });
+    } else {
+      const result = await DeliveryPaymentStateReadService.resolvePaymentStatesForOrders([order], {
+        session: options.session,
+        models: options.paymentStateModels
+      });
+      resolved = result && Array.isArray(result.states) ? result.states[0] : null;
+    }
   } catch (error) {
     if (options.allowCanonicalStateFallback === true) {
       resolved = null;
@@ -1069,6 +1096,9 @@ function returnItemUnitPrice(item = {}) {
 }
 
 async function loadReturnOrdersForOrder(order = {}, options = {}) {
+  if (options.batchContextItem && options.batchContextItem.returnOrdersLoaded === true) {
+    return Array.isArray(options.batchContextItem.returnOrders) ? options.batchContextItem.returnOrders : [];
+  }
   const filter = buildReturnOrderLookupForOrder(order);
   if (!filter) return [];
   let query = ReturnOrder.find(filter).sort({ updatedAt: -1, createdAt: -1 }).lean();
@@ -1554,10 +1584,19 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
   const requestFingerprint = buildAdjustmentRequestFingerprint(input, command, nextPaymentState);
   const idempotencyKey = buildOpenOrderIdempotencyKey(input, order, requestFingerprint);
 
-  let existingQuery = DeliveryCloseoutCorrection.findOne({ idempotencyKey });
-  if (existingQuery && typeof existingQuery.lean === 'function') existingQuery = existingQuery.lean();
-  if (session && existingQuery && typeof existingQuery.session === 'function') existingQuery = existingQuery.session(session);
-  const existing = await existingQuery;
+  let existing = null;
+  const batchContextItem = options.batchContextItem && options.batchContextItem.complete === true
+    ? options.batchContextItem
+    : null;
+  if (batchContextItem && batchContextItem.correctionIdempotencyLoaded === true
+    && batchContextItem.correctionsByIdempotencyKey instanceof Map) {
+    existing = batchContextItem.correctionsByIdempotencyKey.get(idempotencyKey) || null;
+  } else {
+    let existingQuery = DeliveryCloseoutCorrection.findOne({ idempotencyKey });
+    if (existingQuery && typeof existingQuery.lean === 'function') existingQuery = existingQuery.lean();
+    if (session && existingQuery && typeof existingQuery.session === 'function') existingQuery = existingQuery.session(session);
+    existing = await existingQuery;
+  }
   if (existing) {
     assertIdempotencyFingerprint(existing, requestFingerprint);
     return openIdempotentResult(existing);
@@ -1786,11 +1825,36 @@ async function createOpenOrderAdjustment(input = {}, order = {}, options = {}) {
   };
 }
 
+
+function prefetchedLatestVersionChanged(prefetched = null, current = null) {
+  const versionOf = (row) => Number(row && (row.closeoutVersion || row.sourceVersion || row.version) || 0) || 0;
+  const identityOf = (row) => text(row && (row.id || row._id || row.code || row.closeoutCode || row.correctionId));
+  return versionOf(prefetched) !== versionOf(current) || identityOf(prefetched) !== identityOf(current);
+}
+
+function staleBatchVersionError(order = {}, prefetched = null, current = null) {
+  const err = new Error('Closeout version đã thay đổi sau khi tải batch context. Vui lòng chạy lại thao tác bulk.');
+  err.code = 'STALE_BATCH_CLOSEOUT_VERSION';
+  err.status = 409;
+  err.data = {
+    orderId: orderId(order),
+    orderCode: orderCode(order),
+    prefetchedVersion: Number(prefetched && (prefetched.closeoutVersion || prefetched.sourceVersion || prefetched.version) || 0) || 0,
+    currentVersion: Number(current && (current.closeoutVersion || current.sourceVersion || current.version) || 0) || 0
+  };
+  return err;
+}
+
 async function createCorrection(input = {}, options = {}) {
   const result = await withOptionalMongoTransaction(options, async (session) => {
     const now = options.now || dateUtil.nowIso();
     const actor = actorName(input.actor || options.actor || input.createdBy || input.correctedBy || 'accountant');
-    const order = await findOrderForCorrection(input, { ...options, session });
+    const batchContextItem = options.batchContextItem && options.batchContextItem.complete === true
+      ? options.batchContextItem
+      : null;
+    const order = batchContextItem && batchContextItem.orderLoaded === true
+      ? batchContextItem.order
+      : await findOrderForCorrection(input, { ...options, session });
     if (!isCloseoutConfirmed(order)) {
       return createOpenOrderAdjustment(input, order, { ...options, session, now, actor });
     }
@@ -1800,7 +1864,9 @@ async function createCorrection(input = {}, options = {}) {
     const normalizedReturnItems = await canonicalizeReturnAdjustmentItems(order, rawReturnAdjustmentItems, { ...options, session });
     const rawCashLines = input.correctedCashLines || input.cashAdjustmentLines || [];
 
-    const latest = await latestVersionForOriginal(original.id, { ...options, session });
+    const latest = batchContextItem && batchContextItem.latestVersionLoaded === true
+      ? batchContextItem.latestVersion
+      : await latestVersionForOriginal(original.id, { ...options, session });
     const baseSnapshot = latest || originalCloseout;
     const currentState = previousPaymentState(baseSnapshot, order);
     const previousVersion = latest ? Number(latest.closeoutVersion || 0) : original.version;
@@ -1815,16 +1881,31 @@ async function createCorrection(input = {}, options = {}) {
     const requestFingerprint = buildAdjustmentRequestFingerprint(input, command, nextPaymentState);
     const idempotencyKey = text(input.idempotencyKey || buildIdempotencyKey(input, order));
 
-    let existingQuery = DeliveryCloseoutCorrection.findOne({ idempotencyKey });
-    if (existingQuery && typeof existingQuery.lean === 'function') existingQuery = existingQuery.lean();
-    if (session && existingQuery && typeof existingQuery.session === 'function') existingQuery = existingQuery.session(session);
-    const existing = await existingQuery;
+    let existing = null;
+    if (batchContextItem && batchContextItem.correctionIdempotencyLoaded === true
+      && batchContextItem.correctionsByIdempotencyKey instanceof Map) {
+      existing = batchContextItem.correctionsByIdempotencyKey.get(idempotencyKey) || null;
+    } else {
+      let existingQuery = DeliveryCloseoutCorrection.findOne({ idempotencyKey });
+      if (existingQuery && typeof existingQuery.lean === 'function') existingQuery = existingQuery.lean();
+      if (session && existingQuery && typeof existingQuery.session === 'function') existingQuery = existingQuery.session(session);
+      existing = await existingQuery;
+    }
     if (existing) {
       assertIdempotencyFingerprint(existing, requestFingerprint);
       return loadIdempotentResult(existing, { ...options, session });
     }
 
     assertExpectedAdjustmentVersion(input, String(previousVersion));
+
+    // The request-scoped batch version is planning context only. Re-read inside
+    // the per-order transaction before any immutable version/write decision.
+    if (batchContextItem && batchContextItem.latestVersionLoaded === true) {
+      const safetyLatest = await latestVersionForOriginal(original.id, { ...options, session });
+      if (prefetchedLatestVersionChanged(latest, safetyLatest)) {
+        throw staleBatchVersionError(order, latest, safetyLatest);
+      }
+    }
 
     const materialReturnItems = command.materialReturnItems;
     if (command.returnChanged) {
@@ -2438,6 +2519,8 @@ module.exports = {
     compactDeliveredItemsFromOrder,
     currentReturnMapFromOrders,
     returnOrderLockedForDirectEdit,
+    prefetchedLatestVersionChanged,
+    staleBatchVersionError,
     upsertCorrectionPaymentAllocation,
     correctionAllocationIdempotencyKey
   }

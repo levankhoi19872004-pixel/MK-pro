@@ -3,6 +3,7 @@
 const { AsyncLocalStorage } = require('async_hooks');
 const performanceTelemetry = require('../observability/performanceTelemetry');
 const closeoutQueryAudit = require('../observability/closeoutQueryAudit');
+const performanceMeasurementStore = require('../observability/performanceMeasurementStore');
 let mongoose = null;
 try {
   mongoose = require('mongoose');
@@ -481,10 +482,17 @@ function recordMetric(metric) {
 }
 
 function apiMonitor(req, res, next) {
-  if (!shouldMeasure(req)) return next();
+  if (!performanceMeasurementStore.telemetryEnabled() || !shouldMeasure(req)) return next();
 
   patchMongooseApiMonitor();
   const startedAt = nowMs();
+  const measurement = performanceMeasurementStore.beginMeasurement({
+    endpoint: normalizePath(req), httpMethod: req.method, operationName: moduleName(normalizePath(req)),
+    operationMode: req.performanceOperationMode || req.query?.mode || 'request',
+    inputSize: Number(req.body?.targets?.length || req.body?.orders?.length || 0),
+    orderCount: Number(req.body?.targets?.length || req.body?.orders?.length || 0),
+    scopeIdentity: req.user?.id || req.user?._id || req.user?.code || ''
+  });
   const metricStore = { mongoMs: 0, dbQueries: 0, queryTraces: [] };
   const originalJson = res.json.bind(res);
   let responseRows = 0;
@@ -541,6 +549,14 @@ function apiMonitor(req, res, next) {
       activeRequests: performanceTelemetry._private.counters.activeRequests
     };
     recordMetric(metric);
+    const bodyPerf = res.locals?.performanceMeta || {};
+    performanceMeasurementStore.completeMeasurement(measurement, {
+      durationMs: metric.ms, mongoDurationMs: metric.mongoMs, jsDurationMs: metric.jsMs, queryCount: metric.dbQueries,
+      slowestQueryFingerprint: metric.queryTraces?.[0]?.label || '', rowsReturned: metric.rows, statusCode: metric.statusCode,
+      errorCategory: metric.statusCode >= 500 ? 'HTTP_5XX' : '', cacheSource: bodyPerf.cacheSource,
+      readModelSource: bodyPerf.readModelSource, reportMode: bodyPerf.reportMode, correctnessCheck: bodyPerf.correctnessCheck,
+      debtDeviation: bodyPerf.debtDeviation, duplicateLedgerDetected: bodyPerf.duplicateLedgerDetected
+    });
 
     const logPayload = {
       requestId: metric.requestId,

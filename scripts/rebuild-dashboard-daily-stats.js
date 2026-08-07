@@ -201,9 +201,18 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error('❌ Không rebuild được dashboardDailyStats:', error);
-  process.exitCode = 1;
-}).finally(async () => {
-  if (mongoose.connection.readyState) await mongoose.disconnect();
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error('❌ Không rebuild được dashboardDailyStats:', error);
+    process.exitCode = 1;
+  }).finally(async () => {
+    if (mongoose.connection.readyState) await mongoose.disconnect();
+  });
+}
+
+module.exports = {
+  argValue,
+  dateRange,
+  rebuildDate,
+  main
+};

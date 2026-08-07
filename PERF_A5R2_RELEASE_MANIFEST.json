@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 2,
+  "releaseId": "PERF-A5R2-RC",
+  "generatedAt": "2026-08-07T07:02:34+07:00",
+  "parentReleaseSha256": "7cc8882d4a802b0aa580cc752b2c10a08936ff86a001f6ddfa4510fc6f584a1e",
+  "engineeringStatus": "ENGINEERING_VERIFIED_REMEDIATED_R2",
+  "productionStatus": "PRODUCTION_PERFORMANCE_PENDING",
+  "actualFileCount": 2361,
+  "treeHashExcludedPaths": [
+    "PERF_A5R2_RELEASE_MANIFEST.json"
+  ],
+  "treeSha256": "d756d8fd4acf0d18acc61a5dd163ded77665c373b1cf13b8d40d3b40656b9d45",
+  "featureFlagDefaults": {
+    "PERF_TELEMETRY_ENABLED": true,
+    "PERF_BULK_BATCH_CONTEXT_V1": 0,
+    "PERF_BULK_CONCURRENCY": 1,
+    "PERF_BULK_TRANSIENT_RETRY_LIMIT": 1,
+    "PERF_DELIVERY_CANONICAL_FILTER_V1": 0,
+    "PERF_SUGGESTIONS_SEARCH_V1": 0,
+    "PERF_DASHBOARD_READ_MODEL_V2": 0,
+    "PERF_DASHBOARD_CACHE_V2": 0,
+    "PERF_REPORT_DB_PAGINATION_V1": 0,
+    "PERF_REPORT_CENTER_SNAPSHOT_V1": 0,
+    "PERF_REPORT_DB_PAGINATION_ALLOWLIST": ""
+  },
+  "qualityGateStatus": {
+    "sourceSize": "PASS_WITH_BASELINE_WAIVER",
+    "pathPortability": "PASS_WITH_BASELINE_WAIVER",
+    "syntax": "PASS",
+    "packageLock": "PASS"
+  },
+  "packagedArtifacts": [
+    {
+      "relativePath": "PERF_A5R2_REMEDIATION_REPORT.md",
+      "size": 1424,
+      "sha256": "c7d3a49428658f0d7aee453a160d25e5d37caeb521139517551762a295ebee57"
+    },
+    {
+      "relativePath": "PERF_A5R2_REQUIREMENT_MATRIX.json",
+      "size": 5240,
+      "sha256": "0363db3b19973c90663de21972184bd131ea1047a06205cf456acada643ec4fa"
+    },
+    {
+      "relativePath": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "size": 559,
+      "sha256": "2db72d2b52a5acea44ea33b211f4ed3c5acb8747cf2159ed570259e662bbbe29"
+    },
+    {
+      "relativePath": "PERF_A5R2_TELEMETRY_DISABLE_EVIDENCE.json",
+      "size": 504,
+      "sha256": "461b865bf878ae516370daa8a7a18506b81aa495e6794a1d7e7c52d2d7a4e600"
+    },
+    {
+      "relativePath": "PERF_A5R2_SAMPLE_WINDOW_EVIDENCE.json",
+      "size": 427,
+      "sha256": "5151345d65af1f0d9b5c3f87b964b9f53cce8682891ff6d22efb2345d3413dd4"
+    },
+    {
+      "relativePath": "PERF_A5R2_RELEASE_METADATA_EVIDENCE.json",
+      "size": 250,
+      "sha256": "69d7063ee281cf02ab3f380a7a2f8da8e095431d6ef9a17086491b77d2cb0cd5"
+    },
+    {
+      "relativePath": "PERF_A5R2_REAL_REPORT_CANCELLATION_EVIDENCE.json",
+      "size": 2192,
+      "sha256": "4a53d543b68d9860bb8470de3519285e6510a3f8d11d0747a738df3078c9a354"
+    },
+    {
+      "relativePath": "PERF_A5R2_MONGO_TIMEOUT_PROPAGATION.json",
+      "size": 631,
+      "sha256": "8eeb63a49ee91eba95aa4d3f9b9c02968118897c70be60a9f49c32739ce76af5"
+    },
+    {
+      "relativePath": "PERF_A5R2_ADMISSION_LIFECYCLE_EVIDENCE.json",
+      "size": 250,
+      "sha256": "cef27dac8e42292e96b183647dcb0e9460d3803b7c16604138effc38a014b17d"
+    },
+    {
+      "relativePath": "PERF_A5R2_ARTIFACT_PACKAGING_MANIFEST.json",
+      "size": 8689,
+      "sha256": "67822f8f4004d5d4a3c66615dec323f12f99198c81aea4ff5aa5fa2053f89407"
+    },
+    {
+      "relativePath": "PERF_A5R2_ARTIFACT_COMPLETENESS.json",
+      "size": 214,
+      "sha256": "ec776cdcb91b756ce02f28dd27e77ec3416e71e5724dc9a19636373b97cdda76"
+    },
+    {
+      "relativePath": "PERF_A5R2_QUALITY_GATE_RESULT.json",
+      "size": 639,
+      "sha256": "6553a5d64a5808e7b32f601fd311ba4d8423743677c6a431ae98672aee877f58"
+    },
+    {
+      "relativePath": "PERF_A5R2_BASELINE_WAIVERS.json",
+      "size": 3786,
+      "sha256": "c30875cfa7d4ac5d7168d11d18d4ade4361f3d8bdb7477a1980730080fe5d8e2"
+    },
+    {
+      "relativePath": "PERF_A5R2_BATCH_CONTEXT_CPU_EVIDENCE.json",
+      "size": 281,
+      "sha256": "67191986b5c3c2d9ad4380f71c1e7969d68253b37454a1dd5c44e80c9c129b42"
+    },
+    {
+      "relativePath": "PERF_A5R2_CORRECTNESS_PARITY.json",
+      "size": 443,
+      "sha256": "0f9f9c5f4de6355ab085b72161b029f37fe74bdeee6cdba193a120265c190362"
+    },
+    {
+      "relativePath": "PERF_A5R2_FEATURE_FLAG_MATRIX.json",
+      "size": 597,
+      "sha256": "fd5fd64529383fc39b4cf575a9a0892d61e852f38caf3cc964d0b5ffe1e0b4cc"
+    },
+    {
+      "relativePath": "PERF_A5R2_CHANGED_FILES.json",
+      "size": 121096,
+      "sha256": "c5881d0d5711e515449388c9da3d465d9f35add1b58c7dd0569c9c36569f9a9f"
+    },
+    {
+      "relativePath": "PERF_A5R2_TEST_EVIDENCE.json",
+      "size": 2458,
+      "sha256": "df8513f8314c11c2b465894b66c8a8b62e0eabf7916a577da83ed4d2d4f66c90"
+    },
+    {
+      "relativePath": "PERF_A5R2_ROLLBACK_RUNBOOK.md",
+      "size": 509,
+      "sha256": "4e12377e746cbaf7553b08c24ce5cafe5c0eac28fccc3cd6e3dec4b70e311f28"
+    },
+    {
+      "relativePath": "PERF_A5R2_TELEMETRY_CAPTURE_RUNBOOK.md",
+      "size": 431,
+      "sha256": "b68e07b2fbd02de3787e4813c5711ccbdfadccffe8368a2065c918c2fa14a499"
+    },
+    {
+      "relativePath": "PERF_A6R1_INPUT_CHECKLIST.md",
+      "size": 318,
+      "sha256": "425ab95daf32bb730e1743f02caee663fc6eb21c084a2783ab6040671e9b8545"
+    }
+  ],
+  "buildProvenance": {
+    "inputRelease": "MK-pro-performance-release-candidate-r1.zip",
+    "inputSha256": "7cc8882d4a802b0aa580cc752b2c10a08936ff86a001f6ddfa4510fc6f584a1e",
+    "verification": "scripts/verify-performance-release.js"
+  },
+  "deferredE3": [
+    "production telemetry",
+    "Mongo index audit/apply/verify",
+    "canary p95/5xx",
+    "production correctness audit"
+  ]
+}

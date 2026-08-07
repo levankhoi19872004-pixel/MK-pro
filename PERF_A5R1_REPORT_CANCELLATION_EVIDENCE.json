@@ -1,0 +1,17 @@
+{
+  "generatedAt": "2026-08-06T16:21:22.681004+07:00",
+  "oldContract": "Promise.race returned on timeout without proving underlying work stopped",
+  "newContract": {
+    "abortSignal": true,
+    "maxTimeMSPassed": true,
+    "slotReleasedAfterUnderlyingSettles": true,
+    "errors": [
+      "REPORT_EXECUTION_TIMEOUT",
+      "REPORT_EXECUTION_ABORTED",
+      "REPORT_ADMISSION_LIMIT_REACHED"
+    ]
+  },
+  "test": "perf-a5r1-remediation.test.js subtest 3",
+  "status": "PASS_E1_E2",
+  "mongoRuntime": "DEFERRED_E3"
+}

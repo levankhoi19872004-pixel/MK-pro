@@ -26,6 +26,9 @@ router.post('/system/api-monitor/reset', requireRole(['admin']), systemControlle
 router.post('/system/performance-baseline/reset', requireRole(['admin']), systemController.resetPerformanceBaseline);
 router.post('/system/performance-observation/start', requireRole(['admin']), systemController.startPerformanceObservation);
 router.post('/system/performance-observation/stop', requireRole(['admin']), systemController.stopPerformanceObservation);
+router.post('/system/performance-measurements/window/start', requireRole(['admin']), systemController.startPerformanceMeasurementWindow);
+router.post('/system/performance-measurements/window/close', requireRole(['admin']), systemController.closePerformanceMeasurementWindow);
+router.get('/system/performance-measurements/export', requireRole(['admin', 'manager']), systemController.exportPerformanceMeasurementWindow);
 router.post('/system/closeout-query-audit/clear', requireRole(['admin']), systemController.closeoutQueryAuditClear);
 router.get('/system/reconciliation-reports', requireRole(['admin', 'manager']), systemController.listReconciliationReports);
 router.post('/system/reconciliation/run', requireRole(['admin']), systemController.runReconciliation);

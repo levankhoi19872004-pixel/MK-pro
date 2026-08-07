@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "promptId": "PERF-A2B",
+  "generatedAt": "2026-08-06T10:34:53+07:00",
+  "configuration": {
+    "concurrency": "PERF_BULK_CONCURRENCY",
+    "batchContextDependency": "PERF_BULK_BATCH_CONTEXT_V1",
+    "transientRetryLimit": "PERF_BULK_TRANSIENT_RETRY_LIMIT",
+    "releaseCandidateDefaultConcurrency": 1,
+    "maximumWithoutE3": 3,
+    "defaultTransientRetryLimit": 1,
+    "maximumTransientRetryLimit": 2
+  },
+  "matrix": [
+    {
+      "batchContext": "OFF",
+      "requestedConcurrency": "unset",
+      "callerSession": false,
+      "effectiveConcurrency": 1,
+      "behavior": "Legacy serial path",
+      "releasePolicy": "SUPPORTED_DEFAULT"
+    },
+    {
+      "batchContext": "ON",
+      "requestedConcurrency": "unset",
+      "callerSession": false,
+      "effectiveConcurrency": 1,
+      "behavior": "Batch context + serial transaction orchestration",
+      "releasePolicy": "SUPPORTED_DEFAULT"
+    },
+    {
+      "batchContext": "ON",
+      "requestedConcurrency": 1,
+      "callerSession": false,
+      "effectiveConcurrency": 1,
+      "behavior": "A2A parity mode",
+      "releasePolicy": "SUPPORTED_DEFAULT"
+    },
+    {
+      "batchContext": "ON",
+      "requestedConcurrency": 2,
+      "callerSession": false,
+      "effectiveConcurrency": 2,
+      "behavior": "Two independent canonical identities at most",
+      "releasePolicy": "CODE_READY_CANARY_ONLY_AT_PERF_A6"
+    },
+    {
+      "batchContext": "ON",
+      "requestedConcurrency": 3,
+      "callerSession": false,
+      "effectiveConcurrency": 3,
+      "behavior": "Three independent canonical identities at most",
+      "releasePolicy": "CODE_READY_CANARY_ONLY_AT_PERF_A6"
+    },
+    {
+      "batchContext": "FALLBACK_LEGACY",
+      "requestedConcurrency": 2,
+      "callerSession": false,
+      "effectiveConcurrency": 1,
+      "behavior": "Fail-safe serial because canonical identity context is unavailable",
+      "releasePolicy": "SUPPORTED_FAIL_SAFE"
+    },
+    {
+      "batchContext": "ON",
+      "requestedConcurrency": 2,
+      "callerSession": true,
+      "effectiveConcurrency": 1,
+      "behavior": "Caller-owned Mongo session is never shared concurrently",
+      "releasePolicy": "SUPPORTED_FAIL_SAFE"
+    },
+    {
+      "batchContext": "ON",
+      "requestedConcurrency": 99,
+      "callerSession": false,
+      "effectiveConcurrency": 3,
+      "behavior": "Code-level hard cap at 3",
+      "releasePolicy": "DO_NOT_ENABLE_BEFORE_E3"
+    }
+  ],
+  "identityLock": {
+    "key": "batchContextItem.canonicalOrderKey",
+    "sameIdentityParallelism": 1,
+    "duplicateInputPolicy": "Later duplicate waits for the previous same-identity task, then performs scoped refresh instead of using the request-start snapshot."
+  },
+  "retryPolicy": {
+    "retryable": [
+      "TransientTransactionError label",
+      "WriteConflict",
+      "LockTimeout",
+      "NoSuchTransaction transient codes"
+    ],
+    "notRetried": [
+      "Validation/business errors",
+      "Duplicate key 11000/11001",
+      "UnknownTransactionCommitResult as a whole command"
+    ],
+    "reason": "Avoid duplicate business writes; Mongo session.withTransaction owns commit-result handling."
+  },
+  "rollback": {
+    "action": "Set PERF_BULK_CONCURRENCY=1 or disable PERF_BULK_BATCH_CONTEXT_V1",
+    "schemaMigrationRequired": false
+  }
+}

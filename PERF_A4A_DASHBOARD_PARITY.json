@@ -1,0 +1,73 @@
+{
+  "promptId": "PERF-A4A",
+  "requirementId": "A4A-REQ-005",
+  "generatedAt": "2026-08-06T05:35:15.090506Z",
+  "status": "PASS_E1_E2",
+  "fixtureSnapshot": {
+    "salesStaff": {
+      "period": "2026-08-05..2026-08-06",
+      "orderCount": 3,
+      "salesAmount": 300,
+      "pendingSalesAmount": 30,
+      "returnAmount": 15,
+      "netSalesAmount": 285,
+      "todaySalesAmount": 220,
+      "currentDebtAmount": 30,
+      "staffRows": 1
+    },
+    "deliverySummary": {
+      "monthAssignedOrders": 3,
+      "monthDeliveredOrders": 2,
+      "todayAssignedOrders": 2,
+      "todayPendingOrders": 1,
+      "staffRows": 1
+    }
+  },
+  "snapshotSha256": "d4a1556a1c0541de0fc97d45a99b8d7d69f1a31336271dade851929cb0bbb4e9",
+  "checks": {
+    "salesStaffSummaryParity": "PASS",
+    "deliverySummaryParity": "PASS",
+    "readModelCompletePath": "PASS",
+    "missingOneDayFallback": "PASS",
+    "multiScopeIsolation": "PASS",
+    "cacheHitNoLiveQuery": "PASS",
+    "duplicateDateFailClosed": "PASS",
+    "sourceMeta": "PASS",
+    "errors5xxInA4ATests": 0
+  },
+  "testEvidence": {
+    "a4aGreen": {
+      "tests": 25,
+      "pass": 25,
+      "fail": 0
+    },
+    "fullPerformanceRegression": {
+      "tests": 125,
+      "pass": 125,
+      "fail": 0
+    },
+    "relevantDashboardContracts": {
+      "tests": 20,
+      "pass": 20,
+      "fail": 0
+    },
+    "javascriptSyntax": {
+      "files": 1640,
+      "pass": 1640,
+      "fail": 0
+    }
+  },
+  "notRun": [
+    {
+      "test": "test/home-dashboard.test.js",
+      "reason": "ZIP không có node_modules/mongoose",
+      "classification": "NOT_RUN_DEPENDENCY"
+    }
+  ],
+  "preExistingUnrelatedFailure": {
+    "test": "test/phase36e-dashboard-salesorder-aggregate-static.test.js :: route slash shell assertion",
+    "reason": "Static regex expects renderIndexPage() but baseline A3B already calls renderIndexPage({ featureSnapshot })",
+    "reproducedOnInputZip": true,
+    "classification": "BASELINE_UNRELATED_NOT_REGRESSION"
+  }
+}

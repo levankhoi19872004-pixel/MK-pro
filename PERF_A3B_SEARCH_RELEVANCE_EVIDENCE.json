@@ -1,0 +1,596 @@
+{
+  "promptId": "PERF-A3B",
+  "evidence": "E2_DETERMINISTIC_OFFLINE",
+  "fixture": {
+    "seed": "PERF-A3B-FIXTURE-V1",
+    "rows": 10000
+  },
+  "checks": {
+    "exactCodeFirst": true,
+    "prefixCodeFound": true,
+    "diacriticsParity": true,
+    "phoneFound": true,
+    "addressFound": true,
+    "duplicateCustomerRemoved": true,
+    "stableRankingContract": true,
+    "regexInjectionReturnedZero": true
+  },
+  "cases": {
+    "exactCustomerCode": {
+      "q": "KH-EXACT",
+      "legacy": {
+        "itemCodes": [
+          "KH-EXACT",
+          "KH-EXACT-02"
+        ],
+        "metrics": {
+          "regexFieldCount": 13,
+          "regexMode": "unanchored-substring-case-insensitive",
+          "scannedRows": 10000,
+          "candidateRows": 2,
+          "jsDeduplicatedRows": 0,
+          "outputRows": 2
+        },
+        "durationMs": 11.577
+      },
+      "optimized": {
+        "itemCodes": [
+          "customer:KH-EXACT",
+          "customer:KH-EXACT-02",
+          "order:SO-EXACT-001",
+          "order:SO-PREFIX-001"
+        ],
+        "diagnostics": {
+          "source": "delivery-today-suggestions-normalized-search-v1",
+          "endpoint": "/api/new/delivery-today/suggestions",
+          "featureFlag": "PERF_SUGGESTIONS_SEARCH_V1",
+          "featureFlagEnabled": true,
+          "readerMode": "normalized-fast-path",
+          "limit": 10,
+          "candidateLimit": 40,
+          "candidateRows": 2,
+          "fastCandidateRows": 2,
+          "legacyCandidateRows": 2,
+          "repositoryCalls": 6,
+          "legacyFallback": true,
+          "legacyFallbackMode": "legacy-bounded-fallback",
+          "scope": {
+            "deliveryDateKey": "2026-08-06",
+            "salesStaffCode": "s01",
+            "deliveryStaffCode": "d01",
+            "customerCode": ""
+          },
+          "scopeAppliedBeforeSearch": true,
+          "postFilterScopeRejected": 0,
+          "duplicateRemoved": 0,
+          "ranking": [
+            "exact-code",
+            "prefix-code",
+            "phone-prefix",
+            "name-prefix",
+            "bounded-token-match"
+          ],
+          "regexPolicy": "escaped-anchored-prefix-only; no user-controlled substring regex",
+          "telemetry": {
+            "event": "delivery_suggestions_legacy_fallback",
+            "fallback": true,
+            "fastCandidateRows": 2,
+            "legacyCandidateRows": 2
+          }
+        },
+        "repositoryMetrics": {
+          "fastCalls": 1,
+          "legacyCalls": 1,
+          "fastRowsInspected": 255,
+          "legacyRowsInspected": 255,
+          "fastRowsReturned": 2,
+          "legacyRowsReturned": 2
+        },
+        "durationMs": 16.224
+      }
+    },
+    "prefixCustomerCode": {
+      "q": "KH-EX",
+      "legacy": {
+        "itemCodes": [
+          "KH-EXACT",
+          "KH-EXACT-02"
+        ],
+        "metrics": {
+          "regexFieldCount": 13,
+          "regexMode": "unanchored-substring-case-insensitive",
+          "scannedRows": 10000,
+          "candidateRows": 2,
+          "jsDeduplicatedRows": 0,
+          "outputRows": 2
+        },
+        "durationMs": 8.419
+      },
+      "optimized": {
+        "itemCodes": [
+          "customer:KH-EXACT",
+          "customer:KH-EXACT-02",
+          "order:SO-EXACT-001",
+          "order:SO-PREFIX-001"
+        ],
+        "diagnostics": {
+          "source": "delivery-today-suggestions-normalized-search-v1",
+          "endpoint": "/api/new/delivery-today/suggestions",
+          "featureFlag": "PERF_SUGGESTIONS_SEARCH_V1",
+          "featureFlagEnabled": true,
+          "readerMode": "normalized-fast-path",
+          "limit": 10,
+          "candidateLimit": 40,
+          "candidateRows": 2,
+          "fastCandidateRows": 2,
+          "legacyCandidateRows": 2,
+          "repositoryCalls": 6,
+          "legacyFallback": true,
+          "legacyFallbackMode": "legacy-bounded-fallback",
+          "scope": {
+            "deliveryDateKey": "2026-08-06",
+            "salesStaffCode": "s01",
+            "deliveryStaffCode": "d01",
+            "customerCode": ""
+          },
+          "scopeAppliedBeforeSearch": true,
+          "postFilterScopeRejected": 0,
+          "duplicateRemoved": 0,
+          "ranking": [
+            "exact-code",
+            "prefix-code",
+            "phone-prefix",
+            "name-prefix",
+            "bounded-token-match"
+          ],
+          "regexPolicy": "escaped-anchored-prefix-only; no user-controlled substring regex",
+          "telemetry": {
+            "event": "delivery_suggestions_legacy_fallback",
+            "fallback": true,
+            "fastCandidateRows": 2,
+            "legacyCandidateRows": 2
+          }
+        },
+        "repositoryMetrics": {
+          "fastCalls": 1,
+          "legacyCalls": 1,
+          "fastRowsInspected": 255,
+          "legacyRowsInspected": 255,
+          "fastRowsReturned": 2,
+          "legacyRowsReturned": 2
+        },
+        "durationMs": 8.257
+      }
+    },
+    "accentedName": {
+      "q": "Nguyễn Ánh",
+      "legacy": {
+        "itemCodes": [
+          "KH-EXACT"
+        ],
+        "metrics": {
+          "regexFieldCount": 13,
+          "regexMode": "unanchored-substring-case-insensitive",
+          "scannedRows": 10000,
+          "candidateRows": 1,
+          "jsDeduplicatedRows": 0,
+          "outputRows": 1
+        },
+        "durationMs": 6.105
+      },
+      "optimized": {
+        "itemCodes": [
+          "customer:KH-EXACT-02",
+          "order:SO-PREFIX-001",
+          "customer:KH-EXACT",
+          "order:SO-EXACT-001"
+        ],
+        "diagnostics": {
+          "source": "delivery-today-suggestions-normalized-search-v1",
+          "endpoint": "/api/new/delivery-today/suggestions",
+          "featureFlag": "PERF_SUGGESTIONS_SEARCH_V1",
+          "featureFlagEnabled": true,
+          "readerMode": "normalized-fast-path",
+          "limit": 10,
+          "candidateLimit": 40,
+          "candidateRows": 2,
+          "fastCandidateRows": 2,
+          "legacyCandidateRows": 2,
+          "repositoryCalls": 6,
+          "legacyFallback": true,
+          "legacyFallbackMode": "legacy-bounded-fallback",
+          "scope": {
+            "deliveryDateKey": "2026-08-06",
+            "salesStaffCode": "s01",
+            "deliveryStaffCode": "d01",
+            "customerCode": ""
+          },
+          "scopeAppliedBeforeSearch": true,
+          "postFilterScopeRejected": 0,
+          "duplicateRemoved": 0,
+          "ranking": [
+            "exact-code",
+            "prefix-code",
+            "phone-prefix",
+            "name-prefix",
+            "bounded-token-match"
+          ],
+          "regexPolicy": "escaped-anchored-prefix-only; no user-controlled substring regex",
+          "telemetry": {
+            "event": "delivery_suggestions_legacy_fallback",
+            "fallback": true,
+            "fastCandidateRows": 2,
+            "legacyCandidateRows": 2
+          }
+        },
+        "repositoryMetrics": {
+          "fastCalls": 1,
+          "legacyCalls": 1,
+          "fastRowsInspected": 255,
+          "legacyRowsInspected": 255,
+          "fastRowsReturned": 2,
+          "legacyRowsReturned": 2
+        },
+        "durationMs": 6.573
+      }
+    },
+    "unaccentedName": {
+      "q": "nguyen anh",
+      "legacy": {
+        "itemCodes": [],
+        "metrics": {
+          "regexFieldCount": 13,
+          "regexMode": "unanchored-substring-case-insensitive",
+          "scannedRows": 10000,
+          "candidateRows": 0,
+          "jsDeduplicatedRows": 0,
+          "outputRows": 0
+        },
+        "durationMs": 5.934
+      },
+      "optimized": {
+        "itemCodes": [
+          "customer:KH-EXACT-02",
+          "order:SO-PREFIX-001",
+          "customer:KH-EXACT",
+          "order:SO-EXACT-001"
+        ],
+        "diagnostics": {
+          "source": "delivery-today-suggestions-normalized-search-v1",
+          "endpoint": "/api/new/delivery-today/suggestions",
+          "featureFlag": "PERF_SUGGESTIONS_SEARCH_V1",
+          "featureFlagEnabled": true,
+          "readerMode": "normalized-fast-path",
+          "limit": 10,
+          "candidateLimit": 40,
+          "candidateRows": 2,
+          "fastCandidateRows": 2,
+          "legacyCandidateRows": 2,
+          "repositoryCalls": 6,
+          "legacyFallback": true,
+          "legacyFallbackMode": "legacy-bounded-fallback",
+          "scope": {
+            "deliveryDateKey": "2026-08-06",
+            "salesStaffCode": "s01",
+            "deliveryStaffCode": "d01",
+            "customerCode": ""
+          },
+          "scopeAppliedBeforeSearch": true,
+          "postFilterScopeRejected": 0,
+          "duplicateRemoved": 0,
+          "ranking": [
+            "exact-code",
+            "prefix-code",
+            "phone-prefix",
+            "name-prefix",
+            "bounded-token-match"
+          ],
+          "regexPolicy": "escaped-anchored-prefix-only; no user-controlled substring regex",
+          "telemetry": {
+            "event": "delivery_suggestions_legacy_fallback",
+            "fallback": true,
+            "fastCandidateRows": 2,
+            "legacyCandidateRows": 2
+          }
+        },
+        "repositoryMetrics": {
+          "fastCalls": 1,
+          "legacyCalls": 1,
+          "fastRowsInspected": 255,
+          "legacyRowsInspected": 255,
+          "fastRowsReturned": 2,
+          "legacyRowsReturned": 2
+        },
+        "durationMs": 6.442
+      }
+    },
+    "phone": {
+      "q": "091234",
+      "legacy": {
+        "itemCodes": [
+          "KH-EXACT",
+          "KH-EXACT-02",
+          "KH-LEGACY"
+        ],
+        "metrics": {
+          "regexFieldCount": 13,
+          "regexMode": "unanchored-substring-case-insensitive",
+          "scannedRows": 10000,
+          "candidateRows": 3,
+          "jsDeduplicatedRows": 0,
+          "outputRows": 3
+        },
+        "durationMs": 6.14
+      },
+      "optimized": {
+        "itemCodes": [
+          "customer:KH-EXACT",
+          "customer:KH-EXACT-02",
+          "order:SO-EXACT-001",
+          "order:SO-PREFIX-001",
+          "customer:KH-LEGACY",
+          "order:SO-LEGACY"
+        ],
+        "diagnostics": {
+          "source": "delivery-today-suggestions-normalized-search-v1",
+          "endpoint": "/api/new/delivery-today/suggestions",
+          "featureFlag": "PERF_SUGGESTIONS_SEARCH_V1",
+          "featureFlagEnabled": true,
+          "readerMode": "normalized-fast-path",
+          "limit": 10,
+          "candidateLimit": 40,
+          "candidateRows": 3,
+          "fastCandidateRows": 3,
+          "legacyCandidateRows": 3,
+          "repositoryCalls": 6,
+          "legacyFallback": true,
+          "legacyFallbackMode": "legacy-bounded-fallback",
+          "scope": {
+            "deliveryDateKey": "2026-08-06",
+            "salesStaffCode": "s01",
+            "deliveryStaffCode": "d01",
+            "customerCode": ""
+          },
+          "scopeAppliedBeforeSearch": true,
+          "postFilterScopeRejected": 0,
+          "duplicateRemoved": 0,
+          "ranking": [
+            "exact-code",
+            "prefix-code",
+            "phone-prefix",
+            "name-prefix",
+            "bounded-token-match"
+          ],
+          "regexPolicy": "escaped-anchored-prefix-only; no user-controlled substring regex",
+          "telemetry": {
+            "event": "delivery_suggestions_legacy_fallback",
+            "fallback": true,
+            "fastCandidateRows": 3,
+            "legacyCandidateRows": 3
+          }
+        },
+        "repositoryMetrics": {
+          "fastCalls": 1,
+          "legacyCalls": 1,
+          "fastRowsInspected": 255,
+          "legacyRowsInspected": 255,
+          "fastRowsReturned": 3,
+          "legacyRowsReturned": 3
+        },
+        "durationMs": 6.544
+      }
+    },
+    "address": {
+      "q": "le loi",
+      "legacy": {
+        "itemCodes": [],
+        "metrics": {
+          "regexFieldCount": 13,
+          "regexMode": "unanchored-substring-case-insensitive",
+          "scannedRows": 10000,
+          "candidateRows": 0,
+          "jsDeduplicatedRows": 0,
+          "outputRows": 0
+        },
+        "durationMs": 5.954
+      },
+      "optimized": {
+        "itemCodes": [
+          "customer:KH-EXACT",
+          "customer:KH-EXACT-02",
+          "order:SO-EXACT-001",
+          "order:SO-PREFIX-001"
+        ],
+        "diagnostics": {
+          "source": "delivery-today-suggestions-normalized-search-v1",
+          "endpoint": "/api/new/delivery-today/suggestions",
+          "featureFlag": "PERF_SUGGESTIONS_SEARCH_V1",
+          "featureFlagEnabled": true,
+          "readerMode": "normalized-fast-path",
+          "limit": 10,
+          "candidateLimit": 40,
+          "candidateRows": 2,
+          "fastCandidateRows": 2,
+          "legacyCandidateRows": 2,
+          "repositoryCalls": 6,
+          "legacyFallback": true,
+          "legacyFallbackMode": "legacy-bounded-fallback",
+          "scope": {
+            "deliveryDateKey": "2026-08-06",
+            "salesStaffCode": "s01",
+            "deliveryStaffCode": "d01",
+            "customerCode": ""
+          },
+          "scopeAppliedBeforeSearch": true,
+          "postFilterScopeRejected": 0,
+          "duplicateRemoved": 0,
+          "ranking": [
+            "exact-code",
+            "prefix-code",
+            "phone-prefix",
+            "name-prefix",
+            "bounded-token-match"
+          ],
+          "regexPolicy": "escaped-anchored-prefix-only; no user-controlled substring regex",
+          "telemetry": {
+            "event": "delivery_suggestions_legacy_fallback",
+            "fallback": true,
+            "fastCandidateRows": 2,
+            "legacyCandidateRows": 2
+          }
+        },
+        "repositoryMetrics": {
+          "fastCalls": 1,
+          "legacyCalls": 1,
+          "fastRowsInspected": 255,
+          "legacyRowsInspected": 255,
+          "fastRowsReturned": 2,
+          "legacyRowsReturned": 2
+        },
+        "durationMs": 6.484
+      }
+    },
+    "commonKeyword": {
+      "q": "cua hang",
+      "legacy": {
+        "itemCodes": [],
+        "metrics": {
+          "regexFieldCount": 13,
+          "regexMode": "unanchored-substring-case-insensitive",
+          "scannedRows": 10000,
+          "candidateRows": 0,
+          "jsDeduplicatedRows": 0,
+          "outputRows": 0
+        },
+        "durationMs": 6.559
+      },
+      "optimized": {
+        "itemCodes": [
+          "customer:C00040",
+          "customer:C00080",
+          "customer:C00120",
+          "customer:C00160",
+          "customer:C00200",
+          "customer:C00240",
+          "customer:C00280",
+          "customer:C00320",
+          "customer:C00360",
+          "customer:C00400"
+        ],
+        "diagnostics": {
+          "source": "delivery-today-suggestions-normalized-search-v1",
+          "endpoint": "/api/new/delivery-today/suggestions",
+          "featureFlag": "PERF_SUGGESTIONS_SEARCH_V1",
+          "featureFlagEnabled": true,
+          "readerMode": "normalized-fast-path",
+          "limit": 10,
+          "candidateLimit": 40,
+          "candidateRows": 40,
+          "fastCandidateRows": 40,
+          "legacyCandidateRows": 0,
+          "repositoryCalls": 4,
+          "legacyFallback": false,
+          "legacyFallbackMode": "not-used",
+          "scope": {
+            "deliveryDateKey": "2026-08-06",
+            "salesStaffCode": "s01",
+            "deliveryStaffCode": "d01",
+            "customerCode": ""
+          },
+          "scopeAppliedBeforeSearch": true,
+          "postFilterScopeRejected": 0,
+          "duplicateRemoved": 1,
+          "ranking": [
+            "exact-code",
+            "prefix-code",
+            "phone-prefix",
+            "name-prefix",
+            "bounded-token-match"
+          ],
+          "regexPolicy": "escaped-anchored-prefix-only; no user-controlled substring regex",
+          "telemetry": {
+            "event": "delivery_suggestions_normalized_fast_path",
+            "fallback": false,
+            "fastCandidateRows": 40,
+            "legacyCandidateRows": 0
+          }
+        },
+        "repositoryMetrics": {
+          "fastCalls": 1,
+          "legacyCalls": 0,
+          "fastRowsInspected": 43,
+          "legacyRowsInspected": 0,
+          "fastRowsReturned": 40,
+          "legacyRowsReturned": 0
+        },
+        "durationMs": 3.707
+      }
+    },
+    "regexInjection": {
+      "q": ".*(a+)+$",
+      "legacy": {
+        "itemCodes": [],
+        "metrics": {
+          "regexFieldCount": 13,
+          "regexMode": "unanchored-substring-case-insensitive",
+          "scannedRows": 10000,
+          "candidateRows": 0,
+          "jsDeduplicatedRows": 0,
+          "outputRows": 0
+        },
+        "durationMs": 5.635
+      },
+      "optimized": {
+        "itemCodes": [],
+        "diagnostics": {
+          "source": "delivery-today-suggestions-normalized-search-v1",
+          "endpoint": "/api/new/delivery-today/suggestions",
+          "featureFlag": "PERF_SUGGESTIONS_SEARCH_V1",
+          "featureFlagEnabled": true,
+          "readerMode": "normalized-fast-path",
+          "limit": 10,
+          "candidateLimit": 40,
+          "candidateRows": 0,
+          "fastCandidateRows": 0,
+          "legacyCandidateRows": 0,
+          "repositoryCalls": 6,
+          "legacyFallback": true,
+          "legacyFallbackMode": "legacy-bounded-fallback",
+          "scope": {
+            "deliveryDateKey": "2026-08-06",
+            "salesStaffCode": "s01",
+            "deliveryStaffCode": "d01",
+            "customerCode": ""
+          },
+          "scopeAppliedBeforeSearch": true,
+          "postFilterScopeRejected": 0,
+          "duplicateRemoved": 0,
+          "ranking": [
+            "exact-code",
+            "prefix-code",
+            "phone-prefix",
+            "name-prefix",
+            "bounded-token-match"
+          ],
+          "regexPolicy": "escaped-anchored-prefix-only; no user-controlled substring regex",
+          "telemetry": {
+            "event": "delivery_suggestions_legacy_fallback",
+            "fallback": true,
+            "fastCandidateRows": 0,
+            "legacyCandidateRows": 0
+          }
+        },
+        "repositoryMetrics": {
+          "fastCalls": 1,
+          "legacyCalls": 1,
+          "fastRowsInspected": 255,
+          "legacyRowsInspected": 255,
+          "fastRowsReturned": 0,
+          "legacyRowsReturned": 0
+        },
+        "durationMs": 7.755
+      }
+    }
+  },
+  "pass": true
+}

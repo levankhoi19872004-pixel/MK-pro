@@ -1,0 +1,218 @@
+{
+  "schemaVersion": "1.1",
+  "phase": "PERF-A1A",
+  "generatedAt": "2026-08-06T09:37:01+07:00",
+  "status": "PASS_WITH_DEFERRED_RUNTIME",
+  "staticAuditStatus": "PASS",
+  "gatePolicy": {
+    "requiredEvidence": [
+      "E1"
+    ],
+    "satisfiedEvidence": [
+      "E1"
+    ],
+    "deferredEvidence": [
+      "E2 dependency-heavy/full suite",
+      "E3 Mongo runtime/index/explain/p95"
+    ],
+    "blockedEngineeringConditions": [
+      "source unreadable",
+      "source corrupt",
+      "call graph cannot be traced"
+    ],
+    "blockedEngineeringTriggered": false
+  },
+  "sourceModification": {
+    "productionSourceModified": false,
+    "sourceTreeSha256": "d263e9dbc951aa52792a8310aa8065d81bc96880f73726ecf37952513633232c",
+    "sourceTreeHashAlgorithm": "sha256(relative_path\\0file_bytes\\0 for all files sorted by relative path)",
+    "newSourceZipCreated": false
+  },
+  "input": {
+    "fileName": "MK-pro-phaseA-canonical-delivery-financial-read-model-fixed(1).zip",
+    "sizeBytes": 5318757,
+    "sha256": "07d8b6cf20394bd63beddf736e163a7268c360f67fbf87f7a2dca0f500db456d"
+  },
+  "repository": {
+    "packageName": "kho-minh-khai-pro-v45-delivery-3tabs",
+    "packageVersion": "1.0.0",
+    "main": "server.js",
+    "packageManager": "npm",
+    "lockFile": "package-lock.json",
+    "nodeEngine": ">=20.20 <23",
+    "npmEngine": ">=10",
+    "detectedRuntime": {
+      "node": "v22.16.0",
+      "npm": "10.9.2"
+    },
+    "testFramework": "Node built-in test runner + scripts/run-tests.js",
+    "fileCount": 2135,
+    "directoryCount": 158,
+    "uncompressedBytes": 19144946,
+    "nodeModulesPresent": false
+  },
+  "reportedBaseline": {
+    "independentlyReproduced": false,
+    "bulkCommit": [
+      {
+        "orders": 16,
+        "durationSeconds": 55.288,
+        "queryCount": 252
+      },
+      {
+        "orders": 26,
+        "durationSeconds": 89.839,
+        "queryCount": 413
+      },
+      {
+        "orders": 60,
+        "durationSeconds": 210.881,
+        "queryCount": 986
+      }
+    ],
+    "deliveryOrdersSeconds": {
+      "min": 2.1,
+      "max": 2.7
+    },
+    "suggestionsSeconds": {
+      "min": 1.3,
+      "max": 1.7
+    },
+    "salesStaffDashboardSeconds": {
+      "min": 2.4,
+      "max": 4.0
+    },
+    "deliverySummaryDashboardSeconds": {
+      "min": 1.2,
+      "max": 1.3
+    }
+  },
+  "queryInventory": {
+    "fingerprintCount": 29,
+    "requiredColumnsPresent": true
+  },
+  "performanceContract": {
+    "bulk60": {
+      "gateSeconds": 45,
+      "longTermSeconds": 20,
+      "gateQueries": 500,
+      "longTermQueries": 300
+    },
+    "deliveryOrders": {
+      "gateP95Ms": 1000,
+      "longTermP95Ms": 500
+    },
+    "suggestions": {
+      "gateP95Ms": 400,
+      "longTermP95Ms": 200
+    },
+    "dashboard": {
+      "cacheHitMs": 150,
+      "readModelCompleteMs": 500
+    },
+    "correctness": {
+      "debtDeviation": 0,
+      "duplicateLedger": 0,
+      "error5xxMustNotIncrease": true,
+      "transactionAndIdempotencyMustRemain": true,
+      "ssotMustNotChange": true
+    }
+  },
+  "commands": [
+    {
+      "command": "node --check src/services/delivery/DeliveryAdjustmentBulkCommitService.js",
+      "exitCode": 0
+    },
+    {
+      "command": "node --check src/services/delivery/DeliveryAdjustmentCommitService.js",
+      "exitCode": 0
+    },
+    {
+      "command": "node --check src/services/v2/deliveryTodayNew.service.js",
+      "exitCode": 0
+    },
+    {
+      "command": "node --check src/services/dashboard/HomeDashboardService.js",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/check-js-syntax.js",
+      "exitCode": 0,
+      "result": "SYNTAX_OK 1583 JavaScript files"
+    },
+    {
+      "command": "node --test test/delivery-adjustment-bulk-commit-static.test.js",
+      "exitCode": 0,
+      "testsPassed": 4
+    },
+    {
+      "command": "node --test test/canonical-delivery-read-only-boundary-static.test.js",
+      "exitCode": 0,
+      "testsPassed": 7
+    },
+    {
+      "command": "node --test test/report-center-route-contract.test.js",
+      "exitCode": 0,
+      "testsPassed": 2
+    }
+  ],
+  "deferredRuntimeEvidence": [
+    "Mongo production-like benchmark and query trace",
+    "explain executionStats and index stats",
+    "production p95/cache-hit/read-model-complete evidence",
+    "full dependency-heavy test suite"
+  ],
+  "topFindings": {
+    "P0": [
+      "Bulk commit serializes per-order transactions and repeats command/reconcile query chains.",
+      "AR idempotency managed index is non-unique; unique DB guard must be verified before concurrency.",
+      "Financial/return/ledger parity, SSoT, transaction and idempotency are non-negotiable."
+    ],
+    "P1": [
+      "Delivery orders overfetch then filter/slice in JavaScript.",
+      "Suggestions use broad case-insensitive regex.",
+      "Dashboard read-model fallback is all-or-nothing and cache is process-local.",
+      "Dashboard invalidate(period) does not match prefixed cache keys.",
+      "Report Center data-quality fans out four full reports.",
+      "deliveryCloseoutVersions index governance is outside the main registry and incomplete for latest lookup."
+    ],
+    "P2": [
+      "Delivery orders already use projection, lean and fixed batch joins.",
+      "Managed index/audit infrastructure and DashboardDailyStat read model already exist.",
+      "Report facade lazy-loading and source/action contracts provide a good foundation."
+    ]
+  },
+  "artifacts": [
+    {
+      "name": "PERF_A1A_BASELINE_AUDIT.md",
+      "path": "/mnt/data/perf_a1a_final/PERF_A1A_BASELINE_AUDIT.md",
+      "sizeBytes": 15610,
+      "sha256": "eb71dd83b7de067e079440c71f395424e2c2af0387a9c86f9fcb8c0d16ff335c"
+    },
+    {
+      "name": "PERF_A1A_QUERY_INVENTORY.csv",
+      "path": "/mnt/data/perf_a1a_final/PERF_A1A_QUERY_INVENTORY.csv",
+      "sizeBytes": 19766,
+      "sha256": "97d0a75697d3954822d7181258fe2f3c8489bb43bf45787d8d308db1b4aa7ab5"
+    },
+    {
+      "name": "PERF_A1A_REQUIREMENT_MATRIX.json",
+      "path": "/mnt/data/perf_a1a_final/PERF_A1A_REQUIREMENT_MATRIX.json",
+      "sizeBytes": 20305,
+      "sha256": "aeee37af38701c50a42d5e6fe72e444a39a082a3e5e24e40ba9c565c4ae0b659"
+    },
+    {
+      "name": "PERF_A1A_SOURCE_MAP.md",
+      "path": "/mnt/data/perf_a1a_final/PERF_A1A_SOURCE_MAP.md",
+      "sizeBytes": 12191,
+      "sha256": "f275f1215df895a0ddce3e5ed9fdd8e310957ee65515af1d8e8a7d7f3a6922c8"
+    },
+    {
+      "name": "PERF_A1A_BASELINE_MANIFEST.json",
+      "path": "/mnt/data/perf_a1a_final/PERF_A1A_BASELINE_MANIFEST.json",
+      "sizeBytes": null,
+      "sha256": null,
+      "note": "Self hash omitted to avoid self-reference."
+    }
+  ]
+}

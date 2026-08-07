@@ -321,9 +321,25 @@ function itemFromResult({ order, allocation, preflight, result, after, status, r
   };
 }
 
+function assertCompleteBatchContextItem(item = null) {
+  if (!item) return null;
+  const requiredFlags = [
+    'orderLoaded', 'latestVersionLoaded', 'returnOrdersLoaded', 'allocationLoaded',
+    'arContextLoaded', 'idempotencyLoaded', 'correctionIdempotencyLoaded'
+  ];
+  if (item.complete !== true || !requiredFlags.every((flag) => item[flag] === true) || !item.order) {
+    const err = new Error('Batch context thiếu dữ liệu bắt buộc; không được xử lý bằng context một phần.');
+    err.code = 'BULK_BATCH_CONTEXT_INCOMPLETE_ITEM';
+    err.status = 409;
+    throw err;
+  }
+  return item;
+}
+
 async function buildContextForOrder(input = {}, options = {}) {
-  const order = await findOrder(input, options);
-  const latestVersion = await latestVersionForOrder(order, options);
+  const batchContextItem = assertCompleteBatchContextItem(options.batchContextItem);
+  const order = batchContextItem ? batchContextItem.order : await findOrder(input, options);
+  const latestVersion = batchContextItem ? batchContextItem.latestVersion : await latestVersionForOrder(order, options);
   const closeout = buildEffectiveCloseout(order, latestVersion);
   const allocation = buildAllocation(order, closeout, {
     zeroTolerance: options.zeroTolerance || DEFAULT_ZERO_TOLERANCE,
@@ -332,10 +348,24 @@ async function buildContextForOrder(input = {}, options = {}) {
     sourceCode: text(closeout.sourceCode || orderCode(order) || orderId(order)),
     sourceVersion: Number(closeout.sourceVersion || 1) || 1
   });
-  return { order, latestVersion, closeout, allocation };
+  return { order, latestVersion, closeout, allocation, batchContextItem };
+}
+
+function prefetchedIdempotencyForAllocation(allocation = {}, batchContextItem = null) {
+  if (!batchContextItem || batchContextItem.idempotencyLoaded !== true) return { resolved: false, ledger: null };
+  const expected = OrderPaymentDebtReconcileService.computeExpectedDebtFromAllocation(allocation, {
+    zeroTolerance: allocation.zeroTolerance || DEFAULT_ZERO_TOLERANCE
+  });
+  const key = OrderPaymentDebtReconcileService.debtAdjustmentIdempotencyKey(allocation, expected.expectedDebtAmount);
+  const ledger = (batchContextItem.idempotencyLedgers || []).find((row) => text(row.idempotencyKey) === key) || null;
+  return { resolved: true, ledger, key };
 }
 
 async function preflightReconcile(order = {}, allocation = {}, options = {}) {
+  const useBatchInitialContext = options.useBatchInitialContext === true && options.batchContextItem;
+  const prefetchedIdempotency = useBatchInitialContext
+    ? prefetchedIdempotencyForAllocation(allocation, options.batchContextItem)
+    : { resolved: false, ledger: null };
   return OrderPaymentDebtReconcileService.reconcileOrderDebt({
     order,
     allocation,
@@ -348,7 +378,11 @@ async function preflightReconcile(order = {}, allocation = {}, options = {}) {
     sourceCode: text(allocation.sourceCode || allocation.orderCode),
     sourceModel: 'deliveryCloseoutCorrections',
     reason: text(options.reason || 'Bulk ghi nhận lại điều chỉnh công nợ'),
-    note: text(options.note || 'Dry-run bulk adjustment commit')
+    note: text(options.note || 'Dry-run bulk adjustment commit'),
+    prefetchedArBalanceDetails: useBatchInitialContext ? options.batchContextItem.arBalanceDetails : null,
+    prefetchedArBalanceResolved: Boolean(useBatchInitialContext && options.batchContextItem.arContextLoaded === true),
+    prefetchedIdempotencyLedger: prefetchedIdempotency.ledger,
+    prefetchedIdempotencyResolved: prefetchedIdempotency.resolved
   });
 }
 
@@ -371,7 +405,14 @@ async function commitOneAdjustment(input = {}, options = {}) {
   const context = await buildContextForOrder(input, options);
   const manualSnapshot = hasManualPaymentSnapshot(input) ? manualSnapshotFromInput(input, context.allocation) : null;
   const effectiveAllocation = manualSnapshot ? allocationWithManualSnapshot(context.allocation, manualSnapshot) : context.allocation;
-  const preflight = await preflightReconcile(context.order, effectiveAllocation, { ...options, actor, reason: input.reason, note: input.note });
+  const preflight = await preflightReconcile(context.order, effectiveAllocation, {
+    ...options,
+    actor,
+    reason: input.reason,
+    note: input.note,
+    batchContextItem: context.batchContextItem,
+    useBatchInitialContext: Boolean(context.batchContextItem)
+  });
 
   if (input.dryRun || options.dryRun) {
     return {
@@ -405,8 +446,19 @@ async function commitOneAdjustment(input = {}, options = {}) {
   });
   // Critical: do not pre-skip before replaying the same manual Save correction route.
   // The existing correction service owns the immutable correction version and AR posting behavior.
-  const result = await deliveryCloseoutCorrectionService.createCorrection(correctionInput, { ...options, actor: actorText });
-  const after = await preflightReconcile(context.order, effectiveAllocation, { ...options, actor, reason: input.reason, note: input.note });
+  const result = await deliveryCloseoutCorrectionService.createCorrection(correctionInput, {
+    ...options,
+    actor: actorText,
+    batchContextItem: context.batchContextItem
+  });
+  const after = await preflightReconcile(context.order, effectiveAllocation, {
+    ...options,
+    actor,
+    reason: input.reason,
+    note: input.note,
+    batchContextItem: null,
+    useBatchInitialContext: false
+  });
   const verified = !after.needsAdjustment;
   const idempotent = Boolean(result && result.idempotent);
   const status = verified ? (idempotent ? 'skipped' : 'processed') : 'manual_review';
@@ -452,6 +504,8 @@ module.exports = {
     allocationWithManualSnapshot,
     buildNoChangeCorrectionInput,
     preflightReconcile,
+    assertCompleteBatchContextItem,
+    prefetchedIdempotencyForAllocation,
     buildAllocation,
     buildEffectiveCloseout,
     latestVersionForOrder,

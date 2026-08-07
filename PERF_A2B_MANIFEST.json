@@ -1,0 +1,301 @@
+{
+  "schemaVersion": 1,
+  "phase": "PERF-A2B",
+  "generatedAt": "2026-08-06T10:34:53+07:00",
+  "status": "PASS_WITH_DEFERRED_RUNTIME",
+  "targetEndpoint": "POST /api/new/delivery-today/adjustments/bulk-commit",
+  "input": {
+    "sourceZip": "MK-pro-perf-a2a-bulk-batch-context-fixed.zip",
+    "sourceZipSha256": "1b82e8ec24fa4607635d1422ef2f1d978c3cfa26937ae67689e24e561688980f",
+    "artifacts": [
+      {
+        "name": "MK-pro-perf-a2a-bulk-batch-context-fixed.zip",
+        "sha256": "1b82e8ec24fa4607635d1422ef2f1d978c3cfa26937ae67689e24e561688980f",
+        "sizeBytes": 5554903
+      },
+      {
+        "name": "PERF_A2A_BULK_BATCH_CONTEXT_REPORT.md",
+        "sha256": "20ded7bf38af2bf42aa8720930bf30bfde94530fa720d509e78a51b70e28d93f",
+        "sizeBytes": 7036
+      },
+      {
+        "name": "PERF_A2A_RED_GREEN_EVIDENCE.json",
+        "sha256": "61a7a5b33fc9d400bbe3a47e9de35d2d78bb78db6d1867c4c51579852a21af27",
+        "sizeBytes": 4067
+      },
+      {
+        "name": "PERF_A2A_LOGICAL_QUERY_COMPARISON.json",
+        "sha256": "a7854d77bab78b18a4949c89ab4befb4b24a346dbfd0e765c5c4ab11e15b1bd3",
+        "sizeBytes": 13727
+      },
+      {
+        "name": "PERF_A2A_FINANCIAL_PARITY.json",
+        "sha256": "f35ecd78b47433a13373b0f65c220e5aadae48a6af8fe2a11b53278a71174c1d",
+        "sizeBytes": 3334
+      },
+      {
+        "name": "PERF_A2A_CHANGED_FILES.json",
+        "sha256": "ec7afbf2d6f8c9574fe5b6df8380de148c4b3b07ff7e9e7c4661f0938ae04637",
+        "sizeBytes": 5974
+      },
+      {
+        "name": "PERF_A2A_MANIFEST.json",
+        "sha256": "90be4c64e645e2892b1951a198ff10267d4a47f6e3230e804e3aa51661df6c55",
+        "sizeBytes": 11237
+      },
+      {
+        "name": "PERF_A1B_RED_TEST_EVIDENCE.json",
+        "sha256": "02e21d99319acfef55cc769e0d85404c4aa6af296e5f12930bda762a366a38c3",
+        "sizeBytes": 1577
+      },
+      {
+        "name": "PERF_A1A_REQUIREMENT_MATRIX.json",
+        "sha256": "aeee37af38701c50a42d5e6fe72e444a39a082a3e5e24e40ba9c565c4ae0b659",
+        "sizeBytes": 20305
+      }
+    ]
+  },
+  "releaseSource": {
+    "sourceTreeSha256": "b6ea9c6d3a81c3622e4e2cee939d6e879d20eeb1ce9362401e70f8851627e44b",
+    "javascriptSyntaxFiles": 1600,
+    "productionFilesChanged": 2,
+    "testFilesChanged": 5,
+    "toolingFilesChanged": 1,
+    "deletedFiles": 0,
+    "changedFiles": [
+      {
+        "path": "scripts/performance/perf-a2b/run-transaction-orchestration.js",
+        "changeType": "ADDED",
+        "category": "tooling",
+        "baselineSha256": null,
+        "currentSha256": "1f10aa50e472fae29d828f12ef717bae03a9d00916526c8377cbc117ec78e6d0",
+        "baselineSizeBytes": 0,
+        "currentSizeBytes": 9667,
+        "baselineLines": 0,
+        "currentLines": 233,
+        "purpose": "Repeatable deterministic scheduler and transaction parity evidence generator."
+      },
+      {
+        "path": "src/services/delivery/BulkTransactionOrchestrator.js",
+        "changeType": "ADDED",
+        "category": "production",
+        "baselineSha256": null,
+        "currentSha256": "2a8a26673462ae86f072c548dc729b961183e7532729becbfd40edafd02dd551",
+        "baselineSizeBytes": 0,
+        "currentSizeBytes": 7947,
+        "baselineLines": 0,
+        "currentLines": 210,
+        "purpose": "Bounded identity-aware scheduler, safe concurrency parsing and bounded transient retry policy."
+      },
+      {
+        "path": "src/services/delivery/DeliveryAdjustmentBulkCommitService.js",
+        "changeType": "MODIFIED",
+        "category": "production",
+        "baselineSha256": "1229eaa7e332a6d191bfb656ef43143897a1305511e3f1a3d882cd59624b4d56",
+        "currentSha256": "738f9cf1b804016754a53dcdc5630e0639f0817305e972ce788d44fcdab6804e",
+        "baselineSizeBytes": 7817,
+        "currentSizeBytes": 9395,
+        "baselineLines": 188,
+        "currentLines": 226,
+        "purpose": "Replace serial bulk loop with canonical-identity scheduler while preserving per-order transaction and stable result order."
+      },
+      {
+        "path": "test/performance/perf-a1b/perf-a1b-offline-repro.test.js",
+        "changeType": "MODIFIED",
+        "category": "test",
+        "baselineSha256": "f7877b23a4f2e8aab690de0c13d3e153dad36f2eded856a01ac19d07d3d8584d",
+        "currentSha256": "916e3e503e3ce3f87b40e3eb7340fc3503c6b15bdf06a3db65219ca5a38f8c30",
+        "baselineSizeBytes": 7850,
+        "currentSizeBytes": 7920,
+        "baselineLines": 135,
+        "currentLines": 136,
+        "purpose": "Refresh stale E1 static assertion to verify preserved transaction/safety contract after A2A/A2B architecture evolution."
+      },
+      {
+        "path": "test/performance/perf-a2b/perf-a2b-green-contract.test.js",
+        "changeType": "ADDED",
+        "category": "test",
+        "baselineSha256": null,
+        "currentSha256": "1cd6975bc224776c0f70c98ef305d8f1a73402a3703550728a19dcc46ef90504",
+        "baselineSizeBytes": 0,
+        "currentSizeBytes": 561,
+        "baselineLines": 0,
+        "currentLines": 13,
+        "purpose": "RED/GREEN contract for the new orchestration module."
+      },
+      {
+        "path": "test/performance/perf-a2b/perf-a2b-red-scheduler.test.js",
+        "changeType": "ADDED",
+        "category": "test",
+        "baselineSha256": null,
+        "currentSha256": "cc31b02f6241fb21965b599888505640bc99d6df0f528ec1b3f2bc43a2bc6924",
+        "baselineSizeBytes": 0,
+        "currentSizeBytes": 1624,
+        "baselineLines": 0,
+        "currentLines": 42,
+        "purpose": "Deterministic legacy serial reproduction and post-GREEN source assertion."
+      },
+      {
+        "path": "test/performance/perf-a2b/perf-a2b-transaction-orchestration.test.js",
+        "changeType": "ADDED",
+        "category": "test",
+        "baselineSha256": null,
+        "currentSha256": "36c16d00cd5fee034a823279a3b6c714485a700abb90e898db9fa8a3f634f7c1",
+        "baselineSizeBytes": 0,
+        "currentSizeBytes": 10494,
+        "baselineLines": 0,
+        "currentLines": 270,
+        "purpose": "Scheduler, identity lock, failure isolation, retry, ordering and financial parity tests."
+      },
+      {
+        "path": "test/performance/perf-a2b/transaction-orchestration-simulator.js",
+        "changeType": "ADDED",
+        "category": "test",
+        "baselineSha256": null,
+        "currentSha256": "21b4275218b82295edbf753df9cbf6f20738f83a10c8e96931cd8a8d637cd6c7",
+        "baselineSizeBytes": 0,
+        "currentSizeBytes": 2666,
+        "baselineLines": 0,
+        "currentLines": 46,
+        "purpose": "Dependency-free financial simulator using A2A batch context under bounded concurrency."
+      }
+    ]
+  },
+  "configuration": {
+    "PERF_BULK_CONCURRENCY": {
+      "default": 1,
+      "allowedCodeRange": [
+        1,
+        3
+      ],
+      "releaseCandidate": 1,
+      "canaryAtPERFA6": [
+        2,
+        3
+      ]
+    },
+    "PERF_BULK_TRANSIENT_RETRY_LIMIT": {
+      "default": 1,
+      "allowedCodeRange": [
+        0,
+        2
+      ]
+    },
+    "PERF_BULK_BATCH_CONTEXT_V1": {
+      "requiredForConcurrencyAboveOne": true
+    }
+  },
+  "acceptance": {
+    "defaultConcurrencyOne": true,
+    "boundedTwoMaximumTwo": true,
+    "boundedThreeMaximumThree": true,
+    "sameIdentityNeverOverlaps": true,
+    "slowTaskDoesNotSerializeIndependentTail": true,
+    "transactionParity": true,
+    "financialParity": true,
+    "resultOrderStable": true,
+    "debtDeviationZero": true,
+    "duplicateLedgerZero": true,
+    "transientRetryBounded": true,
+    "validationNotRetried": true,
+    "duplicateKeyNotRetried": true
+  },
+  "tests": {
+    "redFirst": {
+      "status": "EXPECTED_FAIL",
+      "exitCode": 1,
+      "tests": 4,
+      "pass": 3,
+      "fail": 1,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "green": {
+      "status": "PASS",
+      "exitCode": 0,
+      "tests": 16,
+      "pass": 16,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "a2aRegression": {
+      "status": "PASS",
+      "exitCode": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "a1bRegression": {
+      "status": "PASS",
+      "exitCode": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "dependencyFreeRegression": {
+      "status": "PASS",
+      "exitCode": 0,
+      "tests": 47,
+      "pass": 47,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "syntax": {
+      "status": "PASS",
+      "files": 1600
+    },
+    "notRun": [
+      "Mongoose-dependent transaction test",
+      "Mongo staging/session integration",
+      "production p95/5xx/canary"
+    ]
+  },
+  "requirements": {
+    "A2B-REQ-001": "PASS",
+    "A2B-REQ-002": "PASS",
+    "A2B-REQ-003": "PASS",
+    "A2B-REQ-004": "PASS",
+    "A2B-REQ-005": "PASS",
+    "A2B-REQ-006": "PASS"
+  },
+  "outputs": [
+    {
+      "name": "PERF_A2B_TRANSACTION_ORCHESTRATION_REPORT.md",
+      "sha256": "f0f2584dbad79eddec08ccc1bd875d5f09a1a2b5dfee4c7c0af91e7991079dbb",
+      "sizeBytes": 5291
+    },
+    {
+      "name": "PERF_A2B_CONCURRENCY_TEST_EVIDENCE.json",
+      "sha256": "86d4364b4d694f77bf22105f8d27b931ffc1f27a292660a50c727e585f168bf3",
+      "sizeBytes": 8145
+    },
+    {
+      "name": "PERF_A2B_TRANSACTION_PARITY.json",
+      "sha256": "5e08023d85a62c638f64dd9504ff0970ac250d415733aa816d72a2076e90988f",
+      "sizeBytes": 11092
+    },
+    {
+      "name": "PERF_A2B_FEATURE_FLAG_MATRIX.json",
+      "sha256": "88528b10b06c3c14ee7e589f37bdb5c6595f08e53434274be5360762b29471b1",
+      "sizeBytes": 3305
+    }
+  ],
+  "releaseZip": "MK-pro-perf-a2b-transaction-orchestration-fixed.zip",
+  "runtimeClaims": {
+    "productionP95Claimed": false,
+    "mongoTransactionBehaviorClaimed": false,
+    "productionDefaultConcurrency": 1
+  },
+  "gateDecision": "PASS_WITH_DEFERRED_RUNTIME"
+}

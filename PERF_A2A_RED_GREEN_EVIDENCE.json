@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "promptId": "PERF-A2A",
+  "generatedAt": "2026-08-06T10:17:30+07:00",
+  "status": "PASS_WITH_DEFERRED_RUNTIME",
+  "evidence": {
+    "E1": "PASS",
+    "E2": "PASS",
+    "E3": "DEFERRED_TO_PERF_A6"
+  },
+  "redFirst": {
+    "performedBeforeProductionSourceModification": true,
+    "command": "node --test test/performance/perf-a1b/perf-a1b-offline-repro.test.js",
+    "exitCode": 0,
+    "tests": 9,
+    "pass": 9,
+    "fail": 0,
+    "skipped": 0,
+    "proof": {
+      "findOrderAt60": 60,
+      "findLatestVersionAt60": 60,
+      "findReturnsAt60": 60,
+      "findAllocationAt60": 60,
+      "logicalReadsAt60": 688
+    },
+    "log": "evidence/perf-a2a/A2A_RED_FIRST_TEST.log",
+    "logSha256": "dbddaafc4301656575a1caf6d7a721f543630d1365382321b9bc7183f02fb612"
+  },
+  "green": {
+    "command": "node --test test/performance/perf-a2a/perf-a2a-bulk-batch-context.test.js",
+    "exitCode": 0,
+    "tests": 9,
+    "pass": 9,
+    "fail": 0,
+    "skipped": 0,
+    "log": "evidence/perf-a2a/A2A_GREEN_TEST.log",
+    "logSha256": "ede31f86e627a1d0b62135f3778a08812ede865220c6c12623d7a51ebec946ad"
+  },
+  "a1bSimulatorRegression": {
+    "command": "node --test --test-name-pattern='<dependency-free A1B cases>' test/performance/perf-a1b/perf-a1b-offline-repro.test.js",
+    "exitCode": 0,
+    "tests": 8,
+    "pass": 8,
+    "fail": 0,
+    "skipped": 0,
+    "log": "evidence/perf-a2a/A2A_A1B_SIMULATOR_REGRESSION.log",
+    "logSha256": "e3cb1a5eb976cd846d5a53c6a6d625d350cd77d175ba3b9942880a3aab6cfd9c"
+  },
+  "dependencyFreeRegression": {
+    "command": "node --test <8 targeted dependency-free delivery/financial regression files>",
+    "exitCode": 0,
+    "tests": 47,
+    "pass": 47,
+    "fail": 0,
+    "skipped": 0,
+    "log": "evidence/perf-a2a/A2A_DEPENDENCY_FREE_REGRESSION.log",
+    "logSha256": "cbf2045b23e179e862acd397bf6a7b95dd3c0bd5ed82cd8d1fa78888b615aea4"
+  },
+  "syntax": {
+    "command": "node scripts/check-js-syntax.js",
+    "exitCode": 0,
+    "result": "SYNTAX_OK 1594 JavaScript files",
+    "logSha256": "395796d62a25e0b344f1ddc58f08e071d1330dc028cd61ac4d9e81b5a8ef26de"
+  },
+  "benchmark": {
+    "command": "node --expose-gc scripts/performance/perf-a2a/run-red-green.js --iterations 5 --output evidence/perf-a2a/A2A_RED_GREEN_BENCHMARK.json",
+    "exitCode": 0,
+    "artifact": "evidence/perf-a2a/A2A_RED_GREEN_BENCHMARK.json",
+    "sha256": "6917ce08d4cfb790250fc58fc46197177f3545c5382fd9aa55e38c56bb8059c3",
+    "acceptance": {
+      "redProvesLinearInitialReads": true,
+      "initialOrderReadsCollapsed": true,
+      "initialVersionReadsCollapsed": true,
+      "initialReturnReadsCollapsed": true,
+      "initialAllocationReadsCollapsed": true,
+      "initialArReadsCollapsed": true,
+      "initialCorrectionIdempotencyReadsCollapsed": true,
+      "sixtyOrderGate500Equivalent": true,
+      "sixtyOrderTarget300Equivalent": true,
+      "allFinancialParity": true,
+      "debtDeviationZero": true,
+      "duplicateLedgerZero": true
+    }
+  },
+  "notRun": [
+    {
+      "test": "test/order-payment-debt-reconcile-contract.test.js",
+      "reason": "node_modules/mongoose is absent; dependency-free tests were separated as required."
+    },
+    {
+      "test": "Mongo transaction and session integration",
+      "reason": "No Mongo staging/runtime is required at this gate."
+    },
+    {
+      "test": "Production p95, explain executionStats and index stats",
+      "reason": "Deferred to PERF-A6/E3."
+    }
+  ],
+  "diagnosticCommandsNotUsedAsGate": [
+    {
+      "command": "combined A1B + A2A test after GREEN",
+      "exitCode": 1,
+      "reason": "A1B contains a static RED assertion for the exact legacy loop syntax; it correctly stops matching after the GREEN source change."
+    },
+    {
+      "command": "dependency-heavy targeted aggregate",
+      "exitCode": 1,
+      "reason": "47 tests passed; one file could not load because mongoose is absent."
+    }
+  ],
+  "requirements": {
+    "A2A-REQ-001": "PASS",
+    "A2A-REQ-002": "PASS",
+    "A2A-REQ-003": "PASS",
+    "A2A-REQ-004": "PASS",
+    "A2A-REQ-005": "PASS"
+  }
+}

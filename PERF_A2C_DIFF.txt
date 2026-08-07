@@ -1,0 +1,15 @@
+Only in /mnt/data/perf_a2c_work: PERF_A2C_DIFF.txt
+Only in /mnt/data/perf_a2c_work: PERF_A2C_GREEN_TEST.log
+Only in /mnt/data/perf_a2c_work: PERF_A2C_RED_FIRST.log
+Only in /mnt/data/perf_a2c_work: PERF_A2C_REGRESSION.log
+Only in /mnt/data/perf_a2c_work: PERF_A2C_SYNTAX.log
+Files /mnt/data/perf_a2c_baseline/package.json and /mnt/data/perf_a2c_work/package.json differ
+Only in /mnt/data/perf_a2c_work/scripts: audit-ar-ledger-idempotency-duplicates.js
+Only in /mnt/data/perf_a2c_work/scripts: create-ar-ledger-idempotency-unique-index.js
+Only in /mnt/data/perf_a2c_work/scripts/lib: arLedgerIdempotencyAudit.js
+Only in /mnt/data/perf_a2c_work/scripts/performance: perf-a2c
+Only in /mnt/data/perf_a2c_work/src/domain/ar: arLedgerIdempotencyGuard.js
+Only in /mnt/data/perf_a2c_work/src/domain/ar: arLedgerIdempotencyIndexContract.js
+Files /mnt/data/perf_a2c_baseline/src/services/arPosting.service.js and /mnt/data/perf_a2c_work/src/services/arPosting.service.js differ
+Files /mnt/data/perf_a2c_baseline/src/services/mongoIndexService.js and /mnt/data/perf_a2c_work/src/services/mongoIndexService.js differ
+Only in /mnt/data/perf_a2c_work/test/performance: perf-a2c

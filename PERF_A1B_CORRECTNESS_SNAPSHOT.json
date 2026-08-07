@@ -1,0 +1,4106 @@
+{
+  "schemaVersion": "1.0",
+  "phase": "PERF-A1B",
+  "generatedAt": "2026-08-06T09:40:00+07:00",
+  "batchSize": 60,
+  "normalization": [
+    "Remove semantically irrelevant _id values.",
+    "Remove semantically irrelevant timestamps.",
+    "Sort object keys recursively.",
+    "Sort AR ledger rows by idempotency/category/order identity.",
+    "Preserve result order because bulk API response order is contractual."
+  ],
+  "snapshot": {
+    "arLedger": [
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 60000,
+        "deltaDebt": 60000,
+        "id": "AR-PERF-ORD-0001-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0001:v3",
+        "orderCode": "PERF-ORD-0001"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 70000,
+        "deltaDebt": 70000,
+        "id": "AR-PERF-ORD-0002-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0002:v3",
+        "orderCode": "PERF-ORD-0002"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 80000,
+        "deltaDebt": 80000,
+        "id": "AR-PERF-ORD-0003-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0003:v3",
+        "orderCode": "PERF-ORD-0003"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 90000,
+        "deltaDebt": 90000,
+        "id": "AR-PERF-ORD-0004-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0004:v3",
+        "orderCode": "PERF-ORD-0004"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 100000,
+        "deltaDebt": 100000,
+        "id": "AR-PERF-ORD-0005-V2",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0005:v2",
+        "orderCode": "PERF-ORD-0005"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 100000,
+        "deltaDebt": 100000,
+        "id": "AR-PERF-ORD-0006-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0006:v3",
+        "orderCode": "PERF-ORD-0006"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 90000,
+        "deltaDebt": 90000,
+        "id": "AR-PERF-ORD-0007-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0007:v3",
+        "orderCode": "PERF-ORD-0007"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 90000,
+        "deltaDebt": 90000,
+        "id": "AR-PERF-ORD-0008-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0008:v3",
+        "orderCode": "PERF-ORD-0008"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 95000,
+        "deltaDebt": 95000,
+        "id": "AR-PERF-ORD-0009-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0009:v3",
+        "orderCode": "PERF-ORD-0009"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 100000,
+        "deltaDebt": 100000,
+        "id": "AR-PERF-ORD-0010-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0010:v3",
+        "orderCode": "PERF-ORD-0010"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 83000,
+        "deltaDebt": 83000,
+        "id": "AR-PERF-ORD-0014-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0014:v3",
+        "orderCode": "PERF-ORD-0014"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 105000,
+        "deltaDebt": 105000,
+        "id": "AR-PERF-ORD-0015-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0015:v3",
+        "orderCode": "PERF-ORD-0015"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 90000,
+        "deltaDebt": 90000,
+        "id": "AR-PERF-ORD-0019-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0019:v3",
+        "orderCode": "PERF-ORD-0019"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 70000,
+        "deltaDebt": 70000,
+        "id": "AR-PERF-ORD-0022-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0022:v3",
+        "orderCode": "PERF-ORD-0022"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 80000,
+        "deltaDebt": 80000,
+        "id": "AR-PERF-ORD-0023-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0023:v3",
+        "orderCode": "PERF-ORD-0023"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 90000,
+        "deltaDebt": 90000,
+        "id": "AR-PERF-ORD-0024-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0024:v3",
+        "orderCode": "PERF-ORD-0024"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 100000,
+        "deltaDebt": 100000,
+        "id": "AR-PERF-ORD-0025-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0025:v3",
+        "orderCode": "PERF-ORD-0025"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 60000,
+        "deltaDebt": 60000,
+        "id": "AR-PERF-ORD-0026-V2",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0026:v2",
+        "orderCode": "PERF-ORD-0026"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 110000,
+        "deltaDebt": 110000,
+        "id": "AR-PERF-ORD-0027-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0027:v3",
+        "orderCode": "PERF-ORD-0027"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 100000,
+        "deltaDebt": 100000,
+        "id": "AR-PERF-ORD-0028-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0028:v3",
+        "orderCode": "PERF-ORD-0028"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 100000,
+        "deltaDebt": 100000,
+        "id": "AR-PERF-ORD-0029-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0029:v3",
+        "orderCode": "PERF-ORD-0029"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 105000,
+        "deltaDebt": 105000,
+        "id": "AR-PERF-ORD-0030-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0030:v3",
+        "orderCode": "PERF-ORD-0030"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 60000,
+        "deltaDebt": 60000,
+        "id": "AR-PERF-ORD-0031-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0031:v3",
+        "orderCode": "PERF-ORD-0031"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 93000,
+        "deltaDebt": 93000,
+        "id": "AR-PERF-ORD-0035-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0035:v3",
+        "orderCode": "PERF-ORD-0035"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 65000,
+        "deltaDebt": 65000,
+        "id": "AR-PERF-ORD-0036-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0036:v3",
+        "orderCode": "PERF-ORD-0036"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 100000,
+        "deltaDebt": 100000,
+        "id": "AR-PERF-ORD-0040-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0040:v3",
+        "orderCode": "PERF-ORD-0040"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 80000,
+        "deltaDebt": 80000,
+        "id": "AR-PERF-ORD-0043-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0043:v3",
+        "orderCode": "PERF-ORD-0043"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 90000,
+        "deltaDebt": 90000,
+        "id": "AR-PERF-ORD-0044-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0044:v3",
+        "orderCode": "PERF-ORD-0044"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 100000,
+        "deltaDebt": 100000,
+        "id": "AR-PERF-ORD-0045-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0045:v3",
+        "orderCode": "PERF-ORD-0045"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 60000,
+        "deltaDebt": 60000,
+        "id": "AR-PERF-ORD-0046-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0046:v3",
+        "orderCode": "PERF-ORD-0046"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 70000,
+        "deltaDebt": 70000,
+        "id": "AR-PERF-ORD-0047-V2",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0047:v2",
+        "orderCode": "PERF-ORD-0047"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 120000,
+        "deltaDebt": 120000,
+        "id": "AR-PERF-ORD-0048-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0048:v3",
+        "orderCode": "PERF-ORD-0048"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 110000,
+        "deltaDebt": 110000,
+        "id": "AR-PERF-ORD-0049-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0049:v3",
+        "orderCode": "PERF-ORD-0049"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 110000,
+        "deltaDebt": 110000,
+        "id": "AR-PERF-ORD-0050-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0050:v3",
+        "orderCode": "PERF-ORD-0050"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 65000,
+        "deltaDebt": 65000,
+        "id": "AR-PERF-ORD-0051-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0051:v3",
+        "orderCode": "PERF-ORD-0051"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 70000,
+        "deltaDebt": 70000,
+        "id": "AR-PERF-ORD-0052-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0052:v3",
+        "orderCode": "PERF-ORD-0052"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 53000,
+        "deltaDebt": 53000,
+        "id": "AR-PERF-ORD-0056-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0056:v3",
+        "orderCode": "PERF-ORD-0056"
+      },
+      {
+        "category": "AR-DEBT-ADJUSTMENT",
+        "credit": 0,
+        "debit": 75000,
+        "deltaDebt": 75000,
+        "id": "AR-PERF-ORD-0057-V3",
+        "idempotencyKey": "DEBT-ADJ:PERF-ORD-0057:v3",
+        "orderCode": "PERF-ORD-0057"
+      }
+    ],
+    "closeoutVersion": [
+      {
+        "orderCode": "PERF-ORD-0001",
+        "version": 4
+      },
+      {
+        "orderCode": "PERF-ORD-0002",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0003",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0004",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0005",
+        "version": 2
+      },
+      {
+        "orderCode": "PERF-ORD-0006",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0007",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0008",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0009",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0010",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0011",
+        "version": 2
+      },
+      {
+        "orderCode": "PERF-ORD-0012",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0013",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0014",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0015",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0016",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0017",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0018",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0019",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0020",
+        "version": 2
+      },
+      {
+        "orderCode": "PERF-ORD-0022",
+        "version": 4
+      },
+      {
+        "orderCode": "PERF-ORD-0023",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0024",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0025",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0026",
+        "version": 2
+      },
+      {
+        "orderCode": "PERF-ORD-0027",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0028",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0029",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0030",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0031",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0032",
+        "version": 2
+      },
+      {
+        "orderCode": "PERF-ORD-0033",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0034",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0035",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0036",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0037",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0038",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0039",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0040",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0041",
+        "version": 2
+      },
+      {
+        "orderCode": "PERF-ORD-0043",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0044",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0045",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0046",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0047",
+        "version": 2
+      },
+      {
+        "orderCode": "PERF-ORD-0048",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0049",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0050",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0051",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0052",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0053",
+        "version": 2
+      },
+      {
+        "orderCode": "PERF-ORD-0054",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0055",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0056",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0057",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0058",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0059",
+        "version": 3
+      },
+      {
+        "orderCode": "PERF-ORD-0060",
+        "version": 3
+      }
+    ],
+    "debtBalance": [
+      {
+        "balance": 60000,
+        "orderCode": "PERF-ORD-0001"
+      },
+      {
+        "balance": 70000,
+        "orderCode": "PERF-ORD-0002"
+      },
+      {
+        "balance": 80000,
+        "orderCode": "PERF-ORD-0003"
+      },
+      {
+        "balance": 90000,
+        "orderCode": "PERF-ORD-0004"
+      },
+      {
+        "balance": 100000,
+        "orderCode": "PERF-ORD-0005"
+      },
+      {
+        "balance": 100000,
+        "orderCode": "PERF-ORD-0006"
+      },
+      {
+        "balance": 90000,
+        "orderCode": "PERF-ORD-0007"
+      },
+      {
+        "balance": 90000,
+        "orderCode": "PERF-ORD-0008"
+      },
+      {
+        "balance": 95000,
+        "orderCode": "PERF-ORD-0009"
+      },
+      {
+        "balance": 100000,
+        "orderCode": "PERF-ORD-0010"
+      },
+      {
+        "balance": 0,
+        "orderCode": "PERF-ORD-0011"
+      },
+      {
+        "balance": 69000,
+        "orderCode": "PERF-ORD-0012"
+      },
+      {
+        "balance": 81000,
+        "orderCode": "PERF-ORD-0013"
+      },
+      {
+        "balance": 83000,
+        "orderCode": "PERF-ORD-0014"
+      },
+      {
+        "balance": 105000,
+        "orderCode": "PERF-ORD-0015"
+      },
+      {
+        "balance": 60000,
+        "orderCode": "PERF-ORD-0016"
+      },
+      {
+        "balance": 0,
+        "orderCode": "PERF-ORD-0017"
+      },
+      {
+        "balance": 80500,
+        "orderCode": "PERF-ORD-0018"
+      },
+      {
+        "balance": 90000,
+        "orderCode": "PERF-ORD-0019"
+      },
+      {
+        "balance": 0,
+        "orderCode": "PERF-ORD-0020"
+      },
+      {
+        "balance": 70000,
+        "orderCode": "PERF-ORD-0022"
+      },
+      {
+        "balance": 80000,
+        "orderCode": "PERF-ORD-0023"
+      },
+      {
+        "balance": 90000,
+        "orderCode": "PERF-ORD-0024"
+      },
+      {
+        "balance": 100000,
+        "orderCode": "PERF-ORD-0025"
+      },
+      {
+        "balance": 60000,
+        "orderCode": "PERF-ORD-0026"
+      },
+      {
+        "balance": 110000,
+        "orderCode": "PERF-ORD-0027"
+      },
+      {
+        "balance": 100000,
+        "orderCode": "PERF-ORD-0028"
+      },
+      {
+        "balance": 100000,
+        "orderCode": "PERF-ORD-0029"
+      },
+      {
+        "balance": 105000,
+        "orderCode": "PERF-ORD-0030"
+      },
+      {
+        "balance": 60000,
+        "orderCode": "PERF-ORD-0031"
+      },
+      {
+        "balance": 0,
+        "orderCode": "PERF-ORD-0032"
+      },
+      {
+        "balance": 79000,
+        "orderCode": "PERF-ORD-0033"
+      },
+      {
+        "balance": 91000,
+        "orderCode": "PERF-ORD-0034"
+      },
+      {
+        "balance": 93000,
+        "orderCode": "PERF-ORD-0035"
+      },
+      {
+        "balance": 65000,
+        "orderCode": "PERF-ORD-0036"
+      },
+      {
+        "balance": 70000,
+        "orderCode": "PERF-ORD-0037"
+      },
+      {
+        "balance": 0,
+        "orderCode": "PERF-ORD-0038"
+      },
+      {
+        "balance": 90500,
+        "orderCode": "PERF-ORD-0039"
+      },
+      {
+        "balance": 100000,
+        "orderCode": "PERF-ORD-0040"
+      },
+      {
+        "balance": 0,
+        "orderCode": "PERF-ORD-0041"
+      },
+      {
+        "balance": 80000,
+        "orderCode": "PERF-ORD-0043"
+      },
+      {
+        "balance": 90000,
+        "orderCode": "PERF-ORD-0044"
+      },
+      {
+        "balance": 100000,
+        "orderCode": "PERF-ORD-0045"
+      },
+      {
+        "balance": 60000,
+        "orderCode": "PERF-ORD-0046"
+      },
+      {
+        "balance": 70000,
+        "orderCode": "PERF-ORD-0047"
+      },
+      {
+        "balance": 120000,
+        "orderCode": "PERF-ORD-0048"
+      },
+      {
+        "balance": 110000,
+        "orderCode": "PERF-ORD-0049"
+      },
+      {
+        "balance": 110000,
+        "orderCode": "PERF-ORD-0050"
+      },
+      {
+        "balance": 65000,
+        "orderCode": "PERF-ORD-0051"
+      },
+      {
+        "balance": 70000,
+        "orderCode": "PERF-ORD-0052"
+      },
+      {
+        "balance": 0,
+        "orderCode": "PERF-ORD-0053"
+      },
+      {
+        "balance": 89000,
+        "orderCode": "PERF-ORD-0054"
+      },
+      {
+        "balance": 101000,
+        "orderCode": "PERF-ORD-0055"
+      },
+      {
+        "balance": 53000,
+        "orderCode": "PERF-ORD-0056"
+      },
+      {
+        "balance": 75000,
+        "orderCode": "PERF-ORD-0057"
+      },
+      {
+        "balance": 80000,
+        "orderCode": "PERF-ORD-0058"
+      },
+      {
+        "balance": 0,
+        "orderCode": "PERF-ORD-0059"
+      },
+      {
+        "balance": 100500,
+        "orderCode": "PERF-ORD-0060"
+      }
+    ],
+    "errorResultOrder": [
+      {
+        "errorCode": null,
+        "index": 0,
+        "inputRef": "PERF-ORD-0001",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 1,
+        "inputRef": "PERF-ORD-0002",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 2,
+        "inputRef": "PERF-ORD-0003",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 3,
+        "inputRef": "PERF-ORD-0004",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 4,
+        "inputRef": "PERF-ORD-0005",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 5,
+        "inputRef": "PERF-ORD-0006",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 6,
+        "inputRef": "PERF-ORD-0007",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 7,
+        "inputRef": "PERF-ORD-0008",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 8,
+        "inputRef": "PERF-ORD-0009",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 9,
+        "inputRef": "PERF-ORD-0010",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": "NEGATIVE_MONEY_GUARD",
+        "index": 10,
+        "inputRef": "PERF-ORD-0011",
+        "status": "error"
+      },
+      {
+        "errorCode": null,
+        "index": 11,
+        "inputRef": "PERF-ORD-0012",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 12,
+        "inputRef": "PERF-ORD-0013",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 13,
+        "inputRef": "PERF-ORD-0014",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 14,
+        "inputRef": "PERF-ORD-0015",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 15,
+        "inputRef": "PERF-ORD-0016",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 16,
+        "inputRef": "PERF-ORD-0017",
+        "status": "manual_review"
+      },
+      {
+        "errorCode": null,
+        "index": 17,
+        "inputRef": "PERF-ORD-0018",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 18,
+        "inputRef": "PERF-ORD-0019",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": "REPOSITORY_FAILURE_AFTER_PREFLIGHT",
+        "index": 19,
+        "inputRef": "PERF-ORD-0020",
+        "status": "error"
+      },
+      {
+        "errorCode": null,
+        "index": 20,
+        "inputRef": "ALIAS-PERF-ORD-0001-0021",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 21,
+        "inputRef": "PERF-ORD-0022",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 22,
+        "inputRef": "PERF-ORD-0023",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 23,
+        "inputRef": "PERF-ORD-0024",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 24,
+        "inputRef": "PERF-ORD-0025",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 25,
+        "inputRef": "PERF-ORD-0026",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 26,
+        "inputRef": "PERF-ORD-0027",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 27,
+        "inputRef": "PERF-ORD-0028",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 28,
+        "inputRef": "PERF-ORD-0029",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 29,
+        "inputRef": "PERF-ORD-0030",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 30,
+        "inputRef": "PERF-ORD-0031",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": "NEGATIVE_MONEY_GUARD",
+        "index": 31,
+        "inputRef": "PERF-ORD-0032",
+        "status": "error"
+      },
+      {
+        "errorCode": null,
+        "index": 32,
+        "inputRef": "PERF-ORD-0033",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 33,
+        "inputRef": "PERF-ORD-0034",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 34,
+        "inputRef": "PERF-ORD-0035",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 35,
+        "inputRef": "PERF-ORD-0036",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 36,
+        "inputRef": "PERF-ORD-0037",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 37,
+        "inputRef": "PERF-ORD-0038",
+        "status": "manual_review"
+      },
+      {
+        "errorCode": null,
+        "index": 38,
+        "inputRef": "PERF-ORD-0039",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 39,
+        "inputRef": "PERF-ORD-0040",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": "REPOSITORY_FAILURE_AFTER_PREFLIGHT",
+        "index": 40,
+        "inputRef": "PERF-ORD-0041",
+        "status": "error"
+      },
+      {
+        "errorCode": null,
+        "index": 41,
+        "inputRef": "ALIAS-PERF-ORD-0022-0042",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 42,
+        "inputRef": "PERF-ORD-0043",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 43,
+        "inputRef": "PERF-ORD-0044",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 44,
+        "inputRef": "PERF-ORD-0045",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 45,
+        "inputRef": "PERF-ORD-0046",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 46,
+        "inputRef": "PERF-ORD-0047",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 47,
+        "inputRef": "PERF-ORD-0048",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 48,
+        "inputRef": "PERF-ORD-0049",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 49,
+        "inputRef": "PERF-ORD-0050",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 50,
+        "inputRef": "PERF-ORD-0051",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 51,
+        "inputRef": "PERF-ORD-0052",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": "NEGATIVE_MONEY_GUARD",
+        "index": 52,
+        "inputRef": "PERF-ORD-0053",
+        "status": "error"
+      },
+      {
+        "errorCode": null,
+        "index": 53,
+        "inputRef": "PERF-ORD-0054",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 54,
+        "inputRef": "PERF-ORD-0055",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 55,
+        "inputRef": "PERF-ORD-0056",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 56,
+        "inputRef": "PERF-ORD-0057",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 57,
+        "inputRef": "PERF-ORD-0058",
+        "status": "processed_or_synced"
+      },
+      {
+        "errorCode": null,
+        "index": 58,
+        "inputRef": "PERF-ORD-0059",
+        "status": "manual_review"
+      },
+      {
+        "errorCode": null,
+        "index": 59,
+        "inputRef": "PERF-ORD-0060",
+        "status": "processed_or_synced"
+      }
+    ],
+    "idempotencyKeys": [
+      "DEBT-ADJ:PERF-ORD-0001:v3",
+      "DEBT-ADJ:PERF-ORD-0002:v3",
+      "DEBT-ADJ:PERF-ORD-0003:v3",
+      "DEBT-ADJ:PERF-ORD-0004:v3",
+      "DEBT-ADJ:PERF-ORD-0005:v2",
+      "DEBT-ADJ:PERF-ORD-0006:v3",
+      "DEBT-ADJ:PERF-ORD-0007:v3",
+      "DEBT-ADJ:PERF-ORD-0008:v3",
+      "DEBT-ADJ:PERF-ORD-0009:v3",
+      "DEBT-ADJ:PERF-ORD-0010:v3",
+      "DEBT-ADJ:PERF-ORD-0014:v3",
+      "DEBT-ADJ:PERF-ORD-0015:v3",
+      "DEBT-ADJ:PERF-ORD-0017:v2",
+      "DEBT-ADJ:PERF-ORD-0019:v3",
+      "DEBT-ADJ:PERF-ORD-0022:v3",
+      "DEBT-ADJ:PERF-ORD-0023:v3",
+      "DEBT-ADJ:PERF-ORD-0024:v3",
+      "DEBT-ADJ:PERF-ORD-0025:v3",
+      "DEBT-ADJ:PERF-ORD-0026:v2",
+      "DEBT-ADJ:PERF-ORD-0027:v3",
+      "DEBT-ADJ:PERF-ORD-0028:v3",
+      "DEBT-ADJ:PERF-ORD-0029:v3",
+      "DEBT-ADJ:PERF-ORD-0030:v3",
+      "DEBT-ADJ:PERF-ORD-0031:v3",
+      "DEBT-ADJ:PERF-ORD-0035:v3",
+      "DEBT-ADJ:PERF-ORD-0036:v3",
+      "DEBT-ADJ:PERF-ORD-0038:v2",
+      "DEBT-ADJ:PERF-ORD-0040:v3",
+      "DEBT-ADJ:PERF-ORD-0043:v3",
+      "DEBT-ADJ:PERF-ORD-0044:v3",
+      "DEBT-ADJ:PERF-ORD-0045:v3",
+      "DEBT-ADJ:PERF-ORD-0046:v3",
+      "DEBT-ADJ:PERF-ORD-0047:v2",
+      "DEBT-ADJ:PERF-ORD-0048:v3",
+      "DEBT-ADJ:PERF-ORD-0049:v3",
+      "DEBT-ADJ:PERF-ORD-0050:v3",
+      "DEBT-ADJ:PERF-ORD-0051:v3",
+      "DEBT-ADJ:PERF-ORD-0052:v3",
+      "DEBT-ADJ:PERF-ORD-0056:v3",
+      "DEBT-ADJ:PERF-ORD-0057:v3",
+      "DEBT-ADJ:PERF-ORD-0059:v2"
+    ],
+    "orderFinancialState": [
+      {
+        "order": {
+          "closeoutVersion": 4,
+          "code": "PERF-ORD-0001",
+          "customerCode": "CUS-002",
+          "customerName": "Fixture Customer 2",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0001-v1",
+            "debtAmount": 60000,
+            "id": "DCO-PERF-ORD-0001-v1",
+            "receivableAmount": 100000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0001"
+        },
+        "orderCode": "PERF-ORD-0001"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0002",
+          "customerCode": "CUS-003",
+          "customerName": "Fixture Customer 3",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0002-v1",
+            "debtAmount": 70000,
+            "id": "DCO-PERF-ORD-0002-v1",
+            "receivableAmount": 110000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0002"
+        },
+        "orderCode": "PERF-ORD-0002"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0003",
+          "customerCode": "CUS-004",
+          "customerName": "Fixture Customer 4",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0003-v1",
+            "debtAmount": 80000,
+            "id": "DCO-PERF-ORD-0003-v1",
+            "receivableAmount": 120000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0003"
+        },
+        "orderCode": "PERF-ORD-0003"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0004",
+          "customerCode": "CUS-005",
+          "customerName": "Fixture Customer 5",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0004-v1",
+            "debtAmount": 90000,
+            "id": "DCO-PERF-ORD-0004-v1",
+            "receivableAmount": 130000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0004"
+        },
+        "orderCode": "PERF-ORD-0004"
+      },
+      {
+        "order": {
+          "closeoutVersion": 2,
+          "code": "PERF-ORD-0005",
+          "customerCode": "CUS-006",
+          "customerName": "Fixture Customer 6",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0005-v1",
+            "debtAmount": 100000,
+            "id": "DCO-PERF-ORD-0005-v1",
+            "receivableAmount": 140000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0005"
+        },
+        "orderCode": "PERF-ORD-0005"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0006",
+          "customerCode": "CUS-007",
+          "customerName": "Fixture Customer 7",
+          "deliveryCloseout": {
+            "bankAmount": 0,
+            "cashAmount": 0,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0006-v1",
+            "debtAmount": 100000,
+            "id": "DCO-PERF-ORD-0006-v1",
+            "receivableAmount": 100000,
+            "returnAmount": 0,
+            "rewardAmount": 0,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0006"
+        },
+        "orderCode": "PERF-ORD-0006"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0007",
+          "customerCode": "CUS-008",
+          "customerName": "Fixture Customer 8",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": null,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0007-v1",
+            "debtAmount": 90000,
+            "id": "DCO-PERF-ORD-0007-v1",
+            "receivableAmount": 110000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0007"
+        },
+        "orderCode": "PERF-ORD-0007"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0008",
+          "customerCode": "CUS-009",
+          "customerName": "Fixture Customer 9",
+          "deliveryCloseout": {
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0008-v1",
+            "debtAmount": 90000,
+            "id": "DCO-PERF-ORD-0008-v1",
+            "receivableAmount": 120000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0008"
+        },
+        "orderCode": "PERF-ORD-0008"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0009",
+          "customerCode": "CUS-010",
+          "customerName": "Fixture Customer 10",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0009-v1",
+            "debtAmount": 95000,
+            "id": "DCO-PERF-ORD-0009-v1",
+            "receivableAmount": 130000,
+            "returnAmount": 5000,
+            "rewardAmount": null,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0009"
+        },
+        "orderCode": "PERF-ORD-0009"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0010",
+          "customerCode": "CUS-011",
+          "customerName": "Fixture Customer 11",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0010-v1",
+            "debtAmount": 100000,
+            "id": "DCO-PERF-ORD-0010-v1",
+            "receivableAmount": 140000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0010"
+        },
+        "orderCode": "PERF-ORD-0010"
+      },
+      {
+        "order": {
+          "code": "PERF-ORD-0011",
+          "customerCode": "CUS-001",
+          "customerName": "Fixture Customer 1",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": -5000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0011-v1",
+            "debtAmount": 85000,
+            "id": "DCO-PERF-ORD-0011-v1",
+            "receivableAmount": 100000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "id": "SO-PERF-ORD-0011"
+        },
+        "orderCode": "PERF-ORD-0011"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0012",
+          "customerCode": "CUS-002",
+          "customerName": "Fixture Customer 2",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0012-v1",
+            "debtAmount": 70000,
+            "id": "DCO-PERF-ORD-0012-v1",
+            "receivableAmount": 110000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0012"
+        },
+        "orderCode": "PERF-ORD-0012"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0013",
+          "customerCode": "CUS-003",
+          "customerName": "Fixture Customer 3",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0013-v1",
+            "debtAmount": 80000,
+            "id": "DCO-PERF-ORD-0013-v1",
+            "receivableAmount": 120000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0013"
+        },
+        "orderCode": "PERF-ORD-0013"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0014",
+          "customerCode": "CUS-004",
+          "customerName": "Fixture Customer 4",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0014-v1",
+            "debtAmount": 83000,
+            "id": "DCO-PERF-ORD-0014-v1",
+            "receivableAmount": 130000,
+            "returnAmount": 12000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0014"
+        },
+        "orderCode": "PERF-ORD-0014"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0015",
+          "customerCode": "CUS-005",
+          "customerName": "Fixture Customer 5",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0015-v1",
+            "debtAmount": 105000,
+            "id": "DCO-PERF-ORD-0015-v1",
+            "receivableAmount": 140000,
+            "returnAmount": 0,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0015"
+        },
+        "orderCode": "PERF-ORD-0015"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0016",
+          "customerCode": "CUS-006",
+          "customerName": "Fixture Customer 6",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0016-v1",
+            "debtAmount": 60000,
+            "id": "DCO-PERF-ORD-0016-v1",
+            "receivableAmount": 100000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0016"
+        },
+        "orderCode": "PERF-ORD-0016"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0017",
+          "customerCode": "CUS-007",
+          "customerName": "Fixture Customer 7",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0017-v1",
+            "debtAmount": 70000,
+            "id": "DCO-PERF-ORD-0017-v1",
+            "receivableAmount": 110000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0017"
+        },
+        "orderCode": "PERF-ORD-0017"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0018",
+          "customerCode": "CUS-008",
+          "customerName": "Fixture Customer 8",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0018-v1",
+            "debtAmount": 80000,
+            "id": "DCO-PERF-ORD-0018-v1",
+            "receivableAmount": 120000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0018"
+        },
+        "orderCode": "PERF-ORD-0018"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0019",
+          "customerCode": "CUS-009",
+          "customerName": "Fixture Customer 9",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0019-v1",
+            "debtAmount": 90000,
+            "id": "DCO-PERF-ORD-0019-v1",
+            "receivableAmount": 130000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0019"
+        },
+        "orderCode": "PERF-ORD-0019"
+      },
+      {
+        "order": {
+          "code": "PERF-ORD-0020",
+          "customerCode": "CUS-010",
+          "customerName": "Fixture Customer 10",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0020-v1",
+            "debtAmount": 100000,
+            "id": "DCO-PERF-ORD-0020-v1",
+            "receivableAmount": 140000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "id": "SO-PERF-ORD-0020"
+        },
+        "orderCode": "PERF-ORD-0020"
+      },
+      {
+        "order": {
+          "closeoutVersion": 4,
+          "code": "PERF-ORD-0022",
+          "customerCode": "CUS-001",
+          "customerName": "Fixture Customer 1",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0022-v1",
+            "debtAmount": 70000,
+            "id": "DCO-PERF-ORD-0022-v1",
+            "receivableAmount": 110000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0022"
+        },
+        "orderCode": "PERF-ORD-0022"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0023",
+          "customerCode": "CUS-002",
+          "customerName": "Fixture Customer 2",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0023-v1",
+            "debtAmount": 80000,
+            "id": "DCO-PERF-ORD-0023-v1",
+            "receivableAmount": 120000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0023"
+        },
+        "orderCode": "PERF-ORD-0023"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0024",
+          "customerCode": "CUS-003",
+          "customerName": "Fixture Customer 3",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0024-v1",
+            "debtAmount": 90000,
+            "id": "DCO-PERF-ORD-0024-v1",
+            "receivableAmount": 130000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0024"
+        },
+        "orderCode": "PERF-ORD-0024"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0025",
+          "customerCode": "CUS-004",
+          "customerName": "Fixture Customer 4",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0025-v1",
+            "debtAmount": 100000,
+            "id": "DCO-PERF-ORD-0025-v1",
+            "receivableAmount": 140000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0025"
+        },
+        "orderCode": "PERF-ORD-0025"
+      },
+      {
+        "order": {
+          "closeoutVersion": 2,
+          "code": "PERF-ORD-0026",
+          "customerCode": "CUS-005",
+          "customerName": "Fixture Customer 5",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0026-v1",
+            "debtAmount": 60000,
+            "id": "DCO-PERF-ORD-0026-v1",
+            "receivableAmount": 100000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0026"
+        },
+        "orderCode": "PERF-ORD-0026"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0027",
+          "customerCode": "CUS-006",
+          "customerName": "Fixture Customer 6",
+          "deliveryCloseout": {
+            "bankAmount": 0,
+            "cashAmount": 0,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0027-v1",
+            "debtAmount": 110000,
+            "id": "DCO-PERF-ORD-0027-v1",
+            "receivableAmount": 110000,
+            "returnAmount": 0,
+            "rewardAmount": 0,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0027"
+        },
+        "orderCode": "PERF-ORD-0027"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0028",
+          "customerCode": "CUS-007",
+          "customerName": "Fixture Customer 7",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": null,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0028-v1",
+            "debtAmount": 100000,
+            "id": "DCO-PERF-ORD-0028-v1",
+            "receivableAmount": 120000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0028"
+        },
+        "orderCode": "PERF-ORD-0028"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0029",
+          "customerCode": "CUS-008",
+          "customerName": "Fixture Customer 8",
+          "deliveryCloseout": {
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0029-v1",
+            "debtAmount": 100000,
+            "id": "DCO-PERF-ORD-0029-v1",
+            "receivableAmount": 130000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0029"
+        },
+        "orderCode": "PERF-ORD-0029"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0030",
+          "customerCode": "CUS-009",
+          "customerName": "Fixture Customer 9",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0030-v1",
+            "debtAmount": 105000,
+            "id": "DCO-PERF-ORD-0030-v1",
+            "receivableAmount": 140000,
+            "returnAmount": 5000,
+            "rewardAmount": null,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0030"
+        },
+        "orderCode": "PERF-ORD-0030"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0031",
+          "customerCode": "CUS-010",
+          "customerName": "Fixture Customer 10",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0031-v1",
+            "debtAmount": 60000,
+            "id": "DCO-PERF-ORD-0031-v1",
+            "receivableAmount": 100000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0031"
+        },
+        "orderCode": "PERF-ORD-0031"
+      },
+      {
+        "order": {
+          "code": "PERF-ORD-0032",
+          "customerCode": "CUS-011",
+          "customerName": "Fixture Customer 11",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": -5000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0032-v1",
+            "debtAmount": 95000,
+            "id": "DCO-PERF-ORD-0032-v1",
+            "receivableAmount": 110000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "id": "SO-PERF-ORD-0032"
+        },
+        "orderCode": "PERF-ORD-0032"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0033",
+          "customerCode": "CUS-001",
+          "customerName": "Fixture Customer 1",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0033-v1",
+            "debtAmount": 80000,
+            "id": "DCO-PERF-ORD-0033-v1",
+            "receivableAmount": 120000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0033"
+        },
+        "orderCode": "PERF-ORD-0033"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0034",
+          "customerCode": "CUS-002",
+          "customerName": "Fixture Customer 2",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0034-v1",
+            "debtAmount": 90000,
+            "id": "DCO-PERF-ORD-0034-v1",
+            "receivableAmount": 130000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0034"
+        },
+        "orderCode": "PERF-ORD-0034"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0035",
+          "customerCode": "CUS-003",
+          "customerName": "Fixture Customer 3",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0035-v1",
+            "debtAmount": 93000,
+            "id": "DCO-PERF-ORD-0035-v1",
+            "receivableAmount": 140000,
+            "returnAmount": 12000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0035"
+        },
+        "orderCode": "PERF-ORD-0035"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0036",
+          "customerCode": "CUS-004",
+          "customerName": "Fixture Customer 4",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0036-v1",
+            "debtAmount": 65000,
+            "id": "DCO-PERF-ORD-0036-v1",
+            "receivableAmount": 100000,
+            "returnAmount": 0,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0036"
+        },
+        "orderCode": "PERF-ORD-0036"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0037",
+          "customerCode": "CUS-005",
+          "customerName": "Fixture Customer 5",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0037-v1",
+            "debtAmount": 70000,
+            "id": "DCO-PERF-ORD-0037-v1",
+            "receivableAmount": 110000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0037"
+        },
+        "orderCode": "PERF-ORD-0037"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0038",
+          "customerCode": "CUS-006",
+          "customerName": "Fixture Customer 6",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0038-v1",
+            "debtAmount": 80000,
+            "id": "DCO-PERF-ORD-0038-v1",
+            "receivableAmount": 120000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0038"
+        },
+        "orderCode": "PERF-ORD-0038"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0039",
+          "customerCode": "CUS-007",
+          "customerName": "Fixture Customer 7",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0039-v1",
+            "debtAmount": 90000,
+            "id": "DCO-PERF-ORD-0039-v1",
+            "receivableAmount": 130000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0039"
+        },
+        "orderCode": "PERF-ORD-0039"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0040",
+          "customerCode": "CUS-008",
+          "customerName": "Fixture Customer 8",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0040-v1",
+            "debtAmount": 100000,
+            "id": "DCO-PERF-ORD-0040-v1",
+            "receivableAmount": 140000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0040"
+        },
+        "orderCode": "PERF-ORD-0040"
+      },
+      {
+        "order": {
+          "code": "PERF-ORD-0041",
+          "customerCode": "CUS-009",
+          "customerName": "Fixture Customer 9",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0041-v1",
+            "debtAmount": 60000,
+            "id": "DCO-PERF-ORD-0041-v1",
+            "receivableAmount": 100000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "id": "SO-PERF-ORD-0041"
+        },
+        "orderCode": "PERF-ORD-0041"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0043",
+          "customerCode": "CUS-011",
+          "customerName": "Fixture Customer 11",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0043-v1",
+            "debtAmount": 80000,
+            "id": "DCO-PERF-ORD-0043-v1",
+            "receivableAmount": 120000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0043"
+        },
+        "orderCode": "PERF-ORD-0043"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0044",
+          "customerCode": "CUS-001",
+          "customerName": "Fixture Customer 1",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0044-v1",
+            "debtAmount": 90000,
+            "id": "DCO-PERF-ORD-0044-v1",
+            "receivableAmount": 130000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0044"
+        },
+        "orderCode": "PERF-ORD-0044"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0045",
+          "customerCode": "CUS-002",
+          "customerName": "Fixture Customer 2",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0045-v1",
+            "debtAmount": 100000,
+            "id": "DCO-PERF-ORD-0045-v1",
+            "receivableAmount": 140000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0045"
+        },
+        "orderCode": "PERF-ORD-0045"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0046",
+          "customerCode": "CUS-003",
+          "customerName": "Fixture Customer 3",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0046-v1",
+            "debtAmount": 60000,
+            "id": "DCO-PERF-ORD-0046-v1",
+            "receivableAmount": 100000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0046"
+        },
+        "orderCode": "PERF-ORD-0046"
+      },
+      {
+        "order": {
+          "closeoutVersion": 2,
+          "code": "PERF-ORD-0047",
+          "customerCode": "CUS-004",
+          "customerName": "Fixture Customer 4",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0047-v1",
+            "debtAmount": 70000,
+            "id": "DCO-PERF-ORD-0047-v1",
+            "receivableAmount": 110000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0047"
+        },
+        "orderCode": "PERF-ORD-0047"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0048",
+          "customerCode": "CUS-005",
+          "customerName": "Fixture Customer 5",
+          "deliveryCloseout": {
+            "bankAmount": 0,
+            "cashAmount": 0,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0048-v1",
+            "debtAmount": 120000,
+            "id": "DCO-PERF-ORD-0048-v1",
+            "receivableAmount": 120000,
+            "returnAmount": 0,
+            "rewardAmount": 0,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0048"
+        },
+        "orderCode": "PERF-ORD-0048"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0049",
+          "customerCode": "CUS-006",
+          "customerName": "Fixture Customer 6",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": null,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0049-v1",
+            "debtAmount": 110000,
+            "id": "DCO-PERF-ORD-0049-v1",
+            "receivableAmount": 130000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0049"
+        },
+        "orderCode": "PERF-ORD-0049"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0050",
+          "customerCode": "CUS-007",
+          "customerName": "Fixture Customer 7",
+          "deliveryCloseout": {
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0050-v1",
+            "debtAmount": 110000,
+            "id": "DCO-PERF-ORD-0050-v1",
+            "receivableAmount": 140000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0050"
+        },
+        "orderCode": "PERF-ORD-0050"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0051",
+          "customerCode": "CUS-008",
+          "customerName": "Fixture Customer 8",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0051-v1",
+            "debtAmount": 65000,
+            "id": "DCO-PERF-ORD-0051-v1",
+            "receivableAmount": 100000,
+            "returnAmount": 5000,
+            "rewardAmount": null,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0051"
+        },
+        "orderCode": "PERF-ORD-0051"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0052",
+          "customerCode": "CUS-009",
+          "customerName": "Fixture Customer 9",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0052-v1",
+            "debtAmount": 70000,
+            "id": "DCO-PERF-ORD-0052-v1",
+            "receivableAmount": 110000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0052"
+        },
+        "orderCode": "PERF-ORD-0052"
+      },
+      {
+        "order": {
+          "code": "PERF-ORD-0053",
+          "customerCode": "CUS-010",
+          "customerName": "Fixture Customer 10",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": -5000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0053-v1",
+            "debtAmount": 105000,
+            "id": "DCO-PERF-ORD-0053-v1",
+            "receivableAmount": 120000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "id": "SO-PERF-ORD-0053"
+        },
+        "orderCode": "PERF-ORD-0053"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0054",
+          "customerCode": "CUS-011",
+          "customerName": "Fixture Customer 11",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0054-v1",
+            "debtAmount": 90000,
+            "id": "DCO-PERF-ORD-0054-v1",
+            "receivableAmount": 130000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0054"
+        },
+        "orderCode": "PERF-ORD-0054"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0055",
+          "customerCode": "CUS-001",
+          "customerName": "Fixture Customer 1",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0055-v1",
+            "debtAmount": 100000,
+            "id": "DCO-PERF-ORD-0055-v1",
+            "receivableAmount": 140000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0055"
+        },
+        "orderCode": "PERF-ORD-0055"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0056",
+          "customerCode": "CUS-002",
+          "customerName": "Fixture Customer 2",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0056-v1",
+            "debtAmount": 53000,
+            "id": "DCO-PERF-ORD-0056-v1",
+            "receivableAmount": 100000,
+            "returnAmount": 12000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0056"
+        },
+        "orderCode": "PERF-ORD-0056"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0057",
+          "customerCode": "CUS-003",
+          "customerName": "Fixture Customer 3",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0057-v1",
+            "debtAmount": 75000,
+            "id": "DCO-PERF-ORD-0057-v1",
+            "receivableAmount": 110000,
+            "returnAmount": 0,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0057"
+        },
+        "orderCode": "PERF-ORD-0057"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0058",
+          "customerCode": "CUS-004",
+          "customerName": "Fixture Customer 4",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0058-v1",
+            "debtAmount": 80000,
+            "id": "DCO-PERF-ORD-0058-v1",
+            "receivableAmount": 120000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0058"
+        },
+        "orderCode": "PERF-ORD-0058"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0059",
+          "customerCode": "CUS-005",
+          "customerName": "Fixture Customer 5",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0059-v1",
+            "debtAmount": 90000,
+            "id": "DCO-PERF-ORD-0059-v1",
+            "receivableAmount": 130000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0059"
+        },
+        "orderCode": "PERF-ORD-0059"
+      },
+      {
+        "order": {
+          "closeoutVersion": 3,
+          "code": "PERF-ORD-0060",
+          "customerCode": "CUS-006",
+          "customerName": "Fixture Customer 6",
+          "deliveryCloseout": {
+            "bankAmount": 10000,
+            "cashAmount": 20000,
+            "closeoutVersion": 1,
+            "code": "DCO-PERF-ORD-0060-v1",
+            "debtAmount": 100000,
+            "id": "DCO-PERF-ORD-0060-v1",
+            "receivableAmount": 140000,
+            "returnAmount": 5000,
+            "rewardAmount": 5000,
+            "sourceVersion": 1
+          },
+          "deliveryDate": "2026-08-01",
+          "financialReplayed": true,
+          "id": "SO-PERF-ORD-0060"
+        },
+        "orderCode": "PERF-ORD-0060"
+      }
+    ],
+    "paymentAllocation": [
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0001",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 60000,
+          "id": "OPA-PERF-ORD-0001",
+          "orderCode": "PERF-ORD-0001",
+          "receivableAmount": 100000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 4
+        },
+        "orderCode": "PERF-ORD-0001"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0002",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 70000,
+          "id": "OPA-PERF-ORD-0002",
+          "orderCode": "PERF-ORD-0002",
+          "receivableAmount": 110000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0002"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0003",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 80000,
+          "id": "OPA-PERF-ORD-0003",
+          "orderCode": "PERF-ORD-0003",
+          "receivableAmount": 120000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0003"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0004",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 90000,
+          "id": "OPA-PERF-ORD-0004",
+          "orderCode": "PERF-ORD-0004",
+          "receivableAmount": 130000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0004"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0005",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 100000,
+          "id": "OPA-PERF-ORD-0005",
+          "orderCode": "PERF-ORD-0005",
+          "receivableAmount": 140000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 2
+        },
+        "orderCode": "PERF-ORD-0005"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0006",
+          "bankAmount": 0,
+          "cashAmount": 0,
+          "debtAmount": 100000,
+          "id": "OPA-PERF-ORD-0006",
+          "orderCode": "PERF-ORD-0006",
+          "receivableAmount": 100000,
+          "returnAmount": 0,
+          "rewardAmount": 0,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0006"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0007",
+          "bankAmount": 10000,
+          "cashAmount": 0,
+          "debtAmount": 90000,
+          "id": "OPA-PERF-ORD-0007",
+          "orderCode": "PERF-ORD-0007",
+          "receivableAmount": 110000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0007"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0008",
+          "bankAmount": 0,
+          "cashAmount": 20000,
+          "debtAmount": 90000,
+          "id": "OPA-PERF-ORD-0008",
+          "orderCode": "PERF-ORD-0008",
+          "receivableAmount": 120000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0008"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0009",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 95000,
+          "id": "OPA-PERF-ORD-0009",
+          "orderCode": "PERF-ORD-0009",
+          "receivableAmount": 130000,
+          "returnAmount": 5000,
+          "rewardAmount": 0,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0009"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0010",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 100000,
+          "id": "OPA-PERF-ORD-0010",
+          "orderCode": "PERF-ORD-0010",
+          "receivableAmount": 140000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0010"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0011",
+          "bankAmount": 10000,
+          "cashAmount": -5000,
+          "debtAmount": 85000,
+          "id": "OPA-PERF-ORD-0011",
+          "orderCode": "PERF-ORD-0011",
+          "receivableAmount": 100000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 2,
+          "stale": false
+        },
+        "orderCode": "PERF-ORD-0011"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0012",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 70000,
+          "id": "OPA-PERF-ORD-0012",
+          "orderCode": "PERF-ORD-0012",
+          "receivableAmount": 110000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0012"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0013",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 80000,
+          "id": "OPA-PERF-ORD-0013",
+          "orderCode": "PERF-ORD-0013",
+          "receivableAmount": 120000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0013"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0014",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 83000,
+          "id": "OPA-PERF-ORD-0014",
+          "orderCode": "PERF-ORD-0014",
+          "receivableAmount": 130000,
+          "returnAmount": 12000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0014"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0015",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 105000,
+          "id": "OPA-PERF-ORD-0015",
+          "orderCode": "PERF-ORD-0015",
+          "receivableAmount": 140000,
+          "returnAmount": 0,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0015"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0016",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 60000,
+          "id": "OPA-PERF-ORD-0016",
+          "orderCode": "PERF-ORD-0016",
+          "receivableAmount": 100000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0016"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0017",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 70000,
+          "id": "OPA-PERF-ORD-0017",
+          "orderCode": "PERF-ORD-0017",
+          "receivableAmount": 110000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0017"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0018",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 80000,
+          "id": "OPA-PERF-ORD-0018",
+          "orderCode": "PERF-ORD-0018",
+          "receivableAmount": 120000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0018"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0019",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 90000,
+          "id": "OPA-PERF-ORD-0019",
+          "orderCode": "PERF-ORD-0019",
+          "receivableAmount": 130000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0019"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0020",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 100000,
+          "id": "OPA-PERF-ORD-0020",
+          "orderCode": "PERF-ORD-0020",
+          "receivableAmount": 140000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 2,
+          "stale": false
+        },
+        "orderCode": "PERF-ORD-0020"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0022",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 70000,
+          "id": "OPA-PERF-ORD-0022",
+          "orderCode": "PERF-ORD-0022",
+          "receivableAmount": 110000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 4
+        },
+        "orderCode": "PERF-ORD-0022"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0023",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 80000,
+          "id": "OPA-PERF-ORD-0023",
+          "orderCode": "PERF-ORD-0023",
+          "receivableAmount": 120000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0023"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0024",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 90000,
+          "id": "OPA-PERF-ORD-0024",
+          "orderCode": "PERF-ORD-0024",
+          "receivableAmount": 130000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0024"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0025",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 100000,
+          "id": "OPA-PERF-ORD-0025",
+          "orderCode": "PERF-ORD-0025",
+          "receivableAmount": 140000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0025"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0026",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 60000,
+          "id": "OPA-PERF-ORD-0026",
+          "orderCode": "PERF-ORD-0026",
+          "receivableAmount": 100000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 2
+        },
+        "orderCode": "PERF-ORD-0026"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0027",
+          "bankAmount": 0,
+          "cashAmount": 0,
+          "debtAmount": 110000,
+          "id": "OPA-PERF-ORD-0027",
+          "orderCode": "PERF-ORD-0027",
+          "receivableAmount": 110000,
+          "returnAmount": 0,
+          "rewardAmount": 0,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0027"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0028",
+          "bankAmount": 10000,
+          "cashAmount": 0,
+          "debtAmount": 100000,
+          "id": "OPA-PERF-ORD-0028",
+          "orderCode": "PERF-ORD-0028",
+          "receivableAmount": 120000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0028"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0029",
+          "bankAmount": 0,
+          "cashAmount": 20000,
+          "debtAmount": 100000,
+          "id": "OPA-PERF-ORD-0029",
+          "orderCode": "PERF-ORD-0029",
+          "receivableAmount": 130000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0029"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0030",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 105000,
+          "id": "OPA-PERF-ORD-0030",
+          "orderCode": "PERF-ORD-0030",
+          "receivableAmount": 140000,
+          "returnAmount": 5000,
+          "rewardAmount": 0,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0030"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0031",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 60000,
+          "id": "OPA-PERF-ORD-0031",
+          "orderCode": "PERF-ORD-0031",
+          "receivableAmount": 100000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0031"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0032",
+          "bankAmount": 10000,
+          "cashAmount": -5000,
+          "debtAmount": 95000,
+          "id": "OPA-PERF-ORD-0032",
+          "orderCode": "PERF-ORD-0032",
+          "receivableAmount": 110000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 2,
+          "stale": false
+        },
+        "orderCode": "PERF-ORD-0032"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0033",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 80000,
+          "id": "OPA-PERF-ORD-0033",
+          "orderCode": "PERF-ORD-0033",
+          "receivableAmount": 120000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0033"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0034",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 90000,
+          "id": "OPA-PERF-ORD-0034",
+          "orderCode": "PERF-ORD-0034",
+          "receivableAmount": 130000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0034"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0035",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 93000,
+          "id": "OPA-PERF-ORD-0035",
+          "orderCode": "PERF-ORD-0035",
+          "receivableAmount": 140000,
+          "returnAmount": 12000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0035"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0036",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 65000,
+          "id": "OPA-PERF-ORD-0036",
+          "orderCode": "PERF-ORD-0036",
+          "receivableAmount": 100000,
+          "returnAmount": 0,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0036"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0037",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 70000,
+          "id": "OPA-PERF-ORD-0037",
+          "orderCode": "PERF-ORD-0037",
+          "receivableAmount": 110000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0037"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0038",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 80000,
+          "id": "OPA-PERF-ORD-0038",
+          "orderCode": "PERF-ORD-0038",
+          "receivableAmount": 120000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0038"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0039",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 90000,
+          "id": "OPA-PERF-ORD-0039",
+          "orderCode": "PERF-ORD-0039",
+          "receivableAmount": 130000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0039"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0040",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 100000,
+          "id": "OPA-PERF-ORD-0040",
+          "orderCode": "PERF-ORD-0040",
+          "receivableAmount": 140000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0040"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0041",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 60000,
+          "id": "OPA-PERF-ORD-0041",
+          "orderCode": "PERF-ORD-0041",
+          "receivableAmount": 100000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 2,
+          "stale": false
+        },
+        "orderCode": "PERF-ORD-0041"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0043",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 80000,
+          "id": "OPA-PERF-ORD-0043",
+          "orderCode": "PERF-ORD-0043",
+          "receivableAmount": 120000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0043"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0044",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 90000,
+          "id": "OPA-PERF-ORD-0044",
+          "orderCode": "PERF-ORD-0044",
+          "receivableAmount": 130000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0044"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0045",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 100000,
+          "id": "OPA-PERF-ORD-0045",
+          "orderCode": "PERF-ORD-0045",
+          "receivableAmount": 140000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0045"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0046",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 60000,
+          "id": "OPA-PERF-ORD-0046",
+          "orderCode": "PERF-ORD-0046",
+          "receivableAmount": 100000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0046"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0047",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 70000,
+          "id": "OPA-PERF-ORD-0047",
+          "orderCode": "PERF-ORD-0047",
+          "receivableAmount": 110000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 2
+        },
+        "orderCode": "PERF-ORD-0047"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0048",
+          "bankAmount": 0,
+          "cashAmount": 0,
+          "debtAmount": 120000,
+          "id": "OPA-PERF-ORD-0048",
+          "orderCode": "PERF-ORD-0048",
+          "receivableAmount": 120000,
+          "returnAmount": 0,
+          "rewardAmount": 0,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0048"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0049",
+          "bankAmount": 10000,
+          "cashAmount": 0,
+          "debtAmount": 110000,
+          "id": "OPA-PERF-ORD-0049",
+          "orderCode": "PERF-ORD-0049",
+          "receivableAmount": 130000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0049"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0050",
+          "bankAmount": 0,
+          "cashAmount": 20000,
+          "debtAmount": 110000,
+          "id": "OPA-PERF-ORD-0050",
+          "orderCode": "PERF-ORD-0050",
+          "receivableAmount": 140000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0050"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0051",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 65000,
+          "id": "OPA-PERF-ORD-0051",
+          "orderCode": "PERF-ORD-0051",
+          "receivableAmount": 100000,
+          "returnAmount": 5000,
+          "rewardAmount": 0,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0051"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0052",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 70000,
+          "id": "OPA-PERF-ORD-0052",
+          "orderCode": "PERF-ORD-0052",
+          "receivableAmount": 110000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0052"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0053",
+          "bankAmount": 10000,
+          "cashAmount": -5000,
+          "debtAmount": 105000,
+          "id": "OPA-PERF-ORD-0053",
+          "orderCode": "PERF-ORD-0053",
+          "receivableAmount": 120000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 2,
+          "stale": false
+        },
+        "orderCode": "PERF-ORD-0053"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0054",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 90000,
+          "id": "OPA-PERF-ORD-0054",
+          "orderCode": "PERF-ORD-0054",
+          "receivableAmount": 130000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0054"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0055",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 100000,
+          "id": "OPA-PERF-ORD-0055",
+          "orderCode": "PERF-ORD-0055",
+          "receivableAmount": 140000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0055"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0056",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 53000,
+          "id": "OPA-PERF-ORD-0056",
+          "orderCode": "PERF-ORD-0056",
+          "receivableAmount": 100000,
+          "returnAmount": 12000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0056"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0057",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 75000,
+          "id": "OPA-PERF-ORD-0057",
+          "orderCode": "PERF-ORD-0057",
+          "receivableAmount": 110000,
+          "returnAmount": 0,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0057"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0058",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 80000,
+          "id": "OPA-PERF-ORD-0058",
+          "orderCode": "PERF-ORD-0058",
+          "receivableAmount": 120000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0058"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0059",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 90000,
+          "id": "OPA-PERF-ORD-0059",
+          "orderCode": "PERF-ORD-0059",
+          "receivableAmount": 130000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0059"
+      },
+      {
+        "allocation": {
+          "allocationCode": "OPA-PERF-ORD-0060",
+          "bankAmount": 10000,
+          "cashAmount": 20000,
+          "debtAmount": 100000,
+          "id": "OPA-PERF-ORD-0060",
+          "orderCode": "PERF-ORD-0060",
+          "receivableAmount": 140000,
+          "returnAmount": 5000,
+          "rewardAmount": 5000,
+          "sourceVersion": 3
+        },
+        "orderCode": "PERF-ORD-0060"
+      }
+    ],
+    "returnState": [
+      {
+        "orderCode": "PERF-ORD-0001",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0001-1",
+            "orderCode": "PERF-ORD-0001",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0002",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0002-1",
+            "orderCode": "PERF-ORD-0002",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0003",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0003-1",
+            "orderCode": "PERF-ORD-0003",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0004",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0004-1",
+            "orderCode": "PERF-ORD-0004",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0005",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0005-1",
+            "orderCode": "PERF-ORD-0005",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0006",
+        "returns": []
+      },
+      {
+        "orderCode": "PERF-ORD-0007",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0007-1",
+            "orderCode": "PERF-ORD-0007",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0008",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0008-1",
+            "orderCode": "PERF-ORD-0008",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0009",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0009-1",
+            "orderCode": "PERF-ORD-0009",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0010",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0010-1",
+            "orderCode": "PERF-ORD-0010",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          },
+          {
+            "id": "RET-PERF-ORD-0010-1",
+            "orderCode": "PERF-ORD-0010",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0011",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0011-1",
+            "orderCode": "PERF-ORD-0011",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0012",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0012-1",
+            "orderCode": "PERF-ORD-0012",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0013",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0013-1",
+            "orderCode": "PERF-ORD-0013",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0014",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0014-1",
+            "orderCode": "PERF-ORD-0014",
+            "status": "warehouse_received",
+            "totalReturnAmount": 12000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0015",
+        "returns": []
+      },
+      {
+        "orderCode": "PERF-ORD-0016",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0016-1",
+            "orderCode": "PERF-ORD-0016",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0017",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0017-1",
+            "orderCode": "PERF-ORD-0017",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0018",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0018-1",
+            "orderCode": "PERF-ORD-0018",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0019",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0019-1",
+            "orderCode": "PERF-ORD-0019",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0020",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0020-1",
+            "orderCode": "PERF-ORD-0020",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0022",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0022-1",
+            "orderCode": "PERF-ORD-0022",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0023",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0023-1",
+            "orderCode": "PERF-ORD-0023",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0024",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0024-1",
+            "orderCode": "PERF-ORD-0024",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0025",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0025-1",
+            "orderCode": "PERF-ORD-0025",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0026",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0026-1",
+            "orderCode": "PERF-ORD-0026",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0027",
+        "returns": []
+      },
+      {
+        "orderCode": "PERF-ORD-0028",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0028-1",
+            "orderCode": "PERF-ORD-0028",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0029",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0029-1",
+            "orderCode": "PERF-ORD-0029",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0030",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0030-1",
+            "orderCode": "PERF-ORD-0030",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0031",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0031-1",
+            "orderCode": "PERF-ORD-0031",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          },
+          {
+            "id": "RET-PERF-ORD-0031-1",
+            "orderCode": "PERF-ORD-0031",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0032",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0032-1",
+            "orderCode": "PERF-ORD-0032",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0033",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0033-1",
+            "orderCode": "PERF-ORD-0033",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0034",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0034-1",
+            "orderCode": "PERF-ORD-0034",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0035",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0035-1",
+            "orderCode": "PERF-ORD-0035",
+            "status": "warehouse_received",
+            "totalReturnAmount": 12000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0036",
+        "returns": []
+      },
+      {
+        "orderCode": "PERF-ORD-0037",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0037-1",
+            "orderCode": "PERF-ORD-0037",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0038",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0038-1",
+            "orderCode": "PERF-ORD-0038",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0039",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0039-1",
+            "orderCode": "PERF-ORD-0039",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0040",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0040-1",
+            "orderCode": "PERF-ORD-0040",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0041",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0041-1",
+            "orderCode": "PERF-ORD-0041",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0043",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0043-1",
+            "orderCode": "PERF-ORD-0043",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0044",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0044-1",
+            "orderCode": "PERF-ORD-0044",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0045",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0045-1",
+            "orderCode": "PERF-ORD-0045",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0046",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0046-1",
+            "orderCode": "PERF-ORD-0046",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0047",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0047-1",
+            "orderCode": "PERF-ORD-0047",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0048",
+        "returns": []
+      },
+      {
+        "orderCode": "PERF-ORD-0049",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0049-1",
+            "orderCode": "PERF-ORD-0049",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0050",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0050-1",
+            "orderCode": "PERF-ORD-0050",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0051",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0051-1",
+            "orderCode": "PERF-ORD-0051",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0052",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0052-1",
+            "orderCode": "PERF-ORD-0052",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          },
+          {
+            "id": "RET-PERF-ORD-0052-1",
+            "orderCode": "PERF-ORD-0052",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0053",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0053-1",
+            "orderCode": "PERF-ORD-0053",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0054",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0054-1",
+            "orderCode": "PERF-ORD-0054",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0055",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0055-1",
+            "orderCode": "PERF-ORD-0055",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0056",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0056-1",
+            "orderCode": "PERF-ORD-0056",
+            "status": "warehouse_received",
+            "totalReturnAmount": 12000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0057",
+        "returns": []
+      },
+      {
+        "orderCode": "PERF-ORD-0058",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0058-1",
+            "orderCode": "PERF-ORD-0058",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0059",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0059-1",
+            "orderCode": "PERF-ORD-0059",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      },
+      {
+        "orderCode": "PERF-ORD-0060",
+        "returns": [
+          {
+            "id": "RET-PERF-ORD-0060-1",
+            "orderCode": "PERF-ORD-0060",
+            "status": "warehouse_received",
+            "totalReturnAmount": 5000
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "application": "MK-Pro",
+  "promptId": "PERF-A6",
+  "generatedAt": "2026-08-06T14:08:02+07:00",
+  "inputRelease": {
+    "name": "MK-pro-performance-release-candidate.zip",
+    "sha256": "c1670933d271d64762c679d3ac81419e92134564b7d8e0ab74edb260ea14b018",
+    "releaseId": "PERF-A5-RC1",
+    "sourceSha256": "457a2355a4913d2a0f0f45040f88eada557b920491d130590107de4ba1166fb0",
+    "a5Statuses": [
+      "ENGINEERING_VERIFIED",
+      "PRODUCTION_PERFORMANCE_PENDING"
+    ]
+  },
+  "finalStatus": "INSUFFICIENT_SAMPLE",
+  "productionPerformancePass": false,
+  "productionCorrectnessPass": false,
+  "rollbackRequired": false,
+  "optimizationEnablementBlocked": true,
+  "releaseDecision": "Telemetry-only baseline capture is permissible with optimization flags OFF; production performance approval is withheld.",
+  "evidenceInventory": {
+    "releaseCandidate": true,
+    "a5Manifest": true,
+    "a5TestEvidence": true,
+    "a5FinancialParity": true,
+    "telemetryContract": true,
+    "historicalBaselinePartial": true,
+    "baselineProductionTelemetryLogs": false,
+    "canaryTelemetryLogs": false,
+    "featureFlagSnapshotAtMeasurement": false,
+    "indexAuditOutput": false,
+    "error5xxLogs": false,
+    "productionCorrectnessAudit": false
+  },
+  "endpointStatuses": {
+    "bulkCommit": "INSUFFICIENT_SAMPLE",
+    "deliveryOrders": "INSUFFICIENT_SAMPLE",
+    "suggestions": "INSUFFICIENT_SAMPLE",
+    "dashboardSalesStaff": "INSUFFICIENT_SAMPLE",
+    "dashboardDeliverySummary": "INSUFFICIENT_SAMPLE",
+    "reportCenter": "INSUFFICIENT_SAMPLE"
+  },
+  "featureFlagSummary": {
+    "telemetry": "KEEP_ON",
+    "optimizationFlags": "KEEP_OFF",
+    "bulkConcurrency": 1,
+    "uniqueIndex": "PENDING_AUDIT_APPLY_VERIFY"
+  },
+  "staticVerification": {
+    "telemetryContractTests": "3/3 PASS",
+    "telemetrySourceSyntax": "PASS",
+    "classification": "E1_ONLY_NOT_E3"
+  },
+  "sourceModifiedByA6": false,
+  "outputs": {
+    "PERF_A6_BASELINE_CANARY_COMPARISON.csv": {
+      "sha256": "af0ecf8e2b60a1695d8413433cfbcf100c7d19b8d899233bc83ac00ce13a076c",
+      "bytes": 5841
+    },
+    "PERF_A6_CORRECTNESS_AUDIT.json": {
+      "sha256": "35aefd2de9467c497fcb61aebcd8827add8f98e39e4d29131d654e037e473183",
+      "bytes": 2185
+    },
+    "PERF_A6_FEATURE_FLAG_DECISION.json": {
+      "sha256": "2c67934f55f6b55884aad1dd38ca607582206c189333fded9353fb9ad0595078",
+      "bytes": 6986
+    },
+    "PERF_A6_PERFORMANCE_CONTRACT_RESULT.json": {
+      "sha256": "84b717baf9c47db80737a020168d5612b058ee634bada73572d4b239ce7a2ff8",
+      "bytes": 3229
+    },
+    "PERF_A6_PRODUCTION_VERIFICATION_REPORT.md": {
+      "sha256": "cd9656b2fd61467ea2eae3bf597eacc1dc0a2df4dccf3e5b403a2b3b2b9e6351",
+      "bytes": 5329
+    },
+    "PERF_A6_STATIC_TELEMETRY_CONTRACT.log": {
+      "sha256": "be8a0cbe98cae97b4ecdf4f0a8962e82072db482bf8588533c12ea54af0f6c11",
+      "bytes": 844
+    },
+    "PERF_A6_STATIC_TELEMETRY_SYNTAX.log": {
+      "sha256": "a9b5730383b40338f02039dc2269c0e8d9613286227c7e4b31b9be4a69eb4f4c",
+      "bytes": 113
+    },
+    "PERF_A6_FINAL_RELEASE_MANIFEST.json": {
+      "sha256": null,
+      "bytes": null,
+      "note": "Self-hash intentionally omitted to avoid recursive manifest mutation."
+    }
+  }
+}

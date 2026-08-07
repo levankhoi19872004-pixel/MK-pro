@@ -8,7 +8,7 @@ const BackgroundJobSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['import_preview', 'import_commit', 'export_excel', 'reconciliation']
+    enum: ['import_preview', 'import_commit', 'export_excel', 'report_export_excel', 'reconciliation']
   },
   status: {
     type: String,

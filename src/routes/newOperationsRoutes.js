@@ -75,6 +75,7 @@ router.get('/delivery-today/orders', requireAuth, readRoles, async (req, res) =>
       data: result,
       rows: result.rows,
       orders: result.orders,
+      pagination: result.pagination || null,
       summary: result.summary,
       diagnostics: result.diagnostics,
       sourceNote: result.sourceNote || buildApiSourceNote('delivery-today-orders', req),

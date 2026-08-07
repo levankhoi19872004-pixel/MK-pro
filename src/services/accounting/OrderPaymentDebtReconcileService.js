@@ -441,6 +441,10 @@ async function reconcileOneOrder({
   refCode = '',
   idempotencyKey: forcedIdempotencyKey = '',
   existingArLedgerByIdempotencyKey = null,
+  prefetchedArBalanceDetails = null,
+  prefetchedArBalanceResolved = false,
+  prefetchedIdempotencyLedger = null,
+  prefetchedIdempotencyResolved = false,
   note = '',
   reason = '',
   accountingBatchId = '',
@@ -459,15 +463,25 @@ async function reconcileOneOrder({
     : computeExpectedDebtFromAllocation(effectiveAllocation, { zeroTolerance });
   const normalizedTolerance = normalizeZeroTolerance(zeroTolerance, DEFAULT_ZERO_TOLERANCE);
   const identityInput = { order, allocation: effectiveAllocation };
-  let balanceDetails = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.initialBalance', () => getCurrentOrderArBalanceDetails(
-    identityInput,
-    customerCodeOf(effectiveAllocation, order),
-    { session }
-  ));
+  let balanceDetails = prefetchedArBalanceResolved
+    ? prefetchedArBalanceDetails
+    : await closeoutQueryAudit.withCloseoutAuditStage('order.debt.initialBalance', () => getCurrentOrderArBalanceDetails(
+      identityInput,
+      customerCodeOf(effectiveAllocation, order),
+      { session }
+    ));
+  if (!balanceDetails || typeof balanceDetails !== 'object' || !Number.isFinite(Number(balanceDetails.currentArBalance))) {
+    const err = new Error('Initial AR batch context không đầy đủ hoặc không hợp lệ.');
+    err.code = 'BULK_BATCH_AR_CONTEXT_INVALID';
+    err.status = 409;
+    throw err;
+  }
   let currentArBalance = money(balanceDetails.currentArBalance);
   let deltaDebt = money(expected.expectedDebtAmount - currentArBalance);
   const idempotencyKey = clean(forcedIdempotencyKey || debtAdjustmentIdempotencyKey(effectiveAllocation, expected.expectedDebtAmount));
-  const existing = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.initialIdempotency', () => findActiveDebtAdjustmentByKey(idempotencyKey, { session, existingArLedgerByIdempotencyKey }));
+  const existing = prefetchedIdempotencyResolved
+    ? prefetchedIdempotencyLedger
+    : await closeoutQueryAudit.withCloseoutAuditStage('order.debt.initialIdempotency', () => findActiveDebtAdjustmentByKey(idempotencyKey, { session, existingArLedgerByIdempotencyKey }));
 
   const buildDiagnostic = (action, skipReason = '', suggestedFix = '') => diagnosticFromReconcile({
     order,
@@ -629,7 +643,9 @@ async function reconcileOneOrder({
     }, diagnosticLogger);
   }
 
-  const existingBeforePost = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.prePostIdempotency', () => findActiveDebtAdjustmentByKey(idempotencyKey, { session, existingArLedgerByIdempotencyKey }));
+  // Always re-read idempotency immediately before the write. A request-scoped
+  // batch context is valid for initial planning only and must never replace this guard.
+  const existingBeforePost = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.prePostIdempotency', () => findActiveDebtAdjustmentByKey(idempotencyKey, { session }));
   if (existingBeforePost) {
     return emitReconcileDiagnostic({
       needsAdjustment: false,

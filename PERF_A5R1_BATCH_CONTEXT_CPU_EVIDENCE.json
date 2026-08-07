@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-08-06T16:21:22.681004+07:00",
+  "red": {
+    "pattern": "rows.filter per order",
+    "orders": 100,
+    "historyRows": 1000,
+    "upperBoundPredicateComparisons": 100000
+  },
+  "green": {
+    "strategy": "buildRowsByRef + rowsForOrder",
+    "candidateRowsVisited": 1000,
+    "complexity": "O(M + matched candidates)"
+  },
+  "parity": "covered by full PERF regression 158/158",
+  "status": "PASS_E1_E2"
+}

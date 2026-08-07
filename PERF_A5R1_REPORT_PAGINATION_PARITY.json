@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-08-06T16:21:22.681004+07:00",
+  "status": "PASS_WITH_LIMITATIONS",
+  "domainParity": {
+    "inventory": "UNCHANGED_ENGINEERING_BASELINE",
+    "delivery": "UNCHANGED_ENGINEERING_BASELINE",
+    "return": "UNCHANGED_ENGINEERING_BASELINE",
+    "sales": "PASS",
+    "debt": "PASS",
+    "fund": "PASS"
+  },
+  "optimizedAllowlistDefault": [],
+  "blockedReports": [
+    "inventory-current",
+    "inventory-movement",
+    "delivery-trips",
+    "returns-detail"
+  ],
+  "rule": "Blocked reports remain legacy because allowlist default is empty."
+}

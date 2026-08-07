@@ -16,6 +16,7 @@ module.exports = strictModel('DashboardDailyStat', 'dashboardDailyStats', {
   staff: { type: Mixed, default: () => ({ sales: [], delivery: [] }) },
   dataQuality: { type: Mixed, default: {} },
   source: { type: String, default: 'rebuild' },
+  sourceVersion: { type: String, default: '' },
   generatedAt: { type: String, default: '' },
   updatedAt: { type: String, default: '' }
 });

@@ -1,0 +1,20 @@
+{
+  "requirementId": "A5R2-REQ-003",
+  "states": [
+    "IDLE",
+    "OPEN",
+    "CLOSING",
+    "CLOSED"
+  ],
+  "red": {
+    "reproduced": true,
+    "r1ClosedWindowAcceptedEndpoint": "/api/after-close"
+  },
+  "green": {
+    "postCloseBeginMeasurement": null,
+    "inFlightBeforeCloseCompletesInOriginalWindow": true,
+    "activeWindowClearedAtomically": true,
+    "sampleCountStableAfterClosed": true,
+    "status": "PASS"
+  }
+}

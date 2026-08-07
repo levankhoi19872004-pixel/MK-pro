@@ -1,0 +1,162 @@
+{
+  "promptId": "PERF-A3B",
+  "title": "Suggestions Search Optimization",
+  "gate": "PASS_WITH_DEFERRED_RUNTIME",
+  "evidence": {
+    "E1": "PASS",
+    "E2": "PASS",
+    "E3": "DEFERRED_TO_PERF_A6"
+  },
+  "input": {
+    "file": "MK-pro-perf-a3a-delivery-orders-fixed.zip",
+    "sha256": "fb68991248c32603420aa31a5146b9836d8ddb7a1545e5b39bb7bec7fb689e19"
+  },
+  "sourceTreeSha256BeforePackagingArtifacts": "ec25c9eca366ed5f6f1f67911e519929ae6d515375a747b5bde9b4424f72a12e",
+  "featureFlag": {
+    "name": "PERF_SUGGESTIONS_SEARCH_V1",
+    "default": "0",
+    "optimized": "1"
+  },
+  "productionState": {
+    "normalizedBackfillApplied": false,
+    "indexesAppliedOrVerified": false,
+    "productionP95Claimed": false,
+    "productionDataModified": false
+  },
+  "acceptance": {
+    "searchRelevance": true,
+    "scopeSecurity": true,
+    "logicalWorkReduction": true,
+    "frontendDebounceAbortDedup": true,
+    "regexInjectionAndReDoSGuard": true,
+    "legacyFallback": true
+  },
+  "tests": {
+    "redFirst": {
+      "pass": 1,
+      "expectedFail": 1
+    },
+    "a3bGreen": {
+      "pass": 27,
+      "fail": 0
+    },
+    "fullPerfRegression": {
+      "pass": 100,
+      "fail": 0
+    },
+    "targetedRegression": {
+      "pass": 23,
+      "fail": 0
+    },
+    "syntax": {
+      "files": 1632,
+      "status": "PASS"
+    },
+    "notRunDependency": [
+      "mongoose",
+      "terser"
+    ]
+  },
+  "changedFiles": {
+    "added": [
+      "scripts/performance/perf-a3b/backfill-delivery-suggestion-search-fields.js",
+      "scripts/performance/perf-a3b/run-suggestions-repro.js",
+      "src/services/delivery/DeliverySuggestionSearchService.js",
+      "src/services/delivery/deliverySuggestionSearchContract.js",
+      "test/performance/perf-a3b/fake-suggestion-repository.js",
+      "test/performance/perf-a3b/fixture-factory.js",
+      "test/performance/perf-a3b/legacy-search-simulator.js",
+      "test/performance/perf-a3b/perf-a3b-frontend-control.test.js",
+      "test/performance/perf-a3b/perf-a3b-production-contract.test.js",
+      "test/performance/perf-a3b/perf-a3b-red-search.test.js",
+      "test/performance/perf-a3b/perf-a3b-scope-security.test.js",
+      "test/performance/perf-a3b/perf-a3b-search-relevance.test.js",
+      "test/performance/perf-a3b/perf-a3b-staff-suggestions.test.js"
+    ],
+    "modified": [
+      "ENVIRONMENT_VARIABLES.md",
+      "package.json",
+      "public/js/app/new/91-delivery-today-new.js",
+      "src/models/SalesOrder.js",
+      "src/services/mongoIndexService.js",
+      "src/services/v2/deliveryTodayNew.service.js"
+    ],
+    "deleted": [],
+    "counts": {
+      "added": 13,
+      "modified": 6,
+      "deleted": 0
+    }
+  },
+  "artifacts": [
+    {
+      "file": "PERF_A3B_SUGGESTIONS_REPORT.md",
+      "sha256": "7bdfc319e05b74f123ea76a2f33c1516d5781657208db8946a0d96fce4876c9f",
+      "sizeBytes": 7648
+    },
+    {
+      "file": "PERF_A3B_SEARCH_RELEVANCE_EVIDENCE.json",
+      "sha256": "a4ad863a39cfa796269409b52741af032e376ddde878c6bcbb0965dced76981a",
+      "sizeBytes": 18392
+    },
+    {
+      "file": "PERF_A3B_SCOPE_SECURITY_EVIDENCE.json",
+      "sha256": "ffdab74080b0101626f68509a423821a180d49db7c0549a811bf6300044a68ab",
+      "sizeBytes": 471
+    },
+    {
+      "file": "PERF_A3B_LOGICAL_WORK_COMPARISON.json",
+      "sha256": "abb602d0cebdd0e5078e5820632a0ba180fb9818b079e3c40c8bbb4c74507966",
+      "sizeBytes": 1126
+    },
+    {
+      "file": "PERF_A3B_CHANGED_FILES.json",
+      "sha256": "407b5f734f852b22144313d6545126c106eb9363fe2c70f6181ea43f792b9983",
+      "sizeBytes": 1200
+    },
+    {
+      "file": "PERF_A3B_RED_FIRST.log",
+      "sha256": "28fe871410d8f76db1d5d6676a5012d740ab9300973611fdc0faa8d40e808d76",
+      "sizeBytes": 1407
+    },
+    {
+      "file": "PERF_A3B_GREEN_TEST.log",
+      "sha256": "f0340f2fc1c16041c8c70f9d630e01f97e594e67849ae5a895bc1d4c4e1de924",
+      "sizeBytes": 5547
+    },
+    {
+      "file": "PERF_A3B_FULL_PERF_REGRESSION.log",
+      "sha256": "9b1de6cff93bc6940687e05a9e01c4da91d540aa4bbc546de35044bf8820a421",
+      "sizeBytes": 21153
+    },
+    {
+      "file": "PERF_A3B_TARGETED_REGRESSION.log",
+      "sha256": "1bec44f0eafeec8d5df626f19c3d6c565fb3a28ff2beb025045c46f15c08c3ca",
+      "sizeBytes": 5574
+    },
+    {
+      "file": "PERF_A3B_SYNTAX.log",
+      "sha256": "16772c0ca470f8a0bdb3345d0d2845fc0f48ab9c0824a4f80ae58eb7a22a435d",
+      "sizeBytes": 32
+    },
+    {
+      "file": "PERF_A3B_OFFLINE_RUN.log",
+      "sha256": "3946d01bc240cc6bfa633fecc5195395e271681c9888be7ede26b8928b4b139b",
+      "sizeBytes": 838
+    },
+    {
+      "file": "PERF_A3B_DEPENDENCY_NOT_RUN.log",
+      "sha256": "0177ba45115b834ce74da0fe15da6e64a3c26893b2803b81724304244098927a",
+      "sizeBytes": 595
+    },
+    {
+      "file": "PERF_A3B_SOURCE_BUNDLE_CHECK.log",
+      "sha256": "e02fcec64f3b5a199f5ebd1d550f41fd886f3f8d22bfe03563bcb470c8cab98d",
+      "sizeBytes": 979
+    }
+  ],
+  "releaseZip": {
+    "file": "MK-pro-perf-a3b-suggestions-fixed.zip",
+    "sha256EvidenceFile": "MK-pro-perf-a3b-suggestions-fixed.zip.sha256"
+  }
+}

@@ -3,6 +3,7 @@
 const SalesOrder = require('../../models/SalesOrder');
 const Product = require('../../models/Product');
 const User = require('../../models/User');
+const QueryExecution = require('./ReportQueryExecutionContext');
 const { STAFF_ROLES } = require('../../constants/business.constants');
 const arLedgerReadService = require('../arLedgerRead.service');
 const {
@@ -83,8 +84,8 @@ function activeSalesStaffUserFilter() {
   };
 }
 
-async function loadActiveSalesStaff() {
-  const users = await User.find(activeSalesStaffUserFilter()).select({
+async function loadActiveSalesStaff(context = {}) {
+  let usersQuery = User.find(activeSalesStaffUserFilter()).select({
     username: 1,
     fullName: 1,
     name: 1,
@@ -168,8 +169,8 @@ function buildSalesmanReportRows(rows = [], activeSalesStaff = []) {
   })).sort((a, b) => b.actualAmount - a.actualAmount || text(a.salesmanName || a.salesmanCode).localeCompare(text(b.salesmanName || b.salesmanCode), 'vi'));
 }
 
-async function loadProductMap() {
-  const products = await Product.find({})
+async function loadProductMap(context = {}) {
+  let productsQuery = Product.find({})
     .select('id code productCode sku name productName salePrice price sellPrice giaBan brand category baseUnit unit')
     .lean();
   const map = new Map();
@@ -289,14 +290,16 @@ function valueOrder(order = {}, productMap = new Map()) {
   };
 }
 
-async function loadConfirmedOrders(query = {}) {
+async function loadConfirmedOrders(query = {}, context = QueryExecution.contextOf(query)) {
   const { dateFrom, dateTo } = dateRange(query);
-  const rows = await SalesOrder.aggregate([
+  let aggregate = SalesOrder.aggregate([
     { $match: activeDocumentFilter() },
     { $match: accountingConfirmedFilter() },
     ...businessDateStages(dateFrom, dateTo, ['date', 'orderDate', 'documentDate'], '_reportBusinessDate'),
     { $sort: { _reportBusinessDate: 1, updatedAt: 1, createdAt: 1, _id: 1 } }
-  ]).allowDiskUse(true).exec();
+  ]).allowDiskUse(true);
+  aggregate = QueryExecution.applyAggregate(aggregate, context);
+  const rows = await aggregate.exec();
   const deduplicated = deduplicateDocuments(rows, 'sales');
   return {
     rows: deduplicated.rows.filter((row) => textMatches(row, query.q || query.search || query.keyword)),
@@ -306,10 +309,10 @@ async function loadConfirmedOrders(query = {}) {
   };
 }
 
-async function loadArByOrders(orders = []) {
+async function loadArByOrders(orders = [], context = {}) {
   const keys = Array.from(new Set(orders.flatMap(orderIdentityValues)));
   if (!keys.length) return new Map();
-  const ledgers = await arLedgerReadService.getCanonicalLedgersByOrderKeys(keys, { status: 'all' });
+  const ledgers = await arLedgerReadService.getCanonicalLedgersByOrderKeys(keys, { status: 'all', signal: context.signal, maxTimeMS: context.maxTimeMS });
 
   const keyToOrder = new Map();
   for (const order of orders) {
@@ -344,13 +347,77 @@ function orderCanonicalKey(order = {}) {
   return text(order._id || order.id || order.code || order.orderCode);
 }
 
-async function salesReport(query = {}) {
+
+function aggregateReportCenterRows(rows = [], mode = '') {
+  if (mode === 'sales-by-staff') return buildSalesmanReportRows(rows, []);
+  if (mode === 'sales-by-day') {
+    const map = new Map();
+    for (const row of rows) {
+      const key = row.date || 'UNKNOWN';
+      if (!map.has(key)) map.set(key, { date: row.date, orderCount: 0, customerCodes: new Set(), beforePromoAmount: 0, actualAmount: 0, promotionValue: 0, receiptAmount: 0, returnAmount: 0, debtAmount: 0 });
+      const target = map.get(key);
+      target.orderCount += 1;
+      if (row.customerCode || row.customerName) target.customerCodes.add(row.customerCode || row.customerName);
+      target.beforePromoAmount += toNumber(row.beforePromoAmount);
+      target.actualAmount += toNumber(row.actualAmount);
+      target.promotionValue += toNumber(row.promotionValue);
+      target.receiptAmount += toNumber(row.receiptAmount);
+      target.returnAmount += toNumber(row.returnAmount);
+      target.debtAmount += toNumber(row.debtAmount);
+    }
+    return Array.from(map.values()).map((row) => ({ ...row, customerCount: row.customerCodes.size, customerCodes: undefined, netSalesAmount: row.actualAmount - row.returnAmount })).sort((a, b) => text(a.date).localeCompare(text(b.date)));
+  }
+  if (mode === 'sales-by-customer') {
+    const map = new Map();
+    for (const row of rows) {
+      const key = row.customerCode || row.customerName || 'UNKNOWN';
+      if (!map.has(key)) map.set(key, { customerCode: row.customerCode, customerName: row.customerName, salesStaffCode: row.salesStaffCode, salesStaffName: row.salesStaffName, orderCount: 0, beforePromoAmount: 0, actualAmount: 0, promotionValue: 0, returnAmount: 0, receiptAmount: 0, debtAmount: 0 });
+      const target = map.get(key);
+      target.orderCount += 1;
+      target.beforePromoAmount += toNumber(row.beforePromoAmount);
+      target.actualAmount += toNumber(row.actualAmount);
+      target.promotionValue += toNumber(row.promotionValue);
+      target.returnAmount += toNumber(row.returnAmount);
+      target.receiptAmount += toNumber(row.receiptAmount);
+      target.debtAmount += toNumber(row.debtAmount);
+    }
+    return Array.from(map.values()).map((row) => ({ ...row, netSalesAmount: row.actualAmount - row.returnAmount, averageOrderValue: row.orderCount > 0 ? row.actualAmount / row.orderCount : 0 })).sort((a, b) => b.netSalesAmount - a.netSalesAmount || text(a.customerName).localeCompare(text(b.customerName), 'vi'));
+  }
+  if (mode === 'sales-by-product') {
+    const map = new Map();
+    for (const order of rows) {
+      for (const item of Array.isArray(order.items) ? order.items : []) {
+        const key = item.productCode || item.productName || 'UNKNOWN';
+        if (!map.has(key)) map.set(key, { productCode: item.productCode, productName: item.productName, brand: item.brand || '', category: item.category || '', unit: item.unit || '', orderCodes: new Set(), customerCodes: new Set(), quantity: 0, beforePromoAmount: 0, actualAmount: 0, promotionDiscountAmount: 0 });
+        const target = map.get(key);
+        target.orderCodes.add(order.code || order.id);
+        if (order.customerCode || order.customerName) target.customerCodes.add(order.customerCode || order.customerName);
+        target.quantity += toNumber(item.quantity);
+        target.beforePromoAmount += toNumber(item.catalogAmount);
+        target.actualAmount += toNumber(item.actualAmount);
+        target.promotionDiscountAmount += Math.max(0, toNumber(item.catalogAmount) - toNumber(item.actualAmount));
+      }
+    }
+    return Array.from(map.values()).map((row) => ({ ...row, orderCount: row.orderCodes.size, customerCount: row.customerCodes.size, averageUnitPrice: row.quantity > 0 ? row.actualAmount / row.quantity : 0, orderCodes: undefined, customerCodes: undefined })).sort((a, b) => b.actualAmount - a.actualAmount || text(a.productName).localeCompare(text(b.productName), 'vi'));
+  }
+  return rows;
+}
+
+function reportCenterGroupSummary(rows = []) {
+  return rows.reduce((acc, row) => {
+    for (const field of ['orderCount', 'customerCount', 'quantity', 'beforePromoAmount', 'actualAmount', 'promotionValue', 'promotionDiscountAmount', 'receiptAmount', 'returnAmount', 'netSalesAmount', 'debtAmount']) acc[field] += toNumber(row[field]);
+    return acc;
+  }, { orderCount: 0, customerCount: 0, quantity: 0, beforePromoAmount: 0, actualAmount: 0, promotionValue: 0, promotionDiscountAmount: 0, receiptAmount: 0, returnAmount: 0, netSalesAmount: 0, debtAmount: 0 });
+}
+
+async function salesReport(query = {}, options = {}) {
+  const context = QueryExecution.contextOf(query, options);
   const [{ rows: orders, duplicateCount, dateFrom, dateTo }, productMap, activeSalesStaff] = await Promise.all([
-    loadConfirmedOrders(query),
-    loadProductMap(),
-    loadActiveSalesStaff()
+    loadConfirmedOrders(query, context),
+    loadProductMap(context),
+    loadActiveSalesStaff(context)
   ]);
-  const arByOrder = await loadArByOrders(orders);
+  const arByOrder = await loadArByOrders(orders, context);
   const rows = orders.map((order) => {
     const valuation = valueOrder(order, productMap);
     const ar = arByOrder.get(orderCanonicalKey(order)) || {};
@@ -435,6 +502,9 @@ async function salesReport(query = {}) {
   });
 
   const bySalesman = buildSalesmanReportRows(rows, activeSalesStaff);
+  const reportCenterMode = text(query.__reportCenterGroup);
+  const reportCenterAllRows = reportCenterMode === 'sales-by-staff' ? bySalesman : aggregateReportCenterRows(rows, reportCenterMode);
+  const reportCenterPaged = reportCenterMode ? paginate(reportCenterAllRows, query, { defaultLimit: 50, maxLimit: 200 }) : null;
 
   const paged = paginate(rows, query, { defaultLimit: 50, maxLimit: 200 });
   return {
@@ -447,6 +517,9 @@ async function salesReport(query = {}) {
     items: paged.rows,
     meta: paged.meta,
     bySalesman,
+    reportCenterRows: reportCenterPaged ? reportCenterPaged.rows : undefined,
+    reportCenterMeta: reportCenterPaged ? reportCenterPaged.meta : undefined,
+    reportCenterSummary: reportCenterPaged ? reportCenterGroupSummary(reportCenterAllRows) : undefined,
     summary
   };
 }
@@ -463,5 +536,7 @@ module.exports = {
   valueOrder,
   loadConfirmedOrders,
   loadArByOrders,
+  aggregateReportCenterRows,
+  reportCenterGroupSummary,
   salesReport
 };

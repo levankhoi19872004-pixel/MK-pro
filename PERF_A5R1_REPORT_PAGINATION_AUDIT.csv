@@ -1,0 +1,9 @@
+﻿Report code,Route/controller,Service,Classification,Pagination/materialization evidence,Remediation decision,Release default
+sales-detail,Report Center,SalesReportService,HYBRID_BOUNDED,domain grouping/page contract,Allowlist candidate after E3,OFF
+debt-ledger,Report Center,DebtReportService,HYBRID_BOUNDED,bounded domain response; aggregate semantics,Allowlist candidate after E3,OFF
+finance-ledger,Report Center,FinanceReportService,HYBRID_BOUNDED,bounded response; running balance needs range,Allowlist candidate after E3,OFF
+inventory-current,Report Center,InventoryReportService,JS_MATERIALIZED_BLOCKED,catalog/current stock assembled before page,Keep OFF; dedicated projection required,OFF
+inventory-movement,Report Center,InventoryReportService,JS_MATERIALIZED_BLOCKED,range aggregation before page,Keep OFF; read model required,OFF
+delivery-trips,Report Center,DeliveryReportService,JS_MATERIALIZED_BLOCKED,master/child range assembled before page,Keep OFF; page master identities first,OFF
+returns-detail,Report Center,ReturnReportService,JS_MATERIALIZED_BLOCKED,return + AR candidates assembled before page,Keep OFF; page return identities first,OFF
+data-quality,Report Center,DataQualitySnapshotService,DB_NATIVE_PASS,single snapshot read path,Snapshot flag remains OFF pending E3,OFF

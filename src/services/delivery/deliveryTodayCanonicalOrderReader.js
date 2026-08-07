@@ -47,7 +47,7 @@ const MASTER_ORDER_METADATA_PROJECTION = [
   '_id', 'id', 'code', 'masterOrderCode',
   'childOrderIds', 'childOrderCodes', 'orderCodes', 'salesOrderCodes',
   'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'nvghCode', 'nvghName',
-  'status', 'deliveryStatus', 'accountingStatus',
+  'status', 'deliveryStatus', 'accountingStatus', 'deliveryDate', 'deliveryDateKey',
   'updatedAt', 'createdAt', 'deleted', 'isDeleted'
 ].join(' ');
 
@@ -497,7 +497,7 @@ function normalizeCanonicalOrder(row = {}, dateFilter = null) {
   };
 }
 
-async function listSalesOrders(query = {}, models = {}, options = {}) {
+async function listSalesOrdersLegacy(query = {}, models = {}, options = {}) {
   const SalesOrder = models.SalesOrder;
   const limit = Math.max(1, Math.min(500, Number(query.limit || options.limit || 100)));
   const hasDeliveryFilter = Boolean(text(query.delivery || query.deliveryStaffCode || query.deliveryStaff || query.nvgh));
@@ -553,8 +553,363 @@ async function listSalesOrders(query = {}, models = {}, options = {}) {
   };
 }
 
+
+const DB_NATIVE_READER_VERSION = 'delivery-orders-db-native-v1';
+const MAX_PAGE = 1000;
+
+function flagEnabled(value, envName = '') {
+  if (value === true || value === false) return value;
+  const raw = envName ? process.env[envName] : value;
+  return ['1', 'true', 'yes', 'on'].includes(text(raw).toLowerCase());
+}
+
+function exactCodeRegex(value = '') {
+  const normalized = text(value);
+  return normalized ? new RegExp(`^${escapeRegExp(normalized)}$`, 'i') : null;
+}
+
+function appendCondition(match = {}, condition = null) {
+  if (!condition) return match;
+  pushAnd(match, condition);
+  return match;
+}
+
+function paginationInput(query = {}, options = {}) {
+  const limit = Math.max(1, Math.min(500, Number(query.limit || options.limit || 100) || 100));
+  const page = Math.max(1, Math.min(MAX_PAGE, Number(query.page || 1) || 1));
+  const cursor = decodeCursor(query.cursor || query.nextCursor || '');
+  const offset = cursor ? 0 : (page - 1) * limit;
+  if (!cursor && offset > 5000) {
+    const error = new Error('Offset pagination vượt giới hạn an toàn; hãy tiếp tục bằng nextCursor');
+    error.code = 'DELIVERY_KEYSET_CURSOR_REQUIRED';
+    error.statusCode = 400;
+    throw error;
+  }
+  return {
+    limit,
+    page,
+    cursor,
+    offset,
+    fetchLimit: cursor ? limit + 1 : (page * limit) + 1
+  };
+}
+
+function encodeCursor(row = {}) {
+  const payload = {
+    createdAt: text(row.createdAt || row.updatedAt),
+    identity: text(row._id || row.id || row.orderId || row.code || row.orderCode)
+  };
+  if (!payload.createdAt || !payload.identity) return '';
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+}
+
+function decodeCursor(value = '') {
+  const raw = text(value);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
+    const createdAt = text(parsed.createdAt);
+    const identity = text(parsed.identity);
+    return createdAt && identity ? { createdAt, identity } : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function buildKeysetCondition(cursor = null) {
+  if (!cursor) return null;
+  return {
+    $or: [
+      { createdAt: { $lt: cursor.createdAt } },
+      { createdAt: cursor.createdAt, _id: { $lt: cursor.identity } }
+    ]
+  };
+}
+
+function canonicalScopeInputs(query = {}) {
+  return {
+    q: text(query.q || query.search || query.keyword || query.orderCode || query.customerName),
+    dateFilter: normalizeDeliveryDateInput(query.date || query.deliveryDate),
+    salesman: text(query.salesman || query.salesStaffCode || query.salesStaff || query.nvbh),
+    delivery: text(query.delivery || query.deliveryStaffCode || query.deliveryStaff || query.nvgh),
+    customerCode: text(query.customerCode)
+  };
+}
+
+function optimizedEligibility(query = {}) {
+  const scope = canonicalScopeInputs(query);
+  if (!scope.dateFilter.selectedDateKey) return { eligible: false, reason: 'CANONICAL_DATE_KEY_REQUIRED', scope };
+  if (scope.q) return { eligible: false, reason: 'FREE_TEXT_SEARCH_REQUIRES_LEGACY_FALLBACK', scope };
+  if (!scope.salesman && !scope.delivery && !scope.customerCode) {
+    return { eligible: false, reason: 'STAFF_OR_CUSTOMER_SCOPE_REQUIRED', scope };
+  }
+  return { eligible: true, reason: '', scope };
+}
+
+function addCanonicalScope(match = {}, scope = {}) {
+  appendCondition(match, { deliveryDateKey: scope.dateFilter.selectedDateKey });
+  // Canonical fields are exact-code contracts. Equality is intentional so the
+  // compound deliveryDateKey + staff/customer indexes remain usable. Rows with
+  // non-canonical casing or aliases are still captured by the disjoint legacy
+  // branch below.
+  if (scope.salesman) appendCondition(match, { salesStaffCode: scope.salesman });
+  if (scope.delivery) appendCondition(match, { deliveryStaffCode: scope.delivery });
+  if (scope.customerCode) appendCondition(match, { customerCode: scope.customerCode });
+  return match;
+}
+
+function addLegacyScope(match = {}, scope = {}) {
+  appendCondition(match, buildCanonicalDateCondition(scope.dateFilter));
+  if (scope.salesman) {
+    const rx = exactCodeRegex(scope.salesman);
+    appendCondition(match, { $or: [
+      { salesStaffCode: rx }, { salesmanCode: rx }, { nvbhCode: rx }, { salesPersonCode: rx },
+      { 'salesStaff.code': rx }, { staffCode: rx }, { maNVBH: rx }
+    ] });
+  }
+  if (scope.delivery) {
+    const rx = exactCodeRegex(scope.delivery);
+    appendCondition(match, { $or: [
+      { deliveryStaffCode: rx }, { deliveryCode: rx }, { nvghCode: rx }, { 'deliveryStaff.code': rx }
+    ] });
+  }
+  if (scope.customerCode) appendCondition(match, { customerCode: exactCodeRegex(scope.customerCode) });
+  return match;
+}
+
+function buildOptimizedMatches(query = {}, cursor = null) {
+  const eligibility = optimizedEligibility(query);
+  if (!eligibility.eligible) return { ...eligibility, canonicalMatch: null, legacyMatch: null };
+  const canonicalScopeMatch = addCanonicalScope(activeOrderMatch(), eligibility.scope);
+  const effectiveCanonicalMatch = cursor ? addCanonicalScope(activeOrderMatch(), eligibility.scope) : canonicalScopeMatch;
+  appendCondition(effectiveCanonicalMatch, buildKeysetCondition(cursor));
+  const legacyMatch = addLegacyScope(activeOrderMatch(), eligibility.scope);
+  appendCondition(legacyMatch, { $nor: [canonicalScopeMatch] });
+  appendCondition(legacyMatch, buildKeysetCondition(cursor));
+  return { ...eligibility, canonicalMatch: effectiveCanonicalMatch, legacyMatch };
+}
+
+function stableOrderIdentity(row = {}) {
+  return text(row._id || row.id || row.orderId || row.code || row.orderCode || row.salesOrderCode);
+}
+
+function stableOrderCompare(left = {}, right = {}) {
+  const leftDate = canonicalDeliveryDateKey(left);
+  const rightDate = canonicalDeliveryDateKey(right);
+  if (leftDate !== rightDate) return rightDate.localeCompare(leftDate);
+  const leftCreated = text(left.createdAt || left.updatedAt);
+  const rightCreated = text(right.createdAt || right.updatedAt);
+  if (leftCreated !== rightCreated) return rightCreated.localeCompare(leftCreated);
+  return stableOrderIdentity(right).localeCompare(stableOrderIdentity(left));
+}
+
+function dedupeOrders(rows = []) {
+  const seen = new Set();
+  const result = [];
+  for (const row of rows || []) {
+    const keys = orderKeys(row).map(canonicalKey);
+    const identity = keys[0] || canonicalKey(stableOrderIdentity(row));
+    if (!identity || keys.some((key) => seen.has(key))) continue;
+    keys.forEach((key) => seen.add(key));
+    seen.add(identity);
+    result.push(row);
+  }
+  return result;
+}
+
+function applySortAndBound(query, fetchLimit, session) {
+  let q = applyProjection(query, SALES_ORDER_HOT_PATH_PROJECTION);
+  q = applySortLimit(q, { createdAt: -1, _id: -1 }, fetchLimit, session);
+  return q;
+}
+
+async function loadOrderBranch(SalesOrder, match, fetchLimit, session) {
+  if (!SalesOrder || typeof SalesOrder.find !== 'function' || !match) return [];
+  return executeLean(applySortAndBound(SalesOrder.find(match), fetchLimit, session));
+}
+
+function buildDeliveryMasterMatch(delivery = '') {
+  const rx = exactCodeRegex(delivery);
+  if (!rx) return null;
+  const match = {
+    deleted: { $ne: true },
+    isDeleted: { $ne: true },
+    status: { $nin: Array.from(INACTIVE_MASTER_STATUSES) },
+    deliveryStatus: { $nin: Array.from(INACTIVE_MASTER_STATUSES) },
+    accountingStatus: { $nin: Array.from(INACTIVE_MASTER_STATUSES) }
+  };
+  appendCondition(match, { $or: [
+    { deliveryStaffCode: rx }, { deliveryCode: rx }, { nvghCode: rx }, { 'deliveryStaff.code': rx }
+  ] });
+  return match;
+}
+
+async function loadMasterScopedOrderBranch(query = {}, models = {}, scope = {}, fetchLimit = 101, options = {}) {
+  const MasterOrder = models.MasterOrder;
+  const SalesOrder = models.SalesOrder;
+  if (!scope.delivery || !MasterOrder || typeof MasterOrder.find !== 'function') {
+    return { rows: [], masterRows: [], queryCount: 0 };
+  }
+  const masterMatch = buildDeliveryMasterMatch(scope.delivery);
+  let masterQuery = MasterOrder.find(masterMatch);
+  masterQuery = applyProjection(masterQuery, MASTER_ORDER_METADATA_PROJECTION);
+  masterQuery = applySortLimit(masterQuery, { updatedAt: -1, createdAt: -1, _id: -1 }, 5000, options.session);
+  const masterRows = (await executeLean(masterQuery)) || [];
+  if (masterRows.length >= 5000) {
+    const error = new Error('Master-order delivery scope vượt giới hạn an toàn 5000');
+    error.code = 'DELIVERY_MASTER_SCOPE_LIMIT_EXCEEDED';
+    throw error;
+  }
+  const childKeys = compactKeys(masterRows.flatMap(masterChildKeys));
+  const masterIds = compactKeys(masterRows.flatMap(masterIdentityKeys));
+  if (!childKeys.length && !masterIds.length) return { rows: [], masterRows, queryCount: 1 };
+  const match = activeOrderMatch();
+  appendCondition(match, buildCanonicalDateCondition(scope.dateFilter));
+  appendCondition(match, { $or: [
+    { id: { $in: childKeys } }, { code: { $in: childKeys } }, { orderCode: { $in: childKeys } },
+    { salesOrderCode: { $in: childKeys } }, { masterOrderId: { $in: masterIds } }, { masterOrderCode: { $in: masterIds } }
+  ] });
+  appendCondition(match, buildKeysetCondition(options.cursor));
+  const rows = await loadOrderBranch(SalesOrder, match, fetchLimit, options.session);
+  return { rows, masterRows, queryCount: 1 + (rows.length || childKeys.length || masterIds.length ? 1 : 0) };
+}
+
+function mergeMasterMetadataRows(orders = [], preloadedMasters = [], loadedMetadata = null) {
+  const allMasters = uniqueMasters([...(preloadedMasters || []), ...((loadedMetadata && loadedMetadata.masterRows) || [])]);
+  const indexes = buildMasterBindingIndexes(allMasters);
+  const metadataByOrderKey = new Map();
+  for (const order of orders) {
+    const binding = resolveMasterBindingForOrder(order, indexes);
+    for (const key of orderKeys(order)) metadataByOrderKey.set(key, binding);
+  }
+  return { metadataByOrderKey, masterRows: allMasters };
+}
+
+async function listSalesOrdersDbNative(query = {}, models = {}, options = {}) {
+  const paging = paginationInput(query, options);
+  const matchSet = buildOptimizedMatches(query, paging.cursor);
+  if (!matchSet.eligible) {
+    const fallback = await listSalesOrdersLegacy(query, models, options);
+    fallback.diagnostics = {
+      ...(fallback.diagnostics || {}),
+      readerMode: 'legacy-fallback',
+      featureFlag: 'PERF_DELIVERY_CANONICAL_FILTER_V1',
+      featureFlagEnabled: true,
+      legacyFallback: true,
+      legacyFallbackReason: matchSet.reason,
+      telemetry: { event: 'delivery_orders_legacy_fallback', reason: matchSet.reason }
+    };
+    return fallback;
+  }
+
+  const SalesOrder = models.SalesOrder;
+  const branchStartedAt = Date.now();
+  const [canonicalRows, legacyRows, masterScoped] = await Promise.all([
+    loadOrderBranch(SalesOrder, matchSet.canonicalMatch, paging.fetchLimit, options.session),
+    loadOrderBranch(SalesOrder, matchSet.legacyMatch, paging.fetchLimit, options.session),
+    loadMasterScopedOrderBranch(query, models, matchSet.scope, paging.fetchLimit, { ...options, cursor: paging.cursor })
+  ]);
+
+  const dateFilter = matchSet.scope.dateFilter;
+  const normalized = dedupeOrders([...canonicalRows, ...legacyRows, ...(masterScoped.rows || [])])
+    .map((row) => normalizeCanonicalOrder(row, dateFilter));
+  const dateFiltered = normalized.filter((row) => row.dateFilterMatched);
+  const metadataLoaded = await loadMasterOrderMetadata(dateFiltered, models, options);
+  const metadata = mergeMasterMetadataRows(dateFiltered, masterScoped.masterRows, metadataLoaded);
+  const enriched = dateFiltered
+    .map((row) => enrichOrderWithMasterMetadata(row, metadataForOrder(row, metadata.metadataByOrderKey)))
+    .filter((row) => deliveryMatches(row, query))
+    .sort(stableOrderCompare);
+  const start = paging.offset;
+  const visible = enriched.slice(start, start + paging.limit);
+  const hasMore = enriched.length > start + paging.limit
+    || canonicalRows.length >= paging.fetchLimit
+    || legacyRows.length >= paging.fetchLimit
+    || (masterScoped.rows || []).length >= paging.fetchLimit;
+  const last = visible[visible.length - 1] || null;
+  const nextCursor = hasMore && last ? encodeCursor(last) : '';
+  const rowsProcessed = canonicalRows.length + legacyRows.length + (masterScoped.rows || []).length;
+  const dateDiagnostics = buildDateFilterDiagnostics(query.date || query.deliveryDate);
+  return {
+    orders: visible,
+    pagination: {
+      page: paging.page,
+      limit: paging.limit,
+      returned: visible.length,
+      totalRows: null,
+      totalPages: null,
+      hasMore,
+      nextCursor: nextCursor || null,
+      mode: paging.cursor ? 'keyset' : (paging.page > 1 ? 'bounded-offset' : 'keyset-ready')
+    },
+    diagnostics: {
+      reader: 'deliveryTodayCanonicalOrderReader',
+      readerVersion: DB_NATIVE_READER_VERSION,
+      readerMode: 'db-native',
+      featureFlag: 'PERF_DELIVERY_CANONICAL_FILTER_V1',
+      featureFlagEnabled: true,
+      legacyFallback: legacyRows.length > 0 || (masterScoped.rows || []).length > 0,
+      legacyFallbackReason: legacyRows.length || (masterScoped.rows || []).length ? 'LEGACY_ROWS_MERGED' : '',
+      primarySource: 'orders',
+      orderSource: 'orders',
+      masterOrdersRole: 'metadata-only',
+      canonicalFilterContract: {
+        canonicalIdentity: 'orders id/code/orderCode/salesOrderCode',
+        businessDateKey: 'deliveryDateKey',
+        salesStaffCode: 'salesStaffCode',
+        deliveryStaffCode: 'deliveryStaffCode',
+        customerCode: 'customerCode',
+        statusEligibility: 'existing deletion guards; legacy statuses preserved for parity'
+      },
+      queryCount: 2 + Number(masterScoped.queryCount || 0) + (metadataLoaded.queryExecuted ? 1 : 0),
+      canonicalQueryCount: 1,
+      legacyQueryCount: 1,
+      canonicalRowsRead: canonicalRows.length,
+      legacyRowsRead: legacyRows.length,
+      masterScopedRowsRead: (masterScoped.rows || []).length,
+      rowsProcessed,
+      rawOrderCount: rowsProcessed,
+      dateFilteredOrderCount: dateFiltered.length,
+      returnedOrderCount: visible.length,
+      limit: paging.limit,
+      dbLimit: paging.fetchLimit,
+      paginationAppliedBeforeFinancialReads: true,
+      stableSort: { deliveryDateKey: -1, createdAt: -1, canonicalIdentity: -1 },
+      durationMs: Math.max(0, Date.now() - branchStartedAt),
+      masterMetadataRows: metadata.masterRows.length,
+      masterMetadataAppliedCount: enriched.filter((row) => row._masterOrdersMetadataApplied).length,
+      dateFilter: dateDiagnostics,
+      warnings: legacyRows.length || (masterScoped.rows || []).length ? ['LEGACY_DELIVERY_ORDER_FALLBACK_MERGED'] : [],
+      telemetry: {
+        event: 'delivery_orders_db_native_read',
+        canonicalRows: canonicalRows.length,
+        legacyRows: legacyRows.length,
+        masterScopedRows: (masterScoped.rows || []).length
+      }
+    }
+  };
+}
+
+async function listSalesOrders(query = {}, models = {}, options = {}) {
+  const enabled = flagEnabled(options.deliveryCanonicalFilterV1, 'PERF_DELIVERY_CANONICAL_FILTER_V1');
+  if (!enabled) {
+    const result = await listSalesOrdersLegacy(query, models, options);
+    result.diagnostics = {
+      ...(result.diagnostics || {}),
+      readerMode: 'legacy',
+      featureFlag: 'PERF_DELIVERY_CANONICAL_FILTER_V1',
+      featureFlagEnabled: false,
+      legacyFallback: false
+    };
+    return result;
+  }
+  return listSalesOrdersDbNative(query, models, options);
+}
+
 module.exports = {
   listSalesOrders,
+  listSalesOrdersLegacy,
+  listSalesOrdersDbNative,
   buildCanonicalSalesOrderMatch,
   buildMasterMetadataLookupFilter,
   loadMasterOrderMetadata,
@@ -572,5 +927,12 @@ module.exports = {
   deliveryMatches,
   normalizeDeliveryDateInput,
   buildCanonicalDateCondition,
-  canonicalDeliveryDateKey
+  canonicalDeliveryDateKey,
+  normalizeCanonicalOrder,
+  dedupeOrders,
+  buildOptimizedMatches,
+  optimizedEligibility,
+  stableOrderCompare,
+  encodeCursor,
+  decodeCursor
 };

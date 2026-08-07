@@ -3,6 +3,7 @@
 const Identity = require('./financial/deliveryFinancialIdentity');
 const Money = require('./financial/deliveryMoneyContract');
 const ReturnStateReader = require('./financial/deliveryReturnStateReader');
+const LatestStateBatchReader = require('./DeliveryFinancialLatestStateBatchReader');
 
 const FINANCIAL_CONTRACT_VERSION = 'delivery-financial-v1';
 const DEFAULT_MAX_ORDERS = 1000;
@@ -187,6 +188,27 @@ function applyTenantFilter(filter = {}, tenantIds = []) {
   return filter;
 }
 
+function dbNativeLatestStateEnabled(options = {}, model = null) {
+  const explicit = options.dbNativeLatestState;
+  const enabled = explicit === true || (explicit !== false && ['1', 'true', 'yes', 'on'].includes(text(process.env.PERF_DELIVERY_CANONICAL_FILTER_V1).toLowerCase()));
+  return enabled && model && typeof model.aggregate === 'function';
+}
+
+function effectiveVersionsForOrders(orders = [], versionsByKey = new Map()) {
+  const map = new Map();
+  for (const order of orders || []) {
+    const resolution = latestVersionResolution(order, versionsByKey);
+    const effectiveVersion = Number(resolution.maxVersion || versionNumber(resolution.row || {}, VERSION_NUMBER_FIELDS) || 0);
+    if (!effectiveVersion) continue;
+    for (const raw of Identity.rawIdentityValues(order)) map.set(raw, effectiveVersion);
+    for (const entry of Identity.typedIdentityEntries(order)) {
+      map.set(entry.key, effectiveVersion);
+      map.set(entry.value, effectiveVersion);
+    }
+  }
+  return map;
+}
+
 function assertCandidateCap(rows = [], options = {}, label = 'payment') {
   const max = Number.isFinite(Number(options.maxPaymentCandidates))
     ? Number(options.maxPaymentCandidates)
@@ -220,6 +242,16 @@ async function loadLatestVersionsForOrders(orders = [], options = {}) {
       { originalCloseoutCode: { $in: ids } }
     ]
   }, tenantIds);
+  if (dbNativeLatestStateEnabled(options, DeliveryCloseoutVersion)) {
+    const rows = await LatestStateBatchReader.loadLatestVersionRows(DeliveryCloseoutVersion, match, {
+      ...options,
+      projection: CLOSEOUT_VERSION_HOT_PATH_PROJECTION
+    });
+    const map = populateCompatibilityMap(rows || [], VERSION_NUMBER_FIELDS);
+    Object.defineProperty(map, '_dbNativeLatestState', { enumerable: false, value: true });
+    Object.defineProperty(map, '_candidateRowsRead', { enumerable: false, value: (rows || []).length });
+    return map;
+  }
   let query = DeliveryCloseoutVersion.find(match);
   query = applyProjection(query, CLOSEOUT_VERSION_HOT_PATH_PROJECTION);
   if (query && typeof query.sort === 'function') {
@@ -291,6 +323,19 @@ async function loadAllocationsForOrders(orders = [], options = {}) {
       { sourceCode: { $in: ids } }
     ]
   }, tenantIds);
+  if (dbNativeLatestStateEnabled(options, OrderPaymentAllocation) && options.effectiveVersionsByIdentity instanceof Map) {
+    const rows = await LatestStateBatchReader.loadAllocationRows(
+      OrderPaymentAllocation,
+      filter,
+      orders,
+      options.effectiveVersionsByIdentity,
+      { ...options, projection: PAYMENT_ALLOCATION_HOT_PATH_PROJECTION }
+    );
+    const map = populateCompatibilityMap(rows || [], ALLOCATION_VERSION_FIELDS);
+    Object.defineProperty(map, '_dbNativeLatestState', { enumerable: false, value: true });
+    Object.defineProperty(map, '_candidateRowsRead', { enumerable: false, value: (rows || []).length });
+    return map;
+  }
   let query = OrderPaymentAllocation.find(filter);
   query = applyProjection(query, PAYMENT_ALLOCATION_HOT_PATH_PROJECTION);
   if (query && typeof query.sort === 'function') {
@@ -601,13 +646,29 @@ async function resolvePaymentStatesForOrders(orders = [], options = {}) {
   // endpoint integration in Gate 3 must opt in explicitly so writer-adjacent readers
   // do not gain an unexpected returnOrders query or change behavior in this gate.
   const includeReturnState = options.includeReturnState === true;
-  const [versionsByKey, allocationsByKey, returnResult] = await Promise.all([
-    loadLatestVersionsForOrders(orders, sharedOptions),
-    loadAllocationsForOrders(orders, sharedOptions),
-    includeReturnState
-      ? ReturnStateReader.loadCanonicalReturnStatesForOrders(orders, sharedOptions)
-      : Promise.resolve(ReturnStateReader.buildReturnStatesForOrders(orders, [], sharedOptions))
-  ]);
+  let versionsByKey;
+  let allocationsByKey;
+  let returnResult;
+  if (options.dbNativeLatestState === true) {
+    [versionsByKey, returnResult] = await Promise.all([
+      loadLatestVersionsForOrders(orders, sharedOptions),
+      includeReturnState
+        ? ReturnStateReader.loadCanonicalReturnStatesForOrders(orders, sharedOptions)
+        : Promise.resolve(ReturnStateReader.buildReturnStatesForOrders(orders, [], sharedOptions))
+    ]);
+    allocationsByKey = await loadAllocationsForOrders(orders, {
+      ...sharedOptions,
+      effectiveVersionsByIdentity: effectiveVersionsForOrders(orders, versionsByKey)
+    });
+  } else {
+    [versionsByKey, allocationsByKey, returnResult] = await Promise.all([
+      loadLatestVersionsForOrders(orders, sharedOptions),
+      loadAllocationsForOrders(orders, sharedOptions),
+      includeReturnState
+        ? ReturnStateReader.loadCanonicalReturnStatesForOrders(orders, sharedOptions)
+        : Promise.resolve(ReturnStateReader.buildReturnStatesForOrders(orders, [], sharedOptions))
+    ]);
+  }
 
   const states = orders.map((order) => buildCanonicalDeliveryFinancialState(order, {
     versionsByKey,
@@ -721,6 +782,9 @@ module.exports = {
     stateIdentityKeys,
     Money,
     Identity,
-    ReturnStateReader
+    ReturnStateReader,
+    LatestStateBatchReader,
+    effectiveVersionsForOrders,
+    dbNativeLatestStateEnabled
   }
 };

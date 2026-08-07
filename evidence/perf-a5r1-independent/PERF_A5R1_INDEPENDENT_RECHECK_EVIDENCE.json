@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-06T16:39:06+07:00",
+  "input": {
+    "name": "MK-pro-performance-release-candidate-r1(1).zip",
+    "sha256": "7cc8882d4a802b0aa580cc752b2c10a08936ff86a001f6ddfa4510fc6f584a1e",
+    "zipEntries": 2309,
+    "uncompressedBytes": 20196404,
+    "unsafePathCount": 0
+  },
+  "independentCommands": [
+    {
+      "command": "node --test test/performance/**/*.test.js",
+      "exitCode": 0,
+      "result": "158/158 PASS"
+    },
+    {
+      "command": "node scripts/check-js-syntax.js",
+      "exitCode": 0,
+      "result": "1659/1659 PASS"
+    },
+    {
+      "command": "node scripts/check-package-lock-registry.js",
+      "exitCode": 0,
+      "result": "PASS"
+    },
+    {
+      "command": "npm run check:source-bundles",
+      "exitCode": 1,
+      "status": "NOT_RUN_ENVIRONMENT",
+      "reason": "missing terser"
+    },
+    {
+      "command": "npm run test:artifact-clean",
+      "exitCode": 1,
+      "status": "NOT_RUN_ENVIRONMENT",
+      "reason": "missing jszip"
+    },
+    {
+      "command": "npm run check:source-size",
+      "exitCode": 1,
+      "status": "FAIL"
+    },
+    {
+      "command": "npm run check:path-portability",
+      "exitCode": 1,
+      "status": "FAIL"
+    },
+    {
+      "command": "npm run check:release-manifest",
+      "exitCode": 1,
+      "status": "FAIL",
+      "reason": "RELEASE_MANIFEST_STALE: sourceSha256, sourceFileCount"
+    }
+  ],
+  "manifestIntegrity": {
+    "actualFileCount": 2309,
+    "a5r1ManifestFileCount": 2308,
+    "actualTreeSha256": "caab2a5a8a466eef80a1f83c6eb618f5e6b670c74967c76894c53b8b2c3bae3c",
+    "a5r1ManifestTreeSha256": "7ad8e40ea0250e06e99092c7d24ed281bf316e42a4112230048b07303dbde0eb",
+    "status": "FAIL"
+  },
+  "artifactCompleteness": {
+    "declared": 78,
+    "presentAtCanonicalRoot": 53,
+    "missingAtCanonicalRoot": 25,
+    "status": "FAIL"
+  },
+  "reproducedDefects": [
+    {
+      "id": "R1-TELEMETRY-OFF",
+      "expected": "PERF_TELEMETRY_ENABLED=0 prevents measurements",
+      "actual": {
+        "recordCount": 1,
+        "exportCount": 1
+      },
+      "status": "FAIL"
+    },
+    {
+      "id": "R1-WINDOW-CLOSE",
+      "expected": "closed window receives no new measurements",
+      "actual": {
+        "newRecordsAfterCloseInClosedWindow": 1
+      },
+      "status": "FAIL"
+    },
+    {
+      "id": "R1-REPORT-CANCELLATION",
+      "expected": "real report services receive AbortSignal and maxTimeMS",
+      "actual": "real descriptors use run: () => service(...) and ignore signal; report services do not propagate maxTimeMS",
+      "status": "FAIL"
+    }
+  ],
+  "correctnessE1E2": {
+    "performanceTests": "PASS",
+    "syntax": "PASS",
+    "financialParity": "PRESERVED"
+  },
+  "finalStatus": "BLOCKED_ENGINEERING",
+  "nextGate": "PERF-A5R2"
+}

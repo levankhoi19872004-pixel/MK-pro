@@ -12,6 +12,7 @@ const { publicReleaseSummary, internalReleaseSummary } = require('../operations/
 const { getRuntimeConfig, publicConfigSummary } = require('../config/app.config');
 const performanceTelemetry = require('../observability/performanceTelemetry');
 const performanceObservation = require('../observability/performanceObservation');
+const performanceMeasurementStore = require('../observability/performanceMeasurementStore');
 const { getActiveScheduledJobSnapshot } = require('../jobs/scheduledJobOrchestrator');
 
 performanceObservation.setProviders({
@@ -251,6 +252,17 @@ async function resetPerformanceBaseline() {
   };
 }
 
+
+async function startPerformanceMeasurementWindow(options = {}) {
+  return { ok: true, data: performanceMeasurementStore.startWindow(options.label || 'manual') };
+}
+async function closePerformanceMeasurementWindow() {
+  return { ok: true, data: performanceMeasurementStore.closeWindow() };
+}
+async function exportPerformanceMeasurementWindow(windowId) {
+  return { ok: true, data: performanceMeasurementStore.exportWindow(windowId) };
+}
+
 async function detailedStatus() {
   const [ready, heartbeats, jobs] = await Promise.all([
     readiness({ refresh: true }),
@@ -300,6 +312,9 @@ module.exports = {
   performanceObservationStatus,
   performanceObservationExport,
   performanceOptimizationCandidates,
+  startPerformanceMeasurementWindow,
+  closePerformanceMeasurementWindow,
+  exportPerformanceMeasurementWindow,
   publicReleaseSummary,
   internalReleaseSummary,
   _private: { checkTempStorage, evaluateWorkerDependency }

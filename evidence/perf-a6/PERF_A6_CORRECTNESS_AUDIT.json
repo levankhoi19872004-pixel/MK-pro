@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "promptId": "PERF-A6",
+  "generatedAt": "2026-08-06T14:08:02+07:00",
+  "releaseSha256": "c1670933d271d64762c679d3ac81419e92134564b7d8e0ab74edb260ea14b018",
+  "finalStatus": "INSUFFICIENT_SAMPLE",
+  "engineeringEvidence": {
+    "source": "PERF_A5_FINANCIAL_PARITY.json",
+    "status": "PASS_ENGINEERING_E1_E2",
+    "allRequiredLocksPass": true,
+    "debtDeviation": 0,
+    "duplicateLedgerApplicationTests": 0,
+    "returnParityPercent": 100,
+    "allocationCurrentVersionParityPercent": 100,
+    "scopeIsolation": true,
+    "transactionFailureIsolation": true,
+    "idempotentRetry": true
+  },
+  "productionAudit": {
+    "debtDeviation": {
+      "status": "NOT_VERIFIED",
+      "required": 0,
+      "actual": null
+    },
+    "duplicateLedger": {
+      "status": "NOT_VERIFIED",
+      "required": 0,
+      "actual": null
+    },
+    "uniqueIndex": {
+      "name": "uniq_arledger_idempotency_key_v1",
+      "status": "PENDING_PRODUCTION_APPLY_OR_VERIFY"
+    },
+    "missingOrdersOrCustomers": {
+      "status": "NOT_VERIFIED"
+    },
+    "staffScopeLeak": {
+      "status": "NOT_VERIFIED"
+    },
+    "readModelStale": {
+      "status": "NOT_VERIFIED"
+    },
+    "transactionAbortRetry": {
+      "status": "NOT_VERIFIED"
+    },
+    "5xxIncrease": {
+      "status": "NOT_VERIFIED"
+    }
+  },
+  "rollbackEvaluation": {
+    "rollbackRequiredNow": false,
+    "reason": "No canary/deployment evidence was supplied; no runtime correctness failure can be confirmed or excluded.",
+    "optimizationEnablementBlocked": true,
+    "immediateRollbackConditions": {
+      "debtDeviationNonZero": "NOT_EVALUABLE_NO_RUNTIME_DATA",
+      "duplicateLedgerPositive": "NOT_EVALUABLE_NO_RUNTIME_DATA",
+      "5xxIncrease": "NOT_EVALUABLE_NO_RUNTIME_DATA",
+      "missingOrdersOrCustomers": "NOT_EVALUABLE_NO_RUNTIME_DATA",
+      "staffScopeLeak": "NOT_EVALUABLE_NO_RUNTIME_DATA",
+      "p95Regression": "NOT_EVALUABLE_NO_RUNTIME_DATA",
+      "uncontrolledDbLoad": "NOT_EVALUABLE_NO_RUNTIME_DATA",
+      "staleReadModel": "NOT_EVALUABLE_NO_RUNTIME_DATA"
+    }
+  },
+  "decision": "Keep all optimization flags OFF and concurrency=1 until production correctness evidence is collected."
+}

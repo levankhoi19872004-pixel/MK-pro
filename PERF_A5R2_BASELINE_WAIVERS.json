@@ -1,0 +1,105 @@
+{
+  "generatedAt": "2026-08-07T06:57:45+07:00",
+  "status": "PASS_WITH_BASELINE_WAIVER",
+  "sourceSize": [
+    {
+      "path": "src/services/returnOrderLegacy.service.js",
+      "currentBytes": 49719,
+      "thresholdBytes": 49152,
+      "classification": "PRE_EXISTING_LEGACY",
+      "owner": "Legacy return module",
+      "expiryGate": "Future codebase modernization"
+    },
+    {
+      "path": "src/engines/delivery.legacy.engine.js",
+      "currentBytes": 68638,
+      "thresholdBytes": 40960,
+      "classification": "PRE_EXISTING_LEGACY",
+      "owner": "Legacy delivery engine",
+      "expiryGate": "Legacy engine retirement"
+    },
+    {
+      "path": "public/mobile/js/delivery-mobile-view.js",
+      "currentBytes": 68323,
+      "thresholdBytes": 65536,
+      "classification": "GENERATED_BUNDLE_BASELINE",
+      "owner": "Frontend bundle governance",
+      "expiryGate": "Source bundle modernization"
+    },
+    {
+      "path": "public/mobile/js/delivery-mobile-view.source.js",
+      "currentBytes": 80411,
+      "thresholdBytes": 77824,
+      "classification": "PRE_EXISTING_SOURCE_BUNDLE",
+      "owner": "Frontend bundle governance",
+      "expiryGate": "Source bundle modernization"
+    },
+    {
+      "path": "public/mobile/js/delivery-mobile-view.js.map",
+      "currentBytes": 131406,
+      "thresholdBytes": 131072,
+      "classification": "GENERATED_MAP_BASELINE",
+      "owner": "Frontend bundle governance",
+      "expiryGate": "Source bundle modernization"
+    },
+    {
+      "path": "src/engines/delivery.legacy.engine.source/part-01.jsfrag",
+      "currentBytes": 24699,
+      "thresholdBytes": 24576,
+      "classification": "PRE_EXISTING_SOURCE_FRAGMENT",
+      "owner": "Legacy delivery engine",
+      "expiryGate": "Legacy engine retirement"
+    },
+    {
+      "path": "src/engines/delivery.legacy.engine.source/part-02.jsfrag",
+      "currentBytes": 28705,
+      "thresholdBytes": 24576,
+      "classification": "PRE_EXISTING_SOURCE_FRAGMENT",
+      "owner": "Legacy delivery engine",
+      "expiryGate": "Legacy engine retirement"
+    }
+  ],
+  "pathPortability": [
+    {
+      "path": "test/import-promotion-commit-progress-static.test.js",
+      "require": "../core/importRow.util",
+      "classification": "STATIC_FIXTURE_STRING_FALSE_POSITIVE"
+    },
+    {
+      "path": "test/import-promotion-util-boundary-static.test.js",
+      "require": "../core/importRow.util",
+      "classification": "STATIC_FIXTURE_STRING_FALSE_POSITIVE"
+    },
+    {
+      "path": "test/order-data-lineage-static.test.js",
+      "require": "./accounting/arDebtRuntimeView.service",
+      "classification": "STATIC_FIXTURE_STRING_FALSE_POSITIVE"
+    },
+    {
+      "path": "test/phase255c-scheduler-ownership-readiness-governance.test.js",
+      "require": "./jobs/reconciliationJob",
+      "classification": "STATIC_FIXTURE_STRING_FALSE_POSITIVE"
+    },
+    {
+      "path": "test/phase255c-scheduler-ownership-readiness-governance.test.js",
+      "require": "./jobs/outboxJob",
+      "classification": "STATIC_FIXTURE_STRING_FALSE_POSITIVE"
+    },
+    {
+      "path": "test/phase255c-scheduler-ownership-readiness-governance.test.js",
+      "require": "./jobs/integrationJob",
+      "classification": "STATIC_FIXTURE_STRING_FALSE_POSITIVE"
+    },
+    {
+      "path": "test/phase255c-scheduler-ownership-readiness-governance.test.js",
+      "require": "./jobs/reportingProjectionJob",
+      "classification": "STATIC_FIXTURE_STRING_FALSE_POSITIVE"
+    },
+    {
+      "path": "test/phase255c-scheduler-ownership-readiness-governance.test.js",
+      "require": "./services/outbox/registerDefaultHandlers",
+      "classification": "STATIC_FIXTURE_STRING_FALSE_POSITIVE"
+    }
+  ],
+  "risk": "Waivers do not claim these quality gates are clean; optimization flags remain OFF."
+}

@@ -1,0 +1,214 @@
+{
+  "schemaVersion": 1,
+  "promptId": "PERF-A6",
+  "generatedAt": "2026-08-06T14:08:02+07:00",
+  "releaseSha256": "c1670933d271d64762c679d3ac81419e92134564b7d8e0ab74edb260ea14b018",
+  "finalStatus": "INSUFFICIENT_SAMPLE",
+  "currentMeasuredFlagState": "NOT_PROVIDED",
+  "decisions": [
+    {
+      "flag": "PERF_TELEMETRY_ENABLED",
+      "default": "true",
+      "module": "Global performance/API telemetry",
+      "dependency": "None; process-local metrics",
+      "rollback": "Set false only if telemetry overhead causes incident",
+      "productionEnableOrder": 0,
+      "a6Role": "Keep enabled to collect p50/p95/p99, DB query count, rows, 5xx and process metrics",
+      "a6Decision": "KEEP_ON",
+      "a6Reason": "Required to collect A6 baseline/canary evidence."
+    },
+    {
+      "flag": "PERF_BULK_BATCH_CONTEXT_V1",
+      "default": "0",
+      "module": "Bulk adjustment context",
+      "dependency": "A2A parity PASS; AR read boundary PASS",
+      "rollback": "Set 0 to use legacy per-order context",
+      "productionEnableOrder": 1,
+      "a6Decision": "KEEP_OFF",
+      "a6Reason": "No canary telemetry for this release/flag state."
+    },
+    {
+      "flag": "PERF_BULK_CONCURRENCY",
+      "default": "1",
+      "module": "Bulk transaction orchestration",
+      "dependency": "Batch context complete; DB unique guard verified before >1",
+      "rollback": "Set 1 immediately",
+      "productionEnableOrder": 8,
+      "allowedCanary": [
+        2,
+        3
+      ],
+      "restriction": "Do not use >3; do not enable >1 before PERF-A6 E3",
+      "a6Decision": "KEEP_AT_1",
+      "a6Reason": "Unique DB guard and production correctness/latency evidence not verified."
+    },
+    {
+      "flag": "PERF_BULK_TRANSIENT_RETRY_LIMIT",
+      "default": "1",
+      "module": "Transient transaction retry",
+      "dependency": "Idempotency application guard",
+      "rollback": "Set 0",
+      "productionEnableOrder": 8,
+      "max": 2,
+      "a6Decision": "KEEP_AT_1",
+      "a6Reason": "Do not change retry behavior without canary transaction evidence."
+    },
+    {
+      "flag": "PERF_DELIVERY_CANONICAL_FILTER_V1",
+      "default": "0",
+      "module": "Delivery orders DB-native reader",
+      "dependency": "Desired indexes verified; legacy fallback telemetry",
+      "rollback": "Set 0",
+      "productionEnableOrder": 3,
+      "a6Decision": "KEEP_OFF",
+      "a6Reason": "No canary telemetry for this release/flag state."
+    },
+    {
+      "flag": "PERF_SUGGESTIONS_SEARCH_V1",
+      "default": "0",
+      "module": "Normalized suggestions search",
+      "dependency": "Backfill coverage and indexes verified; fallback rate observed",
+      "rollback": "Set 0",
+      "productionEnableOrder": 4,
+      "a6Decision": "KEEP_OFF",
+      "a6Reason": "No canary telemetry for this release/flag state."
+    },
+    {
+      "flag": "PERF_DASHBOARD_READ_MODEL_V2",
+      "default": "0",
+      "module": "Dashboard read model completeness",
+      "dependency": "Read model repaired/complete on real DB",
+      "rollback": "Set 0 for live/read-model legacy behavior",
+      "productionEnableOrder": 5,
+      "a6Decision": "KEEP_OFF",
+      "a6Reason": "No canary telemetry for this release/flag state."
+    },
+    {
+      "flag": "PERF_DASHBOARD_CACHE_V2",
+      "default": "0",
+      "module": "Dashboard tagged cache",
+      "dependency": "Read model V2 or verified live fallback; mutation invalidation",
+      "rollback": "Set 0 and restart processes to clear local cache",
+      "productionEnableOrder": 6,
+      "a6Decision": "KEEP_OFF",
+      "a6Reason": "No canary telemetry for this release/flag state."
+    },
+    {
+      "flag": "PERF_REPORT_DB_PAGINATION_V1",
+      "default": "0",
+      "module": "Report preview/background export",
+      "dependency": "Report parity PASS; worker operational readiness",
+      "rollback": "Set 0",
+      "productionEnableOrder": 7,
+      "a6Decision": "KEEP_OFF",
+      "a6Reason": "No canary telemetry for this release/flag state."
+    },
+    {
+      "flag": "PERF_REPORT_CENTER_SNAPSHOT_V1",
+      "default": "0",
+      "module": "Data-quality snapshot read path",
+      "dependency": "Snapshot rebuilt and freshness verified",
+      "rollback": "Set 0",
+      "productionEnableOrder": 7,
+      "a6Decision": "KEEP_OFF",
+      "a6Reason": "No canary telemetry for this release/flag state."
+    },
+    {
+      "flag": "DB_INDEX:uniq_arledger_idempotency_key_v1",
+      "default": "PENDING_PRODUCTION_APPLY",
+      "module": "AR database uniqueness",
+      "dependency": "Duplicate audit clean; explicit approved apply",
+      "rollback": "Approved manual rollback only; never auto-drop",
+      "productionEnableOrder": 2,
+      "autoApply": false,
+      "a6Decision": "PENDING_APPROVED_AUDIT_APPLY_VERIFY",
+      "a6Reason": "No production duplicate audit/index verification supplied; never auto-apply."
+    }
+  ],
+  "canaryEnableOrder": [
+    {
+      "step": 0,
+      "action": "Telemetry ON, optimization flags OFF",
+      "state": "READY_FOR_RUNTIME_CAPTURE",
+      "conditions": [
+        "Deploy/confirm exact release SHA",
+        "Export per-instance telemetry",
+        "Record flag snapshot"
+      ]
+    },
+    {
+      "step": 1,
+      "action": "Batch context ON, concurrency 1",
+      "state": "HOLD",
+      "conditions": [
+        "Baseline captured",
+        "Correctness audit clean",
+        "5xx not increased"
+      ]
+    },
+    {
+      "step": 2,
+      "action": "Apply/verify unique AR idempotency index",
+      "state": "HOLD",
+      "conditions": [
+        "Duplicate audit clean",
+        "Approved maintenance window",
+        "Post-apply verification"
+      ]
+    },
+    {
+      "step": 3,
+      "action": "Delivery orders optimized reader ON",
+      "state": "HOLD",
+      "conditions": [
+        "Index explain verified",
+        "No missing orders/scope leak"
+      ]
+    },
+    {
+      "step": 4,
+      "action": "Suggestions optimized search ON",
+      "state": "HOLD",
+      "conditions": [
+        "Normalized coverage/index verified",
+        "Fallback rate observed"
+      ]
+    },
+    {
+      "step": 5,
+      "action": "Dashboard read model/cache ON",
+      "state": "HOLD",
+      "conditions": [
+        "Completeness/repair verified",
+        "Mode-separated latency samples"
+      ]
+    },
+    {
+      "step": 6,
+      "action": "Report pagination/snapshot ON",
+      "state": "HOLD",
+      "conditions": [
+        "Snapshot fresh",
+        "Worker/admission capacity verified"
+      ]
+    },
+    {
+      "step": 7,
+      "action": "Concurrency 2",
+      "state": "HOLD",
+      "conditions": [
+        "Unique DB guard verified",
+        "Bulk 16/26/60 correctness and 5xx clean"
+      ]
+    },
+    {
+      "step": 8,
+      "action": "Concurrency 3",
+      "state": "DO_NOT_ENABLE",
+      "conditions": [
+        "Additional evidence after stable concurrency 2 canary"
+      ]
+    }
+  ],
+  "rollbackRule": "Any correctness failure triggers immediate rollback without waiting for more samples."
+}

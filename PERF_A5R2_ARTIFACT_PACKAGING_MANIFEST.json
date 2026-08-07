@@ -1,0 +1,196 @@
+{
+  "generatedAt": "2026-08-07T06:57:45+07:00",
+  "artifacts": [
+    {
+      "relativePath": "evidence/perf-a1a/PERF_A1A_BASELINE_AUDIT.md",
+      "size": 15610,
+      "sha256": "eb71dd83b7de067e079440c71f395424e2c2af0387a9c86f9fcb8c0d16ff335c",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a1a/PERF_A1A_BASELINE_MANIFEST.json",
+      "size": 6614,
+      "sha256": "59503974be8e540405f1b508b64d0d8affc5f661ecb14008b2471bbdbfcf7d81",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a1a/PERF_A1A_QUERY_INVENTORY.csv",
+      "size": 19766,
+      "sha256": "97d0a75697d3954822d7181258fe2f3c8489bb43bf45787d8d308db1b4aa7ab5",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a1a/PERF_A1A_REQUIREMENT_MATRIX.json",
+      "size": 20305,
+      "sha256": "aeee37af38701c50a42d5e6fe72e444a39a082a3e5e24e40ba9c565c4ae0b659",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a1a/PERF_A1A_SOURCE_MAP.md",
+      "size": 12191,
+      "sha256": "f275f1215df895a0ddce3e5ed9fdd8e310957ee65515af1d8e8a7d7f3a6922c8",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a3a/PERF_A3A_CHANGED_FILES.json",
+      "size": 3713,
+      "sha256": "98811e38225ee13a92b31c78191de813a8427a831a94ad2a705ae9bab21ea090",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a3a/PERF_A3A_DELIVERY_ORDERS_REPORT.md",
+      "size": 5454,
+      "sha256": "38d6479e8928abdec9590bb811a89685935da562d1772422f1de4981f3e3d326",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a3a/PERF_A3A_LOGICAL_WORK_COMPARISON.json",
+      "size": 3605,
+      "sha256": "60eb84b8f75667451333c7f36cd080caa2a7b777476149b479bf881c5aeb732c",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a3a/PERF_A3A_MANIFEST.json",
+      "size": 4540,
+      "sha256": "ba77533de93911307cf79d216af6b7b898e624889aea99dcaa889d421510415a",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a3a/PERF_A3A_OFFLINE_RUN.json",
+      "size": 5122,
+      "sha256": "3a0c807cbe99f27ee8f5e6fdb00a621f79fd00b5d4bfdcc74165d91d7b65a539",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a3a/PERF_A3A_PACKAGED_FULL_REGRESSION.log",
+      "size": 15711,
+      "sha256": "d7e39475ff8acdffd4f6dca74af592db902f274c272c365fbb2a7ebe6ae5e8d9",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a3a/PERF_A3A_PACKAGED_GREEN_TEST.log",
+      "size": 4705,
+      "sha256": "392986bd209a7d23a75069fa7bf2b149ae2b6c6a8cdc547ce74e1aa5cfd7136a",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a3a/PERF_A3A_PACKAGED_OFFLINE_RUN.log",
+      "size": 5123,
+      "sha256": "f27e0578556d367f7213766237b7e21dd72a884677c4c2fc40c56d46c2b112d2",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a3a/PERF_A3A_PACKAGED_SYNTAX.log",
+      "size": 32,
+      "sha256": "09d46e1739670a8348c54fe910427a268c0480015a1703cbf4d6fd3f64c78133",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a3a/PERF_A3A_PACKAGED_VERIFICATION.log",
+      "size": 68,
+      "sha256": "bcc9426744dbb4541f48cf7d1cad2ba136e1725bee22445b8553a87b85cb16da",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a3a/PERF_A3A_PAGINATION_EVIDENCE.json",
+      "size": 1776,
+      "sha256": "e8e0c8422b7678a2dc3353479110b6018879b49ce1772be68e5b5db504fee580",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a3a/PERF_A3A_READER_PARITY.json",
+      "size": 2413,
+      "sha256": "b662aee93e48977c9f5c119bdd21cdd6530408adb0e569aa8fb875714c663e94",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a5r1-independent/PERF_A5R1_INDEPENDENT_RECHECK_EVIDENCE.json",
+      "size": 2771,
+      "sha256": "e84408c4e2db3b64b80355d6d6fa418645fce8525644613ebd415be24f1bde4e",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a5r1-independent/PERF_A5R1_INDEPENDENT_RECHECK_REPORT.md",
+      "size": 7567,
+      "sha256": "3bb33608a1f2933b7feec1f8e1de3dfe7b8e94e59336bea455eb2c76a77920c0",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a6/PERF_A6_BASELINE_CANARY_COMPARISON.csv",
+      "size": 5841,
+      "sha256": "af0ecf8e2b60a1695d8413433cfbcf100c7d19b8d899233bc83ac00ce13a076c",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a6/PERF_A6_CORRECTNESS_AUDIT.json",
+      "size": 2185,
+      "sha256": "35aefd2de9467c497fcb61aebcd8827add8f98e39e4d29131d654e037e473183",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a6/PERF_A6_FEATURE_FLAG_DECISION.json",
+      "size": 6986,
+      "sha256": "2c67934f55f6b55884aad1dd38ca607582206c189333fded9353fb9ad0595078",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a6/PERF_A6_FINAL_RELEASE_MANIFEST.json",
+      "size": 3224,
+      "sha256": "6be29032712de06924a112b7032783c4dac3ed0162f618fcc00040fe07655242",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a6/PERF_A6_PERFORMANCE_CONTRACT_RESULT.json",
+      "size": 3229,
+      "sha256": "84b717baf9c47db80737a020168d5612b058ee634bada73572d4b239ce7a2ff8",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a6/PERF_A6_PRODUCTION_VERIFICATION_REPORT.md",
+      "size": 5329,
+      "sha256": "cd9656b2fd61467ea2eae3bf597eacc1dc0a2df4dccf3e5b403a2b3b2b9e6351",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a6/PERF_A6_STATIC_TELEMETRY_CONTRACT.log",
+      "size": 844,
+      "sha256": "be8a0cbe98cae97b4ecdf4f0a8962e82072db482bf8588533c12ea54af0f6c11",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    },
+    {
+      "relativePath": "evidence/perf-a6/PERF_A6_STATIC_TELEMETRY_SYNTAX.log",
+      "size": 113,
+      "sha256": "a9b5730383b40338f02039dc2269c0e8d9613286227c7e4b31b9be4a69eb4f4c",
+      "status": "PRESENT",
+      "provenance": "copied from supplied/prior generated artifact without timestamp rewriting"
+    }
+  ],
+  "declaredCount": 27,
+  "externalAbsolutePaths": []
+}

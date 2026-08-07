@@ -1,0 +1,537 @@
+{
+  "schemaVersion": 1,
+  "program": "MK-Pro Performance Upgrade",
+  "phase": "PERF-A5",
+  "generatedAt": "2026-08-06T13:54:44+07:00",
+  "finalStatus": [
+    "ENGINEERING_VERIFIED",
+    "PRODUCTION_PERFORMANCE_PENDING"
+  ],
+  "requirements": [
+    {
+      "requirementId": "A1A-REQ-001",
+      "module": "A1A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A1A_BASELINE_AUDIT.md / PERF_A1A_SOURCE_MAP.md / PERF_A1A_QUERY_INVENTORY.csv",
+      "status": "PASS_E1",
+      "deferredE3Item": "Runtime baseline/index/explain deferred"
+    },
+    {
+      "requirementId": "A1A-REQ-002",
+      "module": "A1A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A1A_BASELINE_AUDIT.md / PERF_A1A_SOURCE_MAP.md / PERF_A1A_QUERY_INVENTORY.csv",
+      "status": "PASS_E1",
+      "deferredE3Item": "Runtime baseline/index/explain deferred"
+    },
+    {
+      "requirementId": "A1A-REQ-003",
+      "module": "A1A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A1A_BASELINE_AUDIT.md / PERF_A1A_SOURCE_MAP.md / PERF_A1A_QUERY_INVENTORY.csv",
+      "status": "PASS_E1",
+      "deferredE3Item": "Runtime baseline/index/explain deferred"
+    },
+    {
+      "requirementId": "A1A-REQ-004",
+      "module": "A1A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A1A_BASELINE_AUDIT.md / PERF_A1A_SOURCE_MAP.md / PERF_A1A_QUERY_INVENTORY.csv",
+      "status": "PASS_E1",
+      "deferredE3Item": "Runtime baseline/index/explain deferred"
+    },
+    {
+      "requirementId": "A1A-REQ-005",
+      "module": "A1A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A1A_BASELINE_AUDIT.md / PERF_A1A_SOURCE_MAP.md / PERF_A1A_QUERY_INVENTORY.csv",
+      "status": "PASS_E1",
+      "deferredE3Item": "Runtime baseline/index/explain deferred"
+    },
+    {
+      "requirementId": "A1B-REQ-001",
+      "module": "A1B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A1B_RED_TEST_EVIDENCE.json / PERF_A1B_LOGICAL_QUERY_BASELINE.json / PERF_A1B_CORRECTNESS_SNAPSHOT.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Physical Mongo query and transaction evidence deferred"
+    },
+    {
+      "requirementId": "A1B-REQ-002",
+      "module": "A1B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A1B_RED_TEST_EVIDENCE.json / PERF_A1B_LOGICAL_QUERY_BASELINE.json / PERF_A1B_CORRECTNESS_SNAPSHOT.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Physical Mongo query and transaction evidence deferred"
+    },
+    {
+      "requirementId": "A1B-REQ-003",
+      "module": "A1B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A1B_RED_TEST_EVIDENCE.json / PERF_A1B_LOGICAL_QUERY_BASELINE.json / PERF_A1B_CORRECTNESS_SNAPSHOT.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Physical Mongo query and transaction evidence deferred"
+    },
+    {
+      "requirementId": "A1B-REQ-004",
+      "module": "A1B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A1B_RED_TEST_EVIDENCE.json / PERF_A1B_LOGICAL_QUERY_BASELINE.json / PERF_A1B_CORRECTNESS_SNAPSHOT.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Physical Mongo query and transaction evidence deferred"
+    },
+    {
+      "requirementId": "A1B-REQ-005",
+      "module": "A1B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A1B_RED_TEST_EVIDENCE.json / PERF_A1B_LOGICAL_QUERY_BASELINE.json / PERF_A1B_CORRECTNESS_SNAPSHOT.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Physical Mongo query and transaction evidence deferred"
+    },
+    {
+      "requirementId": "A2A-REQ-001",
+      "module": "A2A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2A_RED_GREEN_EVIDENCE.json / PERF_A2A_LOGICAL_QUERY_COMPARISON.json / PERF_A2A_FINANCIAL_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Production duration and physical query count deferred"
+    },
+    {
+      "requirementId": "A2A-REQ-002",
+      "module": "A2A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2A_RED_GREEN_EVIDENCE.json / PERF_A2A_LOGICAL_QUERY_COMPARISON.json / PERF_A2A_FINANCIAL_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Production duration and physical query count deferred"
+    },
+    {
+      "requirementId": "A2A-REQ-003",
+      "module": "A2A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2A_RED_GREEN_EVIDENCE.json / PERF_A2A_LOGICAL_QUERY_COMPARISON.json / PERF_A2A_FINANCIAL_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Production duration and physical query count deferred"
+    },
+    {
+      "requirementId": "A2A-REQ-004",
+      "module": "A2A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2A_RED_GREEN_EVIDENCE.json / PERF_A2A_LOGICAL_QUERY_COMPARISON.json / PERF_A2A_FINANCIAL_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Production duration and physical query count deferred"
+    },
+    {
+      "requirementId": "A2A-REQ-005",
+      "module": "A2A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2A_RED_GREEN_EVIDENCE.json / PERF_A2A_LOGICAL_QUERY_COMPARISON.json / PERF_A2A_FINANCIAL_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Production duration and physical query count deferred"
+    },
+    {
+      "requirementId": "A2B-REQ-001",
+      "module": "A2B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2B_CONCURRENCY_TEST_EVIDENCE.json / PERF_A2B_TRANSACTION_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Concurrency 2/3 canary and pool impact deferred"
+    },
+    {
+      "requirementId": "A2B-REQ-002",
+      "module": "A2B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2B_CONCURRENCY_TEST_EVIDENCE.json / PERF_A2B_TRANSACTION_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Concurrency 2/3 canary and pool impact deferred"
+    },
+    {
+      "requirementId": "A2B-REQ-003",
+      "module": "A2B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2B_CONCURRENCY_TEST_EVIDENCE.json / PERF_A2B_TRANSACTION_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Concurrency 2/3 canary and pool impact deferred"
+    },
+    {
+      "requirementId": "A2B-REQ-004",
+      "module": "A2B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2B_CONCURRENCY_TEST_EVIDENCE.json / PERF_A2B_TRANSACTION_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Concurrency 2/3 canary and pool impact deferred"
+    },
+    {
+      "requirementId": "A2B-REQ-005",
+      "module": "A2B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2B_CONCURRENCY_TEST_EVIDENCE.json / PERF_A2B_TRANSACTION_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Concurrency 2/3 canary and pool impact deferred"
+    },
+    {
+      "requirementId": "A2B-REQ-006",
+      "module": "A2B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2B_CONCURRENCY_TEST_EVIDENCE.json / PERF_A2B_TRANSACTION_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Concurrency 2/3 canary and pool impact deferred"
+    },
+    {
+      "requirementId": "A2C-REQ-001",
+      "module": "A2C",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2C_RACE_TEST_EVIDENCE.json / PERF_A2C_DEPLOYMENT_PRECONDITIONS.json",
+      "status": "PASS_E1_E2_APPLICATION_GUARD",
+      "deferredE3Item": "Production unique index apply/verify and duplicate audit deferred"
+    },
+    {
+      "requirementId": "A2C-REQ-002",
+      "module": "A2C",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2C_RACE_TEST_EVIDENCE.json / PERF_A2C_DEPLOYMENT_PRECONDITIONS.json",
+      "status": "PASS_E1_E2_APPLICATION_GUARD",
+      "deferredE3Item": "Production unique index apply/verify and duplicate audit deferred"
+    },
+    {
+      "requirementId": "A2C-REQ-003",
+      "module": "A2C",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2C_RACE_TEST_EVIDENCE.json / PERF_A2C_DEPLOYMENT_PRECONDITIONS.json",
+      "status": "PASS_E1_E2_APPLICATION_GUARD",
+      "deferredE3Item": "Production unique index apply/verify and duplicate audit deferred"
+    },
+    {
+      "requirementId": "A2C-REQ-004",
+      "module": "A2C",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2C_RACE_TEST_EVIDENCE.json / PERF_A2C_DEPLOYMENT_PRECONDITIONS.json",
+      "status": "PASS_E1_E2_APPLICATION_GUARD",
+      "deferredE3Item": "Production unique index apply/verify and duplicate audit deferred"
+    },
+    {
+      "requirementId": "A2C-REQ-005",
+      "module": "A2C",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A2C_RACE_TEST_EVIDENCE.json / PERF_A2C_DEPLOYMENT_PRECONDITIONS.json",
+      "status": "PASS_E1_E2_APPLICATION_GUARD",
+      "deferredE3Item": "Production unique index apply/verify and duplicate audit deferred"
+    },
+    {
+      "requirementId": "A3A-REQ-001",
+      "module": "A3A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A3A_DELIVERY_ORDERS_REPORT.md / test/performance/perf-a3a",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Mongo explain/index usage and p95 deferred"
+    },
+    {
+      "requirementId": "A3A-REQ-002",
+      "module": "A3A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A3A_DELIVERY_ORDERS_REPORT.md / test/performance/perf-a3a",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Mongo explain/index usage and p95 deferred"
+    },
+    {
+      "requirementId": "A3A-REQ-003",
+      "module": "A3A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A3A_DELIVERY_ORDERS_REPORT.md / test/performance/perf-a3a",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Mongo explain/index usage and p95 deferred"
+    },
+    {
+      "requirementId": "A3A-REQ-004",
+      "module": "A3A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A3A_DELIVERY_ORDERS_REPORT.md / test/performance/perf-a3a",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Mongo explain/index usage and p95 deferred"
+    },
+    {
+      "requirementId": "A3A-REQ-005",
+      "module": "A3A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A3A_DELIVERY_ORDERS_REPORT.md / test/performance/perf-a3a",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Mongo explain/index usage and p95 deferred"
+    },
+    {
+      "requirementId": "A3B-REQ-001",
+      "module": "A3B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A3B_SEARCH_RELEVANCE_EVIDENCE.json / PERF_A3B_SCOPE_SECURITY_EVIDENCE.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Backfill coverage, index explain and p95 deferred"
+    },
+    {
+      "requirementId": "A3B-REQ-002",
+      "module": "A3B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A3B_SEARCH_RELEVANCE_EVIDENCE.json / PERF_A3B_SCOPE_SECURITY_EVIDENCE.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Backfill coverage, index explain and p95 deferred"
+    },
+    {
+      "requirementId": "A3B-REQ-003",
+      "module": "A3B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A3B_SEARCH_RELEVANCE_EVIDENCE.json / PERF_A3B_SCOPE_SECURITY_EVIDENCE.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Backfill coverage, index explain and p95 deferred"
+    },
+    {
+      "requirementId": "A3B-REQ-004",
+      "module": "A3B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A3B_SEARCH_RELEVANCE_EVIDENCE.json / PERF_A3B_SCOPE_SECURITY_EVIDENCE.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Backfill coverage, index explain and p95 deferred"
+    },
+    {
+      "requirementId": "A3B-REQ-005",
+      "module": "A3B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A3B_SEARCH_RELEVANCE_EVIDENCE.json / PERF_A3B_SCOPE_SECURITY_EVIDENCE.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Backfill coverage, index explain and p95 deferred"
+    },
+    {
+      "requirementId": "A4A-REQ-001",
+      "module": "A4A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A4A_CACHE_INVALIDATION_EVIDENCE.json / PERF_A4A_READ_MODEL_COMPLETENESS.json / PERF_A4A_DASHBOARD_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Shared-cache propagation, DB completeness and p95 deferred"
+    },
+    {
+      "requirementId": "A4A-REQ-002",
+      "module": "A4A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A4A_CACHE_INVALIDATION_EVIDENCE.json / PERF_A4A_READ_MODEL_COMPLETENESS.json / PERF_A4A_DASHBOARD_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Shared-cache propagation, DB completeness and p95 deferred"
+    },
+    {
+      "requirementId": "A4A-REQ-003",
+      "module": "A4A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A4A_CACHE_INVALIDATION_EVIDENCE.json / PERF_A4A_READ_MODEL_COMPLETENESS.json / PERF_A4A_DASHBOARD_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Shared-cache propagation, DB completeness and p95 deferred"
+    },
+    {
+      "requirementId": "A4A-REQ-004",
+      "module": "A4A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A4A_CACHE_INVALIDATION_EVIDENCE.json / PERF_A4A_READ_MODEL_COMPLETENESS.json / PERF_A4A_DASHBOARD_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Shared-cache propagation, DB completeness and p95 deferred"
+    },
+    {
+      "requirementId": "A4A-REQ-005",
+      "module": "A4A",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A4A_CACHE_INVALIDATION_EVIDENCE.json / PERF_A4A_READ_MODEL_COMPLETENESS.json / PERF_A4A_DASHBOARD_PARITY.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Shared-cache propagation, DB completeness and p95 deferred"
+    },
+    {
+      "requirementId": "A4B-REQ-001",
+      "module": "A4B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A4B_FANOUT_RED_GREEN.json / PERF_A4B_REPORT_PARITY.json / PERF_A4B_MEMORY_WORK_BUDGET.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Worker capacity, heap, Mongo plans and p95 deferred"
+    },
+    {
+      "requirementId": "A4B-REQ-002",
+      "module": "A4B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A4B_FANOUT_RED_GREEN.json / PERF_A4B_REPORT_PARITY.json / PERF_A4B_MEMORY_WORK_BUDGET.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Worker capacity, heap, Mongo plans and p95 deferred"
+    },
+    {
+      "requirementId": "A4B-REQ-003",
+      "module": "A4B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A4B_FANOUT_RED_GREEN.json / PERF_A4B_REPORT_PARITY.json / PERF_A4B_MEMORY_WORK_BUDGET.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Worker capacity, heap, Mongo plans and p95 deferred"
+    },
+    {
+      "requirementId": "A4B-REQ-004",
+      "module": "A4B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A4B_FANOUT_RED_GREEN.json / PERF_A4B_REPORT_PARITY.json / PERF_A4B_MEMORY_WORK_BUDGET.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Worker capacity, heap, Mongo plans and p95 deferred"
+    },
+    {
+      "requirementId": "A4B-REQ-005",
+      "module": "A4B",
+      "redEvidence": "RED evidence exists in the phase artifact/test; A1A uses source-contract negative criteria.",
+      "greenEvidence": "GREEN evidence executed and referenced by artifact; no status is based only on narrative.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A4B_FANOUT_RED_GREEN.json / PERF_A4B_REPORT_PARITY.json / PERF_A4B_MEMORY_WORK_BUDGET.json",
+      "status": "PASS_E1_E2",
+      "deferredE3Item": "Worker capacity, heap, Mongo plans and p95 deferred"
+    },
+    {
+      "requirementId": "A5-REQ-001",
+      "module": "A5",
+      "redEvidence": "Baseline/source integrity comparison detects unclassified changes, secret/dump/temp residue.",
+      "greenEvidence": "Hash-based baseline diff, reviewed secret scan, no temporary/.env/customer dump files.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A5_TEST_EVIDENCE.json / PERF_A5_FINANCIAL_PARITY.json / PERF_A5_RELEASE_MANIFEST.json",
+      "status": "PASS_ENGINEERING",
+      "deferredE3Item": "All production E3 targets deferred to PERF-A6"
+    },
+    {
+      "requirementId": "A5-REQ-002",
+      "module": "A5",
+      "redEvidence": "Requirement without executable RED/GREEN evidence remains non-PASS.",
+      "greenEvidence": "Final matrix links each requirement to artifacts and deferred E3.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A5_TEST_EVIDENCE.json / PERF_A5_FINANCIAL_PARITY.json / PERF_A5_RELEASE_MANIFEST.json",
+      "status": "PASS_ENGINEERING",
+      "deferredE3Item": "All production E3 targets deferred to PERF-A6"
+    },
+    {
+      "requirementId": "A5-REQ-003",
+      "module": "A5",
+      "redEvidence": "Test failures or unexecuted tests are hidden or relabeled PASS.",
+      "greenEvidence": "PASS/BASELINE_FAIL/NOT_RUN_ENVIRONMENT are separated; 0 new regression.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A5_TEST_EVIDENCE.json / PERF_A5_FINANCIAL_PARITY.json / PERF_A5_RELEASE_MANIFEST.json",
+      "status": "PASS_ENGINEERING",
+      "deferredE3Item": "All production E3 targets deferred to PERF-A6"
+    },
+    {
+      "requirementId": "A5-REQ-004",
+      "module": "A5",
+      "redEvidence": "Any correctness lock deviates from required value.",
+      "greenEvidence": "All ten correctness locks PASS.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A5_TEST_EVIDENCE.json / PERF_A5_FINANCIAL_PARITY.json / PERF_A5_RELEASE_MANIFEST.json",
+      "status": "PASS_ENGINEERING",
+      "deferredE3Item": "All production E3 targets deferred to PERF-A6"
+    },
+    {
+      "requirementId": "A5-REQ-005",
+      "module": "A5",
+      "redEvidence": "Unsafe defaults or missing rollback sequence.",
+      "greenEvidence": "All behavior flags OFF, concurrency 1, index auto-apply false, telemetry enabled.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A5_TEST_EVIDENCE.json / PERF_A5_FINANCIAL_PARITY.json / PERF_A5_RELEASE_MANIFEST.json",
+      "status": "PASS_ENGINEERING",
+      "deferredE3Item": "All production E3 targets deferred to PERF-A6"
+    },
+    {
+      "requirementId": "A5-REQ-006",
+      "module": "A5",
+      "redEvidence": "Release ZIP contains forbidden residue or lacks manifest/hash/runbook/telemetry.",
+      "greenEvidence": "Packaged verification checks all required release artifacts and exclusions.",
+      "acceptance": "Phase acceptance criteria satisfied at E1/E2; A5 correctness lock and no-new-regression gate apply.",
+      "artifact": "PERF_A5_TEST_EVIDENCE.json / PERF_A5_FINANCIAL_PARITY.json / PERF_A5_RELEASE_MANIFEST.json",
+      "status": "PASS_ENGINEERING",
+      "deferredE3Item": "All production E3 targets deferred to PERF-A6"
+    }
+  ],
+  "counts": {
+    "total": 52,
+    "engineeringPass": 52,
+    "blocked": 0
+  }
+}

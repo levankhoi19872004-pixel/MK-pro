@@ -1,0 +1,31 @@
+{
+  "added": [
+    "scripts/performance/perf-a3b/backfill-delivery-suggestion-search-fields.js",
+    "scripts/performance/perf-a3b/run-suggestions-repro.js",
+    "src/services/delivery/DeliverySuggestionSearchService.js",
+    "src/services/delivery/deliverySuggestionSearchContract.js",
+    "test/performance/perf-a3b/fake-suggestion-repository.js",
+    "test/performance/perf-a3b/fixture-factory.js",
+    "test/performance/perf-a3b/legacy-search-simulator.js",
+    "test/performance/perf-a3b/perf-a3b-frontend-control.test.js",
+    "test/performance/perf-a3b/perf-a3b-production-contract.test.js",
+    "test/performance/perf-a3b/perf-a3b-red-search.test.js",
+    "test/performance/perf-a3b/perf-a3b-scope-security.test.js",
+    "test/performance/perf-a3b/perf-a3b-search-relevance.test.js",
+    "test/performance/perf-a3b/perf-a3b-staff-suggestions.test.js"
+  ],
+  "modified": [
+    "ENVIRONMENT_VARIABLES.md",
+    "package.json",
+    "public/js/app/new/91-delivery-today-new.js",
+    "src/models/SalesOrder.js",
+    "src/services/mongoIndexService.js",
+    "src/services/v2/deliveryTodayNew.service.js"
+  ],
+  "deleted": [],
+  "counts": {
+    "added": 13,
+    "modified": 6,
+    "deleted": 0
+  }
+}

@@ -1,0 +1,451 @@
+{
+  "schemaVersion": 1,
+  "promptId": "PERF-A2A",
+  "generatedAt": "2026-08-06T10:17:30+07:00",
+  "measurement": "dependency-free logical adapter calls",
+  "warning": "Offline duration and heap delta compare algorithmic behavior only; they are not production latency, Mongo execution time, or production p95.",
+  "batchChunkSizeUsedByHarness": 100,
+  "rows": [
+    {
+      "batchSize": 1,
+      "red": {
+        "logicalReads": 13,
+        "writes": 4,
+        "transactions": 1,
+        "transactionCommits": 1,
+        "transactionAborts": 0,
+        "callsPerOrder": 19,
+        "operations": {
+          "findOrder": 1,
+          "batchFindOrders": 0,
+          "findLatestVersion": 1,
+          "batchFindVersions": 0,
+          "findReturns": 1,
+          "batchFindReturns": 0,
+          "findAllocation": 1,
+          "batchFindAllocations": 0,
+          "findArBalance": 5,
+          "batchFindArContext": 0,
+          "findIdempotency": 4,
+          "batchFindCorrectionIdempotency": 0,
+          "postLedger": 1,
+          "updateOrder": 1,
+          "insertVersion": 1,
+          "upsertAllocation": 1,
+          "transactionStart": 1,
+          "transactionCommit": 1,
+          "transactionAbort": 0
+        },
+        "offlineDurationMedianMs": 0.176,
+        "offlineDurationRangeMs": [
+          0.151,
+          0.365
+        ],
+        "offlineHeapDeltaMedianBytes": 7640
+      },
+      "green": {
+        "logicalReads": 11,
+        "writes": 4,
+        "transactions": 1,
+        "transactionCommits": 1,
+        "transactionAborts": 0,
+        "callsPerOrder": 17,
+        "operations": {
+          "findOrder": 0,
+          "batchFindOrders": 1,
+          "findLatestVersion": 0,
+          "batchFindVersions": 1,
+          "findReturns": 0,
+          "batchFindReturns": 1,
+          "findAllocation": 0,
+          "batchFindAllocations": 1,
+          "findArBalance": 3,
+          "batchFindArContext": 1,
+          "findIdempotency": 2,
+          "batchFindCorrectionIdempotency": 1,
+          "postLedger": 1,
+          "updateOrder": 1,
+          "insertVersion": 1,
+          "upsertAllocation": 1,
+          "transactionStart": 1,
+          "transactionCommit": 1,
+          "transactionAbort": 0
+        },
+        "offlineDurationMedianMs": 0.326,
+        "offlineDurationRangeMs": [
+          0.225,
+          0.447
+        ],
+        "offlineHeapDeltaMedianBytes": 14856
+      },
+      "comparison": {
+        "logicalReadReduction": 2,
+        "logicalReadReductionPercent": 15.38,
+        "writesUnchanged": true,
+        "transactionsUnchanged": true,
+        "resultSnapshotEqual": true,
+        "greenGate500Equivalent": true,
+        "greenTarget300Equivalent": true
+      }
+    },
+    {
+      "batchSize": 16,
+      "red": {
+        "logicalReads": 190,
+        "writes": 57,
+        "transactions": 16,
+        "transactionCommits": 15,
+        "transactionAborts": 1,
+        "callsPerOrder": 17.438,
+        "operations": {
+          "findOrder": 16,
+          "batchFindOrders": 0,
+          "findLatestVersion": 16,
+          "batchFindVersions": 0,
+          "findReturns": 16,
+          "batchFindReturns": 0,
+          "findAllocation": 16,
+          "batchFindAllocations": 0,
+          "findArBalance": 69,
+          "batchFindArContext": 0,
+          "findIdempotency": 57,
+          "batchFindCorrectionIdempotency": 0,
+          "postLedger": 12,
+          "updateOrder": 15,
+          "insertVersion": 15,
+          "upsertAllocation": 15,
+          "transactionStart": 16,
+          "transactionCommit": 15,
+          "transactionAbort": 1
+        },
+        "offlineDurationMedianMs": 0.675,
+        "offlineDurationRangeMs": [
+          0.658,
+          0.996
+        ],
+        "offlineHeapDeltaMedianBytes": 52832
+      },
+      "green": {
+        "logicalReads": 72,
+        "writes": 57,
+        "transactions": 16,
+        "transactionCommits": 15,
+        "transactionAborts": 1,
+        "callsPerOrder": 10.063,
+        "operations": {
+          "findOrder": 0,
+          "batchFindOrders": 1,
+          "findLatestVersion": 0,
+          "batchFindVersions": 1,
+          "findReturns": 0,
+          "batchFindReturns": 1,
+          "findAllocation": 0,
+          "batchFindAllocations": 1,
+          "findArBalance": 39,
+          "batchFindArContext": 1,
+          "findIdempotency": 27,
+          "batchFindCorrectionIdempotency": 1,
+          "postLedger": 12,
+          "updateOrder": 15,
+          "insertVersion": 15,
+          "upsertAllocation": 15,
+          "transactionStart": 16,
+          "transactionCommit": 15,
+          "transactionAbort": 1
+        },
+        "offlineDurationMedianMs": 0.82,
+        "offlineDurationRangeMs": [
+          0.789,
+          1
+        ],
+        "offlineHeapDeltaMedianBytes": 66648
+      },
+      "comparison": {
+        "logicalReadReduction": 118,
+        "logicalReadReductionPercent": 62.11,
+        "writesUnchanged": true,
+        "transactionsUnchanged": true,
+        "resultSnapshotEqual": true,
+        "greenGate500Equivalent": true,
+        "greenTarget300Equivalent": true
+      }
+    },
+    {
+      "batchSize": 26,
+      "red": {
+        "logicalReads": 304,
+        "writes": 90,
+        "transactions": 26,
+        "transactionCommits": 24,
+        "transactionAborts": 2,
+        "callsPerOrder": 17.154,
+        "operations": {
+          "findOrder": 26,
+          "batchFindOrders": 0,
+          "findLatestVersion": 26,
+          "batchFindVersions": 0,
+          "findReturns": 26,
+          "batchFindReturns": 0,
+          "findAllocation": 26,
+          "batchFindAllocations": 0,
+          "findArBalance": 109,
+          "batchFindArContext": 0,
+          "findIdempotency": 91,
+          "batchFindCorrectionIdempotency": 0,
+          "postLedger": 18,
+          "updateOrder": 24,
+          "insertVersion": 24,
+          "upsertAllocation": 24,
+          "transactionStart": 26,
+          "transactionCommit": 24,
+          "transactionAbort": 2
+        },
+        "offlineDurationMedianMs": 1.049,
+        "offlineDurationRangeMs": [
+          1,
+          1.142
+        ],
+        "offlineHeapDeltaMedianBytes": 80920
+      },
+      "green": {
+        "logicalReads": 114,
+        "writes": 90,
+        "transactions": 26,
+        "transactionCommits": 24,
+        "transactionAborts": 2,
+        "callsPerOrder": 9.846,
+        "operations": {
+          "findOrder": 1,
+          "batchFindOrders": 1,
+          "findLatestVersion": 1,
+          "batchFindVersions": 1,
+          "findReturns": 1,
+          "batchFindReturns": 1,
+          "findAllocation": 1,
+          "batchFindAllocations": 1,
+          "findArBalance": 61,
+          "batchFindArContext": 1,
+          "findIdempotency": 43,
+          "batchFindCorrectionIdempotency": 1,
+          "postLedger": 18,
+          "updateOrder": 24,
+          "insertVersion": 24,
+          "upsertAllocation": 24,
+          "transactionStart": 26,
+          "transactionCommit": 24,
+          "transactionAbort": 2
+        },
+        "offlineDurationMedianMs": 1.274,
+        "offlineDurationRangeMs": [
+          1.16,
+          1.445
+        ],
+        "offlineHeapDeltaMedianBytes": 103040
+      },
+      "comparison": {
+        "logicalReadReduction": 190,
+        "logicalReadReductionPercent": 62.5,
+        "writesUnchanged": true,
+        "transactionsUnchanged": true,
+        "resultSnapshotEqual": true,
+        "greenGate500Equivalent": true,
+        "greenTarget300Equivalent": true
+      }
+    },
+    {
+      "batchSize": 60,
+      "red": {
+        "logicalReads": 688,
+        "writes": 203,
+        "transactions": 60,
+        "transactionCommits": 55,
+        "transactionAborts": 5,
+        "callsPerOrder": 16.85,
+        "operations": {
+          "findOrder": 60,
+          "batchFindOrders": 0,
+          "findLatestVersion": 60,
+          "batchFindVersions": 0,
+          "findReturns": 60,
+          "batchFindReturns": 0,
+          "findAllocation": 60,
+          "batchFindAllocations": 0,
+          "findArBalance": 243,
+          "batchFindArContext": 0,
+          "findIdempotency": 205,
+          "batchFindCorrectionIdempotency": 0,
+          "postLedger": 38,
+          "updateOrder": 55,
+          "insertVersion": 55,
+          "upsertAllocation": 55,
+          "transactionStart": 60,
+          "transactionCommit": 55,
+          "transactionAbort": 5
+        },
+        "offlineDurationMedianMs": 2.093,
+        "offlineDurationRangeMs": [
+          2.034,
+          2.433
+        ],
+        "offlineHeapDeltaMedianBytes": 178312
+      },
+      "green": {
+        "logicalReads": 242,
+        "writes": 203,
+        "transactions": 60,
+        "transactionCommits": 55,
+        "transactionAborts": 5,
+        "callsPerOrder": 9.417,
+        "operations": {
+          "findOrder": 2,
+          "batchFindOrders": 1,
+          "findLatestVersion": 2,
+          "batchFindVersions": 1,
+          "findReturns": 2,
+          "batchFindReturns": 1,
+          "findAllocation": 2,
+          "batchFindAllocations": 1,
+          "findArBalance": 133,
+          "batchFindArContext": 1,
+          "findIdempotency": 95,
+          "batchFindCorrectionIdempotency": 1,
+          "postLedger": 38,
+          "updateOrder": 55,
+          "insertVersion": 55,
+          "upsertAllocation": 55,
+          "transactionStart": 60,
+          "transactionCommit": 55,
+          "transactionAbort": 5
+        },
+        "offlineDurationMedianMs": 2.511,
+        "offlineDurationRangeMs": [
+          2.449,
+          3.332
+        ],
+        "offlineHeapDeltaMedianBytes": 228216
+      },
+      "comparison": {
+        "logicalReadReduction": 446,
+        "logicalReadReductionPercent": 64.83,
+        "writesUnchanged": true,
+        "transactionsUnchanged": true,
+        "resultSnapshotEqual": true,
+        "greenGate500Equivalent": true,
+        "greenTarget300Equivalent": true
+      }
+    },
+    {
+      "batchSize": 100,
+      "red": {
+        "logicalReads": 1146,
+        "writes": 337,
+        "transactions": 100,
+        "transactionCommits": 91,
+        "transactionAborts": 9,
+        "callsPerOrder": 16.83,
+        "operations": {
+          "findOrder": 100,
+          "batchFindOrders": 0,
+          "findLatestVersion": 100,
+          "batchFindVersions": 0,
+          "findReturns": 100,
+          "batchFindReturns": 0,
+          "findAllocation": 100,
+          "batchFindAllocations": 0,
+          "findArBalance": 405,
+          "batchFindArContext": 0,
+          "findIdempotency": 341,
+          "batchFindCorrectionIdempotency": 0,
+          "postLedger": 64,
+          "updateOrder": 91,
+          "insertVersion": 91,
+          "upsertAllocation": 91,
+          "transactionStart": 100,
+          "transactionCommit": 91,
+          "transactionAbort": 9
+        },
+        "offlineDurationMedianMs": 3.192,
+        "offlineDurationRangeMs": [
+          3.109,
+          5.586
+        ],
+        "offlineHeapDeltaMedianBytes": 293664
+      },
+      "green": {
+        "logicalReads": 404,
+        "writes": 337,
+        "transactions": 100,
+        "transactionCommits": 91,
+        "transactionAborts": 9,
+        "callsPerOrder": 9.41,
+        "operations": {
+          "findOrder": 4,
+          "batchFindOrders": 1,
+          "findLatestVersion": 4,
+          "batchFindVersions": 1,
+          "findReturns": 4,
+          "batchFindReturns": 1,
+          "findAllocation": 4,
+          "batchFindAllocations": 1,
+          "findArBalance": 223,
+          "batchFindArContext": 1,
+          "findIdempotency": 159,
+          "batchFindCorrectionIdempotency": 1,
+          "postLedger": 64,
+          "updateOrder": 91,
+          "insertVersion": 91,
+          "upsertAllocation": 91,
+          "transactionStart": 100,
+          "transactionCommit": 91,
+          "transactionAbort": 9
+        },
+        "offlineDurationMedianMs": 3.881,
+        "offlineDurationRangeMs": [
+          3.806,
+          6.235
+        ],
+        "offlineHeapDeltaMedianBytes": 378464
+      },
+      "comparison": {
+        "logicalReadReduction": 742,
+        "logicalReadReductionPercent": 64.75,
+        "writesUnchanged": true,
+        "transactionsUnchanged": true,
+        "resultSnapshotEqual": true,
+        "greenGate500Equivalent": true,
+        "greenTarget300Equivalent": false
+      }
+    }
+  ],
+  "interpretation": {
+    "rootCause": "Legacy bulk commit performs initial order/version/return/allocation and financial context reads per input before each per-order command chain.",
+    "greenDesign": "Batch initial context once per bounded chunk; retain per-order transaction, AR safety re-read, pre-write idempotency re-check and after-write verification.",
+    "sixtyOrder": {
+      "redLogicalReads": 688,
+      "greenLogicalReads": 242,
+      "reduction": 446,
+      "reductionPercent": 64.83,
+      "writesRed": 203,
+      "writesGreen": 203,
+      "transactionsRed": 60,
+      "transactionsGreen": 60,
+      "gate500Equivalent": true,
+      "target300Equivalent": true
+    },
+    "physicalMongoCaveat": "One logical adapter call may execute more than one Mongo query (notably AR inspection). Physical Mongo query count and executionStats remain E3/runtime evidence."
+  },
+  "acceptance": {
+    "redProvesLinearInitialReads": true,
+    "initialOrderReadsCollapsed": true,
+    "initialVersionReadsCollapsed": true,
+    "initialReturnReadsCollapsed": true,
+    "initialAllocationReadsCollapsed": true,
+    "initialArReadsCollapsed": true,
+    "initialCorrectionIdempotencyReadsCollapsed": true,
+    "sixtyOrderGate500Equivalent": true,
+    "sixtyOrderTarget300Equivalent": true,
+    "allFinancialParity": true,
+    "debtDeviationZero": true,
+    "duplicateLedgerZero": true
+  }
+}

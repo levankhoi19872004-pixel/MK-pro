@@ -1,0 +1,19 @@
+{
+  "requirementId": "A5R2-REQ-007",
+  "modes": {
+    "preview": "PERF_REPORT_TIMEOUT_MS/default 30000",
+    "snapshot": "PERF_REPORT_REBUILD_TIMEOUT_MS/default 120000",
+    "export": "background job with hard budget"
+  },
+  "green": {
+    "executionContextContainsMaxTimeMS": true,
+    "dashboardImportAggregateReceivesMaxTimeMS": true,
+    "signalPropagated": true,
+    "partialDataReturnedAsComplete": false,
+    "status": "PASS_WITH_DRIVER_E3_DEFERRED",
+    "salesQueriesReceiveContext": true,
+    "inventoryQueriesReceiveContext": true,
+    "deliveryQueriesReceiveContext": true,
+    "returnQueriesReceiveContext": true
+  }
+}

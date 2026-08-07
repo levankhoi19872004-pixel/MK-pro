@@ -58,6 +58,9 @@ function getArLedgerReadService() {
 }
 const { getReportSourceContract, validateReportSourceContract } = require('./ReportSourceRegistry');
 const { paginate, text, toNumber } = require('./ReportDomainUtils');
+const ReportExecutionPolicy = require('./ReportExecutionPolicy');
+const DataQualitySnapshotService = require('./DataQualitySnapshotService');
+const { buildDataQualityRows, summarizeDataQuality } = require('./DataQualityProjectionBuilder');
 
 const REPORT_CATEGORIES = Object.freeze([
   { code: 'executive', title: 'Điều hành', description: 'KPI, xu hướng và cảnh báo cần xử lý.' },
@@ -474,8 +477,9 @@ function buildSourceNote(definition, query = {}, extra = {}, user = {}) {
   const contract = getReportSourceContract(definition.code);
   const parsed = splitServiceName(contract.service);
   const dataQualityWarnings = normalizeWarnings(extra.dataQualityWarnings, extra.dataQuality?.warnings);
-  if (toNumber(extra.summary?.missingArLedgerCount) > 0) {
-    dataQualityWarnings.push(`Đơn xác nhận kế toán thiếu AR-SALE: ${extra.summary.missingArLedgerCount}`);
+  const sales = { summary: extra.summary || {} };
+  if (toNumber(sales.summary?.missingArLedgerCount) > 0) {
+    dataQualityWarnings.push(`Đơn xác nhận kế toán thiếu AR-SALE: ${sales.summary.missingArLedgerCount}`);
   }
   const sourceWarnings = normalizeWarnings(extra.sourceWarnings);
   if (extra.legacyBridge || query.__legacyBridge) sourceWarnings.push('Legacy export đã được bridge sang Report Center');
@@ -718,54 +722,8 @@ function normalizeDeliveryTripRows(rows = []) {
   }));
 }
 
-function dataQualityRows({ sales, inventory, delivery, returns }) {
-  const rows = [];
-  if (toNumber(sales.summary?.missingArLedgerCount) > 0) {
-    rows.push({
-      severity: 'critical',
-      domain: 'Bán hàng',
-      date: sales.dateTo || '',
-      code: 'AR-SALE',
-      name: 'AR Ledger',
-      issue: 'Đơn xác nhận kế toán thiếu AR-SALE',
-      difference: sales.summary.missingArLedgerCount,
-      amount: sales.summary.missingArDebitAmount
-    });
-  }
-  for (const order of sales.sales || []) {
-    const quality = order.dataQuality || {};
-    if (toNumber(quality.missingValueCount) > 0) {
-      rows.push({ severity: 'major', domain: 'Bán hàng', date: order.date, code: order.code, name: order.customerName, issue: 'Dòng hàng thiếu giá trị/snapshot giá', difference: quality.missingValueCount, amount: order.actualAmount });
-    }
-    if (toNumber(quality.currentCatalogFallbackCount) > 0) {
-      rows.push({ severity: 'warning', domain: 'Bán hàng', date: order.date, code: order.code, name: order.customerName, issue: 'Đang fallback giá danh mục hiện tại', difference: quality.currentCatalogFallbackCount, amount: order.actualAmount });
-    }
-    if (Math.abs(toNumber(quality.orderLineMismatchAmount)) >= 1) {
-      rows.push({ severity: 'major', domain: 'Bán hàng', date: order.date, code: order.code, name: order.customerName, issue: 'Tổng đơn lệch tổng dòng', difference: quality.orderLineMismatchAmount, amount: order.actualAmount });
-    }
-  }
-  for (const stock of inventory.stock || []) {
-    if (toNumber(stock.endingQty) < 0) {
-      rows.push({ severity: 'critical', domain: 'Tồn kho', date: inventory.dateTo || '', code: stock.productCode, name: stock.productName, issue: 'Tồn kho cuối kỳ âm', difference: stock.endingQty, amount: 0 });
-    }
-    if (Math.abs(toNumber(stock.reconciliationDifference)) > 0.000001) {
-      rows.push({ severity: 'major', domain: 'Tồn kho', date: inventory.dateTo || '', code: stock.productCode, name: stock.productName, issue: 'Lệch inventories và stockTransactions', difference: stock.reconciliationDifference, amount: 0 });
-    }
-  }
-  for (const trip of delivery.delivery || []) {
-    if (trip.dataQuality?.missingChildren) {
-      rows.push({ severity: 'critical', domain: 'Giao hàng', date: trip.deliveryDate, code: trip.code, name: trip.deliveryStaffName, issue: 'Đơn tổng không tìm thấy đơn con', difference: trip.assignedOrderCount, amount: trip.snapshotTotalAmount });
-    } else if (toNumber(trip.dataQuality?.snapshotOrderCountDifference) !== 0 || Math.abs(toNumber(trip.dataQuality?.snapshotAmountDifference)) >= 1) {
-      rows.push({ severity: 'major', domain: 'Giao hàng', date: trip.deliveryDate, code: trip.code, name: trip.deliveryStaffName, issue: 'Snapshot đơn tổng lệch dữ liệu đơn con', difference: trip.dataQuality.snapshotAmountDifference, amount: trip.totalAmount });
-    }
-  }
-  for (const item of returns.returns || []) {
-    if (toNumber(item.amount) > 0 && toNumber(item.arAmount) <= 0) {
-      rows.push({ severity: 'major', domain: 'Trả hàng', date: item.date, code: item.code, name: item.customerName, issue: 'Phiếu trả chưa có AR-RETURN đối ứng', difference: 0, amount: item.amount });
-    }
-  }
-  const rank = { critical: 0, major: 1, warning: 2 };
-  return rows.sort((a, b) => (rank[a.severity] ?? 9) - (rank[b.severity] ?? 9) || text(b.date).localeCompare(text(a.date)));
+function dataQualityRows(payload = {}) {
+  return buildDataQualityRows(payload);
 }
 
 function summaryForRows(rows = [], fields = []) {
@@ -775,10 +733,50 @@ function summaryForRows(rows = [], fields = []) {
   };
 }
 
-async function run(code, query = {}, user = {}) {
+function optimizedPreviewEnabled(query = {}, reportCode = '') {
+  return ReportExecutionPolicy.isReportPaginationEnabled(reportCode) && query.__exportAll !== true && query.__reportExport !== true;
+}
+
+function reportServiceQuery(baseQuery = {}, options = {}) {
+  if (baseQuery.__exportAll === true || baseQuery.__reportExport === true) {
+    return { ...baseQuery, full: '1', export: '1' };
+  }
+  if (options.optimizedPreview) {
+    const normalized = ReportExecutionPolicy.normalizePreviewQuery(baseQuery);
+    if (options.groupCode) normalized.__reportCenterGroup = options.groupCode;
+    return normalized;
+  }
+  return { ...baseQuery, full: '1', export: '1' };
+}
+
+function previewExtra(result = {}, optimizedPreview, extra = {}) {
+  return optimizedPreview && result.meta
+    ? { ...extra, prePagedMeta: result.meta, performance: { mode: 'repository-first-preview', materialization: 'bounded-response' } }
+    : extra;
+}
+
+async function runLegacyDataQuality(baseQuery = {}) {
+  const serviceQuery = reportServiceQuery(baseQuery, { optimizedPreview: false });
+  const execution = await ReportExecutionPolicy.runBounded([
+    { name: 'sales', run: (ctx) => getSalesReportService().salesReport({ ...serviceQuery, __executionContext: ctx }, ctx) },
+    { name: 'inventory', run: (ctx) => getInventoryReportService().inventoryMovementReport({ ...serviceQuery, __executionContext: ctx }, ctx) },
+    { name: 'delivery', run: (ctx) => getDeliveryReportService().deliveryTripsReport({ ...serviceQuery, __executionContext: ctx }, ctx) },
+    { name: 'returns', run: (ctx) => getReturnReportService().returnReport({ ...serviceQuery, __executionContext: ctx }, ctx) }
+  ], {
+    concurrency: Number(process.env.PERF_REPORT_FANOUT_CONCURRENCY || 2),
+    timeoutMs: Number(process.env.PERF_REPORT_TIMEOUT_MS || 30000),
+    allowPartial: false
+  });
+  const [sales, inventory, delivery, returns] = execution.results;
+  return { sales, inventory, delivery, returns, orchestration: { concurrency: execution.concurrency, maxActive: execution.maxActive, warnings: execution.warnings } };
+}
+
+async function runInternal(code, query = {}, user = {}) {
   const definition = assertAccess(code, user);
-  const baseQuery = { ...query, q: query.q || query.search || query.keyword || '' };
-  const resultQuery = { ...query, __reportUser: user };
+  const optimizedPreview = optimizedPreviewEnabled(query, definition.code);
+  const inputQuery = { ...query, q: query.q || query.search || query.keyword || '' };
+  const baseQuery = optimizedPreview ? ReportExecutionPolicy.normalizePreviewQuery(inputQuery) : inputQuery;
+  const resultQuery = { ...baseQuery, __reportUser: user };
 
   switch (definition.code) {
     case 'sales-kpi': {
@@ -792,30 +790,49 @@ async function run(code, query = {}, user = {}) {
     case 'sales-by-customer':
     case 'sales-by-product':
     case 'sales-detail': {
-      const sales = await getSalesReportService().salesReport({ ...baseQuery, full: '1', export: '1' });
-      let rows = sales.sales || [];
-      let summary = sales.summary || {};
-      if (definition.code === 'sales-by-day') rows = aggregateSalesByDay(rows);
-      if (definition.code === 'sales-by-staff') rows = normalizeSalesStaffRows(sales.bySalesman || []);
-      if (definition.code === 'sales-by-customer') rows = aggregateSalesByCustomer(rows);
-      if (definition.code === 'sales-by-product') rows = aggregateSalesByProduct(rows);
-      rows = rows.filter((row) => matchesSearch(row, baseQuery));
-      if (definition.code !== 'sales-detail') {
-        summary = summaryForRows(rows, ['orderCount', 'customerCount', 'quantity', 'beforePromoAmount', 'actualAmount', 'promotionValue', 'promotionDiscountAmount', 'receiptAmount', 'returnAmount', 'netSalesAmount', 'debtAmount']);
+      const groupCode = definition.code === 'sales-detail' ? '' : definition.code;
+      const serviceQuery = reportServiceQuery(baseQuery, { optimizedPreview, groupCode });
+      let sales;
+      if (!optimizedPreview && definition.code === 'sales-by-staff') {
+        sales = await getSalesReportService().salesReport({ ...baseQuery, full: '1', export: '1' });
+      } else {
+        sales = await getSalesReportService().salesReport(serviceQuery);
       }
-      return reportResult(definition, rows, summary, resultQuery, { dateFrom: sales.dateFrom, dateTo: sales.dateTo, source: sales.source });
+      let rows;
+      let summary = sales.summary || {};
+      let prePagedMeta = null;
+      if (optimizedPreview && groupCode && Array.isArray(sales.reportCenterRows)) {
+        rows = sales.reportCenterRows;
+        summary = sales.reportCenterSummary || summary;
+        prePagedMeta = sales.reportCenterMeta || null;
+      } else {
+        rows = sales.sales || [];
+        if (definition.code === 'sales-by-day') rows = aggregateSalesByDay(rows);
+        if (definition.code === 'sales-by-staff') rows = normalizeSalesStaffRows(sales.bySalesman || []);
+        if (definition.code === 'sales-by-customer') rows = aggregateSalesByCustomer(rows);
+        if (definition.code === 'sales-by-product') rows = aggregateSalesByProduct(rows);
+        rows = rows.filter((row) => matchesSearch(row, baseQuery));
+        if (definition.code !== 'sales-detail') {
+          summary = summaryForRows(rows, ['orderCount', 'customerCount', 'quantity', 'beforePromoAmount', 'actualAmount', 'promotionValue', 'promotionDiscountAmount', 'receiptAmount', 'returnAmount', 'netSalesAmount', 'debtAmount']);
+        }
+        if (optimizedPreview && definition.code === 'sales-detail') prePagedMeta = sales.meta || null;
+      }
+      return reportResult(definition, rows, summary, resultQuery, {
+        dateFrom: sales.dateFrom, dateTo: sales.dateTo, source: sales.source,
+        ...(prePagedMeta ? { prePagedMeta, performance: { mode: 'domain-paged-preview', materialization: groupCode ? 'group-before-response' : 'page-before-response' } } : {})
+      });
     }
     case 'inventory-current': {
-      const stock = await getInventoryReportService().currentStockReport({ ...baseQuery, full: '1', export: '1' });
-      return reportResult(definition, stock.stock || [], stock.summary || {}, resultQuery, { source: stock.source, negativeStockCount: stock.negativeStockCount });
+      const stock = await getInventoryReportService().currentStockReport(reportServiceQuery(baseQuery, { optimizedPreview }));
+      return reportResult(definition, stock.stock || [], stock.summary || {}, resultQuery, previewExtra(stock, optimizedPreview, { source: stock.source, negativeStockCount: stock.negativeStockCount }));
     }
     case 'inventory-movement': {
-      const movement = await getInventoryReportService().inventoryMovementReport({ ...baseQuery, full: '1', export: '1' });
-      return reportResult(definition, movement.stock || [], movement.summary || {}, resultQuery, { dateFrom: movement.dateFrom, dateTo: movement.dateTo, source: movement.source });
+      const movement = await getInventoryReportService().inventoryMovementReport(reportServiceQuery(baseQuery, { optimizedPreview }));
+      return reportResult(definition, movement.stock || [], movement.summary || {}, resultQuery, previewExtra(movement, optimizedPreview, { dateFrom: movement.dateFrom, dateTo: movement.dateTo, source: movement.source }));
     }
     case 'stock-card': {
-      const card = await getInventoryReportService().stockCardReport({ ...baseQuery, full: '1', export: '1' });
-      return reportResult(definition, card.transactions || [], card.summary || {}, resultQuery, { dateFrom: card.dateFrom, dateTo: card.dateTo, source: card.source });
+      const card = await getInventoryReportService().stockCardReport(reportServiceQuery(baseQuery, { optimizedPreview }));
+      return reportResult(definition, card.transactions || [], card.summary || {}, resultQuery, previewExtra(card, optimizedPreview, { dateFrom: card.dateFrom, dateTo: card.dateTo, source: card.source }));
     }
     case 'debt-current': {
       const rows = await getArLedgerReadService().aggregateDebtByCustomer({ status: 'all', dateTo: baseQuery.dateTo });
@@ -823,15 +840,15 @@ async function run(code, query = {}, user = {}) {
       return reportResult(definition, filteredRows, summaryForRows(filteredRows, ['debit', 'credit', 'remainingDebt', 'orderCount', 'ledgerCount']), resultQuery, { dateTo: baseQuery.dateTo || '', source: 'arLedgers_current' });
     }
     case 'debt-period': {
-      const debt = await getDebtReportService().periodDebtReport({ ...baseQuery, full: '1', export: '1' });
-      return reportResult(definition, debt.debts || [], debt.summary || {}, resultQuery, { dateFrom: debt.dateFrom, dateTo: debt.dateTo, source: debt.source });
+      const debt = await getDebtReportService().periodDebtReport(reportServiceQuery(baseQuery, { optimizedPreview }));
+      return reportResult(definition, debt.debts || [], debt.summary || {}, resultQuery, previewExtra(debt, optimizedPreview, { dateFrom: debt.dateFrom, dateTo: debt.dateTo, source: debt.source }));
     }
     case 'debt-ledger': {
-      const debt = await getDebtReportService().arLedgerDetailReport({ ...baseQuery, full: '1', export: '1' });
-      return reportResult(definition, debt.ledger || [], debt.summary || {}, resultQuery, { dateFrom: debt.dateFrom, dateTo: debt.dateTo, source: debt.source });
+      const debt = await getDebtReportService().arLedgerDetailReport(reportServiceQuery(baseQuery, { optimizedPreview }));
+      return reportResult(definition, debt.ledger || [], debt.summary || {}, resultQuery, previewExtra(debt, optimizedPreview, { dateFrom: debt.dateFrom, dateTo: debt.dateTo, source: debt.source }));
     }
     case 'rewards-by-customer': {
-      const rewards = await getRewardReportService().rewardByCustomerReport({ ...baseQuery, full: '1', export: '1' });
+      const rewards = await getRewardReportService().rewardByCustomerReport(reportServiceQuery(baseQuery, { optimizedPreview }));
       return reportResult(definition, rewards.rewards || [], rewards.summary || {}, resultQuery, {
         dateFrom: rewards.dateFrom,
         dateTo: rewards.dateTo,
@@ -845,24 +862,24 @@ async function run(code, query = {}, user = {}) {
       });
     }
     case 'delivery-by-staff': {
-      const delivery = await getDeliveryReportService().deliveryByStaffReport({ ...baseQuery, full: '1', export: '1' });
+      const delivery = await getDeliveryReportService().deliveryByStaffReport(reportServiceQuery(baseQuery, { optimizedPreview }));
       const rows = normalizeDeliveryStaffRows(delivery.byStaff || delivery.delivery || []);
-      return reportResult(definition, rows, delivery.summary || summaryForRows(rows, ['tripCount', 'orderCount', 'totalAmount', 'accountingConfirmedAmount', 'collectedAmount', 'unmasteredOrderCount']), resultQuery, { dateFrom: delivery.dateFrom, dateTo: delivery.dateTo, source: delivery.source });
+      return reportResult(definition, rows, delivery.summary || summaryForRows(rows, ['tripCount', 'orderCount', 'totalAmount', 'accountingConfirmedAmount', 'collectedAmount', 'unmasteredOrderCount']), resultQuery, previewExtra(delivery, optimizedPreview, { dateFrom: delivery.dateFrom, dateTo: delivery.dateTo, source: delivery.source }));
     }
     case 'delivery-trips': {
-      const delivery = await getDeliveryReportService().deliveryTripsReport({ ...baseQuery, full: '1', export: '1' });
+      const delivery = await getDeliveryReportService().deliveryTripsReport(reportServiceQuery(baseQuery, { optimizedPreview }));
       const rows = normalizeDeliveryTripRows(delivery.delivery || []);
-      return reportResult(definition, rows, delivery.summary, resultQuery, { dateFrom: delivery.dateFrom, dateTo: delivery.dateTo, source: delivery.source });
+      return reportResult(definition, rows, delivery.summary, resultQuery, previewExtra(delivery, optimizedPreview, { dateFrom: delivery.dateFrom, dateTo: delivery.dateTo, source: delivery.source }));
     }
     case 'finance-ledger':
     case 'finance-accounts': {
-      const finance = await getFinanceReportService().financeReport({ ...baseQuery, full: '1', export: '1' });
+      const finance = await getFinanceReportService().financeReport(reportServiceQuery(baseQuery, { optimizedPreview }));
       const rows = definition.code === 'finance-accounts' ? finance.accounts || [] : finance.fundLedger || [];
-      return reportResult(definition, rows, finance.summary || {}, resultQuery, { dateFrom: finance.dateFrom, dateTo: finance.dateTo, source: finance.source });
+      return reportResult(definition, rows, finance.summary || {}, resultQuery, previewExtra(finance, optimizedPreview && definition.code === 'finance-ledger', { dateFrom: finance.dateFrom, dateTo: finance.dateTo, source: finance.source }));
     }
     case 'returns-detail': {
-      const returns = await getReturnReportService().returnReport({ ...baseQuery, full: '1', export: '1' });
-      return reportResult(definition, returns.returns || [], returns.summary || {}, resultQuery, { dateFrom: returns.dateFrom, dateTo: returns.dateTo, source: returns.source });
+      const returns = await getReturnReportService().returnReport(reportServiceQuery(baseQuery, { optimizedPreview }));
+      return reportResult(definition, returns.returns || [], returns.summary || {}, resultQuery, previewExtra(returns, optimizedPreview, { dateFrom: returns.dateFrom, dateTo: returns.dateTo, source: returns.source }));
     }
     case 'info-products': {
       const info = resultQuery.__exportAll === true
@@ -886,21 +903,25 @@ async function run(code, query = {}, user = {}) {
       return reportResult(definition, rows, info.summary || summaryForRows(rows, []), resultQuery, { source: info.source });
     }
     case 'data-quality': {
-      const [sales, inventory, delivery, returns] = await Promise.all([
-        getSalesReportService().salesReport({ ...baseQuery, full: '1', export: '1' }),
-        getInventoryReportService().inventoryMovementReport({ ...baseQuery, full: '1', export: '1' }),
-        getDeliveryReportService().deliveryTripsReport({ ...baseQuery, full: '1', export: '1' }),
-        getReturnReportService().returnReport({ ...baseQuery, full: '1', export: '1' })
-      ]);
+      if (ReportExecutionPolicy.snapshotEnabled()) {
+        const snapshot = await DataQualitySnapshotService.readSnapshot(baseQuery, user);
+        const rows = (snapshot.rows || []).filter((row) => matchesSearch(row, baseQuery));
+        return reportResult(definition, rows, snapshot.summary || summarizeDataQuality(rows), resultQuery, {
+          dateFrom: snapshot.sourceRange?.dateFrom || baseQuery.dateFrom,
+          dateTo: snapshot.sourceRange?.dateTo || baseQuery.dateTo,
+          source: 'report_data_quality_snapshot',
+          snapshotVersion: snapshot.snapshotVersion,
+          sourceVersion: snapshot.sourceVersion,
+          sourceTimestamp: snapshot.sourceTimestamp,
+          generatedAt: snapshot.generatedAt,
+          stale: snapshot.stale,
+          sourceWarnings: [snapshot.staleWarning, ...(snapshot.warnings || [])].filter(Boolean)
+        });
+      }
+      const { sales, inventory, delivery, returns, orchestration } = await runLegacyDataQuality(baseQuery);
       const rows = dataQualityRows({ sales, inventory, delivery, returns }).filter((row) => matchesSearch(row, baseQuery));
-      const summary = {
-        issueCount: rows.length,
-        criticalCount: rows.filter((row) => row.severity === 'critical').length,
-        majorCount: rows.filter((row) => row.severity === 'major').length,
-        warningCount: rows.filter((row) => row.severity === 'warning').length,
-        affectedAmount: rows.reduce((sum, row) => sum + Math.abs(toNumber(row.amount)), 0)
-      };
-      return reportResult(definition, rows, summary, resultQuery, { dateFrom: sales.dateFrom, dateTo: sales.dateTo, source: 'report_domain_quality_checks' });
+      const summary = summarizeDataQuality(rows);
+      return reportResult(definition, rows, summary, resultQuery, { dateFrom: sales.dateFrom, dateTo: sales.dateTo, source: 'report_domain_quality_checks', orchestration });
     }
     default: {
       const error = new Error('Mẫu báo cáo chưa được triển khai');
@@ -909,6 +930,13 @@ async function run(code, query = {}, user = {}) {
       throw error;
     }
   }
+}
+
+async function run(code, query = {}, user = {}) {
+  if (!ReportExecutionPolicy.dbPaginationEnabled() && !ReportExecutionPolicy.snapshotEnabled()) {
+    return runInternal(code, query, user);
+  }
+  return ReportExecutionPolicy.withAdmission(() => runInternal(code, query, user));
 }
 
 async function overview(query = {}, user = {}) {

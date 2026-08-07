@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0",
+  "prompt_id": "PERF-A4B",
+  "title": "Report Center và Heavy Report Orchestration",
+  "generated_at_utc": "2026-08-06T06:04:09Z",
+  "gate": "PASS_WITH_DEFERRED_RUNTIME",
+  "input": {
+    "zip": "MK-pro-perf-a4a-dashboard-fixed.zip",
+    "sha256": "207887dc1989f16d1d79b1919f968e40a36e57406942bfb7b978630d72ab2f1e"
+  },
+  "feature_flags": {
+    "PERF_REPORT_DB_PAGINATION_V1": {
+      "default": "0",
+      "off": "legacy Report Center path",
+      "on": "bounded preview and asynchronous Report Center export"
+    },
+    "PERF_REPORT_CENTER_SNAPSHOT_V1": {
+      "default": "0",
+      "off": "legacy data-quality rebuild path",
+      "on": "snapshot-only data-quality read path"
+    }
+  },
+  "tests": {
+    "red_first": {
+      "status": "EXPECTED_FAIL",
+      "pass": 2,
+      "fail": 1
+    },
+    "green": {
+      "status": "PASS",
+      "pass": 25,
+      "fail": 0
+    },
+    "full_perf_regression": {
+      "status": "PASS",
+      "pass": 150,
+      "fail": 0
+    },
+    "relevant_report_regression": {
+      "status": "PASS",
+      "pass": 96,
+      "fail": 0
+    },
+    "javascript_syntax": {
+      "status": "PASS",
+      "files": 1654
+    },
+    "not_run_dependency": {
+      "count_files": 9,
+      "dependency": "mongoose"
+    }
+  },
+  "deployment": {
+    "mongo_connected": false,
+    "snapshot_rebuild_executed": false,
+    "production_data_modified": false,
+    "production_p95_claimed": false,
+    "feature_flags_enabled": false
+  },
+  "changed_files_summary": {
+    "added": 14,
+    "modified": 13,
+    "deleted": 0
+  },
+  "mandatory_outputs": [
+    "PERF_A4B_REPORT_CENTER_REPORT.md",
+    "PERF_A4B_FANOUT_RED_GREEN.json",
+    "PERF_A4B_REPORT_PARITY.json",
+    "PERF_A4B_MEMORY_WORK_BUDGET.json",
+    "PERF_A4B_MANIFEST.json",
+    "MK-pro-perf-a4b-report-center-fixed.zip"
+  ],
+  "release_zip_sha256": "See MK-pro-perf-a4b-report-center-fixed.zip.sha256 (kept external to avoid self-referential archive hash)."
+}

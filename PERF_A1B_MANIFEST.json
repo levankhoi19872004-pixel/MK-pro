@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "1.0",
+  "phase": "PERF-A1B",
+  "generatedAt": "2026-08-06T09:40:00+07:00",
+  "status": "PASS_WITH_DEFERRED_RUNTIME",
+  "source": {
+    "zipSha256": "07d8b6cf20394bd63beddf736e163a7268c360f67fbf87f7a2dca0f500db456d",
+    "sourceTreeSha256": "d263e9dbc951aa52792a8310aa8065d81bc96880f73726ecf37952513633232c",
+    "productionFilesModified": false
+  },
+  "evidence": {
+    "E1": "PASS",
+    "E2": "PASS",
+    "E3": "DEFERRED_TO_PERF_A6"
+  },
+  "acceptance": {
+    "redShowsGrowthWithN": true,
+    "fixture60Present": true,
+    "spyLogicalCounterPresent": true,
+    "financialSnapshotPresent": true,
+    "productionBehaviorModified": false,
+    "gateStatusCorrect": true
+  },
+  "addedSourceFiles": [
+    "test/performance/perf-a1b/logical-query-counter.js",
+    "test/performance/perf-a1b/fixture-factory.js",
+    "test/performance/perf-a1b/fake-repository.js",
+    "test/performance/perf-a1b/normalize-snapshot.js",
+    "test/performance/perf-a1b/current-architecture-simulator.js",
+    "test/performance/perf-a1b/perf-a1b-offline-repro.test.js",
+    "scripts/performance/perf-a1b/run-offline-repro.js"
+  ],
+  "commands": [
+    {
+      "command": "for f in test/performance/perf-a1b/*.js; do node --check \"$f\"; done",
+      "status": "PASS"
+    },
+    {
+      "command": "node --check scripts/performance/perf-a1b/run-offline-repro.js",
+      "status": "PASS"
+    },
+    {
+      "command": "node --expose-gc --test test/performance/perf-a1b/perf-a1b-offline-repro.test.js",
+      "status": "PASS",
+      "testsPassed": 9
+    },
+    {
+      "command": "node --expose-gc scripts/performance/perf-a1b/run-offline-repro.js",
+      "status": "PASS"
+    },
+    {
+      "command": "byte-compare every original ZIP entry against release workspace",
+      "status": "PASS",
+      "filesCompared": 2135,
+      "changed": 0,
+      "missing": 0
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "PERF_A1B_OFFLINE_REPRO_REPORT.md",
+      "sizeBytes": 2714,
+      "sha256": "e90630cbb2120bf984c015235ec8d46808312a50e8e5b33370ad0f437729e78c"
+    },
+    {
+      "name": "PERF_A1B_LOGICAL_QUERY_BASELINE.json",
+      "sizeBytes": 6117,
+      "sha256": "ebcfa25ac3b693dedff220d50049e0edccdcd3b0b91109cafb9871eb351227e9"
+    },
+    {
+      "name": "PERF_A1B_FIXTURE_MATRIX.json",
+      "sizeBytes": 56762,
+      "sha256": "2c5455944ec2fdfe35f0c85229497847e88595cf2657d83cb6076da8453a8e52"
+    },
+    {
+      "name": "PERF_A1B_RED_TEST_EVIDENCE.json",
+      "sizeBytes": 1577,
+      "sha256": "02e21d99319acfef55cc769e0d85404c4aa6af296e5f12930bda762a366a38c3"
+    },
+    {
+      "name": "PERF_A1B_CORRECTNESS_SNAPSHOT.json",
+      "sizeBytes": 113611,
+      "sha256": "1f2f874438fc0c00437665fbde74a3d57cc424860b40e6d3514605d84337f981"
+    }
+  ],
+  "deferred": [
+    "Mongo transaction behavior",
+    "Mongo explain executionStats/index stats",
+    "production p95 and error-rate evidence"
+  ],
+  "selfHash": null,
+  "sourceIntegrity": {
+    "verifiedAgainstInputZip": true,
+    "baselineFileCount": 2135,
+    "missingOriginalFiles": 0,
+    "changedOriginalFiles": 0,
+    "originalFilesByteIdentical": true,
+    "verificationResult": "PASS"
+  }
+}

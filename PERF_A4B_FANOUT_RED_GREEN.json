@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0",
+  "prompt_id": "PERF-A4B",
+  "generated_at_utc": "2026-08-06T06:04:09Z",
+  "evidence_model": {
+    "E1": "PASS",
+    "E2": "PASS",
+    "E3": "DEFERRED_TO_PERF_A6"
+  },
+  "red_first": {
+    "command": "node --test test/performance/perf-a4b/perf-a4b-red-fanout.test.js",
+    "exit_code": 1,
+    "expected_failure": true,
+    "tests": 3,
+    "pass": 2,
+    "fail": 1,
+    "failure_contract": "ReportExecutionPolicy/DataQualitySnapshotService absent before GREEN implementation"
+  },
+  "legacy": {
+    "data_quality": {
+      "service_calls": 4,
+      "full_export_calls": 4,
+      "rows_materialized": 28000,
+      "peak_logical_memory_rows": 28000,
+      "max_concurrency": 4,
+      "pagination_stage": "after-four-full-reports"
+    },
+    "preview": {
+      "service_calls": 1,
+      "full_export_calls": 1,
+      "rows_materialized": 10000,
+      "peak_logical_memory_rows": 10000,
+      "rows_returned": 50,
+      "pagination_stage": "after-assemble"
+    }
+  },
+  "green": {
+    "data_quality_read": {
+      "service_calls": 1,
+      "full_export_calls": 0,
+      "rows_materialized": 50,
+      "peak_logical_memory_rows": 50,
+      "max_concurrency": 1,
+      "source": "report_data_quality_snapshot"
+    },
+    "data_quality_rebuild": {
+      "request_path": false,
+      "bounded_concurrency_default": 2,
+      "hard_cap": 3,
+      "partial_results": false,
+      "timeout_ms_default": 120000,
+      "snapshot_row_guard": 5000,
+      "snapshot_byte_guard": 8388608
+    },
+    "preview": {
+      "service_calls": 1,
+      "full_export_calls": 0,
+      "rows_materialized": 50,
+      "peak_logical_memory_rows": 50,
+      "rows_returned": 50,
+      "pagination_stage": "repository-or-domain-before-response",
+      "hard_limit": 200
+    },
+    "export": {
+      "mode": "background_job",
+      "http_accept_status": 202,
+      "progress_status": true,
+      "row_guard": 50000,
+      "byte_guard": 67108864
+    }
+  },
+  "reduction": {
+    "data_quality_logical_rows_percent": 99.82,
+    "preview_logical_rows_percent": 99.5
+  },
+  "green_tests": {
+    "command": "node --test test/performance/perf-a4b/*.test.js",
+    "exit_code": 0,
+    "tests": 25,
+    "pass": 25,
+    "fail": 0
+  },
+  "warning": "Logical rows and logical peak memory are deterministic E2 metrics, not production heap, Mongo docsExamined, latency, throughput or p95."
+}

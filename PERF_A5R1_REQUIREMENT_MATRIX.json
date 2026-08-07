@@ -1,0 +1,96 @@
+{
+  "generatedAt": "2026-08-06T16:21:22.681004+07:00",
+  "status": "PASS_WITH_LIMITATIONS",
+  "requirements": [
+    {
+      "id": "A5R1-REQ-001",
+      "status": "PASS",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    },
+    {
+      "id": "A5R1-REQ-002",
+      "status": "PASS",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    },
+    {
+      "id": "A5R1-REQ-003",
+      "status": "PASS",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    },
+    {
+      "id": "A5R1-REQ-004",
+      "status": "PASS",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    },
+    {
+      "id": "A5R1-REQ-005",
+      "status": "PASS_WITH_LIMITATIONS",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    },
+    {
+      "id": "A5R1-REQ-006",
+      "status": "BLOCKED_BY_DESIGN_FLAG_OFF",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    },
+    {
+      "id": "A5R1-REQ-007",
+      "status": "BLOCKED_BY_DESIGN_FLAG_OFF",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    },
+    {
+      "id": "A5R1-REQ-008",
+      "status": "BLOCKED_BY_DESIGN_FLAG_OFF",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    },
+    {
+      "id": "A5R1-REQ-009",
+      "status": "PASS_WITH_LIMITATIONS",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    },
+    {
+      "id": "A5R1-REQ-010",
+      "status": "PASS",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    },
+    {
+      "id": "A5R1-REQ-011",
+      "status": "PASS",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    },
+    {
+      "id": "A5R1-REQ-012",
+      "status": "PASS",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    },
+    {
+      "id": "A5R1-REQ-013",
+      "status": "PASS",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    },
+    {
+      "id": "A5R1-REQ-014",
+      "status": "PASS",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    },
+    {
+      "id": "A5R1-REQ-015",
+      "status": "PASS",
+      "evidence": "PERF_A5R1_RED_GREEN_EVIDENCE.json / relevant mandatory artifact",
+      "deferredE3": "Production telemetry/index/Mongo verification"
+    }
+  ]
+}

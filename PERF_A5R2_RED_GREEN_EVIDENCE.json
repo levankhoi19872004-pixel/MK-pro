@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-08-07T06:57:45+07:00",
+  "redReproduced": [
+    "telemetry OFF recorded measurement",
+    "closed window accepted new request",
+    "real report descriptors ignored signal",
+    "R1 manifest/file count mismatch",
+    "artifact completeness referenced external paths"
+  ],
+  "green": [
+    "telemetry OFF no-op",
+    "window state machine",
+    "release metadata enforcement",
+    "real descriptor context propagation",
+    "admission drain",
+    "truthful artifact manifest",
+    "release self-verification"
+  ],
+  "status": "PASS"
+}

@@ -1,0 +1,558 @@
+{
+  "generatedAt": "2026-08-06T16:21:22.681004+07:00",
+  "status": "PASS_WITH_LIMITATIONS",
+  "artifactCount": 78,
+  "artifacts": [
+    {
+      "name": "PERF_A1A_BASELINE_AUDIT.md",
+      "sourcePath": "/mnt/data/perf_a1a_final/PERF_A1A_BASELINE_AUDIT.md",
+      "sha256": "eb71dd83b7de067e079440c71f395424e2c2af0387a9c86f9fcb8c0d16ff335c",
+      "size": 15610,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A1A_BASELINE_MANIFEST.json",
+      "sourcePath": "/mnt/data/perf_a1a_final/PERF_A1A_BASELINE_MANIFEST.json",
+      "sha256": "59503974be8e540405f1b508b64d0d8affc5f661ecb14008b2471bbdbfcf7d81",
+      "size": 6614,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A1A_QUERY_INVENTORY.csv",
+      "sourcePath": "/mnt/data/perf_a1a_final/PERF_A1A_QUERY_INVENTORY.csv",
+      "sha256": "97d0a75697d3954822d7181258fe2f3c8489bb43bf45787d8d308db1b4aa7ab5",
+      "size": 19766,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A1A_REQUIREMENT_MATRIX.json",
+      "sourcePath": "/mnt/data/perf_a1a_final/PERF_A1A_REQUIREMENT_MATRIX.json",
+      "sha256": "aeee37af38701c50a42d5e6fe72e444a39a082a3e5e24e40ba9c565c4ae0b659",
+      "size": 20305,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A1A_SOURCE_MAP.md",
+      "sourcePath": "/mnt/data/perf_a1a_final/PERF_A1A_SOURCE_MAP.md",
+      "sha256": "f275f1215df895a0ddce3e5ed9fdd8e310957ee65515af1d8e8a7d7f3a6922c8",
+      "size": 12191,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "MK-pro-perf-a1b-offline-repro-harness.zip.sha256",
+      "sourcePath": "/mnt/data/perf_a1b_final/MK-pro-perf-a1b-offline-repro-harness.zip.sha256",
+      "sha256": "0698af47cc32f2736d97f0f83afe2bc033aaf25c8c5e4f5ba1cc2a8ab015fdf5",
+      "size": 133,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A1B_CORRECTNESS_SNAPSHOT.json",
+      "sourcePath": "/mnt/data/perf_a1b_final/PERF_A1B_CORRECTNESS_SNAPSHOT.json",
+      "sha256": "1f2f874438fc0c00437665fbde74a3d57cc424860b40e6d3514605d84337f981",
+      "size": 113611,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A1B_FIXTURE_MATRIX.json",
+      "sourcePath": "/mnt/data/perf_a1b_final/PERF_A1B_FIXTURE_MATRIX.json",
+      "sha256": "2c5455944ec2fdfe35f0c85229497847e88595cf2657d83cb6076da8453a8e52",
+      "size": 56762,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A1B_LOGICAL_QUERY_BASELINE.json",
+      "sourcePath": "/mnt/data/perf_a1b_final/PERF_A1B_LOGICAL_QUERY_BASELINE.json",
+      "sha256": "ebcfa25ac3b693dedff220d50049e0edccdcd3b0b91109cafb9871eb351227e9",
+      "size": 6117,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A1B_MANIFEST.json",
+      "sourcePath": "/mnt/data/perf_a1b_final/PERF_A1B_MANIFEST.json",
+      "sha256": "36b67a576b923849efc74d60c7271571432e01cb3601c99ed651f1d679ef6170",
+      "size": 3145,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A1B_OFFLINE_REPRO_REPORT.md",
+      "sourcePath": "/mnt/data/perf_a1b_final/PERF_A1B_OFFLINE_REPRO_REPORT.md",
+      "sha256": "e90630cbb2120bf984c015235ec8d46808312a50e8e5b33370ad0f437729e78c",
+      "size": 2714,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A1B_RED_TEST_EVIDENCE.json",
+      "sourcePath": "/mnt/data/perf_a1b_final/PERF_A1B_RED_TEST_EVIDENCE.json",
+      "sha256": "02e21d99319acfef55cc769e0d85404c4aa6af296e5f12930bda762a366a38c3",
+      "size": 1577,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A1B_SOURCE_INTEGRITY_EVIDENCE.json",
+      "sourcePath": "/mnt/data/perf_a1b_final/PERF_A1B_SOURCE_INTEGRITY_EVIDENCE.json",
+      "sha256": "41c7cffcda62b4c18ae7fbbe4b48234ecc2cf9d27b124df8d1e1c81261154fe9",
+      "size": 108,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "MK-pro-perf-a2a-bulk-batch-context-fixed.zip.sha256",
+      "sourcePath": "/mnt/data/perf_a2a_final/MK-pro-perf-a2a-bulk-batch-context-fixed.zip.sha256",
+      "sha256": "dc2c3007d95439cd1f08b063b19d2495cfe4ef6acd6942ef3be11a854e421b2e",
+      "size": 136,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2A_BULK_BATCH_CONTEXT_REPORT.md",
+      "sourcePath": "/mnt/data/perf_a2a_final/PERF_A2A_BULK_BATCH_CONTEXT_REPORT.md",
+      "sha256": "20ded7bf38af2bf42aa8720930bf30bfde94530fa720d509e78a51b70e28d93f",
+      "size": 7036,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2A_CHANGED_FILES.json",
+      "sourcePath": "/mnt/data/perf_a2a_final/PERF_A2A_CHANGED_FILES.json",
+      "sha256": "ec7afbf2d6f8c9574fe5b6df8380de148c4b3b07ff7e9e7c4661f0938ae04637",
+      "size": 5974,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2A_FINANCIAL_PARITY.json",
+      "sourcePath": "/mnt/data/perf_a2a_final/PERF_A2A_FINANCIAL_PARITY.json",
+      "sha256": "f35ecd78b47433a13373b0f65c220e5aadae48a6af8fe2a11b53278a71174c1d",
+      "size": 3334,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2A_LOGICAL_QUERY_COMPARISON.json",
+      "sourcePath": "/mnt/data/perf_a2a_final/PERF_A2A_LOGICAL_QUERY_COMPARISON.json",
+      "sha256": "a7854d77bab78b18a4949c89ab4befb4b24a346dbfd0e765c5c4ab11e15b1bd3",
+      "size": 13727,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2A_MANIFEST.json",
+      "sourcePath": "/mnt/data/perf_a2a_final/PERF_A2A_MANIFEST.json",
+      "sha256": "90be4c64e645e2892b1951a198ff10267d4a47f6e3230e804e3aa51661df6c55",
+      "size": 11237,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2A_RED_GREEN_EVIDENCE.json",
+      "sourcePath": "/mnt/data/perf_a2a_final/PERF_A2A_RED_GREEN_EVIDENCE.json",
+      "sha256": "61a7a5b33fc9d400bbe3a47e9de35d2d78bb78db6d1867c4c51579852a21af27",
+      "size": 4067,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "MK-pro-perf-a2b-transaction-orchestration-fixed.zip.sha256",
+      "sourcePath": "/mnt/data/perf_a2b_final/MK-pro-perf-a2b-transaction-orchestration-fixed.zip.sha256",
+      "sha256": "aa1181d19dafa871288ce7b4fc5dd34c031e7290dd1e4a97b3da705fd81d7403",
+      "size": 143,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2B_CONCURRENCY_TEST_EVIDENCE.json",
+      "sourcePath": "/mnt/data/perf_a2b_final/PERF_A2B_CONCURRENCY_TEST_EVIDENCE.json",
+      "sha256": "86d4364b4d694f77bf22105f8d27b931ffc1f27a292660a50c727e585f168bf3",
+      "size": 8145,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2B_FEATURE_FLAG_MATRIX.json",
+      "sourcePath": "/mnt/data/perf_a2b_final/PERF_A2B_FEATURE_FLAG_MATRIX.json",
+      "sha256": "88528b10b06c3c14ee7e589f37bdb5c6595f08e53434274be5360762b29471b1",
+      "size": 3305,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2B_MANIFEST.json",
+      "sourcePath": "/mnt/data/perf_a2b_final/PERF_A2B_MANIFEST.json",
+      "sha256": "347d9e51a527b5533dcd45fcbe7cbbddb09ecd56db4076c5a2760ba87db949d8",
+      "size": 9866,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2B_TRANSACTION_ORCHESTRATION_REPORT.md",
+      "sourcePath": "/mnt/data/perf_a2b_final/PERF_A2B_TRANSACTION_ORCHESTRATION_REPORT.md",
+      "sha256": "f0f2584dbad79eddec08ccc1bd875d5f09a1a2b5dfee4c7c0af91e7991079dbb",
+      "size": 5291,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2B_TRANSACTION_PARITY.json",
+      "sourcePath": "/mnt/data/perf_a2b_final/PERF_A2B_TRANSACTION_PARITY.json",
+      "sha256": "5e08023d85a62c638f64dd9504ff0970ac250d415733aa816d72a2076e90988f",
+      "size": 11092,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "MK-pro-perf-a2c-idempotency-hardening-fixed.zip.sha256",
+      "sourcePath": "/mnt/data/perf_a2c_final/MK-pro-perf-a2c-idempotency-hardening-fixed.zip.sha256",
+      "sha256": "9896c508f07a711a674f036e62c0c9fa6719976a1a38e3368e055efe7843a818",
+      "size": 139,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2C_CHANGED_FILES.json",
+      "sourcePath": "/mnt/data/perf_a2c_final/PERF_A2C_CHANGED_FILES.json",
+      "sha256": "23f29d273f4d2693f71cfc51cd6e8b70eceb9e4a9328252f7808ee2be1a02073",
+      "size": 3235,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2C_DEPLOYMENT_PRECONDITIONS.json",
+      "sourcePath": "/mnt/data/perf_a2c_final/PERF_A2C_DEPLOYMENT_PRECONDITIONS.json",
+      "sha256": "82678a8c18b53af81e1c62c745486140fa3880a6651d0d592ebbf086c65b2d95",
+      "size": 2105,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2C_DUPLICATE_AUDIT_SCRIPT.md",
+      "sourcePath": "/mnt/data/perf_a2c_final/PERF_A2C_DUPLICATE_AUDIT_SCRIPT.md",
+      "sha256": "5a1b941a489f5c45892323df306d8cf18bd4f3f57aa43e15b5b0f587cd86bc84",
+      "size": 1395,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2C_IDEMPOTENCY_HARDENING_REPORT.md",
+      "sourcePath": "/mnt/data/perf_a2c_final/PERF_A2C_IDEMPOTENCY_HARDENING_REPORT.md",
+      "sha256": "adbaff2dfd370fe0baf084b403b62dcdedf18445406411b859100f83f0250f87",
+      "size": 4432,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2C_INDEX_MIGRATION_PLAN.md",
+      "sourcePath": "/mnt/data/perf_a2c_final/PERF_A2C_INDEX_MIGRATION_PLAN.md",
+      "sha256": "e6fe8478ee0ca378e57071d859cea64cc140a8c329ba644093a965befb0efcd0",
+      "size": 2460,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2C_MANIFEST.json",
+      "sourcePath": "/mnt/data/perf_a2c_final/PERF_A2C_MANIFEST.json",
+      "sha256": "b2f1db2ea8ed22e23845f539678f55153940529bf83692a3398137501c04604c",
+      "size": 8622,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A2C_RACE_TEST_EVIDENCE.json",
+      "sourcePath": "/mnt/data/perf_a2c_final/PERF_A2C_RACE_TEST_EVIDENCE.json",
+      "sha256": "913293201d6474e3d261edf56a0736b52659c7aeba308c432b83abfe5f5190f7",
+      "size": 3699,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "MK-pro-perf-a3a-delivery-orders-fixed.zip.sha256",
+      "sourcePath": "/mnt/data/perf_a3a_final/MK-pro-perf-a3a-delivery-orders-fixed.zip.sha256",
+      "sha256": "9c29bc01cdd4a8dc2e6e4d6bb63286ee7338d6482a67bd1d7ff54e9b73f0541f",
+      "size": 133,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A3A_CHANGED_FILES.json",
+      "sourcePath": "/mnt/data/perf_a3a_final/PERF_A3A_CHANGED_FILES.json",
+      "sha256": "98811e38225ee13a92b31c78191de813a8427a831a94ad2a705ae9bab21ea090",
+      "size": 3713,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A3A_DELIVERY_ORDERS_REPORT.md",
+      "sourcePath": "/mnt/data/perf_a3a_final/PERF_A3A_DELIVERY_ORDERS_REPORT.md",
+      "sha256": "38d6479e8928abdec9590bb811a89685935da562d1772422f1de4981f3e3d326",
+      "size": 5454,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A3A_LOGICAL_WORK_COMPARISON.json",
+      "sourcePath": "/mnt/data/perf_a3a_final/PERF_A3A_LOGICAL_WORK_COMPARISON.json",
+      "sha256": "60eb84b8f75667451333c7f36cd080caa2a7b777476149b479bf881c5aeb732c",
+      "size": 3605,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A3A_MANIFEST.json",
+      "sourcePath": "/mnt/data/perf_a3a_final/PERF_A3A_MANIFEST.json",
+      "sha256": "ba77533de93911307cf79d216af6b7b898e624889aea99dcaa889d421510415a",
+      "size": 4540,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A3A_PAGINATION_EVIDENCE.json",
+      "sourcePath": "/mnt/data/perf_a3a_final/PERF_A3A_PAGINATION_EVIDENCE.json",
+      "sha256": "e8e0c8422b7678a2dc3353479110b6018879b49ce1772be68e5b5db504fee580",
+      "size": 1776,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A3A_READER_PARITY.json",
+      "sourcePath": "/mnt/data/perf_a3a_final/PERF_A3A_READER_PARITY.json",
+      "sha256": "b662aee93e48977c9f5c119bdd21cdd6530408adb0e569aa8fb875714c663e94",
+      "size": 2413,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "MK-pro-perf-a3b-suggestions-fixed.zip.sha256",
+      "sourcePath": "/mnt/data/perf_a3b_final/MK-pro-perf-a3b-suggestions-fixed.zip.sha256",
+      "sha256": "9618c5219bc3d0c1a9fe523ec7d65c9454f2b9aaec51b4c1caa39d9dbb8014a8",
+      "size": 129,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A3B_CHANGED_FILES.json",
+      "sourcePath": "/mnt/data/perf_a3b_final/PERF_A3B_CHANGED_FILES.json",
+      "sha256": "407b5f734f852b22144313d6545126c106eb9363fe2c70f6181ea43f792b9983",
+      "size": 1200,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A3B_LOGICAL_WORK_COMPARISON.json",
+      "sourcePath": "/mnt/data/perf_a3b_final/PERF_A3B_LOGICAL_WORK_COMPARISON.json",
+      "sha256": "abb602d0cebdd0e5078e5820632a0ba180fb9818b079e3c40c8bbb4c74507966",
+      "size": 1126,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A3B_MANIFEST.json",
+      "sourcePath": "/mnt/data/perf_a3b_final/PERF_A3B_MANIFEST.json",
+      "sha256": "daa355b882619f51334713d107f71ca83e7b6e6d6e0b9c1d72943635b7377ff3",
+      "size": 5032,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A3B_SCOPE_SECURITY_EVIDENCE.json",
+      "sourcePath": "/mnt/data/perf_a3b_final/PERF_A3B_SCOPE_SECURITY_EVIDENCE.json",
+      "sha256": "ffdab74080b0101626f68509a423821a180d49db7c0549a811bf6300044a68ab",
+      "size": 471,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A3B_SEARCH_RELEVANCE_EVIDENCE.json",
+      "sourcePath": "/mnt/data/perf_a3b_final/PERF_A3B_SEARCH_RELEVANCE_EVIDENCE.json",
+      "sha256": "a4ad863a39cfa796269409b52741af032e376ddde878c6bcbb0965dced76981a",
+      "size": 18392,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A3B_SUGGESTIONS_REPORT.md",
+      "sourcePath": "/mnt/data/perf_a3b_final/PERF_A3B_SUGGESTIONS_REPORT.md",
+      "sha256": "7bdfc319e05b74f123ea76a2f33c1516d5781657208db8946a0d96fce4876c9f",
+      "size": 7648,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "MK-pro-perf-a4a-dashboard-fixed.zip.sha256",
+      "sourcePath": "/mnt/data/perf_a4a_final/MK-pro-perf-a4a-dashboard-fixed.zip.sha256",
+      "sha256": "81603692e975b3ea67417d87208c5a49521b2f4d683955ebb2c2102ac960ae06",
+      "size": 127,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A4A_CACHE_INVALIDATION_EVIDENCE.json",
+      "sourcePath": "/mnt/data/perf_a4a_final/PERF_A4A_CACHE_INVALIDATION_EVIDENCE.json",
+      "sha256": "e970b2d0924ab01a8e33aa7c71afbc8b1c65d909370229d294f04a9ab43cc3b1",
+      "size": 2878,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A4A_CHANGED_FILES.json",
+      "sourcePath": "/mnt/data/perf_a4a_final/PERF_A4A_CHANGED_FILES.json",
+      "sha256": "c3cc8143aece222f373ea77a82c6720220600bd3346ce7ccab5698cad8dd7df5",
+      "size": 908,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A4A_DASHBOARD_CACHE_REPORT.md",
+      "sourcePath": "/mnt/data/perf_a4a_final/PERF_A4A_DASHBOARD_CACHE_REPORT.md",
+      "sha256": "cfba8cdc297886934abb51c3e732a279df4bc54ecbb1846e024e6f80cd0f160c",
+      "size": 5061,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A4A_DASHBOARD_PARITY.json",
+      "sourcePath": "/mnt/data/perf_a4a_final/PERF_A4A_DASHBOARD_PARITY.json",
+      "sha256": "16b0876ac6e5e75f7f5cf3da2763d320ee677a7aa2f230ddd90c5b81e5bbbbc7",
+      "size": 1978,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A4A_MANIFEST.json",
+      "sourcePath": "/mnt/data/perf_a4a_final/PERF_A4A_MANIFEST.json",
+      "sha256": "36c61db8d23624fe96d31c6ff6d4ebfa38b9d46d90c7e204c71365c12d3f97e2",
+      "size": 3219,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A4A_READ_MODEL_COMPLETENESS.json",
+      "sourcePath": "/mnt/data/perf_a4a_final/PERF_A4A_READ_MODEL_COMPLETENESS.json",
+      "sha256": "01d8e0b3822e720bb405805a5bb2411298da73a96cb1eff148b903c8809f9a5e",
+      "size": 2097,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "MK-pro-perf-a4b-report-center-fixed.zip.sha256",
+      "sourcePath": "/mnt/data/perf_a4b_final/MK-pro-perf-a4b-report-center-fixed.zip.sha256",
+      "sha256": "bc28be3cdd3bdb512b43e42848ff801c07ee1ea79e921fcadc99099e8dfbb661",
+      "size": 131,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A4B_CHANGED_FILES.json",
+      "sourcePath": "/mnt/data/perf_a4b_final/PERF_A4B_CHANGED_FILES.json",
+      "sha256": "82b43721f9236326c44ede344a070f8a20ecbef8aa5c6539d2acaf3b1ec175ae",
+      "size": 1659,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A4B_FANOUT_RED_GREEN.json",
+      "sourcePath": "/mnt/data/perf_a4b_final/PERF_A4B_FANOUT_RED_GREEN.json",
+      "sha256": "d5e41fc6527e7448f6e8a641e780017327f6d2b565ba71832843b36ac032307c",
+      "size": 2370,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A4B_MANIFEST.json",
+      "sourcePath": "/mnt/data/perf_a4b_final/PERF_A4B_MANIFEST.json",
+      "sha256": "49e5298ed56152134a56e16c6ab0b537cb1fdc7ac61e58d54bb1d9d3ed7639ee",
+      "size": 1961,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A4B_MEMORY_WORK_BUDGET.json",
+      "sourcePath": "/mnt/data/perf_a4b_final/PERF_A4B_MEMORY_WORK_BUDGET.json",
+      "sha256": "3b3fbbf70559c596ba1df7d4a854c5ff193ca1d752a98f2dcfd9ca15deaa8a8b",
+      "size": 1655,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A4B_REPORT_CENTER_REPORT.md",
+      "sourcePath": "/mnt/data/perf_a4b_final/PERF_A4B_REPORT_CENTER_REPORT.md",
+      "sha256": "41ffb81ccdaefde904295df8626f3b3464ffa0fd3820981e6a0cf07a63e823d2",
+      "size": 5473,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A4B_REPORT_PARITY.json",
+      "sourcePath": "/mnt/data/perf_a4b_final/PERF_A4B_REPORT_PARITY.json",
+      "sha256": "a6728f9d6dce7180ddfe5aba4dc7a83527820bb53f86b2d68df600c4da714e5b",
+      "size": 3919,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "MK-pro-performance-release-candidate.zip.sha256",
+      "sourcePath": "/mnt/data/perf_a5_final/MK-pro-performance-release-candidate.zip.sha256",
+      "sha256": "a6db670d2b886fb4ed00612f94589743f1a49bfdf8763eb08da2105db1389dc3",
+      "size": 131,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A5_A6_TELEMETRY_CONTRACT.json",
+      "sourcePath": "/mnt/data/perf_a5_final/PERF_A5_A6_TELEMETRY_CONTRACT.json",
+      "sha256": "997261baec065279d3e712593753648db2c16917765cb2092e2577c8d2c35087",
+      "size": 2491,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A5_CHANGED_FILES.json",
+      "sourcePath": "/mnt/data/perf_a5_final/PERF_A5_CHANGED_FILES.json",
+      "sha256": "fb6c546fe53894de16729424f62321f4fa1e2b6a1e24ab0b57bf9a5cfb650991",
+      "size": 61557,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A5_ENGINEERING_VERIFICATION_REPORT.md",
+      "sourcePath": "/mnt/data/perf_a5_final/PERF_A5_ENGINEERING_VERIFICATION_REPORT.md",
+      "sha256": "ac3cae5efe3cc2aaf1bbef8d0e8b77ee4562c239bc77079fc73aca1aab224137",
+      "size": 3572,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A5_FEATURE_FLAG_MATRIX.json",
+      "sourcePath": "/mnt/data/perf_a5_final/PERF_A5_FEATURE_FLAG_MATRIX.json",
+      "sha256": "00ddaba1eee4d229dd82bd8f7f4d15cda1154585492d77a7c832f8afe33ef10e",
+      "size": 3586,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A5_FINANCIAL_PARITY.json",
+      "sourcePath": "/mnt/data/perf_a5_final/PERF_A5_FINANCIAL_PARITY.json",
+      "sha256": "429183bae77421eb45f81f9f2172daf59ff56745cc73d4c71130df0a15667dab",
+      "size": 2989,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A5_RELEASE_MANIFEST.json",
+      "sourcePath": "/mnt/data/perf_a5_final/PERF_A5_RELEASE_MANIFEST.json",
+      "sha256": "07fa6a67d7dfa31a382c68980f3f9f61fc2680022b2870b10bbd71949fb60c6c",
+      "size": 3026,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A5_REQUIREMENT_MATRIX_FINAL.json",
+      "sourcePath": "/mnt/data/perf_a5_final/PERF_A5_REQUIREMENT_MATRIX_FINAL.json",
+      "sha256": "be928676cbd4928e0e7f7bb6cf121378645492ac883d3a005cd30f7710029d47",
+      "size": 33751,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A5_ROLLBACK_RUNBOOK.md",
+      "sourcePath": "/mnt/data/perf_a5_final/PERF_A5_ROLLBACK_RUNBOOK.md",
+      "sha256": "2c97d34b2d823f167e140105b0e9767f3d2f4111ebb1d1a983f469875af0a84e",
+      "size": 2165,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A5_TEST_EVIDENCE.json",
+      "sourcePath": "/mnt/data/perf_a5_final/PERF_A5_TEST_EVIDENCE.json",
+      "sha256": "2f420d56f4a21daa56db90c6b08260022151ffcf00f8a0568fa9edbeaefcaa71",
+      "size": 5454,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A6_BASELINE_CANARY_COMPARISON.csv",
+      "sourcePath": "/mnt/data/perf_a6_final/PERF_A6_BASELINE_CANARY_COMPARISON.csv",
+      "sha256": "af0ecf8e2b60a1695d8413433cfbcf100c7d19b8d899233bc83ac00ce13a076c",
+      "size": 5841,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A6_CORRECTNESS_AUDIT.json",
+      "sourcePath": "/mnt/data/perf_a6_final/PERF_A6_CORRECTNESS_AUDIT.json",
+      "sha256": "35aefd2de9467c497fcb61aebcd8827add8f98e39e4d29131d654e037e473183",
+      "size": 2185,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A6_FEATURE_FLAG_DECISION.json",
+      "sourcePath": "/mnt/data/perf_a6_final/PERF_A6_FEATURE_FLAG_DECISION.json",
+      "sha256": "2c67934f55f6b55884aad1dd38ca607582206c189333fded9353fb9ad0595078",
+      "size": 6986,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A6_FINAL_RELEASE_MANIFEST.json",
+      "sourcePath": "/mnt/data/perf_a6_final/PERF_A6_FINAL_RELEASE_MANIFEST.json",
+      "sha256": "6be29032712de06924a112b7032783c4dac3ed0162f618fcc00040fe07655242",
+      "size": 3224,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A6_PERFORMANCE_CONTRACT_RESULT.json",
+      "sourcePath": "/mnt/data/perf_a6_final/PERF_A6_PERFORMANCE_CONTRACT_RESULT.json",
+      "sha256": "84b717baf9c47db80737a020168d5612b058ee634bada73572d4b239ce7a2ff8",
+      "size": 3229,
+      "provenance": "original generated artifact"
+    },
+    {
+      "name": "PERF_A6_PRODUCTION_VERIFICATION_REPORT.md",
+      "sourcePath": "/mnt/data/perf_a6_final/PERF_A6_PRODUCTION_VERIFICATION_REPORT.md",
+      "sha256": "cd9656b2fd61467ea2eae3bf597eacc1dc0a2df4dccf3e5b403a2b3b2b9e6351",
+      "size": 5329,
+      "provenance": "original generated artifact"
+    }
+  ],
+  "notes": [
+    "Artifacts listed only when bytes existed in current workspace/container.",
+    "No missing artifact was fabricated or backdated.",
+    "A3A manifest exists in /mnt/data/perf_a3a_final when available."
+  ]
+}

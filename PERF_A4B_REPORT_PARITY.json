@@ -1,0 +1,136 @@
+{
+  "schema_version": "1.0",
+  "prompt_id": "PERF-A4B",
+  "generated_at_utc": "2026-08-06T06:04:09Z",
+  "overall_status": "PASS",
+  "domains": [
+    {
+      "domain": "inventory",
+      "status": "PASS",
+      "ssot": "inventories + stockTransactions",
+      "same_order_ids": true,
+      "same_order": true,
+      "pagination_metadata_match": true,
+      "summary_match": true,
+      "canonical_rows_unchanged": true,
+      "page": 2,
+      "limit": 50,
+      "total": 120,
+      "page_snapshot_sha256": "94dd1d747bf865cbb51b273a3bf6ad21487376301fe27eb0559e68ad2a727263"
+    },
+    {
+      "domain": "sales",
+      "status": "PASS",
+      "ssot": "orders + arLedgers",
+      "same_order_ids": true,
+      "same_order": true,
+      "pagination_metadata_match": true,
+      "summary_match": true,
+      "canonical_rows_unchanged": true,
+      "page": 2,
+      "limit": 50,
+      "total": 120,
+      "page_snapshot_sha256": "b0ecfb26ebba3f14fdd5a162f08275fcb2d3beb7cfe6a1fae26f1e8a5c43ee90"
+    },
+    {
+      "domain": "debt",
+      "status": "PASS",
+      "ssot": "arLedgers",
+      "same_order_ids": true,
+      "same_order": true,
+      "pagination_metadata_match": true,
+      "summary_match": true,
+      "canonical_rows_unchanged": true,
+      "page": 2,
+      "limit": 50,
+      "total": 120,
+      "page_snapshot_sha256": "3496523ec87d9425b693ebc0271418cd833d865a05791bf3d4c937a6fb87f6b6"
+    },
+    {
+      "domain": "fund",
+      "status": "PASS",
+      "ssot": "fundLedgers",
+      "same_order_ids": true,
+      "same_order": true,
+      "pagination_metadata_match": true,
+      "summary_match": true,
+      "canonical_rows_unchanged": true,
+      "page": 2,
+      "limit": 50,
+      "total": 120,
+      "page_snapshot_sha256": "2334953071f87a597f8bdb54f15466b349cffe0c4e8cf536e970005c47d9558c"
+    },
+    {
+      "domain": "returns",
+      "status": "PASS",
+      "ssot": "returnOrders + arLedgers",
+      "same_order_ids": true,
+      "same_order": true,
+      "pagination_metadata_match": true,
+      "summary_match": true,
+      "canonical_rows_unchanged": true,
+      "page": 2,
+      "limit": 50,
+      "total": 120,
+      "page_snapshot_sha256": "db31ef84e19281b5c7507dade805abc82c7401bbd581a855fc44a17d4136b01c"
+    },
+    {
+      "domain": "delivery",
+      "status": "PASS",
+      "ssot": "master_orders + orders + fundLedgers",
+      "same_order_ids": true,
+      "same_order": true,
+      "pagination_metadata_match": true,
+      "summary_match": true,
+      "canonical_rows_unchanged": true,
+      "page": 2,
+      "limit": 50,
+      "total": 120,
+      "page_snapshot_sha256": "8129925ec7645dbb01934ffa6eeb0503dbbf2046fb9b0cdbf62b80b39d8ab6b5"
+    }
+  ],
+  "data_quality": {
+    "status": "PASS",
+    "projection_contract": "DataQualityProjectionBuilder shared by legacy rebuild and snapshot rebuild",
+    "fixture_anomaly_rows": 6,
+    "critical_count": 3,
+    "major_count": 3,
+    "snapshot_version": "report-data-quality-v1",
+    "source_range": {
+      "dateFrom": "2026-08-01",
+      "dateTo": "2026-08-06"
+    },
+    "snapshot_read_domain_calls": 0,
+    "snapshot_repository_reads": 1,
+    "missing_snapshot_behavior": "503 REPORT_DATA_QUALITY_SNAPSHOT_UNAVAILABLE",
+    "stale_behavior": "return snapshot with explicit staleWarning"
+  },
+  "ssot_contract": {
+    "changed": false,
+    "inventory": "inventories + stockTransactions",
+    "sales": "orders + arLedgers",
+    "debt": "arLedgers",
+    "fund": "fundLedgers",
+    "returns": "returnOrders + arLedgers",
+    "delivery": "master_orders + orders + fundLedgers"
+  },
+  "mutation_contract": {
+    "preview_mutates_source_rows": false,
+    "report_write_side_changed": false,
+    "financial_ssot_changed": false
+  },
+  "test_evidence": {
+    "a4b": {
+      "pass": 25,
+      "fail": 0
+    },
+    "full_perf": {
+      "pass": 150,
+      "fail": 0
+    },
+    "relevant_dependency_free": {
+      "pass": 96,
+      "fail": 0
+    }
+  }
+}

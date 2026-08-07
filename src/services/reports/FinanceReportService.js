@@ -3,6 +3,7 @@
 const ReturnReportService = require('./ReturnReportService');
 const FundBalanceReadService = require('../accounting/FundBalanceReadService');
 const { firstText, paginate, text, toNumber } = require('./ReportDomainUtils');
+const ReportExecutionPolicy = require('./ReportExecutionPolicy');
 
 function fundTypeOf(row = {}) {
   return FundBalanceReadService.fundTypeOfRow(row);
@@ -106,7 +107,10 @@ async function financeReport(query = {}) {
     transactionCount: toNumber(row.periodLedgerCount)
   }));
   const rows = (fundData.rows || []).map(reportRowFromFundLedger);
-  const returnData = await ReturnReportService.returnReport({ ...query, full: '1', export: '1' });
+  const returnQuery = ReportExecutionPolicy.isPreviewQuery(query)
+    ? ReportExecutionPolicy.normalizePreviewQuery({ ...query, page: 1, limit: 1 })
+    : { ...query, full: '1', export: '1' };
+  const returnData = await ReturnReportService.returnReport(returnQuery);
   const groupCounts = canonicalSummary.groups || [];
   const receiptCount = groupCounts
     .filter((row) => row.direction === 'in')

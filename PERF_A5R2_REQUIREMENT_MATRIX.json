@@ -1,0 +1,135 @@
+{
+  "generatedAt": "2026-08-07T06:57:45+07:00",
+  "engineeringStatus": "ENGINEERING_VERIFIED_REMEDIATED_R2",
+  "productionStatus": "PRODUCTION_PERFORMANCE_PENDING",
+  "requirements": [
+    {
+      "requirementId": "A5R2-REQ-001",
+      "status": "PASS",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-002",
+      "status": "PASS",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-003",
+      "status": "PASS",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-004",
+      "status": "PASS",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-005",
+      "status": "PASS",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-006",
+      "status": "PASS",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-007",
+      "status": "PASS",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-008",
+      "status": "PASS",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-009",
+      "status": "PASS",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-010",
+      "status": "PASS",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-011",
+      "status": "PASS_WITH_BASELINE_WAIVER",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-012",
+      "status": "PASS_WITH_BASELINE_WAIVER",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-013",
+      "status": "PASS",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-014",
+      "status": "PASS",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-015",
+      "status": "PASS",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    },
+    {
+      "requirementId": "A5R2-REQ-016",
+      "status": "PASS",
+      "redEvidence": "PERF_A5R2_RED_GREEN_EVIDENCE.json",
+      "greenEvidence": "PERF_A5R2_TEST_EVIDENCE.json",
+      "artifact": "See release manifest mapping",
+      "deferredE3": "Production telemetry/index/canary remains PERF-A6R1"
+    }
+  ]
+}

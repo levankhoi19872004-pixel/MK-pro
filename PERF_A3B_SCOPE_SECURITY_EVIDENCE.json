@@ -1,0 +1,19 @@
+{
+  "promptId": "PERF-A3B",
+  "evidence": "E2_DETERMINISTIC_OFFLINE",
+  "selectedScope": {
+    "deliveryDate": "2026-08-06",
+    "salesStaffCode": "S01",
+    "deliveryStaffCode": "D01"
+  },
+  "checks": {
+    "outsideScopeAbsent": true,
+    "inScopePresent": true,
+    "alternateScopePresent": true,
+    "alternateScopeDoesNotLeakOriginal": true,
+    "scopeAppliedBeforeSearch": true,
+    "candidateLimitRespected": true,
+    "regexPolicySafe": true
+  },
+  "pass": true
+}

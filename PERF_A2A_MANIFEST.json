@@ -1,0 +1,317 @@
+{
+  "schemaVersion": 1,
+  "phase": "PERF-A2A",
+  "generatedAt": "2026-08-06T10:17:30+07:00",
+  "status": "PASS_WITH_DEFERRED_RUNTIME",
+  "targetEndpoint": "POST /api/new/delivery-today/adjustments/bulk-commit",
+  "input": {
+    "sourceZip": "MK-pro-perf-a1b-offline-repro-harness.zip",
+    "sourceZipSha256": "cec9b21ef0dc1546e8221040a7143651d1e5b5e9803cba1cc53c227ea50fd1a8",
+    "sourceZipSizeBytes": 5348451,
+    "inputArtifacts": [
+      {
+        "name": "PERF_A1A_BASELINE_AUDIT.md",
+        "sha256": "eb71dd83b7de067e079440c71f395424e2c2af0387a9c86f9fcb8c0d16ff335c",
+        "sizeBytes": 15610
+      },
+      {
+        "name": "PERF_A1A_BASELINE_MANIFEST.json",
+        "sha256": "59503974be8e540405f1b508b64d0d8affc5f661ecb14008b2471bbdbfcf7d81",
+        "sizeBytes": 6614
+      },
+      {
+        "name": "PERF_A1A_QUERY_INVENTORY.csv",
+        "sha256": "97d0a75697d3954822d7181258fe2f3c8489bb43bf45787d8d308db1b4aa7ab5",
+        "sizeBytes": 19766
+      },
+      {
+        "name": "PERF_A1A_REQUIREMENT_MATRIX.json",
+        "sha256": "aeee37af38701c50a42d5e6fe72e444a39a082a3e5e24e40ba9c565c4ae0b659",
+        "sizeBytes": 20305
+      },
+      {
+        "name": "PERF_A1A_SOURCE_MAP.md",
+        "sha256": "f275f1215df895a0ddce3e5ed9fdd8e310957ee65515af1d8e8a7d7f3a6922c8",
+        "sizeBytes": 12191
+      },
+      {
+        "name": "PERF_A1B_CORRECTNESS_SNAPSHOT.json",
+        "sha256": "1f2f874438fc0c00437665fbde74a3d57cc424860b40e6d3514605d84337f981",
+        "sizeBytes": 113611
+      },
+      {
+        "name": "PERF_A1B_FIXTURE_MATRIX.json",
+        "sha256": "2c5455944ec2fdfe35f0c85229497847e88595cf2657d83cb6076da8453a8e52",
+        "sizeBytes": 56762
+      },
+      {
+        "name": "PERF_A1B_LOGICAL_QUERY_BASELINE.json",
+        "sha256": "ebcfa25ac3b693dedff220d50049e0edccdcd3b0b91109cafb9871eb351227e9",
+        "sizeBytes": 6117
+      },
+      {
+        "name": "PERF_A1B_MANIFEST.json",
+        "sha256": "36b67a576b923849efc74d60c7271571432e01cb3601c99ed651f1d679ef6170",
+        "sizeBytes": 3145
+      },
+      {
+        "name": "PERF_A1B_OFFLINE_REPRO_REPORT.md",
+        "sha256": "e90630cbb2120bf984c015235ec8d46808312a50e8e5b33370ad0f437729e78c",
+        "sizeBytes": 2714
+      },
+      {
+        "name": "PERF_A1B_PACKAGED_TEST_RUN.log",
+        "sha256": "c4eee02f3720e161f3e77c6133b372715b0c2803d4f42c86892c6a47b3385e75",
+        "sizeBytes": 1962
+      },
+      {
+        "name": "PERF_A1B_RED_TEST_EVIDENCE.json",
+        "sha256": "02e21d99319acfef55cc769e0d85404c4aa6af296e5f12930bda762a366a38c3",
+        "sizeBytes": 1577
+      },
+      {
+        "name": "PERF_A1B_SOURCE_INTEGRITY_EVIDENCE.json",
+        "sha256": "41c7cffcda62b4c18ae7fbbe4b48234ecc2cf9d27b124df8d1e1c81261154fe9",
+        "sizeBytes": 108
+      },
+      {
+        "name": "PERF_A1B_TEST_RUN.log",
+        "sha256": "f9c28fb01560c7f66acc0e3287f7e7cebe9c5dba23dd5e23c978fba8c2373e60",
+        "sizeBytes": 1968
+      }
+    ]
+  },
+  "releaseSource": {
+    "treeSha256": "761ccbbb0c890272807fad1670e3331f494994f27fed700217db4edf4c9ebb89",
+    "fileCount": 2152,
+    "productionSourceFilesChanged": 5,
+    "deletedFiles": 0
+  },
+  "featureFlag": {
+    "name": "PERF_BULK_BATCH_CONTEXT_V1",
+    "defaultEnabled": false,
+    "offBehavior": "legacy",
+    "onBehavior": "request-scoped batch context",
+    "failurePolicyDefault": "fail_request",
+    "fallbackPolicy": "fallback_legacy"
+  },
+  "evidence": {
+    "E1": "PASS",
+    "E2": "PASS",
+    "E3": "DEFERRED_TO_PERF_A6"
+  },
+  "acceptance": {
+    "redProvesGrowthWithN": true,
+    "fixture60Present": true,
+    "logicalCounterFromSpyAdapter": true,
+    "sixtyOrderLogicalReads": 242,
+    "sixtyOrderGate500Equivalent": true,
+    "sixtyOrderTarget300Equivalent": true,
+    "financialSnapshotParity": true,
+    "debtDeviation": 0,
+    "duplicateLedger": 0,
+    "returnStateParity": true,
+    "errorResultOrderParity": true,
+    "perOrderTransactionsPreserved": true,
+    "defaultRuntimeBehaviorPreserved": true
+  },
+  "tests": {
+    "redFirst": {
+      "status": "PASS",
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "skipped": 0
+    },
+    "green": {
+      "status": "PASS",
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "skipped": 0
+    },
+    "a1bSimulatorRegression": {
+      "status": "PASS",
+      "tests": 8,
+      "pass": 8,
+      "fail": 0,
+      "skipped": 0
+    },
+    "dependencyFreeRegression": {
+      "status": "PASS",
+      "tests": 47,
+      "pass": 47,
+      "fail": 0,
+      "skipped": 0
+    },
+    "syntax": {
+      "status": "PASS",
+      "files": 1594
+    },
+    "notRun": [
+      "Mongoose-dependent test",
+      "Mongo transaction integration",
+      "production p95/explain/index stats"
+    ]
+  },
+  "changedFiles": [
+    {
+      "path": "scripts/performance/perf-a2a/run-red-green.js",
+      "changeType": "ADDED",
+      "category": "tooling",
+      "baselineSha256": null,
+      "currentSha256": "5bc85159063d4bef94d758ae694857201f15f9f08fabe630a02ee5b54e09ccd9",
+      "baselineSizeBytes": 0,
+      "currentSizeBytes": 8632,
+      "linesAdded": 184,
+      "linesDeleted": 0,
+      "purpose": "Repeatable logical-query comparison and financial parity runner."
+    },
+    {
+      "path": "src/services/accounting/OrderPaymentDebtReconcileService.js",
+      "changeType": "MODIFIED",
+      "category": "production",
+      "baselineSha256": "d8948be1345cafb6377271609ae8e6ac8fd55b006e96ebee55b3f21871fff561",
+      "currentSha256": "075374a66118a75423c6be6bcef7a075bb124173b2a2cb88a2cc296d426a78e2",
+      "baselineSizeBytes": 33732,
+      "currentSizeBytes": 34480,
+      "linesAdded": 23,
+      "linesDeleted": 7,
+      "purpose": "Accept prefetched initial AR context; retain safety balance, pre-write idempotency and after-write reads."
+    },
+    {
+      "path": "src/services/delivery/DeliveryAdjustmentBatchContextService.js",
+      "changeType": "ADDED",
+      "category": "production",
+      "baselineSha256": null,
+      "currentSha256": "d8d29f64f1473dead1764f04b611358e03800de5bee19240e80ddb16563abf89",
+      "baselineSizeBytes": 0,
+      "currentSizeBytes": 16950,
+      "linesAdded": 369,
+      "linesDeleted": 0,
+      "purpose": "New request-scoped batch context loader, bounded chunking, completeness and ambiguity guards."
+    },
+    {
+      "path": "src/services/delivery/DeliveryAdjustmentBulkCommitService.js",
+      "changeType": "MODIFIED",
+      "category": "production",
+      "baselineSha256": "f9e5c0cde96c831d05ad27548995e9fecbb324b3d3cf465ed1030aca5bdf0957",
+      "currentSha256": "1229eaa7e332a6d191bfb656ef43143897a1305511e3f1a3d882cd59624b4d56",
+      "baselineSizeBytes": 5567,
+      "currentSizeBytes": 7817,
+      "linesAdded": 48,
+      "linesDeleted": 2,
+      "purpose": "Feature-flagged batch preload, explicit failure policy, per-order transaction path and duplicate canonical refresh."
+    },
+    {
+      "path": "src/services/delivery/DeliveryAdjustmentCommitService.js",
+      "changeType": "MODIFIED",
+      "category": "production",
+      "baselineSha256": "431e294d54f76928cf18b558325693ae9679838488bc5339e4723c496a89c9f2",
+      "currentSha256": "f2f04c9cc2a9dc7f874c4832a816215d2a11f0e0ed770133848b253e6a6c6a1e",
+      "baselineSizeBytes": 21768,
+      "currentSizeBytes": 24219,
+      "linesAdded": 61,
+      "linesDeleted": 7,
+      "purpose": "Consume prefetched initial order/version/AR/idempotency context while preserving after-write verification."
+    },
+    {
+      "path": "src/services/deliveryCloseoutCorrection.service.js",
+      "changeType": "MODIFIED",
+      "category": "production",
+      "baselineSha256": "b662f83880ede1fdf716c255ba43f3828b738b0d03330d05736542b9a5acd56f",
+      "currentSha256": "6e675c726336dd2267ec67983bd26a9447fc37131c54f69aec0955d3800524f3",
+      "baselineSizeBytes": 107497,
+      "currentSizeBytes": 112166,
+      "linesAdded": 98,
+      "linesDeleted": 15,
+      "purpose": "Consume prefetched version/return/allocation/correction-idempotency context and re-read latest version before write."
+    },
+    {
+      "path": "test/performance/perf-a1b/fake-repository.js",
+      "changeType": "MODIFIED",
+      "category": "test",
+      "baselineSha256": "5d5bc2e86dfde4012c70bea8ae01b7e0b0ae03bd366c27e84be1f49e2c8a4175",
+      "currentSha256": "87ec0d451a63d4f65162360271d9ceaadcb2844070fb2b03bb0f97a3d133c9fb",
+      "baselineSizeBytes": 4241,
+      "currentSizeBytes": 6221,
+      "linesAdded": 51,
+      "linesDeleted": 0,
+      "purpose": "Add deterministic batch repository methods for GREEN harness."
+    },
+    {
+      "path": "test/performance/perf-a1b/logical-query-counter.js",
+      "changeType": "MODIFIED",
+      "category": "test",
+      "baselineSha256": "489f763a4b3ae3e9876e2281f89debf0d79c4465101013577049bde24650ad2a",
+      "currentSha256": "ee85c37b3cb60d38bf917fd3d55f0f1e7dfeed6472a397313a75911f840766dd",
+      "baselineSizeBytes": 2733,
+      "currentSizeBytes": 2801,
+      "linesAdded": 2,
+      "linesDeleted": 2,
+      "purpose": "Extend spy counter with batch correction-idempotency read without changing RED counts."
+    },
+    {
+      "path": "test/performance/perf-a2a/batch-architecture-simulator.js",
+      "changeType": "ADDED",
+      "category": "test",
+      "baselineSha256": null,
+      "currentSha256": "7501b964a369a2c17854e1d194321c33eb5aa4fb00ddbc091f3941f119bf11d1",
+      "baselineSizeBytes": 0,
+      "currentSizeBytes": 10715,
+      "linesAdded": 226,
+      "linesDeleted": 0,
+      "purpose": "Dependency-free GREEN architecture simulator."
+    },
+    {
+      "path": "test/performance/perf-a2a/perf-a2a-bulk-batch-context.test.js",
+      "changeType": "ADDED",
+      "category": "test",
+      "baselineSha256": null,
+      "currentSha256": "595ab221b48257e95b7599b2634e199ab851d19b8565d92297b957a0691e981e",
+      "baselineSizeBytes": 0,
+      "currentSizeBytes": 8845,
+      "linesAdded": 172,
+      "linesDeleted": 0,
+      "purpose": "RED/GREEN, completeness, ambiguity, parity and query-gate tests."
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "PERF_A2A_BULK_BATCH_CONTEXT_REPORT.md",
+      "sha256": "20ded7bf38af2bf42aa8720930bf30bfde94530fa720d509e78a51b70e28d93f",
+      "sizeBytes": 7036
+    },
+    {
+      "name": "PERF_A2A_RED_GREEN_EVIDENCE.json",
+      "sha256": "61a7a5b33fc9d400bbe3a47e9de35d2d78bb78db6d1867c4c51579852a21af27",
+      "sizeBytes": 4067
+    },
+    {
+      "name": "PERF_A2A_LOGICAL_QUERY_COMPARISON.json",
+      "sha256": "a7854d77bab78b18a4949c89ab4befb4b24a346dbfd0e765c5c4ab11e15b1bd3",
+      "sizeBytes": 13727
+    },
+    {
+      "name": "PERF_A2A_FINANCIAL_PARITY.json",
+      "sha256": "f35ecd78b47433a13373b0f65c220e5aadae48a6af8fe2a11b53278a71174c1d",
+      "sizeBytes": 3334
+    },
+    {
+      "name": "PERF_A2A_CHANGED_FILES.json",
+      "sha256": "ec7afbf2d6f8c9574fe5b6df8380de148c4b3b07ff7e9e7c4661f0938ae04637",
+      "sizeBytes": 5974
+    }
+  ],
+  "releaseZip": {
+    "name": "MK-pro-perf-a2a-bulk-batch-context-fixed.zip",
+    "sha256": null,
+    "note": "ZIP hash is emitted in a sidecar file to avoid self-reference inside the ZIP manifest."
+  },
+  "deferred": [
+    "Physical Mongo query trace",
+    "Mongo transaction/runtime integration",
+    "explain executionStats/index stats",
+    "production p95 and 5xx evidence"
+  ]
+}

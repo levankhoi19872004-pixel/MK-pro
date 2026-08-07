@@ -1,0 +1,109 @@
+{
+  "promptId": "PERF-A3A",
+  "changedFileCount": 17,
+  "deletedFiles": [],
+  "files": [
+    {
+      "path": "package.json",
+      "status": "MODIFIED",
+      "sha256": "23f00efc47784feeabe6079587fb22a716bb9d23732116871d6c77828e031caa",
+      "sizeBytes": 16106
+    },
+    {
+      "path": "src/models/SalesOrder.js",
+      "status": "MODIFIED",
+      "sha256": "92748ceb0c7ca3bca8d8d705eddfd3b112f60a8f6ea2b90d6d6c6c6ac359bbc7",
+      "sizeBytes": 3569
+    },
+    {
+      "path": "src/routes/newOperationsRoutes.js",
+      "status": "MODIFIED",
+      "sha256": "f0eed9f4116d24f8416bd86f37a462743bf3908990a706999f219f116b2612cf",
+      "sizeBytes": 26654
+    },
+    {
+      "path": "src/services/mongoIndexService.js",
+      "status": "MODIFIED",
+      "sha256": "a8f1249481ce7553014ca527f6fd72e5b8640e7f694b72d794e4a41fdc1ff791",
+      "sizeBytes": 49043
+    },
+    {
+      "path": "src/services/delivery/DeliveryFinancialLatestStateBatchReader.js",
+      "status": "ADDED",
+      "sha256": "ec008124a6562c67ab5b80c03559a12e38200502c0a6138bcb3524afe598e83d",
+      "sizeBytes": 6307
+    },
+    {
+      "path": "src/services/delivery/DeliveryPaymentStateReadService.js",
+      "status": "MODIFIED",
+      "sha256": "fad02ad214d71cc69cb636c3ebda1ba284c82c9c050b7e0bfbf7d4373a93a858",
+      "sizeBytes": 31652
+    },
+    {
+      "path": "src/services/delivery/deliveryTodayCanonicalOrderReader.js",
+      "status": "MODIFIED",
+      "sha256": "72ed3688916322087c024602c72bd8b218150724e6123ae714abbd7f286bb40a",
+      "sizeBytes": 39821
+    },
+    {
+      "path": "src/services/v2/deliveryTodayNew.service.js",
+      "status": "MODIFIED",
+      "sha256": "e307671122676956046de30d50684fd082450e7055c5cc8a7d9c19912be9a478",
+      "sizeBytes": 60068
+    },
+    {
+      "path": "scripts/performance/perf-a3a/run-delivery-orders-repro.js",
+      "status": "ADDED",
+      "sha256": "8965d4fa37898315fd7755363025df884afefe9424ee167f02f6208125ea232f",
+      "sizeBytes": 11074
+    },
+    {
+      "path": "test/performance/perf-a3a/fake-mongo.js",
+      "status": "ADDED",
+      "sha256": "6866fafef57921cb7a92b89e7e006d3c90536bff7a4840dbd583a8e50518c2e3",
+      "sizeBytes": 6746
+    },
+    {
+      "path": "test/performance/perf-a3a/fixture-factory.js",
+      "status": "ADDED",
+      "sha256": "d96ec77dd23503dbb48686fe182fec976ff72abcb0afdd98fe63037459cd4027",
+      "sizeBytes": 6496
+    },
+    {
+      "path": "test/performance/perf-a3a/oracle-reader.js",
+      "status": "ADDED",
+      "sha256": "f36aaa4c910788a578abbb80319809feb79253a6fae4eda823e9939326b3af6e",
+      "sizeBytes": 1032
+    },
+    {
+      "path": "test/performance/perf-a3a/perf-a3a-red-parity.test.js",
+      "status": "ADDED",
+      "sha256": "19f3e674bfa271b44396c5111adfcd830986f249a9c82f75a8c7a1b4302e0399",
+      "sizeBytes": 1717
+    },
+    {
+      "path": "test/performance/perf-a3a/perf-a3a-reader-parity.test.js",
+      "status": "ADDED",
+      "sha256": "d50dcc887c1e7bcac967835a299b29bad92de8700599e0b756cde4a865f8c95b",
+      "sizeBytes": 6289
+    },
+    {
+      "path": "test/performance/perf-a3a/perf-a3a-financial-latest-state.test.js",
+      "status": "ADDED",
+      "sha256": "d41240acb2a677adbd8de264a9c7e2b47955ae8c2c296c102fa4609247590881",
+      "sizeBytes": 5526
+    },
+    {
+      "path": "test/performance/perf-a3a/perf-a3a-list-orders-integration.test.js",
+      "status": "ADDED",
+      "sha256": "749a96383aad3f96a1a4d3b5fc6de0a7bb589288cd9fa0b8d0fda3e0e13b92e1",
+      "sizeBytes": 3618
+    },
+    {
+      "path": "test/performance/perf-a3a/perf-a3a-static-contract.test.js",
+      "status": "ADDED",
+      "sha256": "c95c4447378889ef9aa1d237bb4fa64801b35a0f0f0d8fad78a47d98700408d0",
+      "sizeBytes": 1921
+    }
+  ]
+}

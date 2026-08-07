@@ -7,6 +7,7 @@ const { runImportPreviewJob } = require('../../jobs/importExcelJob');
 const importSessionService = require('../importSessionService');
 const ArtifactStore = require('./GridFsArtifactStore');
 const BackgroundJobService = require('./BackgroundJobService');
+const ExcelInteractionService = require('../excel/ExcelInteractionService');
 
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -45,6 +46,23 @@ async function runExport(job) {
     },
     artifact
   };
+}
+
+async function runReportExport(job) {
+  await ArtifactStore.removeByJobId(job.id).catch(() => 0);
+  await BackgroundJobService.updateProgress(job.id, { percent: 10, step: 'loading_report_page', message: 'Đang đọc dữ liệu báo cáo theo bộ lọc' });
+  const result = await ExcelInteractionService.exportWorkbook(job.payload.request || {}, job.payload.currentUser || {});
+  await BackgroundJobService.updateProgress(job.id, { percent: 85, step: 'persisting_artifact', message: 'Đang lưu file Excel' });
+  let artifact;
+  if (result.filePath) {
+    const fs = require('node:fs/promises');
+    const buffer = await fs.readFile(result.filePath);
+    artifact = await ArtifactStore.putBuffer(buffer, { fileName: result.fileName || 'report.xlsx', contentType: XLSX_TYPE, metadata: { jobId: job.id, jobType: job.type, artifactKind: 'report_export_output' } });
+    await fs.unlink(result.filePath).catch(() => {});
+  } else {
+    artifact = await ArtifactStore.putBuffer(result.buffer, { fileName: result.fileName || 'report.xlsx', contentType: XLSX_TYPE, metadata: { jobId: job.id, jobType: job.type, artifactKind: 'report_export_output' } });
+  }
+  return { result: { fileName: result.fileName || 'report.xlsx', rows: Number(result.rowCount || 0), outputBytes: Number(result.outputBytes || artifact.size || 0) }, artifact };
 }
 
 async function runImportPreview(job) {
@@ -103,6 +121,7 @@ async function runReconciliation(job) {
 
 async function execute(job) {
   if (job.type === 'export_excel') return runExport(job);
+  if (job.type === 'report_export_excel') return runReportExport(job);
   if (job.type === 'import_preview') return runImportPreview(job);
   if (job.type === 'import_commit') return runImportCommit(job);
   if (job.type === 'reconciliation') return runReconciliation(job);
@@ -112,4 +131,4 @@ async function execute(job) {
   throw error;
 }
 
-module.exports = { execute, _private: { runExport, runImportPreview, runImportCommit, runReconciliation, jobError } };
+module.exports = { execute, _private: { runExport, runReportExport, runImportPreview, runImportCommit, runReconciliation, jobError } };

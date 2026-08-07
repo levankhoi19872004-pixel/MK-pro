@@ -1,0 +1,74 @@
+{
+  "requirements": [
+    "A5R2-REQ-005",
+    "A5R2-REQ-006"
+  ],
+  "red": {
+    "r1DescriptorsIgnoredSignal": true
+  },
+  "green": {
+    "requiredSignature": "descriptor.run({ signal, maxTimeMS, executionId, deadlineAt })",
+    "callGraphs": [
+      {
+        "file": "src/services/reports/ReportCenterService.js",
+        "function": "runLegacyDataQuality",
+        "propagation": "ctx -> service query.__executionContext + second argument"
+      },
+      {
+        "file": "src/services/reports/DataQualitySnapshotService.js",
+        "function": "rebuildSnapshot",
+        "propagation": "ctx -> report service query/argument"
+      },
+      {
+        "file": "src/services/reports/DashboardReportService.js",
+        "function": "dashboardReport",
+        "propagation": "ctx -> report services; ImportOrder aggregate option maxTimeMS/signal"
+      }
+    ],
+    "admissionReleasedAfterUnderlyingCompletion": true,
+    "timeoutCategory": "REPORT_EXECUTION_TIMEOUT",
+    "abortCategory": "REPORT_EXECUTION_ABORTED",
+    "status": "PASS_E1_E2",
+    "queryLayerPropagation": [
+      {
+        "file": "src/services/reports/ReportQueryExecutionContext.js",
+        "functions": [
+          "applyAggregate",
+          "applyQuery"
+        ]
+      },
+      {
+        "file": "src/services/reports/SalesReportService.js",
+        "queries": [
+          "User.find",
+          "Product.find",
+          "SalesOrder.aggregate",
+          "AR read options"
+        ]
+      },
+      {
+        "file": "src/services/reports/InventoryReportService.js",
+        "queries": [
+          "StockTransaction.aggregate",
+          "inventory summary options"
+        ]
+      },
+      {
+        "file": "src/services/reports/DeliveryReportService.js",
+        "queries": [
+          "MasterOrder.aggregate",
+          "SalesOrder.aggregate",
+          "FundLedger.find"
+        ]
+      },
+      {
+        "file": "src/services/reports/ReturnReportService.js",
+        "queries": [
+          "ReturnOrder.aggregate",
+          "AR read options"
+        ]
+      }
+    ]
+  },
+  "limitation": "Production Mongo driver behavior and cancellation latency remain E3; E1/E2 query objects receive maxTimeMS/signal."
+}

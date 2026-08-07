@@ -1,0 +1,112 @@
+{
+  "promptId": "PERF-A4A",
+  "title": "Dashboard Cache và Read Model Hardening",
+  "generatedAt": "2026-08-06T05:35:15.090506Z",
+  "gate": "PASS_WITH_DEFERRED_RUNTIME",
+  "evidence": {
+    "E1": "PASS",
+    "E2": "PASS",
+    "E3": "DEFERRED_TO_PERF_A6"
+  },
+  "input": {
+    "zip": "MK-pro-perf-a3b-suggestions-fixed.zip",
+    "sha256": "5c74abf9a45f23a7d62dab27422293872a050989ede30577d76439416b19ec6f",
+    "sizeBytes": 5534889
+  },
+  "featureFlags": {
+    "PERF_DASHBOARD_CACHE_V2": {
+      "default": "OFF",
+      "on": "canonical tagged cache v2"
+    },
+    "PERF_DASHBOARD_READ_MODEL_V2": {
+      "default": "OFF",
+      "on": "structured completeness + explicit fallback"
+    }
+  },
+  "tests": {
+    "redFirst": {
+      "tests": 3,
+      "pass": 1,
+      "expectedFail": 2
+    },
+    "green": {
+      "tests": 25,
+      "pass": 25,
+      "fail": 0
+    },
+    "fullPerfRegression": {
+      "tests": 125,
+      "pass": 125,
+      "fail": 0
+    },
+    "relevantDashboardRegression": {
+      "tests": 20,
+      "pass": 20,
+      "fail": 0
+    },
+    "syntax": {
+      "files": 1640,
+      "pass": 1640
+    }
+  },
+  "databaseActions": {
+    "connected": false,
+    "repairRun": false,
+    "migrationRun": false,
+    "indexApply": false
+  },
+  "runtimeClaims": {
+    "cacheHitUnder150ms": false,
+    "readModelUnder500ms": false,
+    "productionP95": false
+  },
+  "changedFiles": {
+    "added": [
+      "scripts/performance/perf-a4a/repair-dashboard-read-model.js",
+      "scripts/performance/perf-a4a/run-dashboard-repro.js",
+      "src/services/dashboard/DashboardReadModelCompletenessService.js",
+      "test/performance/perf-a4a/perf-a4a-cache-v2.test.js",
+      "test/performance/perf-a4a/perf-a4a-home-dashboard-cache-hit.test.js",
+      "test/performance/perf-a4a/perf-a4a-read-model-completeness.test.js",
+      "test/performance/perf-a4a/perf-a4a-red-cache-read-model.test.js",
+      "test/performance/perf-a4a/perf-a4a-static-contract.test.js"
+    ],
+    "modified": [
+      "ENVIRONMENT_VARIABLES.md",
+      "package.json",
+      "scripts/rebuild-dashboard-daily-stats.js",
+      "src/models/DashboardDailyStat.js",
+      "src/services/dashboard/DashboardCacheService.js",
+      "src/services/dashboard/DashboardDailyStatsService.js",
+      "src/services/dashboard/HomeDashboardService.js"
+    ],
+    "removed": []
+  },
+  "artifacts": [
+    {
+      "name": "PERF_A4A_DASHBOARD_CACHE_REPORT.md",
+      "sha256": "cfba8cdc297886934abb51c3e732a279df4bc54ecbb1846e024e6f80cd0f160c",
+      "sizeBytes": 5061
+    },
+    {
+      "name": "PERF_A4A_CACHE_INVALIDATION_EVIDENCE.json",
+      "sha256": "e970b2d0924ab01a8e33aa7c71afbc8b1c65d909370229d294f04a9ab43cc3b1",
+      "sizeBytes": 2878
+    },
+    {
+      "name": "PERF_A4A_READ_MODEL_COMPLETENESS.json",
+      "sha256": "01d8e0b3822e720bb405805a5bb2411298da73a96cb1eff148b903c8809f9a5e",
+      "sizeBytes": 2097
+    },
+    {
+      "name": "PERF_A4A_DASHBOARD_PARITY.json",
+      "sha256": "16b0876ac6e5e75f7f5cf3da2763d320ee677a7aa2f230ddd90c5b81e5bbbbc7",
+      "sizeBytes": 1978
+    },
+    {
+      "name": "PERF_A4A_CHANGED_FILES.json",
+      "sha256": "c3cc8143aece222f373ea77a82c6720220600bd3346ce7ccab5698cad8dd7df5",
+      "sizeBytes": 908
+    }
+  ]
+}

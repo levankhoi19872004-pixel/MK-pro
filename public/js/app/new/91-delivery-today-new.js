@@ -10,7 +10,10 @@
       requestSeq: { search: 0, salesman: 0, delivery: 0 },
       items: { search: [], salesman: [], delivery: [] },
       active: { search: -1, salesman: -1, delivery: -1 },
-      loading: { search: false, salesman: false, delivery: false }
+      loading: { search: false, salesman: false, delivery: false },
+      controllers: { search: null, salesman: null, delivery: null },
+      lastRequestKey: { search: '', salesman: '', delivery: '' },
+      lastCompletedKey: { search: '', salesman: '', delivery: '' }
     },
     versionCache: {}, correctionReturnItems: [], adjustmentRow: null, adjustmentViewOnly: false, activeTab: 'overview', adjustmentDirty: { payment: false, returns: false }, adjustmentPaymentDraft: null, selectedSalesmanKeys: {}, salesmanGroups: [], selectedOrderIds: new Set(), closeoutBusy: false, bulkAdjustmentBusy: false, modalNotice: { closeout: null, adjustment: null }, modalLoading: { closeout: false, adjustment: false }, deepLinkTargetKey: '', deepLinkRequestSeq: 0, deepLinkAppliedHash: '', commandLocks: {}, loadAbortController: null, sourceMeta: null, sourceBreakdown: null
   };
@@ -315,7 +318,7 @@
   }
 
   function minSuggestionChars(scope) {
-    return isStaffSuggestionScope(scope) ? 0 : 0;
+    return isStaffSuggestionScope(scope) ? 0 : 2;
   }
 
   function setComboboxExpanded(scope, expanded) {
@@ -388,36 +391,56 @@
     var deliveryDate = normalizedText(dateInput && dateInput.value);
     if (deliveryDate !== '') params.set('deliveryDate', deliveryDate);
     var selectedDelivery = normalizedText(state.selectedFilters.deliveryStaffCode);
-    if (scope === 'salesman' && selectedDelivery !== '') params.set('deliveryStaffCode', selectedDelivery);
+    var selectedSalesman = normalizedText(state.selectedFilters.salesStaffCode);
+    if (scope !== 'delivery' && selectedDelivery !== '') params.set('deliveryStaffCode', selectedDelivery);
+    if (scope === 'search' && selectedSalesman !== '') params.set('salesStaffCode', selectedSalesman);
     return params;
   }
 
   async function fetchSuggestions(scope, rawValue) {
     var value = normalizedText(rawValue);
-    state.suggest.requestSeq[scope] += 1;
-    var seq = state.suggest.requestSeq[scope];
+    var params = suggestionParams(scope, value);
+    var requestKey = scope + '?' + params.toString();
     if (value.length < minSuggestionChars(scope)) {
+      if (state.suggest.controllers[scope]) state.suggest.controllers[scope].abort();
+      state.suggest.controllers[scope] = null;
+      state.suggest.lastRequestKey[scope] = '';
       state.suggest.items[scope] = [];
       state.suggest.loading[scope] = false;
       closeSuggestion(scope);
       return;
     }
+    if (state.suggest.loading[scope] && state.suggest.lastRequestKey[scope] === requestKey) return;
+    if (!state.suggest.loading[scope] && state.suggest.lastCompletedKey[scope] === requestKey) {
+      renderSuggestionBox(scope);
+      return;
+    }
+    if (state.suggest.controllers[scope]) state.suggest.controllers[scope].abort();
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    state.suggest.controllers[scope] = controller;
+    state.suggest.lastRequestKey[scope] = requestKey;
+    state.suggest.requestSeq[scope] += 1;
+    var seq = state.suggest.requestSeq[scope];
     state.suggest.items[scope] = [];
     state.suggest.loading[scope] = true;
     renderSuggestionBox(scope);
     try {
-      var res = await fetch('/api/new/delivery-today/suggestions?' + suggestionParams(scope, value).toString());
+      var fetchOptions = controller ? { signal: controller.signal } : undefined;
+      var res = await fetch('/api/new/delivery-today/suggestions?' + params.toString(), fetchOptions);
       var json = await res.json();
       if (seq !== state.suggest.requestSeq[scope]) return;
       if (!res.ok || (!json.ok && !json.success)) throw new Error(json.message || 'Không tải được gợi ý');
       state.suggest.items[scope] = Array.isArray(json.items) ? json.items : [];
       state.suggest.active[scope] = state.suggest.items[scope].length ? 0 : -1;
+      state.suggest.lastCompletedKey[scope] = requestKey;
     } catch (err) {
+      if (err && err.name === 'AbortError') return;
       if (seq !== state.suggest.requestSeq[scope]) return;
       state.suggest.items[scope] = [];
     } finally {
       if (seq === state.suggest.requestSeq[scope]) {
         state.suggest.loading[scope] = false;
+        if (state.suggest.controllers[scope] === controller) state.suggest.controllers[scope] = null;
         renderSuggestionBox(scope);
       }
     }

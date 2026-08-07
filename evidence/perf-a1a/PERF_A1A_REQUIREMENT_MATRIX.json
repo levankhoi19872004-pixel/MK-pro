@@ -1,0 +1,601 @@
+{
+  "program": "MK-Pro Performance Upgrade",
+  "phase": "PERF-A1A",
+  "generatedAt": "2026-08-06T09:37:01+07:00",
+  "status": "PASS_WITH_DEFERRED_RUNTIME",
+  "statusDetail": "PERF-A1A đạt E1. E2/E3 cần dependency-resolved workspace và Mongo production-like được chuyển sang PERF-A1B; không phải blocker của A1A.",
+  "requirements": [
+    {
+      "requirementId": "PERF-A1A-001",
+      "module": "Baseline/toolchain",
+      "plannedFiles": [
+        "package.json",
+        "package-lock.json",
+        ".npmrc",
+        "server.js",
+        "src/app.js"
+      ],
+      "redTest": "Không có manifest SHA/toolchain hoặc câu lệnh bị suy đoán.",
+      "greenTest": "Manifest ghi SHA-256, package manager, engines và scripts đọc trực tiếp từ repo.",
+      "acceptanceCriteria": [
+        "SHA đầu vào khớp",
+        "Không sửa production source",
+        "Command map có nguồn package.json"
+      ],
+      "evidence": [
+        "PERF_A1A_BASELINE_MANIFEST.json",
+        "PERF_A1A_BASELINE_AUDIT.md"
+      ],
+      "featureFlag": null,
+      "rollback": "Không áp dụng; audit-only.",
+      "risk": "Low",
+      "dependentGate": null,
+      "status": "PASS_E1",
+      "evidenceLevel": [
+        "E1"
+      ]
+    },
+    {
+      "requirementId": "PERF-A1A-002",
+      "module": "Hot endpoint source map",
+      "plannedFiles": [
+        "src/routes/newOperationsRoutes.js",
+        "src/routes/dashboardRoutes.js",
+        "src/controllers/dashboardController.js",
+        "src/services/**"
+      ],
+      "redTest": "Một endpoint không truy được route -> service -> model/query.",
+      "greenTest": "Mỗi hot endpoint có call graph, query mode, N+1/transaction/cache/index notes.",
+      "acceptanceCriteria": [
+        "Đủ 5 endpoint chính",
+        "Đủ report tồn kho/công nợ/quỹ/trả hàng/bán hàng",
+        "Report Center fan-out được chỉ ra"
+      ],
+      "evidence": [
+        "PERF_A1A_SOURCE_MAP.md"
+      ],
+      "featureFlag": null,
+      "rollback": "Không áp dụng.",
+      "risk": "Low",
+      "dependentGate": "PERF-A1A-001",
+      "status": "PASS_E1",
+      "evidenceLevel": [
+        "E1"
+      ]
+    },
+    {
+      "requirementId": "PERF-A1A-003",
+      "module": "Query inventory",
+      "plannedFiles": [
+        "src/services/**",
+        "src/services/mongoIndexService.js"
+      ],
+      "redTest": "Thiếu fingerprint/filter/sort/projection/limit/frequency/risk.",
+      "greenTest": "CSV có query fingerprint và index candidate cho từng hot path.",
+      "acceptanceCriteria": [
+        "Ít nhất 25 fingerprint",
+        "Phân biệt current index evidence và candidate",
+        "Có correctness risk"
+      ],
+      "evidence": [
+        "PERF_A1A_QUERY_INVENTORY.csv"
+      ],
+      "featureFlag": null,
+      "rollback": "Không áp dụng.",
+      "risk": "Low",
+      "dependentGate": "PERF-A1A-002",
+      "status": "PASS_E1",
+      "evidenceLevel": [
+        "E1"
+      ]
+    },
+    {
+      "requirementId": "PERF-A1A-004",
+      "module": "Performance contract",
+      "plannedFiles": [
+        "docs/performance-contract.md (phase sau nếu đưa vào repo)"
+      ],
+      "redTest": "Không có ngưỡng latency/query/correctness/5xx.",
+      "greenTest": "Contract chứa gate đầu và mục tiêu dài hạn do chủ hệ thống chốt.",
+      "acceptanceCriteria": [
+        "Bulk 60 ≤45s/≤500 query",
+        "Orders p95 ≤1s",
+        "Suggestions p95 ≤400ms",
+        "Dashboard hit ≤150ms/read model ≤500ms",
+        "0 debt deviation/duplicate ledger"
+      ],
+      "evidence": [
+        "PERF_A1A_BASELINE_AUDIT.md",
+        "PERF_A1A_BASELINE_MANIFEST.json"
+      ],
+      "featureFlag": null,
+      "rollback": "Không áp dụng.",
+      "risk": "Medium",
+      "dependentGate": "PERF-A1A-003",
+      "status": "PASS_E1",
+      "evidenceLevel": [
+        "E1"
+      ]
+    },
+    {
+      "requirementId": "PERF-A1A-005",
+      "module": "Program requirement matrix governance",
+      "plannedFiles": [
+        "PERF_A1A_REQUIREMENT_MATRIX.json"
+      ],
+      "redTest": "Thiếu phase, file dự kiến, RED/GREEN, acceptance, evidence level, feature flag, rollback, risk hoặc dependency gate.",
+      "greenTest": "Matrix máy đọc được, phủ PERF-A1A đến PERF-A6 và có đủ trường governance cho từng requirement.",
+      "acceptanceCriteria": [
+        "Phủ toàn bộ chương trình PERF-A1A đến PERF-A6",
+        "Mỗi requirement có RED/GREEN và acceptance criteria",
+        "Mỗi thay đổi production có feature flag/rollback hoặc lý do không áp dụng"
+      ],
+      "evidence": [
+        "PERF_A1A_REQUIREMENT_MATRIX.json"
+      ],
+      "evidenceLevel": [
+        "E1"
+      ],
+      "featureFlag": null,
+      "rollback": "Không áp dụng; artifact audit-only.",
+      "risk": "Low",
+      "dependentGate": "PERF-A1A-004",
+      "status": "PASS_E1"
+    },
+    {
+      "requirementId": "PERF-A1B-001",
+      "module": "Reproducible benchmark harness",
+      "plannedFiles": [
+        "scripts/performance/perf-a1b-hot-endpoint-benchmark.js",
+        "test/perf-a1b-query-budget.test.js"
+      ],
+      "redTest": "Chạy 16/26/60 đơn ghi duration/query count nhưng vượt contract.",
+      "greenTest": "Harness cố định dataset/scope, warm-up, concurrency, p50/p95, query fingerprints và exit code.",
+      "acceptanceCriteria": [
+        "Có seed/data snapshot ID",
+        "3 lần đo độc lập",
+        "Không dùng báo cáo cũ làm sole evidence"
+      ],
+      "evidence": [
+        "PERF_A1B_BENCHMARK.json",
+        "PERF_A1B_QUERY_TRACE.json"
+      ],
+      "featureFlag": "PERF_QUERY_TRACE_ENABLED",
+      "rollback": "Tắt tracing/harness; không ảnh hưởng runtime.",
+      "risk": "Medium",
+      "dependentGate": "PERF-A1A-004",
+      "status": "PLANNED_DEFERRED",
+      "evidenceLevel": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "requirementId": "PERF-A1B-002",
+      "module": "Production index/explain audit",
+      "plannedFiles": [
+        "scripts/audit-mongo-indexes.js",
+        "scripts/performance/capture-hot-explains.js"
+      ],
+      "redTest": "COLLSCAN, sort in memory, docsExamined/returned vượt budget hoặc unique guard thiếu.",
+      "greenTest": "Mỗi fingerprint có explain và trạng thái index thật; không tự tạo index trước data audit.",
+      "acceptanceCriteria": [
+        "Xác minh arLedgers unique idempotency",
+        "Xác minh closeout version indexes",
+        "Không drop index dựa trên snapshot ngắn"
+      ],
+      "evidence": [
+        "PERF_A1B_INDEX_AUDIT.json",
+        "PERF_A1B_EXPLAIN_EVIDENCE.json"
+      ],
+      "featureFlag": null,
+      "rollback": "Drop candidate index mới theo tên; giữ index cũ trong canary.",
+      "risk": "High",
+      "dependentGate": "PERF-A1B-001",
+      "status": "PLANNED_DEFERRED",
+      "evidenceLevel": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "requirementId": "PERF-A2-001",
+      "module": "Bulk adjustment batch context",
+      "plannedFiles": [
+        "src/services/delivery/DeliveryAdjustmentBulkCommitService.js",
+        "src/services/delivery/DeliveryAdjustmentCommitService.js",
+        "src/services/accounting/OrderPaymentDebtReconcileService.js"
+      ],
+      "redTest": "60 đơn gây N lần findOrder/version/allocation/AR preflight và >500 query.",
+      "greenTest": "Prefetch orders, latest versions, returns, allocations, AR/idempotency context theo batch; commit dùng context đã khóa/xác minh.",
+      "acceptanceCriteria": [
+        "≤500 query gate đầu",
+        "Không thay đổi kết quả từng đơn",
+        "Không bỏ safety re-read trước write"
+      ],
+      "evidence": [
+        "RED/GREEN query trace",
+        "Parity ledger snapshot",
+        "Benchmark 16/26/60"
+      ],
+      "featureFlag": "PERF_BULK_BATCH_CONTEXT_V1",
+      "rollback": "Tắt flag về serial legacy path.",
+      "risk": "High",
+      "dependentGate": "PERF-A1B-002",
+      "status": "PLANNED",
+      "evidenceLevel": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "requirementId": "PERF-A2-002",
+      "module": "Bulk transaction orchestration",
+      "plannedFiles": [
+        "src/services/delivery/DeliveryAdjustmentBulkCommitService.js",
+        "src/utils/transaction.util.js"
+      ],
+      "redTest": "60 transaction tuần tự, elapsed >45s.",
+      "greenTest": "Bounded concurrency theo transaction độc lập hoặc batch job; retry transient transaction có giới hạn.",
+      "acceptanceCriteria": [
+        "≤45s gate đầu",
+        "Không transaction quá lớn",
+        "Không double post khi retry",
+        "5xx không tăng"
+      ],
+      "evidence": [
+        "Concurrency benchmark",
+        "Transient retry tests",
+        "Idempotency evidence"
+      ],
+      "featureFlag": "PERF_BULK_BOUNDED_CONCURRENCY_V1",
+      "rollback": "Concurrency=1 hoặc tắt flag.",
+      "risk": "High",
+      "dependentGate": "PERF-A2-001",
+      "status": "PLANNED",
+      "evidenceLevel": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "requirementId": "PERF-A2-003",
+      "module": "Ledger/idempotency hard guard",
+      "plannedFiles": [
+        "src/services/mongoIndexService.js",
+        "scripts/create-ar-*-unique-index.js",
+        "test/perf-ledger-idempotency.test.js"
+      ],
+      "redTest": "Hai worker cùng idempotencyKey có thể tạo >1 ledger trên DB chưa có unique guard.",
+      "greenTest": "Data audit sạch + unique partial index + duplicate-key mapped thành idempotent result.",
+      "acceptanceCriteria": [
+        "Duplicate ledger = 0",
+        "Debt deviation = 0",
+        "Migration dry-run trước apply"
+      ],
+      "evidence": [
+        "Index list before/after",
+        "Race test",
+        "Duplicate audit"
+      ],
+      "featureFlag": "PERF_AR_UNIQUE_GUARD_V1",
+      "rollback": "Tắt application path mới; chỉ drop unique index khi có approved rollback và không mất guard thay thế.",
+      "risk": "P0",
+      "dependentGate": "PERF-A1B-002",
+      "status": "PLANNED",
+      "evidenceLevel": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "requirementId": "PERF-A3-001",
+      "module": "Delivery orders DB-native filtering",
+      "plannedFiles": [
+        "src/services/delivery/deliveryTodayCanonicalOrderReader.js",
+        "src/services/mongoIndexService.js"
+      ],
+      "redTest": "limit=100 đọc 500-2000 rows, JS date/staff filter rồi slice; p95 >1s.",
+      "greenTest": "Canonical date/staff fields được filter/sort/paginate tại Mongo; fallback legacy có telemetry.",
+      "acceptanceCriteria": [
+        "p95 ≤1s gate đầu",
+        "docsExamined/returned budget",
+        "Không thiếu đơn legacy"
+      ],
+      "evidence": [
+        "Explain before/after",
+        "Pagination parity",
+        "Legacy fixture tests"
+      ],
+      "featureFlag": "PERF_DELIVERY_CANONICAL_FILTER_V1",
+      "rollback": "Tắt flag về legacy overfetch reader.",
+      "risk": "High",
+      "dependentGate": "PERF-A1B-002",
+      "status": "PLANNED",
+      "evidenceLevel": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "requirementId": "PERF-A3-002",
+      "module": "Latest closeout/allocation batch join",
+      "plannedFiles": [
+        "src/services/v2/deliveryTodayNew.service.js",
+        "src/services/delivery/DeliveryPaymentStateReadService.js",
+        "src/services/mongoIndexService.js"
+      ],
+      "redTest": "Version/allocation history dày làm query tải toàn candidates hoặc chạm limit 5000.",
+      "greenTest": "Mongo chọn latest eligible theo canonicalOrderKey hoặc dedicated current-state read model.",
+      "acceptanceCriteria": [
+        "Fixed query count",
+        "Không stale/future/version mismatch",
+        "Giá trị 0 không fallback"
+      ],
+      "evidence": [
+        "Resolver parity tests",
+        "Explain",
+        "High-history benchmark"
+      ],
+      "featureFlag": "PERF_DELIVERY_LATEST_STATE_V1",
+      "rollback": "Tắt flag; dùng batch join cũ.",
+      "risk": "High",
+      "dependentGate": "PERF-A3-001",
+      "status": "PLANNED",
+      "evidenceLevel": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "requirementId": "PERF-A3-003",
+      "module": "Suggestions search",
+      "plannedFiles": [
+        "src/services/v2/deliveryTodayNew.service.js",
+        "src/repositories/searchRepository.js",
+        "src/services/mongoIndexService.js"
+      ],
+      "redTest": "Regex substring rộng gây COLLSCAN/p95 >400ms.",
+      "greenTest": "Normalized prefix/search index hoặc search projection; debounce/abort giữ 1 request/action.",
+      "acceptanceCriteria": [
+        "p95 ≤400ms gate đầu",
+        "Mục tiêu ≤200ms",
+        "Không rò dữ liệu ngoài scope"
+      ],
+      "evidence": [
+        "Search relevance fixtures",
+        "Explain",
+        "p95 benchmark"
+      ],
+      "featureFlag": "PERF_SUGGESTIONS_SEARCH_V1",
+      "rollback": "Tắt flag về regex path.",
+      "risk": "Medium",
+      "dependentGate": "PERF-A1B-002",
+      "status": "PLANNED",
+      "evidenceLevel": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "requirementId": "PERF-A4-001",
+      "module": "Dashboard read-model completeness",
+      "plannedFiles": [
+        "src/services/dashboard/DashboardDailyStatsService.js",
+        "scripts/rebuild-reporting-projections.js",
+        "src/jobs/**"
+      ],
+      "redTest": "Thiếu một ngày làm toàn tháng fallback live.",
+      "greenTest": "Backfill + freshness/completeness SLA; partial repair hoặc delta build có kiểm soát.",
+      "acceptanceCriteria": [
+        "Read model complete ≤500ms",
+        "Parity 100%",
+        "Missing-date alert"
+      ],
+      "evidence": [
+        "Completeness report",
+        "Parity checks",
+        "Latency benchmark"
+      ],
+      "featureFlag": "PERF_DASHBOARD_READ_MODEL_V2",
+      "rollback": "Fallback live query có rate limit/circuit breaker.",
+      "risk": "High",
+      "dependentGate": "PERF-A1B-001",
+      "status": "PLANNED",
+      "evidenceLevel": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "requirementId": "PERF-A4-002",
+      "module": "Dashboard cache",
+      "plannedFiles": [
+        "src/services/dashboard/DashboardCacheService.js",
+        "src/services/dashboard/HomeDashboardService.js"
+      ],
+      "redTest": "invalidate(period) không xóa sales-staff:/delivery-summary: keys; multi-instance cache lệch.",
+      "greenTest": "Shared/versioned cache hoặc key registry đúng; fallback policy minh bạch.",
+      "acceptanceCriteria": [
+        "Cache hit ≤150ms",
+        "Không stale sau mutation",
+        "Không 7 freshness queries/request"
+      ],
+      "evidence": [
+        "Invalidation unit/integration tests",
+        "Multi-instance test",
+        "Cache hit benchmark"
+      ],
+      "featureFlag": "PERF_DASHBOARD_SHARED_CACHE_V1",
+      "rollback": "Tắt cache hoặc TTL=0; read model vẫn hoạt động.",
+      "risk": "High",
+      "dependentGate": "PERF-A4-001",
+      "status": "PLANNED",
+      "evidenceLevel": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "requirementId": "PERF-A4-003",
+      "module": "Dashboard fallback budget",
+      "plannedFiles": [
+        "src/services/dashboard/HomeDashboardService.js",
+        "src/services/dashboard/SalesDashboardQuery.js",
+        "src/services/dashboard/DeliveryDashboardQuery.js"
+      ],
+      "redTest": "Fallback chạy 5-11 aggregate/query nặng và vượt 1s.",
+      "greenTest": "Fallback có query budget, timeout, projection, circuit breaker và telemetry.",
+      "acceptanceCriteria": [
+        "Không tăng 5xx",
+        "Degraded response có source/warning",
+        "Không thundering herd"
+      ],
+      "evidence": [
+        "Load test",
+        "Timeout/circuit tests",
+        "Telemetry trace"
+      ],
+      "featureFlag": "PERF_DASHBOARD_FALLBACK_GUARD_V1",
+      "rollback": "Tắt guard nhưng giữ read model/cache.",
+      "risk": "Medium",
+      "dependentGate": "PERF-A4-002",
+      "status": "PLANNED",
+      "evidenceLevel": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "requirementId": "PERF-A5-001",
+      "module": "Report DB-native pagination",
+      "plannedFiles": [
+        "src/services/reports/*ReportService.js",
+        "src/services/reports/ReportCenterService.js"
+      ],
+      "redTest": "Preview page vẫn chạy full/export và paginate sau khi tải toàn bộ.",
+      "greenTest": "Count + page rows hoặc keyset pagination ở DB; export chuyển streaming/job.",
+      "acceptanceCriteria": [
+        "Preview không full scan ngoài contract",
+        "Export không làm cạn RAM",
+        "Kết quả parity"
+      ],
+      "evidence": [
+        "Memory/latency benchmark",
+        "Pagination tests",
+        "Export parity"
+      ],
+      "featureFlag": "PERF_REPORT_DB_PAGINATION_V1",
+      "rollback": "Tắt flag theo từng report code.",
+      "risk": "High",
+      "dependentGate": "PERF-A1B-002",
+      "status": "PLANNED",
+      "evidenceLevel": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "requirementId": "PERF-A5-002",
+      "module": "Report Center orchestration",
+      "plannedFiles": [
+        "src/services/reports/ReportCenterService.js",
+        "src/services/reports/DashboardReportService.js"
+      ],
+      "redTest": "data-quality fan-out 4 full reports gây DB/CPU/RAM spike.",
+      "greenTest": "Dedicated anomaly projection/job; request chỉ đọc snapshot có version.",
+      "acceptanceCriteria": [
+        "Dashboard/report complete ≤500ms khi snapshot",
+        "Không fan-out full reports trên request path",
+        "Source timestamp hiển thị"
+      ],
+      "evidence": [
+        "Load test",
+        "Snapshot parity",
+        "Resource metrics"
+      ],
+      "featureFlag": "PERF_REPORT_CENTER_SNAPSHOT_V1",
+      "rollback": "Tắt report code hoặc dùng bounded legacy fallback.",
+      "risk": "High",
+      "dependentGate": "PERF-A5-001",
+      "status": "PLANNED",
+      "evidenceLevel": [
+        "E2",
+        "E3"
+      ]
+    },
+    {
+      "requirementId": "PERF-A6-001",
+      "module": "Release/canary",
+      "plannedFiles": [
+        "docs/release/PERF_RELEASE_PLAN.md",
+        "scripts/performance/perf-release-gate.js"
+      ],
+      "redTest": "Canary vượt latency/query/error/correctness budget.",
+      "greenTest": "Feature flags theo endpoint, compare shadow, rollback test, no correctness drift.",
+      "acceptanceCriteria": [
+        "Debt deviation 0",
+        "Duplicate ledger 0",
+        "5xx không tăng",
+        "Mọi contract đạt hoặc explicit waiver"
+      ],
+      "evidence": [
+        "Release manifest",
+        "Canary dashboard",
+        "Rollback drill",
+        "SHA artifacts"
+      ],
+      "featureFlag": "Các flag theo module",
+      "rollback": "Tắt flag theo module; rollback index/read-model job theo runbook.",
+      "risk": "High",
+      "dependentGate": "PERF-A2-003,PERF-A3-003,PERF-A4-003,PERF-A5-002",
+      "status": "PLANNED",
+      "evidenceLevel": [
+        "E2",
+        "E3"
+      ]
+    }
+  ],
+  "evidenceModel": {
+    "E1": "Source/static evidence",
+    "E2": "Deterministic offline test evidence",
+    "E3": "Production runtime evidence",
+    "currentGateRequired": [
+      "E1"
+    ],
+    "currentGateSatisfied": [
+      "E1"
+    ],
+    "deferred": [
+      "E2 dependency-heavy/full suite",
+      "E3 Mongo explain/index stats/p95 production"
+    ]
+  },
+  "performanceContract": {
+    "bulk60": {
+      "gateSeconds": 45,
+      "longTermSeconds": 20,
+      "gateQueries": 500,
+      "longTermQueries": 300
+    },
+    "deliveryOrders": {
+      "gateP95Ms": 1000,
+      "longTermP95Ms": 500
+    },
+    "suggestions": {
+      "gateP95Ms": 400,
+      "longTermP95Ms": 200
+    },
+    "dashboard": {
+      "cacheHitMs": 150,
+      "readModelCompleteMs": 500
+    },
+    "correctness": {
+      "debtDeviation": 0,
+      "duplicateLedger": 0,
+      "error5xxMustNotIncrease": true,
+      "transactionAndIdempotencyMustRemain": true,
+      "ssotMustNotChange": true
+    }
+  }
+}

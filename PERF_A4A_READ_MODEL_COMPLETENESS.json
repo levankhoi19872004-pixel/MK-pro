@@ -1,0 +1,72 @@
+{
+  "promptId": "PERF-A4A",
+  "requirementId": "A4A-REQ-004",
+  "generatedAt": "2026-08-06T05:35:15.090506Z",
+  "status": "PASS_E1_E2",
+  "contract": {
+    "expectedDates": "enumerated from dateFrom to min(dateTo,today)",
+    "detects": [
+      "missingDates",
+      "duplicateDates",
+      "invalidDates",
+      "unexpectedDates"
+    ],
+    "completeSource": "dashboardDailyStats",
+    "incompleteStrategy": "full live fallback",
+    "silentMixing": false,
+    "partialLiveFill": "available only when parityGuaranteed=true; not enabled by endpoint default",
+    "metaFields": [
+      "source",
+      "generatedAt",
+      "sourceTimestamp",
+      "sourceVersion",
+      "expectedDates",
+      "missingDates",
+      "complete"
+    ]
+  },
+  "completeFixture": {
+    "complete": true,
+    "missingDates": [],
+    "sourceVersion": "f81f4eeb3e29b10a7a7fd8773a47429e328221b701e2c5dd44bf9459356c31f1",
+    "generatedAt": "2026-08-06T08:00:00.000Z",
+    "strategy": "read-model-complete"
+  },
+  "missingOneDayFixture": {
+    "complete": false,
+    "missingDates": [
+      "2026-08-06"
+    ],
+    "strategy": "fallback-live-query",
+    "meta": {
+      "source": "fallback-live-query",
+      "generatedAt": "2026-08-06T05:32:14.037Z",
+      "sourceTimestamp": "2026-08-05T23:00:00.000Z",
+      "sourceVersion": "dfb7b3a9b4445ec1e70f4b52b1cb1c8f99739d8cceb3420553865ad97a3c245c",
+      "expectedDates": [
+        "2026-08-05",
+        "2026-08-06"
+      ],
+      "missingDates": [
+        "2026-08-06"
+      ],
+      "duplicateDates": [],
+      "invalidDates": [],
+      "complete": false,
+      "reason": "dashboardDailyStats_missing_or_incomplete"
+    }
+  },
+  "repair": {
+    "dryRunCommand": "npm run performance:perf-a4a:repair:dry -- --period=YYYY-MM",
+    "applyCommand": "npm run performance:perf-a4a:repair -- --period=YYYY-MM",
+    "applyConfirmationRequired": [
+      "--apply",
+      "--confirm-repair"
+    ],
+    "writesInThisGate": 0,
+    "postApplyVerification": true,
+    "failsClosedOnDuplicateOrInvalidDates": true
+  },
+  "featureFlag": "PERF_DASHBOARD_READ_MODEL_V2",
+  "default": "OFF"
+}

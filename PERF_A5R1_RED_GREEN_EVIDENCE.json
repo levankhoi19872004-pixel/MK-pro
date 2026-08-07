@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-08-06T16:21:22.681004+07:00",
+  "requirements": [
+    {
+      "id": "A5R1-REQ-002",
+      "red": "RC1 api metric lacked releaseSha/instanceId/feature flag snapshot/sampleWindowId/mode",
+      "green": "performanceMeasurementStore + middleware integration; tests 1-2 PASS",
+      "status": "PASS"
+    },
+    {
+      "id": "A5R1-REQ-004",
+      "red": "runWithTimeout used Promise.race and released admission in finally while work could continue",
+      "green": "AbortSignal propagated to task; maxTimeMS contract; waits underlying settle before slot release; test 3 PASS",
+      "status": "PASS"
+    },
+    {
+      "id": "A5R1-REQ-005/009",
+      "red": "global report pagination flag could enable mixed maturity paths",
+      "green": "per-report allowlist; blocked reports default legacy; test 4 PASS",
+      "status": "PASS_WITH_LIMITATIONS"
+    },
+    {
+      "id": "A5R1-REQ-010",
+      "red": "latest/return/AR/correction association used rows.filter for each order",
+      "green": "reverse index once + per-order indexed lookup; test 5 PASS",
+      "status": "PASS"
+    }
+  ]
+}

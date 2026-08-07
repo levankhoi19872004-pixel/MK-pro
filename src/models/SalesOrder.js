@@ -20,6 +20,7 @@ const SalesOrder = flexModel('SalesOrder', 'orders', {
   documentDate: String,
   createdDate: String,
   deliveryDate: String,
+  deliveryDateKey: String,
   createdAt: String,
   updatedAt: String,
 
@@ -33,6 +34,24 @@ const SalesOrder = flexModel('SalesOrder', 'orders', {
   customerCode: String,
   customerName: String,
   customerPhone: String,
+  phone: String,
+  phoneNumber: String,
+  customerAddress: String,
+  address: String,
+  deliveryAddress: String,
+
+  // PERF-A3B normalized suggestion read fields. They are read-model helpers,
+  // not financial SSoT. Existing data uses bounded legacy fallback until backfilled.
+  suggestOrderCodeNorm: String,
+  suggestCustomerCodeNorm: String,
+  suggestCustomerNameNorm: String,
+  suggestCustomerPhoneNorm: String,
+  suggestCustomerAddressNorm: String,
+  suggestSalesStaffCodeNorm: String,
+  suggestDeliveryStaffCodeNorm: String,
+  suggestSearchTextNorm: String,
+  suggestSearchTokens: [String],
+  suggestSearchVersion: Number,
 
   // Canonical NVBH fields. These paths must be declared because Mongo uses
   // mongoose strictQuery=true; otherwise Mongoose silently strips the filter
@@ -69,6 +88,8 @@ const SalesOrder = flexModel('SalesOrder', 'orders', {
   deliveryName: String,
   nvghCode: Mixed,
   nvghName: String,
+  maNVGH: Mixed,
+  maNVGHName: String,
   deliveryStaff: {
     code: Mixed,
     name: String,

@@ -3,6 +3,7 @@
 const Product = require('../../models/Product');
 const StockTransaction = require('../../models/StockTransaction');
 const inventoryStockService = require('../inventoryStock.service');
+const QueryExecution = require('./ReportQueryExecutionContext');
 const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../../constants/business.constants');
 const {
   businessDateStages,
@@ -145,7 +146,9 @@ async function loadTransactionsUntil(dateTo, options = {}) {
   if (options.sort !== false) {
     pipeline.push({ $sort: { _reportBusinessDate: 1, createdAt: 1, _id: 1 } });
   }
-  return StockTransaction.aggregate(pipeline).allowDiskUse(true).exec();
+  let aggregate = StockTransaction.aggregate(pipeline).allowDiskUse(true);
+  aggregate = QueryExecution.applyAggregate(aggregate, options.executionContext || {});
+  return aggregate.exec();
 }
 
 async function loadTransactionsRange(dateFrom, dateTo, options = {}) {
@@ -159,13 +162,16 @@ async function loadTransactionsRange(dateFrom, dateTo, options = {}) {
   if (options.sort !== false) {
     pipeline.push({ $sort: { _reportBusinessDate: 1, createdAt: 1, _id: 1 } });
   }
-  return StockTransaction.aggregate(pipeline).allowDiskUse(true).exec();
+  let aggregate = StockTransaction.aggregate(pipeline).allowDiskUse(true);
+  aggregate = QueryExecution.applyAggregate(aggregate, options.executionContext || {});
+  return aggregate.exec();
 }
 
 async function currentStockReport(query = {}, options = {}) {
+  const context = QueryExecution.contextOf(query, options);
   const result = await inventoryStockService.getInventorySummary({
     q: query.q || query.search || query.keyword || ''
-  }, options);
+  }, { ...options, signal: context.signal, maxTimeMS: context.maxTimeMS });
   const allRows = (result.stock || []).map((row) => ({
     ...row,
     quantity: toNumber(row.onHand ?? row.quantity ?? row.qty),
@@ -198,7 +204,8 @@ async function loadInventoryReportContext(dateTo, options = {}) {
   const transactionOptions = {
     identities,
     sort: options.sortTransactions !== false,
-    projection: options.transactionProjection || STOCK_TRANSACTION_CARD_PROJECTION
+    projection: options.transactionProjection || STOCK_TRANSACTION_CARD_PROJECTION,
+    executionContext: options.executionContext || {}
   };
   const [transactions, productRows, currentStock, futureTransactions] = await Promise.all([
     loadTransactionsUntil(dateTo, transactionOptions),
@@ -396,13 +403,15 @@ function buildInventoryMovementReport(query = {}, context = {}) {
   };
 }
 
-async function inventoryMovementReport(query = {}) {
+async function inventoryMovementReport(query = {}, options = {}) {
+  const executionContext = QueryExecution.contextOf(query, options);
   const { dateTo } = dateRange(query);
-  const context = await loadInventoryReportContext(dateTo, {
+  const reportContext = await loadInventoryReportContext(dateTo, {
     sortTransactions: false,
-    transactionProjection: STOCK_TRANSACTION_MOVEMENT_PROJECTION
+    transactionProjection: STOCK_TRANSACTION_MOVEMENT_PROJECTION,
+    executionContext
   });
-  return buildInventoryMovementReport(query, context);
+  return buildInventoryMovementReport(query, reportContext);
 }
 
 async function stockReport(query = {}) {

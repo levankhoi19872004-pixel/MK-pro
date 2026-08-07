@@ -1,0 +1,76 @@
+{
+  "promptId": "PERF-A3A",
+  "status": "PASS",
+  "fixture": {
+    "seed": "PERF-A3A-FIXTURE-V1",
+    "orders": 10000,
+    "masterOrders": 1000,
+    "closeoutVersions": 34996,
+    "allocations": 34996,
+    "returns": 770,
+    "target": {
+      "date": "2026-08-06",
+      "deliveryStaffCode": "D02",
+      "salesStaffCode": "S03"
+    }
+  },
+  "parity": {
+    "page1IdsMatchOracle": true,
+    "page2IdsMatchOracle": true,
+    "page1OrderHash": "fd078ce082c8476d20def7828d79137d7b3f12e09dd313e8297f3e0b7c0aafa5",
+    "oraclePage1OrderHash": "fd078ce082c8476d20def7828d79137d7b3f12e09dd313e8297f3e0b7c0aafa5",
+    "page2OrderHash": "fb10cffad663ed90dae85f620ce18850ca86c21292e295b85d03652b55ca3ea6",
+    "oraclePage2OrderHash": "fb10cffad663ed90dae85f620ce18850ca86c21292e295b85d03652b55ca3ea6",
+    "pageOverlapCount": 0,
+    "financialSnapshotMatch": true,
+    "legacyFinancialSnapshotHash": "3621e1426c2daf77a8b0f9f91e2f8495075a8f37ba1f04f142dcad21fa0141d7",
+    "optimizedFinancialSnapshotHash": "3621e1426c2daf77a8b0f9f91e2f8495075a8f37ba1f04f142dcad21fa0141d7",
+    "maxDebtDeviation": 0,
+    "returnStateMatch": true,
+    "paymentStateMatch": true,
+    "staffScopeLeakCount": 0,
+    "dateScopeLeakCount": 0,
+    "duplicateIdentityCount": 0,
+    "legacyMasterAssignmentsPreserved": true
+  },
+  "latestState": {
+    "legacy": {
+      "versionCalls": 1,
+      "allocationCalls": 1,
+      "returnCalls": 1,
+      "versionRowsRead": 298,
+      "allocationRowsRead": 298,
+      "returnRowsRead": 8
+    },
+    "optimized": {
+      "versionCalls": 1,
+      "allocationCalls": 2,
+      "returnCalls": 1,
+      "versionRowsRead": 100,
+      "allocationRowsRead": 100,
+      "returnRowsRead": 8
+    },
+    "versionCandidateReductionPercent": 66.44,
+    "allocationCandidateReductionPercent": 66.44,
+    "noGlobalLimitInOptimizedPipeline": true,
+    "financialSnapshotMatch": true
+  },
+  "checks": {
+    "sameOrderIds": true,
+    "sameOrder": true,
+    "sameFinancialSnapshot": true,
+    "sameDebtPaymentReturn": true,
+    "noStaffLeak": true,
+    "noDateLeak": true,
+    "noDuplicateIdentity": true,
+    "legacyOrdersPreserved": true,
+    "zeroNullNaNGuardsCovered": true
+  },
+  "featureFlag": {
+    "name": "PERF_DELIVERY_CANONICAL_FILTER_V1",
+    "default": "OFF",
+    "off": "legacy reader",
+    "on": "DB-native reader"
+  },
+  "runtimeNotice": "E3 production p95 and Mongo executionStats are deferred to PERF-A6."
+}

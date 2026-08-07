@@ -5,6 +5,7 @@ const MasterOrder = require('../../models/MasterOrder');
 const SalesOrder = require('../../models/SalesOrder');
 const FundLedger = require('../../models/FundLedger');
 const SalesReportService = require('./SalesReportService');
+const QueryExecution = require('./ReportQueryExecutionContext');
 const { fundLedgerCanonicalFilter } = require('./FinanceReportService');
 const {
   activeDocumentFilter,
@@ -33,13 +34,15 @@ function childRefs(master = {}) {
   ].map(text).filter(Boolean);
 }
 
-async function loadMasters(query = {}) {
+async function loadMasters(query = {}, context = QueryExecution.contextOf(query)) {
   const { dateFrom, dateTo } = dateRange(query);
-  const masters = await MasterOrder.aggregate([
+  let aggregate = MasterOrder.aggregate([
     { $match: activeDocumentFilter() },
     ...businessDateStages(dateFrom, dateTo, ['deliveryDate', 'date'], '_reportBusinessDate'),
     { $sort: { _reportBusinessDate: 1, createdAt: 1, _id: 1 } }
-  ]).allowDiskUse(true).exec();
+  ]).allowDiskUse(true);
+  aggregate = QueryExecution.applyAggregate(aggregate, context);
+  const masters = await aggregate.exec();
   return { masters, dateFrom, dateTo };
 }
 
@@ -47,7 +50,7 @@ function objectIds(values = []) {
   return values.filter((value) => mongoose.Types.ObjectId.isValid(value)).map((value) => new mongoose.Types.ObjectId(value));
 }
 
-async function loadChildren(masters = []) {
+async function loadChildren(masters = [], context = {}) {
   const masterKeys = Array.from(new Set(masters.flatMap(masterIdentityValues)));
   const refs = Array.from(new Set(masters.flatMap(childRefs)));
   const ids = objectIds(refs);
@@ -61,19 +64,23 @@ async function loadChildren(masters = []) {
   ];
   if (ids.length) or.push({ _id: { $in: ids } });
   if (!masterKeys.length && !refs.length) return [];
-  return SalesOrder.aggregate([
+  let aggregate = SalesOrder.aggregate([
     { $match: activeDocumentFilter() },
     { $match: { $or: or } }
-  ]).allowDiskUse(true).exec();
+  ]).allowDiskUse(true);
+  aggregate = QueryExecution.applyAggregate(aggregate, context);
+  return aggregate.exec();
 }
 
-async function loadDeliveredOrders(query = {}) {
+async function loadDeliveredOrders(query = {}, context = QueryExecution.contextOf(query)) {
   const { dateFrom, dateTo } = dateRange(query);
-  const rows = await SalesOrder.aggregate([
+  let aggregate = SalesOrder.aggregate([
     { $match: activeDocumentFilter() },
     ...businessDateStages(dateFrom, dateTo, ['deliveryDate', 'date', 'orderDate', 'documentDate'], '_reportBusinessDate'),
     { $sort: { _reportBusinessDate: 1, createdAt: 1, _id: 1 } }
-  ]).allowDiskUse(true).exec();
+  ]).allowDiskUse(true);
+  aggregate = QueryExecution.applyAggregate(aggregate, context);
+  const rows = await aggregate.exec();
   return { rows: rows.filter(isDelivered), dateFrom, dateTo };
 }
 
@@ -103,12 +110,12 @@ function fundLedgerMatchWithRefs(refCondition = {}) {
   return { ...base, ...(and.length ? { $and: and } : {}) };
 }
 
-async function loadCollections(masters = [], children = []) {
+async function loadCollections(masters = [], children = [], context = {}) {
   const masterKeys = Array.from(new Set(masters.flatMap(masterIdentityValues)));
   const childKeys = Array.from(new Set(children.flatMap(orderIdentityValues)));
   const keys = Array.from(new Set([...masterKeys, ...childKeys]));
   if (!keys.length) return [];
-  return FundLedger.find(fundLedgerMatchWithRefs({
+  let query = FundLedger.find(fundLedgerMatchWithRefs({
     $or: [
       { masterOrderId: { $in: masterKeys } },
       { masterOrderCode: { $in: masterKeys } },
@@ -117,6 +124,8 @@ async function loadCollections(masters = [], children = []) {
       { referenceId: { $in: keys } }, { referenceCode: { $in: keys } }
     ]
   })).lean();
+  query = QueryExecution.applyQuery(query, context);
+  return query;
 }
 
 function collectionByMaster(masters = [], childrenByMaster = new Map(), ledgers = []) {
@@ -163,14 +172,15 @@ function collectionByOrder(orders = [], ledgers = []) {
   return map;
 }
 
-async function deliveryTripsReport(query = {}) {
+async function deliveryTripsReport(query = {}, options = {}) {
+  const context = QueryExecution.contextOf(query, options);
   const [{ masters, dateFrom, dateTo }, productMap] = await Promise.all([
-    loadMasters(query),
-    SalesReportService.loadProductMap()
+    loadMasters(query, context),
+    SalesReportService.loadProductMap(context)
   ]);
-  const children = await loadChildren(masters);
+  const children = await loadChildren(masters, context);
   const childrenByMaster = mapChildrenToMasters(masters, children);
-  const ledgers = await loadCollections(masters, children);
+  const ledgers = await loadCollections(masters, children, context);
   const collectedByMaster = collectionByMaster(masters, childrenByMaster, ledgers);
   const needle = text(query.q || query.search || query.keyword).toLowerCase();
 

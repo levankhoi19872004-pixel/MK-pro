@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "promptId": "PERF-A5",
+  "generatedAt": "2026-08-06T13:54:44+07:00",
+  "environment": {
+    "node": "v22.16.0",
+    "nodeModulesPresent": false,
+    "mongoConnected": false,
+    "networkUsed": false
+  },
+  "summary": {
+    "performanceTests": {
+      "tests": 153,
+      "pass": 153,
+      "fail": 0
+    },
+    "allTestFiles": {
+      "PASS": 481,
+      "NOT_RUN_ENVIRONMENT": 150,
+      "BASELINE_UNRELATED_FAIL": 37
+    },
+    "allTestFileCount": 668,
+    "staticFiles": {
+      "PASS": 267,
+      "BASELINE_UNRELATED_FAIL": 15,
+      "NOT_RUN_ENVIRONMENT": 13
+    },
+    "newRegressionFailures": 0,
+    "correctnessLocksPass": true
+  },
+  "commands": [
+    {
+      "name": "perf_full_final",
+      "exitCode": 0,
+      "durationMs": 12999,
+      "command": "node --test test/performance/**/*.test.js",
+      "status": "PASS",
+      "classification": "E2_EXECUTED",
+      "tests": 153,
+      "pass": 153,
+      "fail": 0
+    },
+    {
+      "name": "syntax_final",
+      "exitCode": 0,
+      "durationMs": 708,
+      "command": "node scripts/check-js-syntax.js",
+      "status": "PASS",
+      "classification": "E1_EXECUTED",
+      "javascriptFiles": 1656,
+      "note": "Final count includes A5 telemetry script/test; final packaged rerun updates exact count."
+    },
+    {
+      "name": "release_governance",
+      "exitCode": 1,
+      "durationMs": 366,
+      "command": "npm run test:release-governance",
+      "status": "NOT_RUN_ENVIRONMENT",
+      "classification": "MISSING_DEPENDENCY",
+      "tests": 61,
+      "pass": 43,
+      "fail": 18,
+      "reason": "mongoose/express unavailable; same result reproduced on A1A baseline"
+    },
+    {
+      "name": "all_test_files_individual",
+      "command": "node --test <each of 667 test files independently>",
+      "status": "ENGINEERING_REVIEWED",
+      "classification": "MIXED_WITHOUT_NEW_REGRESSION",
+      "durationMs": null,
+      "fileSummary": {
+        "BASELINE_UNRELATED_FAIL": 37,
+        "PASS": 480,
+        "NOT_RUN_ENVIRONMENT": 150
+      },
+      "totalFiles": 667,
+      "regressionFailCount": 0
+    },
+    {
+      "name": "static_contract_files_individual",
+      "command": "node --test <each static/contract test file independently>",
+      "status": "ENGINEERING_REVIEWED",
+      "classification": "MIXED_WITHOUT_NEW_REGRESSION",
+      "fileSummary": {
+        "PASS": 267,
+        "BASELINE_UNRELATED_FAIL": 15,
+        "NOT_RUN_ENVIRONMENT": 13
+      },
+      "totalFiles": 295,
+      "regressionFailCount": 0
+    },
+    {
+      "name": "lock_registry",
+      "exitCode": 0,
+      "durationMs": 25,
+      "command": "node scripts/check-package-lock-registry.js",
+      "status": "PASS",
+      "classification": "E1_EXECUTED"
+    },
+    {
+      "name": "artifact_clean",
+      "exitCode": 1,
+      "durationMs": 21,
+      "command": "node scripts/verify-source-artifact-clean.js --directory .",
+      "status": "NOT_RUN_ENVIRONMENT",
+      "classification": "MISSING_DEPENDENCY",
+      "reason": "jszip absent; baseline fails identically"
+    },
+    {
+      "name": "source_bundles",
+      "exitCode": 1,
+      "durationMs": 21,
+      "command": "node scripts/build-source-bundles.js --check",
+      "status": "NOT_RUN_ENVIRONMENT",
+      "classification": "MISSING_DEPENDENCY",
+      "reason": "terser absent; baseline fails identically"
+    },
+    {
+      "name": "path_portability",
+      "exitCode": 1,
+      "durationMs": 1284,
+      "command": "node scripts/check-path-portability.js",
+      "status": "BASELINE_UNRELATED_FAIL",
+      "classification": "BASELINE_REPRODUCED",
+      "reason": "Same 8 unresolved local-require diagnostics on A1A baseline"
+    },
+    {
+      "name": "source_size",
+      "exitCode": 1,
+      "durationMs": 29,
+      "command": "node scripts/check-source-size-budget.js",
+      "status": "BASELINE_UNRELATED_FAIL",
+      "classification": "BASELINE_REPRODUCED",
+      "reason": "Same 7 legacy size-budget violations on A1A baseline"
+    },
+    {
+      "name": "quality_gate",
+      "exitCode": 1,
+      "durationMs": 1391,
+      "command": "npm run quality",
+      "status": "NOT_RUN_ENVIRONMENT",
+      "classification": "MISSING_DEPENDENCY",
+      "reason": "Targeted governance tests require mongoose; non-mutating tree check PASS"
+    },
+    {
+      "name": "npm_test",
+      "command": "npm test",
+      "status": "NOT_RUN_ENVIRONMENT",
+      "classification": "TOOL_TIMEOUT",
+      "durationMs": 600000,
+      "reason": "Aggregate serial runner exceeded execution limit; every test file was executed independently instead."
+    },
+    {
+      "name": "p0_ar_boundary_fix",
+      "command": "node --test test/ar-ledger-access-contract-static.test.js test/global-software-rules-static.test.js test/performance/perf-a2a/perf-a2a-bulk-batch-context.test.js",
+      "status": "PASS",
+      "classification": "E1_E2_EXECUTED",
+      "tests": 14,
+      "pass": 14,
+      "fail": 0
+    },
+    {
+      "name": "a6_telemetry_contract",
+      "command": "node --test test/performance/perf-a5/perf-a5-a6-telemetry-contract.test.js",
+      "status": "PASS",
+      "classification": "E1_EXECUTED",
+      "tests": 3,
+      "pass": 3,
+      "fail": 0
+    }
+  ],
+  "limitations": [
+    "Missing node_modules prevents dependency-backed Express/Mongoose/build bundle tests.",
+    "Baseline-unrelated failures are listed and not relabeled as PASS.",
+    "Production performance and Mongo behavior remain pending PERF-A6."
+  ]
+}

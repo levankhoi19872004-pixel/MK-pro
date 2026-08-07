@@ -1,6 +1,7 @@
 'use strict';
 
 const MongoStore = require('../models');
+const { AR_LEDGER_IDEMPOTENCY_UNIQUE_INDEX } = require('../domain/ar/arLedgerIdempotencyIndexContract');
 
 const INDEX_DEFINITIONS = {
   products: [
@@ -44,6 +45,18 @@ const INDEX_DEFINITIONS = {
     [{ salesOrderId: 1 }, { name: 'idx_orders_sales_order_id', sparse: true }],
     [{ salesOrderCode: 1 }, { name: 'idx_orders_sales_order_code', sparse: true }],
     [{ deliveryDate: -1, deliveryStaffCode: 1, salesStaffCode: 1, accountingConfirmed: 1, id: 1 }, { name: 'idx_orders_closeout_scope_status' }],
+    [{ deliveryDateKey: 1, deliveryStaffCode: 1, createdAt: -1, _id: -1 }, { name: 'idx_orders_delivery_date_key_staff_created' }],
+    [{ deliveryDateKey: 1, salesStaffCode: 1, createdAt: -1, _id: -1 }, { name: 'idx_orders_delivery_date_key_sales_created' }],
+    [{ deliveryDateKey: 1, customerCode: 1, createdAt: -1, _id: -1 }, { name: 'idx_orders_delivery_date_key_customer_created' }],
+    // PERF-A3B normalized suggestion fast path. Desired state only; production
+    // creation/usage must be verified with index audit + explain at PERF-A6.
+    [{ deliveryDateKey: 1, suggestDeliveryStaffCodeNorm: 1, suggestCustomerCodeNorm: 1, createdAt: -1 }, { name: 'idx_orders_suggest_delivery_customer' }],
+    [{ deliveryDateKey: 1, suggestSalesStaffCodeNorm: 1, suggestCustomerCodeNorm: 1, createdAt: -1 }, { name: 'idx_orders_suggest_sales_customer' }],
+    [{ suggestOrderCodeNorm: 1, createdAt: -1 }, { name: 'idx_orders_suggest_order_code' }],
+    [{ suggestCustomerCodeNorm: 1, createdAt: -1 }, { name: 'idx_orders_suggest_customer_code' }],
+    [{ suggestCustomerNameNorm: 1, createdAt: -1 }, { name: 'idx_orders_suggest_customer_name' }],
+    [{ suggestCustomerPhoneNorm: 1, createdAt: -1 }, { name: 'idx_orders_suggest_customer_phone' }],
+    [{ suggestSearchTokens: 1, deliveryDateKey: 1, createdAt: -1 }, { name: 'idx_orders_suggest_tokens_date' }],
     [{ customerCode: 1, orderDate: -1 }, { name: 'idx_orders_customer_order_date' }],
     [{ salesStaffCode: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_sales_staff_order_date_status' }],
     [{ orderDate: -1, createdAt: -1 }, { name: 'idx_orders_order_date_created_desc' }],
@@ -58,6 +71,7 @@ const INDEX_DEFINITIONS = {
     [{ id: 1 }, { name: 'uniq_masterOrders_id', unique: true, sparse: true }],
     [{ code: 1 }, { name: 'uniq_masterOrders_code', unique: true, sparse: true }],
     [{ deliveryDate: -1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_master_orders_delivery_staff_status_desc' }],
+    [{ deliveryStaffCode: 1, updatedAt: -1, _id: -1 }, { name: 'idx_master_orders_delivery_staff_updated' }],
     [{ deliveryStatus: 1, arStatus: 1, deliveryDate: 1 }, { name: 'idx_master_orders_delivery_ar_date' }],
     [{ accountingConfirmed: 1, deliveryDate: 1 }, { name: 'idx_master_orders_accounting_date' }],
     [{ childOrderIds: 1 }, { name: 'idx_master_orders_child_order_ids' }],
@@ -470,6 +484,28 @@ const INDEX_DEFINITIONS = {
   ]
 };
 
+
+// Desired-state registry entries that are intentionally NOT auto-applied by
+// ensureMongoIndexes. They require an explicit audited migration command.
+const PENDING_INDEX_DEFINITIONS = {
+  arLedgers: [[
+    AR_LEDGER_IDEMPOTENCY_UNIQUE_INDEX.fields,
+    AR_LEDGER_IDEMPOTENCY_UNIQUE_INDEX.options,
+    {
+      autoApply: false,
+      deploymentState: AR_LEDGER_IDEMPOTENCY_UNIQUE_INDEX.deploymentState,
+      owner: AR_LEDGER_IDEMPOTENCY_UNIQUE_INDEX.owner
+    }
+  ]]
+};
+
+function getManagedIndexDesiredState(collectionKey) {
+  return {
+    active: INDEX_DEFINITIONS[collectionKey] || [],
+    pending: PENDING_INDEX_DEFINITIONS[collectionKey] || []
+  };
+}
+
 Object.assign(INDEX_DEFINITIONS, {
   readModelSyncJobs: [
     [{ idempotencyKey: 1 }, { name: 'uniq_read_model_sync_jobs_idempotency_key', unique: true, sparse: true }],
@@ -792,6 +828,8 @@ async function ensureMongoIndexes({ logger = console } = {}) {
 
 module.exports = {
   INDEX_DEFINITIONS,
+  PENDING_INDEX_DEFINITIONS,
+  getManagedIndexDesiredState,
   buildManagedIndexPlan,
   comparableIndexOptions,
   sameIndexKey,

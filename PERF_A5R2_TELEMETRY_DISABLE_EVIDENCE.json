@@ -1,0 +1,28 @@
+{
+  "requirementId": "A5R2-REQ-002",
+  "red": {
+    "reproduced": true,
+    "r1RecordCountWhenOff": 1
+  },
+  "green": {
+    "valuesOff": [
+      "0",
+      "false",
+      "off",
+      "no"
+    ],
+    "newMeasurements": 0,
+    "valuesOn": [
+      "1",
+      "true",
+      "on",
+      "yes"
+    ],
+    "status": "PASS"
+  },
+  "implementation": [
+    "performanceMeasurementStore.telemetryEnabled",
+    "apiMonitor early guard",
+    "beginMeasurement/completeMeasurement/exportWindow no-op semantics"
+  ]
+}

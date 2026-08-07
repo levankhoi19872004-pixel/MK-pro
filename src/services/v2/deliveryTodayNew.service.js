@@ -9,6 +9,8 @@ const deliveryTodayCanonicalOrderReader = require('../delivery/deliveryTodayCano
 const { calculateDeliveryTodayKpi } = require('../delivery/deliveryTodayKpiCalculator');
 const { evaluateCloseoutEligibility } = require('../accounting/closeout/CloseoutEligibility');
 const DeliveryPaymentStateReadService = require('../delivery/DeliveryPaymentStateReadService');
+const DeliverySuggestionSearchService = require('../delivery/DeliverySuggestionSearchService');
+const deliverySuggestionSearchContract = require('../delivery/deliverySuggestionSearchContract');
 const canonicalFinancialReadConfig = require('../../config/canonicalDeliveryFinancialRead.config');
 const {
   RETURN_ORDER_LOCK_PROJECTION,
@@ -961,7 +963,19 @@ async function listOrders(query = {}, options = {}) {
   let financialResult = null;
   let shadowDiffSummary = null;
   let rows;
-  if (!canonicalComputationEnabled) {
+  const dbNativeLatestState = readerDiagnostics.readerMode === 'db-native';
+  if (!canonicalComputationEnabled && dbNativeLatestState) {
+    financialResult = await DeliveryPaymentStateReadService.resolvePaymentStatesForOrders(orders, {
+      ...options,
+      models: getModels(),
+      includeReturnState: true,
+      dbNativeLatestState: true
+    });
+    returnsByKey = buildReturnsMapFromRows(financialResult.returnResult && financialResult.returnResult.rows);
+    versionsByKey = financialResult.versionsByKey;
+    allocationsByKey = financialResult.allocationsByKey;
+    rows = orders.map((order) => summarizeOrder(order, returnsByKey, versionsByKey, allocationsByKey));
+  } else if (!canonicalComputationEnabled) {
     [returnsByKey, versionsByKey, allocationsByKey] = await Promise.all([
       loadReturnsForOrders(orders, options),
       loadLatestVersionsForOrders(orders, options),
@@ -972,7 +986,8 @@ async function listOrders(query = {}, options = {}) {
     financialResult = await DeliveryPaymentStateReadService.resolvePaymentStatesForOrders(orders, {
       ...options,
       models: getModels(),
-      includeReturnState: true
+      includeReturnState: true,
+      dbNativeLatestState
     });
     returnsByKey = buildReturnsMapFromRows(financialResult.returnResult && financialResult.returnResult.rows);
     versionsByKey = financialResult.versionsByKey;
@@ -1025,6 +1040,7 @@ async function listOrders(query = {}, options = {}) {
   return {
     rows,
     orders: rows,
+    pagination: canonicalResult.pagination || null,
     summary,
     totals: summary,
     groups,
@@ -1046,15 +1062,20 @@ async function listOrders(query = {}, options = {}) {
       shadowSampled,
       shadowDiffSummary,
       deliverySourceApplied: false,
-      fallbackEnabled: false,
+      fallbackEnabled: Boolean(readerDiagnostics.legacyFallback),
       hasSearchCriteria: hasSearchCriteria(query),
       requireFilter: false,
       performance: {
         durationMs: Math.max(0, Date.now() - startedAt),
-        queryCount: Number(readerDiagnostics.queryCount || 0) + (orders.length ? 3 : 0),
+        queryCount: Number(readerDiagnostics.queryCount || 0) + (orders.length ? (dbNativeLatestState ? 4 : 3) : 0),
         fixedQueryCount: true,
         nPlusOneGuard: 'orders-first plus three independent batch joins; no per-order query',
-        parallelBatchReads: orders.length ? ['returnOrders', 'deliveryCloseoutVersions', 'orderPaymentAllocations'] : [],
+        parallelBatchReads: orders.length ? (dbNativeLatestState
+          ? ['returnOrders + deliveryCloseoutVersions', 'orderPaymentAllocations exact+highest']
+          : ['returnOrders', 'deliveryCloseoutVersions', 'orderPaymentAllocations']) : [],
+        dbNativeLatestState,
+        versionCandidateRowsRead: Number(versionsByKey && versionsByKey._candidateRowsRead || 0),
+        allocationCandidateRowsRead: Number(allocationsByKey && allocationsByKey._candidateRowsRead || 0),
         projections: [
           'sales-order-delivery-today-hot-path-v1',
           'master-order-delivery-metadata-v1',
@@ -1093,25 +1114,44 @@ function staffDirectoryLabel(row = {}) {
 
 async function staffDirectorySuggestions(query = {}, q = '', role = 'delivery', limit = 50, options = {}) {
   const isDelivery = ['delivery', 'deliverystaff', 'nvgh'].includes(text(role).toLowerCase());
-  if (models) {
+  const optimized = DeliverySuggestionSearchService.enabled(options);
+  if (models && !optimized) {
     return staffSuggestionItems(query, q, isDelivery ? 'delivery' : 'salesman', Math.min(limit, 10), options);
   }
+  // Optimized mode loads a bounded, role-scoped directory without passing user
+  // input into a multi-field regex. Matching/ranking then uses normalized text.
   const rows = await searchService.searchStaffs({
-    q,
+    q: optimized ? '' : q,
     role: isDelivery ? 'delivery' : 'sales',
     allowEmpty: '1',
     active: query.active ?? '1',
-    limit
+    limit: Math.min(50, limit)
   });
-  const needle = text(q).toUpperCase();
+  const needle = optimized
+    ? deliverySuggestionSearchContract.normalizeSearchText(q)
+    : text(q).toUpperCase();
+  const codeNeedle = optimized
+    ? deliverySuggestionSearchContract.normalizeCode(q)
+    : needle;
   const items = (Array.isArray(rows) ? rows : [])
     .filter((row) => {
       if (!needle) return true;
+      if (optimized) {
+        const code = deliverySuggestionSearchContract.normalizeCode(row.code || row.staffCode);
+        const name = deliverySuggestionSearchContract.normalizeSearchText(row.name || row.fullName);
+        return code.startsWith(codeNeedle) || name.startsWith(needle) || name.split(' ').some((token) => token.startsWith(needle));
+      }
       return [row.code, row.staffCode, row.name, row.fullName, row.username].some((value) => text(value).toUpperCase().includes(needle));
     })
     .map((row) => {
       const code = text(isDelivery ? (row.deliveryStaffCode || row.code || row.staffCode) : (row.salesStaffCode || row.code || row.staffCode));
       const name = text(isDelivery ? (row.deliveryStaffName || row.name || row.fullName) : (row.salesStaffName || row.name || row.fullName));
+      const normalizedCode = optimized ? deliverySuggestionSearchContract.normalizeCode(code) : text(code).toUpperCase();
+      const normalizedName = optimized ? deliverySuggestionSearchContract.normalizeSearchText(name) : text(name).toUpperCase();
+      const rank = !needle ? 3
+        : normalizedCode === codeNeedle ? 0
+          : normalizedCode.startsWith(codeNeedle) ? 1
+            : normalizedName.startsWith(needle) ? 2 : 3;
       return {
         type: isDelivery ? 'delivery' : 'salesman',
         code,
@@ -1123,7 +1163,7 @@ async function staffDirectorySuggestions(query = {}, q = '', role = 'delivery', 
         salesStaffName: isDelivery ? undefined : name,
         label: staffDirectoryLabel({ code, name }),
         subLabel: isDelivery ? 'NVGH đang active' : 'NVBH đang active',
-        _rank: needle && text(code).toUpperCase().startsWith(needle) ? 0 : (needle && text(name).toUpperCase().startsWith(needle) ? 1 : 2)
+        _rank: rank
       };
     })
     .filter((row) => row.code || row.name)
@@ -1133,10 +1173,14 @@ async function staffDirectorySuggestions(query = {}, q = '', role = 'delivery', 
   return {
     items,
     diagnostics: {
-      source: 'delivery-today-new-staff-directory-search-service',
+      source: optimized ? 'delivery-today-staff-normalized-bounded-directory-v1' : 'delivery-today-new-staff-directory-search-service',
       endpoint: '/api/new/delivery-today/suggestions',
       type: isDelivery ? 'delivery' : 'salesman',
       limit,
+      candidateLimit: Math.min(50, limit),
+      featureFlag: DeliverySuggestionSearchService.FEATURE_FLAG,
+      featureFlagEnabled: optimized,
+      regexPolicy: optimized ? 'no user-input regex; bounded role directory' : 'legacy repository search',
       searchCriteriaRequired: false,
       openOnFocus: true,
       valueContract: 'UI shows name-code label; API uses staff code'
@@ -1300,6 +1344,15 @@ async function suggestions(query = {}, options = {}) {
   if (isDeliveryStaffType || isSalesStaffType) {
     const limit = staffSuggestionLimit(query.limit);
     return staffDirectorySuggestions(query, q, isDeliveryStaffType ? 'delivery' : 'salesman', limit, options);
+  }
+  const optimized = DeliverySuggestionSearchService.enabled(options);
+  if (optimized) {
+    const { SalesOrder } = getModels();
+    return DeliverySuggestionSearchService.searchOrderCustomers(query, {
+      ...options,
+      SalesOrder,
+      suggestionsSearchV1: true
+    });
   }
   const limit = suggestionLimit(query.limit);
   if (q.length < 2 && !allowEmptySuggestion(query)) return emptySuggestionResult(query.type, 'MIN_QUERY_LENGTH');

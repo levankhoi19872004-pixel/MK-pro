@@ -1,0 +1,8 @@
+{
+  "generatedAt": "2026-08-07T06:57:45+07:00",
+  "status": "PASS",
+  "presentCount": 27,
+  "missingNotPackaged": [],
+  "missingNotRecreatable": [],
+  "rule": "Only files physically packaged are marked PRESENT."
+}

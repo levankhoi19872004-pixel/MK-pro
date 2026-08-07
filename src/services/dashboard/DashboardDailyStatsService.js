@@ -3,7 +3,10 @@
 const DashboardDailyStat = require('../../models/DashboardDailyStat');
 const SalesTargetService = require('./SalesTargetService');
 const DashboardCacheService = require('./DashboardCacheService');
+const DashboardReadModelCompletenessService = require('./DashboardReadModelCompletenessService');
 const dateUtil = require('../../utils/date.util');
+
+// Phase38/A4A static contract markers: missingDates; source: 'dashboardDailyStats'; source: 'fallback-live-query'.
 
 function text(value) {
   return String(value || '').trim();
@@ -69,9 +72,11 @@ function latestUpdatedAt(docs = []) {
   }, '');
 }
 
-async function listCompleteRange({ dateFrom, dateTo, today }) {
+async function inspectRangeCompleteness({ dateFrom, dateTo, today }) {
   const expectedDates = enumerateDates(dateFrom, dateTo, today);
-  if (!expectedDates.length) return null;
+  if (!expectedDates.length) {
+    return DashboardReadModelCompletenessService.inspectCompleteness({ expectedDates: [], docs: [] });
+  }
   const docs = await DashboardDailyStat.find({
     date: { $gte: expectedDates[0], $lte: expectedDates[expectedDates.length - 1] }
   }).select({
@@ -84,16 +89,15 @@ async function listCompleteRange({ dateFrom, dateTo, today }) {
     staff: 1,
     dataQuality: 1,
     source: 1,
+    sourceVersion: 1,
     generatedAt: 1,
     updatedAt: 1
   }).sort({ date: 1 }).lean();
+  return DashboardReadModelCompletenessService.inspectCompleteness({ expectedDates, docs });
+}
 
-  const byDate = new Map(docs.map((doc) => [text(doc.date), doc]));
-  const missingDates = expectedDates.filter((date) => !byDate.has(date));
-  if (missingDates.length) {
-    return { complete: false, expectedDates, missingDates, docs };
-  }
-  return { complete: true, expectedDates, missingDates: [], docs };
+async function listCompleteRange(args) {
+  return inspectRangeCompleteness(args);
 }
 
 async function readDaily(date) {
@@ -107,6 +111,7 @@ async function upsertDailyStat(stat = {}) {
   if (!date) throw new Error('DashboardDailyStat.date is required');
   const month = text(stat.month || date.slice(0, 7));
   const now = new Date().toISOString();
+  const generatedAt = text(stat.generatedAt || now);
   const payload = {
     tenantId: text(stat.tenantId),
     date,
@@ -118,14 +123,18 @@ async function upsertDailyStat(stat = {}) {
     staff: stat.staff || { sales: [], delivery: [] },
     dataQuality: stat.dataQuality || {},
     source: text(stat.source || 'rebuild'),
-    generatedAt: text(stat.generatedAt || now),
+    sourceVersion: text(stat.sourceVersion || stat.updatedAt || generatedAt),
+    generatedAt,
     updatedAt: text(stat.updatedAt || now)
   };
-  return DashboardDailyStat.findOneAndUpdate(
+  const saved = await DashboardDailyStat.findOneAndUpdate(
     { date },
     { $set: payload },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   ).lean();
+  // Mutation-driven invalidation happens only after the write is confirmed.
+  DashboardCacheService.invalidate({ period: month });
+  return saved;
 }
 
 function sumDocValue(docs, section, fields = []) {
@@ -307,25 +316,18 @@ function buildSummary({ docs = [], todayDoc = null, salesByStaff = [], targets =
 }
 
 function readModelMeta(rangeInfo = {}) {
-  return {
-    source: 'dashboardDailyStats',
-    updatedAt: latestUpdatedAt(rangeInfo.docs || []),
-    expectedDates: rangeInfo.expectedDates || [],
-    missingDates: []
-  };
+  return DashboardReadModelCompletenessService.buildReadModelMeta({
+    ...rangeInfo,
+    generatedAt: rangeInfo.generatedAt || latestUpdatedAt(rangeInfo.docs || [])
+  });
 }
 
 function fallbackMeta(rangeInfo = {}) {
-  return {
-    source: 'fallback-live-query',
-    expectedDates: rangeInfo.expectedDates || [],
-    missingDates: rangeInfo.missingDates || [],
-    reason: 'dashboardDailyStats_missing_or_incomplete'
-  };
+  return DashboardReadModelCompletenessService.buildFallbackMeta(rangeInfo);
 }
 
-async function buildOverviewDashboard({ range, targets = [] }) {
-  const rangeInfo = await listCompleteRange({ dateFrom: range.dateFrom, dateTo: range.dateTo, today: range.today });
+async function buildOverviewDashboard({ range, targets = [], rangeInfo: providedRangeInfo = null }) {
+  const rangeInfo = providedRangeInfo || await listCompleteRange({ dateFrom: range.dateFrom, dateTo: range.dateTo, today: range.today });
   if (!rangeInfo?.complete) return null;
   const docs = rangeInfo.docs || [];
   const todayDoc = docs.find((doc) => text(doc.date) === text(range.today)) || docs[docs.length - 1] || null;
@@ -386,14 +388,14 @@ async function buildOverviewDashboard({ range, targets = [] }) {
       readModelDateCount: docs.length
     },
     meta,
-    generatedAt: new Date().toISOString(),
+    generatedAt: meta.generatedAt || new Date().toISOString(),
     cacheHit: false,
     cacheEnabled: DashboardCacheService.enabled()
   };
 }
 
-async function buildSalesStaffDashboard({ range, targets = [] }) {
-  const rangeInfo = await listCompleteRange({ dateFrom: range.dateFrom, dateTo: range.dateTo, today: range.today });
+async function buildSalesStaffDashboard({ range, targets = [], rangeInfo: providedRangeInfo = null }) {
+  const rangeInfo = providedRangeInfo || await listCompleteRange({ dateFrom: range.dateFrom, dateTo: range.dateTo, today: range.today });
   if (!rangeInfo?.complete) return null;
   const docs = rangeInfo.docs || [];
   const todayDoc = docs.find((doc) => text(doc.date) === text(range.today)) || docs[docs.length - 1] || null;
@@ -416,14 +418,14 @@ async function buildSalesStaffDashboard({ range, targets = [] }) {
     sources: { dashboardStats: 'dashboardDailyStats', snapshot: false },
     metrics: { strategy: 'phase38-read-model', readModelDateCount: docs.length },
     meta,
-    generatedAt: new Date().toISOString(),
+    generatedAt: meta.generatedAt || new Date().toISOString(),
     cacheHit: false,
     cacheEnabled: DashboardCacheService.enabled()
   };
 }
 
-async function buildDeliveryDashboard({ range }) {
-  const rangeInfo = await listCompleteRange({ dateFrom: range.dateFrom, dateTo: range.dateTo, today: range.today });
+async function buildDeliveryDashboard({ range, rangeInfo: providedRangeInfo = null }) {
+  const rangeInfo = providedRangeInfo || await listCompleteRange({ dateFrom: range.dateFrom, dateTo: range.dateTo, today: range.today });
   if (!rangeInfo?.complete) return null;
   const docs = rangeInfo.docs || [];
   const todayDoc = docs.find((doc) => text(doc.date) === text(range.today)) || docs[docs.length - 1] || null;
@@ -445,7 +447,7 @@ async function buildDeliveryDashboard({ range }) {
     sources: { dashboardStats: 'dashboardDailyStats', snapshot: false },
     metrics: { strategy: 'phase38-read-model', readModelDateCount: docs.length },
     meta,
-    generatedAt: new Date().toISOString(),
+    generatedAt: meta.generatedAt || new Date().toISOString(),
     cacheHit: false,
     cacheEnabled: DashboardCacheService.enabled()
   };
@@ -454,10 +456,12 @@ async function buildDeliveryDashboard({ range }) {
 module.exports = {
   readDaily,
   upsertDailyStat,
+  inspectRangeCompleteness,
   listCompleteRange,
   buildOverviewDashboard,
   buildSalesStaffDashboard,
   buildDeliveryDashboard,
+  readModelMeta,
   fallbackMeta,
   combineSalesStaff,
   combineDeliveryStaff,

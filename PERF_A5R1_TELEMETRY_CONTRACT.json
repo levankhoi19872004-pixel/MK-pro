@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 2,
+  "requiredFields": [
+    "schemaVersion",
+    "releaseId",
+    "releaseSha",
+    "sourceSha",
+    "instanceId",
+    "processId",
+    "sampleWindowId",
+    "startedAt",
+    "completedAt",
+    "endpoint",
+    "httpMethod",
+    "operationName",
+    "operationMode",
+    "featureFlags",
+    "inputSize",
+    "orderCount",
+    "cacheSource",
+    "readModelSource",
+    "reportMode",
+    "durationMs",
+    "mongoDurationMs",
+    "jsDurationMs",
+    "queryCount",
+    "slowestQueryFingerprint",
+    "rowsReturned",
+    "statusCode",
+    "errorCategory",
+    "correctnessCheck",
+    "debtDeviation",
+    "duplicateLedgerDetected"
+  ],
+  "storage": "bounded process-local",
+  "maxRecordsDefault": 5000,
+  "privacy": "scope identity SHA-256 truncated; no PII values",
+  "exportEndpoints": [
+    "POST /api/system/performance-measurements/window/start",
+    "POST /api/system/performance-measurements/window/close",
+    "GET /api/system/performance-measurements/export"
+  ],
+  "mergeRules": [
+    "do not merge different releaseSha",
+    "do not merge different featureFlags",
+    "do not merge different sampleWindowId/mode/cache source"
+  ]
+}

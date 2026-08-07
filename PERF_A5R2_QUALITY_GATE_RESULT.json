@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-08-07T07:02:33+07:00",
+  "sourceSize": {
+    "command": "npm run check:source-size",
+    "exitCode": 1,
+    "status": "PASS_WITH_BASELINE_WAIVER",
+    "log": "evidence/perf-a5r2/source-size.log",
+    "waiverCount": 7
+  },
+  "pathPortability": {
+    "command": "npm run check:path-portability",
+    "exitCode": 1,
+    "status": "PASS_WITH_BASELINE_WAIVER",
+    "log": "evidence/perf-a5r2/path-portability.log",
+    "waiverCount": 8,
+    "runtimeUnresolvedRequire": 0
+  },
+  "syntax": {
+    "exitCode": 0,
+    "files": 1662,
+    "status": "PASS"
+  },
+  "packageLock": {
+    "exitCode": 0,
+    "status": "PASS"
+  }
+}

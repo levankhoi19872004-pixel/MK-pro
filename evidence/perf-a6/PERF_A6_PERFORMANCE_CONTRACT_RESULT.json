@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "promptId": "PERF-A6",
+  "generatedAt": "2026-08-06T14:08:02+07:00",
+  "releaseSha256": "c1670933d271d64762c679d3ac81419e92134564b7d8e0ab74edb260ea14b018",
+  "finalStatus": "INSUFFICIENT_SAMPLE",
+  "samplePolicy": {
+    "required": "Actual baseline and canary telemetry with sample counts and mode separation.",
+    "minimumSampleCount": null,
+    "note": "The prompt did not define a numeric minimum sample count. No canary samples were supplied, so p95 cannot be calculated."
+  },
+  "contract": {
+    "bulk60SecondsMax": 45,
+    "bulk60QueriesMax": 500,
+    "bulkLongTermSecondsMax": 20,
+    "deliveryOrdersP95MsMax": 1000,
+    "suggestionsP95MsMax": 400,
+    "dashboardCacheHitMsMax": 150,
+    "dashboardReadModelMsMax": 500,
+    "error5xxMustNotIncrease": true,
+    "debtDeviation": 0,
+    "duplicateLedger": 0
+  },
+  "results": {
+    "bulk16": {
+      "baseline": {
+        "durationMs": 55288,
+        "queryCount": 252,
+        "sampleType": "single_user_reported"
+      },
+      "canary": null,
+      "status": "INSUFFICIENT_SAMPLE"
+    },
+    "bulk26": {
+      "baseline": {
+        "durationMs": 89839,
+        "queryCount": 413,
+        "sampleType": "single_user_reported"
+      },
+      "canary": null,
+      "status": "INSUFFICIENT_SAMPLE"
+    },
+    "bulk60": {
+      "baseline": {
+        "durationMs": 210881,
+        "queryCount": 986,
+        "contractAtBaseline": "FAIL"
+      },
+      "canary": null,
+      "status": "INSUFFICIENT_SAMPLE"
+    },
+    "deliveryOrders": {
+      "baseline": {
+        "rangeMs": [
+          2100,
+          2700
+        ],
+        "sampleType": "historical_range_not_p95"
+      },
+      "canary": null,
+      "status": "INSUFFICIENT_SAMPLE"
+    },
+    "suggestions": {
+      "baseline": {
+        "rangeMs": [
+          1300,
+          1700
+        ],
+        "sampleType": "historical_range_not_p95"
+      },
+      "canary": null,
+      "status": "INSUFFICIENT_SAMPLE"
+    },
+    "dashboardSalesStaff": {
+      "baseline": {
+        "rangeMs": [
+          2400,
+          4000
+        ],
+        "cacheSource": "unspecified"
+      },
+      "canaryBySource": null,
+      "status": "INSUFFICIENT_SAMPLE"
+    },
+    "dashboardDeliverySummary": {
+      "baseline": {
+        "rangeMs": [
+          1200,
+          1300
+        ],
+        "cacheSource": "unspecified"
+      },
+      "canaryBySource": null,
+      "status": "INSUFFICIENT_SAMPLE"
+    },
+    "reportCenter": {
+      "baseline": null,
+      "canary": null,
+      "status": "INSUFFICIENT_SAMPLE"
+    },
+    "error5xx": {
+      "baseline": null,
+      "canary": null,
+      "status": "INSUFFICIENT_SAMPLE"
+    },
+    "debtDeviation": {
+      "engineeringE1E2": 0,
+      "production": null,
+      "status": "INSUFFICIENT_SAMPLE"
+    },
+    "duplicateLedger": {
+      "engineeringE1E2": 0,
+      "production": null,
+      "uniqueIndexVerified": false,
+      "status": "INSUFFICIENT_SAMPLE"
+    }
+  },
+  "prohibitedInferences": [
+    "Offline duration is not production latency.",
+    "Logical query counters are not physical Mongo query counts.",
+    "Engineering parity does not prove production debt deviation or duplicate-ledger zero.",
+    "Historical ranges are not p95 distributions."
+  ]
+}

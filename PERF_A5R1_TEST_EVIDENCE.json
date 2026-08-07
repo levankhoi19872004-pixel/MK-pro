@@ -1,0 +1,24 @@
+{
+  "generatedAt": "2026-08-06T16:21:22.681004+07:00",
+  "commands": [
+    {
+      "command": "node --test test/performance/**/*.test.js",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "158/158 PASS",
+      "artifact": "PERF_A5R1_FULL_PERF_REGRESSION.log"
+    },
+    {
+      "command": "node scripts/check-js-syntax.js",
+      "exitCode": 0,
+      "status": "PASS",
+      "summary": "1659 JavaScript files",
+      "artifact": "PERF_A5R1_SYNTAX.log"
+    }
+  ],
+  "notRunEnvironment": [
+    "Mongo cancellation/maxTimeMS integration",
+    "production telemetry E3",
+    "source bundle checks requiring absent dependencies if applicable"
+  ]
+}

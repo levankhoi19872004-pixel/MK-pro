@@ -1,0 +1,10 @@
+{
+  "requirementId": "A5R2-REQ-004",
+  "green": {
+    "productionUnknownRejected": true,
+    "errorCode": "PERF_RELEASE_METADATA_REQUIRED",
+    "localExplicitAllowUnknown": true,
+    "windowReleaseSnapshotImmutable": true,
+    "status": "PASS"
+  }
+}

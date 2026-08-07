@@ -2,6 +2,7 @@
 
 const ReturnOrder = require('../../models/ReturnOrder');
 const arLedgerReadService = require('../arLedgerRead.service');
+const QueryExecution = require('./ReportQueryExecutionContext');
 const {
   activeDocumentFilter,
   returnConfirmedFilter,
@@ -24,22 +25,24 @@ function returnIdentityValues(row = {}) {
   ].map(text).filter(Boolean);
 }
 
-async function loadConfirmedReturns(query = {}) {
+async function loadConfirmedReturns(query = {}, context = QueryExecution.contextOf(query)) {
   const { dateFrom, dateTo } = dateRange(query);
-  const rows = await ReturnOrder.aggregate([
+  let aggregate = ReturnOrder.aggregate([
     { $match: activeDocumentFilter() },
     { $match: returnConfirmedFilter() },
     ...businessDateStages(dateFrom, dateTo, ['returnDate', 'date', 'documentDate', 'deliveryDate'], '_reportBusinessDate'),
     { $sort: { _reportBusinessDate: 1, updatedAt: 1, createdAt: 1, _id: 1 } }
-  ]).allowDiskUse(true).exec();
+  ]).allowDiskUse(true);
+  aggregate = QueryExecution.applyAggregate(aggregate, context);
+  const rows = await aggregate.exec();
   const deduplicated = deduplicateDocuments(rows, 'return');
   return { rows: deduplicated.rows, duplicateCount: deduplicated.duplicateCount, dateFrom, dateTo };
 }
 
-async function loadReturnArCredits(returns = []) {
+async function loadReturnArCredits(returns = [], context = {}) {
   const keys = Array.from(new Set(returns.flatMap(returnIdentityValues)));
   if (!keys.length) return new Map();
-  const ledgers = (await arLedgerReadService.getCanonicalLedgersByOrderKeys(keys, { status: 'all' }))
+  const ledgers = (await arLedgerReadService.getCanonicalLedgersByOrderKeys(keys, { status: 'all', signal: context.signal, maxTimeMS: context.maxTimeMS }))
     .filter((ledger) => String(ledger.category || '').toUpperCase().includes('RETURN') && toNumber(ledger.credit) > 0);
 
   const keyToCanonical = new Map();
@@ -63,9 +66,10 @@ function returnCanonicalKey(row = {}) {
   return text(row._id || row.id || row.code);
 }
 
-async function returnReport(query = {}) {
-  const { rows: returns, duplicateCount, dateFrom, dateTo } = await loadConfirmedReturns(query);
-  const arCredits = await loadReturnArCredits(returns);
+async function returnReport(query = {}, options = {}) {
+  const context = QueryExecution.contextOf(query, options);
+  const { rows: returns, duplicateCount, dateFrom, dateTo } = await loadConfirmedReturns(query, context);
+  const arCredits = await loadReturnArCredits(returns, context);
   const needle = text(query.q || query.search || query.keyword).toLowerCase();
   let rows = returns.map((row) => {
     const salesStaff = staffIdentity(row, 'sales');

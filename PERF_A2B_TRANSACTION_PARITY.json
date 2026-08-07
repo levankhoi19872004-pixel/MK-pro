@@ -1,0 +1,372 @@
+{
+  "schemaVersion": 1,
+  "promptId": "PERF-A2B",
+  "generatedAt": "2026-08-06T10:34:53+07:00",
+  "status": "PASS",
+  "reference": "PERF-A2A serial batch-context simulator",
+  "warning": "Dependency-free financial parity verifies deterministic state and transaction counts, not Mongo transaction semantics.",
+  "rows": [
+    {
+      "batchSize": 1,
+      "a2aSnapshotSha256": "2e3e5c2bc6609468835d575f7be0d7725e9c2544d5faf6c8f6ea701f31fb1049",
+      "concurrency1SnapshotSha256": "2e3e5c2bc6609468835d575f7be0d7725e9c2544d5faf6c8f6ea701f31fb1049",
+      "concurrency2SnapshotSha256": "2e3e5c2bc6609468835d575f7be0d7725e9c2544d5faf6c8f6ea701f31fb1049",
+      "concurrency3SnapshotSha256": "2e3e5c2bc6609468835d575f7be0d7725e9c2544d5faf6c8f6ea701f31fb1049",
+      "concurrency1Parity": true,
+      "concurrency2Parity": true,
+      "concurrency3Parity": true,
+      "resultOrderParity2": true,
+      "resultOrderParity3": true,
+      "transactionCount": {
+        "a2a": 1,
+        "concurrency1": 1,
+        "concurrency2": 1,
+        "concurrency3": 1
+      },
+      "transactionCommitCount": {
+        "a2a": 1,
+        "concurrency1": 1,
+        "concurrency2": 1,
+        "concurrency3": 1
+      },
+      "transactionAbortCount": {
+        "a2a": 0,
+        "concurrency1": 0,
+        "concurrency2": 0,
+        "concurrency3": 0
+      },
+      "debtDeviation": {
+        "concurrency1": 0,
+        "concurrency2": 0,
+        "concurrency3": 0
+      },
+      "duplicateLedgerCount": {
+        "concurrency1": 0,
+        "concurrency2": 0,
+        "concurrency3": 0
+      },
+      "scheduler": {
+        "concurrency1": {
+          "configuredConcurrency": 1,
+          "totalTasks": 1,
+          "completedTasks": 1,
+          "failedTasks": 0,
+          "maxActive": 1,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 1
+        },
+        "concurrency2": {
+          "configuredConcurrency": 2,
+          "totalTasks": 1,
+          "completedTasks": 1,
+          "failedTasks": 0,
+          "maxActive": 1,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 1
+        },
+        "concurrency3": {
+          "configuredConcurrency": 3,
+          "totalTasks": 1,
+          "completedTasks": 1,
+          "failedTasks": 0,
+          "maxActive": 1,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 1
+        }
+      }
+    },
+    {
+      "batchSize": 16,
+      "a2aSnapshotSha256": "c5faf869ff74d72ff6d7f1dbd4413b1d48f355f4e8e72b1dcf07bb0d756cbc78",
+      "concurrency1SnapshotSha256": "c5faf869ff74d72ff6d7f1dbd4413b1d48f355f4e8e72b1dcf07bb0d756cbc78",
+      "concurrency2SnapshotSha256": "c5faf869ff74d72ff6d7f1dbd4413b1d48f355f4e8e72b1dcf07bb0d756cbc78",
+      "concurrency3SnapshotSha256": "c5faf869ff74d72ff6d7f1dbd4413b1d48f355f4e8e72b1dcf07bb0d756cbc78",
+      "concurrency1Parity": true,
+      "concurrency2Parity": true,
+      "concurrency3Parity": true,
+      "resultOrderParity2": true,
+      "resultOrderParity3": true,
+      "transactionCount": {
+        "a2a": 16,
+        "concurrency1": 16,
+        "concurrency2": 16,
+        "concurrency3": 16
+      },
+      "transactionCommitCount": {
+        "a2a": 15,
+        "concurrency1": 15,
+        "concurrency2": 15,
+        "concurrency3": 15
+      },
+      "transactionAbortCount": {
+        "a2a": 1,
+        "concurrency1": 1,
+        "concurrency2": 1,
+        "concurrency3": 1
+      },
+      "debtDeviation": {
+        "concurrency1": 0,
+        "concurrency2": 0,
+        "concurrency3": 0
+      },
+      "duplicateLedgerCount": {
+        "concurrency1": 0,
+        "concurrency2": 0,
+        "concurrency3": 0
+      },
+      "scheduler": {
+        "concurrency1": {
+          "configuredConcurrency": 1,
+          "totalTasks": 16,
+          "completedTasks": 16,
+          "failedTasks": 0,
+          "maxActive": 1,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 16
+        },
+        "concurrency2": {
+          "configuredConcurrency": 2,
+          "totalTasks": 16,
+          "completedTasks": 16,
+          "failedTasks": 0,
+          "maxActive": 2,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 16
+        },
+        "concurrency3": {
+          "configuredConcurrency": 3,
+          "totalTasks": 16,
+          "completedTasks": 16,
+          "failedTasks": 0,
+          "maxActive": 3,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 16
+        }
+      }
+    },
+    {
+      "batchSize": 26,
+      "a2aSnapshotSha256": "eb51dd0f8860d7ae7b640914ba89cf015353f6f60aab919c386c40db0b538712",
+      "concurrency1SnapshotSha256": "eb51dd0f8860d7ae7b640914ba89cf015353f6f60aab919c386c40db0b538712",
+      "concurrency2SnapshotSha256": "eb51dd0f8860d7ae7b640914ba89cf015353f6f60aab919c386c40db0b538712",
+      "concurrency3SnapshotSha256": "eb51dd0f8860d7ae7b640914ba89cf015353f6f60aab919c386c40db0b538712",
+      "concurrency1Parity": true,
+      "concurrency2Parity": true,
+      "concurrency3Parity": true,
+      "resultOrderParity2": true,
+      "resultOrderParity3": true,
+      "transactionCount": {
+        "a2a": 26,
+        "concurrency1": 26,
+        "concurrency2": 26,
+        "concurrency3": 26
+      },
+      "transactionCommitCount": {
+        "a2a": 24,
+        "concurrency1": 24,
+        "concurrency2": 24,
+        "concurrency3": 24
+      },
+      "transactionAbortCount": {
+        "a2a": 2,
+        "concurrency1": 2,
+        "concurrency2": 2,
+        "concurrency3": 2
+      },
+      "debtDeviation": {
+        "concurrency1": 0,
+        "concurrency2": 0,
+        "concurrency3": 0
+      },
+      "duplicateLedgerCount": {
+        "concurrency1": 0,
+        "concurrency2": 0,
+        "concurrency3": 0
+      },
+      "scheduler": {
+        "concurrency1": {
+          "configuredConcurrency": 1,
+          "totalTasks": 26,
+          "completedTasks": 26,
+          "failedTasks": 0,
+          "maxActive": 1,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 25
+        },
+        "concurrency2": {
+          "configuredConcurrency": 2,
+          "totalTasks": 26,
+          "completedTasks": 26,
+          "failedTasks": 0,
+          "maxActive": 2,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 25
+        },
+        "concurrency3": {
+          "configuredConcurrency": 3,
+          "totalTasks": 26,
+          "completedTasks": 26,
+          "failedTasks": 0,
+          "maxActive": 3,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 25
+        }
+      }
+    },
+    {
+      "batchSize": 60,
+      "a2aSnapshotSha256": "0849e9f0030f38e11f52363afd5617c352b1efec82bb541e28220cc093b1ed47",
+      "concurrency1SnapshotSha256": "0849e9f0030f38e11f52363afd5617c352b1efec82bb541e28220cc093b1ed47",
+      "concurrency2SnapshotSha256": "0849e9f0030f38e11f52363afd5617c352b1efec82bb541e28220cc093b1ed47",
+      "concurrency3SnapshotSha256": "0849e9f0030f38e11f52363afd5617c352b1efec82bb541e28220cc093b1ed47",
+      "concurrency1Parity": true,
+      "concurrency2Parity": true,
+      "concurrency3Parity": true,
+      "resultOrderParity2": true,
+      "resultOrderParity3": true,
+      "transactionCount": {
+        "a2a": 60,
+        "concurrency1": 60,
+        "concurrency2": 60,
+        "concurrency3": 60
+      },
+      "transactionCommitCount": {
+        "a2a": 55,
+        "concurrency1": 55,
+        "concurrency2": 55,
+        "concurrency3": 55
+      },
+      "transactionAbortCount": {
+        "a2a": 5,
+        "concurrency1": 5,
+        "concurrency2": 5,
+        "concurrency3": 5
+      },
+      "debtDeviation": {
+        "concurrency1": 0,
+        "concurrency2": 0,
+        "concurrency3": 0
+      },
+      "duplicateLedgerCount": {
+        "concurrency1": 0,
+        "concurrency2": 0,
+        "concurrency3": 0
+      },
+      "scheduler": {
+        "concurrency1": {
+          "configuredConcurrency": 1,
+          "totalTasks": 60,
+          "completedTasks": 60,
+          "failedTasks": 0,
+          "maxActive": 1,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 58
+        },
+        "concurrency2": {
+          "configuredConcurrency": 2,
+          "totalTasks": 60,
+          "completedTasks": 60,
+          "failedTasks": 0,
+          "maxActive": 2,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 58
+        },
+        "concurrency3": {
+          "configuredConcurrency": 3,
+          "totalTasks": 60,
+          "completedTasks": 60,
+          "failedTasks": 0,
+          "maxActive": 3,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 58
+        }
+      }
+    },
+    {
+      "batchSize": 100,
+      "a2aSnapshotSha256": "e83f749f76d345a5b4047d5fcd4ca251dffb0970634e2249a4401de293d387f6",
+      "concurrency1SnapshotSha256": "e83f749f76d345a5b4047d5fcd4ca251dffb0970634e2249a4401de293d387f6",
+      "concurrency2SnapshotSha256": "e83f749f76d345a5b4047d5fcd4ca251dffb0970634e2249a4401de293d387f6",
+      "concurrency3SnapshotSha256": "e83f749f76d345a5b4047d5fcd4ca251dffb0970634e2249a4401de293d387f6",
+      "concurrency1Parity": true,
+      "concurrency2Parity": true,
+      "concurrency3Parity": true,
+      "resultOrderParity2": true,
+      "resultOrderParity3": true,
+      "transactionCount": {
+        "a2a": 100,
+        "concurrency1": 100,
+        "concurrency2": 100,
+        "concurrency3": 100
+      },
+      "transactionCommitCount": {
+        "a2a": 91,
+        "concurrency1": 91,
+        "concurrency2": 91,
+        "concurrency3": 91
+      },
+      "transactionAbortCount": {
+        "a2a": 9,
+        "concurrency1": 9,
+        "concurrency2": 9,
+        "concurrency3": 9
+      },
+      "debtDeviation": {
+        "concurrency1": 0,
+        "concurrency2": 0,
+        "concurrency3": 0
+      },
+      "duplicateLedgerCount": {
+        "concurrency1": 0,
+        "concurrency2": 0,
+        "concurrency3": 0
+      },
+      "scheduler": {
+        "concurrency1": {
+          "configuredConcurrency": 1,
+          "totalTasks": 100,
+          "completedTasks": 100,
+          "failedTasks": 0,
+          "maxActive": 1,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 96
+        },
+        "concurrency2": {
+          "configuredConcurrency": 2,
+          "totalTasks": 100,
+          "completedTasks": 100,
+          "failedTasks": 0,
+          "maxActive": 2,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 96
+        },
+        "concurrency3": {
+          "configuredConcurrency": 3,
+          "totalTasks": 100,
+          "completedTasks": 100,
+          "failedTasks": 0,
+          "maxActive": 3,
+          "maxActivePerIdentity": 1,
+          "identityGroupCount": 96
+        }
+      }
+    }
+  ],
+  "summary": {
+    "batchSizes": [
+      1,
+      16,
+      26,
+      60,
+      100
+    ],
+    "concurrency1Parity": true,
+    "concurrency2Parity": true,
+    "concurrency3Parity": true,
+    "resultOrderStable": true,
+    "debtDeviation": 0,
+    "duplicateLedger": 0,
+    "perOrderTransactionsPreserved": true,
+    "commitAbortIsolationPreserved": true
+  }
+}

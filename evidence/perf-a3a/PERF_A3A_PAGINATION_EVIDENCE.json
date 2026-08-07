@@ -1,0 +1,64 @@
+{
+  "promptId": "PERF-A3A",
+  "status": "PASS",
+  "fixtureOrders": 10000,
+  "pagination": {
+    "page1": {
+      "page": 1,
+      "limit": 100,
+      "returned": 100,
+      "totalRows": null,
+      "totalPages": null,
+      "hasMore": true,
+      "nextCursor": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTA2VDIzOjAwOjAwLjAwMFoiLCJpZGVudGl0eSI6Im1vbmdvLTAwMDYwIn0",
+      "mode": "keyset-ready"
+    },
+    "page2": {
+      "page": 1,
+      "limit": 100,
+      "returned": 100,
+      "totalRows": null,
+      "totalPages": null,
+      "hasMore": true,
+      "nextCursor": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTA2VDE4OjA1OjAwLjAwMFoiLCJpZGVudGl0eSI6Im1vbmdvLTAwMTg1In0",
+      "mode": "keyset"
+    },
+    "stableSort": {
+      "deliveryDateKey": -1,
+      "createdAt": -1,
+      "canonicalIdentity": -1
+    },
+    "page1Count": 100,
+    "page2Count": 100
+  },
+  "contracts": {
+    "filterBeforePagination": true,
+    "stableSortBeforeLimit": true,
+    "financialReadsAfterPageSelection": true,
+    "keysetPage2NoOverlap": true,
+    "deepOffsetPolicy": {
+      "behavior": "FAIL_CLOSED",
+      "code": "DELIVERY_KEYSET_CURSOR_REQUIRED",
+      "thresholdRows": 5000
+    },
+    "canonicalFastPathMaxRowsForLimit100": 202,
+    "doesNotLoad2000For100": true
+  },
+  "repository": {
+    "red": {
+      "salesOrderQueries": 1,
+      "salesOrderRowsMatched": 2000,
+      "salesOrderRowsReturned": 500,
+      "masterOrderQueries": 1,
+      "masterOrderRowsReturned": 45
+    },
+    "green": {
+      "salesOrderQueries": 2,
+      "salesOrderRowsMatched": 400,
+      "salesOrderRowsReturned": 202,
+      "masterOrderQueries": 2,
+      "masterOrderRowsReturned": 0
+    }
+  },
+  "warning": "totalRows/totalPages are null in keyset mode; this avoids a count query and does not change the existing rows contract."
+}

@@ -1,0 +1,39 @@
+{
+  "added": [
+    "scripts/performance/perf-a4b/rebuild-data-quality-snapshot.js",
+    "scripts/performance/perf-a4b/run-report-center-repro.js",
+    "src/models/ReportDataQualitySnapshot.js",
+    "src/services/reports/DataQualityProjectionBuilder.js",
+    "src/services/reports/DataQualitySnapshotService.js",
+    "src/services/reports/ReportExecutionPolicy.js",
+    "test/performance/perf-a4b/legacy-report-fanout-simulator.js",
+    "test/performance/perf-a4b/optimized-report-orchestrator-simulator.js",
+    "test/performance/perf-a4b/perf-a4b-data-quality-snapshot.test.js",
+    "test/performance/perf-a4b/perf-a4b-execution-policy.test.js",
+    "test/performance/perf-a4b/perf-a4b-memory-work.test.js",
+    "test/performance/perf-a4b/perf-a4b-red-fanout.test.js",
+    "test/performance/perf-a4b/perf-a4b-report-parity.test.js",
+    "test/performance/perf-a4b/perf-a4b-static-contract.test.js"
+  ],
+  "modified": [
+    "ENVIRONMENT_VARIABLES.md",
+    "package.json",
+    "public/js/components/excel-interaction/ContextExport.js",
+    "src/controllers/excelInteractionController.js",
+    "src/models/BackgroundJob.js",
+    "src/services/background-jobs/BackgroundJobHandlers.js",
+    "src/services/background-jobs/BackgroundJobService.js",
+    "src/services/background-jobs/JobSubmissionService.js",
+    "src/services/excel/ExcelInteractionService.js",
+    "src/services/reports/DashboardReportService.js",
+    "src/services/reports/FinanceReportService.js",
+    "src/services/reports/ReportCenterService.js",
+    "src/services/reports/SalesReportService.js"
+  ],
+  "deleted": [],
+  "counts": {
+    "added": 14,
+    "modified": 13,
+    "deleted": 0
+  }
+}

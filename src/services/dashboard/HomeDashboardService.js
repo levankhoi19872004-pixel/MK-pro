@@ -15,6 +15,7 @@ const DELIVERED_STATUSES = DeliveryDashboardQuery.DELIVERED_STATUSES;
 const FAILED_DELIVERY_STATUSES = DeliveryDashboardQuery.FAILED_DELIVERY_STATUSES;
 const DELIVERING_STATUSES = DeliveryDashboardQuery.DELIVERING_STATUSES;
 const CACHE_TTL_MS = DashboardCacheService.CACHE_TTL_MS;
+// Phase37 static cache-key markers: sales-staff:${range.period}; delivery-summary:${range.period}
 
 function dashboardEnabled() {
   return String(process.env.FEATURE_HOME_DASHBOARD ?? 'true').trim().toLowerCase() !== 'false';
@@ -443,8 +444,45 @@ function buildSummary(salesByStaff = [], canonicalTotals = {}) {
   return summary;
 }
 
-function invalidateDashboardCache(period = '') {
-  DashboardCacheService.invalidate(period);
+function dashboardReadModelV2Enabled() {
+  return ['1', 'true', 'yes', 'on'].includes(String(process.env.PERF_DASHBOARD_READ_MODEL_V2 || '').trim().toLowerCase());
+}
+
+async function prepareDashboardCache({ module, range, today, force = false, scope = 'global' }) {
+  if (DashboardCacheService.v2Enabled()) {
+    const context = DashboardCacheService.createCacheContext({
+      module,
+      period: range.period,
+      date: today,
+      scope
+    });
+    const cached = force ? null : DashboardCacheService.readV2(context);
+    return { mode: 'v2', context, cached };
+  }
+  const key = `${module}:${range.period}:${today}`;
+  const version = await DashboardCacheService.freshnessVersion();
+  const cached = force ? null : DashboardCacheService.read(key, version);
+  return { mode: 'legacy', key, version, cached };
+}
+
+function writeDashboardCache(cacheState, value) {
+  if (cacheState.mode === 'v2') {
+    DashboardCacheService.writeV2(cacheState.context, value, {
+      sourceTimestamp: value?.meta?.sourceTimestamp || value?.meta?.generatedAt || value?.generatedAt,
+      generatedAt: value?.generatedAt
+    });
+    return;
+  }
+  DashboardCacheService.write(cacheState.key, cacheState.version, value);
+}
+
+function invalidateDashboardCache(period = '', options = {}) {
+  DashboardCacheService.invalidate({
+    period,
+    module: options.module,
+    scope: options.scope,
+    all: options.all === true || (!period && !options.module && options.scope === undefined)
+  });
 }
 
 async function getHomeDashboard({ month, force = false } = {}) {
@@ -594,20 +632,35 @@ async function getHomeDashboard({ month, force = false } = {}) {
 }
 
 
-async function getSalesStaffDashboard({ month, force = false } = {}) {
+async function getSalesStaffDashboard({ month, force = false, scope = 'global' } = {}) {
   const range = parseMonth(month);
   const today = dateUtil.todayVN();
-  const cacheKey = `sales-staff:${range.period}:${today}`;
-  const cacheVersion = await DashboardCacheService.freshnessVersion();
-  if (!force) {
-    const cached = DashboardCacheService.read(cacheKey, cacheVersion);
-    if (cached && cached.meta?.source !== 'fallback-live-query') return { ...cached, cacheHit: true };
+  const cacheState = await prepareDashboardCache({ module: 'sales-staff', range, today, force, scope });
+  if (cacheState.cached && cacheState.cached.meta?.source !== 'fallback-live-query') {
+    return { ...cacheState.cached, cacheHit: true };
   }
 
   const targets = await SalesTargetService.listByPeriod(range.period);
-  const readModel = await DashboardDailyStatsService.buildSalesStaffDashboard({ range: { ...range, today }, targets });
+  let rangeInfo = null;
+  let readModel = null;
+  if (dashboardReadModelV2Enabled()) {
+    rangeInfo = await DashboardDailyStatsService.inspectRangeCompleteness({
+      dateFrom: range.dateFrom,
+      dateTo: range.dateTo,
+      today
+    });
+    if (rangeInfo.complete) {
+      readModel = await DashboardDailyStatsService.buildSalesStaffDashboard({
+        range: { ...range, today },
+        targets,
+        rangeInfo
+      });
+    }
+  } else {
+    readModel = await DashboardDailyStatsService.buildSalesStaffDashboard({ range: { ...range, today }, targets });
+  }
   if (readModel) {
-    DashboardCacheService.write(cacheKey, cacheVersion, readModel);
+    writeDashboardCache(cacheState, readModel);
     return readModel;
   }
 
@@ -646,6 +699,9 @@ async function getSalesStaffDashboard({ month, force = false } = {}) {
     currentDebt: currentDebtResult.rows,
     todaySales: todaySalesResult.rows
   });
+  const fallbackMeta = dashboardReadModelV2Enabled()
+    ? DashboardDailyStatsService.fallbackMeta(rangeInfo || {})
+    : { source: 'fallback-live-query', reason: 'dashboardDailyStats_missing_or_incomplete' };
 
   const result = {
     enabled: dashboardEnabled(),
@@ -665,16 +721,19 @@ async function getSalesStaffDashboard({ month, force = false } = {}) {
       debt: currentDebtResult.totals
     }),
     salesByStaff,
-    dataQuality: buildDataQuality({
-      activeStaff,
-      monthlySales: monthlySalesResult.rows,
-      monthlyPendingSales: monthlyPendingSalesResult.rows,
-      todaySales: todaySalesResult.rows,
-      monthlyReturns: monthlyReturnsResult.rows,
-      currentDebt: currentDebtResult.rows,
-      deliveryMonthRaw: [],
-      deliveryTodayRaw: []
-    }),
+    dataQuality: {
+      ...buildDataQuality({
+        activeStaff,
+        monthlySales: monthlySalesResult.rows,
+        monthlyPendingSales: monthlyPendingSalesResult.rows,
+        todaySales: todaySalesResult.rows,
+        monthlyReturns: monthlyReturnsResult.rows,
+        currentDebt: currentDebtResult.rows,
+        deliveryMonthRaw: [],
+        deliveryTodayRaw: []
+      }),
+      readModel: fallbackMeta
+    },
     sources: {
       sales: monthlySalesResult.source,
       pendingSales: monthlyPendingSalesResult.source,
@@ -683,33 +742,46 @@ async function getSalesStaffDashboard({ month, force = false } = {}) {
       dashboardStats: 'fallback-live-query',
       snapshot: false
     },
-    metrics: { queryDurationMs, strategy: 'phase38-fallback-live-query' },
-    meta: {
-      source: 'fallback-live-query',
-      reason: 'dashboardDailyStats_missing_or_incomplete'
-    },
-    generatedAt: new Date().toISOString(),
+    metrics: { queryDurationMs, strategy: 'perf-a4a-full-live-fallback' },
+    meta: fallbackMeta,
+    generatedAt: fallbackMeta.generatedAt || new Date().toISOString(),
     cacheHit: false,
     cacheEnabled: DashboardCacheService.enabled()
   };
 
-  DashboardCacheService.write(cacheKey, cacheVersion, result);
+  // Incomplete read-model responses are intentionally not cached. A repair can
+  // become visible immediately instead of waiting for TTL.
+  if (result.meta.source !== 'fallback-live-query') writeDashboardCache(cacheState, result);
   return result;
 }
 
-async function getDeliveryDashboard({ month, force = false } = {}) {
+async function getDeliveryDashboard({ month, force = false, scope = 'global' } = {}) {
   const range = parseMonth(month);
   const today = dateUtil.todayVN();
-  const cacheKey = `delivery-summary:${range.period}:${today}`;
-  const cacheVersion = await DashboardCacheService.freshnessVersion();
-  if (!force) {
-    const cached = DashboardCacheService.read(cacheKey, cacheVersion);
-    if (cached && cached.meta?.source !== 'fallback-live-query') return { ...cached, cacheHit: true };
+  const cacheState = await prepareDashboardCache({ module: 'delivery-summary', range, today, force, scope });
+  if (cacheState.cached && cacheState.cached.meta?.source !== 'fallback-live-query') {
+    return { ...cacheState.cached, cacheHit: true };
   }
 
-  const readModel = await DashboardDailyStatsService.buildDeliveryDashboard({ range: { ...range, today } });
+  let rangeInfo = null;
+  let readModel = null;
+  if (dashboardReadModelV2Enabled()) {
+    rangeInfo = await DashboardDailyStatsService.inspectRangeCompleteness({
+      dateFrom: range.dateFrom,
+      dateTo: range.dateTo,
+      today
+    });
+    if (rangeInfo.complete) {
+      readModel = await DashboardDailyStatsService.buildDeliveryDashboard({
+        range: { ...range, today },
+        rangeInfo
+      });
+    }
+  } else {
+    readModel = await DashboardDailyStatsService.buildDeliveryDashboard({ range: { ...range, today } });
+  }
   if (readModel) {
-    DashboardCacheService.write(cacheKey, cacheVersion, readModel);
+    writeDashboardCache(cacheState, readModel);
     return readModel;
   }
 
@@ -739,6 +811,9 @@ async function getDeliveryDashboard({ month, force = false } = {}) {
 
   const deliveryMonth = mergeDeliveryRows(activeStaff.delivery, deliveryMonthResult.rows, deliveryMonthReturns);
   const deliveryToday = mergeDeliveryRows(activeStaff.delivery, deliveryTodayResult.rows, deliveryTodayReturns);
+  const fallbackMeta = dashboardReadModelV2Enabled()
+    ? DashboardDailyStatsService.fallbackMeta(rangeInfo || {})
+    : { source: 'fallback-live-query', reason: 'dashboardDailyStats_missing_or_incomplete' };
   const result = {
     enabled: dashboardEnabled(),
     mode: 'delivery-summary',
@@ -757,22 +832,19 @@ async function getDeliveryDashboard({ month, force = false } = {}) {
       dashboardStats: 'fallback-live-query',
       snapshot: false
     },
-    meta: {
-      source: 'fallback-live-query',
-      reason: 'dashboardDailyStats_missing_or_incomplete'
-    },
+    meta: fallbackMeta,
     metrics: {
       queryDurationMs,
-      strategy: 'phase38-fallback-live-query',
+      strategy: 'perf-a4a-full-live-fallback',
       deliveryMonth: deliveryMonthResult.perf || null,
       deliveryToday: deliveryTodayResult.perf || null
     },
-    generatedAt: new Date().toISOString(),
+    generatedAt: fallbackMeta.generatedAt || new Date().toISOString(),
     cacheHit: false,
     cacheEnabled: DashboardCacheService.enabled()
   };
 
-  DashboardCacheService.write(cacheKey, cacheVersion, result);
+  if (result.meta.source !== 'fallback-live-query') writeDashboardCache(cacheState, result);
   return result;
 }
 
@@ -792,6 +864,9 @@ module.exports = {
   buildDataQuality,
   buildSummary,
   listActiveStaff,
+  dashboardReadModelV2Enabled,
+  prepareDashboardCache,
+  writeDashboardCache,
   invalidateDashboardCache,
   getHomeDashboard,
   getSalesStaffDashboard,

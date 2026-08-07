@@ -1,0 +1,1990 @@
+{
+  "schemaVersion": 1,
+  "promptId": "PERF-A5",
+  "baselineFileCount": 2135,
+  "releaseCandidateFileCount": 2284,
+  "addedCount": 149,
+  "modifiedCount": 31,
+  "removedCount": 0,
+  "categoryCounts": {
+    "config_or_evidence": 49,
+    "docs": 14,
+    "other": 16,
+    "script": 15,
+    "production_source": 39,
+    "test": 47
+  },
+  "forbiddenContent": {
+    "nodeModules": [],
+    "dotEnv": [],
+    "nestedArchives": [],
+    "runtimeResidue": [],
+    "privateKeyFiles": [],
+    "customerDataExports": []
+  },
+  "secretScan": {
+    "findings": [
+      {
+        "path": "PERF_A5_CHANGED_FILES.json",
+        "line": 39,
+        "type": "mongoCredentials",
+        "classification": "PLACEHOLDER_OR_REDACTION_FIXTURE",
+        "sample": "mongodb+srv://u:p@..."
+      },
+      {
+        "path": "PERF_A5_CHANGED_FILES.json",
+        "line": 46,
+        "type": "mongoCredentials",
+        "classification": "PLACEHOLDER_OR_REDACTION_FIXTURE",
+        "sample": "mongodb://user:pass@..."
+      },
+      {
+        "path": "PERF_A5_CHANGED_FILES.json",
+        "line": 53,
+        "type": "mongoCredentials",
+        "classification": "PLACEHOLDER_OR_REDACTION_FIXTURE",
+        "sample": "mongodb+srv://user:pass@..."
+      },
+      {
+        "path": "PERF_A5_CHANGED_FILES.json",
+        "line": 60,
+        "type": "mongoCredentials",
+        "classification": "PLACEHOLDER_OR_REDACTION_FIXTURE",
+        "sample": "mongodb://root:pass@..."
+      },
+      {
+        "path": "BACKUP_RESTORE_RUNBOOK.md",
+        "line": 65,
+        "type": "mongoCredentials",
+        "classification": "PLACEHOLDER_OR_REDACTION_FIXTURE",
+        "sample": "mongodb+srv://USER:PASSW..."
+      },
+      {
+        "path": "test/production-readiness-check.test.js",
+        "line": 10,
+        "type": "mongoCredentials",
+        "classification": "PLACEHOLDER_OR_REDACTION_FIXTURE",
+        "sample": "mongodb+srv://u:p@..."
+      },
+      {
+        "path": "test/phase242b-closeout-exact-query-attribution.test.js",
+        "line": 221,
+        "type": "mongoCredentials",
+        "classification": "PLACEHOLDER_OR_REDACTION_FIXTURE",
+        "sample": "mongodb://user:pass@..."
+      },
+      {
+        "path": "test/operations-redaction.test.js",
+        "line": 10,
+        "type": "mongoCredentials",
+        "classification": "PLACEHOLDER_OR_REDACTION_FIXTURE",
+        "sample": "mongodb+srv://user:pass@..."
+      },
+      {
+        "path": "test/operations-redaction.test.js",
+        "line": 22,
+        "type": "mongoCredentials",
+        "classification": "PLACEHOLDER_OR_REDACTION_FIXTURE",
+        "sample": "mongodb://root:pass@..."
+      }
+    ],
+    "reviewRequired": [],
+    "pass": true
+  },
+  "temporaryOrForbiddenPass": true,
+  "changes": [
+    {
+      "path": "PERF_A1A_REQUIREMENT_MATRIX.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "aeee37af38701c50a42d5e6fe72e444a39a082a3e5e24e40ba9c565c4ae0b659",
+        "sizeBytes": 20305
+      }
+    },
+    {
+      "path": "PERF_A1B_CORRECTNESS_SNAPSHOT.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "1f2f874438fc0c00437665fbde74a3d57cc424860b40e6d3514605d84337f981",
+        "sizeBytes": 113611
+      }
+    },
+    {
+      "path": "PERF_A1B_FIXTURE_MATRIX.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "2c5455944ec2fdfe35f0c85229497847e88595cf2657d83cb6076da8453a8e52",
+        "sizeBytes": 56762
+      }
+    },
+    {
+      "path": "PERF_A1B_LOGICAL_QUERY_BASELINE.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "ebcfa25ac3b693dedff220d50049e0edccdcd3b0b91109cafb9871eb351227e9",
+        "sizeBytes": 6117
+      }
+    },
+    {
+      "path": "PERF_A1B_MANIFEST.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "36b67a576b923849efc74d60c7271571432e01cb3601c99ed651f1d679ef6170",
+        "sizeBytes": 3145
+      }
+    },
+    {
+      "path": "PERF_A1B_OFFLINE_REPRO_REPORT.md",
+      "status": "added",
+      "category": "docs",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "e90630cbb2120bf984c015235ec8d46808312a50e8e5b33370ad0f437729e78c",
+        "sizeBytes": 2714
+      }
+    },
+    {
+      "path": "PERF_A1B_RED_TEST_EVIDENCE.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "02e21d99319acfef55cc769e0d85404c4aa6af296e5f12930bda762a366a38c3",
+        "sizeBytes": 1577
+      }
+    },
+    {
+      "path": "PERF_A2A_BULK_BATCH_CONTEXT_REPORT.md",
+      "status": "added",
+      "category": "docs",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "20ded7bf38af2bf42aa8720930bf30bfde94530fa720d509e78a51b70e28d93f",
+        "sizeBytes": 7036
+      }
+    },
+    {
+      "path": "PERF_A2A_CHANGED_FILES.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "ec7afbf2d6f8c9574fe5b6df8380de148c4b3b07ff7e9e7c4661f0938ae04637",
+        "sizeBytes": 5974
+      }
+    },
+    {
+      "path": "PERF_A2A_FINANCIAL_PARITY.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "f35ecd78b47433a13373b0f65c220e5aadae48a6af8fe2a11b53278a71174c1d",
+        "sizeBytes": 3334
+      }
+    },
+    {
+      "path": "PERF_A2A_LOGICAL_QUERY_COMPARISON.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "a7854d77bab78b18a4949c89ab4befb4b24a346dbfd0e765c5c4ab11e15b1bd3",
+        "sizeBytes": 13727
+      }
+    },
+    {
+      "path": "PERF_A2A_MANIFEST.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "90be4c64e645e2892b1951a198ff10267d4a47f6e3230e804e3aa51661df6c55",
+        "sizeBytes": 11237
+      }
+    },
+    {
+      "path": "PERF_A2A_RED_GREEN_EVIDENCE.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "61a7a5b33fc9d400bbe3a47e9de35d2d78bb78db6d1867c4c51579852a21af27",
+        "sizeBytes": 4067
+      }
+    },
+    {
+      "path": "PERF_A2B_CONCURRENCY_TEST_EVIDENCE.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "86d4364b4d694f77bf22105f8d27b931ffc1f27a292660a50c727e585f168bf3",
+        "sizeBytes": 8145
+      }
+    },
+    {
+      "path": "PERF_A2B_FEATURE_FLAG_MATRIX.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "88528b10b06c3c14ee7e589f37bdb5c6595f08e53434274be5360762b29471b1",
+        "sizeBytes": 3305
+      }
+    },
+    {
+      "path": "PERF_A2B_MANIFEST.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "347d9e51a527b5533dcd45fcbe7cbbddb09ecd56db4076c5a2760ba87db949d8",
+        "sizeBytes": 9866
+      }
+    },
+    {
+      "path": "PERF_A2B_TRANSACTION_ORCHESTRATION_REPORT.md",
+      "status": "added",
+      "category": "docs",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "f0f2584dbad79eddec08ccc1bd875d5f09a1a2b5dfee4c7c0af91e7991079dbb",
+        "sizeBytes": 5291
+      }
+    },
+    {
+      "path": "PERF_A2B_TRANSACTION_PARITY.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "5e08023d85a62c638f64dd9504ff0970ac250d415733aa816d72a2076e90988f",
+        "sizeBytes": 11092
+      }
+    },
+    {
+      "path": "PERF_A2C_CHANGED_FILES.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "23f29d273f4d2693f71cfc51cd6e8b70eceb9e4a9328252f7808ee2be1a02073",
+        "sizeBytes": 3235
+      }
+    },
+    {
+      "path": "PERF_A2C_DEPLOYMENT_PRECONDITIONS.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "82678a8c18b53af81e1c62c745486140fa3880a6651d0d592ebbf086c65b2d95",
+        "sizeBytes": 2105
+      }
+    },
+    {
+      "path": "PERF_A2C_DIFF.txt",
+      "status": "added",
+      "category": "docs",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "ed0e950d22671161ab8e9f5cc9fdcd8b71d94e3b02212eb20ad945dd654491cd",
+        "sizeBytes": 1164
+      }
+    },
+    {
+      "path": "PERF_A2C_DUPLICATE_AUDIT_SCRIPT.md",
+      "status": "added",
+      "category": "docs",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "5a1b941a489f5c45892323df306d8cf18bd4f3f57aa43e15b5b0f587cd86bc84",
+        "sizeBytes": 1395
+      }
+    },
+    {
+      "path": "PERF_A2C_IDEMPOTENCY_HARDENING_REPORT.md",
+      "status": "added",
+      "category": "docs",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "adbaff2dfd370fe0baf084b403b62dcdedf18445406411b859100f83f0250f87",
+        "sizeBytes": 4432
+      }
+    },
+    {
+      "path": "PERF_A2C_INDEX_MIGRATION_PLAN.md",
+      "status": "added",
+      "category": "docs",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "e6fe8478ee0ca378e57071d859cea64cc140a8c329ba644093a965befb0efcd0",
+        "sizeBytes": 2460
+      }
+    },
+    {
+      "path": "PERF_A2C_MANIFEST.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "b2f1db2ea8ed22e23845f539678f55153940529bf83692a3398137501c04604c",
+        "sizeBytes": 8622
+      }
+    },
+    {
+      "path": "PERF_A2C_RACE_TEST_EVIDENCE.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "913293201d6474e3d261edf56a0736b52659c7aeba308c432b83abfe5f5190f7",
+        "sizeBytes": 3699
+      }
+    },
+    {
+      "path": "PERF_A3A_DELIVERY_ORDERS_REPORT.md",
+      "status": "added",
+      "category": "docs",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "38d6479e8928abdec9590bb811a89685935da562d1772422f1de4981f3e3d326",
+        "sizeBytes": 5454
+      }
+    },
+    {
+      "path": "PERF_A3B_CHANGED_FILES.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "407b5f734f852b22144313d6545126c106eb9363fe2c70f6181ea43f792b9983",
+        "sizeBytes": 1200
+      }
+    },
+    {
+      "path": "PERF_A3B_LOGICAL_WORK_COMPARISON.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "abb602d0cebdd0e5078e5820632a0ba180fb9818b079e3c40c8bbb4c74507966",
+        "sizeBytes": 1126
+      }
+    },
+    {
+      "path": "PERF_A3B_MANIFEST.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "daa355b882619f51334713d107f71ca83e7b6e6d6e0b9c1d72943635b7377ff3",
+        "sizeBytes": 5032
+      }
+    },
+    {
+      "path": "PERF_A3B_SCOPE_SECURITY_EVIDENCE.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "ffdab74080b0101626f68509a423821a180d49db7c0549a811bf6300044a68ab",
+        "sizeBytes": 471
+      }
+    },
+    {
+      "path": "PERF_A3B_SEARCH_RELEVANCE_EVIDENCE.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "a4ad863a39cfa796269409b52741af032e376ddde878c6bcbb0965dced76981a",
+        "sizeBytes": 18392
+      }
+    },
+    {
+      "path": "PERF_A3B_SUGGESTIONS_REPORT.md",
+      "status": "added",
+      "category": "docs",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "7bdfc319e05b74f123ea76a2f33c1516d5781657208db8946a0d96fce4876c9f",
+        "sizeBytes": 7648
+      }
+    },
+    {
+      "path": "PERF_A4A_CACHE_INVALIDATION_EVIDENCE.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "e970b2d0924ab01a8e33aa7c71afbc8b1c65d909370229d294f04a9ab43cc3b1",
+        "sizeBytes": 2878
+      }
+    },
+    {
+      "path": "PERF_A4A_CHANGED_FILES.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "c3cc8143aece222f373ea77a82c6720220600bd3346ce7ccab5698cad8dd7df5",
+        "sizeBytes": 908
+      }
+    },
+    {
+      "path": "PERF_A4A_DASHBOARD_CACHE_REPORT.md",
+      "status": "added",
+      "category": "docs",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "cfba8cdc297886934abb51c3e732a279df4bc54ecbb1846e024e6f80cd0f160c",
+        "sizeBytes": 5061
+      }
+    },
+    {
+      "path": "PERF_A4A_DASHBOARD_PARITY.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "16b0876ac6e5e75f7f5cf3da2763d320ee677a7aa2f230ddd90c5b81e5bbbbc7",
+        "sizeBytes": 1978
+      }
+    },
+    {
+      "path": "PERF_A4A_MANIFEST.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "36c61db8d23624fe96d31c6ff6d4ebfa38b9d46d90c7e204c71365c12d3f97e2",
+        "sizeBytes": 3219
+      }
+    },
+    {
+      "path": "PERF_A4A_READ_MODEL_COMPLETENESS.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "01d8e0b3822e720bb405805a5bb2411298da73a96cb1eff148b903c8809f9a5e",
+        "sizeBytes": 2097
+      }
+    },
+    {
+      "path": "PERF_A4B_CHANGED_FILES.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "82b43721f9236326c44ede344a070f8a20ecbef8aa5c6539d2acaf3b1ec175ae",
+        "sizeBytes": 1659
+      }
+    },
+    {
+      "path": "PERF_A4B_FANOUT_RED_GREEN.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "d5e41fc6527e7448f6e8a641e780017327f6d2b565ba71832843b36ac032307c",
+        "sizeBytes": 2370
+      }
+    },
+    {
+      "path": "PERF_A4B_MANIFEST.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "49e5298ed56152134a56e16c6ab0b537cb1fdc7ac61e58d54bb1d9d3ed7639ee",
+        "sizeBytes": 1961
+      }
+    },
+    {
+      "path": "PERF_A4B_MEMORY_WORK_BUDGET.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "3b3fbbf70559c596ba1df7d4a854c5ff193ca1d752a98f2dcfd9ca15deaa8a8b",
+        "sizeBytes": 1655
+      }
+    },
+    {
+      "path": "PERF_A4B_REPORT_CENTER_REPORT.md",
+      "status": "added",
+      "category": "docs",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "41ffb81ccdaefde904295df8626f3b3464ffa0fd3820981e6a0cf07a63e823d2",
+        "sizeBytes": 5473
+      }
+    },
+    {
+      "path": "PERF_A4B_REPORT_PARITY.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "a6728f9d6dce7180ddfe5aba4dc7a83527820bb53f86b2d68df600c4da714e5b",
+        "sizeBytes": 3919
+      }
+    },
+    {
+      "path": "PERF_A5_A6_TELEMETRY_CONTRACT.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "997261baec065279d3e712593753648db2c16917765cb2092e2577c8d2c35087",
+        "sizeBytes": 2491
+      }
+    },
+    {
+      "path": "PERF_A5_CHANGED_FILES.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "a8a7fecd41cbda0eaec17f7c9646bd17d7f73dd4377b9f0cb18ddd4065622da0",
+        "sizeBytes": 60360
+      }
+    },
+    {
+      "path": "PERF_A5_ENGINEERING_VERIFICATION_REPORT.md",
+      "status": "added",
+      "category": "docs",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "4bfff5c6c75f7f4662978c136c73b39058e01fcabad3d5df616abc6f5250dab9",
+        "sizeBytes": 3572
+      }
+    },
+    {
+      "path": "PERF_A5_FEATURE_FLAG_MATRIX.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "00ddaba1eee4d229dd82bd8f7f4d15cda1154585492d77a7c832f8afe33ef10e",
+        "sizeBytes": 3586
+      }
+    },
+    {
+      "path": "PERF_A5_FINANCIAL_PARITY.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "429183bae77421eb45f81f9f2172daf59ff56745cc73d4c71130df0a15667dab",
+        "sizeBytes": 2989
+      }
+    },
+    {
+      "path": "PERF_A5_RELEASE_MANIFEST.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "ddd557ff8fa6eea2f0bffe4d4edc70fac8466525f2bb0c4891327e41906cf7e3",
+        "sizeBytes": 3026
+      }
+    },
+    {
+      "path": "PERF_A5_REQUIREMENT_MATRIX_FINAL.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "be928676cbd4928e0e7f7bb6cf121378645492ac883d3a005cd30f7710029d47",
+        "sizeBytes": 33751
+      }
+    },
+    {
+      "path": "PERF_A5_ROLLBACK_RUNBOOK.md",
+      "status": "added",
+      "category": "docs",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "2c97d34b2d823f167e140105b0e9767f3d2f4111ebb1d1a983f469875af0a84e",
+        "sizeBytes": 2165
+      }
+    },
+    {
+      "path": "PERF_A5_TEST_EVIDENCE.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "2f420d56f4a21daa56db90c6b08260022151ffcf00f8a0568fa9edbeaefcaa71",
+        "sizeBytes": 5454
+      }
+    },
+    {
+      "path": "evidence/perf-a2a/A2A_A1B_SIMULATOR_REGRESSION.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2a/A2A_COMBINED_TEST.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2a/A2A_DEPENDENCY_FREE_REGRESSION.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2a/A2A_GREEN_TEST.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2a/A2A_JS_SYNTAX.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2a/A2A_RED_FIRST_TEST.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2a/A2A_RED_GREEN_BENCHMARK.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2a/A2A_RED_GREEN_BENCHMARK.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "6917ce08d4cfb790250fc58fc46197177f3545c5382fd9aa55e38c56bb8059c3",
+        "sizeBytes": 15267
+      }
+    },
+    {
+      "path": "evidence/perf-a2a/A2A_TARGETED_REGRESSION.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2b/A2B_A1B_REGRESSION.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2b/A2B_A2A_REGRESSION.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2b/A2B_DEPENDENCY_FREE_REGRESSION.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2b/A2B_GREEN_TEST.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2b/A2B_MONGOOSE_DEPENDENT_NOT_RUN.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2b/A2B_RED_FIRST.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2b/A2B_SYNTAX.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a2b/PERF_A2B_OFFLINE_ORCHESTRATION_EVIDENCE.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "dd835e3445b053b293a4437d9b7b8fbce014aa94c152ce234b404180ea318217",
+        "sizeBytes": 15449
+      }
+    },
+    {
+      "path": "evidence/perf-a2b/PERF_A2B_OFFLINE_ORCHESTRATION_RUN.exitcode",
+      "status": "added",
+      "category": "other",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "sizeBytes": 2
+      }
+    },
+    {
+      "path": "evidence/perf-a3a/PERF_A3A_LOGICAL_WORK_COMPARISON.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "60eb84b8f75667451333c7f36cd080caa2a7b777476149b479bf881c5aeb732c",
+        "sizeBytes": 3605
+      }
+    },
+    {
+      "path": "evidence/perf-a3a/PERF_A3A_OFFLINE_RUN.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "3a0c807cbe99f27ee8f5e6fdb00a621f79fd00b5d4bfdcc74165d91d7b65a539",
+        "sizeBytes": 5122
+      }
+    },
+    {
+      "path": "evidence/perf-a3a/PERF_A3A_PAGINATION_EVIDENCE.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "e8e0c8422b7678a2dc3353479110b6018879b49ce1772be68e5b5db504fee580",
+        "sizeBytes": 1776
+      }
+    },
+    {
+      "path": "evidence/perf-a3a/PERF_A3A_READER_PARITY.json",
+      "status": "added",
+      "category": "config_or_evidence",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "b662aee93e48977c9f5c119bdd21cdd6530408adb0e569aa8fb875714c663e94",
+        "sizeBytes": 2413
+      }
+    },
+    {
+      "path": "scripts/audit-ar-ledger-idempotency-duplicates.js",
+      "status": "added",
+      "category": "script",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "bf74eaa4a73f6d61a38ddd1e9294f1da1169290589286011d9bc5e94dfd63c25",
+        "sizeBytes": 1635
+      }
+    },
+    {
+      "path": "scripts/create-ar-ledger-idempotency-unique-index.js",
+      "status": "added",
+      "category": "script",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "add0db5a4fc41d9e4c0a7016f92b9b8edae1eaf523f754521f0ad263c90fab72",
+        "sizeBytes": 4779
+      }
+    },
+    {
+      "path": "scripts/lib/arLedgerIdempotencyAudit.js",
+      "status": "added",
+      "category": "script",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "e17f7485f543e4ad190b52359443337fa2bd5eed3d527c7578ead34c2561dd00",
+        "sizeBytes": 3910
+      }
+    },
+    {
+      "path": "scripts/performance/perf-a1b/run-offline-repro.js",
+      "status": "added",
+      "category": "script",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "5201fffbe94e3287b5fa5b582ad5191cbf9b7012a4f4d2597e2aef6b9863975f",
+        "sizeBytes": 11126
+      }
+    },
+    {
+      "path": "scripts/performance/perf-a2a/run-red-green.js",
+      "status": "added",
+      "category": "script",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "5bc85159063d4bef94d758ae694857201f15f9f08fabe630a02ee5b54e09ccd9",
+        "sizeBytes": 8632
+      }
+    },
+    {
+      "path": "scripts/performance/perf-a2b/run-transaction-orchestration.js",
+      "status": "added",
+      "category": "script",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "1f10aa50e472fae29d828f12ef717bae03a9d00916526c8377cbc117ec78e6d0",
+        "sizeBytes": 9667
+      }
+    },
+    {
+      "path": "scripts/performance/perf-a3a/run-delivery-orders-repro.js",
+      "status": "added",
+      "category": "script",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "8965d4fa37898315fd7755363025df884afefe9424ee167f02f6208125ea232f",
+        "sizeBytes": 11074
+      }
+    },
+    {
+      "path": "scripts/performance/perf-a3b/backfill-delivery-suggestion-search-fields.js",
+      "status": "added",
+      "category": "script",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "0a27a5ce32ceeaac4f5c8f68a507f80d08fa5c0e30ac00a1bd2727dc7a1d4e57",
+        "sizeBytes": 2460
+      }
+    },
+    {
+      "path": "scripts/performance/perf-a3b/run-suggestions-repro.js",
+      "status": "added",
+      "category": "script",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "3fbbbc2a6bd9e10b9571c473182c290a5eb783e1c4f7e7049d3825b12944d2c1",
+        "sizeBytes": 7384
+      }
+    },
+    {
+      "path": "scripts/performance/perf-a4a/repair-dashboard-read-model.js",
+      "status": "added",
+      "category": "script",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "d23f9c25dfebfbecca797dcbff6935c55f43e5e61aaa4dbf4d46b407ff469d65",
+        "sizeBytes": 3049
+      }
+    },
+    {
+      "path": "scripts/performance/perf-a4a/run-dashboard-repro.js",
+      "status": "added",
+      "category": "script",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "f1be9e5634f89a1e379dcaf64a50905aed5cd7d3aafac6065c1b699475d4db62",
+        "sizeBytes": 2536
+      }
+    },
+    {
+      "path": "scripts/performance/perf-a4b/rebuild-data-quality-snapshot.js",
+      "status": "added",
+      "category": "script",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "b9a19304c18aa3d185a0ea9d104353534cb02e1b494670bdb4171b266eb94be4",
+        "sizeBytes": 2229
+      }
+    },
+    {
+      "path": "scripts/performance/perf-a4b/run-report-center-repro.js",
+      "status": "added",
+      "category": "script",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "a8f1ee944927a0534ffffce4fedd75fec7e6417186d79a2dc55f1b04c6dfd2b1",
+        "sizeBytes": 1362
+      }
+    },
+    {
+      "path": "scripts/performance/perf-a5/export-a6-telemetry-contract.js",
+      "status": "added",
+      "category": "script",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "0240270d31adc32d4a68c8cbb511be436abccdfd008d9213104346e9b8358ea0",
+        "sizeBytes": 2595
+      }
+    },
+    {
+      "path": "src/domain/ar/arLedgerIdempotencyGuard.js",
+      "status": "added",
+      "category": "production_source",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "893a3450aec88b67bdfab2e13bd0e6b65bdb3809621435d1b0b32eaa91bc0963",
+        "sizeBytes": 5533
+      }
+    },
+    {
+      "path": "src/domain/ar/arLedgerIdempotencyIndexContract.js",
+      "status": "added",
+      "category": "production_source",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "7e8f861cdba54b69efb0adbffebee1a358f83677564d2395d42311e3198f05d4",
+        "sizeBytes": 513
+      }
+    },
+    {
+      "path": "src/models/ReportDataQualitySnapshot.js",
+      "status": "added",
+      "category": "production_source",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "85f511f7c02e1a6f459904c26dd9454631adc531c55a55fc341a5fa1d6190ec6",
+        "sizeBytes": 887
+      }
+    },
+    {
+      "path": "src/services/dashboard/DashboardReadModelCompletenessService.js",
+      "status": "added",
+      "category": "production_source",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "c1251505c1ecd76ad7846fbf0ab2039b84a475afb514cbe14d3b55a5370cbfd1",
+        "sizeBytes": 3868
+      }
+    },
+    {
+      "path": "src/services/delivery/BulkTransactionOrchestrator.js",
+      "status": "added",
+      "category": "production_source",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "2a8a26673462ae86f072c548dc729b961183e7532729becbfd40edafd02dd551",
+        "sizeBytes": 7947
+      }
+    },
+    {
+      "path": "src/services/delivery/DeliveryAdjustmentBatchContextService.js",
+      "status": "added",
+      "category": "production_source",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "6366f4b8f602ea6318780372127896cc839b65274fcb885f820f72215b8acde1",
+        "sizeBytes": 17344
+      }
+    },
+    {
+      "path": "src/services/delivery/DeliveryFinancialLatestStateBatchReader.js",
+      "status": "added",
+      "category": "production_source",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "ec008124a6562c67ab5b80c03559a12e38200502c0a6138bcb3524afe598e83d",
+        "sizeBytes": 6307
+      }
+    },
+    {
+      "path": "src/services/delivery/DeliverySuggestionSearchService.js",
+      "status": "added",
+      "category": "production_source",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "df216d58fd2291f538387a265cd2be30a180ba62a1403ed14b6514220294d5c5",
+        "sizeBytes": 12129
+      }
+    },
+    {
+      "path": "src/services/delivery/deliverySuggestionSearchContract.js",
+      "status": "added",
+      "category": "production_source",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "1bfc66cc374adbe0e101ce2aac08bde02f7cbab2d84b5716928c2eaff4098ae4",
+        "sizeBytes": 8706
+      }
+    },
+    {
+      "path": "src/services/reports/DataQualityProjectionBuilder.js",
+      "status": "added",
+      "category": "production_source",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "05f5b968feb5cf57303e19ef9bde34b627d081d3a99eb1d6a74e1224cea8f16e",
+        "sizeBytes": 4110
+      }
+    },
+    {
+      "path": "src/services/reports/DataQualitySnapshotService.js",
+      "status": "added",
+      "category": "production_source",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "8f63eed5257a422bde48ee6c35d2313175aaaa41102ae59de823747e6c5074a2",
+        "sizeBytes": 7380
+      }
+    },
+    {
+      "path": "src/services/reports/ReportExecutionPolicy.js",
+      "status": "added",
+      "category": "production_source",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "a7988c7f0b89522471691481e9e9235589af30d02972058d7dbe1a18b0822887",
+        "sizeBytes": 6868
+      }
+    },
+    {
+      "path": "test/performance/perf-a1b/current-architecture-simulator.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "9f3e9936067f41576e27be72d40d5376e8735370c4a61cebfc9374d7678ae4b8",
+        "sizeBytes": 10505
+      }
+    },
+    {
+      "path": "test/performance/perf-a1b/fake-repository.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "87ec0d451a63d4f65162360271d9ceaadcb2844070fb2b03bb0f97a3d133c9fb",
+        "sizeBytes": 6221
+      }
+    },
+    {
+      "path": "test/performance/perf-a1b/fixture-factory.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "82c8acd47edff765ca6bab272b11dcfe0e262a57dee75fa0b3cd095207977ad1",
+        "sizeBytes": 8146
+      }
+    },
+    {
+      "path": "test/performance/perf-a1b/logical-query-counter.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "ee85c37b3cb60d38bf917fd3d55f0f1e7dfeed6472a397313a75911f840766dd",
+        "sizeBytes": 2801
+      }
+    },
+    {
+      "path": "test/performance/perf-a1b/normalize-snapshot.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "ed06d806ab2f3e8e0f05bf4c0a650cc4f70bd598fd5955da16927719d321f1cd",
+        "sizeBytes": 1110
+      }
+    },
+    {
+      "path": "test/performance/perf-a1b/perf-a1b-offline-repro.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "916e3e503e3ce3f87b40e3eb7340fc3503c6b15bdf06a3db65219ca5a38f8c30",
+        "sizeBytes": 7920
+      }
+    },
+    {
+      "path": "test/performance/perf-a2a/batch-architecture-simulator.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "7501b964a369a2c17854e1d194321c33eb5aa4fb00ddbc091f3941f119bf11d1",
+        "sizeBytes": 10715
+      }
+    },
+    {
+      "path": "test/performance/perf-a2a/perf-a2a-bulk-batch-context.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "595ab221b48257e95b7599b2634e199ab851d19b8565d92297b957a0691e981e",
+        "sizeBytes": 8845
+      }
+    },
+    {
+      "path": "test/performance/perf-a2b/perf-a2b-green-contract.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "1cd6975bc224776c0f70c98ef305d8f1a73402a3703550728a19dcc46ef90504",
+        "sizeBytes": 561
+      }
+    },
+    {
+      "path": "test/performance/perf-a2b/perf-a2b-red-scheduler.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "cc31b02f6241fb21965b599888505640bc99d6df0f528ec1b3f2bc43a2bc6924",
+        "sizeBytes": 1624
+      }
+    },
+    {
+      "path": "test/performance/perf-a2b/perf-a2b-transaction-orchestration.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "36c16d00cd5fee034a823279a3b6c714485a700abb90e898db9fa8a3f634f7c1",
+        "sizeBytes": 10494
+      }
+    },
+    {
+      "path": "test/performance/perf-a2b/transaction-orchestration-simulator.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "21b4275218b82295edbf753df9cbf6f20738f83a10c8e96931cd8a8d637cd6c7",
+        "sizeBytes": 2666
+      }
+    },
+    {
+      "path": "test/performance/perf-a2c/deterministic-race-repository.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "1b6751e150969affeb1887d04fd065170065d618af4d890fe41b221bbdc9fe21",
+        "sizeBytes": 826
+      }
+    },
+    {
+      "path": "test/performance/perf-a2c/perf-a2c-idempotency-hardening.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "05f4101cc67c43a97a42b3dc2085025a36fc0178995ace44863d7015e511032d",
+        "sizeBytes": 10945
+      }
+    },
+    {
+      "path": "test/performance/perf-a2c/perf-a2c-migration-contract.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "e631299cb7b9c687c9df5bbc6fe69bf13334c558973065881f57764a8879a2dc",
+        "sizeBytes": 1594
+      }
+    },
+    {
+      "path": "test/performance/perf-a2c/perf-a2c-red-race.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "e44dd12ccb7505709fd5ddfce510fe582eedf84468f9575dd541fb742b9d016a",
+        "sizeBytes": 1188
+      }
+    },
+    {
+      "path": "test/performance/perf-a3a/fake-mongo.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "6866fafef57921cb7a92b89e7e006d3c90536bff7a4840dbd583a8e50518c2e3",
+        "sizeBytes": 6746
+      }
+    },
+    {
+      "path": "test/performance/perf-a3a/fixture-factory.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "d96ec77dd23503dbb48686fe182fec976ff72abcb0afdd98fe63037459cd4027",
+        "sizeBytes": 6496
+      }
+    },
+    {
+      "path": "test/performance/perf-a3a/oracle-reader.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "f36aaa4c910788a578abbb80319809feb79253a6fae4eda823e9939326b3af6e",
+        "sizeBytes": 1032
+      }
+    },
+    {
+      "path": "test/performance/perf-a3a/perf-a3a-financial-latest-state.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "d41240acb2a677adbd8de264a9c7e2b47955ae8c2c296c102fa4609247590881",
+        "sizeBytes": 5526
+      }
+    },
+    {
+      "path": "test/performance/perf-a3a/perf-a3a-list-orders-integration.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "749a96383aad3f96a1a4d3b5fc6de0a7bb589288cd9fa0b8d0fda3e0e13b92e1",
+        "sizeBytes": 3618
+      }
+    },
+    {
+      "path": "test/performance/perf-a3a/perf-a3a-reader-parity.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "d50dcc887c1e7bcac967835a299b29bad92de8700599e0b756cde4a865f8c95b",
+        "sizeBytes": 6289
+      }
+    },
+    {
+      "path": "test/performance/perf-a3a/perf-a3a-red-parity.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "19f3e674bfa271b44396c5111adfcd830986f249a9c82f75a8c7a1b4302e0399",
+        "sizeBytes": 1717
+      }
+    },
+    {
+      "path": "test/performance/perf-a3a/perf-a3a-static-contract.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "c95c4447378889ef9aa1d237bb4fa64801b35a0f0f0d8fad78a47d98700408d0",
+        "sizeBytes": 1921
+      }
+    },
+    {
+      "path": "test/performance/perf-a3b/fake-suggestion-repository.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "b1d0c33aba71afc4e8c85130221e756a21429bad7a0bccd446e9b6c569637d9a",
+        "sizeBytes": 2456
+      }
+    },
+    {
+      "path": "test/performance/perf-a3b/fixture-factory.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "21de7258c449b67044106c798ab1dd8b646cf6756c9d566906bce827f7bdfd48",
+        "sizeBytes": 5726
+      }
+    },
+    {
+      "path": "test/performance/perf-a3b/legacy-search-simulator.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "b8b988ffa3e5a56eff5e15b23dfb4efe8ce5ec587820140014c4f9306fc1da1a",
+        "sizeBytes": 2137
+      }
+    },
+    {
+      "path": "test/performance/perf-a3b/perf-a3b-frontend-control.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "0a99da3a8e219e54be57624534fbc4a5dd182cd6772899ac8f03f301fb5ad653",
+        "sizeBytes": 1225
+      }
+    },
+    {
+      "path": "test/performance/perf-a3b/perf-a3b-production-contract.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "060a2375472cc41dd549ab2e9a4150e4852b5116e9da302816a3e2b9dd7cc06e",
+        "sizeBytes": 2946
+      }
+    },
+    {
+      "path": "test/performance/perf-a3b/perf-a3b-red-search.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "b25f6540c1e1e5a318a9b150c1fb6c2b8bc5dcdbba6322a818114bd22c667760",
+        "sizeBytes": 1425
+      }
+    },
+    {
+      "path": "test/performance/perf-a3b/perf-a3b-scope-security.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "e01b934e9bb1ad8d8bf62c67ce2be21dd9bd884273f658b0075c3a2af9a18cf4",
+        "sizeBytes": 2318
+      }
+    },
+    {
+      "path": "test/performance/perf-a3b/perf-a3b-search-relevance.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "a040cfed6ff61b2fb2cf27ce3fa90e7efc6b16417d48a73b254285dfe9c9de5d",
+        "sizeBytes": 4974
+      }
+    },
+    {
+      "path": "test/performance/perf-a3b/perf-a3b-staff-suggestions.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "76852b818bddff51b14b682eb2b3a88016fceb1d5b26cf7ef3e9fc7415b0ba66",
+        "sizeBytes": 2375
+      }
+    },
+    {
+      "path": "test/performance/perf-a4a/perf-a4a-cache-v2.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "c781d76b635b9640254732e86b8ce6aacea9d8fff1d4909a1a5cd8062d225d7c",
+        "sizeBytes": 5527
+      }
+    },
+    {
+      "path": "test/performance/perf-a4a/perf-a4a-home-dashboard-cache-hit.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "bce1ed22bf29e9214515984fef7365b3566930e7f69ecbd11cf04f8d7043458d",
+        "sizeBytes": 4595
+      }
+    },
+    {
+      "path": "test/performance/perf-a4a/perf-a4a-read-model-completeness.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "a8644cb9638ab12e23fee99b531315912f4880e0cebfbacbd1a150c7e9bf267a",
+        "sizeBytes": 7970
+      }
+    },
+    {
+      "path": "test/performance/perf-a4a/perf-a4a-red-cache-read-model.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "6cd4bd45e67b0a4c52eccd03fe32d512d49d454c7393e2dcc44d31970ec2da8a",
+        "sizeBytes": 1513
+      }
+    },
+    {
+      "path": "test/performance/perf-a4a/perf-a4a-static-contract.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "6fceb8ab6dbe98e8aefa97af4d4397f9d8b5000392fea8ef71f7cbbbdba9bd40",
+        "sizeBytes": 1637
+      }
+    },
+    {
+      "path": "test/performance/perf-a4b/legacy-report-fanout-simulator.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "5733b5eb88be56e9c616bcada6c7ecd1648c3c13a40102b38b548d5d394d7251",
+        "sizeBytes": 1239
+      }
+    },
+    {
+      "path": "test/performance/perf-a4b/optimized-report-orchestrator-simulator.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "2171a7d7c2e3d79919aa773a9324a504238d736ed101bc1b15ec2ca4c4540871",
+        "sizeBytes": 1066
+      }
+    },
+    {
+      "path": "test/performance/perf-a4b/perf-a4b-data-quality-snapshot.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "ed441a13e83e7c083136b147c46f4429705e8c6213b94ef58ba9edc17e3bf737",
+        "sizeBytes": 4881
+      }
+    },
+    {
+      "path": "test/performance/perf-a4b/perf-a4b-execution-policy.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "b5d09a810870d431880d327a4911d5b94c960178dcf059c92f6bd92e0130ceba",
+        "sizeBytes": 2864
+      }
+    },
+    {
+      "path": "test/performance/perf-a4b/perf-a4b-memory-work.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "93c06c1899e1dd7beaa6e00ed4d5795fcef833a3e58f78da41f7575c2ac7ec02",
+        "sizeBytes": 1085
+      }
+    },
+    {
+      "path": "test/performance/perf-a4b/perf-a4b-red-fanout.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "dfc20627dac718ad76989794283dce58384c4cae7619a92982ed12368b151655",
+        "sizeBytes": 1317
+      }
+    },
+    {
+      "path": "test/performance/perf-a4b/perf-a4b-report-parity.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "61d2f312f65ddafe9e9160a74ae3e5b14ce70a65ab9f8a4bcc382a393a662f15",
+        "sizeBytes": 1928
+      }
+    },
+    {
+      "path": "test/performance/perf-a4b/perf-a4b-static-contract.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "bf935859ef6b8ddb714bf3b324b5e8f3759601a427f16c3b20602588124ff49b",
+        "sizeBytes": 2654
+      }
+    },
+    {
+      "path": "test/performance/perf-a5/perf-a5-a6-telemetry-contract.test.js",
+      "status": "added",
+      "category": "test",
+      "baseline": null,
+      "releaseCandidate": {
+        "sha256": "ffd42c5f4cab231faeff642fe06a113f8a39ad7075f6068aa4572ad3ca612fe2",
+        "sizeBytes": 1542
+      }
+    },
+    {
+      "path": "ENVIRONMENT_VARIABLES.md",
+      "status": "modified",
+      "category": "docs",
+      "baseline": {
+        "sha256": "f7f410430b9fd1252b323f2e4deadafacc2b3e1fd7c5efdb0d64d5ae3e3e0644",
+        "sizeBytes": 15378
+      },
+      "releaseCandidate": {
+        "sha256": "c1c26fb4f4840a385be54e51f2bfb5d485fc4294edba5955e6efb8337dcb00b8",
+        "sizeBytes": 17818
+      }
+    },
+    {
+      "path": "RELEASE_MANIFEST.json",
+      "status": "modified",
+      "category": "config_or_evidence",
+      "baseline": {
+        "sha256": "36754460d7661169b901d2bab19c1155823c82caa79d8ab00c812fa484ecee71",
+        "sizeBytes": 1196
+      },
+      "releaseCandidate": {
+        "sha256": "180d222d394b6f54b380ecf7d9b6ba4a2bf15273e17e845faa33cfc657f95970",
+        "sizeBytes": 1101
+      }
+    },
+    {
+      "path": "package.json",
+      "status": "modified",
+      "category": "config_or_evidence",
+      "baseline": {
+        "sha256": "f05b035e65aa3b959711e8718694ef6484d221dfcb137ebb20ce6bc1316dac90",
+        "sizeBytes": 15346
+      },
+      "releaseCandidate": {
+        "sha256": "6b37591b7dfafceb1b5b3a3605980e7da4797b3bf921a20d0c6169e70ed9b325",
+        "sizeBytes": 17532
+      }
+    },
+    {
+      "path": "public/js/app/new/91-delivery-today-new.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "00c595b784793ec6df7ae239e9f008f09457d66caa2f6415e80c64228c6f4c6b",
+        "sizeBytes": 151537
+      },
+      "releaseCandidate": {
+        "sha256": "588cec4d2159253512c62c2046867ae0e50e980264e70079ca747ca7f7e522c8",
+        "sizeBytes": 153023
+      }
+    },
+    {
+      "path": "public/js/components/excel-interaction/ContextExport.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "76c7927a4f1370161fafd4f9cadf542e7098affffee5a4fe24dd46dac60be14a",
+        "sizeBytes": 7028
+      },
+      "releaseCandidate": {
+        "sha256": "9dfdff309adc64d6b499de02ee78d8fc651b1ba4c58af91200431c3b6ee628ac",
+        "sizeBytes": 8972
+      }
+    },
+    {
+      "path": "scripts/rebuild-dashboard-daily-stats.js",
+      "status": "modified",
+      "category": "script",
+      "baseline": {
+        "sha256": "75037e5a8fc8e6fdb71ae0b50f832f50dd49d8e7f373d9729702ce22fcab4f69",
+        "sizeBytes": 7653
+      },
+      "releaseCandidate": {
+        "sha256": "65692c87a02ede8a2ca7e3605776d0d7823b4503f5578de3739f264e95a327df",
+        "sizeBytes": 7768
+      }
+    },
+    {
+      "path": "src/controllers/excelInteractionController.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "25a4eec8ecf8153bdbd9a337a6773f24558c87c220b2047d31f85bf4d6e8bdb2",
+        "sizeBytes": 2848
+      },
+      "releaseCandidate": {
+        "sha256": "6e9add529c888467268ceca354a7026f37dc1899598c6131647a161e065fd3cf",
+        "sizeBytes": 3694
+      }
+    },
+    {
+      "path": "src/models/BackgroundJob.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "6721e0df81fdde3387aa8527a44588b47f613fefe9ce9ab42a7c8c9af0a202e0",
+        "sizeBytes": 2441
+      },
+      "releaseCandidate": {
+        "sha256": "ea5d90bb783f2f77841aa51d1520bf8845de1e8bf0fc62dc403ef76658017915",
+        "sizeBytes": 2464
+      }
+    },
+    {
+      "path": "src/models/DashboardDailyStat.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "11e717c89e7ac6f6a9c5a3771f42995a65907c5f8165e24f62ea0375b2ab7fbb",
+        "sizeBytes": 767
+      },
+      "releaseCandidate": {
+        "sha256": "d97e051c7c7bf03cca9fac96394b3be6ee892e7784bea7a28ce8cf8556dddd29",
+        "sizeBytes": 815
+      }
+    },
+    {
+      "path": "src/models/SalesOrder.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "79305ec29528c55634bfe6f087091585bbefac0a3b29d9b1e54ff9b75bb96db6",
+        "sizeBytes": 3542
+      },
+      "releaseCandidate": {
+        "sha256": "6a59005bcf378f406da78025ad8d78de9ee85cdc326a20f79eb3a00417f1a1ec",
+        "sizeBytes": 4237
+      }
+    },
+    {
+      "path": "src/routes/newOperationsRoutes.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "09e5057a7a3210d3fc5f0d641ac413bd2b037b14072b4808aa0e754d3fb52f40",
+        "sizeBytes": 26609
+      },
+      "releaseCandidate": {
+        "sha256": "f0eed9f4116d24f8416bd86f37a462743bf3908990a706999f219f116b2612cf",
+        "sizeBytes": 26654
+      }
+    },
+    {
+      "path": "src/services/accounting/OrderPaymentDebtReconcileService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "d8948be1345cafb6377271609ae8e6ac8fd55b006e96ebee55b3f21871fff561",
+        "sizeBytes": 33732
+      },
+      "releaseCandidate": {
+        "sha256": "075374a66118a75423c6be6bcef7a075bb124173b2a2cb88a2cc296d426a78e2",
+        "sizeBytes": 34480
+      }
+    },
+    {
+      "path": "src/services/arPosting.service.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "f692a245be0aad8d9d4989a85389cc7c3d8a1668f03934503d5e9cb6f1893732",
+        "sizeBytes": 14962
+      },
+      "releaseCandidate": {
+        "sha256": "ee812ece0ba1b31888fb1c986d8ef0d0039a8bdfccc4831ecc29bbbfefcb5ae8",
+        "sizeBytes": 18096
+      }
+    },
+    {
+      "path": "src/services/background-jobs/BackgroundJobHandlers.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "6d4324df48f8e242586be922018f51eabc8cc60f4686c5f95673e4034af8da3e",
+        "sizeBytes": 5029
+      },
+      "releaseCandidate": {
+        "sha256": "2b379ecdffb8a12bd714b1dc36afd7dd3195f667a491b7d279465d64bc7c58ec",
+        "sizeBytes": 6529
+      }
+    },
+    {
+      "path": "src/services/background-jobs/BackgroundJobService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "05cc7f7f1197a82d82f42e430b0d301924d744e923e0c1fb8cc0b43ec911b4e5",
+        "sizeBytes": 13274
+      },
+      "releaseCandidate": {
+        "sha256": "c79378bd67a1c1a5bf146c4cddab79061ab0e6fe1ddc447ca209ab072a8f8c66",
+        "sizeBytes": 13297
+      }
+    },
+    {
+      "path": "src/services/background-jobs/JobSubmissionService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "bd65d8907599baabbfdcbb8f6b25857a1c5cf873fd99655df79ec8a6f61d58ad",
+        "sizeBytes": 6466
+      },
+      "releaseCandidate": {
+        "sha256": "ac29cf6b61614c61e125525f2b9c83307bcbe20e13784c4537bf5c7503783c7a",
+        "sizeBytes": 7644
+      }
+    },
+    {
+      "path": "src/services/dashboard/DashboardCacheService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "d7bc61d46412f6703dd6b6bfd187ac9c8c3db567922b2bc25a84cd669793f3ff",
+        "sizeBytes": 2738
+      },
+      "releaseCandidate": {
+        "sha256": "59d5a0c3ac717f4a4f866b22e978b98fc176a8a4bfcaab82270b377b4b57ee08",
+        "sizeBytes": 10465
+      }
+    },
+    {
+      "path": "src/services/dashboard/DashboardDailyStatsService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "5d8fa2113f65885004c3e3fc83835fbd012bd6f8d5bdd5032d47132a3b3404ff",
+        "sizeBytes": 17409
+      },
+      "releaseCandidate": {
+        "sha256": "5fbc9fdd37f52463850f3ee2cec2353377fb5b50e413723177548dc0f6ac4081",
+        "sizeBytes": 18024
+      }
+    },
+    {
+      "path": "src/services/dashboard/HomeDashboardService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "6a6b8f5dc8a4a0413227c81fe7dc27e59ddc921267cb274c08a6009831225350",
+        "sizeBytes": 31181
+      },
+      "releaseCandidate": {
+        "sha256": "5fbc881fc699f996e13644e8eedab633cd923dbecb3a8206644c7bc037d2ba32",
+        "sizeBytes": 34026
+      }
+    },
+    {
+      "path": "src/services/delivery/DeliveryAdjustmentBulkCommitService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "f9e5c0cde96c831d05ad27548995e9fecbb324b3d3cf465ed1030aca5bdf0957",
+        "sizeBytes": 5567
+      },
+      "releaseCandidate": {
+        "sha256": "738f9cf1b804016754a53dcdc5630e0639f0817305e972ce788d44fcdab6804e",
+        "sizeBytes": 9395
+      }
+    },
+    {
+      "path": "src/services/delivery/DeliveryAdjustmentCommitService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "431e294d54f76928cf18b558325693ae9679838488bc5339e4723c496a89c9f2",
+        "sizeBytes": 21768
+      },
+      "releaseCandidate": {
+        "sha256": "f2f04c9cc2a9dc7f874c4832a816215d2a11f0e0ed770133848b253e6a6c6a1e",
+        "sizeBytes": 24219
+      }
+    },
+    {
+      "path": "src/services/delivery/DeliveryPaymentStateReadService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "a5a8a4afea21256f28bb4fca4b89df7c1adcb015c7af7e8d001d24d453f279b7",
+        "sizeBytes": 28616
+      },
+      "releaseCandidate": {
+        "sha256": "fad02ad214d71cc69cb636c3ebda1ba284c82c9c050b7e0bfbf7d4373a93a858",
+        "sizeBytes": 31652
+      }
+    },
+    {
+      "path": "src/services/delivery/deliveryTodayCanonicalOrderReader.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "fb4a623178ad3eee84eef0cf2472d7af53d3e9071ce62afc7f119b9ab0fad18b",
+        "sizeBytes": 24196
+      },
+      "releaseCandidate": {
+        "sha256": "72ed3688916322087c024602c72bd8b218150724e6123ae714abbd7f286bb40a",
+        "sizeBytes": 39821
+      }
+    },
+    {
+      "path": "src/services/deliveryCloseoutCorrection.service.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "b662f83880ede1fdf716c255ba43f3828b738b0d03330d05736542b9a5acd56f",
+        "sizeBytes": 107497
+      },
+      "releaseCandidate": {
+        "sha256": "6e675c726336dd2267ec67983bd26a9447fc37131c54f69aec0955d3800524f3",
+        "sizeBytes": 112166
+      }
+    },
+    {
+      "path": "src/services/excel/ExcelInteractionService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "de0439def5854c6f54f6baa7305bf0e478980aa89edc63fc9bf47ef1dc25c6aa",
+        "sizeBytes": 36493
+      },
+      "releaseCandidate": {
+        "sha256": "ceb99f56bf2d352a33ac9ca419e5cda9fdaefd3c7ece7f8a35a5aedb523d9fbd",
+        "sizeBytes": 36901
+      }
+    },
+    {
+      "path": "src/services/mongoIndexService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "b2056a6de2e622fdc9c22fbf76cc27baeacb4b31b685515e097445d0e247ba3b",
+        "sizeBytes": 47718
+      },
+      "releaseCandidate": {
+        "sha256": "7e0b0c4d4cb452e8eb57e41cc5e650c46d8a86f007296276d26104a80b3cb859",
+        "sizeBytes": 50012
+      }
+    },
+    {
+      "path": "src/services/reports/DashboardReportService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "988b9cfa057a53870ad440dae9dcf52069435e0e8d061db2c6b0c6d8622443d0",
+        "sizeBytes": 3833
+      },
+      "releaseCandidate": {
+        "sha256": "ed10f823e6be3d468643012d2f58b090d7bb81fcb571332db0262081fae3fea9",
+        "sizeBytes": 5856
+      }
+    },
+    {
+      "path": "src/services/reports/FinanceReportService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "2a4aef5226cb90411c8edd041dbb5216b5451d3fc1199ecd460675144e384730",
+        "sizeBytes": 5876
+      },
+      "releaseCandidate": {
+        "sha256": "92ec137809a05c4cb6ae7d732d1d1071b96425df1885b7e9bc825611255a0d9c",
+        "sizeBytes": 6110
+      }
+    },
+    {
+      "path": "src/services/reports/ReportCenterService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "5858defa0a89fce46c8cbaa0efe0b4cc0a805a8322e2bf0ba543287ab1f83a98",
+        "sizeBytes": 52046
+      },
+      "releaseCandidate": {
+        "sha256": "8b4916d991f6dd1612abbe6b1dd16774463271834a7a6ba4bffe6b35c7dd33bf",
+        "sizeBytes": 52985
+      }
+    },
+    {
+      "path": "src/services/reports/SalesReportService.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "6fb1adb3a18280f3712f873092e31f642e2396c1fcdb19bec6440e6b47f32727",
+        "sizeBytes": 16876
+      },
+      "releaseCandidate": {
+        "sha256": "91ef75a22efaf726f05be72d4c540895c0be0504829ea8b69c2614ebb737b35c",
+        "sizeBytes": 22015
+      }
+    },
+    {
+      "path": "src/services/v2/deliveryTodayNew.service.js",
+      "status": "modified",
+      "category": "production_source",
+      "baseline": {
+        "sha256": "504a6f15264949a9869548c8c4b6680173dd548e43939ee454e05f7e84a783c9",
+        "sizeBytes": 58876
+      },
+      "releaseCandidate": {
+        "sha256": "9c8dc7a3abc4b92043dc4748556c8d55fbe3d222ababa467d2408574d8149b05",
+        "sizeBytes": 62007
+      }
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "promptId": "PERF-A2A",
+  "generatedAt": "2026-08-06T10:17:30+07:00",
+  "normalization": "Same PERF-A1B normalized snapshot contract (_id/timestamp noise removed, object and ledger ordering normalized).",
+  "rows": [
+    {
+      "batchSize": 1,
+      "financialSnapshotEqual": true,
+      "redSnapshotSha256": "2e3e5c2bc6609468835d575f7be0d7725e9c2544d5faf6c8f6ea701f31fb1049",
+      "greenSnapshotSha256": "2e3e5c2bc6609468835d575f7be0d7725e9c2544d5faf6c8f6ea701f31fb1049",
+      "returnStateEqual": true,
+      "paymentAllocationEqual": true,
+      "closeoutVersionEqual": true,
+      "errorResultOrderEqual": true,
+      "debtDeviation": 0,
+      "duplicateLedgerCount": 0
+    },
+    {
+      "batchSize": 16,
+      "financialSnapshotEqual": true,
+      "redSnapshotSha256": "c5faf869ff74d72ff6d7f1dbd4413b1d48f355f4e8e72b1dcf07bb0d756cbc78",
+      "greenSnapshotSha256": "c5faf869ff74d72ff6d7f1dbd4413b1d48f355f4e8e72b1dcf07bb0d756cbc78",
+      "returnStateEqual": true,
+      "paymentAllocationEqual": true,
+      "closeoutVersionEqual": true,
+      "errorResultOrderEqual": true,
+      "debtDeviation": 0,
+      "duplicateLedgerCount": 0
+    },
+    {
+      "batchSize": 26,
+      "financialSnapshotEqual": true,
+      "redSnapshotSha256": "eb51dd0f8860d7ae7b640914ba89cf015353f6f60aab919c386c40db0b538712",
+      "greenSnapshotSha256": "eb51dd0f8860d7ae7b640914ba89cf015353f6f60aab919c386c40db0b538712",
+      "returnStateEqual": true,
+      "paymentAllocationEqual": true,
+      "closeoutVersionEqual": true,
+      "errorResultOrderEqual": true,
+      "debtDeviation": 0,
+      "duplicateLedgerCount": 0
+    },
+    {
+      "batchSize": 60,
+      "financialSnapshotEqual": true,
+      "redSnapshotSha256": "0849e9f0030f38e11f52363afd5617c352b1efec82bb541e28220cc093b1ed47",
+      "greenSnapshotSha256": "0849e9f0030f38e11f52363afd5617c352b1efec82bb541e28220cc093b1ed47",
+      "returnStateEqual": true,
+      "paymentAllocationEqual": true,
+      "closeoutVersionEqual": true,
+      "errorResultOrderEqual": true,
+      "debtDeviation": 0,
+      "duplicateLedgerCount": 0
+    },
+    {
+      "batchSize": 100,
+      "financialSnapshotEqual": true,
+      "redSnapshotSha256": "e83f749f76d345a5b4047d5fcd4ca251dffb0970634e2249a4401de293d387f6",
+      "greenSnapshotSha256": "e83f749f76d345a5b4047d5fcd4ca251dffb0970634e2249a4401de293d387f6",
+      "returnStateEqual": true,
+      "paymentAllocationEqual": true,
+      "closeoutVersionEqual": true,
+      "errorResultOrderEqual": true,
+      "debtDeviation": 0,
+      "duplicateLedgerCount": 0
+    }
+  ],
+  "summary": {
+    "allFinancialSnapshotsEqual": true,
+    "returnStateParity": true,
+    "paymentAllocationParity": true,
+    "closeoutVersionParity": true,
+    "errorResultOrderParity": true,
+    "maximumDebtDeviation": 0,
+    "duplicateLedgerCount": 0,
+    "writesUnchangedAllBatches": true,
+    "transactionsUnchangedAllBatches": true
+  },
+  "safetyContracts": {
+    "debtZeroTolerancePreserved": true,
+    "negativeMoneyGuardPreserved": true,
+    "preWriteIdempotencyRereadPreserved": true,
+    "arSafetyRereadPreserved": true,
+    "afterWriteVerificationPreserved": true,
+    "perOrderTransactionPreserved": true,
+    "ssotChanged": false
+  },
+  "runtimeScope": "Offline deterministic evidence only; Mongo transaction behavior is not claimed."
+}

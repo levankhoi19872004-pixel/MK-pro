@@ -1,0 +1,348 @@
+{
+  "schemaVersion": 1,
+  "promptId": "PERF-A2B",
+  "generatedAt": "2026-08-06T10:34:53+07:00",
+  "status": "PASS_WITH_DEFERRED_RUNTIME",
+  "evidence": {
+    "E1": "PASS",
+    "E2": "PASS",
+    "E3": "DEFERRED_TO_PERF_A6"
+  },
+  "redFirst": {
+    "performedBeforeProductionModification": true,
+    "command": "node --test test/performance/perf-a2b/perf-a2b-red-scheduler.test.js test/performance/perf-a2b/perf-a2b-green-contract.test.js",
+    "exitCode": 1,
+    "expectedStatus": "RED_FAIL",
+    "tap": {
+      "tests": 4,
+      "pass": 3,
+      "fail": 1,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "proof": [
+      "Legacy source contained await withOptionalMongoTransaction inside the per-input loop.",
+      "Deterministic serial schedule had maxConcurrency=1.",
+      "A slow task delayed every later task in the legacy schedule.",
+      "GREEN contract failed because BulkTransactionOrchestrator did not exist."
+    ],
+    "log": "evidence/perf-a2b/A2B_RED_FIRST.log",
+    "logSha256": "83abbfcc9ee4ff1fc8f09bb269941dda49a74c80e22de16dfcf8759e72f093d5"
+  },
+  "green": {
+    "command": "node --test test/performance/perf-a2b/perf-a2b-red-scheduler.test.js test/performance/perf-a2b/perf-a2b-green-contract.test.js test/performance/perf-a2b/perf-a2b-transaction-orchestration.test.js",
+    "exitCode": 0,
+    "tap": {
+      "tests": 16,
+      "pass": 16,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "log": "evidence/perf-a2b/A2B_GREEN_TEST.log",
+    "logSha256": "02bc4155d96f92ca8225e4b16513180d8cd830d5c4c0bc1e4e7a39b3273572b7"
+  },
+  "deterministicScheduler": [
+    {
+      "concurrency": 1,
+      "makespanWorkUnits": 150,
+      "maxActive": 1,
+      "maxActivePerIdentity": 1,
+      "completionOrder": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "resultOrder": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "timeline": [
+        {
+          "index": 0,
+          "id": "slow-A",
+          "identity": "ORDER-A",
+          "startedAt": 0,
+          "finishedAt": 100
+        },
+        {
+          "index": 1,
+          "id": "B",
+          "identity": "ORDER-B",
+          "startedAt": 100,
+          "finishedAt": 110
+        },
+        {
+          "index": 2,
+          "id": "C",
+          "identity": "ORDER-C",
+          "startedAt": 110,
+          "finishedAt": 120
+        },
+        {
+          "index": 3,
+          "id": "A-duplicate",
+          "identity": "ORDER-A",
+          "startedAt": 120,
+          "finishedAt": 130
+        },
+        {
+          "index": 4,
+          "id": "D",
+          "identity": "ORDER-D",
+          "startedAt": 130,
+          "finishedAt": 140
+        },
+        {
+          "index": 5,
+          "id": "E",
+          "identity": "ORDER-E",
+          "startedAt": 140,
+          "finishedAt": 150
+        }
+      ],
+      "speedupVsSerial": 1
+    },
+    {
+      "concurrency": 2,
+      "makespanWorkUnits": 110,
+      "maxActive": 2,
+      "maxActivePerIdentity": 1,
+      "completionOrder": [
+        1,
+        2,
+        4,
+        5,
+        0,
+        3
+      ],
+      "resultOrder": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "timeline": [
+        {
+          "index": 0,
+          "id": "slow-A",
+          "identity": "ORDER-A",
+          "startedAt": 0,
+          "finishedAt": 100
+        },
+        {
+          "index": 1,
+          "id": "B",
+          "identity": "ORDER-B",
+          "startedAt": 0,
+          "finishedAt": 10
+        },
+        {
+          "index": 2,
+          "id": "C",
+          "identity": "ORDER-C",
+          "startedAt": 10,
+          "finishedAt": 20
+        },
+        {
+          "index": 3,
+          "id": "A-duplicate",
+          "identity": "ORDER-A",
+          "startedAt": 100,
+          "finishedAt": 110
+        },
+        {
+          "index": 4,
+          "id": "D",
+          "identity": "ORDER-D",
+          "startedAt": 20,
+          "finishedAt": 30
+        },
+        {
+          "index": 5,
+          "id": "E",
+          "identity": "ORDER-E",
+          "startedAt": 30,
+          "finishedAt": 40
+        }
+      ],
+      "speedupVsSerial": 1.364
+    },
+    {
+      "concurrency": 3,
+      "makespanWorkUnits": 110,
+      "maxActive": 3,
+      "maxActivePerIdentity": 1,
+      "completionOrder": [
+        1,
+        2,
+        4,
+        5,
+        0,
+        3
+      ],
+      "resultOrder": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "timeline": [
+        {
+          "index": 0,
+          "id": "slow-A",
+          "identity": "ORDER-A",
+          "startedAt": 0,
+          "finishedAt": 100
+        },
+        {
+          "index": 1,
+          "id": "B",
+          "identity": "ORDER-B",
+          "startedAt": 0,
+          "finishedAt": 10
+        },
+        {
+          "index": 2,
+          "id": "C",
+          "identity": "ORDER-C",
+          "startedAt": 0,
+          "finishedAt": 10
+        },
+        {
+          "index": 3,
+          "id": "A-duplicate",
+          "identity": "ORDER-A",
+          "startedAt": 100,
+          "finishedAt": 110
+        },
+        {
+          "index": 4,
+          "id": "D",
+          "identity": "ORDER-D",
+          "startedAt": 10,
+          "finishedAt": 20
+        },
+        {
+          "index": 5,
+          "id": "E",
+          "identity": "ORDER-E",
+          "startedAt": 10,
+          "finishedAt": 20
+        }
+      ],
+      "speedupVsSerial": 1.364
+    }
+  ],
+  "sameIdentity": {
+    "identity": "ORDER-A",
+    "inputPositions": [
+      0,
+      3
+    ],
+    "overlap": false,
+    "maxActivePerIdentity": 1
+  },
+  "retryEvidence": {
+    "result": "committed",
+    "transientAttempts": 2,
+    "writes": 1,
+    "validationAttempts": 1,
+    "duplicateKeyAttempts": 1
+  },
+  "acceptance": {
+    "defaultConcurrencyOne": true,
+    "boundedTwoMaximumTwo": true,
+    "boundedThreeMaximumThree": true,
+    "sameIdentityNeverOverlaps": true,
+    "slowTaskDoesNotSerializeIndependentTail": true,
+    "transactionParity": true,
+    "financialParity": true,
+    "resultOrderStable": true,
+    "debtDeviationZero": true,
+    "duplicateLedgerZero": true,
+    "transientRetryBounded": true,
+    "validationNotRetried": true,
+    "duplicateKeyNotRetried": true
+  },
+  "regression": {
+    "A2A": {
+      "exitCode": 0,
+      "tap": {
+        "tests": 9,
+        "pass": 9,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "logSha256": "3968c36813fa837b87e25c23fde46d099e4c9a5eacfe2ee048219472ef64f38f"
+    },
+    "A1B": {
+      "exitCode": 0,
+      "tap": {
+        "tests": 9,
+        "pass": 9,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "logSha256": "329e43a7f0555d5bd48c9086401d216b75f8fa61289f9b997a7400670ca943ac"
+    },
+    "dependencyFreeDeliveryFinancial": {
+      "exitCode": 0,
+      "tap": {
+        "tests": 47,
+        "pass": 47,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "logSha256": "2f87cdebb19b8454d371670507878ce02f5b0077cbb254e5370d3a2724d32830"
+    },
+    "syntax": {
+      "exitCode": 0,
+      "result": "SYNTAX_OK 1600 JavaScript files",
+      "files": 1600,
+      "logSha256": "cc21f3dc402a63ba902baac8fd7eb00f5afa9c6e9532e117848b73066e710552"
+    }
+  },
+  "notRun": [
+    {
+      "test": "test/closeout-correction-reduce-return.test.js",
+      "reason": "node_modules/mongoose is absent in the supplied ZIP; load failed before test execution.",
+      "evidenceLog": "evidence/perf-a2b/A2B_MONGOOSE_DEPENDENT_NOT_RUN.log"
+    },
+    {
+      "test": "Mongo transaction/session integration",
+      "reason": "No Mongo staging/runtime is required at PERF-A2B."
+    },
+    {
+      "test": "Production latency/p95/5xx and canary concurrency 2/3",
+      "reason": "Deferred to PERF-A6/E3."
+    }
+  ],
+  "requirements": {
+    "A2B-REQ-001": "PASS",
+    "A2B-REQ-002": "PASS",
+    "A2B-REQ-003": "PASS",
+    "A2B-REQ-004": "PASS",
+    "A2B-REQ-005": "PASS",
+    "A2B-REQ-006": "PASS"
+  }
+}

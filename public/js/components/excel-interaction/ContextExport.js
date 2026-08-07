@@ -18,17 +18,13 @@
     return plain?plain[1]:'export.xlsx';
   }
 
-  async function downloadWorkbook(payload){
-    const response=await fetch('/api/excel/export',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(payload||{})
-    });
-    if(!response.ok){
-      let message='Không xuất được Excel';
-      try{const json=await response.json();message=json.message||message;}catch(_err){}
-      throw new Error(message);
-    }
+  function emitExportProgress(detail){
+    try{global.dispatchEvent(new CustomEvent('excel-export-progress',{detail}));}catch(_error){}
+  }
+
+  function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+
+  async function saveWorkbookResponse(response){
     const blob=await response.blob();
     const url=URL.createObjectURL(blob);
     const link=document.createElement('a');
@@ -39,6 +35,51 @@
     link.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1500);
     return {rowCount:Number(response.headers.get('X-Export-Row-Count')||0)};
+  }
+
+  async function waitForExportJob(accepted){
+    const jobId=accepted.jobId||accepted.job?.id;
+    if(!jobId)throw new Error('Backend không trả mã export job');
+    const statusUrl=accepted.statusUrl||`/api/background-jobs/${encodeURIComponent(jobId)}`;
+    const deadline=Date.now()+10*60*1000;
+    while(Date.now()<deadline){
+      const response=await fetch(statusUrl,{headers:{'Accept':'application/json'}});
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(payload.message||'Không đọc được trạng thái export');
+      const job=payload.job||{};
+      emitExportProgress({jobId,status:job.status,progress:job.progress||{}});
+      if(job.status==='completed'){
+        const artifactUrl=job.artifact?.downloadUrl||`/api/background-jobs/${encodeURIComponent(jobId)}/artifact`;
+        const artifactResponse=await fetch(artifactUrl);
+        if(!artifactResponse.ok)throw new Error('Export hoàn tất nhưng không tải được file');
+        return saveWorkbookResponse(artifactResponse);
+      }
+      if(['failed','dead_letter','cancelled'].includes(job.status)){
+        throw new Error(job.error?.message||'Export báo cáo thất bại');
+      }
+      await sleep(1000);
+    }
+    throw new Error('Export chưa hoàn tất trong thời gian cho phép');
+  }
+
+  async function downloadWorkbook(payload){
+    const body={...(payload||{}),async:true};
+    const response=await fetch('/api/excel/export',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Prefer':'respond-async'},
+      body:JSON.stringify(body)
+    });
+    if(response.status===202){
+      const accepted=await response.json().catch(()=>({}));
+      if(!accepted.ok)throw new Error(accepted.message||'Không tạo được export job');
+      return waitForExportJob(accepted);
+    }
+    if(!response.ok){
+      let message='Không xuất được Excel';
+      try{const json=await response.json();message=json.message||message;}catch(_err){}
+      throw new Error(message);
+    }
+    return saveWorkbookResponse(response);
   }
 
   async function copyText(text){

@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "promptId": "PERF-A5",
+  "generatedAt": "2026-08-06T13:54:44+07:00",
+  "status": "PASS_ENGINEERING_E1_E2",
+  "locks": {
+    "debtDeviation": {
+      "required": 0,
+      "actual": 0,
+      "pass": true
+    },
+    "duplicateLedgerApplicationTests": {
+      "required": 0,
+      "actual": 0,
+      "pass": true
+    },
+    "returnParityPercent": {
+      "required": 100,
+      "actual": 100,
+      "pass": true
+    },
+    "allocationCurrentVersionParityPercent": {
+      "required": 100,
+      "actual": 100,
+      "pass": true
+    },
+    "zeroValueSemantics": {
+      "required": true,
+      "actual": true,
+      "pass": true,
+      "evidence": "PERF-A2C race/green zero_amount_preserved + PERF-A3A latest-state tests"
+    },
+    "negativeMoneyGuard": {
+      "required": true,
+      "actual": true,
+      "pass": true,
+      "evidence": "PERF-A2C negative_amount_guard"
+    },
+    "debtZeroTolerance": {
+      "required": true,
+      "actual": true,
+      "pass": true,
+      "boundary": 1000
+    },
+    "scopeIsolation": {
+      "required": true,
+      "actual": true,
+      "pass": true
+    },
+    "transactionFailureIsolation": {
+      "required": true,
+      "actual": true,
+      "pass": true,
+      "evidence": "PERF-A2B transaction parity and one-failure isolation tests"
+    },
+    "idempotentRetry": {
+      "required": true,
+      "actual": true,
+      "pass": true,
+      "evidence": "PERF-A2C unknown commit external retry ledger_count=1"
+    }
+  },
+  "batchParity": {
+    "allFinancialSnapshotsEqual": true,
+    "returnStateParity": true,
+    "paymentAllocationParity": true,
+    "closeoutVersionParity": true,
+    "errorResultOrderParity": true,
+    "maximumDebtDeviation": 0,
+    "duplicateLedgerCount": 0,
+    "writesUnchangedAllBatches": true,
+    "transactionsUnchangedAllBatches": true
+  },
+  "transactionParity": {
+    "batchSizes": [
+      1,
+      16,
+      26,
+      60,
+      100
+    ],
+    "concurrency1Parity": true,
+    "concurrency2Parity": true,
+    "concurrency3Parity": true,
+    "resultOrderStable": true,
+    "debtDeviation": 0,
+    "duplicateLedger": 0,
+    "perOrderTransactionsPreserved": true,
+    "commitAbortIsolationPreserved": true
+  },
+  "dashboardParity": {
+    "salesStaffSummaryParity": "PASS",
+    "deliverySummaryParity": "PASS",
+    "readModelCompletePath": "PASS",
+    "missingOneDayFallback": "PASS",
+    "multiScopeIsolation": "PASS",
+    "cacheHitNoLiveQuery": "PASS",
+    "duplicateDateFailClosed": "PASS",
+    "sourceMeta": "PASS",
+    "errors5xxInA4ATests": 0
+  },
+  "reportDomainParity": {
+    "inventory": "PASS",
+    "sales": "PASS",
+    "debt": "PASS",
+    "fund": "PASS",
+    "returns": "PASS",
+    "delivery": "PASS"
+  },
+  "productionGuarantees": {
+    "duplicateLedgerProductionZero": "PENDING_UNIQUE_INDEX_APPLY_AND_RUNTIME_AUDIT",
+    "productionDebtDeviationZero": "PENDING_PERF_A6_DATA_AUDIT",
+    "mongoTransactionSemantics": "NOT_VERIFIED_IN_OFFLINE_GATE"
+  },
+  "allRequiredLocksPass": true
+}

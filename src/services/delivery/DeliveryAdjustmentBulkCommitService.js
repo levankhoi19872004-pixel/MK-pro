@@ -3,6 +3,8 @@
 const dateUtil = require('../../utils/date.util');
 const { withOptionalMongoTransaction } = require('../../utils/transaction.util');
 const DeliveryAdjustmentCommitService = require('./DeliveryAdjustmentCommitService');
+const DeliveryAdjustmentBatchContextService = require('./DeliveryAdjustmentBatchContextService');
+const BulkTransactionOrchestrator = require('./BulkTransactionOrchestrator');
 
 const MAX_BULK_ORDERS = 200;
 
@@ -71,36 +73,92 @@ async function commitManyAdjustments(input = {}, options = {}) {
   const reason = text(input.reason || 'Bulk ghi nhận lại điều chỉnh công nợ');
   const note = text(input.note || 'Bulk chạy cùng logic Lưu điều chỉnh từng đơn');
   const startedAt = dateUtil.nowIso();
-  const items = [];
+  let items = new Array(targets.length);
   const summary = emptySummary(targets.length);
+  const batchContextEnabled = DeliveryAdjustmentBatchContextService.isEnabled(options);
+  let batchContext = null;
+  let batchContextFallbackReason = '';
+  if (batchContextEnabled) {
+    try {
+      batchContext = await DeliveryAdjustmentBatchContextService.loadBatchContext(targets, options);
+    } catch (error) {
+      if (DeliveryAdjustmentBatchContextService.failurePolicy(options) !== 'fallback_legacy') throw error;
+      batchContextFallbackReason = text(error && (error.code || error.message) || 'BULK_BATCH_CONTEXT_LOAD_FAILED');
+    }
+  }
 
-  for (const target of targets) {
+  const configuredConcurrency = BulkTransactionOrchestrator.resolveConcurrency(options);
+  // Canonical identity is required before enabling parallel work. Legacy fallback
+  // and caller-owned sessions remain serial to avoid alias races/session sharing.
+  const effectiveConcurrency = batchContext && !options.session ? configuredConcurrency : 1;
+  const retryLimit = options.session ? 0 : BulkTransactionOrchestrator.resolveRetryLimit(options);
+
+  const tasks = targets.map((target, inputPosition) => {
+    const loadedBatchContextItem = batchContext
+      ? DeliveryAdjustmentBatchContextService.itemForPosition(batchContext, inputPosition)
+      : null;
+    const ref = text(target.orderCode || target.orderId || target.id);
+    return {
+      target,
+      inputPosition,
+      loadedBatchContextItem,
+      identity: text(loadedBatchContextItem && loadedBatchContextItem.canonicalOrderKey) || ref || `input-${inputPosition}`
+    };
+  });
+
+  const processTask = async (task) => {
+    const { target, inputPosition, loadedBatchContextItem } = task;
     const ref = text(target.orderCode || target.orderId || target.id);
     try {
-      const result = await withOptionalMongoTransaction({ ...options, actor: actorText }, async (session) => (
-        DeliveryAdjustmentCommitService.commitOneAdjustment({
-          ...target,
-          orderCode: text(target.orderCode || ref),
-          orderId: text(target.orderId || ref),
-          actor,
-          reason,
-          note,
-          source: 'bulk',
-          dryRun,
-          date: input.date || input.deliveryDate || target.deliveryDate,
-          deliveryStaffCode: input.deliveryStaffCode || target.deliveryStaffCode,
-          salesStaffCode: input.salesStaffCode || target.salesStaffCode
-        }, { ...options, actor: actorText, dryRun, session })
-      ));
-      const item = result.item || {
+      // When two inputs resolve to the same canonical order, only the first may
+      // use the request-start snapshot. Identity locking guarantees the later
+      // duplicate starts only after the earlier transaction has settled.
+      const duplicateNeedsRefresh = Boolean(
+        loadedBatchContextItem
+        && loadedBatchContextItem.duplicateCanonicalInput
+        && Array.isArray(loadedBatchContextItem.duplicateInputPositions)
+        && loadedBatchContextItem.duplicateInputPositions[0] !== inputPosition
+      );
+      const batchContextItem = duplicateNeedsRefresh ? null : loadedBatchContextItem;
+      if (duplicateNeedsRefresh && batchContext && batchContext.metrics) {
+        batchContext.metrics.duplicateScopedRefreshes = Number(batchContext.metrics.duplicateScopedRefreshes || 0) + 1;
+      }
+
+      const result = await BulkTransactionOrchestrator.runWithBoundedTransientRetry(async (transactionAttempt) => (
+        withOptionalMongoTransaction({ ...options, actor: actorText }, async (session) => (
+          DeliveryAdjustmentCommitService.commitOneAdjustment({
+            ...target,
+            orderCode: text(target.orderCode || ref),
+            orderId: text(target.orderId || ref),
+            actor,
+            reason,
+            note,
+            source: 'bulk',
+            dryRun,
+            date: input.date || input.deliveryDate || target.deliveryDate,
+            deliveryStaffCode: input.deliveryStaffCode || target.deliveryStaffCode,
+            salesStaffCode: input.salesStaffCode || target.salesStaffCode
+          }, {
+            ...options,
+            actor: actorText,
+            dryRun,
+            session,
+            transactionAttempt,
+            batchContextItem,
+            useBatchInitialContext: Boolean(batchContextItem)
+          })
+        ))
+      ), {
+        bulkTransientRetryLimit: retryLimit,
+        onRetry: options.onBulkTransientRetry
+      });
+      return result.item || {
         orderCode: ref,
         status: result.status || (result.skipped ? 'skipped' : 'processed'),
         reason: result.message || result.reason || ''
       };
-      items.push(item);
-      classifyItem(summary, item);
     } catch (err) {
-      const item = {
+      return {
         orderCode: ref,
         customerCode: '',
         customerName: '',
@@ -113,9 +171,25 @@ async function commitManyAdjustments(input = {}, options = {}) {
         reason: text(err.code || 'BULK_ADJUSTMENT_ERROR'),
         error: text(err.message || err)
       };
-      items.push(item);
-      classifyItem(summary, item);
     }
+  };
+
+  const orchestration = await BulkTransactionOrchestrator.runBoundedByIdentity(tasks, {
+    concurrency: effectiveConcurrency,
+    identityOf: (task) => task.identity,
+    worker: processTask
+  });
+  items = orchestration.results;
+  for (const item of items) classifyItem(summary, item);
+
+  if (typeof options.onBulkOrchestrationMetrics === 'function') {
+    options.onBulkOrchestrationMetrics({
+      ...orchestration.metrics,
+      configuredConcurrency,
+      effectiveConcurrency,
+      retryLimit,
+      batchContextActive: Boolean(batchContext)
+    });
   }
 
   return {
@@ -129,6 +203,16 @@ async function commitManyAdjustments(input = {}, options = {}) {
     summary,
     items,
     results: items,
+    ...(batchContextEnabled ? {
+      perfBatchContext: {
+        featureFlag: 'PERF_BULK_BATCH_CONTEXT_V1',
+        enabled: true,
+        active: Boolean(batchContext),
+        failurePolicy: DeliveryAdjustmentBatchContextService.failurePolicy(options),
+        fallbackReason: batchContextFallbackReason,
+        metrics: batchContext ? batchContext.metrics : null
+      }
+    } : {}),
     message: dryRun
       ? `Đã kiểm tra ${summary.selectedOrders} đơn. Cần xử lý: ${summary.dryRunOrders}. Đã đúng: ${summary.skippedAlreadySynced}. Lỗi: ${summary.errors}.`
       : `Đã xử lý ${summary.selectedOrders} đơn. Thành công: ${summary.processedOrders}. Đã đúng: ${summary.skippedAlreadySynced}. Cần kiểm tra: ${summary.manualReviewRequired}. Lỗi: ${summary.errors}.`

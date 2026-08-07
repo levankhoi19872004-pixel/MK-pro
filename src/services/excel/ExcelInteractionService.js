@@ -6,6 +6,7 @@ const orderService = require('../orderService');
 const masterOrderService = require('../masterOrderService');
 const importOrderService = require('../importOrderService');
 const ReportCenterService = require('../reports/ReportCenterService');
+const ReportExecutionPolicy = require('../reports/ReportExecutionPolicy');
 const orderRepository = require('../../repositories/orderRepository');
 const importOrderRepository = require('../../repositories/importOrderRepository');
 const productRepository = require('../../repositories/productRepository');
@@ -669,6 +670,7 @@ async function exportReport(params = {}, user = {}) {
     if (indexes.length) payload.rows = indexes.map((index) => payload.rows?.[index]).filter(Boolean);
   }
   const definition = payload.definition || ReportCenterService.assertAccess(code, user);
+  ReportExecutionPolicy.assertExportBudget({ rowCount: (payload.rows || []).length, estimatedBytes: Buffer.byteLength(JSON.stringify(payload.rows || []), 'utf8') });
   const productEnrichment = await enrichProductRows(payload.rows || []);
   const columns = ensureProductCatalogColumns((definition.columns || []).map((column) => ({
     label: column.label,
@@ -691,8 +693,11 @@ async function exportReport(params = {}, user = {}) {
   appendObjectSheet(workbook, 'BaoCao', columns, productEnrichment.rows);
   const summaryRows = Object.entries(payload.summary || {}).map(([key, value]) => [key, sanitizeExcelValue(value)]);
   if (summaryRows.length) appendAoaSheet(workbook, 'TongHop', [['Chỉ số', 'Giá trị'], ...summaryRows], { widths: [35, 24] });
+  const buffer = writeWorkbook(workbook);
+  ReportExecutionPolicy.assertExportBudget({ rowCount: (payload.rows || []).length, estimatedBytes: buffer.length });
   return {
-    buffer: writeWorkbook(workbook),
+    buffer,
+    outputBytes: buffer.length,
     rowCount: (payload.rows || []).length,
     fileName: `${String(definition.title || code).replace(/[^\p{L}\p{N}]+/gu, '_')}_${dateUtil.todayVN()}.xlsx`
   };

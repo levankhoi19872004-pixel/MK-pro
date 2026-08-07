@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-06T16:21:22.681004+07:00",
+  "status": [
+    "PASS_WITH_LIMITATIONS",
+    "PRODUCTION_PERFORMANCE_PENDING"
+  ],
+  "inputReleaseSha256": "c1670933d271d64762c679d3ac81419e92134564b7d8e0ab74edb260ea14b018",
+  "sourceTreeSha256": "7ad8e40ea0250e06e99092c7d24ed281bf316e42a4112230048b07303dbde0eb",
+  "fileCount": 2308,
+  "changedFiles": {
+    "generatedAt": "2026-08-06T16:21:22.681004+07:00",
+    "baselineReleaseSha": "c1670933d271d64762c679d3ac81419e92134564b7d8e0ab74edb260ea14b018",
+    "added": [
+      "src/observability/performanceMeasurementStore.js",
+      "test/performance/perf-a5r1/perf-a5r1-remediation.test.js",
+      "scripts/performance/perf-a5r1/run-remediation.js"
+    ],
+    "modified": [
+      "ENVIRONMENT_VARIABLES.md",
+      "package.json",
+      "src/middlewares/apiMonitor.middleware.js",
+      "src/services/operationsService.js",
+      "src/controllers/systemController.js",
+      "src/routes/systemRoutes.js",
+      "src/services/reports/ReportExecutionPolicy.js",
+      "src/services/reports/ReportCenterService.js",
+      "src/services/delivery/DeliveryAdjustmentBatchContextService.js"
+    ],
+    "removed": []
+  },
+  "featureFlags": {
+    "generatedAt": "2026-08-06T16:21:22.681004+07:00",
+    "defaults": {
+      "PERF_TELEMETRY_ENABLED": true,
+      "PERF_BULK_BATCH_CONTEXT_V1": 0,
+      "PERF_BULK_CONCURRENCY": 1,
+      "PERF_BULK_TRANSIENT_RETRY_LIMIT": 1,
+      "PERF_DELIVERY_CANONICAL_FILTER_V1": 0,
+      "PERF_SUGGESTIONS_SEARCH_V1": 0,
+      "PERF_DASHBOARD_READ_MODEL_V2": 0,
+      "PERF_DASHBOARD_CACHE_V2": 0,
+      "PERF_REPORT_DB_PAGINATION_V1": 0,
+      "PERF_REPORT_CENTER_SNAPSHOT_V1": 0,
+      "PERF_REPORT_DB_PAGINATION_ALLOWLIST": ""
+    },
+    "uniqueArIndex": "PENDING_PRODUCTION_APPLY_VERIFY",
+    "rollback": "set optimization flag 0; report allowlist empty; restart instance clears process-local cache"
+  },
+  "correctness": {
+    "generatedAt": "2026-08-06T16:21:22.681004+07:00",
+    "status": "PASS_E1_E2",
+    "debtDeviation": 0,
+    "duplicateLedgerApplicationTests": 0,
+    "returnParityPercent": 100,
+    "allocationCurrentVersionParityPercent": 100,
+    "zeroValueSemantics": true,
+    "nullUndefinedNaNGuards": true,
+    "negativeMoneyGuard": true,
+    "debtZeroTolerance": true,
+    "scopeIsolation": true,
+    "transactionFailureIsolation": true,
+    "idempotentRetry": true,
+    "sameIdentitySerialization": true,
+    "stableResultOrdering": true,
+    "reportDomainParity": true,
+    "dashboardCacheInvalidation": true,
+    "productionE3": "PENDING"
+  },
+  "mandatoryOutputs": [
+    "PERF_A5R1_REPORT_PAGINATION_PARITY.json",
+    "PERF_A5R1_SYNTAX.log",
+    "PERF_A5R1_TELEMETRY_CAPTURE_RUNBOOK.md",
+    "PERF_A5R1_FULL_PERF_REGRESSION.exit",
+    "PERF_A5R1_RED_GREEN_EVIDENCE.json",
+    "PERF_A5R1_REMEDIATION_REPORT.md",
+    "PERF_A5R1_CHANGED_FILES.json",
+    "PERF_A5R1_SYNTAX.exit",
+    "PERF_A5R1_REPORT_CANCELLATION_EVIDENCE.json",
+    "PERF_A5R1_BATCH_CONTEXT_CPU_EVIDENCE.json",
+    "PERF_A5R1_ARTIFACT_COMPLETENESS.json",
+    "PERF_A5R1_CORRECTNESS_PARITY.json",
+    "PERF_A5R1_FULL_PERF_REGRESSION.log",
+    "PERF_A5R1_TEST_EVIDENCE.json",
+    "PERF_A6R1_INPUT_CHECKLIST.md",
+    "PERF_A5R1_ROLLBACK_RUNBOOK.md",
+    "PERF_A5R1_GREEN_TEST.log",
+    "PERF_A5R1_FEATURE_FLAG_MATRIX.json",
+    "PERF_A5R1_TELEMETRY_CONTRACT.json",
+    "PERF_A5R1_REPORT_PAGINATION_AUDIT.csv",
+    "PERF_A5R1_REQUIREMENT_MATRIX.json"
+  ],
+  "nextGate": "PERF-A6R1"
+}
