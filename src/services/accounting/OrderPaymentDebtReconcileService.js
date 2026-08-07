@@ -13,6 +13,7 @@ const {
 const OrderPaymentAllocationService = require('./OrderPaymentAllocationService');
 const closeoutQueryAudit = require('../../observability/closeoutQueryAudit');
 const DeliveryMoneyContract = require('../delivery/financial/deliveryMoneyContract');
+const featureFlags = require('../../config/featureFlags');
 
 const ACTIVE_EXCLUDED_STATUSES = ['reversed', 'void', 'voided', 'cancelled', 'canceled', 'deleted', 'removed', 'superseded'];
 const DEFAULT_ZERO_TOLERANCE = 1000;
@@ -258,6 +259,97 @@ async function getCurrentOrderArBalanceDetails(identityInput = {}, customerCode 
   };
 }
 
+
+function canonicalBatchKeyForOrder(order = {}) {
+  const identity = resolveCanonicalArOrderIdentity({ order });
+  return clean(identity.orderId || identity.orderCode);
+}
+
+async function buildInitialArBalanceBatchContext(orders = [], options = {}) {
+  const scopes = [];
+  for (const order of Array.isArray(orders) ? orders : []) {
+    const identity = resolveCanonicalArOrderIdentity({ order });
+    const canonicalOrderKey = clean(identity.orderId || identity.orderCode);
+    if (!canonicalOrderKey || !(identity.lookupKeys || []).length) {
+      const err = new Error('Không dựng được canonical order identity cho AR balance batch context.');
+      err.code = 'AR_BATCH_CANONICAL_IDENTITY_MISSING';
+      err.status = 409;
+      err.data = { orderCode: clean(identity.orderCode), orderId: clean(identity.orderId) };
+      throw err;
+    }
+    scopes.push({
+      canonicalOrderKey,
+      customerCode: clean(order.customerCode),
+      identity
+    });
+  }
+  const batch = await arLedgerReadService.inspectActiveDebtReadModelLedgersForOrderScopes(scopes, {
+    session: options.session,
+    maxRows: options.maxRows
+  });
+  const byCanonicalOrderKey = new Map();
+  for (const scope of scopes) {
+    const inspection = batch.byCanonicalOrderKey.get(scope.canonicalOrderKey);
+    if (!inspection) {
+      const err = new Error('AR balance batch context thiếu order sau partition.');
+      err.code = 'AR_BATCH_CONTEXT_PARTIAL';
+      err.status = 409;
+      err.data = { canonicalOrderKey: scope.canonicalOrderKey };
+      throw err;
+    }
+    byCanonicalOrderKey.set(scope.canonicalOrderKey, {
+      ...inspection,
+      identity: scope.identity,
+      lookupKeys: scope.identity.lookupKeys,
+      ignoredSourceAliases: scope.identity.ignoredSourceAliases || [],
+      sourceAliasesMatchingBusinessIdentity: scope.identity.sourceAliasesMatchingBusinessIdentity || []
+    });
+  }
+  return {
+    ...batch,
+    byCanonicalOrderKey,
+    complete: byCanonicalOrderKey.size === scopes.length
+  };
+}
+
+function initialArBalanceBatchItemForOrder(batchContext = null, order = {}) {
+  if (!batchContext || batchContext.complete !== true || !(batchContext.byCanonicalOrderKey instanceof Map)) {
+    const err = new Error('AR balance batch context không hợp lệ hoặc chưa hoàn chỉnh.');
+    err.code = 'AR_BATCH_CONTEXT_INVALID';
+    err.status = 409;
+    throw err;
+  }
+  const key = canonicalBatchKeyForOrder(order);
+  const item = key ? batchContext.byCanonicalOrderKey.get(key) : null;
+  if (!item) {
+    const err = new Error('Không tìm thấy AR balance batch item cho critical SalesOrder.');
+    err.code = 'AR_BATCH_CONTEXT_ITEM_MISSING';
+    err.status = 409;
+    err.data = { canonicalOrderKey: key };
+    throw err;
+  }
+  return item;
+}
+
+function mergePostedArLedgersIntoPrefetchedBalance(prefetchedArBalanceDetails = {}, postedArLedgers = [], options = {}) {
+  const merged = arLedgerReadService.mergeActiveDebtInspectionWithRows(
+    prefetchedArBalanceDetails,
+    postedArLedgers,
+    { customerCode: clean(options.customerCode) }
+  );
+  const identity = prefetchedArBalanceDetails.identity || resolveCanonicalArOrderIdentity({
+    order: options.order || {},
+    allocation: options.allocation || {}
+  });
+  return {
+    ...merged,
+    identity,
+    lookupKeys: identity.lookupKeys || merged.lookupKeys || [],
+    ignoredSourceAliases: identity.ignoredSourceAliases || [],
+    sourceAliasesMatchingBusinessIdentity: identity.sourceAliasesMatchingBusinessIdentity || []
+  };
+}
+
 async function getCurrentOrderArBalance(orderCode, customerCode, options = {}) {
   const identityInput = options.identityInput && typeof options.identityInput === 'object'
     ? options.identityInput
@@ -496,9 +588,12 @@ async function reconcileOneOrder({
   let currentArBalance = money(balanceDetails.currentArBalance);
   let deltaDebt = money(expected.expectedDebtAmount - currentArBalance);
   const idempotencyKey = clean(forcedIdempotencyKey || debtAdjustmentIdempotencyKey(effectiveAllocation, expected.expectedDebtAmount));
-  const existing = prefetchedIdempotencyResolved
+  const PERF_CLOSEOUT_QUERY_DEDUP_V1 = featureFlags.FLAGS.closeoutQueryDedupV1();
+  const cachedExisting = prefetchedIdempotencyResolved
     ? prefetchedIdempotencyLedger
-    : await closeoutQueryAudit.withCloseoutAuditStage('order.debt.initialIdempotency', () => findActiveDebtAdjustmentByKey(idempotencyKey, { session, existingArLedgerByIdempotencyKey }));
+    : (existingArLedgerByIdempotencyKey instanceof Map
+      ? await findActiveDebtAdjustmentByKey(idempotencyKey, { existingArLedgerByIdempotencyKey })
+      : null);
 
   const buildDiagnostic = (action, skipReason = '', suggestedFix = '') => diagnosticFromReconcile({
     order,
@@ -547,6 +642,50 @@ async function reconcileOneOrder({
       diagnostic: buildDiagnostic('manual-review', 'CANONICAL_AR_LOOKUP_EXCLUDED_EXISTING_LEDGER', 'Raw AR lookup thấy opening debit hợp lệ nhưng canonical lookup loại ledger. Không post full expected debt; cần sửa contract hoặc reversal/repost theo quy trình kế toán.')
     }, diagnosticLogger);
   }
+
+  // CL-A2-REQ-001: when the debt is already within tolerance there is no
+  // possible AR-DEBT-ADJUSTMENT mutation, so a fresh idempotency DB read cannot
+  // protect a write. Preserve the old diagnostic when the request-scoped cache
+  // already proves an idempotent ledger exists, but do not issue Q17.
+  if (PERF_CLOSEOUT_QUERY_DEDUP_V1 && Math.abs(deltaDebt) <= normalizedTolerance) {
+    if (cachedExisting) {
+      return emitReconcileDiagnostic({
+        needsAdjustment: false,
+        skippedAlreadyReconciled: true,
+        skipReason: 'IDEMPOTENCY_KEY_EXISTS_AND_BALANCE_OK',
+        zeroToleranceApplied: expected.zeroToleranceApplied,
+        currentArBalance,
+        expectedDebtAmount: expected.expectedDebtAmount,
+        deltaDebt,
+        diff: -deltaDebt,
+        action: 'skip',
+        ledger: cachedExisting,
+        diagnostic: buildDiagnostic('skip', 'IDEMPOTENCY_KEY_EXISTS_AND_BALANCE_OK', 'Đã có AR-DEBT-ADJUSTMENT idempotent và AR balance nằm trong tolerance.')
+      }, diagnosticLogger);
+    }
+    return emitReconcileDiagnostic({
+      needsAdjustment: false,
+      skippedAlreadyFixed: true,
+      skipped: true,
+      skipReason: 'NO_DEBT_DELTA',
+      zeroToleranceApplied: expected.zeroToleranceApplied,
+      currentArBalance,
+      expectedDebtAmount: expected.expectedDebtAmount,
+      deltaDebt,
+      diff: -deltaDebt,
+      action: 'skip',
+      diagnostic: buildDiagnostic('skip', 'NO_DEBT_DELTA', 'Canonical AR balance đã khớp expectedDebtAmount trong Debt Zero Tolerance.')
+    }, diagnosticLogger);
+  }
+
+  // Legacy/default path preserves the existing initial idempotency read. On the
+  // optimized path an adjustment candidate relies on the request cache for
+  // planning and still performs the mandatory fresh pre-post guard below.
+  const existing = PERF_CLOSEOUT_QUERY_DEDUP_V1
+    ? cachedExisting
+    : (prefetchedIdempotencyResolved
+      ? prefetchedIdempotencyLedger
+      : await closeoutQueryAudit.withCloseoutAuditStage('order.debt.initialIdempotency', () => findActiveDebtAdjustmentByKey(idempotencyKey, { session, existingArLedgerByIdempotencyKey })));
 
   if (existing) {
     if (Math.abs(deltaDebt) <= normalizedTolerance) {
@@ -726,6 +865,10 @@ module.exports = {
   computeExpectedDebtFromCloseout,
   getCurrentOrderArBalance,
   getCurrentOrderArBalanceDetails,
+  buildInitialArBalanceBatchContext,
+  initialArBalanceBatchItemForOrder,
+  mergePostedArLedgersIntoPrefetchedBalance,
+  canonicalBatchKeyForOrder,
   buildDebtAdjustmentLedger,
   reconcileOneOrder,
   reconcileOrderDebt,

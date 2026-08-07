@@ -4,6 +4,7 @@ const AuditLog = require('../models/AuditLog');
 const dateUtil = require('../utils/date.util');
 const { makeId } = require('../utils/common.util');
 const { tenantIdOf } = require('../utils/tenant.util');
+const closeoutQueryAudit = require('../observability/closeoutQueryAudit');
 
 function actorName(actor = {}) {
   return String(actor.username || actor.fullName || actor.name || actor.code || 'system').trim();
@@ -43,10 +44,23 @@ async function record(input = {}, options = {}) {
  * persistence is temporarily unavailable.
  */
 async function log(action, payload = {}) {
+  const started = Number(process.hrtime.bigint()) / 1e6;
   try {
     const entry = buildEntry({ ...payload, action });
-    return await AuditLog.create(entry);
+    const created = await AuditLog.create(entry);
+    closeoutQueryAudit.observeNonQueryMongoOrModelWrite({
+      model: 'AuditLog', collection: 'auditLogs', operation: 'create',
+      durationMs: (Number(process.hrtime.bigint()) / 1e6) - started,
+      rows: created ? 1 : 0, hasSession: false,
+      fingerprint: 'AuditLog.create'
+    });
+    return created;
   } catch (err) {
+    closeoutQueryAudit.observeNonQueryMongoOrModelWrite({
+      model: 'AuditLog', collection: 'auditLogs', operation: 'create',
+      durationMs: (Number(process.hrtime.bigint()) / 1e6) - started,
+      rows: 0, hasSession: false, fingerprint: 'AuditLog.create', error: true
+    });
     if (process.env.NODE_ENV !== 'test') {
       console.warn('[auditService] Không ghi được audit log:', err.message);
     }

@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "1.0",
+  "releaseId": "CLOSEOUT-PERF-A2-QUERY-DEDUP",
+  "generatedAt": "2026-08-07T04:11:28.874399+00:00",
+  "parentRelease": "REWARD-DOUBLECOUNT-A4-FINAL",
+  "parentZipSha256": "0042270bff18480b6cf45f383127686e0b8e0c4f3b5ea7a814b9acbc4135a398",
+  "gateStatus": "A2_GREEN_QUERY_DEDUP_VERIFIED",
+  "featureFlags": {
+    "PERF_CLOSEOUT_QUERY_DEDUP_V1": "0",
+    "PERF_CLOSEOUT_SYNC_BULK_V1": "0"
+  },
+  "productionChangedFiles": [
+    "src/config/featureFlags.js",
+    "src/services/accounting/OrderPaymentDebtReconcileService.js",
+    "src/services/readModelSyncJob.service.js",
+    "src/services/accounting/closeout/CloseoutPostCommitHandler.js",
+    "src/services/accounting/closeout/CloseoutContextLoader.js"
+  ],
+  "testBenchmarkAddedFiles": [
+    "test/performance/closeout-perf-a2/closeout-perf-a2-opt01-redgreen.test.js",
+    "test/performance/closeout-perf-a2/closeout-perf-a2-opt02-redgreen.test.js",
+    "test/performance/closeout-perf-a2/closeout-perf-a2-opt03-redgreen.test.js",
+    "test/performance/closeout-perf-a2/closeout-perf-a2-behavior.test.js",
+    "test/performance/closeout-perf-a2/closeout-perf-a2-transaction-safety.test.js",
+    "scripts/performance/closeout-perf-a2/run-query-budget.js"
+  ],
+  "mandatoryArtifacts": [
+    "CLOSEOUT_PERF_A2_IMPLEMENTATION_REPORT.md",
+    "CLOSEOUT_PERF_A2_RED_GREEN_EVIDENCE.json",
+    "CLOSEOUT_PERF_A2_QUERY_COMPARISON.json",
+    "CLOSEOUT_PERF_A2_SYNC_BATCH_EVIDENCE.json",
+    "CLOSEOUT_PERF_A2_MASTERORDER_LOOKUP_EVIDENCE.json",
+    "CLOSEOUT_PERF_A2_CORRECTNESS_PARITY.json",
+    "CLOSEOUT_PERF_A2_REWARD_REGRESSION.json",
+    "CLOSEOUT_PERF_A2_FEATURE_FLAG_MATRIX.json",
+    "CLOSEOUT_PERF_A2_CHANGED_FILES.json",
+    "CLOSEOUT_PERF_A2_TEST_EVIDENCE.json",
+    "CLOSEOUT_PERF_A2_REQUIREMENT_MATRIX.json",
+    "CLOSEOUT_PERF_A2_RELEASE_MANIFEST.json"
+  ],
+  "queryBudget": {
+    "before60": 608,
+    "afterOpt01Opt02": 489,
+    "afterOpt01Opt02Opt03": 488,
+    "hardMax": 500,
+    "pass": true
+  },
+  "correctness": {
+    "debt_deviation": 0,
+    "duplicate_ar_ledger_application": 0,
+    "reward_double_count": 0,
+    "return_parity_percent": 100,
+    "allocation_parity_percent": 100,
+    "scope_isolation": true,
+    "transaction_failure_isolation": true,
+    "idempotent_retry": true
+  },
+  "e3Deferred": "SalesOrder.find ~409ms Q1/Q6 attribution",
+  "freshExtractVerification": {
+    "status": "PENDING"
+  },
+  "prohibitionsVerified": {
+    "concurrencyChanged": false,
+    "productionIndexChanged": false,
+    "productionDataChanged": false,
+    "q15q16Weakened": false,
+    "transactionRemoved": false,
+    "idempotencyRemoved": false
+  },
+  "releaseZip": "MK-pro-closeout-perf-a2-query-dedup-fixed.zip",
+  "releaseZipSha256File": "MK-pro-closeout-perf-a2-query-dedup-fixed.zip.sha256"
+}

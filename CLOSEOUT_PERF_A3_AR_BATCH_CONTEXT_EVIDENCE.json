@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0",
+  "requirementIds": [
+    "CL-A3-REQ-002",
+    "CL-A3-REQ-003",
+    "CL-A3-REQ-004",
+    "CL-A3-REQ-005",
+    "CL-A3-REQ-006",
+    "CL-A3-REQ-007",
+    "CL-A3-REQ-009"
+  ],
+  "architecture": {
+    "placement": "Inside same Mongo transaction, after CloseoutCriticalReader fresh SalesOrder/ReturnOrder load, before per-order writers.",
+    "rawRead": "One ArLedger.find over union of allowed canonical order lookup keys.",
+    "canonicalRead": "One active canonical debt-read-model ArLedger.find over same union; sequential on same session.",
+    "partition": "aliasOwner + canonicalOrderKey map; customer scope is an additional filter, never the partition key.",
+    "postAllocationMerge": "Because Q11-Q13 AR rows are posted after batch preload, allocationResult.arLedgers are validated and merged into each order context before debt reconcile. No extra DB read.",
+    "formulaParity": "currentArBalance uses normalizeAccountingAmount() exactly like prior getCurrentOrderArBalanceDetails()."
+  },
+  "queryCounts": {
+    "workload60": {
+      "beforeRaw": 60,
+      "beforeCanonical": 60,
+      "afterRaw": 1,
+      "afterCanonical": 1,
+      "savedInitialReads": 118
+    }
+  },
+  "failClosedCodes": [
+    "AR_BATCH_CANONICAL_IDENTITY_MISSING",
+    "AR_BATCH_DUPLICATE_CANONICAL_IDENTITY",
+    "AR_BATCH_IDENTITY_ALIAS_COLLISION",
+    "AR_BATCH_LEDGER_CROSS_ASSIGNMENT",
+    "AR_BATCH_CONTEXT_PARTIAL",
+    "AR_BATCH_CONTEXT_ITEM_MISSING",
+    "AR_BATCH_POSTED_LEDGER_SCOPE_MISMATCH",
+    "AR_BATCH_ROW_LIMIT_EXCEEDED"
+  ],
+  "bounds": {
+    "workloadVerifiedMaxOrders": 60,
+    "maxRowsGuard": 100000,
+    "chunkingUsed": false,
+    "note": "60-order/typical closeout fits one raw + one canonical query; no bounded chunking was required in this gate."
+  }
+}

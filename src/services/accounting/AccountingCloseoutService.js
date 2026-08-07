@@ -586,6 +586,17 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     note: clean(options.note || options.reason || `Phân bổ thanh toán từ chốt giao hàng ${DeliveryCloseoutService.orderCode(order)}`),
     skipReadModelRebuild: true
   });
+  const prefetchedArBalanceDetails = options.initialArBalanceBatchResolved === true
+    ? OrderPaymentDebtReconcileService.mergePostedArLedgersIntoPrefetchedBalance(
+      options.initialArBalanceBatchDetails,
+      allocationResult.arLedgers || [],
+      {
+        order: updatedOrderForLedger,
+        allocation: allocationResult.allocation,
+        customerCode: clean(allocationResult.allocation?.customerCode || updatedOrderForLedger.customerCode)
+      }
+    )
+    : null;
   const debtReconcileResult = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.reconcile', () => OrderPaymentDebtReconcileService.reconcileOrderDebt({
     order: updatedOrderForLedger,
     allocation: allocationResult.allocation,
@@ -600,7 +611,9 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
     zeroTolerance: OrderPaymentAllocationService.DEFAULT_ZERO_TOLERANCE || 1000,
     actor,
     session: options.session,
-    skipReadModelRebuild: true
+    skipReadModelRebuild: true,
+    prefetchedArBalanceDetails,
+    prefetchedArBalanceResolved: options.initialArBalanceBatchResolved === true
   }));
   const debtAdjustmentLedger = debtReconcileResult && debtReconcileResult.posted ? debtReconcileResult.ledger : null;
   const arLedgers = [

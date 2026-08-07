@@ -216,6 +216,7 @@ function createSession({ req = {}, route = CLOSEOUT_ROUTE, env = process.env } =
     transactionRetryCount: 0,
     rawEvents: [],
     rawEventsTruncated: false,
+    nonQueryMongoOrModelWrites: [],
     aggregates: new Map(),
     stageWall: new Map(),
     counters: emptyCounters(),
@@ -300,6 +301,7 @@ function observeMongoQueryEvent(event = {}) {
     stage: currentStage(session),
     stagePath: Array.isArray(session.stagePath) ? session.stagePath.join(' > ') : currentStage(session),
     orderSequence: Number(session.orderSequence || 0) || null,
+    orderIndex: Number(session.orderSequence || 0) || null,
     orderCount: Number(session.orderCount || 0),
     transactionAttempt: Number(session.transactionAttempt || 0),
     model: sanitizeFieldName(event.model || event.collection || 'Mongo'),
@@ -309,6 +311,7 @@ function observeMongoQueryEvent(event = {}) {
     rows: Math.max(0, Math.round(Number(event.rows || 0))),
     hasSession: Boolean(event.hasSession),
     queryShape: sanitizeLabel(event.queryShape || event.label || ''),
+    fingerprint: sanitizeLabel(event.queryShape || event.label || ''),
     error: event.error ? 'QUERY_ERROR' : ''
   };
   const aggregate = ensureAggregate(session, row);
@@ -321,6 +324,29 @@ function observeMongoQueryEvent(event = {}) {
     aggregate.queryShapeSamples.push(row.queryShape);
   }
   pushRawEvent(session, row);
+}
+
+
+function observeNonQueryMongoOrModelWrite(event = {}) {
+  const session = activeSession();
+  if (!session || !session.enabled) return;
+  const row = {
+    timestamp: event.timestamp || nowIso(),
+    stage: currentStage(session),
+    stagePath: Array.isArray(session.stagePath) ? session.stagePath.join(' > ') : currentStage(session),
+    orderSequence: Number(session.orderSequence || 0) || null,
+    orderIndex: Number(session.orderSequence || 0) || null,
+    model: sanitizeFieldName(event.model || 'MongoModel'),
+    collection: sanitizeFieldName(event.collection || ''),
+    operation: sanitizeFieldName(event.operation || 'modelWrite'),
+    durationMs: Math.max(0, Math.round(Number(event.durationMs || 0))),
+    rows: Math.max(0, Math.round(Number(event.rows || 0))),
+    hasSession: Boolean(event.hasSession),
+    fingerprint: sanitizeLabel(event.fingerprint || `${event.model || 'MongoModel'}.${event.operation || 'modelWrite'}`),
+    error: event.error ? 'MODEL_WRITE_ERROR' : ''
+  };
+  session.nonQueryMongoOrModelWrites.push(row);
+  if (session.nonQueryMongoOrModelWrites.length > 200) session.nonQueryMongoOrModelWrites.splice(0, session.nonQueryMongoOrModelWrites.length - 200);
 }
 
 function recordApiMonitorSnapshot(metric = {}) {
@@ -448,6 +474,8 @@ function buildSummary(session) {
       rawEventsRetained: session.rawEvents.length,
       rawEventsTruncated: session.rawEventsTruncated
     },
+    nonQueryMongoOrModelWriteMs: (session.nonQueryMongoOrModelWrites || []).reduce((sum, row) => sum + Number(row.durationMs || 0), 0),
+    nonQueryMongoOrModelWrites: clone(session.nonQueryMongoOrModelWrites || []),
     stageSummary: stageSummaryFromSession(session),
     modelSummary: modelSummaryFromSession(session),
     operationSummary: operationSummaryFromSession(session),
@@ -818,6 +846,7 @@ module.exports = {
   queryFingerprint,
   recordQuery,
   observeMongoQueryEvent,
+  observeNonQueryMongoOrModelWrite,
   recordApiMonitorSnapshot,
   withCloseoutAuditRequest,
   withCloseoutAuditStage,

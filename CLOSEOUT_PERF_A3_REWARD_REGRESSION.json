@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0",
+  "requirementId": "CL-A3-REQ-012",
+  "command": "node --test test/reward-doublecount-a2-backend.test.js test/reward-doublecount-a3-frontend.test.js",
+  "result": "30/30 PASS",
+  "goldenCases": [
+    {
+      "receivable": 688113,
+      "cash": 503000,
+      "reward": 185000,
+      "expectedReward": 185000,
+      "expectedDebtRaw": 113,
+      "expectedDebt": 0,
+      "status": "PASS"
+    },
+    {
+      "receivable": 5213244,
+      "cash": 4333000,
+      "reward": 880000,
+      "expectedReward": 880000,
+      "expectedDebtRaw": 244,
+      "expectedDebt": 0,
+      "status": "PASS"
+    }
+  ],
+  "locks": {
+    "rewardDoubleCount": 0,
+    "negativeFakeDebt": 0,
+    "canonicalRewardOffsetContractChanged": false,
+    "deliveryMoneyContractShaUnchanged": true
+  }
+}

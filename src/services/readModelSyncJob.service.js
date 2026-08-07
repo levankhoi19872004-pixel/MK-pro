@@ -47,10 +47,10 @@ function normalizeJobPayload(payload = {}) {
   };
 }
 
-async function enqueueArDebtSyncJobs(payload = {}, options = {}) {
+function buildArDebtSyncJobUpsert(payload = {}) {
   const normalized = normalizeJobPayload(payload);
   if (!normalized.customerCode && !normalized.sourceIds.length) {
-    return { queued: 0, jobs: [], skipped: true, reason: 'empty_ar_debt_sync_payload' };
+    return { skipped: true, reason: 'empty_ar_debt_sync_payload', normalized };
   }
   const id = jobId(normalized.customerCode, normalized.sourceIds);
   const idem = idempotencyKey(normalized.customerCode, normalized.sourceIds);
@@ -100,15 +100,93 @@ async function enqueueArDebtSyncJobs(payload = {}, options = {}) {
       metadata: normalized.metadata
     }
   };
-  const result = await ReadModelSyncJob.updateOne({ idempotencyKey: idem }, update, { upsert: true, session: options.session });
+  return {
+    skipped: false,
+    normalized, id, idem, update,
+    job: { id, idempotencyKey: idem, customerCode: normalized.customerCode, sourceIds: normalized.sourceIds }
+  };
+}
+
+async function enqueueArDebtSyncJobs(payload = {}, options = {}) {
+  const built = buildArDebtSyncJobUpsert(payload);
+  if (built.skipped) return { queued: 0, jobs: [], skipped: true, reason: built.reason };
+  // Preserve the long-standing single-enqueue source contract while sharing the
+  // exact same normalized upsert document with the bulk path.
+  const idem = built.idem;
+  const result = await ReadModelSyncJob.updateOne({ idempotencyKey: idem }, built.update, { upsert: true, session: options.session });
   return {
     queued: 1,
-    jobs: [{ id, idempotencyKey: idem, customerCode: normalized.customerCode, sourceIds: normalized.sourceIds }],
+    jobs: [built.job],
     result: {
       acknowledged: result.acknowledged,
       matchedCount: result.matchedCount || 0,
       modifiedCount: result.modifiedCount || 0,
       upsertedCount: result.upsertedCount || 0
+    }
+  };
+}
+
+async function enqueueArDebtSyncJobsBulk(payloads = [], options = {}) {
+  const builtRows = [];
+  const warnings = [];
+  const seenIdempotencyKeys = new Set();
+  for (const payload of Array.isArray(payloads) ? payloads : []) {
+    const built = buildArDebtSyncJobUpsert(payload);
+    if (built.skipped) {
+      warnings.push({
+        code: 'READ_MODEL_SYNC_PAYLOAD_SKIPPED',
+        message: built.reason,
+        customerCode: built.normalized.customerCode,
+        sourceIds: built.normalized.sourceIds
+      });
+      continue;
+    }
+    if (seenIdempotencyKeys.has(built.idem)) continue;
+    seenIdempotencyKeys.add(built.idem);
+    builtRows.push(built);
+  }
+  if (!builtRows.length) {
+    return { queued: 0, jobs: [], warnings, skipped: true, reason: 'no_valid_ar_debt_sync_payloads', commandCount: 0 };
+  }
+  const operations = builtRows.map((built) => ({
+    updateOne: {
+      filter: { idempotencyKey: built.idem },
+      update: built.update,
+      upsert: true
+    }
+  }));
+  const bulkOptions = { ordered: false, session: options.session };
+  let result;
+  let retryAttempted = false;
+  try {
+    result = await ReadModelSyncJob.bulkWrite(operations, bulkOptions);
+  } catch (err) {
+    // Idempotent upserts make one whole-batch retry safe for duplicate-key races
+    // or transient post-commit enqueue errors. Financial closeout is already
+    // committed; a second failure is surfaced to the caller with all job keys.
+    retryAttempted = true;
+    try {
+      result = await ReadModelSyncJob.bulkWrite(operations, bulkOptions);
+    } catch (retryErr) {
+      retryErr.code = retryErr.code || err.code || 'READ_MODEL_SYNC_BULK_ENQUEUE_FAILED';
+      retryErr.bulkRetryAttempted = true;
+      retryErr.pendingJobs = builtRows.map((row) => row.job);
+      retryErr.validGroupCount = builtRows.length;
+      retryErr.initialError = { code: err.code, message: err.message };
+      throw retryErr;
+    }
+  }
+  return {
+    queued: builtRows.length,
+    jobs: builtRows.map((row) => row.job),
+    warnings,
+    retryAttempted,
+    commandCount: retryAttempted ? 2 : 1,
+    result: {
+      acknowledged: result && result.acknowledged !== false,
+      matchedCount: Number(result && (result.matchedCount ?? result.nMatched) || 0),
+      modifiedCount: Number(result && (result.modifiedCount ?? result.nModified) || 0),
+      upsertedCount: Number(result && (result.upsertedCount ?? result.nUpserted) || 0)
     }
   };
 }
@@ -201,8 +279,9 @@ function scheduleDrain(options = {}) {
 module.exports = {
   TYPE_AR_DEBT_READMODEL_SYNC,
   enqueueArDebtSyncJobs,
+  enqueueArDebtSyncJobsBulk,
   scheduleDrain,
   drainPendingJobs,
   processJob,
-  _internal: { jobId, idempotencyKey, normalizeJobPayload, claimNextJob, markDone, markFailed }
+  _internal: { jobId, idempotencyKey, normalizeJobPayload, buildArDebtSyncJobUpsert, claimNextJob, markDone, markFailed }
 };

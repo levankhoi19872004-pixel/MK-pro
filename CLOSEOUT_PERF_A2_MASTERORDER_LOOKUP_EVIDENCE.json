@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-08-07T04:11:28.874399+00:00",
+  "requirements": [
+    "CL-A2-REQ-005",
+    "CL-A2-REQ-006"
+  ],
+  "featureFlag": "PERF_CLOSEOUT_QUERY_DEDUP_V1",
+  "default": "0",
+  "cases": [
+    {
+      "case": "canonical stored assignment matches requested NVGH",
+      "masterOrderQueries": 0,
+      "result": "PASS"
+    },
+    {
+      "case": "stored assignment missing",
+      "masterOrderQueries": 1,
+      "fallback": "preserved",
+      "result": "PASS"
+    },
+    {
+      "case": "stored assignment mismatches requested NVGH",
+      "masterOrderQueries": 1,
+      "scopeResult": "DELIVERY_CLOSEOUT_ORDER_SCOPE_MISMATCH",
+      "result": "PASS"
+    }
+  ],
+  "safetyRationale": "Existing orderDeliveryAssignment helper already treats stored SalesOrder deliveryStaffCode/deliveryCode/nvghCode as verified and gives it precedence over MasterOrder metadata. Skip occurs only when every pending order resolves through that verified path and matches requested delivery staff.",
+  "status": "APPLIED_GREEN"
+}

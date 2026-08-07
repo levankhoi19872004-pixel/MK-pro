@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "1.0",
+  "promptId": "CLOSEOUT-PERF-A3",
+  "parentZipSha256": "37eee2f85fd1836b928805ac624dcee1613314ddff5bc2d03201af9547ca6099",
+  "red": {
+    "command": "node --test test/performance/closeout-perf-a3/*.test.js",
+    "phase": "before production modifications",
+    "exitCode": 1,
+    "tests": 9,
+    "pass": 1,
+    "fail": 8,
+    "durationMs": 65,
+    "proof": [
+      "PERF_CLOSEOUT_AR_BALANCE_BATCH_V1 absent",
+      "batch raw/canonical reader absent",
+      "identity partition/collision contract absent",
+      "transaction batch stage/injection absent",
+      "Q1/Q6 telemetry orderIndex/fingerprint contract absent"
+    ],
+    "rawOutput": "a3_red_output_v2.txt (captured outside release workspace)"
+  },
+  "green": {
+    "command": "node --test test/performance/closeout-perf-a3/*.test.js",
+    "exitCode": 0,
+    "tests": 17,
+    "pass": 17,
+    "fail": 0,
+    "durationMs": 166,
+    "proof": [
+      "60 scopes => exactly 1 raw + 1 canonical initial AR query",
+      "same-customer multiple orders partition by canonical identity",
+      "shared/duplicate/missing identity fails closed before DB",
+      "legacy allowed alias partitions only to its canonical owner",
+      "prefetched no-debt path performs 0 per-order initial balance reads",
+      "actual adjustment keeps safety + pre-post idempotency + after-write verification",
+      "A3 runner builds batch context inside transaction/session",
+      "AuditLog.create blind spot gets isolated non-query timing"
+    ]
+  }
+}

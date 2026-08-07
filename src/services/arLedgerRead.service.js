@@ -6,6 +6,7 @@ const {
   isCanonicalArDebtLedger,
   canProjectCanonicalAccountingLedgerToDebtReadModel,
   validateArLedgerContract,
+  normalizeAccountingAmount,
   PHASE87_READ_MODEL_CATEGORIES
 } = require('../domain/ar/arLedgerValidator');
 const {
@@ -326,6 +327,231 @@ async function inspectActiveDebtReadModelLedgersByOrderKeys(orderKeys = [], filt
     rawActiveConfirmedLedgers: rawActiveConfirmedRows.map((row) => ledgerSummary(row, [])),
     excludedLedgers
   };
+}
+
+
+function batchContextError(code, message, data = {}) {
+  const error = new Error(message);
+  error.code = code;
+  error.status = 409;
+  error.data = data;
+  return error;
+}
+
+const AR_ORDER_LOOKUP_FIELDS = Object.freeze([
+  'sourceId', 'salesOrderId', 'orderId', 'sourceOrderId', 'canonicalOrderId', 'canonicalOrderKey', 'orderKey', 'refId',
+  'sourceCode', 'salesOrderCode', 'orderCode', 'sourceOrderCode', 'canonicalOrderCode', 'refCode'
+]);
+
+function rowOrderLookupValues(row = {}) {
+  return uniqueClean([
+    ...AR_ORDER_LOOKUP_FIELDS.map((field) => row && row[field]),
+    row && row.metadata && row.metadata.salesOrderId,
+    row && row.metadata && row.metadata.orderId,
+    row && row.metadata && row.metadata.salesOrderCode,
+    row && row.metadata && row.metadata.orderCode
+  ]);
+}
+
+function ledgerIdentityKey(row = {}) {
+  return clean(row.id || row._id || row.code || row.idempotencyKey);
+}
+
+function rawCustomerMatches(row = {}, customerCode = '') {
+  const expected = clean(customerCode).toLowerCase();
+  if (!expected) return true;
+  return [row.customerCode, row.customerId].map((value) => clean(value).toLowerCase()).some((value) => value === expected);
+}
+
+function normalizeBatchOrderScopes(scopes = []) {
+  const normalized = [];
+  const canonicalKeys = new Set();
+  const aliasOwner = new Map();
+  for (const input of Array.isArray(scopes) ? scopes : []) {
+    const identity = input && input.identity && typeof input.identity === 'object' ? input.identity : {};
+    const canonicalOrderKey = clean(input && input.canonicalOrderKey || identity.orderId || identity.orderCode);
+    const lookupKeys = uniqueClean(identity.lookupKeys || input && input.lookupKeys || []);
+    if (!canonicalOrderKey || !lookupKeys.length) {
+      throw batchContextError('AR_BATCH_CANONICAL_IDENTITY_MISSING', 'AR batch context thiếu canonical order identity.', { canonicalOrderKey, lookupKeyCount: lookupKeys.length });
+    }
+    if (canonicalKeys.has(canonicalOrderKey)) {
+      throw batchContextError('AR_BATCH_DUPLICATE_CANONICAL_IDENTITY', 'AR batch context có duplicate canonical order identity.', { canonicalOrderKey });
+    }
+    canonicalKeys.add(canonicalOrderKey);
+    for (const alias of lookupKeys) {
+      const owner = aliasOwner.get(alias);
+      if (owner && owner !== canonicalOrderKey) {
+        throw batchContextError('AR_BATCH_IDENTITY_ALIAS_COLLISION', 'Một AR order alias khớp nhiều canonical orders; batch bị chặn để tránh cross-assignment.', {
+          alias,
+          canonicalOrderKeys: [owner, canonicalOrderKey]
+        });
+      }
+      aliasOwner.set(alias, canonicalOrderKey);
+    }
+    normalized.push({
+      canonicalOrderKey,
+      customerCode: clean(input && input.customerCode),
+      identity: { ...identity, lookupKeys },
+      lookupKeys
+    });
+  }
+  return { scopes: normalized, aliasOwner, scopeByCanonicalKey: new Map(normalized.map((scope) => [scope.canonicalOrderKey, scope])) };
+}
+
+function partitionRowsByBatchScope(rows = [], scopeConfig = {}, options = {}) {
+  const byCanonicalOrderKey = new Map((scopeConfig.scopes || []).map((scope) => [scope.canonicalOrderKey, []]));
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const candidates = new Set();
+    for (const alias of rowOrderLookupValues(row)) {
+      const owner = scopeConfig.aliasOwner.get(alias);
+      if (owner) candidates.add(owner);
+    }
+    if (!candidates.size) continue;
+    if (candidates.size > 1) {
+      throw batchContextError('AR_BATCH_LEDGER_CROSS_ASSIGNMENT', 'Một AR ledger khớp nhiều canonical orders trong batch.', {
+        ledgerId: ledgerIdentityKey(row),
+        canonicalOrderKeys: [...candidates]
+      });
+    }
+    const canonicalOrderKey = [...candidates][0];
+    const scope = scopeConfig.scopeByCanonicalKey instanceof Map
+      ? scopeConfig.scopeByCanonicalKey.get(canonicalOrderKey)
+      : (scopeConfig.scopes || []).find((item) => item.canonicalOrderKey === canonicalOrderKey);
+    if (!scope) continue;
+    if (options.raw === true && !rawCustomerMatches(row, scope.customerCode)) continue;
+    if (options.raw !== true) {
+      const normalized = normalizeArDebtFilters({ customerCode: scope.customerCode, status: 'all' });
+      if (!canonicalRowMatchesFilters(row, normalized)) continue;
+    }
+    byCanonicalOrderKey.get(canonicalOrderKey).push(row);
+  }
+  return byCanonicalOrderKey;
+}
+
+function sumCanonicalBalanceRows(rows = []) {
+  return (Array.isArray(rows) ? rows : []).reduce((sum, row) => {
+    const amounts = normalizeAccountingAmount(row);
+    return Math.round(sum + Number(amounts.debit || 0) - Number(amounts.credit || 0));
+  }, 0);
+}
+
+function inspectionFromPartitionedRows(scope = {}, rawRows = [], canonicalRows = []) {
+  const normalized = normalizeArDebtFilters({ customerCode: scope.customerCode, status: 'all' });
+  const canonicalResult = normalizeAndValidateActiveDebtRows(canonicalRows, normalized);
+  const canonicalIds = new Set(canonicalResult.canonicalLedgers.map((row) => ledgerIdentityKey(row)));
+  const rawActiveConfirmedRows = (rawRows || []).filter((row) => activeConfirmedExclusionReasons(row).length === 0);
+  const excludedLedgers = [];
+  for (const row of rawRows || []) {
+    const id = ledgerIdentityKey(row);
+    if (canonicalIds.has(id) && canProjectCanonicalAccountingLedgerToDebtReadModel(row)) continue;
+    const reasons = debtReadModelExclusionReasons(row, normalized);
+    if (reasons.length) excludedLedgers.push(ledgerSummary(row, reasons));
+  }
+  const currentArBalance = sumCanonicalBalanceRows(canonicalResult.canonicalLedgers);
+  return {
+    lookupKeys: scope.lookupKeys,
+    rawMatchedLedgerCount: (rawRows || []).length,
+    rawActiveConfirmedLedgerCount: rawActiveConfirmedRows.length,
+    canonicalMatchedLedgerCount: canonicalResult.canonicalLedgers.length,
+    excludedLedgerCount: excludedLedgers.length,
+    canonicalLedgers: canonicalResult.canonicalLedgers,
+    rawActiveConfirmedLedgers: rawActiveConfirmedRows.map((row) => ledgerSummary(row, [])),
+    excludedLedgers,
+    currentArBalance
+  };
+}
+
+async function inspectActiveDebtReadModelLedgersForOrderScopes(scopes = [], options = {}) {
+  const scopeConfig = normalizeBatchOrderScopes(scopes);
+  const allKeys = uniqueClean(scopeConfig.scopes.flatMap((scope) => scope.lookupKeys));
+  const byCanonicalOrderKey = new Map();
+  if (!scopeConfig.scopes.length) return { byCanonicalOrderKey, rawQueryCount: 0, canonicalQueryCount: 0, scopeCount: 0, lookupKeyCount: 0 };
+
+  // Resolve/validate the complete identity map before touching Mongo. Ambiguous or
+  // duplicate identities must fail closed without consuming a transaction round-trip.
+  const { ArLedger } = getModels();
+  const rawMatch = buildRawArOrderLookupMatch(allKeys, { status: 'all' });
+  const canonicalMatch = buildActiveDebtReadModelLedgerMatch({ status: 'all' });
+  appendOrderKeyCondition(canonicalMatch, allKeys);
+
+  // Transaction rule: keep these two reads sequential on the same session.
+  const rawRows = await queryRows(ArLedger, rawMatch, { session: options.session, projection: options.projection, sort: options.sort });
+  const canonicalRows = await queryRows(ArLedger, canonicalMatch, { session: options.session, projection: options.projection, sort: options.sort });
+  const maxRows = Math.max(1, Math.min(250000, Number(options.maxRows || 100000)));
+  if ((rawRows || []).length > maxRows || (canonicalRows || []).length > maxRows) {
+    throw batchContextError('AR_BATCH_ROW_LIMIT_EXCEEDED', 'AR batch context vượt giới hạn dòng an toàn; request bị chặn thay vì dùng context một phần.', {
+      maxRows,
+      rawRows: (rawRows || []).length,
+      canonicalRows: (canonicalRows || []).length
+    });
+  }
+
+  const rawByKey = partitionRowsByBatchScope(rawRows, scopeConfig, { raw: true });
+  const canonicalByKey = partitionRowsByBatchScope(canonicalRows, scopeConfig, { raw: false });
+  for (const scope of scopeConfig.scopes) {
+    byCanonicalOrderKey.set(scope.canonicalOrderKey, inspectionFromPartitionedRows(
+      scope,
+      rawByKey.get(scope.canonicalOrderKey) || [],
+      canonicalByKey.get(scope.canonicalOrderKey) || []
+    ));
+  }
+  return {
+    byCanonicalOrderKey,
+    rawQueryCount: 1,
+    canonicalQueryCount: 1,
+    scopeCount: scopeConfig.scopes.length,
+    lookupKeyCount: allKeys.length
+  };
+}
+
+function mergeActiveDebtInspectionWithRows(inspection = {}, rows = [], filters = {}) {
+  const lookupKeys = uniqueClean(inspection.lookupKeys || []);
+  if (!lookupKeys.length) throw batchContextError('AR_BATCH_CANONICAL_IDENTITY_MISSING', 'Không thể merge AR rows vào batch context không có lookupKeys.');
+  const normalized = normalizeArDebtFilters({ customerCode: clean(filters.customerCode), status: 'all' });
+  const next = {
+    ...inspection,
+    lookupKeys,
+    canonicalLedgers: [...(inspection.canonicalLedgers || [])],
+    rawActiveConfirmedLedgers: [...(inspection.rawActiveConfirmedLedgers || [])],
+    excludedLedgers: [...(inspection.excludedLedgers || [])]
+  };
+  const known = new Set([
+    ...next.canonicalLedgers,
+    ...next.rawActiveConfirmedLedgers,
+    ...next.excludedLedgers
+  ].map(ledgerIdentityKey).filter(Boolean));
+
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const rowKey = ledgerIdentityKey(row);
+    if (rowKey && known.has(rowKey)) continue;
+    const rowAliases = rowOrderLookupValues(row);
+    if (!rowAliases.some((key) => lookupKeys.includes(key)) || !rawCustomerMatches(row, clean(filters.customerCode))) {
+      throw batchContextError('AR_BATCH_POSTED_LEDGER_SCOPE_MISMATCH', 'AR ledger vừa post không thuộc đúng order/customer batch context.', {
+        ledgerId: rowKey,
+        lookupKeys
+      });
+    }
+    next.rawMatchedLedgerCount = Number(next.rawMatchedLedgerCount || 0) + 1;
+    const activeReasons = activeConfirmedExclusionReasons(row);
+    if (!activeReasons.length) {
+      next.rawActiveConfirmedLedgers.push(ledgerSummary(row, []));
+      next.rawActiveConfirmedLedgerCount = Number(next.rawActiveConfirmedLedgerCount || 0) + 1;
+    }
+    const canonicalResult = normalizeAndValidateActiveDebtRows([row], normalized);
+    if (canonicalResult.canonicalLedgers.length) {
+      next.canonicalLedgers.push(canonicalResult.canonicalLedgers[0]);
+      next.canonicalMatchedLedgerCount = Number(next.canonicalMatchedLedgerCount || 0) + 1;
+    } else {
+      const reasons = debtReadModelExclusionReasons(row, normalized);
+      if (reasons.length) {
+        next.excludedLedgers.push(ledgerSummary(row, reasons));
+        next.excludedLedgerCount = Number(next.excludedLedgerCount || 0) + 1;
+      }
+    }
+    if (rowKey) known.add(rowKey);
+  }
+  next.currentArBalance = sumCanonicalBalanceRows(next.canonicalLedgers);
+  return next;
 }
 
 
@@ -756,6 +982,8 @@ module.exports = {
   getCanonicalLedgersByOrderKeys,
   getActiveDebtReadModelLedgersByOrderKeys,
   inspectActiveDebtReadModelLedgersByOrderKeys,
+  inspectActiveDebtReadModelLedgersForOrderScopes,
+  mergeActiveDebtInspectionWithRows,
   aggregateDebtByCustomer,
   aggregateDebtByOrder,
   aggregateDebtByStaff,
@@ -772,6 +1000,12 @@ module.exports = {
     buildRawArOrderLookupMatch,
     activeConfirmedExclusionReasons,
     debtReadModelExclusionReasons,
-    ledgerSummary
+    ledgerSummary,
+    rowOrderLookupValues,
+    normalizeBatchOrderScopes,
+    partitionRowsByBatchScope,
+    inspectionFromPartitionedRows,
+    ledgerIdentityKey,
+    sumCanonicalBalanceRows
   }
 };

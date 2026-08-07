@@ -1,0 +1,168 @@
+{
+  "schemaVersion": "1.0",
+  "promptId": "CLOSEOUT-PERF-A3",
+  "baseline": [
+    {
+      "name": "a2_targeted",
+      "command": "node --test test/performance/closeout-perf-a2/*.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a3_baseline_compare",
+      "durationMs": 134,
+      "exitCode": 0,
+      "status": "PASS",
+      "stdoutArtifact": "/mnt/data/a3_baseline_a2_targeted.stdout.txt",
+      "stderrArtifact": "/mnt/data/a3_baseline_a2_targeted.stderr.txt"
+    },
+    {
+      "name": "reward",
+      "command": "node --test test/reward-doublecount-a2-backend.test.js test/reward-doublecount-a3-frontend.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a3_baseline_compare",
+      "durationMs": 107,
+      "exitCode": 0,
+      "status": "PASS",
+      "stdoutArtifact": "/mnt/data/a3_baseline_reward.stdout.txt",
+      "stderrArtifact": "/mnt/data/a3_baseline_reward.stderr.txt"
+    },
+    {
+      "name": "query_budget",
+      "command": "node scripts/performance/closeout-perf-a2/run-query-budget.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a3_baseline_compare",
+      "durationMs": 21,
+      "exitCode": 0,
+      "status": "PASS",
+      "stdoutArtifact": "/mnt/data/a3_baseline_query_budget.stdout.txt",
+      "stderrArtifact": "/mnt/data/a3_baseline_query_budget.stderr.txt"
+    },
+    {
+      "name": "full_performance",
+      "command": "node --test test/performance/**/*.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a3_baseline_compare",
+      "durationMs": 17464,
+      "exitCode": 0,
+      "status": "PASS",
+      "stdoutArtifact": "/mnt/data/a3_baseline_full_performance.stdout.txt",
+      "stderrArtifact": "/mnt/data/a3_baseline_full_performance.stderr.txt"
+    },
+    {
+      "name": "js_syntax",
+      "command": "node scripts/check-js-syntax.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a3_baseline_compare",
+      "durationMs": 973,
+      "exitCode": 0,
+      "status": "PASS",
+      "stdoutArtifact": "/mnt/data/a3_baseline_js_syntax.stdout.txt",
+      "stderrArtifact": "/mnt/data/a3_baseline_js_syntax.stderr.txt"
+    }
+  ],
+  "final": [
+    {
+      "name": "a3_targeted",
+      "command": "node --test test/performance/closeout-perf-a3/*.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a3_workspace",
+      "durationMs": 166,
+      "exitCode": 0,
+      "status": "PASS",
+      "stdoutArtifact": "/mnt/data/a3_final_a3_targeted.stdout.txt",
+      "stderrArtifact": "/mnt/data/a3_final_a3_targeted.stderr.txt"
+    },
+    {
+      "name": "a2_targeted",
+      "command": "node --test test/performance/closeout-perf-a2/*.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a3_workspace",
+      "durationMs": 133,
+      "exitCode": 0,
+      "status": "PASS",
+      "stdoutArtifact": "/mnt/data/a3_final_a2_targeted.stdout.txt",
+      "stderrArtifact": "/mnt/data/a3_final_a2_targeted.stderr.txt"
+    },
+    {
+      "name": "reward",
+      "command": "node --test test/reward-doublecount-a2-backend.test.js test/reward-doublecount-a3-frontend.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a3_workspace",
+      "durationMs": 162,
+      "exitCode": 0,
+      "status": "PASS",
+      "stdoutArtifact": "/mnt/data/a3_final_reward.stdout.txt",
+      "stderrArtifact": "/mnt/data/a3_final_reward.stderr.txt"
+    },
+    {
+      "name": "financial_resolver",
+      "command": "node --test test/canonical-delivery-financial-resolver.test.js test/phase-a2-delivery-adjustment-backend.test.js test/phase-a3-delivery-adjustment-frontend-payload.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a3_workspace",
+      "durationMs": 223,
+      "exitCode": 0,
+      "status": "PASS",
+      "stdoutArtifact": "/mnt/data/a3_final_financial_resolver.stdout.txt",
+      "stderrArtifact": "/mnt/data/a3_final_financial_resolver.stderr.txt"
+    },
+    {
+      "name": "query_budget",
+      "command": "node scripts/performance/closeout-perf-a3/run-query-budget.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a3_workspace",
+      "durationMs": 40,
+      "exitCode": 0,
+      "status": "PASS",
+      "stdoutArtifact": "/mnt/data/a3_final_query_budget.stdout.txt",
+      "stderrArtifact": "/mnt/data/a3_final_query_budget.stderr.txt"
+    },
+    {
+      "name": "full_performance",
+      "command": "node --test test/performance/**/*.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a3_workspace",
+      "durationMs": 16742,
+      "exitCode": 0,
+      "status": "PASS",
+      "stdoutArtifact": "/mnt/data/a3_final_full_performance.stdout.txt",
+      "stderrArtifact": "/mnt/data/a3_final_full_performance.stderr.txt"
+    },
+    {
+      "name": "js_syntax",
+      "command": "node scripts/check-js-syntax.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a3_workspace",
+      "durationMs": 830,
+      "exitCode": 0,
+      "status": "PASS",
+      "stdoutArtifact": "/mnt/data/a3_final_js_syntax.stdout.txt",
+      "stderrArtifact": "/mnt/data/a3_final_js_syntax.stderr.txt"
+    }
+  ],
+  "summaries": {
+    "baselineA2": "24/24 PASS",
+    "baselineReward": "30/30 PASS",
+    "baselinePerformance": "187/187 PASS",
+    "baselineSyntax": "1671 files PASS",
+    "a3Targeted": "17/17 PASS",
+    "a2TargetedAfterA3": "24/24 PASS",
+    "rewardAfterA3": "30/30 PASS",
+    "financialResolverAndAdjustment": "38/38 PASS",
+    "fullPerformanceAfterA3": "204/204 PASS",
+    "syntaxAfterA3": "1676 files PASS",
+    "queryBudget": "1/16/26/60 => 16/106/166/370"
+  },
+  "preExistingNonGateSuiteDisposition": {
+    "command": "node --test phase242a/b/c + phase243/244/246/247 closeout suites",
+    "baselineResult": "30/40 PASS, 10 FAIL",
+    "a3Result": "30/40 PASS, 10 FAIL",
+    "disposition": [
+      {
+        "issue": "PHASE242A report artifact missing from source package",
+        "classification": "PRE_EXISTING_PACKAGING_ARTIFACT"
+      },
+      {
+        "issue": "Phase242C requires mongoose not present",
+        "classification": "NOT_RUN_ENVIRONMENT"
+      },
+      {
+        "issue": "Phase246 brittle/static UI assertions",
+        "classification": "PRE_EXISTING_STALE_TEST_CONTRACT"
+      },
+      {
+        "issue": "Phase247 hasReturnLockedStatus is not defined in VM harness",
+        "classification": "PRE_EXISTING_STALE_TEST_CONTRACT"
+      }
+    ],
+    "a3Regression": false
+  },
+  "notRunEnvironment": [
+    "Mongoose-backed tests requiring node_modules/mongoose; source release intentionally excludes node_modules. NOT_RUN_ENVIRONMENT is not PASS."
+  ]
+}

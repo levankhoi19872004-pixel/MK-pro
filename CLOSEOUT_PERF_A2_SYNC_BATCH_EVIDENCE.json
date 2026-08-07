@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-08-07T04:11:28.874399+00:00",
+  "requirements": [
+    "CL-A2-REQ-003",
+    "CL-A2-REQ-004"
+  ],
+  "featureFlag": "PERF_CLOSEOUT_SYNC_BULK_V1",
+  "default": "0",
+  "greenEvidence": [
+    {
+      "case": "1/16/26/60 distinct groups",
+      "expectedCommands": 1,
+      "status": "PASS",
+      "evidence": "behavior test + deterministic query budget"
+    },
+    {
+      "case": "duplicate group",
+      "expectedUniqueJobs": 1,
+      "status": "PASS"
+    },
+    {
+      "case": "malformed + valid group",
+      "validGroupPreserved": true,
+      "warning": "READ_MODEL_SYNC_PAYLOAD_SKIPPED",
+      "status": "PASS"
+    },
+    {
+      "case": "bulk transient/duplicate error",
+      "retryCountMax": 1,
+      "idempotentWholeBatchRetry": true,
+      "status": "PASS"
+    },
+    {
+      "case": "permanent bulk failure",
+      "financialRollback": false,
+      "pendingJobKeysExposed": true,
+      "retryRequired": true,
+      "status": "PASS"
+    },
+    {
+      "case": "worker scheduling error",
+      "financialRollback": false,
+      "warningOnly": true,
+      "status": "PASS"
+    }
+  ],
+  "semantics": {
+    "ordered": false,
+    "upsertBy": "idempotencyKey",
+    "scheduleDrainPreserved": true,
+    "postCommitBoundaryPreserved": true
+  },
+  "status": "PASS"
+}

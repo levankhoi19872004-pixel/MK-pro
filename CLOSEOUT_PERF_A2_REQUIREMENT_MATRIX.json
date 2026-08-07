@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-08-07T04:11:28.874399+00:00",
+  "requirements": [
+    {
+      "requirementId": "CL-A2-REQ-001",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "requirementId": "CL-A2-REQ-002",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "requirementId": "CL-A2-REQ-003",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "requirementId": "CL-A2-REQ-004",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "requirementId": "CL-A2-REQ-005",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "requirementId": "CL-A2-REQ-006",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "requirementId": "CL-A2-REQ-007",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "requirementId": "CL-A2-REQ-008",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "requirementId": "CL-A2-REQ-009",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "requirementId": "CL-A2-REQ-010",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "requirementId": "CL-A2-REQ-011",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "requirementId": "CL-A2-REQ-012",
+      "status": "PASS",
+      "note": "409ms SalesOrder Q1/Q6 attribution remains DEFERRED_E3 as explicitly required."
+    },
+    {
+      "requirementId": "CL-A2-REQ-013",
+      "status": "PASS",
+      "note": "RED→GREEN execution order completed; fresh-extract verification is recorded in release manifest after packaging."
+    },
+    {
+      "requirementId": "CL-A2-REQ-014",
+      "status": "PASS",
+      "note": ""
+    },
+    {
+      "requirementId": "CL-A2-REQ-015",
+      "status": "PASS",
+      "note": ""
+    }
+  ],
+  "gatePrerequisites": {
+    "correctness": true,
+    "workload60LogicalQueries": 488,
+    "maxAllowed": 500
+  },
+  "status": "PASS_PENDING_FRESH_EXTRACT_AT_MANIFEST_BUILD"
+}

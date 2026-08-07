@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0",
+  "requirementId": "CL-A3-REQ-012",
+  "evidenceLevel": "E2 deterministic/offline; no production Mongo mutation",
+  "mustPass": {
+    "debt_deviation": 0,
+    "reward_double_count": 0,
+    "duplicate_ar_ledger_application": 0,
+    "return_parity_percent": 100,
+    "allocation_parity_percent": 100,
+    "scope_isolation": true,
+    "transaction_failure_isolation": true,
+    "idempotent_retry": true
+  },
+  "fixtureCoverage": {
+    "cashOnly": "PASS",
+    "bankOnly": "PASS",
+    "cashPlusBank": "PASS",
+    "rewardOnly": "PASS",
+    "cashPlusReward": "PASS",
+    "independentRewardPlusOffset": "PASS via reward canonical suite",
+    "returnOnly": "PASS",
+    "paymentPlusReturn": "PASS",
+    "debtZero": "PASS",
+    "debtWithinTolerance": "PASS",
+    "positiveDebtAdjustment": "PASS",
+    "creditAdjustment": "PASS",
+    "existingDebtAdjustmentIdempotency": "PASS via A2/reward retry",
+    "retry": "PASS",
+    "staleAllocation": "PASS",
+    "allocationVersionMismatch": "PASS",
+    "legacyRewardAlias": "PASS",
+    "ambiguousRewardOffset": "PASS fail-safe",
+    "zeroValues": "PASS",
+    "nullUndefinedNaN": "PASS",
+    "negativeMoneyGuard": "PASS",
+    "transactionFailureRollback": "PASS"
+  },
+  "commands": [
+    "node --test test/performance/closeout-perf-a3/*.test.js",
+    "node --test test/reward-doublecount-a2-backend.test.js test/reward-doublecount-a3-frontend.test.js",
+    "node --test test/canonical-delivery-financial-resolver.test.js test/phase-a2-delivery-adjustment-backend.test.js test/phase-a3-delivery-adjustment-frontend-payload.test.js",
+    "node --test test/performance/closeout-perf-a2/*.test.js"
+  ],
+  "environmentLimitations": [
+    "Mongoose-dependent legacy integration tests were NOT_RUN_ENVIRONMENT because node_modules/mongoose is intentionally absent from source ZIP. They are not counted as PASS. Equivalent deterministic resolver/command/transaction tests passed."
+  ]
+}

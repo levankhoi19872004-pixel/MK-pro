@@ -1,0 +1,194 @@
+{
+  "schemaVersion": "1.0",
+  "promptId": "CLOSEOUT-PERF-A2",
+  "generatedAt": "2026-08-07T04:11:28.874399+00:00",
+  "evidenceType": "E2_DETERMINISTIC_SOURCE_AWARE_LOGICAL_QUERY_BUDGET",
+  "productionLatencyClaimed": false,
+  "beforeFormula": "8 fixed + 9*N + G sync commands",
+  "afterOpt01Opt02Formula": "8 fixed + 8*N + 1 bulk sync command",
+  "afterFullFormula": "7 fixed + 8*N + 1 bulk sync command when canonical staff assignment is verified",
+  "workloads": [
+    {
+      "workload": 1,
+      "before": {
+        "workload": 1,
+        "logicalQueryCount": 18,
+        "salesOrderReadCount": 2,
+        "masterOrderReadCount": 1,
+        "returnOrderReadCount": 4,
+        "arReadCount": 4,
+        "arWriteCount": 3,
+        "allocationWriteCount": 2,
+        "transactionCount": 1,
+        "syncJobCommands": 1,
+        "debtInitialIdempotencyReads": 1
+      },
+      "afterOpt01Opt02": {
+        "workload": 1,
+        "logicalQueryCount": 17,
+        "salesOrderReadCount": 2,
+        "masterOrderReadCount": 1,
+        "returnOrderReadCount": 4,
+        "arReadCount": 3,
+        "arWriteCount": 3,
+        "allocationWriteCount": 2,
+        "transactionCount": 1,
+        "syncJobCommands": 1,
+        "debtInitialIdempotencyReads": 0
+      },
+      "afterOpt01Opt02Opt03": {
+        "workload": 1,
+        "logicalQueryCount": 16,
+        "salesOrderReadCount": 2,
+        "masterOrderReadCount": 0,
+        "returnOrderReadCount": 4,
+        "arReadCount": 3,
+        "arWriteCount": 3,
+        "allocationWriteCount": 2,
+        "transactionCount": 1,
+        "syncJobCommands": 1,
+        "debtInitialIdempotencyReads": 0
+      }
+    },
+    {
+      "workload": 16,
+      "before": {
+        "workload": 16,
+        "logicalQueryCount": 168,
+        "salesOrderReadCount": 2,
+        "masterOrderReadCount": 1,
+        "returnOrderReadCount": 4,
+        "arReadCount": 49,
+        "arWriteCount": 48,
+        "allocationWriteCount": 32,
+        "transactionCount": 1,
+        "syncJobCommands": 16,
+        "debtInitialIdempotencyReads": 16
+      },
+      "afterOpt01Opt02": {
+        "workload": 16,
+        "logicalQueryCount": 137,
+        "salesOrderReadCount": 2,
+        "masterOrderReadCount": 1,
+        "returnOrderReadCount": 4,
+        "arReadCount": 33,
+        "arWriteCount": 48,
+        "allocationWriteCount": 32,
+        "transactionCount": 1,
+        "syncJobCommands": 1,
+        "debtInitialIdempotencyReads": 0
+      },
+      "afterOpt01Opt02Opt03": {
+        "workload": 16,
+        "logicalQueryCount": 136,
+        "salesOrderReadCount": 2,
+        "masterOrderReadCount": 0,
+        "returnOrderReadCount": 4,
+        "arReadCount": 33,
+        "arWriteCount": 48,
+        "allocationWriteCount": 32,
+        "transactionCount": 1,
+        "syncJobCommands": 1,
+        "debtInitialIdempotencyReads": 0
+      }
+    },
+    {
+      "workload": 26,
+      "before": {
+        "workload": 26,
+        "logicalQueryCount": 268,
+        "salesOrderReadCount": 2,
+        "masterOrderReadCount": 1,
+        "returnOrderReadCount": 4,
+        "arReadCount": 79,
+        "arWriteCount": 78,
+        "allocationWriteCount": 52,
+        "transactionCount": 1,
+        "syncJobCommands": 26,
+        "debtInitialIdempotencyReads": 26
+      },
+      "afterOpt01Opt02": {
+        "workload": 26,
+        "logicalQueryCount": 217,
+        "salesOrderReadCount": 2,
+        "masterOrderReadCount": 1,
+        "returnOrderReadCount": 4,
+        "arReadCount": 53,
+        "arWriteCount": 78,
+        "allocationWriteCount": 52,
+        "transactionCount": 1,
+        "syncJobCommands": 1,
+        "debtInitialIdempotencyReads": 0
+      },
+      "afterOpt01Opt02Opt03": {
+        "workload": 26,
+        "logicalQueryCount": 216,
+        "salesOrderReadCount": 2,
+        "masterOrderReadCount": 0,
+        "returnOrderReadCount": 4,
+        "arReadCount": 53,
+        "arWriteCount": 78,
+        "allocationWriteCount": 52,
+        "transactionCount": 1,
+        "syncJobCommands": 1,
+        "debtInitialIdempotencyReads": 0
+      }
+    },
+    {
+      "workload": 60,
+      "before": {
+        "workload": 60,
+        "logicalQueryCount": 608,
+        "salesOrderReadCount": 2,
+        "masterOrderReadCount": 1,
+        "returnOrderReadCount": 4,
+        "arReadCount": 181,
+        "arWriteCount": 180,
+        "allocationWriteCount": 120,
+        "transactionCount": 1,
+        "syncJobCommands": 60,
+        "debtInitialIdempotencyReads": 60
+      },
+      "afterOpt01Opt02": {
+        "workload": 60,
+        "logicalQueryCount": 489,
+        "salesOrderReadCount": 2,
+        "masterOrderReadCount": 1,
+        "returnOrderReadCount": 4,
+        "arReadCount": 121,
+        "arWriteCount": 180,
+        "allocationWriteCount": 120,
+        "transactionCount": 1,
+        "syncJobCommands": 1,
+        "debtInitialIdempotencyReads": 0
+      },
+      "afterOpt01Opt02Opt03": {
+        "workload": 60,
+        "logicalQueryCount": 488,
+        "salesOrderReadCount": 2,
+        "masterOrderReadCount": 0,
+        "returnOrderReadCount": 4,
+        "arReadCount": 121,
+        "arWriteCount": 180,
+        "allocationWriteCount": 120,
+        "transactionCount": 1,
+        "syncJobCommands": 1,
+        "debtInitialIdempotencyReads": 0
+      }
+    }
+  ],
+  "sameCustomer60": {
+    "before": 549,
+    "afterOpt01Opt02": 489,
+    "afterOpt01Opt02Opt03": 488
+  },
+  "hardAcceptance": {
+    "workload60Max": 500,
+    "actualWithOpt01Opt02": 489,
+    "preferredWithOpt03": 488,
+    "pass": true
+  },
+  "q15q16Status": "PRESERVED_NOT_OPTIMIZED_IN_A2",
+  "salesOrder409ms": "DEFERRED_E3_ATTRIBUTION",
+  "status": "PASS"
+}

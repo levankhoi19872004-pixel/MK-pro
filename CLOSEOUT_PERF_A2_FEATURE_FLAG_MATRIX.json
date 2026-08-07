@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-08-07T04:11:28.874399+00:00",
+  "flags": [
+    {
+      "flag": "PERF_CLOSEOUT_QUERY_DEDUP_V1",
+      "default": "0",
+      "defaultEnabled": false,
+      "controls": [
+        "Q17 no-delta short-circuit",
+        "Selective MasterOrder lookup"
+      ],
+      "rollback": "set 0/unset; no data rollback required"
+    },
+    {
+      "flag": "PERF_CLOSEOUT_SYNC_BULK_V1",
+      "default": "0",
+      "defaultEnabled": false,
+      "controls": [
+        "Post-commit ReadModelSyncJob bulk enqueue"
+      ],
+      "rollback": "set 0/unset; serial enqueue restored; no data rollback required"
+    }
+  ],
+  "concurrencyChanged": false,
+  "productionIndexesChanged": false,
+  "productionDataMigration": false,
+  "status": "PASS"
+}

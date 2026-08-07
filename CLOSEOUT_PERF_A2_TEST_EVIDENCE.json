@@ -1,0 +1,168 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-08-07T04:11:28.874399+00:00",
+  "entries": [
+    {
+      "name": "targeted",
+      "command": "node --test test/performance/closeout-perf-a2/closeout-perf-a2-behavior.test.js test/performance/closeout-perf-a2/closeout-perf-a2-opt01-redgreen.test.js test/performance/closeout-perf-a2/closeout-perf-a2-opt02-redgreen.test.js test/performance/closeout-perf-a2/closeout-perf-a2-opt03-redgreen.test.js test/performance/closeout-perf-a2/closeout-perf-a2-transaction-safety.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "durationMs": 136,
+      "exitCode": 0,
+      "status": "PASS",
+      "phase": "GREEN"
+    },
+    {
+      "name": "reward_backend",
+      "command": "node --test test/reward-doublecount-a2-backend.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "durationMs": 103,
+      "exitCode": 0,
+      "status": "PASS",
+      "phase": "GREEN"
+    },
+    {
+      "name": "reward_frontend",
+      "command": "node --test test/reward-doublecount-a3-frontend.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "durationMs": 101,
+      "exitCode": 0,
+      "status": "PASS",
+      "phase": "GREEN"
+    },
+    {
+      "name": "outbox",
+      "command": "node --test test/ar-debt-readmodel-outbox-projector.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "durationMs": 71,
+      "exitCode": 0,
+      "status": "PASS",
+      "phase": "GREEN"
+    },
+    {
+      "name": "phase242b",
+      "command": "node --test test/phase242b-closeout-exact-query-attribution.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "durationMs": 91,
+      "exitCode": 0,
+      "status": "PASS",
+      "phase": "GREEN"
+    },
+    {
+      "name": "phase243",
+      "command": "node --test test/phase243-closeout-result-contract.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "durationMs": 79,
+      "exitCode": 0,
+      "status": "PASS",
+      "phase": "GREEN"
+    },
+    {
+      "name": "phase244",
+      "command": "node --test test/phase244-closeout-ar-persistence-satisfaction.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "durationMs": 70,
+      "exitCode": 0,
+      "status": "PASS",
+      "phase": "GREEN"
+    },
+    {
+      "name": "query_budget",
+      "command": "node scripts/performance/closeout-perf-a2/run-query-budget.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "durationMs": 20,
+      "exitCode": 0,
+      "status": "PASS",
+      "phase": "GREEN"
+    },
+    {
+      "name": "syntax",
+      "command": "node scripts/check-js-syntax.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "durationMs": 800,
+      "exitCode": 0,
+      "status": "PASS",
+      "phase": "GREEN"
+    },
+    {
+      "name": "full_perf",
+      "command": "node --test test/performance/**/*.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "durationMs": 14287,
+      "exitCode": 0,
+      "status": "PASS",
+      "phase": "GREEN"
+    },
+    {
+      "name": "red_opt01",
+      "command": "node --test test/performance/closeout-perf-a2/closeout-perf-a2-opt01-redgreen.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "exitCode": 1,
+      "status": "EXPECTED_RED_FAIL",
+      "phase": "RED",
+      "result": {
+        "exitCode": 1,
+        "tests": 3,
+        "pass": 1,
+        "fail": 2,
+        "tail": "    Test.run (node:internal/test_runner/test:1101:12)\n    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)\n  ...\n# Subtest: CL-A2-REQ-001/011: actual mutation path keeps one fresh pre-post idempotency guard\nok 3 - CL-A2-REQ-001/011: actual mutation path keeps one fresh pre-post idempotency guard\n  ---\n  duration_ms: 1.0741\n  type: 'test'\n  ...\n1..3\n# tests 3\n# suites 0\n# pass 1\n# fail 2\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 49.916384"
+      }
+    },
+    {
+      "name": "red_opt02",
+      "command": "node --test test/performance/closeout-perf-a2/closeout-perf-a2-opt02-redgreen.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "exitCode": 1,
+      "status": "EXPECTED_RED_FAIL",
+      "phase": "RED",
+      "result": {
+        "exitCode": 1,
+        "tests": 3,
+        "pass": 0,
+        "fail": 3,
+        "tail": "  stack: |-\n    TestContext.<anonymous> (/mnt/data/closeout_perf_a2_work/source/test/performance/closeout-perf-a2/closeout-perf-a2-opt02-redgreen.test.js:23:10)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)\n  ...\n1..3\n# tests 3\n# suites 0\n# pass 0\n# fail 3\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 49.532529"
+      }
+    },
+    {
+      "name": "red_opt03",
+      "command": "node --test test/performance/closeout-perf-a2/closeout-perf-a2-opt03-redgreen.test.js",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "exitCode": 1,
+      "status": "EXPECTED_RED_FAIL",
+      "phase": "RED",
+      "result": {
+        "exitCode": 1,
+        "tests": 2,
+        "pass": 0,
+        "fail": 2,
+        "tail": "  stack: |-\n    TestContext.<anonymous> (/mnt/data/closeout_perf_a2_work/source/test/performance/closeout-perf-a2/closeout-perf-a2-opt03-redgreen.test.js:18:10)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)\n  ...\n1..2\n# tests 2\n# suites 0\n# pass 0\n# fail 2\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 52.132807"
+      }
+    },
+    {
+      "name": "legacy_financial_mongoose_subset",
+      "command": "node --test <selected allocation/return/transaction tests>",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "exitCode": 1,
+      "status": "NOT_RUN_ENVIRONMENT/PARTIAL",
+      "phase": "REGRESSION",
+      "details": "Several files cannot load because mongoose/node_modules are intentionally absent; successful dependency-free subtests are not promoted to full suite PASS."
+    },
+    {
+      "name": "phase247_baseline_comparison",
+      "command": "node --test test/phase247-closeout-runtime-verification.test.js on baseline and A2",
+      "workingDirectory": "/mnt/data/closeout_perf_a2_work/source",
+      "exitCode": 1,
+      "status": "PRE_EXISTING_STALE_TEST_CONTRACT",
+      "phase": "REGRESSION",
+      "details": "Both baseline and A2 fail same 4 cases: hasReturnLockedStatus missing from VM harness."
+    }
+  ],
+  "summary": {
+    "targeted": "24/24 PASS",
+    "fullPerformance": "187/187 PASS",
+    "rewardBackend": "18/18 PASS",
+    "rewardFrontend": "12/12 PASS",
+    "syntax": "SYNTAX_OK 1676 JavaScript files (final count before evidence files may change only non-JS artifacts)",
+    "notRunEnvironment": "mongoose-dependent legacy subset"
+  },
+  "status": "PASS_WITH_ENVIRONMENT_LIMITATIONS"
+}

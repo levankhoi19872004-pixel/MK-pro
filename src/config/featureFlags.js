@@ -19,7 +19,10 @@ const FLAGS = Object.freeze({
   fieldOperations: () => readBoolean('ENABLE_FIELD_OPERATIONS', false),
   deliveryPlanning: () => readBoolean('ENABLE_DELIVERY_PLANNING', false),
   integrations: () => readBoolean('ENABLE_INTEGRATIONS', false),
-  multiTenant: () => String(process.env.TENANT_MODE || 'single').trim().toLowerCase() === 'multi'
+  multiTenant: () => String(process.env.TENANT_MODE || 'single').trim().toLowerCase() === 'multi',
+  closeoutQueryDedupV1: () => readBoolean('PERF_CLOSEOUT_QUERY_DEDUP_V1', false),
+  closeoutSyncBulkV1: () => readBoolean('PERF_CLOSEOUT_SYNC_BULK_V1', false),
+  closeoutArBalanceBatchV1: () => readBoolean('PERF_CLOSEOUT_AR_BALANCE_BATCH_V1', false)
 });
 
 function snapshot() {

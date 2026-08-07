@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "flags": [
+    {
+      "name": "PERF_CLOSEOUT_QUERY_DEDUP_V1",
+      "default": "0",
+      "owner": "A2",
+      "changedInA3": false
+    },
+    {
+      "name": "PERF_CLOSEOUT_SYNC_BULK_V1",
+      "default": "0",
+      "owner": "A2",
+      "changedInA3": false
+    },
+    {
+      "name": "PERF_CLOSEOUT_AR_BALANCE_BATCH_V1",
+      "default": "0",
+      "owner": "A3",
+      "changedInA3": true,
+      "offBehavior": "A2 per-order Q15/Q16 path",
+      "onBehavior": "transaction batch initial AR context"
+    }
+  ],
+  "rollback": "Set PERF_CLOSEOUT_AR_BALANCE_BATCH_V1=0; no data rollback/migration required."
+}

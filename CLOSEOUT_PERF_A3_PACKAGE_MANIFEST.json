@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0",
+  "releaseId": "CLOSEOUT-PERF-A3",
+  "artifact": "MK-pro-closeout-perf-a3-ar-batch-fixed.zip",
+  "parentRelease": "CLOSEOUT-PERF-A2",
+  "parentZipSha256": "37eee2f85fd1836b928805ac624dcee1613314ddff5bc2d03201af9547ca6099",
+  "packageTreeSha256": "712bdaed3b317254f564f97a306b4573bce4f85e7113c9be01bb93bd3bde465c",
+  "packageTreeFileCount": 2384,
+  "featureFlagsDefaultOff": [
+    "PERF_CLOSEOUT_QUERY_DEDUP_V1",
+    "PERF_CLOSEOUT_SYNC_BULK_V1",
+    "PERF_CLOSEOUT_AR_BALANCE_BATCH_V1"
+  ],
+  "correctnessStatus": "PASS_E2",
+  "queryBudget60": 370,
+  "productionLatencyStatus": "E3_PENDING",
+  "archiveShaPolicy": "The exact archive SHA-256 is recorded in the external CLOSEOUT_PERF_A3_RELEASE_MANIFEST.json and .sha256 sidecar after the immutable ZIP is created; embedding an archive hash inside the same archive is self-referential.",
+  "packageTreeHashScope": "All package files except this package manifest, external release manifest/final-verification, and nested *.zip artifacts. Historical *.zip.sha256 sidecars are included.",
+  "freshExtractVerificationPolicy": "The immutable final ZIP is verified after creation; authoritative result is recorded externally in CLOSEOUT_PERF_A3_RELEASE_MANIFEST.json and CLOSEOUT_PERF_A3_FINAL_ZIP_VERIFICATION.json."
+}

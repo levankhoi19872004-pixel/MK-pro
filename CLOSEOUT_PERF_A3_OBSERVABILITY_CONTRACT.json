@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0",
+  "requirementIds": [
+    "CL-A3-REQ-014",
+    "CL-A3-REQ-015"
+  ],
+  "q1q6Attribution": {
+    "newRawEventFields": [
+      "stage",
+      "hasSession",
+      "orderIndex",
+      "durationMs",
+      "collection",
+      "operation",
+      "fingerprint"
+    ],
+    "q1ExpectedStage": "context.orders",
+    "q6ExpectedStage": "transaction.critical.orders",
+    "productionCaptureCanDisambiguate": true,
+    "queryLogicChanged": false
+  },
+  "auditLogBlindSpot": {
+    "confirmed": true,
+    "apiMonitorPatchScope": [
+      "mongoose.Query.prototype.exec",
+      "mongoose.Aggregate.prototype.exec"
+    ],
+    "ModelCreatePatched": false,
+    "AuditLogCreateThereforeOutsideQueryExecCounter": true,
+    "addedMetric": "nonQueryMongoOrModelWriteMs",
+    "failureIsolation": "observability errors do not affect legacy best-effort audit semantics"
+  },
+  "piiPolicy": "Uses existing sanitizer; no request body/customer/order values intentionally added.",
+  "productionLatencyClaimed": false
+}

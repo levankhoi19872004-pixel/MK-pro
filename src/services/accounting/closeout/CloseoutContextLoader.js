@@ -11,6 +11,7 @@ const OrderPaymentAllocationService = require('../OrderPaymentAllocationService'
 const OrderPaymentDebtReconcileService = require('../OrderPaymentDebtReconcileService');
 const closeoutQueryAudit = require('../../../observability/closeoutQueryAudit');
 const MasterOrder = require('../../../models/MasterOrder');
+const featureFlags = require('../../../config/featureFlags');
 const {
   loadMasterOrderMetadata,
   metadataForOrder
@@ -102,6 +103,16 @@ function orderDeliveryAssignment(order = {}, binding = null) {
   };
 }
 
+function canSkipMasterOrderMetadata(requestedDeliveryStaffCode = '', orders = []) {
+  const requested = normalizedCode(requestedDeliveryStaffCode);
+  if (!requested || !Array.isArray(orders) || !orders.length) return false;
+  return orders.every((order) => {
+    const assignment = orderDeliveryAssignment(order, null);
+    return assignment.verified === true
+      && normalizedCode(assignment.actualDeliveryStaffCode) === normalizedCode(requestedDeliveryStaffCode);
+  });
+}
+
 function closeoutScopeMismatchError(command = {}, mismatchedOrders = []) {
   const err = new Error('Một hoặc nhiều đơn không thuộc NVGH đang chốt sổ.');
   err.status = 409;
@@ -118,6 +129,26 @@ async function assertCloseoutDeliveryScope(command = {}, pendingConfirmOrders = 
   if (!requestedDeliveryStaffCode || !pendingConfirmOrders.length) {
     return { checked: false, requestedDeliveryStaffCode, mismatchedOrders: [] };
   }
+  const PERF_CLOSEOUT_QUERY_DEDUP_V1 = featureFlags.FLAGS.closeoutQueryDedupV1();
+  if (PERF_CLOSEOUT_QUERY_DEDUP_V1 && canSkipMasterOrderMetadata(requestedDeliveryStaffCode, pendingConfirmOrders)) {
+    return {
+      checked: true,
+      requestedDeliveryStaffCode,
+      checkedOrders: pendingConfirmOrders.map((order) => {
+        const assignment = orderDeliveryAssignment(order, null);
+        return {
+          orderId: clean(order.id || order._id),
+          orderCode: clean(order.orderCode || order.code || order.salesOrderCode),
+          actualDeliveryStaffCode: assignment.actualDeliveryStaffCode,
+          bindingSource: assignment.bindingSource
+        };
+      }),
+      masterMetadataRows: 0,
+      masterMetadataQueryExecuted: false,
+      optimization: 'canonical_sales_order_assignment'
+    };
+  }
+
   const modelSet = { MasterOrder: options.models && options.models.MasterOrder ? options.models.MasterOrder : MasterOrder };
   const metadata = await closeoutQueryAudit.withCloseoutAuditStage('context.deliveryScopeMasterMetadata', () => (
     loadMasterOrderMetadata(pendingConfirmOrders, modelSet, options)
@@ -382,6 +413,7 @@ module.exports = {
     unique,
     normalizedCode,
     orderDeliveryAssignment,
+    canSkipMasterOrderMetadata,
     mapByIdempotency,
     buildCloseoutPreview
   }

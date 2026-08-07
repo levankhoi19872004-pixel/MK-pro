@@ -1,0 +1,242 @@
+{
+  "schemaVersion": "1.0",
+  "productionChangedCount": 7,
+  "testBenchmarkAddedCount": 5,
+  "files": [
+    {
+      "requirementIds": [
+        "CL-A3-REQ-004",
+        "CL-A3-REQ-005",
+        "CL-A3-REQ-007",
+        "CL-A3-REQ-008",
+        "CL-A3-REQ-009",
+        "CL-A3-REQ-010",
+        "CL-A3-REQ-014",
+        "CL-A3-REQ-015",
+        "CL-A3-REQ-016"
+      ],
+      "file": "src/config/featureFlags.js",
+      "type": "production",
+      "baselineSha256": "1a74452eca9a279bee1316010ee2b08326d4ad6d012a582638dd0162d6bbf821",
+      "a3Sha256": "813885de220fac050347e33ea6f58cfc7885337698eb56464f097fd822165c73",
+      "status": "MODIFIED"
+    },
+    {
+      "requirementIds": [
+        "CL-A3-REQ-004",
+        "CL-A3-REQ-005",
+        "CL-A3-REQ-007",
+        "CL-A3-REQ-008",
+        "CL-A3-REQ-009",
+        "CL-A3-REQ-010",
+        "CL-A3-REQ-014",
+        "CL-A3-REQ-015",
+        "CL-A3-REQ-016"
+      ],
+      "file": "src/observability/closeoutQueryAudit.js",
+      "type": "production",
+      "baselineSha256": "881edfc4d128b3b5e908f57ac7894b4b8e5453ceb6aee7cc7998fd11f7360505",
+      "a3Sha256": "c47d0dcfa18a2ea5253722e8c547d9526194ebf628c47f5c10ba99ca77cdedcc",
+      "status": "MODIFIED"
+    },
+    {
+      "requirementIds": [
+        "CL-A3-REQ-004",
+        "CL-A3-REQ-005",
+        "CL-A3-REQ-007",
+        "CL-A3-REQ-008",
+        "CL-A3-REQ-009",
+        "CL-A3-REQ-010",
+        "CL-A3-REQ-014",
+        "CL-A3-REQ-015",
+        "CL-A3-REQ-016"
+      ],
+      "file": "src/services/accounting/AccountingCloseoutService.js",
+      "type": "production",
+      "baselineSha256": "ecd056a500c8e5da1bc3c4ec0490cfa4dfd15148ea5975aac9febeb89d391732",
+      "a3Sha256": "4fd0c27227fbc17d1ffdc64312a553a142f9c58f7b8c2dca9786afa87d8cd1bf",
+      "status": "MODIFIED"
+    },
+    {
+      "requirementIds": [
+        "CL-A3-REQ-004",
+        "CL-A3-REQ-005",
+        "CL-A3-REQ-007",
+        "CL-A3-REQ-008",
+        "CL-A3-REQ-009",
+        "CL-A3-REQ-010",
+        "CL-A3-REQ-014",
+        "CL-A3-REQ-015",
+        "CL-A3-REQ-016"
+      ],
+      "file": "src/services/accounting/OrderPaymentDebtReconcileService.js",
+      "type": "production",
+      "baselineSha256": "dd6cc270e2c79e866e6a1e06282f32c86d68c9ebce948eb80a84e7f3f94c8ab9",
+      "a3Sha256": "4ed1a21fd06f47e5bb37296d7ac13d0bbdc4dd3dea4f9c49f47328a0b4dd78ea",
+      "status": "MODIFIED"
+    },
+    {
+      "requirementIds": [
+        "CL-A3-REQ-004",
+        "CL-A3-REQ-005",
+        "CL-A3-REQ-007",
+        "CL-A3-REQ-008",
+        "CL-A3-REQ-009",
+        "CL-A3-REQ-010",
+        "CL-A3-REQ-014",
+        "CL-A3-REQ-015",
+        "CL-A3-REQ-016"
+      ],
+      "file": "src/services/accounting/closeout/CloseoutTransactionRunner.js",
+      "type": "production",
+      "baselineSha256": "b2a18370426661eb02068cdfd9be796757e2e401ce04637ca426a816571b9af6",
+      "a3Sha256": "51891d2de0e08188c3e34a5c0990a678a3aaeabfb181e7888c1d00d85503afb7",
+      "status": "MODIFIED"
+    },
+    {
+      "requirementIds": [
+        "CL-A3-REQ-004",
+        "CL-A3-REQ-005",
+        "CL-A3-REQ-007",
+        "CL-A3-REQ-008",
+        "CL-A3-REQ-009",
+        "CL-A3-REQ-010",
+        "CL-A3-REQ-014",
+        "CL-A3-REQ-015",
+        "CL-A3-REQ-016"
+      ],
+      "file": "src/services/arLedgerRead.service.js",
+      "type": "production",
+      "baselineSha256": "201f4b017d916dfdc5a5bda7746191dd419da63db18b6b3a681a016d490513c2",
+      "a3Sha256": "e9bde27b987cab8a02d6b51f5d9b4a02c7ba6a6d8204d400748054731b5ac5aa",
+      "status": "MODIFIED"
+    },
+    {
+      "requirementIds": [
+        "CL-A3-REQ-004",
+        "CL-A3-REQ-005",
+        "CL-A3-REQ-007",
+        "CL-A3-REQ-008",
+        "CL-A3-REQ-009",
+        "CL-A3-REQ-010",
+        "CL-A3-REQ-014",
+        "CL-A3-REQ-015",
+        "CL-A3-REQ-016"
+      ],
+      "file": "src/services/auditService.js",
+      "type": "production",
+      "baselineSha256": "4fc758bb4bf3bd141d9987d8f38210d22feb424e2de0b88cef43a7b171df82da",
+      "a3Sha256": "00b27e3fff3418a0f1272aca8a76b0a909ccaaa2515a307526d2ab28901774b4",
+      "status": "MODIFIED"
+    },
+    {
+      "requirementIds": [
+        "CL-A3-REQ-002",
+        "CL-A3-REQ-011",
+        "CL-A3-REQ-012",
+        "CL-A3-REQ-013",
+        "CL-A3-REQ-017"
+      ],
+      "file": "test/performance/closeout-perf-a3/closeout-perf-a3-batch-context.test.js",
+      "type": "test_or_benchmark",
+      "baselineSha256": null,
+      "a3Sha256": "2d4532f0e629f613cc97458f1801ab50df6e92fe128bc2528f9432ee4035b1f7",
+      "status": "ADDED"
+    },
+    {
+      "requirementIds": [
+        "CL-A3-REQ-002",
+        "CL-A3-REQ-011",
+        "CL-A3-REQ-012",
+        "CL-A3-REQ-013",
+        "CL-A3-REQ-017"
+      ],
+      "file": "test/performance/closeout-perf-a3/closeout-perf-a3-debt-safety-behavior.test.js",
+      "type": "test_or_benchmark",
+      "baselineSha256": null,
+      "a3Sha256": "bfe75b011447586e17bfb65dc12a2e64b1a4b227f9df53a1015ad33a79afb541",
+      "status": "ADDED"
+    },
+    {
+      "requirementIds": [
+        "CL-A3-REQ-002",
+        "CL-A3-REQ-011",
+        "CL-A3-REQ-012",
+        "CL-A3-REQ-013",
+        "CL-A3-REQ-017"
+      ],
+      "file": "test/performance/closeout-perf-a3/closeout-perf-a3-integration-contract.test.js",
+      "type": "test_or_benchmark",
+      "baselineSha256": null,
+      "a3Sha256": "4bdc2931d951854efc1beb180167e31663b0f579831d320b83cf4199fa41fcfd",
+      "status": "ADDED"
+    },
+    {
+      "requirementIds": [
+        "CL-A3-REQ-002",
+        "CL-A3-REQ-011",
+        "CL-A3-REQ-012",
+        "CL-A3-REQ-013",
+        "CL-A3-REQ-017"
+      ],
+      "file": "test/performance/closeout-perf-a3/closeout-perf-a3-runner-behavior.test.js",
+      "type": "test_or_benchmark",
+      "baselineSha256": null,
+      "a3Sha256": "a347ad04f52c37f290ed7428f100e1094dfe8b917d6d74f407c4ee883de1d34d",
+      "status": "ADDED"
+    },
+    {
+      "requirementIds": [
+        "CL-A3-REQ-002",
+        "CL-A3-REQ-011",
+        "CL-A3-REQ-012",
+        "CL-A3-REQ-013",
+        "CL-A3-REQ-017"
+      ],
+      "file": "scripts/performance/closeout-perf-a3/run-query-budget.js",
+      "type": "test_or_benchmark",
+      "baselineSha256": null,
+      "a3Sha256": "a75ecf471a368c0f59e8e6c720054920b24194de3a4f30ec7e7d19136fe4db03",
+      "status": "ADDED"
+    }
+  ],
+  "protectedUnchanged": [
+    {
+      "file": "src/services/delivery/financial/deliveryMoneyContract.js",
+      "baselineSha256": "9e23511a8ea2643f805f923b3d5a44b01b6cc24397307cb539b090a32e670e92",
+      "a3Sha256": "9e23511a8ea2643f805f923b3d5a44b01b6cc24397307cb539b090a32e670e92",
+      "unchanged": true
+    },
+    {
+      "file": "src/services/accounting/OrderPaymentAllocationService.js",
+      "baselineSha256": "c7026f6030e1ac955b57d60ef5d474926840acdd88fe58d4eb245123b9d470b5",
+      "a3Sha256": "c7026f6030e1ac955b57d60ef5d474926840acdd88fe58d4eb245123b9d470b5",
+      "unchanged": true
+    },
+    {
+      "file": "src/services/accounting/closeout/CloseoutCriticalReader.js",
+      "baselineSha256": "297e762c10b9c27109469cc8280019498c2cb2f79e091c91b76c563e8065bb00",
+      "a3Sha256": "297e762c10b9c27109469cc8280019498c2cb2f79e091c91b76c563e8065bb00",
+      "unchanged": true
+    },
+    {
+      "file": "src/services/returns/DeliveryReturnMutationGuard.js",
+      "baselineSha256": "2c8f2b9d2842563d6886183256d1949a4fa21f3e8c7f4848dda5733cc3c436e1",
+      "a3Sha256": "2c8f2b9d2842563d6886183256d1949a4fa21f3e8c7f4848dda5733cc3c436e1",
+      "unchanged": true
+    },
+    {
+      "file": "src/domain/ar/arLedgerValidator.js",
+      "baselineSha256": "a5a874ecef71e01a81fa04e31684b3f5794b28de5ae085a1ad30d39f5ef11fdf",
+      "a3Sha256": "a5a874ecef71e01a81fa04e31684b3f5794b28de5ae085a1ad30d39f5ef11fdf",
+      "unchanged": true
+    },
+    {
+      "file": "src/domain/ar/arLedgerQueryPolicy.js",
+      "baselineSha256": "c43e1f6239b0c804851cdbc925f18fb2a3f1faf83511b5a298d7b18307b54d05",
+      "a3Sha256": "c43e1f6239b0c804851cdbc925f18fb2a3f1faf83511b5a298d7b18307b54d05",
+      "unchanged": true
+    }
+  ],
+  "unrelatedRefactor": false
+}

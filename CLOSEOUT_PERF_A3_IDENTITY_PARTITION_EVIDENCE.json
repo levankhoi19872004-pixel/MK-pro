@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.0",
+  "requirementIds": [
+    "CL-A3-REQ-003",
+    "CL-A3-REQ-006",
+    "CL-A3-REQ-011"
+  ],
+  "strategy": [
+    "Reuse resolveCanonicalArOrderIdentity; no new identity convention.",
+    "canonicalOrderKey = resolved orderId, otherwise resolved orderCode.",
+    "All allowed lookupKeys are reverse-indexed alias -> canonicalOrderKey.",
+    "Alias owned by two orders is rejected before Mongo query.",
+    "Rows are assigned by allowed order alias; customerCode only verifies scope after identity assignment."
+  ],
+  "cases": {
+    "uniqueOrderCode": "PASS",
+    "uniqueOrderId": "PASS",
+    "orderIdAndCode": "PASS",
+    "legacyAllowedAlias": "PASS",
+    "sharedAlias": "FAIL_CLOSED_PASS",
+    "duplicateCanonicalIdentity": "FAIL_CLOSED_PASS",
+    "missingIdentity": "FAIL_CLOSED_PASS",
+    "sameCustomerMultipleOrders": "PASS",
+    "differentCustomerSameLookingAlias": "FAIL_CLOSED_PASS"
+  },
+  "crossAssignment": 0,
+  "scopeLeak": false
+}

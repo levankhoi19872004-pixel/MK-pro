@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-08-07T04:11:28.874399+00:00",
+  "requirements": [
+    "CL-A2-REQ-009"
+  ],
+  "backend": "18/18 PASS",
+  "frontend": "12/12 PASS",
+  "goldenCases": [
+    {
+      "name": "B0041190-equivalent",
+      "receivable": 688113,
+      "cash": 503000,
+      "reward": 185000,
+      "expectedReward": 185000,
+      "expectedDebtRaw": 113,
+      "expectedDebt": 0,
+      "status": "PASS"
+    },
+    {
+      "name": "B0041218-equivalent",
+      "receivable": 5213244,
+      "cash": 4333000,
+      "reward": 880000,
+      "expectedReward": 880000,
+      "expectedDebtRaw": 244,
+      "expectedDebt": 0,
+      "status": "PASS"
+    }
+  ],
+  "locks": {
+    "rewardDoubleCount": 0,
+    "fakeNegativeDebt": 0,
+    "independentRewardOffset": "PASS",
+    "legacySafeDuplicateAlias": "PASS",
+    "ambiguousLegacyFailSafe": "PASS",
+    "canonicalContractV2Changed": false
+  },
+  "status": "PASS"
+}

@@ -4,6 +4,14 @@ const { withMongoTransaction } = require('../../../utils/transaction.util');
 const CriticalReader = require('./CloseoutCriticalReader');
 const { compactDeliveryOrderKeys } = require('../../master-order/masterOrderIdentity.util');
 const closeoutQueryAudit = require('../../../observability/closeoutQueryAudit');
+const featureFlags = require('../../../config/featureFlags');
+
+
+function debtReconcileService() {
+  // Keep the A2/default flag-OFF path dependency-neutral. The heavier accounting
+  // service is loaded only when the A3 batch path is explicitly enabled.
+  return require('../OrderPaymentDebtReconcileService');
+}
 
 function clean(value = '') {
   return String(value ?? '').trim();
@@ -81,10 +89,15 @@ async function runCloseoutTransaction({
   if (typeof confirmOneOrder !== 'function') throw new TypeError('confirmOneOrder is required');
   if (typeof assertReturnOrdersInventoryReady !== 'function') throw new TypeError('assertReturnOrdersInventoryReady is required');
   const criticalReads = [];
+  let initialArBalanceBatch = null;
 
   await withMongoTransaction(async (session) => closeoutQueryAudit.withTransactionAttempt(async () => {
     const critical = await CriticalReader.loadCriticalOrdersAndReturns(pendingConfirmOrders, { session });
     const returnByKey = groupReturnOrdersBySalesOrder(critical.returnOrders, critical.orders);
+    const useArBalanceBatch = featureFlags.FLAGS.closeoutArBalanceBatchV1();
+    initialArBalanceBatch = useArBalanceBatch
+      ? await closeoutQueryAudit.withCloseoutAuditStage('transaction.arBalanceBatch', () => debtReconcileService().buildInitialArBalanceBatchContext(critical.orders, { session }))
+      : null;
     let orderIndex = 0;
     for (const order of critical.orders) {
       orderIndex += 1;
@@ -94,9 +107,14 @@ async function runCloseoutTransaction({
         returnOrderCount: returnOrders.length
       });
       closeoutQueryAudit.withCloseoutAuditStage('transaction.critical.validation', () => assertReturnOrdersInventoryReady(returnOrders));
+      const initialArBalanceBatchItem = useArBalanceBatch
+        ? debtReconcileService().initialArBalanceBatchItemForOrder(initialArBalanceBatch, order)
+        : null;
       const result = await closeoutQueryAudit.withCloseoutOrder(orderIndex, critical.orders.length, () => confirmOneOrder(order, returnOrders, {
         ...perOrderOptions,
-        session
+        session,
+        initialArBalanceBatchResolved: useArBalanceBatch,
+        initialArBalanceBatchDetails: initialArBalanceBatchItem
       }));
       results.push(result);
     }
@@ -106,6 +124,12 @@ async function runCloseoutTransaction({
     results,
     criticalReads,
     syncGroups: collectReadModelSyncGroups(results),
+    arBalanceBatch: initialArBalanceBatch ? {
+      enabled: true,
+      scopeCount: initialArBalanceBatch.scopeCount,
+      rawQueryCount: initialArBalanceBatch.rawQueryCount,
+      canonicalQueryCount: initialArBalanceBatch.canonicalQueryCount
+    } : { enabled: false, scopeCount: 0, rawQueryCount: 0, canonicalQueryCount: 0 },
     commandOptions
   };
 }

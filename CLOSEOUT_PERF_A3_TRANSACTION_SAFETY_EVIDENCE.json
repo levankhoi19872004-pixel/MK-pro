@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "1.0",
+  "requirementIds": [
+    "CL-A3-REQ-008",
+    "CL-A3-REQ-009",
+    "CL-A3-REQ-012",
+    "CL-A3-REQ-016"
+  ],
+  "noDebtPath": {
+    "prefetchedInitialBalanceReadsPerOrder": 0,
+    "freshPrePostIdempotencyReads": 0,
+    "mutation": false
+  },
+  "actualAdjustmentPath": {
+    "prefetchedInitialContext": true,
+    "freshSafetyBalanceReads": 1,
+    "freshPrePostIdempotencyReads": 1,
+    "adjustmentWrites": 1,
+    "freshAfterWriteBalanceReads": 1,
+    "totalFreshBalanceReadsAfterPrefetch": 2,
+    "verifiedBy": "CL-A3-REQ-008/012 behavior test"
+  },
+  "creditAdjustment": {
+    "signedCreditPreserved": true,
+    "afterWriteBalanceVerified": 0
+  },
+  "transaction": {
+    "batchReadsSameSession": true,
+    "rawCanonicalSequential": true,
+    "promiseAllOnSameSession": false,
+    "transactionCountBefore": 1,
+    "transactionCountAfter": 1
+  },
+  "protectedFiles": [
+    {
+      "file": "src/services/delivery/financial/deliveryMoneyContract.js",
+      "baselineSha256": "9e23511a8ea2643f805f923b3d5a44b01b6cc24397307cb539b090a32e670e92",
+      "a3Sha256": "9e23511a8ea2643f805f923b3d5a44b01b6cc24397307cb539b090a32e670e92",
+      "unchanged": true
+    },
+    {
+      "file": "src/services/accounting/OrderPaymentAllocationService.js",
+      "baselineSha256": "c7026f6030e1ac955b57d60ef5d474926840acdd88fe58d4eb245123b9d470b5",
+      "a3Sha256": "c7026f6030e1ac955b57d60ef5d474926840acdd88fe58d4eb245123b9d470b5",
+      "unchanged": true
+    },
+    {
+      "file": "src/services/accounting/closeout/CloseoutCriticalReader.js",
+      "baselineSha256": "297e762c10b9c27109469cc8280019498c2cb2f79e091c91b76c563e8065bb00",
+      "a3Sha256": "297e762c10b9c27109469cc8280019498c2cb2f79e091c91b76c563e8065bb00",
+      "unchanged": true
+    },
+    {
+      "file": "src/services/returns/DeliveryReturnMutationGuard.js",
+      "baselineSha256": "2c8f2b9d2842563d6886183256d1949a4fa21f3e8c7f4848dda5733cc3c436e1",
+      "a3Sha256": "2c8f2b9d2842563d6886183256d1949a4fa21f3e8c7f4848dda5733cc3c436e1",
+      "unchanged": true
+    },
+    {
+      "file": "src/domain/ar/arLedgerValidator.js",
+      "baselineSha256": "a5a874ecef71e01a81fa04e31684b3f5794b28de5ae085a1ad30d39f5ef11fdf",
+      "a3Sha256": "a5a874ecef71e01a81fa04e31684b3f5794b28de5ae085a1ad30d39f5ef11fdf",
+      "unchanged": true
+    },
+    {
+      "file": "src/domain/ar/arLedgerQueryPolicy.js",
+      "baselineSha256": "c43e1f6239b0c804851cdbc925f18fb2a3f1faf83511b5a298d7b18307b54d05",
+      "a3Sha256": "c43e1f6239b0c804851cdbc925f18fb2a3f1faf83511b5a298d7b18307b54d05",
+      "unchanged": true
+    }
+  ]
+}

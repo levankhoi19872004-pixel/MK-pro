@@ -1,0 +1,132 @@
+{
+  "schemaVersion": "1.0",
+  "promptId": "CLOSEOUT-PERF-A3",
+  "evidenceType": "E2_DETERMINISTIC_SOURCE_AWARE_LOGICAL_QUERY_BUDGET",
+  "productionLatencyClaimed": false,
+  "physicalMongoLatencyClaimed": false,
+  "invariants": {
+    "a3Flag": true,
+    "defaultOff": true,
+    "twoSequentialBatchReads": true,
+    "transactionStage": true,
+    "prefetchedContract": true,
+    "safetyReadPreserved": true,
+    "prePostGuardPreserved": true,
+    "afterWritePreserved": true
+  },
+  "formula": {
+    "a2": "7 fixed + 8*N + 1 bulk sync = 8*N + 8",
+    "a3": "A2 - (2*N initial AR reads) + 2 transaction batch reads; for N>=1 => 6*N + 10"
+  },
+  "workloads": [
+    {
+      "workload": 1,
+      "before": {
+        "workload": 1,
+        "logicalQueryCount": 16,
+        "initialRawBalanceQueries": 1,
+        "initialCanonicalBalanceQueries": 1,
+        "initialBalanceQueries": 2,
+        "arReadCount": 3,
+        "arWriteCount": 3,
+        "transactionCount": 1
+      },
+      "after": {
+        "workload": 1,
+        "logicalQueryCount": 16,
+        "initialRawBalanceQueries": 1,
+        "initialCanonicalBalanceQueries": 1,
+        "initialBalanceQueries": 2,
+        "arReadCount": 3,
+        "arWriteCount": 3,
+        "transactionCount": 1
+      },
+      "saved": 0
+    },
+    {
+      "workload": 16,
+      "before": {
+        "workload": 16,
+        "logicalQueryCount": 136,
+        "initialRawBalanceQueries": 16,
+        "initialCanonicalBalanceQueries": 16,
+        "initialBalanceQueries": 32,
+        "arReadCount": 33,
+        "arWriteCount": 48,
+        "transactionCount": 1
+      },
+      "after": {
+        "workload": 16,
+        "logicalQueryCount": 106,
+        "initialRawBalanceQueries": 1,
+        "initialCanonicalBalanceQueries": 1,
+        "initialBalanceQueries": 2,
+        "arReadCount": 3,
+        "arWriteCount": 48,
+        "transactionCount": 1
+      },
+      "saved": 30
+    },
+    {
+      "workload": 26,
+      "before": {
+        "workload": 26,
+        "logicalQueryCount": 216,
+        "initialRawBalanceQueries": 26,
+        "initialCanonicalBalanceQueries": 26,
+        "initialBalanceQueries": 52,
+        "arReadCount": 53,
+        "arWriteCount": 78,
+        "transactionCount": 1
+      },
+      "after": {
+        "workload": 26,
+        "logicalQueryCount": 166,
+        "initialRawBalanceQueries": 1,
+        "initialCanonicalBalanceQueries": 1,
+        "initialBalanceQueries": 2,
+        "arReadCount": 3,
+        "arWriteCount": 78,
+        "transactionCount": 1
+      },
+      "saved": 50
+    },
+    {
+      "workload": 60,
+      "before": {
+        "workload": 60,
+        "logicalQueryCount": 488,
+        "initialRawBalanceQueries": 60,
+        "initialCanonicalBalanceQueries": 60,
+        "initialBalanceQueries": 120,
+        "arReadCount": 121,
+        "arWriteCount": 180,
+        "transactionCount": 1
+      },
+      "after": {
+        "workload": 60,
+        "logicalQueryCount": 370,
+        "initialRawBalanceQueries": 1,
+        "initialCanonicalBalanceQueries": 1,
+        "initialBalanceQueries": 2,
+        "arReadCount": 3,
+        "arWriteCount": 180,
+        "transactionCount": 1
+      },
+      "saved": 118
+    }
+  ],
+  "hardAcceptance": {
+    "orders16Max": 108,
+    "orders26Max": 168,
+    "orders60Max": 372,
+    "preferred60": 370,
+    "actual60": 370,
+    "pass": true
+  },
+  "protected": {
+    "arWriteCountUnchanged": true,
+    "transactionCountUnchanged": true,
+    "actualAdjustmentSafetyReadsExcludedFromNoDebtBudgetButPreservedByBehaviorTest": true
+  }
+}

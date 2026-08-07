@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-08-07T04:11:28.874399+00:00",
+  "requirements": [
+    "CL-A2-REQ-009",
+    "CL-A2-REQ-010",
+    "CL-A2-REQ-011"
+  ],
+  "mustPass": {
+    "debt_deviation": 0,
+    "duplicate_ar_ledger_application": 0,
+    "reward_double_count": 0,
+    "return_parity_percent": 100,
+    "allocation_parity_percent": 100,
+    "scope_isolation": true,
+    "transaction_failure_isolation": true,
+    "idempotent_retry": true
+  },
+  "evidence": {
+    "rewardAndDebt": "reward backend 18/18 + frontend 12/12",
+    "returnParity": "reward backend A2-015 PASS; Return SSoT production files unchanged",
+    "allocationParity": "reward backend A2-012..A2-015 PASS; OrderPaymentAllocationService unchanged",
+    "scopeIsolation": "A2 behavior canonical/missing/mismatch tests PASS",
+    "transactionFailureIsolation": "dependency-free transaction boundary 2/2 PASS; CloseoutTransactionRunner unchanged",
+    "idempotentRetry": "reward backend A2-014 PASS; Q18 duplicate/retry tests PASS",
+    "protectedFiles": [
+      {
+        "file": "src/services/accounting/closeout/CloseoutTransactionRunner.js",
+        "baselineSha256": "b2a18370426661eb02068cdfd9be796757e2e401ce04637ca426a816571b9af6",
+        "a2Sha256": "b2a18370426661eb02068cdfd9be796757e2e401ce04637ca426a816571b9af6",
+        "unchanged": true
+      },
+      {
+        "file": "src/services/accounting/closeout/CloseoutCriticalReader.js",
+        "baselineSha256": "297e762c10b9c27109469cc8280019498c2cb2f79e091c91b76c563e8065bb00",
+        "a2Sha256": "297e762c10b9c27109469cc8280019498c2cb2f79e091c91b76c563e8065bb00",
+        "unchanged": true
+      },
+      {
+        "file": "src/services/accounting/AccountingCloseoutService.js",
+        "baselineSha256": "ecd056a500c8e5da1bc3c4ec0490cfa4dfd15148ea5975aac9febeb89d391732",
+        "a2Sha256": "ecd056a500c8e5da1bc3c4ec0490cfa4dfd15148ea5975aac9febeb89d391732",
+        "unchanged": true
+      },
+      {
+        "file": "src/services/accounting/OrderPaymentAllocationService.js",
+        "baselineSha256": "c7026f6030e1ac955b57d60ef5d474926840acdd88fe58d4eb245123b9d470b5",
+        "a2Sha256": "c7026f6030e1ac955b57d60ef5d474926840acdd88fe58d4eb245123b9d470b5",
+        "unchanged": true
+      },
+      {
+        "file": "src/services/delivery/financial/deliveryMoneyContract.js",
+        "baselineSha256": "9e23511a8ea2643f805f923b3d5a44b01b6cc24397307cb539b090a32e670e92",
+        "a2Sha256": "9e23511a8ea2643f805f923b3d5a44b01b6cc24397307cb539b090a32e670e92",
+        "unchanged": true
+      },
+      {
+        "file": "src/services/master-order/masterOrderReturn.impl.js",
+        "baselineSha256": "5ca2f082a687d276211077f8c963faeeaef844ddb9ec328388b3276befdbb808",
+        "a2Sha256": "5ca2f082a687d276211077f8c963faeeaef844ddb9ec328388b3276befdbb808",
+        "unchanged": true
+      },
+      {
+        "file": "src/services/arLedgerRead.service.js",
+        "baselineSha256": "201f4b017d916dfdc5a5bda7746191dd419da63db18b6b3a681a016d490513c2",
+        "a2Sha256": "201f4b017d916dfdc5a5bda7746191dd419da63db18b6b3a681a016d490513c2",
+        "unchanged": true
+      }
+    ]
+  },
+  "environmentLimitations": [
+    "Legacy tests importing mongoose directly are NOT_RUN_ENVIRONMENT because release ZIP intentionally has no node_modules.",
+    "Phase247 UI runtime test is PRE_EXISTING_STALE_TEST_CONTRACT: authoritative baseline and A2 both fail the same four cases because its VM harness omits hasReturnLockedStatus; A2 did not modify that frontend file."
+  ],
+  "status": "PASS_WITH_DOCUMENTED_ENVIRONMENT_LIMITATIONS"
+}

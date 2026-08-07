@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "1.0",
+  "promptId": "CLOSEOUT-PERF-A2",
+  "generatedAt": "2026-08-07T04:11:28.874399+00:00",
+  "baseline": {
+    "releaseId": "REWARD-DOUBLECOUNT-A4-FINAL",
+    "zipSha256": "0042270bff18480b6cf45f383127686e0b8e0c4f3b5ea7a814b9acbc4135a398",
+    "fileCount": 2349
+  },
+  "red": {
+    "OPT-01": {
+      "exitCode": 1,
+      "tests": 3,
+      "pass": 1,
+      "fail": 2,
+      "tail": "    Test.run (node:internal/test_runner/test:1101:12)\n    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)\n  ...\n# Subtest: CL-A2-REQ-001/011: actual mutation path keeps one fresh pre-post idempotency guard\nok 3 - CL-A2-REQ-001/011: actual mutation path keeps one fresh pre-post idempotency guard\n  ---\n  duration_ms: 1.0741\n  type: 'test'\n  ...\n1..3\n# tests 3\n# suites 0\n# pass 1\n# fail 2\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 49.916384"
+    },
+    "OPT-02": {
+      "exitCode": 1,
+      "tests": 3,
+      "pass": 0,
+      "fail": 3,
+      "tail": "  stack: |-\n    TestContext.<anonymous> (/mnt/data/closeout_perf_a2_work/source/test/performance/closeout-perf-a2/closeout-perf-a2-opt02-redgreen.test.js:23:10)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)\n  ...\n1..3\n# tests 3\n# suites 0\n# pass 0\n# fail 3\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 49.532529"
+    },
+    "OPT-03": {
+      "exitCode": 1,
+      "tests": 2,
+      "pass": 0,
+      "fail": 2,
+      "tail": "  stack: |-\n    TestContext.<anonymous> (/mnt/data/closeout_perf_a2_work/source/test/performance/closeout-perf-a2/closeout-perf-a2-opt03-redgreen.test.js:18:10)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)\n  ...\n1..2\n# tests 2\n# suites 0\n# pass 0\n# fail 2\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 52.132807"
+    }
+  },
+  "green": {
+    "targeted": {
+      "exitCode": 0,
+      "tests": 24,
+      "pass": 24,
+      "fail": 0,
+      "tail": "  duration_ms: 2.180188\n  type: 'test'\n  ...\n# Subtest: CL-A2-REQ-010/011: successful writers share one transaction session and commit once\nok 24 - CL-A2-REQ-010/011: successful writers share one transaction session and commit once\n  ---\n  duration_ms: 0.912598\n  type: 'test'\n  ...\n1..24\n# tests 24\n# suites 0\n# pass 24\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 108.421856"
+    },
+    "rewardBackend": {
+      "exitCode": 0,
+      "tests": 18,
+      "pass": 18,
+      "fail": 0,
+      "tail": "  duration_ms: 1.717324\n  type: 'test'\n  ...\n# Subtest: A2-018 Delivery Today backend KPI renders canonical reward total once for legacy mirror fixture\nok 18 - A2-018 Delivery Today backend KPI renders canonical reward total once for legacy mirror fixture\n  ---\n  duration_ms: 0.651965\n  type: 'test'\n  ...\n1..18\n# tests 18\n# suites 0\n# pass 18\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 79.720611"
+    },
+    "rewardFrontend": {
+      "exitCode": 0,
+      "tests": 12,
+      "pass": 12,
+      "fail": 0,
+      "tail": "  duration_ms: 0.368922\n  type: 'test'\n  ...\n# Subtest: A3-012 all shipped frontend JS contains no raw reward-plus-offset arithmetic\nok 12 - A3-012 all shipped frontend JS contains no raw reward-plus-offset arithmetic\n  ---\n  duration_ms: 11.30214\n  type: 'test'\n  ...\n1..12\n# tests 12\n# suites 0\n# pass 12\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 76.600625"
+    },
+    "outbox": {
+      "exitCode": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "tail": "  duration_ms: 0.343177\n  type: 'test'\n  ...\n# Subtest: read model sync job upsert keeps $set and $setOnInsert paths disjoint\nok 3 - read model sync job upsert keeps $set and $setOnInsert paths disjoint\n  ---\n  duration_ms: 1.318835\n  type: 'test'\n  ...\n1..3\n# tests 3\n# suites 0\n# pass 3\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 45.447368"
+    },
+    "phase242b": {
+      "exitCode": 0,
+      "tests": 12,
+      "pass": 12,
+      "fail": 0,
+      "tail": "  duration_ms: 0.573117\n  type: 'test'\n  ...\n# Subtest: Phase242B reuses API Monitor observer and does not add a second Mongoose patch\nok 12 - Phase242B reuses API Monitor observer and does not add a second Mongoose patch\n  ---\n  duration_ms: 1.087631\n  type: 'test'\n  ...\n1..12\n# tests 12\n# suites 0\n# pass 12\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 66.924196"
+    },
+    "phase243": {
+      "exitCode": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "tail": "  duration_ms: 1.763226\n  type: 'test'\n  ...\n# Subtest: Phase243 backend exposes shared eligibility and route preserves rejected contract\nok 4 - Phase243 backend exposes shared eligibility and route preserves rejected contract\n  ---\n  duration_ms: 1.440958\n  type: 'test'\n  ...\n1..4\n# tests 4\n# suites 0\n# pass 4\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 53.957473"
+    },
+    "phase244": {
+      "exitCode": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "tail": "  duration_ms: 0.753401\n  type: 'test'\n  ...\n# Subtest: Phase244 closeout service has transaction guard and writer evidence contract\nok 7 - Phase244 closeout service has transaction guard and writer evidence contract\n  ---\n  duration_ms: 0.786501\n  type: 'test'\n  ...\n1..7\n# tests 7\n# suites 0\n# pass 7\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 47.264248"
+    },
+    "fullPerformance": {
+      "exitCode": 0,
+      "tests": 187,
+      "pass": 187,
+      "fail": 0,
+      "tail": "  duration_ms: 120.344969\n  type: 'test'\n  ...\n# Subtest: real report descriptors accept and propagate execution context\nok 187 - real report descriptors accept and propagate execution context\n  ---\n  duration_ms: 1.523335\n  type: 'test'\n  ...\n1..187\n# tests 187\n# suites 0\n# pass 187\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 14246.509561"
+    }
+  },
+  "redGreenConclusion": {
+    "OPT-01": "RED demonstrated missing no-debt short-circuit; GREEN proves Q17=0 on no-debt and fresh Q17=1 before actual adjustment mutation.",
+    "OPT-02": "RED demonstrated serial sync path; GREEN proves N groups use one bulk command on success, duplicate payloads dedupe, whole batch retries once on error.",
+    "OPT-03": "RED demonstrated unconditional MasterOrder lookup; GREEN proves matching canonical SalesOrder assignment skips Q2 while missing/mismatch retains fallback/rejection."
+  },
+  "status": "PASS"
+}
