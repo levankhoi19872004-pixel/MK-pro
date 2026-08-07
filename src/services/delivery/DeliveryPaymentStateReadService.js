@@ -20,6 +20,7 @@ const CLOSEOUT_VERSION_HOT_PATH_PROJECTION = [
   'cashAmount', 'newCashAmount', 'cashCollectedAmount',
   'bankAmount', 'newBankAmount', 'rewardAmount', 'newRewardAmount',
   'offsetAmount', 'newOffsetAmount',
+  'rewardOffsetContractVersion', 'rewardOffsetSemantics', 'rewardOffsetTotalAmount',
   'collectedAmount', 'newCollectedAmount',
   'rawFinalDebtAmount', 'rawDebtAmount', 'finalDebtAmount', 'debtAmount',
   'correctionId', 'correctionCode'
@@ -73,6 +74,16 @@ function closeoutOf(order = {}) {
   return order.deliveryCloseout && typeof order.deliveryCloseout === 'object'
     ? order.deliveryCloseout
     : {};
+}
+
+function embeddedConfirmedCloseoutVersion(order = {}) {
+  const closeout = closeoutOf(order);
+  const embeddedVersion = versionNumber(closeout, VERSION_NUMBER_FIELDS);
+  if (embeddedVersion <= 0) return 0;
+  const status = normalizedStatus(closeout);
+  const confirmed = order.accountingConfirmed === true
+    || ['accounting_confirmed', 'confirmed', 'posted', 'corrected_confirmed'].includes(status);
+  return confirmed ? embeddedVersion : 0;
 }
 
 function closeoutMoneyBreakdown(closeout = {}) {
@@ -387,6 +398,9 @@ function latestVersionFinalState(latestVersion = null) {
     bankAmount: latestVersion.bankAmount ?? latestVersion.newBankAmount,
     rewardAmount: latestVersion.rewardAmount ?? latestVersion.newRewardAmount,
     offsetAmount: latestVersion.offsetAmount ?? latestVersion.newOffsetAmount,
+    rewardOffsetContractVersion: latestVersion.rewardOffsetContractVersion,
+    rewardOffsetSemantics: latestVersion.rewardOffsetSemantics,
+    rewardOffsetTotalAmount: latestVersion.rewardOffsetTotalAmount,
     collectedAmount: latestVersion.collectedAmount ?? latestVersion.newCollectedAmount,
     receivableAmount: latestVersion.receivableAmount ?? latestVersion.originalAmount ?? latestVersion.saleAmount
   };
@@ -485,7 +499,12 @@ function buildCanonicalDeliveryFinancialState(order = {}, loadedContext = {}, op
     diagnostics.push({ code: 'DUPLICATE_PAYMENT_IDENTITY', source: 'deliveryCloseoutVersions', version: versionResolution.maxVersion });
   }
   const latestVersion = versionResolution.row;
-  const effectiveVersion = versionNumber(latestVersion || {}, VERSION_NUMBER_FIELDS);
+  const externalVersion = versionNumber(latestVersion || {}, VERSION_NUMBER_FIELDS);
+  const embeddedVersion = externalVersion > 0 ? 0 : embeddedConfirmedCloseoutVersion(order);
+  const effectiveVersion = externalVersion || embeddedVersion;
+  if (embeddedVersion > 0) {
+    diagnostics.push({ code: 'EMBEDDED_CLOSEOUT_VERSION_AUTHORITY', source: 'salesOrders.deliveryCloseout', version: embeddedVersion });
+  }
   const allocationResolution = loadedContext.allocationResolution
     || allocationResolutionForOrder(order, loadedContext.allocationsByKey || new Map(), effectiveVersion);
   if (allocationResolution.reason === 'STALE') diagnostics.push({ code: 'ALLOCATION_STALE' });
@@ -530,6 +549,7 @@ function buildCanonicalDeliveryFinancialState(order = {}, loadedContext = {}, op
     bankAmount: breakdown.bankAmount,
     rewardAmount: breakdown.rewardAmount,
     offsetAmount: breakdown.offsetAmount,
+    handledRewardOffsetAmount: breakdown.handledRewardOffsetAmount,
     returnAmount: returnState.returnAmount
   }, { zeroTolerance: options.zeroTolerance });
 
@@ -548,7 +568,8 @@ function buildCanonicalDeliveryFinancialState(order = {}, loadedContext = {}, op
   }, diagnostics);
 
   const integrityStatus = diagnostics.some((row) => [
-    'INVALID_MONEY', 'NEGATIVE_INPUT_COMPONENT', 'DUPLICATE_PAYMENT_IDENTITY'
+    'INVALID_MONEY', 'NEGATIVE_INPUT_COMPONENT', 'DUPLICATE_PAYMENT_IDENTITY',
+    'AMBIGUOUS_LEGACY_REWARD_OFFSET', 'REWARD_OFFSET_CONTRACT_INCONSISTENT'
   ].includes(row.code))
     ? 'degraded'
     : (diagnostics.length ? 'warning' : 'ok');
@@ -561,6 +582,11 @@ function buildCanonicalDeliveryFinancialState(order = {}, loadedContext = {}, op
     bankAmount: breakdown.bankAmount,
     rewardAmount: breakdown.rewardAmount,
     offsetAmount: breakdown.offsetAmount,
+    handledRewardOffsetAmount: breakdown.handledRewardOffsetAmount,
+    rewardOffsetClassification: breakdown.rewardOffsetClassification,
+    rewardOffsetSemantic: breakdown.rewardOffsetSemantic,
+    rewardOffsetEvidence: breakdown.rewardOffsetEvidence,
+    rewardOffsetAmbiguous: breakdown.rewardOffsetAmbiguous,
     totalCollectedAmount: debt.totalCollectedAmount,
     collectedAmount: debt.totalCollectedAmount,
     returnAmount: returnState.returnAmount,
@@ -581,7 +607,9 @@ function buildCanonicalDeliveryFinancialState(order = {}, loadedContext = {}, op
 
     // Backward-compatible metadata used by existing readers until Gate 3 migration.
     source: { paymentState: paymentStateSource, returnState: returnState.returnStateSource || 'returnOrders' },
-    latestCorrectionVersion: effectiveVersion,
+    latestCorrectionVersion: externalVersion,
+    effectivePaymentVersion: effectiveVersion,
+    paymentVersionAuthority: postedAllocation && embeddedVersion > 0 ? 'salesOrders.deliveryCloseout.version' : (externalVersion > 0 ? 'deliveryCloseoutVersions.latest' : ''),
     paymentAllocationCode: text(postedAllocation && (postedAllocation.allocationCode || postedAllocation.code || postedAllocation.id)),
     stalePaymentAllocationIgnored: allocationResolution.reason === 'STALE',
     latestVersion,

@@ -235,6 +235,9 @@ function compactCloseoutForOrder(closeout = {}) {
     collectedAmount: closeout.collectedAmount,
     offsetAmount: closeout.offsetAmount,
     rewardAmount: closeout.rewardAmount,
+    rewardOffsetContractVersion: closeout.rewardOffsetContractVersion,
+    rewardOffsetSemantics: closeout.rewardOffsetSemantics,
+    rewardOffsetTotalAmount: closeout.rewardOffsetTotalAmount,
     rawFinalDebtAmount: closeout.rawFinalDebtAmount,
     finalDebtAmount: closeout.finalDebtAmount,
     returnOrderIds: Array.isArray(closeout.returnOrderIds) ? closeout.returnOrderIds : [],
@@ -273,7 +276,7 @@ function buildCloseoutDiagnostic(order = {}, closeout = {}, arResult = null) {
     receivableAmount: DeliveryCloseoutService._internal.money(closeout.originalAmount),
     cashAmount: DeliveryCloseoutService._internal.money(closeout.cashAmount),
     bankAmount: DeliveryCloseoutService._internal.money(closeout.bankAmount),
-    rewardAmount: DeliveryCloseoutService._internal.money(closeout.offsetAmount ?? closeout.rewardAmount),
+    rewardAmount: DeliveryCloseoutService._internal.money(closeout.rewardOffsetTotalAmount ?? closeout.rewardAmount ?? closeout.offsetAmount),
     offsetAmount: DeliveryCloseoutService._internal.money(closeout.offsetAmount),
     returnAmount: DeliveryCloseoutService._internal.money(closeout.returnedAmount),
     rawDebtAmount: DeliveryCloseoutService._internal.money(closeout.rawFinalDebtAmount),
@@ -687,7 +690,7 @@ async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
       bankFundPathUsed: false,
       fundPostingDeferred: allocationResult.fundPostingDeferred === true,
       fundPostingOwner: 'DELIVERY_CASH_SUBMISSION',
-      rewardOffsetUsed: Number(confirmedCloseout.rewardAmount || confirmedCloseout.offsetAmount || 0) > 0,
+      rewardOffsetUsed: Number(confirmedCloseout.rewardOffsetTotalAmount ?? confirmedCloseout.rewardAmount ?? confirmedCloseout.offsetAmount ?? 0) > 0,
       returnAmountUsed: Number(confirmedCloseout.returnedAmount || confirmedCloseout.returnAmount || 0) > 0,
       debtReconcileOutcome: debtReconcileResult?.posted ? 'ADJUSTMENT_POSTED'
         : (debtReconcileResult?.skippedAlreadyFixed || debtReconcileResult?.skipReason === 'NO_DEBT_DELTA' ? 'NO_DEBT_DELTA'

@@ -667,7 +667,14 @@ test('Phase110 delivery closeout maps reward/offset aliases into TH and final de
     const closeout = DeliveryCloseoutService.buildCloseout(order, [], [], { actor: 'test' });
     assert.equal(closeout.rawFinalDebtAmount, 3580573, `alias ${field} must be deducted from debt`);
     assert.equal(closeout.finalDebtAmount, 3580573, `alias ${field} must be posted as normalized debt`);
-    assert.equal(closeout.offsetAmount, 1820000, `alias ${field} must appear in TH/offset diagnostic`);
+    assert.equal(closeout.rewardOffsetTotalAmount, 1820000, `alias ${field} must appear exactly once in canonical TH total`);
+    if (field === 'offsetAmount' || field === 'debtOffsetAmount') {
+      assert.equal(closeout.rewardAmount, 0, `independent offset alias ${field} must not be mirrored into rewardAmount`);
+      assert.equal(closeout.offsetAmount, 1820000, `independent offset alias ${field} must remain offsetAmount`);
+    } else {
+      assert.equal(closeout.rewardAmount, 1820000, `reward alias ${field} must remain rewardAmount`);
+      assert.equal(closeout.offsetAmount, 0, `reward alias ${field} must not be mirrored into offsetAmount`);
+    }
   }
 });
 
@@ -676,7 +683,7 @@ test('Phase110 AR-DEBT-OPEN source stores reward/offset diagnostic fields', () =
   const path = require('node:path');
   const source = fs.readFileSync(path.join(__dirname, '..', 'src/services/accounting/ArDebtOpenPostingService.js'), 'utf8');
   assert.match(source, /amount = normalizeDebtAmount\(closeout\.finalDebtAmount\)/);
-  assert.match(source, /rewardAmount:\s*money\(closeout\.offsetAmount \?\? closeout\.rewardAmount\)/);
+  assert.match(source, /rewardOffsetTotalAmount \?\? closeout\.rewardAmount \?\? closeout\.offsetAmount/);
   assert.match(source, /offsetAmount:\s*money\(closeout\.offsetAmount\)/);
   assert.match(source, /rawFinalDebtAmount/);
   assert.match(source, /finalDebtAmount/);

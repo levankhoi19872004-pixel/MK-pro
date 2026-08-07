@@ -24,6 +24,7 @@ const {
   loadReturnMutationContext
 } = require('../domain/returns/ReturnMutationGuard');
 const DeliveryPaymentStateReadService = require('./delivery/DeliveryPaymentStateReadService');
+const DeliveryMoneyContract = require('./delivery/financial/deliveryMoneyContract');
 const {
   ADJUSTMENT_INTENTS,
   resolveDeliveryAdjustmentCommand
@@ -147,8 +148,33 @@ function previousBankAmount(snapshot = {}) {
   return money(snapshot.bankAmount ?? snapshot.newBankAmount ?? snapshot.transferAmount ?? snapshot.bankTransferAmount ?? snapshot.previousBankAmount ?? 0);
 }
 
+function canonicalHandledRewardOffset(source = {}, options = {}) {
+  const diagnostics = [];
+  const normalized = DeliveryMoneyContract.resolveRewardOffsetComponents(source, {
+    diagnostics,
+    sourceName: options.sourceName || 'deliveryCloseoutCorrection',
+    cashAmount: options.cashAmount,
+    bankAmount: options.bankAmount,
+    zeroTolerance: options.zeroTolerance
+  });
+  if (normalized.classification === 'ambiguous') {
+    const err = new Error('Không đủ provenance để phân biệt rewardAmount và offsetAmount trong closeout correction.');
+    err.code = 'AMBIGUOUS_LEGACY_REWARD_OFFSET';
+    err.diagnostics = diagnostics;
+    throw err;
+  }
+  return money(normalized.handledRewardOffsetAmount);
+}
+
 function previousRewardAmount(snapshot = {}) {
-  return money(snapshot.rewardAmount ?? snapshot.newRewardAmount ?? snapshot.bonusAmount ?? snapshot.allowanceAmount ?? snapshot.previousRewardAmount ?? 0);
+  if (snapshot && typeof snapshot === 'object') {
+    const hasCanonicalFields = [...DeliveryMoneyContract.REWARD_FIELDS, ...DeliveryMoneyContract.OFFSET_FIELDS]
+      .some((field) => hasOwnValue(snapshot, field));
+    if (hasCanonicalFields) {
+      return canonicalHandledRewardOffset(snapshot, { sourceName: 'deliveryCloseoutCorrection.previousSnapshot' });
+    }
+  }
+  return money(snapshot.previousRewardAmount ?? 0);
 }
 
 function previousDebtAmount(snapshot = {}, order = {}) {
@@ -203,9 +229,24 @@ function openOrderPaymentState(order = {}) {
   const closeout = closeoutOf(order);
   const receivableAmount = saleAmount(order, closeout);
   const returnAmount = firstOrderMoney(closeout, ['returnAmount', 'returnedAmount'], firstOrderMoney(order, ['returnAmount', 'returnedAmount', 'returnOrderAmount'], 0));
-  const cashAmount = firstOrderMoney(closeout, ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount'], firstOrderMoney(order, ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount', 'paidCashAmount'], 0));
-  const bankAmount = firstOrderMoney(closeout, ['bankAmount', 'bankTransferAmount', 'transferAmount'], firstOrderMoney(order, ['bankAmount', 'bankTransferAmount', 'transferAmount', 'paidBankAmount'], 0));
-  const rewardAmount = firstOrderMoney(closeout, ['rewardAmount', 'bonusAmount', 'allowanceAmount'], firstOrderMoney(order, ['rewardAmount', 'bonusAmount', 'allowanceAmount'], 0));
+  const financialSource = { ...order };
+  for (const [key, value] of Object.entries(closeout)) {
+    if (value === undefined || value === null || value === '') continue;
+    financialSource[key] = value;
+  }
+  const diagnostics = [];
+  const breakdown = DeliveryMoneyContract.readPaymentBreakdown(financialSource, {
+    diagnostics, sourceName: 'deliveryCloseoutCorrection.openOrder'
+  });
+  if (breakdown.rewardOffsetAmbiguous) {
+    const err = new Error('Không đủ provenance để phân biệt rewardAmount và offsetAmount của đơn mở.');
+    err.code = 'AMBIGUOUS_LEGACY_REWARD_OFFSET';
+    err.diagnostics = diagnostics;
+    throw err;
+  }
+  const cashAmount = breakdown.cashAmount;
+  const bankAmount = breakdown.bankAmount;
+  const rewardAmount = breakdown.handledRewardOffsetAmount;
   const debtCalculation = calculateDeliveryDebtAmount({
     receivableAmount,
     cashAmount,
@@ -289,7 +330,12 @@ async function canonicalOpenOrderPaymentState(order = {}, options = {}) {
     : fallback.returnAmount;
   const cashAmount = money(resolved.cashAmount);
   const bankAmount = money(resolved.bankAmount);
-  const rewardAmount = money(resolved.rewardAmount);
+  const rewardAmount = Number.isFinite(Number(resolved.handledRewardOffsetAmount))
+    ? money(resolved.handledRewardOffsetAmount)
+    : money(DeliveryMoneyContract.calculateDebt({
+      rewardAmount: resolved.rewardAmount,
+      offsetAmount: resolved.offsetAmount
+    }).handledRewardOffsetAmount);
   const debtCalculation = calculateDeliveryDebtAmount({
     receivableAmount,
     cashAmount,

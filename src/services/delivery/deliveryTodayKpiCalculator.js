@@ -1,7 +1,8 @@
 'use strict';
 
 const { toNumber } = require('../../utils/common.util');
-const { calculateDeliveryDebtAmount, normalizeDebtAmount, DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
+const { normalizeDebtAmount, DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
+const DeliveryMoneyContract = require('./financial/deliveryMoneyContract');
 
 function money(value) {
   const n = Number(toNumber(value));
@@ -18,19 +19,25 @@ function calculateDeliveryTodayKpi(input = {}) {
   const bankAmount = money(input.bankAmount ?? input.transferAmount);
   const rewardAmount = money(input.rewardAmount);
   const offsetAmount = money(input.offsetAmount);
+  const handledRewardOffsetAmount = input.handledRewardOffsetAmount !== undefined
+    && input.handledRewardOffsetAmount !== null
+    && String(input.handledRewardOffsetAmount).trim() !== ''
+    ? money(input.handledRewardOffsetAmount)
+    : money(DeliveryMoneyContract.calculateDebt({ rewardAmount, offsetAmount }).handledRewardOffsetAmount);
   const returnAmount = money(input.returnAmount ?? input.returnedAmount);
   const returnHandling = text(input.returnHandling || 'subtractReturnInDebtFormula');
-  const formulaRewardAmount = money(rewardAmount + offsetAmount);
   const formulaInput = {
     receivableAmount,
     cashAmount,
     bankAmount,
-    rewardAmount: formulaRewardAmount,
+    handledRewardOffsetAmount,
     returnAmount: returnHandling === 'receivableAlreadyNetted' ? 0 : returnAmount
   };
-  const computed = calculateDeliveryDebtAmount(formulaInput, input.tolerance || DEBT_ZERO_TOLERANCE);
+  const computed = DeliveryMoneyContract.calculateDebt(formulaInput, {
+    zeroTolerance: input.tolerance || DEBT_ZERO_TOLERANCE
+  });
   const computedDebtAmount = money(computed.debtAmount);
-  const rawComputedDebtAmount = money(computed.rawDebtAmount);
+  const rawComputedDebtAmount = money(computed.debtRaw);
   const preferredDebtProvided = input.preferredDebtAmount !== undefined && input.preferredDebtAmount !== null && String(input.preferredDebtAmount).trim() !== '';
   const preferredDebtAmount = preferredDebtProvided ? normalizeDebtAmount(money(input.preferredDebtAmount), input.tolerance || DEBT_ZERO_TOLERANCE) : computedDebtAmount;
   const preferredDebtSource = text(input.preferredDebtSource || 'computed-formula');
@@ -56,7 +63,7 @@ function calculateDeliveryTodayKpi(input = {}) {
   }
 
   const sourceBreakdown = {
-    kpiFormulaVersion: 'delivery-today-kpi-v3',
+    kpiFormulaVersion: 'delivery-today-kpi-v4-canonical-reward-offset',
     debtFormula: returnHandling === 'receivableAlreadyNetted'
       ? 'CN = PT - TM - CK - TT'
       : 'CN = PT - TM - CK - TT - HT',
@@ -66,7 +73,8 @@ function calculateDeliveryTodayKpi(input = {}) {
     bankAmount,
     rewardAmount,
     offsetAmount,
-    rewardFormulaAmount: formulaRewardAmount,
+    rewardFormulaAmount: handledRewardOffsetAmount,
+    handledRewardOffsetAmount,
     returnAmount,
     computedDebtAmount,
     rawComputedDebtAmount,
@@ -85,6 +93,7 @@ function calculateDeliveryTodayKpi(input = {}) {
     bankAmount,
     rewardAmount,
     offsetAmount,
+    handledRewardOffsetAmount,
     returnAmount,
     debtAmount,
     finalDebtAmount: debtAmount,

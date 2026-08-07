@@ -186,7 +186,8 @@
     "performance:perf-a4b:repro": "node scripts/performance/perf-a4b/run-report-center-repro.js",
     "performance:perf-a5r1": "node scripts/performance/perf-a5r1/run-remediation.js",
     "performance:perf-a5r2": "node --test test/performance/perf-a5r2/*.test.js",
-    "verify:performance-release": "node scripts/verify-performance-release.js"
+    "verify:performance-release": "node scripts/verify-performance-release.js",
+    "audit:reward-offset-legacy": "node scripts/audit-reward-offset-legacy.js --json"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -10,6 +10,7 @@ const { calculateDeliveryTodayKpi } = require('../delivery/deliveryTodayKpiCalcu
 const { evaluateCloseoutEligibility } = require('../accounting/closeout/CloseoutEligibility');
 const DeliveryPaymentStateReadService = require('../delivery/DeliveryPaymentStateReadService');
 const DeliverySuggestionSearchService = require('../delivery/DeliverySuggestionSearchService');
+const DeliveryMoneyContract = require('../delivery/financial/deliveryMoneyContract');
 const deliverySuggestionSearchContract = require('../delivery/deliverySuggestionSearchContract');
 const canonicalFinancialReadConfig = require('../../config/canonicalDeliveryFinancialRead.config');
 const {
@@ -293,67 +294,33 @@ function closeoutOf(order = {}) {
   return order.deliveryCloseout && typeof order.deliveryCloseout === 'object' ? order.deliveryCloseout : {};
 }
 
-function firstMoney(source = {}, keys = []) {
-  for (const key of keys) {
-    if (source[key] === undefined || source[key] === null || source[key] === '') continue;
-    const value = money(source[key]);
-    if (value !== 0) return value;
-  }
-  return 0;
-}
-
-const CASH_FIELDS = ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount', 'paymentCashAmount', 'paidCashAmount', 'paidCash', 'collectedCash', 'deliveryCashAmount', 'cashCollected', 'cash', 'cashInAmount', 'cashPaymentAmount'];
-const BANK_FIELDS = ['bankAmount', 'transferAmount', 'bankTransferAmount', 'paymentTransferAmount', 'paymentBankAmount', 'paidBankAmount', 'paidTransferAmount', 'collectedBankAmount', 'deliveryBankAmount', 'bankCollected', 'bankCollectedAmount', 'transferCollectedAmount', 'bankPaymentAmount'];
-const REWARD_FIELDS = ['rewardAmount', 'bonusAmount', 'allowanceAmount', 'promotionRewardAmount', 'displayRewardAmount', 'bonusReturnAmount', 'rewardOffsetAmount', 'promotionOffsetAmount'];
-const OFFSET_FIELDS = ['offsetAmount', 'debtOffsetAmount', 'otherOffsetAmount', 'deliveryOffsetAmount'];
-const COLLECTED_FIELDS = ['collectedAmount', 'cashCollectedTotal', 'paidAmount', 'paymentAmount', 'deliveryCollectedAmount'];
-
 function closeoutMoneyBreakdown(closeout = {}) {
-  const cashAmount = firstMoney(closeout, CASH_FIELDS);
-  const bankAmount = firstMoney(closeout, BANK_FIELDS);
-  const rewardAmount = firstMoney(closeout, REWARD_FIELDS);
-  const offsetAmount = firstMoney(closeout, OFFSET_FIELDS);
-  const explicitCollected = firstMoney(closeout, COLLECTED_FIELDS);
-  const breakdownCollected = cashAmount + bankAmount + rewardAmount + offsetAmount;
-  return {
-    cashAmount,
-    bankAmount,
-    rewardAmount,
-    offsetAmount,
-    collectedAmount: breakdownCollected || explicitCollected
-  };
+  return DeliveryMoneyContract.readPaymentBreakdown(closeout, {
+    sourceName: 'salesOrders.deliveryCloseout',
+    diagnostics: []
+  });
 }
 
 function deliveryOperationalMoneyBreakdown(order = {}) {
-  const cashAmount = firstMoney(order, CASH_FIELDS);
-  const bankAmount = firstMoney(order, BANK_FIELDS);
-  const rewardAmount = firstMoney(order, REWARD_FIELDS);
-  const offsetAmount = firstMoney(order, OFFSET_FIELDS);
-  const explicitCollected = firstMoney(order, COLLECTED_FIELDS);
-  const breakdownCollected = cashAmount + bankAmount + rewardAmount + offsetAmount;
-  return {
-    cashAmount,
-    bankAmount,
-    rewardAmount,
-    offsetAmount,
-    collectedAmount: breakdownCollected || explicitCollected
-  };
+  return DeliveryMoneyContract.readPaymentBreakdown(order, {
+    sourceName: 'orders.top-level',
+    diagnostics: []
+  });
 }
 
 function moneyBreakdownForOrder(order = {}) {
   const closeoutBreakdown = closeoutMoneyBreakdown(closeoutOf(order));
-  const orderBreakdown = deliveryOperationalMoneyBreakdown(order);
-  let cashAmount = closeoutBreakdown.cashAmount || orderBreakdown.cashAmount;
-  const bankAmount = closeoutBreakdown.bankAmount || orderBreakdown.bankAmount;
-  const rewardAmount = closeoutBreakdown.rewardAmount || orderBreakdown.rewardAmount;
-  const offsetAmount = closeoutBreakdown.offsetAmount || orderBreakdown.offsetAmount;
-  const explicitCollected = closeoutBreakdown.collectedAmount || orderBreakdown.collectedAmount;
-  let collectedAmount = cashAmount + bankAmount + rewardAmount + offsetAmount || explicitCollected;
-  if (!cashAmount && !bankAmount && !rewardAmount && !offsetAmount && explicitCollected > 0) {
-    cashAmount = explicitCollected;
-    collectedAmount = explicitCollected;
-  }
-  return { cashAmount, bankAmount, rewardAmount, offsetAmount, collectedAmount };
+  const selected = closeoutBreakdown.hasExplicitPayment
+    ? closeoutBreakdown
+    : deliveryOperationalMoneyBreakdown(order);
+  return {
+    cashAmount: money(selected.cashAmount),
+    bankAmount: money(selected.bankAmount),
+    rewardAmount: money(selected.rewardAmount),
+    offsetAmount: money(selected.offsetAmount),
+    handledRewardOffsetAmount: money(selected.handledRewardOffsetAmount),
+    collectedAmount: money(selected.totalCollectedAmount)
+  };
 }
 
 function closeoutStatus(order = {}) {
@@ -698,6 +665,7 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     bankAmount,
     rewardAmount,
     offsetAmount,
+    handledRewardOffsetAmount: money(paymentState.handledRewardOffsetAmount),
     returnAmount: returnedAmount,
     preferredDebtAmount,
     preferredDebtSource,
@@ -708,7 +676,7 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     receivableAmount: kpi.receivableAmount,
     cashAmount: kpi.cashAmount,
     bankAmount: kpi.bankAmount,
-    rewardAmount: money(kpi.rewardAmount + kpi.offsetAmount),
+    rewardAmount: money(kpi.handledRewardOffsetAmount),
     returnAmount: kpi.returnAmount,
     rawDebtAmount: kpi.rawComputedDebtAmount,
     debtAmount: kpi.computedDebtAmount
@@ -805,6 +773,7 @@ function summarizeOrder(order = {}, returnsByKey = new Map(), versionsByKey = ne
     bankAmount,
     rewardAmount,
     offsetAmount,
+    handledRewardOffsetAmount: money(kpi.handledRewardOffsetAmount),
     collectedAmount: collected,
     finalDebtAmount,
     rawFinalDebtAmount,

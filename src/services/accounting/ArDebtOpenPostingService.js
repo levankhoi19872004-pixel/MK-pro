@@ -84,7 +84,7 @@ function buildDebtOpenLedger(order = {}, closeout = {}, options = {}) {
     returnedAmount: money(closeout.returnedAmount),
     cashAmount: money(closeout.cashAmount),
     bankAmount: money(closeout.bankAmount),
-    rewardAmount: money(closeout.offsetAmount ?? closeout.rewardAmount),
+    rewardAmount: money(closeout.rewardOffsetTotalAmount ?? closeout.rewardAmount ?? closeout.offsetAmount),
     offsetAmount: money(closeout.offsetAmount),
     collectedAmount: money(closeout.collectedAmount),
     rawFinalDebtAmount: money(closeout.rawFinalDebtAmount),

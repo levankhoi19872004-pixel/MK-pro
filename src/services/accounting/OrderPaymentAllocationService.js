@@ -8,6 +8,7 @@ const arPostingService = require('../arPosting.service');
 const fundService = require('../fundService');
 const DeliveryCloseoutService = require('./DeliveryCloseoutService');
 const closeoutQueryAudit = require('../../observability/closeoutQueryAudit');
+const DeliveryMoneyContract = require('../delivery/financial/deliveryMoneyContract');
 
 const ACTIVE_LEDGER_STATUSES = ['void', 'voided', 'cancelled', 'canceled', 'deleted', 'reversed'];
 const DEFAULT_ZERO_TOLERANCE = 1000;
@@ -277,8 +278,27 @@ function buildAllocationFromCloseout(order = {}, closeout = {}, options = {}) {
   const receivableAmount = pickAuthoritativeMoney(sourceObjects, CLOSEOUT_RECEIVABLE_FIELDS);
   let cashAmount = pickAuthoritativeMoney(sourceObjects, CLOSEOUT_CASH_FIELDS);
   const bankAmount = pickAuthoritativeMoney(sourceObjects, CLOSEOUT_BANK_FIELDS);
-  const rewardAmount = pickAuthoritativeMoney(sourceObjects, CLOSEOUT_REWARD_FIELDS);
   const returnAmount = pickAuthoritativeMoney(sourceObjects, CLOSEOUT_RETURN_FIELDS);
+  const rewardOffsetSource = hasAuthoritativeMoney([closeout], [...DeliveryMoneyContract.REWARD_FIELDS, ...DeliveryMoneyContract.OFFSET_FIELDS])
+    ? closeout
+    : order;
+  const rewardOffsetDiagnostics = [];
+  const rewardOffset = DeliveryMoneyContract.resolveRewardOffsetComponents(rewardOffsetSource, {
+    diagnostics: rewardOffsetDiagnostics,
+    sourceName: rewardOffsetSource === closeout ? 'salesOrders.deliveryCloseout' : 'salesOrders',
+    cashAmount,
+    bankAmount,
+    zeroTolerance: options.zeroTolerance ?? options.tolerance ?? closeout.zeroTolerance
+  });
+  if (rewardOffset.classification === 'ambiguous') {
+    throw allocationError(
+      'ORDER_PAYMENT_ALLOCATION_AMBIGUOUS_REWARD_OFFSET',
+      'Không đủ provenance để phân biệt rewardAmount và offsetAmount khi tạo orderPaymentAllocation.',
+      { orderId: orderId(order), orderCode: orderCode(order), customerCode: clean(order.customerCode || closeout.customerCode) },
+      { diagnostics: rewardOffsetDiagnostics, rewardAmount: rewardOffset.rawRewardAmount, offsetAmount: rewardOffset.rawOffsetAmount }
+    );
+  }
+  const rewardAmount = money(rewardOffset.handledRewardOffsetAmount);
 
   // Final-state closeout/version fields are authoritative even when the value is 0.
   // Only legacy closeouts that do not contain explicit cash/bank fields may fall back
@@ -342,6 +362,10 @@ function buildAllocationFromCloseout(order = {}, closeout = {}, options = {}) {
     cashAmount,
     bankAmount,
     rewardAmount,
+    rewardComponentAmount: money(rewardOffset.rewardAmount),
+    independentOffsetAmount: money(rewardOffset.offsetAmount),
+    rewardOffsetTotalAmount: money(rewardOffset.handledRewardOffsetAmount),
+    rewardOffsetClassification: clean(rewardOffset.classification),
     returnAmount,
     rawDebtAmount,
     normalizedDebtAmount,
@@ -361,6 +385,12 @@ function buildAllocationFromCloseout(order = {}, closeout = {}, options = {}) {
       ...(options.metadata && typeof options.metadata === 'object' ? options.metadata : {}),
       source: 'salesOrders.deliveryCloseout',
       invariant: 'raw: receivableAmount = cashAmount + bankAmount + rewardAmount + returnAmount + rawDebtAmount; business: debtAmount = normalizedDebtAmount',
+      rewardOffsetContractVersion: DeliveryMoneyContract.REWARD_OFFSET_CONTRACT_VERSION,
+      rewardOffsetSemantics: 'allocation_reward_amount_is_canonical_handled_total',
+      rewardComponentAmount: money(rewardOffset.rewardAmount),
+      independentOffsetAmount: money(rewardOffset.offsetAmount),
+      rewardOffsetClassification: clean(rewardOffset.classification),
+      rewardOffsetEvidence: clean(rewardOffset.evidence),
       rawDebtAmount,
       normalizedDebtAmount,
       zeroTolerance,

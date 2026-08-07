@@ -2,6 +2,7 @@
 
 const { toNumber } = require('../../utils/common.util');
 const { DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
+const DeliveryMoneyContract = require('../delivery/financial/deliveryMoneyContract');
 
 function normalizeMoney(value) {
   const n = Number(toNumber(value));
@@ -23,14 +24,16 @@ function calculateDeliveryCloseoutDebt(input = {}, options = {}) {
   const rewardAmount = normalizeMoney(input.rewardAmount);
   const collectedAmount = normalizeMoney(input.collectedAmount ?? (cashAmount + bankAmount));
 
-  const rawFinalDebtAmount = normalizeMoney(
-    deliveredAmount
-    - cashAmount
-    - bankAmount
-    - offsetAmount
-    - rewardAmount
-  );
-  const finalDebtAmount = applyDebtZeroTolerance(rawFinalDebtAmount, tolerance);
+  const debt = DeliveryMoneyContract.calculateDebt({
+    receivableAmount: deliveredAmount,
+    cashAmount,
+    bankAmount,
+    rewardAmount,
+    offsetAmount,
+    returnAmount: 0
+  }, { zeroTolerance: tolerance });
+  const rawFinalDebtAmount = debt.debtRaw;
+  const finalDebtAmount = debt.debtAmount;
 
   return {
     deliveredAmount,

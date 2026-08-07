@@ -36,11 +36,14 @@ test('buildAllocationFromCloseout uses closeout/version final-state amounts befo
   assert.match(fn, /const receivableAmount = pickAuthoritativeMoney\(sourceObjects, CLOSEOUT_RECEIVABLE_FIELDS\)/);
   assert.match(fn, /let cashAmount = pickAuthoritativeMoney\(sourceObjects, CLOSEOUT_CASH_FIELDS\)/);
   assert.match(fn, /const bankAmount = pickAuthoritativeMoney\(sourceObjects, CLOSEOUT_BANK_FIELDS\)/);
-  assert.match(fn, /const rewardAmount = pickAuthoritativeMoney\(sourceObjects, CLOSEOUT_REWARD_FIELDS\)/);
+  assert.match(fn, /const rewardOffsetSource = hasAuthoritativeMoney\(\[closeout\], \[\.\.\.DeliveryMoneyContract\.REWARD_FIELDS, \.\.\.DeliveryMoneyContract\.OFFSET_FIELDS\]\)/);
+  assert.match(fn, /const rewardOffset = DeliveryMoneyContract\.resolveRewardOffsetComponents\(rewardOffsetSource/);
+  assert.match(fn, /const rewardAmount = money\(rewardOffset\.handledRewardOffsetAmount\)/);
   assert.match(fn, /const returnAmount = pickAuthoritativeMoney\(sourceObjects, CLOSEOUT_RETURN_FIELDS\)/);
   assert.doesNotMatch(fn, /const receivableAmount = pickFirstPositiveMoney\(sourceObjects, CLOSEOUT_RECEIVABLE_FIELDS\)/);
   assert.doesNotMatch(fn, /let cashAmount = pickFirstPositiveMoney\(sourceObjects, CLOSEOUT_CASH_FIELDS\)/);
   assert.doesNotMatch(fn, /const bankAmount = pickFirstPositiveMoney\(sourceObjects, CLOSEOUT_BANK_FIELDS\)/);
+  assert.doesNotMatch(fn, /const rewardAmount = pickAuthoritativeMoney\(sourceObjects, CLOSEOUT_REWARD_FIELDS\)/);
   assert.doesNotMatch(fn, /const rewardAmount = pickFirstPositiveMoney\(sourceObjects, CLOSEOUT_REWARD_FIELDS\)/);
   assert.doesNotMatch(fn, /const returnAmount = pickFirstPositiveMoney\(sourceObjects, CLOSEOUT_RETURN_FIELDS\)/);
 });

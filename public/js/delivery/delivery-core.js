@@ -115,21 +115,35 @@
     var receivable = toNumber(firstDefined(financial.receivableAmount, order.receivableAmount, amounts.receivable, amounts.totalReceivable, order.totalReceivable, order.originalAmount, order.totalAmount, order.debtBeforeCollection));
     var cash = toNumber(firstDefined(financial.cashAmount, amounts.cash, amounts.cashAmount, order.cashAmount, order.cashCollected, order.deliveryCashAmount));
     var bank = toNumber(firstDefined(financial.bankAmount, amounts.bank, amounts.bankAmount, order.bankAmount, order.bankCollected, order.transferAmount));
-    var reward = toNumber(firstDefined(financial.rewardAmount, amounts.reward, amounts.rewardAmount, order.rewardAmount, order.bonusAmount));
+    var reward = toNumber(firstDefined(financial.rewardAmount, amounts.reward, amounts.rewardAmount, order.rewardAmount));
     var offset = toNumber(firstDefined(financial.offsetAmount, amounts.offset, amounts.offsetAmount, order.offsetAmount));
+    var backendTotalCollected = firstDefined(financial.totalCollectedAmount, order.totalCollectedAmount, order.collectedAmount);
+    var handledRewardOffsetAmount = toNumber(firstDefined(
+      financial.handledRewardOffsetAmount,
+      financial.rewardOffsetTotalAmount,
+      amounts.handledRewardOffsetAmount,
+      amounts.rewardOffsetTotalAmount,
+      order.handledRewardOffsetAmount,
+      order.rewardOffsetTotalAmount,
+      order.bonusAmount,
+      backendTotalCollected !== undefined ? toNumber(backendTotalCollected) - cash - bank : undefined,
+      reward
+    ));
     var returnAmount = toNumber(firstDefined(financial.returnAmount, amounts.returnAmount, order.returnAmount, order.returnedAmount, order.totalReturnAmount));
-    var totalCollected = toNumber(firstDefined(financial.totalCollectedAmount, order.totalCollectedAmount, order.collectedAmount, cash + bank + reward + offset));
+    var totalCollected = toNumber(firstDefined(backendTotalCollected, cash + bank + handledRewardOffsetAmount));
     var totalHandled = toNumber(firstDefined(financial.totalHandledAmount, amounts.processed, order.totalHandledAmount, order.processedAmount, totalCollected + returnAmount));
     var debtRaw = toNumber(firstDefined(financial.debtRaw, order.debtRaw, receivable - totalHandled));
-    var debt = normalizeDebtAmount(firstDefined(financial.debtAmount, amounts.debt, amounts.debtAmount, order.debtAmount, order.debt, order.remainingAmount, debtRaw));
-    var openDebtAmount = toNumber(firstDefined(financial.openDebtAmount, amounts.openDebtAmount, order.openDebtAmount, order.remainingAmount, Math.max(0, debt)));
     var hasCanonicalFinancialState = Boolean(financial.financialContractVersion || order.financialContractVersion);
+    var backendDebtAmount = firstDefined(financial.debtAmount, amounts.debt, amounts.debtAmount, order.debtAmount, order.debt, order.remainingAmount, debtRaw);
+    var debt = hasCanonicalFinancialState ? toNumber(backendDebtAmount) : normalizeDebtAmount(backendDebtAmount);
+    var openDebtAmount = toNumber(firstDefined(financial.openDebtAmount, amounts.openDebtAmount, order.openDebtAmount, order.remainingAmount, Math.max(0, debt)));
     var normalizedFinancial = Object.assign({}, financial, {
       receivableAmount: receivable,
       cashAmount: cash,
       bankAmount: bank,
       rewardAmount: reward,
       offsetAmount: offset,
+      handledRewardOffsetAmount: handledRewardOffsetAmount,
       totalCollectedAmount: totalCollected,
       returnAmount: returnAmount,
       totalHandledAmount: totalHandled,
@@ -157,6 +171,7 @@
         rewardAmount: reward,
         offset: offset,
         offsetAmount: offset,
+        handledRewardOffsetAmount: handledRewardOffsetAmount,
         returnAmount: returnAmount,
         processed: totalHandled,
         debt: debt,
@@ -172,6 +187,7 @@
       transferAmount: bank,
       rewardAmount: reward,
       offsetAmount: offset,
+      handledRewardOffsetAmount: handledRewardOffsetAmount,
       returnAmount: returnAmount,
       returnedAmount: returnAmount,
       totalCollectedAmount: totalCollected,
@@ -507,8 +523,9 @@
       var bank = toNumber(amounts.bank);
       var reward = toNumber(amounts.reward);
       var offset = toNumber(amounts.offset);
+      var handledRewardOffsetAmount = toNumber(amounts.handledRewardOffsetAmount);
       var returnAmount = toNumber(amounts.returnAmount);
-      var processed = cash + bank + reward + offset + returnAmount;
+      var processed = cash + bank + handledRewardOffsetAmount + returnAmount;
       var debtRaw = Math.round(receivable - processed);
       return {
         receivable: receivable,
@@ -516,6 +533,7 @@
         bank: bank,
         reward: reward,
         offset: offset,
+        handledRewardOffsetAmount: handledRewardOffsetAmount,
         returnAmount: returnAmount,
         processed: processed,
         debtRaw: debtRaw,

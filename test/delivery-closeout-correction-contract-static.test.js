@@ -159,9 +159,9 @@ test('Phase110 delivery closeout and AR-DEBT posting must include reward/TH in d
   assert.match(finance, /offsetAmount/);
   assert.match(finance, /debtOffsetAmount/);
   assert.match(finance, /receivableAmount - cashAmount - bankAmount - rewardAmount - returnAmount/);
-  assert.match(closeout, /rewardAmount:\s*money\(offsetSummary\.offsetAmount\)/);
-  assert.match(arOpen, /rewardAmount:\s*money\(closeout\.offsetAmount \?\? closeout\.rewardAmount\)/);
-  assert.match(accounting, /rewardAmount:\s*DeliveryCloseoutService\._internal\.money\(closeout\.offsetAmount \?\? closeout\.rewardAmount\)/);
+  assert.match(closeout, /DeliveryMoneyContract\.resolveRewardOffsetComponents/);
+  assert.match(arOpen, /rewardOffsetTotalAmount \?\? closeout\.rewardAmount \?\? closeout\.offsetAmount/);
+  assert.match(accounting, /rewardOffsetTotalAmount \?\? closeout\.rewardAmount \?\? closeout\.offsetAmount/);
   assert.doesNotMatch(arOpen, /receivableAmount\s*-\s*cashAmount\s*-\s*bankAmount\s*-\s*returnAmount/);
   assert.doesNotMatch(closeout, /receivableAmount\s*-\s*cashAmount\s*-\s*bankAmount\s*-\s*returnAmount/);
 });

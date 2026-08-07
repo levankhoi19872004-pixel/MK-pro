@@ -88,6 +88,25 @@
     }
     return parseVietnameseMoney(inputValue);
   }
+  function canonicalRewardOffsetAmount(source) {
+    source = source && typeof source === 'object' ? source : {};
+    var financial = source.financial && typeof source.financial === 'object' ? source.financial : {};
+    var amounts = source.amounts && typeof source.amounts === 'object' ? source.amounts : {};
+    var breakdown = source.sourceBreakdown && typeof source.sourceBreakdown === 'object' ? source.sourceBreakdown : {};
+    var candidates = [
+      source.handledRewardOffsetAmount,
+      source.rewardOffsetTotalAmount,
+      financial.handledRewardOffsetAmount,
+      financial.rewardOffsetTotalAmount,
+      amounts.handledRewardOffsetAmount,
+      amounts.rewardOffsetTotalAmount,
+      breakdown.rewardFormulaAmount
+    ];
+    for (var i = 0; i < candidates.length; i += 1) {
+      if (hasMoneyInputValue(candidates[i])) return parseVietnameseMoney(candidates[i]);
+    }
+    return 0;
+  }
   function today() { return new Date().toISOString().slice(0, 10); }
   var RETURN_LOCKED_STATUSES = ['confirmed', 'locked', 'posted', 'accounting_confirmed', 'closed', 'corrected_confirmed'];
   function hasReturnLockedStatus(value) {
@@ -769,7 +788,7 @@
       deliveryTodayNewOriginal: money(summary.originalAmount),
       deliveryTodayNewCash: money(summary.cashAmount || 0),
       deliveryTodayNewBank: money(summary.bankAmount || 0),
-      deliveryTodayNewReward: money((summary.rewardAmount || 0) + (summary.offsetAmount || 0)),
+      deliveryTodayNewReward: money(canonicalRewardOffsetAmount(summary)),
       deliveryTodayNewReturned: money(summary.returnedAmount),
       deliveryTodayNewDebt: money(summary.finalDebtAmount)
     };
@@ -804,8 +823,7 @@
           originalAmount: 0,
           cashAmount: 0,
           bankAmount: 0,
-          rewardAmount: 0,
-          offsetAmount: 0,
+          handledRewardOffsetAmount: 0,
           returnedAmount: 0,
           finalDebtAmount: 0,
           orders: []
@@ -815,8 +833,7 @@
       map[key].originalAmount += num(row.originalAmount);
       map[key].cashAmount += num(row.cashAmount);
       map[key].bankAmount += num(row.bankAmount);
-      map[key].rewardAmount += num(row.rewardAmount);
-      map[key].offsetAmount += num(row.offsetAmount);
+      map[key].handledRewardOffsetAmount += canonicalRewardOffsetAmount(row);
       map[key].returnedAmount += num(row.returnedAmount);
       map[key].finalDebtAmount += num(row.finalDebtAmount);
       map[key].orders.push(row);
@@ -843,12 +860,11 @@
       summary.originalAmount += num(row.originalAmount);
       summary.cashAmount += num(row.cashAmount);
       summary.bankAmount += num(row.bankAmount);
-      summary.rewardAmount += num(row.rewardAmount);
-      summary.offsetAmount += num(row.offsetAmount);
+      summary.handledRewardOffsetAmount += canonicalRewardOffsetAmount(row);
       summary.returnedAmount += num(row.returnedAmount);
       summary.finalDebtAmount += num(row.finalDebtAmount);
       return summary;
-    }, { orderCount: 0, originalAmount: 0, cashAmount: 0, bankAmount: 0, rewardAmount: 0, offsetAmount: 0, returnedAmount: 0, finalDebtAmount: 0 });
+    }, { orderCount: 0, originalAmount: 0, cashAmount: 0, bankAmount: 0, handledRewardOffsetAmount: 0, returnedAmount: 0, finalDebtAmount: 0 });
   }
 
   function updateTopKpisFromSelectedSalesmen() {
@@ -1069,7 +1085,7 @@
       var checked = stateInfo.checked ? ' checked' : '';
       var selectedClass = selected[group.key] ? ' is-selected' : ' is-unselected';
       var debtClass = num(group.finalDebtAmount) > 0 ? 'delivery-new-debt' : 'delivery-new-money-dash';
-      var rewardClass = num(group.rewardAmount) + num(group.offsetAmount) > 0 ? ' reward-positive' : '';
+      var rewardClass = canonicalRewardOffsetAmount(group) > 0 ? ' reward-positive' : '';
       var bankClass = num(group.bankAmount) > 0 ? ' bank-positive' : '';
       return '<div class="delivery-new-salesman-grid delivery-new-salesman-grid-row' + selectedClass + '" data-salesman-key="' + esc(group.key) + '" role="row">' +
         '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-check-cell"><input type="checkbox" data-salesman-key="' + esc(group.key) + '" aria-label="Chọn NVBH ' + esc(salesmanGroupDisplayName(group)) + '"' + checked + '></div>' +
@@ -1078,7 +1094,7 @@
         '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money">' + moneyDash(group.originalAmount) + '</div>' +
         '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money">' + moneyDash(group.cashAmount) + '</div>' +
         '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money' + bankClass + '">' + moneyDash(group.bankAmount) + '</div>' +
-        '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money' + rewardClass + '">' + moneyDash(num(group.rewardAmount) + num(group.offsetAmount)) + '</div>' +
+        '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money' + rewardClass + '">' + moneyDash(canonicalRewardOffsetAmount(group)) + '</div>' +
         '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money delivery-new-return">' + moneyDash(group.returnedAmount) + '</div>' +
         '<div class="delivery-new-salesman-grid-cell delivery-new-salesman-money ' + debtClass + '">' + moneyDash(group.finalDebtAmount) + '</div>' +
       '</div>';
@@ -1174,7 +1190,7 @@
       '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + moneyDash(row.originalAmount) + '</span>' +
       '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + moneyDash(row.cashAmount) + '</span>' +
       '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + moneyDash(row.bankAmount) + '</span>' +
-      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + moneyDash(num(row.rewardAmount) + num(row.offsetAmount)) + '</span>' +
+      '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell">' + moneyDash(canonicalRewardOffsetAmount(row)) + '</span>' +
       '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell delivery-new-return">' + moneyDash(row.returnedAmount) + '</span>' +
       '<span class="delivery-new-order-cell delivery-new-money delivery-new-money-cell ' + debtClass + '">' + moneyDash(row.finalDebtAmount) + '</span>' +
       '<span class="delivery-new-order-cell delivery-new-status-cell"><span class="delivery-new-status ' + (confirmed ? 'confirmed' : '') + '">' + esc(closeoutState.statusLabel) + '</span></span>' +
@@ -1294,7 +1310,7 @@
         originalAmount: num(row.originalAmount),
         cashAmount: num(row.cashAmount),
         bankAmount: num(row.bankAmount),
-        rewardAmount: num(row.rewardAmount) + num(row.offsetAmount),
+        rewardAmount: canonicalRewardOffsetAmount(row),
         returnAmount: num(row.returnedAmount),
         returnedAmount: num(row.returnedAmount),
         finalDebtAmount: num(row.finalDebtAmount),
@@ -1426,15 +1442,14 @@
       summary.originalAmount += num(row.originalAmount);
       summary.cashAmount += num(row.cashAmount);
       summary.bankAmount += num(row.bankAmount);
-      summary.rewardAmount += num(row.rewardAmount);
-      summary.offsetAmount += num(row.offsetAmount);
+      summary.handledRewardOffsetAmount += canonicalRewardOffsetAmount(row);
       summary.returnedAmount += num(row.returnedAmount);
       summary.totalDebt += Math.max(0, num(row.finalDebtAmount));
       if (num(row.finalDebtAmount) > 0) summary.debtOrderCount += 1;
       if (num(row.finalDebtAmount) === 0) summary.zeroDebtCount += 1;
       if (num(row.finalDebtAmount) < 0) summary.overpaidCount += 1;
       return summary;
-    }, { orderCount: 0, originalAmount: 0, cashAmount: 0, bankAmount: 0, rewardAmount: 0, offsetAmount: 0, returnedAmount: 0, debtOrderCount: 0, zeroDebtCount: 0, overpaidCount: 0, totalDebt: 0 });
+    }, { orderCount: 0, originalAmount: 0, cashAmount: 0, bankAmount: 0, handledRewardOffsetAmount: 0, returnedAmount: 0, debtOrderCount: 0, zeroDebtCount: 0, overpaidCount: 0, totalDebt: 0 });
   }
 
   function updateCloseoutButton() {
@@ -1484,7 +1499,7 @@
           detailCell('Tổng phải thu', money(summary.originalAmount)) +
           detailCell('Tổng tiền mặt', money(summary.cashAmount)) +
           detailCell('Tổng chuyển khoản', money(summary.bankAmount)) +
-          detailCell('Tổng trả thưởng', money(num(summary.rewardAmount) + num(summary.offsetAmount))) +
+          detailCell('Tổng trả thưởng', money(canonicalRewardOffsetAmount(summary))) +
           detailCell('Tổng hàng trả', money(summary.returnedAmount), 'delivery-new-return') +
           detailCell('Đơn còn nợ > 1.000', summary.debtOrderCount) +
           detailCell('CN chuyển sang công nợ', money(summary.totalDebt), summary.totalDebt > 0 ? 'delivery-new-debt' : 'delivery-new-zero') +
@@ -1714,7 +1729,7 @@
     return {
       cashAmount: parseVietnameseMoney(row && row.cashAmount),
       bankAmount: parseVietnameseMoney(row && row.bankAmount),
-      rewardAmount: parseVietnameseMoney(row && row.rewardAmount) + parseVietnameseMoney(row && row.offsetAmount)
+      rewardAmount: canonicalRewardOffsetAmount(row)
     };
   }
 
@@ -1917,7 +1932,7 @@
       detailCell('Phải thu', money(row.originalAmount)) +
       detailCell('Tiền mặt', money(row.cashAmount)) +
       detailCell('Chuyển khoản', money(row.bankAmount)) +
-      detailCell('Trả thưởng / đối trừ', money(num(row.rewardAmount) + num(row.offsetAmount))) +
+      detailCell('Trả thưởng / đối trừ', money(canonicalRewardOffsetAmount(row))) +
       detailCell('Hàng trả', money(row.returnedAmount), 'delivery-new-return') +
       detailCell('Công nợ cuối', money(row.finalDebtAmount), num(row.finalDebtAmount) > 0 ? 'delivery-new-debt' : 'delivery-new-zero') +
       '</div>' +
@@ -1987,7 +2002,7 @@
   function renderPaymentTab(row) {
     var currentCash = parseVietnameseMoney(row.cashAmount);
     var currentBank = parseVietnameseMoney(row.bankAmount);
-    var reward = parseVietnameseMoney(row.rewardAmount) + parseVietnameseMoney(row.offsetAmount);
+    var reward = canonicalRewardOffsetAmount(row);
     var draft = state.adjustmentPaymentDraft || { cashAmount: currentCash, bankAmount: currentBank, rewardAmount: reward };
     var warning = (currentCash < 0 || currentBank < 0 || reward < 0)
       ? '<div class="delivery-new-safe-note delivery-new-correction-warning">Dữ liệu tiền thu hiện tại đang âm. Vui lòng kiểm tra phiên điều chỉnh trước hoặc chạy audit dữ liệu; vẫn có thể nhập giá trị đúng không âm để tạo version điều chỉnh.</div>'

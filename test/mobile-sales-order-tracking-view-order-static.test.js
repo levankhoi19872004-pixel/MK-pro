@@ -23,7 +23,7 @@ test('mobile sales order tracking uses deliveryCloseoutVersions for daily order 
   assert.doesNotMatch(helper, /loadOrderBalances/);
   assert.doesNotMatch(helper, /accounting_confirmed_ar_ledger/);
   assert.match(helper, /calculateDailyDebtFromCloseout/);
-  assert.match(helper, /calculateDeliveryDebtAmount/);
+  assert.match(helper, /DeliveryMoneyContract/);
   assert.match(helper, /normalizeRewardOffsetAmount/);
   assert.match(helper, /newOffsetAmount/);
   assert.match(helper, /correctedOffsetAmount/);

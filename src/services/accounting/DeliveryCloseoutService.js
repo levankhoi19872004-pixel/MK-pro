@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const dateUtil = require('../../utils/date.util');
 const { toNumber } = require('../../utils/common.util');
 const { normalizeDebtAmount, calculateDeliveryDebtAmount } = require('../../constants/finance.constants');
+const DeliveryMoneyContract = require('../delivery/financial/deliveryMoneyContract');
 
 const INACTIVE_RETURN_STATUSES = new Set(['cancelled', 'canceled', 'void', 'voided', 'deleted', 'removed', 'cleared', 'duplicate_cancelled', 'inactive']);
 const CONFIRMED_RETURN_STATUSES = new Set(['confirmed', 'accounting_confirmed', 'warehouse_received', 'received', 'posted']);
@@ -262,14 +263,11 @@ function collectDeliveryPaymentRows(order = {}, explicitPayments = []) {
 }
 
 function pickMoneyValue(source = {}, fields = [], contextLabel = 'salesOrders.deliveryCloseout', options = {}) {
-  let fallbackZero = 0;
   for (const field of fields) {
     if (!hasOwnValue(source, field)) continue;
-    const value = requireMoney(source, field, { label: contextLabel, field }, { nonNegative: options.nonNegative !== false });
-    if (value !== 0) return value;
-    fallbackZero = 0;
+    return requireMoney(source, field, { label: contextLabel, field }, { nonNegative: options.nonNegative !== false });
   }
-  return fallbackZero;
+  return 0;
 }
 
 function firstMoney(source = {}, fields = []) {
@@ -287,8 +285,9 @@ const OFFSET_FIELDS = ['offsetAmount', 'debtOffsetAmount', 'deliveryOffsetAmount
 const RETURN_FIELDS = ['returnAmount', 'returnedAmount', 'returnOrderAmount', 'actualReturnAmount', 'returnAmountFromReturnOrders', 'syncedReturnAmountFromReturnOrders'];
 
 function orderMoneyValue(order = {}, closeout = {}, fields = [], label = 'amount') {
-  const fromCloseout = pickMoneyValue(closeout, fields, `salesOrders.deliveryCloseout.${label}`);
-  if (fromCloseout !== 0) return fromCloseout;
+  if (fields.some((field) => hasOwnValue(closeout, field))) {
+    return pickMoneyValue(closeout, fields, `salesOrders.deliveryCloseout.${label}`);
+  }
   return pickMoneyValue(order, fields, `salesOrders.${label}`);
 }
 
@@ -321,18 +320,43 @@ function summarizeCloseoutBreakdownPayments(order = {}) {
 
 function summarizeOffsets(order = {}) {
   const closeout = order.deliveryCloseout && typeof order.deliveryCloseout === 'object' ? order.deliveryCloseout : {};
-  const explicitOffset = orderMoneyValue(order, closeout, OFFSET_FIELDS, 'offsetAmount');
-  const rewardOffset = orderMoneyValue(order, closeout, REWARD_FIELDS, 'rewardAmount');
-
-  // TH trên màn giao hàng là khoản cấn trừ hợp lệ. Một số dữ liệu legacy lưu cùng giá trị
-  // ở cả offsetAmount và rewardAmount; nếu cộng đôi sẽ làm giảm công nợ sai.
-  const offsetAmount = explicitOffset > 0 && rewardOffset > 0 && explicitOffset === rewardOffset
-    ? money(rewardOffset)
-    : money(explicitOffset + rewardOffset);
+  const closeoutHasRewardOffset = [...REWARD_FIELDS, ...OFFSET_FIELDS].some((field) => hasOwnValue(closeout, field));
+  const source = closeoutHasRewardOffset ? closeout : order;
+  const sourceName = closeoutHasRewardOffset ? 'salesOrders.deliveryCloseout' : 'salesOrders';
+  const diagnostics = [];
+  const normalized = DeliveryMoneyContract.resolveRewardOffsetComponents(source, {
+    diagnostics,
+    sourceName,
+    cashAmount: orderMoneyValue(order, closeout, CASH_FIELDS, 'cashAmount'),
+    bankAmount: orderMoneyValue(order, closeout, BANK_FIELDS, 'bankAmount'),
+    semanticHint: closeoutHasRewardOffset ? undefined : DeliveryMoneyContract.REWARD_OFFSET_SEMANTICS.INDEPENDENT,
+    semanticEvidence: closeoutHasRewardOffset ? undefined : 'writer_operational_input_contract_v2'
+  });
+  if (diagnostics.some((row) => ['INVALID_MONEY', 'NEGATIVE_INPUT_COMPONENT'].includes(row.code))) {
+    throw contractError('CONTRACT_VALIDATION_ERROR', `${sourceName} có reward/offset không hợp lệ`, {
+      document: sourceName,
+      diagnostics
+    });
+  }
+  if (normalized.rewardOffsetAmbiguous === true || normalized.classification === 'ambiguous') {
+    throw contractError('AMBIGUOUS_LEGACY_REWARD_OFFSET', `${sourceName} không đủ provenance để phân biệt reward và offset an toàn khi chốt sổ.`, {
+      document: sourceName,
+      diagnostics,
+      rewardAmount: normalized.rawRewardAmount,
+      offsetAmount: normalized.rawOffsetAmount
+    });
+  }
   const offsetRows = [];
-  if (explicitOffset > 0) offsetRows.push({ type: 'offset', amount: explicitOffset });
-  if (rewardOffset > 0) offsetRows.push({ type: 'reward', amount: rewardOffset });
-  return { offsetAmount, rewardAmount: rewardOffset || explicitOffset, offsetRows };
+  if (normalized.rewardAmount > 0) offsetRows.push({ type: 'reward', amount: normalized.rewardAmount });
+  if (normalized.offsetAmount > 0) offsetRows.push({ type: 'offset', amount: normalized.offsetAmount });
+  return {
+    rewardAmount: money(normalized.rewardAmount),
+    offsetAmount: money(normalized.offsetAmount),
+    handledRewardOffsetAmount: money(normalized.handledRewardOffsetAmount),
+    rewardOffsetClassification: normalized.classification,
+    rewardOffsetEvidence: normalized.evidence,
+    offsetRows
+  };
 }
 
 function summarizePayments(order = {}, explicitPayments = []) {
@@ -386,6 +410,9 @@ function publicCloseoutVersion(closeout = {}) {
     collectedAmount: closeout.collectedAmount,
     offsetAmount: closeout.offsetAmount || 0,
     rewardAmount: closeout.rewardAmount || 0,
+    rewardOffsetContractVersion: Number(closeout.rewardOffsetContractVersion || 0),
+    rewardOffsetSemantics: clean(closeout.rewardOffsetSemantics),
+    rewardOffsetTotalAmount: money(closeout.rewardOffsetTotalAmount || 0),
     rawFinalDebtAmount: closeout.rawFinalDebtAmount,
     finalDebtAmount: closeout.finalDebtAmount,
     returnOrderIds: closeout.returnOrderIds,
@@ -416,18 +443,20 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
   const paymentSummary = summarizePayments(order, payments);
   const offsetSummary = summarizeOffsets(order);
   const deliveredAmount = money(baseAmount - returnSummary.returnedAmount);
-  const rewardAmount = money(offsetSummary.rewardAmount || offsetSummary.offsetRows.filter((row) => row.type === 'reward').reduce((sum, row) => sum + money(row.amount), 0));
+  const rewardAmount = money(offsetSummary.rewardAmount);
+  const offsetAmount = money(offsetSummary.offsetAmount);
   const cashAmount = money(paymentSummary.cashAmount || 0);
   const bankAmount = money(paymentSummary.bankAmount || 0);
-  const debtCalculation = calculateDeliveryDebtAmount({
+  const debtCalculation = DeliveryMoneyContract.calculateDebt({
     receivableAmount: baseAmount,
     cashAmount,
     bankAmount,
-    // rewardAmount trong công thức là toàn bộ TH/cấn trừ đã chuẩn hóa (reward + offset, chống double-count).
-    rewardAmount: money(offsetSummary.offsetAmount),
+    rewardAmount,
+    offsetAmount,
+    handledRewardOffsetAmount: offsetSummary.handledRewardOffsetAmount,
     returnAmount: returnSummary.returnedAmount
   });
-  const rawFinalDebtAmount = debtCalculation.rawDebtAmount;
+  const rawFinalDebtAmount = debtCalculation.debtRaw;
   const finalDebtAmount = debtCalculation.debtAmount;
   const version = options.version || nextVersion(order);
   const now = options.now || dateUtil.nowIso();
@@ -441,8 +470,11 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
     cashAmount,
     bankAmount,
     collectedAmount: paymentSummary.collectedAmount,
-    offsetAmount: offsetSummary.offsetAmount,
+    offsetAmount,
     rewardAmount,
+    rewardOffsetContractVersion: DeliveryMoneyContract.REWARD_OFFSET_CONTRACT_VERSION,
+    rewardOffsetSemantics: DeliveryMoneyContract.REWARD_OFFSET_SEMANTICS.INDEPENDENT,
+    rewardOffsetTotalAmount: offsetSummary.handledRewardOffsetAmount,
     finalDebtAmount,
     rawFinalDebtAmount,
     returnOrderIds: returnSummary.returnOrderIds,
@@ -456,8 +488,11 @@ function buildCloseout(order = {}, returnOrders = [], payments = [], options = {
     cashAmount,
     bankAmount,
     collectedAmount: paymentSummary.collectedAmount,
-    offsetAmount: offsetSummary.offsetAmount,
+    offsetAmount,
     rewardAmount,
+    rewardOffsetContractVersion: DeliveryMoneyContract.REWARD_OFFSET_CONTRACT_VERSION,
+    rewardOffsetSemantics: DeliveryMoneyContract.REWARD_OFFSET_SEMANTICS.INDEPENDENT,
+    rewardOffsetTotalAmount: offsetSummary.handledRewardOffsetAmount,
     finalDebtAmount,
     rawFinalDebtAmount,
     returnOrderIds: returnSummary.returnOrderIds,
@@ -496,7 +531,7 @@ function assertNoLedgerShape(closeout = {}) {
 function validateCanonicalCloseout(closeout = {}, context = {}) {
   assertNoLedgerShape(closeout);
   const order = context.order || {};
-  const nonNegativeFields = ['originalAmount', 'returnedAmount', 'cashAmount', 'bankAmount', 'rewardAmount'];
+  const nonNegativeFields = ['originalAmount', 'returnedAmount', 'cashAmount', 'bankAmount', 'rewardAmount', 'offsetAmount', 'rewardOffsetTotalAmount'];
   for (const field of nonNegativeFields) {
     requireMoney(closeout, field, {
       label: 'canonical.deliveryCloseout',

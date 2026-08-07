@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const DeliveryCloseoutService = require('../src/services/accounting/DeliveryCloseoutService');
 
-test('delivery closeout breakdown keeps original = return + collected + offset + final debt', () => {
+test('delivery closeout breakdown keeps original = return + collected + reward + independent offset + final debt', () => {
   const order = {
     id: 'SO-CLOSEOUT-BREAKDOWN',
     code: 'B-CLOSEOUT-BREAKDOWN',
@@ -20,6 +20,6 @@ test('delivery closeout breakdown keeps original = return + collected + offset +
   assert.equal(closeout.finalDebtAmount, 32999);
   assert.equal(
     closeout.originalAmount,
-    closeout.returnedAmount + closeout.collectedAmount + closeout.offsetAmount + closeout.finalDebtAmount
+    closeout.returnedAmount + closeout.collectedAmount + closeout.rewardAmount + closeout.offsetAmount + closeout.finalDebtAmount
   );
 });

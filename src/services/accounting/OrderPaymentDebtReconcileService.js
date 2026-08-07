@@ -12,6 +12,7 @@ const {
 } = require('../../domain/ar/arOrderIdentity');
 const OrderPaymentAllocationService = require('./OrderPaymentAllocationService');
 const closeoutQueryAudit = require('../../observability/closeoutQueryAudit');
+const DeliveryMoneyContract = require('../delivery/financial/deliveryMoneyContract');
 
 const ACTIVE_EXCLUDED_STATUSES = ['reversed', 'void', 'voided', 'cancelled', 'canceled', 'deleted', 'removed', 'superseded'];
 const DEFAULT_ZERO_TOLERANCE = 1000;
@@ -128,13 +129,29 @@ function firstMoney(source = {}, keys = [], fallback = 0) {
   return money(fallback);
 }
 
+function canonicalHandledRewardOffset(closeout = {}, options = {}) {
+  const diagnostics = [];
+  const breakdown = DeliveryMoneyContract.readPaymentBreakdown(closeout, {
+    diagnostics,
+    sourceName: 'salesOrders.deliveryCloseout',
+    zeroTolerance: options.zeroTolerance
+  });
+  if (breakdown.rewardOffsetClassification === 'ambiguous') {
+    const err = new Error('Không đủ provenance để phân biệt rewardAmount và offsetAmount khi reconcile công nợ.');
+    err.code = 'AMBIGUOUS_LEGACY_REWARD_OFFSET';
+    err.diagnostics = diagnostics;
+    throw err;
+  }
+  return money(breakdown.handledRewardOffsetAmount);
+}
+
 function computeExpectedDebtFromCloseout(closeout = {}, options = {}) {
   const zeroTolerance = normalizeZeroTolerance(options.zeroTolerance ?? closeout.zeroTolerance, DEFAULT_ZERO_TOLERANCE);
   const allocationLike = {
     receivableAmount: firstMoney(closeout, ['receivableAmount', 'originalAmount', 'saleAmount', 'deliveredAmount', 'totalAmount', 'amount'], options.receivableAmount),
     cashAmount: firstMoney(closeout, ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount', 'paidCashAmount'], options.cashAmount),
     bankAmount: firstMoney(closeout, ['bankAmount', 'bankTransferAmount', 'transferAmount', 'paidBankAmount'], options.bankAmount),
-    rewardAmount: firstMoney(closeout, ['rewardAmount', 'offsetAmount', 'bonusAmount', 'allowanceAmount', 'rewardOffsetAmount'], options.rewardAmount),
+    rewardAmount: canonicalHandledRewardOffset(closeout, { zeroTolerance }),
     returnAmount: firstMoney(closeout, ['returnAmount', 'returnedAmount', 'actualReturnAmount', 'returnAmountFromReturnOrders'], options.returnAmount),
     zeroTolerance
   };
@@ -168,7 +185,7 @@ function allocationFromCloseout(order = {}, closeout = {}, options = {}) {
     receivableAmount: firstMoney(closeout, ['receivableAmount', 'originalAmount', 'saleAmount', 'deliveredAmount', 'totalAmount', 'amount'], order.totalAmount || order.amount || order.total),
     cashAmount: firstMoney(closeout, ['cashAmount', 'cashCollectedAmount', 'cashReceivedAmount', 'paidCashAmount'], 0),
     bankAmount: firstMoney(closeout, ['bankAmount', 'bankTransferAmount', 'transferAmount', 'paidBankAmount'], 0),
-    rewardAmount: firstMoney(closeout, ['rewardAmount', 'offsetAmount', 'bonusAmount', 'allowanceAmount', 'rewardOffsetAmount'], 0),
+    rewardAmount: canonicalHandledRewardOffset(closeout, { zeroTolerance: expected.zeroTolerance }),
     returnAmount: firstMoney(closeout, ['returnAmount', 'returnedAmount', 'actualReturnAmount', 'returnAmountFromReturnOrders'], 0),
     rawDebtAmount: expected.rawDebtAmount,
     normalizedDebtAmount: expected.expectedDebtAmount,

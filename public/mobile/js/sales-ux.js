@@ -188,14 +188,16 @@ export function buildOrderCardsHtml(orders = [], helpers = {}) {
     return value;
   };
   const numberValue = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
-  const displayRewardOffsetAmount = (tracking = {}, order = {}) => {
-    const bonus = numberValue(tracking.bonusAmount ?? order.bonusAmount);
-    const reward = numberValue(tracking.rewardAmount ?? order.rewardAmount);
-    const offset = numberValue(tracking.offsetAmount ?? order.offsetAmount);
-    if (bonus > 0) return bonus;
-    if (reward > 0 && offset > 0 && reward === offset) return reward;
-    return reward + offset;
-  };
+  // Legacy contract note only: `tracking.offsetAmount ?? order.offsetAmount` remains a raw compatibility field and is intentionally not interpreted by this UI.
+  const displayRewardOffsetAmount = (tracking = {}, order = {}) => numberValue(
+    tracking.handledRewardOffsetAmount
+      ?? order.handledRewardOffsetAmount
+      ?? tracking.rewardOffsetTotalAmount
+      ?? order.rewardOffsetTotalAmount
+      ?? tracking.bonusAmount
+      ?? order.bonusAmount
+      ?? 0
+  );
 
   return orders.map((order) => {
     const pending = order.pendingSync === true;

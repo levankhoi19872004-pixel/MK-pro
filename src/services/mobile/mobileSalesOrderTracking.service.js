@@ -3,7 +3,8 @@
 const ReturnOrder = require('../../models/ReturnOrder');
 const DeliveryCloseoutVersion = require('../../models/DeliveryCloseoutVersion');
 const { toNumber } = require('../../utils/common.util');
-const { normalizeDebtAmount, calculateDeliveryDebtAmount } = require('../../constants/finance.constants');
+const { normalizeDebtAmount } = require('../../constants/finance.constants');
+const DeliveryMoneyContract = require('../delivery/financial/deliveryMoneyContract');
 
 const INACTIVE_STATUSES = ['cancelled', 'canceled', 'void', 'voided', 'deleted', 'removed', 'rejected', 'duplicate_cancelled'];
 const CONFIRMED_STATUSES = ['confirmed', 'posted', 'locked', 'accounting_confirmed', 'completed', 'closed'];
@@ -62,10 +63,27 @@ function firstExplicitMoney(source = {}, keys = []) {
 }
 
 function normalizeRewardOffsetAmount(rewardAmount = 0, offsetAmount = 0) {
-  const reward = money(rewardAmount);
-  const offset = money(offsetAmount);
-  if (reward > 0 && offset > 0 && reward === offset) return reward;
-  return money(reward + offset);
+  // Values without provenance cannot be safely deduplicated merely because they are equal.
+  // Callers that have a document source must use DeliveryMoneyContract instead.
+  return money(DeliveryMoneyContract.calculateDebt({
+    rewardAmount: money(rewardAmount),
+    offsetAmount: money(offsetAmount)
+  }).handledRewardOffsetAmount);
+}
+
+function mergeFinancialSource(base = {}, override = {}) {
+  const merged = { ...(base && typeof base === 'object' ? base : {}) };
+  for (const [key, value] of Object.entries(override && typeof override === 'object' ? override : {})) {
+    if (value === undefined || value === null || value === '') continue;
+    merged[key] = value;
+  }
+  return merged;
+}
+
+function canonicalMoneyBreakdown(source = {}, sourceName = 'mobile.delivery') {
+  const diagnostics = [];
+  const breakdown = DeliveryMoneyContract.readPaymentBreakdown(source, { diagnostics, sourceName });
+  return { ...breakdown, diagnostics };
 }
 
 function orderIdentityValues(order = {}) {
@@ -202,44 +220,41 @@ const VERSION_DEBT_FIELDS = ['rawFinalDebtAmount', 'rawDebtAmount', 'finalDebtAm
 
 function orderMoneyBreakdown(order = {}) {
   const closeout = deliveryCloseout(order);
-  const cashAmount = firstMoney(closeout, CASH_FIELDS) || firstMoney(order, CASH_FIELDS);
-  const bankAmount = firstMoney(closeout, BANK_FIELDS) || firstMoney(order, BANK_FIELDS);
-  const rewardAmount = firstMoney(closeout, BONUS_FIELDS) || firstMoney(order, BONUS_FIELDS);
-  const offsetAmount = firstMoney(closeout, OFFSET_FIELDS) || firstMoney(order, OFFSET_FIELDS);
-  const bonusAmount = normalizeRewardOffsetAmount(rewardAmount, offsetAmount);
-  const explicitCollected = firstMoney(closeout, ['collectedAmount', 'cashCollectedTotal', 'paidAmount', 'paymentAmount', 'deliveryCollectedAmount'])
-    || firstMoney(order, ['collectedAmount', 'cashCollectedTotal', 'paidAmount', 'paymentAmount', 'deliveryCollectedAmount', 'paidAmount']);
-  let collectedAmount = cashAmount + bankAmount;
-  let nextCashAmount = cashAmount;
-  if (!collectedAmount && explicitCollected > 0) {
-    nextCashAmount = explicitCollected;
-    collectedAmount = explicitCollected;
-  }
+  const source = mergeFinancialSource(order, closeout);
+  const canonical = canonicalMoneyBreakdown(source, Object.keys(closeout).length ? 'salesOrders.deliveryCloseout+order' : 'salesOrders');
   return {
-    cashAmount: nextCashAmount,
-    bankAmount,
-    rewardAmount,
-    offsetAmount,
-    bonusAmount,
-    collectedAmount
+    cashAmount: canonical.cashAmount,
+    bankAmount: canonical.bankAmount,
+    rewardAmount: canonical.rewardAmount,
+    offsetAmount: canonical.offsetAmount,
+    handledRewardOffsetAmount: canonical.handledRewardOffsetAmount,
+    rewardOffsetClassification: canonical.rewardOffsetClassification,
+    rewardOffsetSemantic: canonical.rewardOffsetSemantic,
+    rewardOffsetEvidence: canonical.rewardOffsetEvidence,
+    rewardOffsetAmbiguous: canonical.rewardOffsetAmbiguous,
+    bonusAmount: canonical.handledRewardOffsetAmount,
+    collectedAmount: money(canonical.cashAmount + canonical.bankAmount),
+    diagnostics: canonical.diagnostics
   };
 }
 
 function latestVersionMoney(latestVersion = null, fallback = {}) {
   if (!latestVersion) return fallback;
-  const cashAmount = firstNumber(latestVersion, CASH_FIELDS) || money(fallback.cashAmount);
-  const bankAmount = firstNumber(latestVersion, BANK_FIELDS) || money(fallback.bankAmount);
-  const rewardAmount = firstMoney(latestVersion, BONUS_FIELDS) || money(fallback.rewardAmount);
-  const offsetAmount = firstMoney(latestVersion, OFFSET_FIELDS) || money(fallback.offsetAmount);
-  const bonusAmount = normalizeRewardOffsetAmount(rewardAmount, offsetAmount) || money(fallback.bonusAmount);
-  const explicitCollected = firstNumber(latestVersion, ['collectedAmount', 'newCollectedAmount', 'cashCollectedAmount', 'newCashCollectedAmount']);
+  const source = mergeFinancialSource(fallback, latestVersion);
+  const canonical = canonicalMoneyBreakdown(source, 'deliveryCloseoutVersions.latest');
   return {
-    cashAmount,
-    bankAmount,
-    rewardAmount,
-    offsetAmount,
-    bonusAmount,
-    collectedAmount: explicitCollected || cashAmount + bankAmount
+    cashAmount: canonical.cashAmount,
+    bankAmount: canonical.bankAmount,
+    rewardAmount: canonical.rewardAmount,
+    offsetAmount: canonical.offsetAmount,
+    handledRewardOffsetAmount: canonical.handledRewardOffsetAmount,
+    rewardOffsetClassification: canonical.rewardOffsetClassification,
+    rewardOffsetSemantic: canonical.rewardOffsetSemantic,
+    rewardOffsetEvidence: canonical.rewardOffsetEvidence,
+    rewardOffsetAmbiguous: canonical.rewardOffsetAmbiguous,
+    bonusAmount: canonical.handledRewardOffsetAmount,
+    collectedAmount: money(canonical.cashAmount + canonical.bankAmount),
+    diagnostics: canonical.diagnostics
   };
 }
 
@@ -272,7 +287,9 @@ function resolveDeliveryTodayContractMoney(input = {}) {
   const base = input.moneySource || {};
   let rewardAmount = money(base.rewardAmount);
   let offsetAmount = money(base.offsetAmount);
-  let bonusAmount = normalizeRewardOffsetAmount(rewardAmount, offsetAmount);
+  let bonusAmount = Number.isFinite(Number(base.handledRewardOffsetAmount))
+    ? money(base.handledRewardOffsetAmount)
+    : normalizeRewardOffsetAmount(rewardAmount, offsetAmount);
   let closeoutMatchedBy = input.closeoutMatchedBy || (input.latestVersion ? 'order_identity' : 'order_delivery_fields');
 
   // Contract delivery-today-orders: TT is the delivery reward/offset amount.
@@ -300,23 +317,32 @@ function resolveDeliveryTodayContractMoney(input = {}) {
     collectedAmount: money(base.collectedAmount || (money(base.cashAmount) + money(base.bankAmount))),
     rewardAmount,
     offsetAmount,
+    handledRewardOffsetAmount: bonusAmount,
+    rewardOffsetClassification: text(base.rewardOffsetClassification),
+    rewardOffsetSemantic: text(base.rewardOffsetSemantic),
+    rewardOffsetEvidence: text(base.rewardOffsetEvidence),
+    rewardOffsetAmbiguous: base.rewardOffsetAmbiguous === true,
+    rewardOffsetDiagnostics: Array.isArray(base.diagnostics) ? base.diagnostics : [],
     bonusAmount,
     closeoutMatchedBy
   };
 }
 
 function calculateDailyDebtFromCloseout(input = {}) {
-  const rewardAmount = firstMoney(input, BONUS_FIELDS) || money(input.bonusAmount ?? input.rewardAmount ?? input.allowanceAmount ?? 0);
-  const offsetAmount = firstMoney(input, OFFSET_FIELDS);
-  const rewardOrOffsetAmount = normalizeRewardOffsetAmount(rewardAmount, offsetAmount);
-  const result = calculateDeliveryDebtAmount({
+  const diagnostics = [];
+  const breakdown = DeliveryMoneyContract.readPaymentBreakdown(input, {
+    diagnostics, sourceName: 'mobile.deliveryToday.contract'
+  });
+  const result = DeliveryMoneyContract.calculateDebt({
     receivableAmount: money(input.payableAmount ?? input.receivableAmount ?? input.totalAmount ?? input.originalAmount ?? input.saleAmount ?? 0),
-    cashAmount: money(input.cashAmount ?? input.cashCollectedAmount ?? input.cashCollected ?? 0),
-    bankAmount: money(input.bankAmount ?? input.transferAmount ?? input.bankCollectedAmount ?? 0),
-    rewardAmount: rewardOrOffsetAmount,
+    cashAmount: breakdown.cashAmount,
+    bankAmount: breakdown.bankAmount,
+    rewardAmount: breakdown.rewardAmount,
+    offsetAmount: breakdown.offsetAmount,
+    handledRewardOffsetAmount: breakdown.handledRewardOffsetAmount,
     returnAmount: money(input.returnAmount ?? input.returnedAmount ?? 0)
   });
-  return Math.max(0, normalizeDebtAmount(result.rawDebtAmount));
+  return Math.max(0, normalizeDebtAmount(result.debtRaw));
 }
 
 async function loadReturnsByOrderKey(orders = [], options = {}) {
@@ -504,6 +530,13 @@ function buildMobileSalesOrderTrackingSummary(order = {}, context = {}) {
     offsetAmount: money(moneySource.offsetAmount),
     bonusAmount: money(moneySource.bonusAmount),
     rewardAmount: money(moneySource.bonusAmount),
+    handledRewardOffsetAmount: money(moneySource.handledRewardOffsetAmount),
+    rewardOffsetClassification: text(moneySource.rewardOffsetClassification),
+    rewardOffsetSemantic: text(moneySource.rewardOffsetSemantic),
+    rewardOffsetEvidence: text(moneySource.rewardOffsetEvidence),
+    rewardOffsetAmbiguous: moneySource.rewardOffsetAmbiguous === true,
+    rewardOffsetDiagnostics: Array.isArray(moneySource.rewardOffsetDiagnostics) ? moneySource.rewardOffsetDiagnostics : [],
+    financialIntegrityStatus: moneySource.rewardOffsetAmbiguous === true ? 'degraded' : 'ok',
     returnAmount,
     dailyDebtAmount: remainingDebt,
     remainingDebt,

@@ -75,8 +75,8 @@ test('mobile order daily debt adds different reward and offset amounts', () => {
   assert.equal(amount, 200000);
 });
 
-test('mobile order daily debt avoids double counting duplicated reward and offset amounts', () => {
-  assert.equal(_internal.normalizeRewardOffsetAmount(300000, 300000), 300000);
+test('mobile helper does not silently dedupe equal reward/offset without provenance', () => {
+  assert.equal(_internal.normalizeRewardOffsetAmount(300000, 300000), 600000);
   const amount = _internal.calculateDailyDebtFromCloseout({
     payableAmount: 1000000,
     cashAmount: 700000,
