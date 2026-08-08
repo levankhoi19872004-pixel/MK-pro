@@ -664,20 +664,126 @@ async function updatePostedRefs(allocation = {}, arLedgers = [], fundLedgers = [
   return closeoutQueryAudit.withCloseoutAuditStage('order.allocation.updatePostedRefs', () => (query.lean ? query.lean() : query));
 }
 
-async function postAllocation(allocation = {}, options = {}) {
-  const saved = await upsertAllocation({ ...allocation, status: 'posted' }, options);
-  const arLedgers = await postArLedgersFromAllocation(saved, options);
+function buildFinalAllocationUpdatePlan(allocation = {}, arLedgers = [], fundLedgers = [], options = {}) {
+  const idempotencyKey = clean(allocation.idempotencyKey);
+  if (!idempotencyKey) {
+    throw allocationError('ORDER_PAYMENT_ALLOCATION_MISSING_IDEMPOTENCY_KEY', 'Thiếu idempotencyKey cho final allocation update plan.', allocation);
+  }
+  const postedArLedgerIds = Array.from(new Set((arLedgers || []).map((row) => clean(row.id || row.code || row._id)).filter(Boolean)));
+  const postedFundLedgerIds = Array.from(new Set((fundLedgers || []).map((row) => clean(row.id || row.code || row._id)).filter(Boolean)));
+  const now = options.now || dateUtil.nowIso();
+  const set = {
+    postedArLedgerIds,
+    status: 'posted',
+    postedAt: now,
+    postedBy: actorOf(options, allocation.updatedBy || allocation.createdBy || 'accountant'),
+    updatedAt: now
+  };
+  if (postedFundLedgerIds.length) set.postedFundLedgerIds = postedFundLedgerIds;
+  const filter = Object.freeze({ idempotencyKey });
+  const frozenSet = Object.freeze({ ...set, postedArLedgerIds: Object.freeze([...postedArLedgerIds]), ...(postedFundLedgerIds.length ? { postedFundLedgerIds: Object.freeze([...postedFundLedgerIds]) } : {}) });
+  const update = Object.freeze({ $set: frozenSet });
+  return Object.freeze({
+    idempotencyKey,
+    allocationCode: clean(allocation.allocationCode),
+    orderId: clean(allocation.orderId),
+    orderCode: clean(allocation.orderCode),
+    sourceVersion: Number(allocation.sourceVersion || 0),
+    filter,
+    update
+  });
+}
+
+function projectFinalAllocationState(allocation = {}, plan = {}) {
+  return {
+    ...allocation,
+    ...(plan && plan.update && plan.update.$set ? plan.update.$set : {})
+  };
+}
+
+async function flushFinalAllocationUpdatePlans(plans = [], options = {}) {
+  const rows = Array.isArray(plans) ? plans.filter(Boolean) : [];
+  if (!rows.length) return { acknowledged: true, commandCount: 0, operationCount: 0, matchedCount: 0, modifiedCount: 0 };
+  const seen = new Set();
+  const operations = rows.map((plan) => {
+    const key = clean(plan.idempotencyKey || plan.filter?.idempotencyKey);
+    if (!key) {
+      const err = new Error('Final allocation update plan thiếu idempotencyKey.');
+      err.code = 'ORDER_PAYMENT_ALLOCATION_BATCH_IDENTITY_MISSING';
+      throw err;
+    }
+    if (seen.has(key)) {
+      const err = new Error('Final allocation update plan bị trùng idempotencyKey trong cùng transaction.');
+      err.code = 'ORDER_PAYMENT_ALLOCATION_BATCH_IDENTITY_DUPLICATE';
+      err.idempotencyKey = key;
+      throw err;
+    }
+    seen.add(key);
+    if (!plan.update || !plan.update.$set) {
+      const err = new Error('Final allocation update plan thiếu update payload.');
+      err.code = 'ORDER_PAYMENT_ALLOCATION_BATCH_UPDATE_MISSING';
+      throw err;
+    }
+    return {
+      updateOne: {
+        filter: { idempotencyKey: key },
+        update: { $set: { ...plan.update.$set } }
+      }
+    };
+  });
+  const result = await closeoutQueryAudit.withCloseoutAuditStage('transaction.allocation.updatePostedRefsBatch', () => OrderPaymentAllocation.bulkWrite(operations, {
+    ordered: true,
+    session: options.session
+  }));
+  const matchedCount = Number(result && (result.matchedCount ?? result.nMatched));
+  if (Number.isFinite(matchedCount) && matchedCount !== operations.length) {
+    const err = new Error(`Allocation postedRefs batch matched ${matchedCount}/${operations.length}; abort transaction để tránh partial state.`);
+    err.code = 'ORDER_PAYMENT_ALLOCATION_BATCH_MATCH_MISMATCH';
+    err.expectedCount = operations.length;
+    err.matchedCount = matchedCount;
+    throw err;
+  }
+  return {
+    ...(result && typeof result === 'object' ? result : {}),
+    commandCount: 1,
+    operationCount: operations.length,
+    matchedCount: Number.isFinite(matchedCount) ? matchedCount : operations.length
+  };
+}
+
+async function finalizeAllocationAfterArPosting(saved = {}, arLedgers = [], options = {}) {
   const fundLedgers = [];
-  const updated = await updatePostedRefs(saved, arLedgers, fundLedgers, options);
+  let updated;
+  let finalAllocationUpdatePlan = null;
+  if (options.deferFinalAllocationUpdate === true) {
+    finalAllocationUpdatePlan = buildFinalAllocationUpdatePlan(saved, arLedgers, fundLedgers, options);
+    if (typeof options.collectFinalAllocationUpdatePlan !== 'function') {
+      const err = new Error('Thiếu final allocation update plan collector cho transactional batch mode.');
+      err.code = 'ORDER_PAYMENT_ALLOCATION_BATCH_COLLECTOR_REQUIRED';
+      throw err;
+    }
+    options.collectFinalAllocationUpdatePlan(finalAllocationUpdatePlan);
+    updated = projectFinalAllocationState(saved, finalAllocationUpdatePlan);
+  } else {
+    updated = await updatePostedRefs(saved, arLedgers, fundLedgers, options);
+  }
   return {
     allocation: updated || saved,
     arLedgers,
     fundLedgers,
+    finalAllocationUpdatePlan,
+    finalAllocationUpdateDeferred: options.deferFinalAllocationUpdate === true,
     fundPostingPolicy: 'deferred_to_delivery_remittance',
     fundPostingDeferred: positiveMoney(saved.cashAmount) > 0 || positiveMoney(saved.bankAmount) > 0,
     arPostingResults: arLedgers.postingResults || [],
     expectedArLedgers: arLedgers.expectedArLedgers || []
   };
+}
+
+async function postAllocation(allocation = {}, options = {}) {
+  const saved = await upsertAllocation({ ...allocation, status: 'posted' }, options);
+  const arLedgers = await postArLedgersFromAllocation(saved, options);
+  return finalizeAllocationAfterArPosting(saved, arLedgers, options);
 }
 
 async function buildAndPostFromCloseout(order = {}, closeout = {}, options = {}) {
@@ -733,6 +839,10 @@ module.exports = {
   buildArLedgerRows,
   postArLedgersFromAllocation,
   postFundLedgersFromAllocation,
+  buildFinalAllocationUpdatePlan,
+  flushFinalAllocationUpdatePlans,
+  projectFinalAllocationState,
+  finalizeAllocationAfterArPosting,
   postAllocation,
   buildAndPostFromCloseout,
   findLatestAllocationsForOrderKeys,

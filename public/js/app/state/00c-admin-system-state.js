@@ -188,3 +188,4 @@ const apiMonitorErrorCalls=document.getElementById('apiMonitorErrorCalls');
 const apiMonitorTotalMongoMs=document.getElementById('apiMonitorTotalMongoMs');
 const apiMonitorTotalJsMs=document.getElementById('apiMonitorTotalJsMs');
 const apiMonitorTotalDbQueries=document.getElementById('apiMonitorTotalDbQueries');
+const apiMonitorTotalPhysicalMongoCommands=document.getElementById('apiMonitorTotalPhysicalMongoCommands');

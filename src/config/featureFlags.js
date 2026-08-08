@@ -22,7 +22,9 @@ const FLAGS = Object.freeze({
   multiTenant: () => String(process.env.TENANT_MODE || 'single').trim().toLowerCase() === 'multi',
   closeoutQueryDedupV1: () => readBoolean('PERF_CLOSEOUT_QUERY_DEDUP_V1', false),
   closeoutSyncBulkV1: () => readBoolean('PERF_CLOSEOUT_SYNC_BULK_V1', false),
-  closeoutArBalanceBatchV1: () => readBoolean('PERF_CLOSEOUT_AR_BALANCE_BATCH_V1', false)
+  closeoutArBalanceBatchV1: () => readBoolean('PERF_CLOSEOUT_AR_BALANCE_BATCH_V1', false),
+  closeoutAllocationPostedRefsBatchV1: () => readBoolean('PERF_CLOSEOUT_ALLOCATION_POSTEDREFS_BATCH_V1', false),
+  closeoutArWriteBulkV1: () => readBoolean('PERF_CLOSEOUT_AR_WRITE_BULK_V1', false)
 });
 
 function snapshot() {

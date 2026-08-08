@@ -12,6 +12,7 @@ try {
 }
 
 const apiMonitorStore = new AsyncLocalStorage();
+const mongoCommandNestingStore = new AsyncLocalStorage();
 let mongooseApiMonitorPatched = false;
 const mongoQueryObservers = new Set();
 const apiMetricObservers = new Set();
@@ -248,23 +249,70 @@ function notifyApiMetricObservers(metric) {
 registerMongoQueryObserver(closeoutQueryAudit.observeMongoQueryEvent);
 registerApiMetricObserver(closeoutQueryAudit.recordApiMonitorSnapshot);
 
-function addMongoMetric(ms, trace = null, event = null) {
+function createMetricStore() {
+  return {
+    mongoMs: 0,
+    dbQueries: 0,
+    queryExecCount: 0,
+    aggregateExecCount: 0,
+    bulkWriteCommandCount: 0,
+    bulkOperationCount: 0,
+    modelCreateSaveCommandCount: 0,
+    physicalMongoCommandCount: 0,
+    queryTraces: []
+  };
+}
+
+function recordPhysicalMongoCommand(category = '', details = {}) {
   const store = getActiveMetric();
   if (!store) return;
-  store.dbQueries += 1;
+  // Observability is fail-open: a broken counter must never fail a business request.
+  try {
+    const type = String(category || '').trim();
+    if (type === 'queryExec') {
+      store.queryExecCount = Number(store.queryExecCount || 0) + 1;
+      store.dbQueries = Number(store.dbQueries || 0) + 1;
+    } else if (type === 'aggregateExec') {
+      store.aggregateExecCount = Number(store.aggregateExecCount || 0) + 1;
+      store.dbQueries = Number(store.dbQueries || 0) + 1;
+    } else if (type === 'bulkWrite') {
+      store.bulkWriteCommandCount = Number(store.bulkWriteCommandCount || 0) + 1;
+      store.bulkOperationCount = Number(store.bulkOperationCount || 0) + Math.max(0, Number(details.bulkOperationCount || 0));
+    } else if (type === 'modelCreateSave') {
+      store.modelCreateSaveCommandCount = Number(store.modelCreateSaveCommandCount || 0) + 1;
+    } else {
+      return;
+    }
+    store.physicalMongoCommandCount = Number(store.queryExecCount || 0)
+      + Number(store.aggregateExecCount || 0)
+      + Number(store.bulkWriteCommandCount || 0)
+      + Number(store.modelCreateSaveCommandCount || 0);
+  } catch (_) {
+    // Never let telemetry mutate business behavior.
+  }
+}
+
+function addMongoMetric(ms, trace = null, event = null, commandCategory = 'queryExec') {
+  const store = getActiveMetric();
+  if (!store) return;
+  recordPhysicalMongoCommand(commandCategory);
   store.mongoMs += ms;
   if (trace) pushQueryTrace(store, trace);
   if (event) notifyMongoQueryObservers(event);
 }
 
-function patchMongooseApiMonitor() {
-  if (!mongoose || mongooseApiMonitorPatched) return;
-  mongooseApiMonitorPatched = true;
+function patchMongooseApiMonitor(targetMongoose = mongoose) {
+  if (!targetMongoose) return;
+  if (targetMongoose === mongoose && mongooseApiMonitorPatched) return;
+  if (targetMongoose === mongoose) mongooseApiMonitorPatched = true;
 
-  const patchExec = (proto) => {
+  const patchExec = (proto, commandCategory = '') => {
     if (!proto || typeof proto.exec !== 'function' || proto.exec.__apiMonitorPatched) return;
     const originalExec = proto.exec;
+    const resolvedCommandCategory = commandCategory || (mongoose && proto === mongoose.Aggregate?.prototype ? 'aggregateExec' : 'queryExec');
     function monitoredExec(...args) {
+      const nested = mongoCommandNestingStore.getStore();
+      if (nested && nested.suppressQueryExec) return originalExec.apply(this, args);
       const started = nowMs();
       const queryInfo = describeMongooseExec(this);
       const finalizeTrace = (result, err = null) => {
@@ -289,7 +337,7 @@ function patchMongooseApiMonitor() {
           hasSession: Boolean(typeof this?.getOptions === 'function' ? this.getOptions()?.session : this?.options?.session),
           queryShape: queryInfo.label,
           error: err ? 'QUERY_ERROR' : ''
-        });
+        }, resolvedCommandCategory);
       };
       try {
         const result = originalExec.apply(this, args);
@@ -313,8 +361,95 @@ function patchMongooseApiMonitor() {
     proto.exec = monitoredExec;
   };
 
-  patchExec(mongoose.Query && mongoose.Query.prototype);
-  patchExec(mongoose.Aggregate && mongoose.Aggregate.prototype);
+  const patchBulkWrite = (Model) => {
+    if (!Model || typeof Model.bulkWrite !== 'function' || Model.bulkWrite.__apiMonitorPatched) return;
+    const originalBulkWrite = Model.bulkWrite;
+    function monitoredBulkWrite(operations = [], ...args) {
+      const finalize = () => recordPhysicalMongoCommand('bulkWrite', { bulkOperationCount: Array.isArray(operations) ? operations.length : 0 });
+      try {
+        const result = mongoCommandNestingStore.run({ suppressQueryExec: true, physicalOwner: 'bulkWrite' }, () => originalBulkWrite.call(this, operations, ...args));
+        if (result && typeof result.then === 'function') {
+          return result.then((value) => { finalize(); return value; }, (err) => { finalize(); throw err; });
+        }
+        finalize();
+        return result;
+      } catch (err) {
+        finalize();
+        throw err;
+      }
+    }
+    monitoredBulkWrite.__apiMonitorPatched = true;
+    Model.bulkWrite = monitoredBulkWrite;
+  };
+
+  const patchSave = (proto) => {
+    if (!proto || typeof proto.save !== 'function' || proto.save.__apiMonitorPatched) return;
+    const originalSave = proto.save;
+    function monitoredSave(...args) {
+      const nested = mongoCommandNestingStore.getStore();
+      // Never count the lower-level Query.exec that belongs to this save command.
+      if (nested && nested.physicalOwner === 'modelCreateSave') return originalSave.apply(this, args);
+      const createOwner = nested && nested.physicalOwner === 'modelCreate' ? nested : null;
+      const finalize = () => {
+        recordPhysicalMongoCommand('modelCreateSave');
+        if (createOwner) createOwner.saveCount = Number(createOwner.saveCount || 0) + 1;
+      };
+      try {
+        const result = mongoCommandNestingStore.run({ suppressQueryExec: true, physicalOwner: 'modelCreateSave' }, () => originalSave.apply(this, args));
+        if (result && typeof result.then === 'function') {
+          return result.then((value) => { finalize(); return value; }, (err) => { finalize(); throw err; });
+        }
+        finalize();
+        return result;
+      } catch (err) {
+        finalize();
+        throw err;
+      }
+    }
+    monitoredSave.__apiMonitorPatched = true;
+    proto.save = monitoredSave;
+  };
+
+  const patchCreate = (Model) => {
+    if (!Model || typeof Model.create !== 'function' || Model.create.__apiMonitorPatched) return;
+    const originalCreate = Model.create;
+    function monitoredCreate(...args) {
+      const owner = { suppressQueryExec: true, physicalOwner: 'modelCreate', saveCount: 0 };
+      const finalize = () => {
+        // Normal Mongoose create() reaches Model#save and each actual save is already counted.
+        // Fallback to one command only for create implementations that bypass the save hook.
+        if (Number(owner.saveCount || 0) === 0) recordPhysicalMongoCommand('modelCreateSave');
+      };
+      try {
+        const result = mongoCommandNestingStore.run(owner, () => originalCreate.apply(this, args));
+        if (result && typeof result.then === 'function') {
+          return result.then((value) => { finalize(); return value; }, (err) => { finalize(); throw err; });
+        }
+        finalize();
+        return result;
+      } catch (err) {
+        finalize();
+        throw err;
+      }
+    }
+    monitoredCreate.__apiMonitorPatched = true;
+    Model.create = monitoredCreate;
+  };
+
+  if (targetMongoose === mongoose) {
+    // Preserve the established A3 Query/Aggregate instrumentation seam and compatibility contract.
+    patchExec(mongoose.Query && mongoose.Query.prototype);
+    patchExec(mongoose.Aggregate && mongoose.Aggregate.prototype);
+    patchBulkWrite(mongoose.Model);
+    patchSave(mongoose.Model && mongoose.Model.prototype);
+    patchCreate(mongoose.Model);
+  } else {
+    patchExec(targetMongoose.Query && targetMongoose.Query.prototype, 'queryExec');
+    patchExec(targetMongoose.Aggregate && targetMongoose.Aggregate.prototype, 'aggregateExec');
+    patchBulkWrite(targetMongoose.Model);
+    patchSave(targetMongoose.Model && targetMongoose.Model.prototype);
+    patchCreate(targetMongoose.Model);
+  }
 }
 
 patchMongooseApiMonitor();
@@ -397,6 +532,15 @@ function recordMetric(metric) {
     totalMongoMs: 0,
     totalJsMs: 0,
     totalDbQueries: 0,
+    totalPhysicalMongoCommands: 0,
+    totalBulkOperations: 0,
+    maxPhysicalMongoCommands: 0,
+    lastPhysicalMongoCommands: 0,
+    lastQueryExecCount: 0,
+    lastAggregateExecCount: 0,
+    lastBulkWriteCommandCount: 0,
+    lastBulkOperationCount: 0,
+    lastModelCreateSaveCommandCount: 0,
     maxMongoMs: 0,
     maxJsMs: 0,
     maxDbQueries: 0,
@@ -438,6 +582,15 @@ function recordMetric(metric) {
   current.totalMongoMs += metric.mongoMs || 0;
   current.totalJsMs += metric.jsMs || 0;
   current.totalDbQueries += metric.dbQueries || 0;
+  current.totalPhysicalMongoCommands += metric.physicalMongoCommandCount || 0;
+  current.totalBulkOperations += metric.bulkOperationCount || 0;
+  current.lastPhysicalMongoCommands = metric.physicalMongoCommandCount || 0;
+  current.lastQueryExecCount = metric.queryExecCount || 0;
+  current.lastAggregateExecCount = metric.aggregateExecCount || 0;
+  current.lastBulkWriteCommandCount = metric.bulkWriteCommandCount || 0;
+  current.lastBulkOperationCount = metric.bulkOperationCount || 0;
+  current.lastModelCreateSaveCommandCount = metric.modelCreateSaveCommandCount || 0;
+  current.maxPhysicalMongoCommands = Math.max(current.maxPhysicalMongoCommands || 0, metric.physicalMongoCommandCount || 0);
   current.maxMs = Math.max(current.maxMs || 0, metric.ms);
   current.minMs = current.minMs == null ? metric.ms : Math.min(current.minMs, metric.ms);
   current.lastMs = metric.ms;
@@ -493,7 +646,7 @@ function apiMonitor(req, res, next) {
     orderCount: Number(req.body?.targets?.length || req.body?.orders?.length || 0),
     scopeIdentity: req.user?.id || req.user?._id || req.user?.code || ''
   });
-  const metricStore = { mongoMs: 0, dbQueries: 0, queryTraces: [] };
+  const metricStore = createMetricStore();
   const originalJson = res.json.bind(res);
   let responseRows = 0;
 
@@ -507,6 +660,7 @@ function apiMonitor(req, res, next) {
     res.set('X-Mongo-Time-Ms', String(mongoMs));
     res.set('X-JS-Time-Ms', String(jsMs));
     res.set('X-DB-Queries', String(dbQueries));
+    res.set('X-Physical-Mongo-Commands', String(Number(metricStore.physicalMongoCommandCount || 0)));
     res.set('X-API-Monitor', '1');
     if (body && typeof body === 'object' && !Buffer.isBuffer(body)) {
       body.perf = {
@@ -515,11 +669,17 @@ function apiMonitor(req, res, next) {
         mongoMs: body.perf?.mongoMs ?? mongoMs,
         jsMs: body.perf?.jsMs ?? jsMs,
         dbQueries: body.perf?.dbQueries ?? dbQueries,
+        queryExecCount: body.perf?.queryExecCount ?? Number(metricStore.queryExecCount || 0),
+        aggregateExecCount: body.perf?.aggregateExecCount ?? Number(metricStore.aggregateExecCount || 0),
+        bulkWriteCommandCount: body.perf?.bulkWriteCommandCount ?? Number(metricStore.bulkWriteCommandCount || 0),
+        bulkOperationCount: body.perf?.bulkOperationCount ?? Number(metricStore.bulkOperationCount || 0),
+        modelCreateSaveCommandCount: body.perf?.modelCreateSaveCommandCount ?? Number(metricStore.modelCreateSaveCommandCount || 0),
+        physicalMongoCommandCount: body.perf?.physicalMongoCommandCount ?? Number(metricStore.physicalMongoCommandCount || 0),
         rows: body.perf?.rows ?? responseRows,
         slowestQuery: body.perf?.slowestQuery ?? (metricStore.queryTraces || []).slice().sort((a, b) => (b.ms || 0) - (a.ms || 0))[0] ?? null
       };
     }
-    notifyApiMetricObservers({ dbQueries, mongoMs, ms, statusCode: res.statusCode });
+    notifyApiMetricObservers({ dbQueries, physicalMongoCommandCount: Number(metricStore.physicalMongoCommandCount || 0), mongoMs, ms, statusCode: res.statusCode });
     return originalJson(body);
   };
 
@@ -542,6 +702,12 @@ function apiMonitor(req, res, next) {
       mongoMs,
       jsMs,
       dbQueries,
+      queryExecCount: Number(metricStore.queryExecCount || 0),
+      aggregateExecCount: Number(metricStore.aggregateExecCount || 0),
+      bulkWriteCommandCount: Number(metricStore.bulkWriteCommandCount || 0),
+      bulkOperationCount: Number(metricStore.bulkOperationCount || 0),
+      modelCreateSaveCommandCount: Number(metricStore.modelCreateSaveCommandCount || 0),
+      physicalMongoCommandCount: Number(metricStore.physicalMongoCommandCount || 0),
       rows: responseRows,
       queryTraces: Array.isArray(metricStore.queryTraces) ? metricStore.queryTraces.slice().sort((a, b) => (b.ms || 0) - (a.ms || 0)) : [],
       slowMs,
@@ -569,6 +735,12 @@ function apiMonitor(req, res, next) {
       mongoMs: metric.mongoMs,
       jsMs: metric.jsMs,
       dbQueries: metric.dbQueries,
+      physicalMongoCommandCount: metric.physicalMongoCommandCount,
+      queryExecCount: metric.queryExecCount,
+      aggregateExecCount: metric.aggregateExecCount,
+      bulkWriteCommandCount: metric.bulkWriteCommandCount,
+      bulkOperationCount: metric.bulkOperationCount,
+      modelCreateSaveCommandCount: metric.modelCreateSaveCommandCount,
       rows: metric.rows,
       contentLength: metric.contentLength,
       slowestQuery: metric.queryTraces && metric.queryTraces[0] ? {
@@ -604,6 +776,8 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
     avgMongoMs: Math.round((s.totalMongoMs || 0) / Math.max(1, s.count)),
     avgJsMs: Math.round((s.totalJsMs || 0) / Math.max(1, s.count)),
     avgDbQueries: Math.round((s.totalDbQueries || 0) / Math.max(1, s.count)),
+    avgPhysicalMongoCommands: Math.round((s.totalPhysicalMongoCommands || 0) / Math.max(1, s.count)),
+    avgBulkOperations: Math.round((s.totalBulkOperations || 0) / Math.max(1, s.count)),
     avgRows: Math.round((s.totalRows || 0) / Math.max(1, s.count)),
     maxRows: s.maxRows || 0,
     avgResponseBytes: s.responseBytesKnown ? Math.round((s.totalResponseBytes || 0) / Math.max(1, s.responseBytesKnown)) : null,
@@ -615,11 +789,18 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
     maxMongoMs: s.maxMongoMs || 0,
     maxJsMs: s.maxJsMs || 0,
     maxDbQueries: s.maxDbQueries || 0,
+    maxPhysicalMongoCommands: s.maxPhysicalMongoCommands || 0,
     minMs: s.minMs || 0,
     lastMs: s.lastMs,
     lastMongoMs: s.lastMongoMs || 0,
     lastJsMs: s.lastJsMs || 0,
     lastDbQueries: s.lastDbQueries || 0,
+    lastPhysicalMongoCommands: s.lastPhysicalMongoCommands || 0,
+    lastQueryExecCount: s.lastQueryExecCount || 0,
+    lastAggregateExecCount: s.lastAggregateExecCount || 0,
+    lastBulkWriteCommandCount: s.lastBulkWriteCommandCount || 0,
+    lastBulkOperationCount: s.lastBulkOperationCount || 0,
+    lastModelCreateSaveCommandCount: s.lastModelCreateSaveCommandCount || 0,
     lastRows: s.lastRows,
     lastStatus: s.lastStatus,
     lastAt: s.lastAt,
@@ -673,6 +854,11 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
     totalMongoMs: Array.from(apiStats.values()).reduce((sum, s) => sum + (s.totalMongoMs || 0), 0),
     totalJsMs: Array.from(apiStats.values()).reduce((sum, s) => sum + (s.totalJsMs || 0), 0),
     totalDbQueries: Array.from(apiStats.values()).reduce((sum, s) => sum + (s.totalDbQueries || 0), 0),
+    totalPhysicalMongoCommands: Array.from(apiStats.values()).reduce((sum, s) => sum + (s.totalPhysicalMongoCommands || 0), 0),
+    totalBulkOperations: Array.from(apiStats.values()).reduce((sum, s) => sum + (s.totalBulkOperations || 0), 0),
+    physicalMongoCommandSchemaVersion: 1,
+    dbQueriesSemantics: 'legacy_query_and_aggregate_exec_count',
+    physicalMongoCommandSemantics: 'queryExec+aggregateExec+bulkWrite+modelCreateSave',
     activeRequests: performanceTelemetry._private.counters.activeRequests,
     maxActiveRequests: performanceTelemetry._private.counters.maxActiveRequests,
     generatedAt: new Date().toISOString()
@@ -680,12 +866,13 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
 
   const moduleStats = Array.from(apiStats.values()).reduce((acc, s) => {
     const key = s.module || 'Khác';
-    acc[key] = acc[key] || { module: key, count: 0, totalMs: 0, totalMongoMs: 0, totalJsMs: 0, totalDbQueries: 0, maxMs: 0, maxMongoMs: 0, slowCount: 0, errorCount: 0, routes: 0, latencySamples: [] };
+    acc[key] = acc[key] || { module: key, count: 0, totalMs: 0, totalMongoMs: 0, totalJsMs: 0, totalDbQueries: 0, totalPhysicalMongoCommands: 0, maxMs: 0, maxMongoMs: 0, slowCount: 0, errorCount: 0, routes: 0, latencySamples: [] };
     acc[key].count += s.count;
     acc[key].totalMs += s.totalMs;
     acc[key].totalMongoMs += s.totalMongoMs || 0;
     acc[key].totalJsMs += s.totalJsMs || 0;
     acc[key].totalDbQueries += s.totalDbQueries || 0;
+    acc[key].totalPhysicalMongoCommands += s.totalPhysicalMongoCommands || 0;
     acc[key].maxMs = Math.max(acc[key].maxMs, s.maxMs || 0);
     acc[key].maxMongoMs = Math.max(acc[key].maxMongoMs, s.maxMongoMs || 0);
     acc[key].slowCount += s.slowCount || 0;
@@ -706,6 +893,7 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
       avgMongoMs: Math.round((x.totalMongoMs || 0) / Math.max(1, x.count)),
       avgJsMs: Math.round((x.totalJsMs || 0) / Math.max(1, x.count)),
       avgDbQueries: Math.round((x.totalDbQueries || 0) / Math.max(1, x.count)),
+      avgPhysicalMongoCommands: Math.round((x.totalPhysicalMongoCommands || 0) / Math.max(1, x.count)),
       p50Ms: percentile(x.latencySamples, 0.5),
       p95Ms: percentile(x.latencySamples, 0.95),
       p99Ms: percentile(x.latencySamples, 0.99),
@@ -741,6 +929,10 @@ module.exports = {
     apiMetricObservers,
     notifyMongoQueryObservers,
     notifyApiMetricObservers,
-    describeMongooseExec
+    describeMongooseExec,
+    createMetricStore,
+    recordPhysicalMongoCommand,
+    runWithMetricStoreForTest: (store, fn) => apiMonitorStore.run(store, fn),
+    patchMongooseApiMonitorForTest: (targetMongoose) => patchMongooseApiMonitor(targetMongoose)
   }
 };

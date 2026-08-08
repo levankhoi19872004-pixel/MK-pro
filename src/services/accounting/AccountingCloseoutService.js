@@ -496,6 +496,299 @@ function validateSelectedOrderScope(orders = [], body = {}, selectedOrderIds = [
   return null;
 }
 
+async function prepareOneOrderForArBulk(order = {}, returnOrders = [], options = {}) {
+  const actor = clean(options.actor || 'accountant');
+  if (isAccountingConfirmed(order)) return { earlyResult: buildAlreadyConfirmedResult(order) };
+  const eligibility = evaluateCloseoutEligibility(order);
+  if (!eligibility.eligible) {
+    if (eligibility.code === 'ALREADY_ACCOUNTING_CONFIRMED') return { earlyResult: buildAlreadyConfirmedResult(order) };
+    return { earlyResult: buildRejectedCloseoutResult(order, eligibility) };
+  }
+
+  const existingCloseout = order.deliveryCloseout || {};
+  const computed = closeoutQueryAudit.withCloseoutAuditStage('order.computeCloseout', () => DeliveryCloseoutService.buildCloseout(order, returnOrders, [], {
+    actor,
+    status: existingCloseout.status || 'pending_accounting',
+    reason: clean(options.reason || options.closeoutReason || '')
+  }));
+
+  if (DeliveryCloseoutService.hasReturnSignalWithoutReturnOrders(order, computed)) {
+    const err = new Error('Đơn có số tiền hàng trả trên app/salesOrders nhưng chưa có returnOrders hợp lệ. Chặn xác nhận kế toán để tránh lệch tồn kho/công nợ.');
+    err.code = 'ACCOUNTING_CONFIRM_BLOCKED_MISSING_RETURNORDERS';
+    err.orderId = DeliveryCloseoutService.orderId(order);
+    err.orderCode = DeliveryCloseoutService.orderCode(order);
+    throw err;
+  }
+
+  const scopedComputed = attachCloseoutScope(computed, order, options);
+  const compare = DeliveryCloseoutService.compareCloseout(scopedComputed, existingCloseout);
+  if (!compare.ok) {
+    scopedComputed.rebuiltFromSsot = true;
+    scopedComputed.previousCloseoutMismatches = compare.mismatches;
+    scopedComputed.previousCloseoutDiff = closeoutMismatchDiff(compare.mismatches);
+    scopedComputed.previousCloseoutHash = clean(existingCloseout.calculationHash || existingCloseout.sourceHash || '');
+    const repairFields = [...new Set((compare.mismatches || [])
+      .filter((row) => row && row.reason)
+      .map((row) => row.field)
+      .filter(Boolean))];
+    if ((compare.mismatches || []).some((row) => row.reason === 'legacy_negative_closeout_value')) {
+      scopedComputed.repairReason = 'legacy_negative_returned_amount';
+      scopedComputed.repairFields = repairFields;
+    }
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn('[DELIVERY_CLOSEOUT_REBUILT_FROM_SSOT]', {
+        orderId: DeliveryCloseoutService.orderId(order),
+        orderCode: DeliveryCloseoutService.orderCode(order),
+        closeoutScopeHash: clean(scopedComputed.closeoutScopeHash || scopedComputed.scopeHash),
+        diff: scopedComputed.previousCloseoutDiff
+      });
+    }
+    await auditService.log('DELIVERY_CLOSEOUT_REBUILT_FROM_SSOT', {
+      refType: 'SALES_ORDER',
+      refId: DeliveryCloseoutService.orderId(order),
+      refCode: DeliveryCloseoutService.orderCode(order),
+      user: actor,
+      before: { deliveryCloseout: compactCloseoutForOrder(existingCloseout) },
+      after: { deliveryCloseout: compactCloseoutForOrder(scopedComputed), diff: scopedComputed.previousCloseoutDiff },
+      note: `Rebuild deliveryCloseout từ SSoT trước khi chốt; scope=${clean(scopedComputed.closeoutScopeHash || scopedComputed.scopeHash)}`
+    });
+  }
+
+  const confirmedCloseout = DeliveryCloseoutService.confirmCloseout(order, scopedComputed, { actor, reason: clean(options.reason || options.closeoutReason || '') });
+  const patch = buildConfirmedOrderPatchFields(order, confirmedCloseout, actor);
+  const patchResult = await closeoutQueryAudit.withCloseoutAuditStage('order.salesOrder.patch', () => orderRepository.patchAccountingCloseoutById(DeliveryCloseoutService.orderId(order), patch, options));
+  if (!patchResult || Number(patchResult.matchedCount || 0) === 0) {
+    const latest = await orderRepository.findByIdOrCode(DeliveryCloseoutService.orderId(order), {
+      session: options.session,
+      projection: 'id code orderCode customerCode customerName accountingConfirmed accountingStatus deliveryCloseout debtAmount debt arBalance arStatus'
+    });
+    if (isAccountingConfirmed(latest || order)) return { earlyResult: buildAlreadyConfirmedResult(latest || order) };
+    const err = new Error('Không thể cập nhật chốt sổ vì đơn không tồn tại hoặc không còn ở trạng thái cho phép chốt.');
+    err.code = 'ORDER_NOT_FOUND_OR_NOT_UPDATABLE';
+    err.orderId = DeliveryCloseoutService.orderId(order);
+    err.orderCode = DeliveryCloseoutService.orderCode(order);
+    err.patchResult = patchResult;
+    throw err;
+  }
+
+  const updatedOrderForLedger = { ...order, ...patch };
+  const allocationOptions = {
+    ...options,
+    actor,
+    confirmedBy: actor,
+    date: options.date,
+    accountingBatchId: `OPA-ACC-${DeliveryCloseoutService.orderId(order) || DeliveryCloseoutService.orderCode(order)}`,
+    closeoutScopeHash: clean(confirmedCloseout.closeoutScopeHash || confirmedCloseout.scopeHash),
+    closeoutScope: confirmedCloseout.closeoutScope || 'selected_orders',
+    note: clean(options.note || options.reason || `Phân bổ thanh toán từ chốt giao hàng ${DeliveryCloseoutService.orderCode(order)}`),
+    skipReadModelRebuild: true
+  };
+  const allocation = closeoutQueryAudit.withCloseoutAuditStage('order.allocation.build', () => OrderPaymentAllocationService.buildAllocationFromCloseout(updatedOrderForLedger, confirmedCloseout, allocationOptions));
+  const savedAllocation = await OrderPaymentAllocationService.upsertAllocation({ ...allocation, status: 'posted' }, allocationOptions);
+  const expectedArLedgers = closeoutQueryAudit.withCloseoutAuditStage('order.ar.buildRows', () => OrderPaymentAllocationService.buildArLedgerRows(savedAllocation, allocationOptions));
+  closeoutQueryAudit.updateCardinality({ addGeneratedArRows: expectedArLedgers.length });
+
+  return {
+    earlyResult: null,
+    actor,
+    order,
+    returnOrders,
+    confirmedCloseout,
+    patchResult,
+    updatedOrderForLedger,
+    allocationOptions,
+    savedAllocation,
+    expectedArLedgers
+  };
+}
+
+async function finalizePreparedOrderAfterArBulk(prepared = {}, batchArLedgers = [], options = {}) {
+  if (prepared.earlyResult) return prepared.earlyResult;
+  const actor = prepared.actor;
+  const order = prepared.order || {};
+  const confirmedCloseout = prepared.confirmedCloseout || {};
+  const patchResult = prepared.patchResult;
+  const updatedOrderForLedger = prepared.updatedOrderForLedger || order;
+  const allocationOptions = { ...(prepared.allocationOptions || {}), ...options };
+  const arLedgersForAllocation = Array.from(batchArLedgers || []);
+  arLedgersForAllocation.postingResults = Array.isArray(batchArLedgers?.postingResults) ? batchArLedgers.postingResults : [];
+  arLedgersForAllocation.expectedArLedgers = Array.isArray(prepared.expectedArLedgers) ? prepared.expectedArLedgers : [];
+  const allocationResult = await OrderPaymentAllocationService.finalizeAllocationAfterArPosting(
+    prepared.savedAllocation,
+    arLedgersForAllocation,
+    allocationOptions
+  );
+  const prefetchedArBalanceDetails = allocationOptions.initialArBalanceBatchResolved === true
+    ? OrderPaymentDebtReconcileService.mergePostedArLedgersIntoPrefetchedBalance(
+      allocationOptions.initialArBalanceBatchDetails,
+      allocationResult.arLedgers || [],
+      {
+        order: updatedOrderForLedger,
+        allocation: allocationResult.allocation,
+        customerCode: clean(allocationResult.allocation?.customerCode || updatedOrderForLedger.customerCode)
+      }
+    )
+    : null;
+  const debtReconcileResult = await closeoutQueryAudit.withCloseoutAuditStage('order.debt.reconcile', () => OrderPaymentDebtReconcileService.reconcileOrderDebt({
+    order: updatedOrderForLedger,
+    allocation: allocationResult.allocation,
+    sourceType: 'delivery_closeout',
+    sourceId: allocationResult.allocation?.sourceId || confirmedCloseout.id || confirmedCloseout.code || DeliveryCloseoutService.orderId(order),
+    sourceCode: allocationResult.allocation?.sourceCode || confirmedCloseout.code || DeliveryCloseoutService.orderCode(order),
+    sourceModel: 'orderPaymentAllocations',
+    refType: 'ORDER_PAYMENT_ALLOCATION',
+    refId: allocationResult.allocation?.allocationCode || allocationResult.allocation?.id,
+    refCode: allocationResult.allocation?.allocationCode || DeliveryCloseoutService.orderCode(order),
+    apply: true,
+    zeroTolerance: OrderPaymentAllocationService.DEFAULT_ZERO_TOLERANCE || 1000,
+    actor,
+    session: allocationOptions.session,
+    skipReadModelRebuild: true,
+    prefetchedArBalanceDetails,
+    prefetchedArBalanceResolved: allocationOptions.initialArBalanceBatchResolved === true
+  }));
+  const debtAdjustmentLedger = debtReconcileResult && debtReconcileResult.posted ? debtReconcileResult.ledger : null;
+  const arLedgers = [
+    ...(allocationResult.arLedgers || []),
+    ...(debtAdjustmentLedger ? [debtAdjustmentLedger] : [])
+  ];
+  const arResult = {
+    posted: arLedgers.length > 0,
+    entry: arLedgers[0] || null,
+    allocation: allocationResult.allocation,
+    arLedgers,
+    fundLedgers: allocationResult.fundLedgers || [],
+    fundPostingPolicy: allocationResult.fundPostingPolicy || 'deferred_to_delivery_remittance',
+    fundPostingDeferred: allocationResult.fundPostingDeferred === true,
+    fundPostingOwner: 'DELIVERY_CASH_SUBMISSION',
+    debtReconcile: debtReconcileResult || null,
+    debtAdjustmentLedger
+  };
+  if (!allocationResult.allocation) {
+    const err = new Error('Khong xac minh duoc phan bo thanh toan sau khi chot so.');
+    err.code = 'PERSISTENCE_VERIFICATION_FAILED';
+    err.orderId = DeliveryCloseoutService.orderId(order);
+    err.orderCode = DeliveryCloseoutService.orderCode(order);
+    throw err;
+  }
+  const arEvidence = evaluateArSatisfaction({
+    allocation: allocationResult.allocation,
+    expectedArLedgers: allocationResult.expectedArLedgers || [],
+    arPostingResults: allocationResult.arPostingResults || [],
+    debtReconcileResult,
+    zeroTolerance: OrderPaymentAllocationService.DEFAULT_ZERO_TOLERANCE || 1000
+  });
+  arResult.arEvidence = arEvidence;
+  if (!arEvidence.arSatisfied) {
+    const err = new Error('Khong xac minh duoc ghi nhan cong no sau chot so.');
+    err.code = 'AR_PERSISTENCE_VERIFICATION_FAILED';
+    err.httpStatus = 500;
+    err.status = 500;
+    err.orderId = DeliveryCloseoutService.orderId(order);
+    err.orderCode = DeliveryCloseoutService.orderCode(order);
+    err.details = {
+      orderId: err.orderId,
+      orderCode: err.orderCode,
+      arRequired: arEvidence.arRequired,
+      arSatisfied: arEvidence.arSatisfied,
+      arReasonCode: arEvidence.arReasonCode,
+      expectedIntentCount: arEvidence.expectedIntentCount,
+      satisfiedIntentCount: arEvidence.satisfiedIntentCount,
+      missingIntents: arEvidence.missingIntents,
+      missingIdempotencyKeys: (arEvidence.missingIntents || []).map((row) => row.idempotencyKey).filter(Boolean)
+    };
+    err.data = { details: err.details };
+    throw err;
+  }
+  await closeoutQueryAudit.withCloseoutAuditStage('order.audit.accountingConfirm', () => auditService.log('ACCOUNTING_CONFIRM_DELIVERY_CLOSEOUT', {
+    refType: 'SALES_ORDER',
+    refId: DeliveryCloseoutService.orderId(order),
+    refCode: DeliveryCloseoutService.orderCode(order),
+    user: actor,
+    note: `Xác nhận kế toán chốt giao hàng: finalDebt=${confirmedCloseout.finalDebtAmount}, allocation=${arResult.allocation?.allocationCode || ''}, AR rows=${(arResult.arLedgers || []).length}, reason=${clean(allocationOptions.reason || allocationOptions.closeoutReason || '')}`
+  }));
+  await closeoutQueryAudit.withCloseoutAuditStage('order.audit.closeoutConfirmed', () => auditService.log('DELIVERY_CLOSEOUT_CONFIRMED', {
+    refType: 'SALES_ORDER',
+    refId: DeliveryCloseoutService.orderId(order),
+    refCode: DeliveryCloseoutService.orderCode(order),
+    user: actor,
+    after: {
+      date: allocationOptions.date,
+      deliveryStaffCode: orderDeliveryStaffCode(order),
+      salesStaffCode: orderSalesStaffCode(order),
+      selectedOrderCodes: confirmedCloseout.selectedOrderCodes || [],
+      selectedSalesStaffCodes: confirmedCloseout.selectedSalesStaffCodes || [],
+      totalReceivable: confirmedCloseout.originalAmount,
+      cashAmount: confirmedCloseout.cashAmount,
+      transferAmount: confirmedCloseout.bankAmount,
+      rewardAmount: confirmedCloseout.rewardAmount,
+      returnAmount: confirmedCloseout.returnedAmount,
+      debtAmount: confirmedCloseout.finalDebtAmount,
+      closeoutScopeHash: clean(confirmedCloseout.closeoutScopeHash || confirmedCloseout.scopeHash)
+    },
+    note: `DELIVERY_CLOSEOUT_CONFIRMED scope=${clean(confirmedCloseout.closeoutScopeHash || confirmedCloseout.scopeHash)} finalDebt=${confirmedCloseout.finalDebtAmount}`
+  }));
+  closeoutQueryAudit.updateCardinality({
+    orderMetric: {
+      generatedArRowCount: arLedgers.length,
+      cashFundPathUsed: false,
+      bankFundPathUsed: false,
+      fundPostingDeferred: allocationResult.fundPostingDeferred === true,
+      fundPostingOwner: 'DELIVERY_CASH_SUBMISSION',
+      rewardOffsetUsed: Number(confirmedCloseout.rewardOffsetTotalAmount ?? confirmedCloseout.rewardAmount ?? confirmedCloseout.offsetAmount ?? 0) > 0,
+      returnAmountUsed: Number(confirmedCloseout.returnedAmount || confirmedCloseout.returnAmount || 0) > 0,
+      debtReconcileOutcome: debtReconcileResult?.posted ? 'ADJUSTMENT_POSTED'
+        : (debtReconcileResult?.skippedAlreadyFixed || debtReconcileResult?.skipReason === 'NO_DEBT_DELTA' ? 'NO_DEBT_DELTA'
+          : (debtReconcileResult?.skippedAlreadyReconciled ? 'IDEMPOTENT_SKIP'
+            : (debtReconcileResult?.manualReviewRequired ? 'MANUAL_REVIEW' : 'UNKNOWN')))
+    }
+  });
+  return {
+    confirmed: true,
+    outcome: 'confirmed',
+    status: 'confirmed',
+    reasonCode: null,
+    orderId: DeliveryCloseoutService.orderId(order),
+    orderCode: DeliveryCloseoutService.orderCode(order),
+    accountingConfirmed: true,
+    affectedSourceId: clean(arResult?.entry?.sourceId || DeliveryCloseoutService.orderId(order)),
+    affectedCustomerCode: clean(order.customerCode),
+    readModelSyncNeeded: arResult?.posted === true,
+    persistence: {
+      salesOrderUpdated: Number(patchResult?.matchedCount || 0) > 0,
+      allocationWritten: Boolean(allocationResult.allocation),
+      arRequired: arEvidence.arRequired,
+      arSatisfied: arEvidence.arSatisfied,
+      arPosted: arEvidence.arPosted,
+      arAlreadyExists: arEvidence.arAlreadyExists,
+      arNoopValid: arEvidence.arNoopValid,
+      arReasonCode: arEvidence.arReasonCode,
+      arEntryIds: arEvidence.arEntryIds,
+      arIdempotencyKeys: arEvidence.arIdempotencyKeys,
+      legacyArWriteCommands: (allocationResult.arPostingResults || []).filter((row) => row && row.created === true).length,
+      legacyArWriteCommands: 0,
+      fundRequired: false,
+      fundImmediatePostingRequired: false,
+      fundPostingPolicy: 'deferred_to_delivery_remittance',
+      fundPostingDeferred: DeliveryCloseoutService.positiveMoney(confirmedCloseout.cashAmount) > 0 || DeliveryCloseoutService.positiveMoney(confirmedCloseout.bankAmount) > 0,
+      fundPostingOwner: 'DELIVERY_CASH_SUBMISSION',
+      fundSatisfied: true,
+      fundPosted: false,
+      verifiedFromWriterResult: true
+    },
+    closeout: confirmedCloseout,
+    closeoutScopeHash: clean(confirmedCloseout.closeoutScopeHash || confirmedCloseout.scopeHash),
+    selectedOrderCodes: confirmedCloseout.selectedOrderCodes || [],
+    selectedSalesStaffCodes: confirmedCloseout.selectedSalesStaffCodes || [],
+    rebuiltFromSsot: confirmedCloseout.rebuiltFromSsot === true,
+    previousCloseoutMismatches: confirmedCloseout.previousCloseoutMismatches || [],
+    paymentAllocation: arResult.allocation,
+    arPosting: arResult,
+    patchResult,
+    diagnostic: buildCloseoutDiagnostic(order, confirmedCloseout, arResult)
+  };
+}
+
 async function confirmOneOrder(order = {}, returnOrders = [], options = {}) {
   const actor = clean(options.actor || 'accountant');
   if (isAccountingConfirmed(order)) return buildAlreadyConfirmedResult(order);
@@ -766,7 +1059,9 @@ function closeoutContextHelpers() {
     attachCloseoutScope,
     isAccountingConfirmed,
     buildAlreadyConfirmedResult,
-    confirmOneOrder
+    confirmOneOrder,
+    prepareOneOrderForArBulk,
+    finalizePreparedOrderAfterArBulk
   };
 }
 
@@ -901,6 +1196,8 @@ async function confirmDeliveryAccountingInternal(body = {}, normalized = {}) {
     pendingConfirmOrders,
     results,
     confirmOneOrder,
+    prepareOneOrderForArBulk,
+    finalizePreparedOrderAfterArBulk,
     assertReturnOrdersInventoryReady,
     perOrderOptions: {
       actor,
@@ -996,6 +1293,8 @@ module.exports = {
   confirmDeliveryAccounting,
   confirmDeliveryAccountingInternal,
   confirmOneOrder,
+  prepareOneOrderForArBulk,
+  finalizePreparedOrderAfterArBulk,
   loadOrders,
   groupReturnOrdersBySalesOrder,
   returnOrdersForOrder,

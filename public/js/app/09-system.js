@@ -455,6 +455,7 @@ function renderApiMonitor(json = {}) {
   if (typeof apiMonitorTotalMongoMs !== 'undefined' && apiMonitorTotalMongoMs) apiMonitorTotalMongoMs.textContent = apiMonitorFormatMs(summary.totalMongoMs || 0);
   if (typeof apiMonitorTotalJsMs !== 'undefined' && apiMonitorTotalJsMs) apiMonitorTotalJsMs.textContent = apiMonitorFormatMs(summary.totalJsMs || 0);
   if (typeof apiMonitorTotalDbQueries !== 'undefined' && apiMonitorTotalDbQueries) apiMonitorTotalDbQueries.textContent = systemFormatNumber(summary.totalDbQueries || 0);
+  if (typeof apiMonitorTotalPhysicalMongoCommands !== 'undefined' && apiMonitorTotalPhysicalMongoCommands) apiMonitorTotalPhysicalMongoCommands.textContent = systemFormatNumber(summary.totalPhysicalMongoCommands || 0);
 
   const slowApis = Array.isArray(json.slowApis) ? json.slowApis : [];
   if (apiSlowTable) {
@@ -467,11 +468,12 @@ function renderApiMonitor(json = {}) {
         <td>${apiMonitorFormatMs(item.mongoMs || 0)}</td>
         <td>${apiMonitorFormatMs(item.jsMs || 0)}</td>
         <td>${systemFormatNumber(item.dbQueries || 0)}</td>
+        <td>${systemFormatNumber(item.physicalMongoCommandCount || 0)}</td>
         <td><code class="api-monitor-query-cell" title="${apiMonitorSafeText((item.queryTraces && item.queryTraces[0] && item.queryTraces[0].label) || '')}">${apiMonitorSafeText((item.queryTraces && item.queryTraces[0] && item.queryTraces[0].label) || '')} ${item.queryTraces && item.queryTraces[0] ? '(' + apiMonitorFormatMs(item.queryTraces[0].ms || 0) + ')' : ''}</code></td>
         <td>${systemFormatNumber(item.rows || 0)}</td>
         <td>${apiMonitorSafeText(item.statusCode || '')}</td>
       </tr>
-    `).join('') : '<tr><td colspan="10">Chưa có API chậm. Hãy thao tác các màn để phần mềm ghi nhận.</td></tr>';
+    `).join('') : '<tr><td colspan="11">Chưa có API chậm. Hãy thao tác các màn để phần mềm ghi nhận.</td></tr>';
   }
 
   renderApiMonitorTopSlowRows(Array.isArray(json.topSlowestApis) ? json.topSlowestApis : []);
@@ -490,6 +492,7 @@ function renderApiMonitor(json = {}) {
         <td>${apiMonitorFormatMs(row.avgMongoMs || 0)}</td>
         <td>${apiMonitorFormatMs(row.avgJsMs || 0)}</td>
         <td>${systemFormatNumber(row.avgDbQueries || 0)}</td>
+        <td>${systemFormatNumber(row.avgPhysicalMongoCommands || 0)}</td>
         <td><strong>${apiMonitorFormatMs(row.maxMs || 0)}</strong></td>
         <td>${apiMonitorFormatMs(row.maxMongoMs || 0)}</td>
         <td><code class="api-monitor-query-cell" title="${apiMonitorSafeText(row.slowestQueryLabel || '')}">${apiMonitorQueryText(row, 'last')}</code></td>
@@ -497,7 +500,7 @@ function renderApiMonitor(json = {}) {
         <td>${systemFormatNumber(row.slowCount || 0)}</td>
         <td>${systemApiMonitorBadge(row.maxMs, row.lastStatus)}</td>
       </tr>
-    `).join('') : '<tr><td colspan="13">Chưa có dữ liệu API Monitor. Hãy thao tác các màn rồi bấm tải lại.</td></tr>';
+    `).join('') : '<tr><td colspan="14">Chưa có dữ liệu API Monitor. Hãy thao tác các màn rồi bấm tải lại.</td></tr>';
   }
 }
 
@@ -505,13 +508,13 @@ async function loadApiMonitor() {
   if (!apiMonitorTable && !apiSlowTable) return;
   try {
     const slowOnly = apiMonitorFilter && apiMonitorFilter.value === 'slow' ? '1' : '0';
-    if (apiMonitorTable) apiMonitorTable.innerHTML = '<tr><td colspan="13">Đang tải API Monitor...</td></tr>';
+    if (apiMonitorTable) apiMonitorTable.innerHTML = '<tr><td colspan="14">Đang tải API Monitor...</td></tr>';
     const res = await fetch(`/api/system/api-monitor?limit=200&slowOnly=${slowOnly}`);
     const json = await res.json();
     if (!res.ok || json.ok === false) throw new Error(json.message || 'Không tải được API Monitor');
     renderApiMonitor(json);
   } catch (err) {
-    if (apiMonitorTable) apiMonitorTable.innerHTML = `<tr><td colspan="13">${apiMonitorSafeText(err.message || 'Không tải được API Monitor')}</td></tr>`;
+    if (apiMonitorTable) apiMonitorTable.innerHTML = `<tr><td colspan="14">${apiMonitorSafeText(err.message || 'Không tải được API Monitor')}</td></tr>`;
   }
 }
 

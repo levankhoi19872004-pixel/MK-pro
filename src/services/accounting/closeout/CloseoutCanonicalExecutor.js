@@ -34,6 +34,8 @@ async function executeCanonicalCloseoutWriters(context = {}, helpers = {}, optio
     pendingConfirmOrders: context.pendingConfirmOrders,
     results,
     confirmOneOrder: helpers.confirmOneOrder,
+    prepareOneOrderForArBulk: helpers.prepareOneOrderForArBulk,
+    finalizePreparedOrderAfterArBulk: helpers.finalizePreparedOrderAfterArBulk,
     assertReturnOrdersInventoryReady: helpers.assertReturnOrdersInventoryReady,
     perOrderOptions: {
       actor: context.command.actor,

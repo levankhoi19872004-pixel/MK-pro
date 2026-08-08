@@ -123,7 +123,8 @@
             <span>Lỗi: <strong id="apiMonitorErrorCalls">0</strong></span>
             <span>Mongo: <strong id="apiMonitorTotalMongoMs">0ms</strong></span>
             <span>JS: <strong id="apiMonitorTotalJsMs">0ms</strong></span>
-            <span>DB Queries: <strong id="apiMonitorTotalDbQueries">0</strong></span>
+            <span>DB Query/Aggregate (legacy): <strong id="apiMonitorTotalDbQueries">0</strong></span>
+            <span>Physical Mongo: <strong id="apiMonitorTotalPhysicalMongoCommands">0</strong></span>
           </div>
 
           <div class="api-monitor-tabs" id="apiMonitorTabs">
@@ -148,6 +149,7 @@
                   <col class="api-col-number">
                   <col class="api-col-number">
                   <col class="api-col-number">
+                  <col class="api-col-number">
                   <col class="api-col-query">
                   <col class="api-col-number">
                   <col class="api-col-number">
@@ -161,7 +163,8 @@
                     <th>TB Total</th>
                     <th>TB Mongo</th>
                     <th>TB JS</th>
-                    <th>TB Query</th>
+                    <th>TB Query (legacy)</th>
+                    <th>TB Physical</th>
                     <th>Max Total</th>
                     <th>Max Mongo</th>
                     <th>Query chậm nhất</th>
@@ -170,7 +173,7 @@
                     <th>Trạng thái</th>
                   </tr>
                 </thead>
-                <tbody id="apiMonitorTable"><tr><td colspan="13">Bấm Tải API Monitor để xem.</td></tr></tbody>
+                <tbody id="apiMonitorTable"><tr><td colspan="14">Bấm Tải API Monitor để xem.</td></tr></tbody>
               </table>
             </div>
 
@@ -181,6 +184,7 @@
                   <col class="api-col-time">
                   <col class="api-col-module">
                   <col class="api-col-api">
+                  <col class="api-col-number">
                   <col class="api-col-number">
                   <col class="api-col-number">
                   <col class="api-col-number">
@@ -197,13 +201,14 @@
                     <th>Total</th>
                     <th>Mongo</th>
                     <th>JS</th>
-                    <th>DB Queries</th>
+                    <th>DB Query/Aggregate</th>
+                    <th>Physical Mongo</th>
                     <th>Query chậm nhất</th>
                     <th>Rows</th>
                     <th>Status</th>
                   </tr>
                 </thead>
-                <tbody id="apiSlowTable"><tr><td colspan="10">Chưa có dữ liệu API chậm.</td></tr></tbody>
+                <tbody id="apiSlowTable"><tr><td colspan="11">Chưa có dữ liệu API chậm.</td></tr></tbody>
               </table>
             </div>
           </div>
