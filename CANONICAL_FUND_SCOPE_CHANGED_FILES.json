@@ -1,0 +1,138 @@
+{
+  "input_zip": "MK-pro-closeout-perf-a3-ar-batch-fixed(1).zip",
+  "input_sha256": "7dc9ee006e040440169aa0fe8969c5a41f502de05a46036fa77e2cd66649a196",
+  "changed_files": [
+    {
+      "path": "src/services/delivery/CanonicalDeliveryFinancialScopeReader.js",
+      "category": "production",
+      "baseline_exists": false,
+      "baseline_sha256": null,
+      "fixed_sha256": "9f9e5d3fe169998c5cd4a95b46ea274902ef502a3ddb9dabef708cc10ec507aa",
+      "bytes": 3137
+    },
+    {
+      "path": "src/services/delivery/CanonicalDeliveryFinancialScopeAdapter.js",
+      "category": "production",
+      "baseline_exists": false,
+      "baseline_sha256": null,
+      "fixed_sha256": "feb2897113a8768673bcb6abf0b203756c0e57869d738af8a3ef780a252328bf",
+      "bytes": 2979
+    },
+    {
+      "path": "src/services/v2/deliveryTodayNew.service.js",
+      "category": "production",
+      "baseline_exists": true,
+      "baseline_sha256": "93d6c0bf3abbfa16d3c98e62e8b474c990cb86e6d2458bde3ce48fa09e2dd01c",
+      "fixed_sha256": "f4be5d3586e7c386af7c827d34230c2b6827502c43bdfd33214679c5c8d8de83",
+      "bytes": 59864
+    },
+    {
+      "path": "src/services/fundService.source/part-01.jsfrag",
+      "category": "production",
+      "baseline_exists": true,
+      "baseline_sha256": "bb9a6960655168ab4e6d60a9caae27cfcb2de8c29a6069d1db03c80a3af4a152",
+      "fixed_sha256": "69632e11769d67b99f6088bd62348b71b7a9f76d6652bd953c01fc0bd7906eb0",
+      "bytes": 17179
+    },
+    {
+      "path": "src/services/fundService.source/part-01b.jsfrag",
+      "category": "production",
+      "baseline_exists": true,
+      "baseline_sha256": "a0880fe0c3451f6acf5a3652b6201820fa5bc043a32882fe9ab97474bd6e07bd",
+      "fixed_sha256": "627671624b73d947e21ca7c8ff3d322e893f1f92084ea7fb1c9e74c7ce928a18",
+      "bytes": 9645
+    },
+    {
+      "path": "src/services/fundService.js",
+      "category": "production",
+      "baseline_exists": true,
+      "baseline_sha256": "a7a5108f68308f8b8911f28b2dc16f3aef3870993854a4e982b1f87493040fc7",
+      "fixed_sha256": "62d6b4ba50666472e68f145fd61eb2e29a03eb4ca69a8e62abc8362844aeaf40",
+      "bytes": 40071
+    },
+    {
+      "path": "config/canonical-flows.json",
+      "category": "config",
+      "baseline_exists": true,
+      "baseline_sha256": "efb205d836ffb25eab6e93084be844c8169bbe1466b2d02484547cc8497b949f",
+      "fixed_sha256": "67e37cb9d0b663d97e012d597c15cb38951350cac1d74ca481edc08e9089358d",
+      "bytes": 20633
+    },
+    {
+      "path": "config/source-bundles.json",
+      "category": "config",
+      "baseline_exists": true,
+      "baseline_sha256": "7eeef88f8a943adea5fd49427648bd7e6e78c0e5c36ac76cfa30ad6e85ac9f9f",
+      "fixed_sha256": "3151da821e3a64277845c8c47b8cc6aed58692dd47081fab841be753b65b416f",
+      "bytes": 9499
+    },
+    {
+      "path": "test/fund-delivery-canonical-scope-parity.test.js",
+      "category": "test",
+      "baseline_exists": false,
+      "baseline_sha256": null,
+      "fixed_sha256": "a1a65282a9c935bcf7a2d25fe0e2c4f71eb84ef7a4ed5fa9053e0cc2320d968a",
+      "bytes": 6993
+    },
+    {
+      "path": "test/canonical-delivery-financial-scope-reader.test.js",
+      "category": "test",
+      "baseline_exists": false,
+      "baseline_sha256": null,
+      "fixed_sha256": "b31a1ec8811b45642c973d99e553f3960c6018e1f543d7419aaa0c6bf8f2935c",
+      "bytes": 2676
+    },
+    {
+      "path": "test/canonical-delivery-financial-scope-wiring-static.test.js",
+      "category": "test",
+      "baseline_exists": false,
+      "baseline_sha256": null,
+      "fixed_sha256": "2f59aa5495fbcf0b73601070946354d9bdcd9d17e99f5904b68d6083d35fa35d",
+      "bytes": 1974
+    },
+    {
+      "path": "test/fund-service-master-order-delivery-lazy-dependency-static.test.js",
+      "category": "test",
+      "baseline_exists": true,
+      "baseline_sha256": "9803e238132fa71f0b9607c4d0c83bb36e887a5f6ad5d5d2ee3f7144da99f703",
+      "fixed_sha256": "3ff3d6c80336740ded39f73bc1b5d362e00ff21fb5b1c40dabadbdfafb072759",
+      "bytes": 2043
+    },
+    {
+      "path": "test/fund-delivery-cash-update-refresh-behavior.test.js",
+      "category": "test",
+      "baseline_exists": true,
+      "baseline_sha256": "52a022ef4d60c873c16cc2bc1007f296ab22e5cf699f5b31281e0666363e2fab",
+      "fixed_sha256": "4ff82c7c138f70a20a6a232cf39c94451799bc155d6eb9de5d4426d1f9a72799",
+      "bytes": 5248
+    },
+    {
+      "path": "test/phase230-delivery-remittance-lines-accounting-date.test.js",
+      "category": "test",
+      "baseline_exists": true,
+      "baseline_sha256": "1dfa8068cc1e42c28697bcd39f70ec470d40de58af0fc47e0a83df3fc763927c",
+      "fixed_sha256": "8f2e6a0e99ac2ce5777bd7fa08acc1e89e138f39c5fe51313769392b46cb0dc4",
+      "bytes": 23282
+    },
+    {
+      "path": "test/phase258a-fund-remittance-canonical-payment-state.test.js",
+      "category": "test",
+      "baseline_exists": true,
+      "baseline_sha256": "0a8e08a6160a07b3d69a4b6f5827cf858c436101a64235758225bbce7d9fdcfb",
+      "fixed_sha256": "693d9240a4a85912e15d223cca959e351251eb377c066193bfee43bed9e7380a",
+      "bytes": 10023
+    },
+    {
+      "path": "test/phase258b-delivery-remittance-single-fund-post.test.js",
+      "category": "test",
+      "baseline_exists": true,
+      "baseline_sha256": "d733a85e98646cd29f745c937bdd6531e80015b3cbd10c151f965d8d2042b8a7",
+      "fixed_sha256": "0525dd360e88edd8640fae54a1b0659767c99131072e9710402fb08b971f09ba",
+      "bytes": 4116
+    }
+  ],
+  "production_change_count": 6,
+  "config_change_count": 2,
+  "test_change_count": 8,
+  "scope_note": "No production data mutation, no migration, no AR/fund ledger write-path change."
+}

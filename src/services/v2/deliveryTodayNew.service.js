@@ -5,7 +5,7 @@ const { toNumber } = require('../../utils/common.util');
 const { normalizeDebtAmount, calculateDeliveryDebtAmount, DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
 const searchService = require('../searchService');
 const { buildSourceNote } = require('../source-contracts/SourceNoteBuilder');
-const deliveryTodayCanonicalOrderReader = require('../delivery/deliveryTodayCanonicalOrderReader');
+const CanonicalDeliveryFinancialScopeReader = require('../delivery/CanonicalDeliveryFinancialScopeReader');
 const { calculateDeliveryTodayKpi } = require('../delivery/deliveryTodayKpiCalculator');
 const { evaluateCloseoutEligibility } = require('../accounting/closeout/CloseoutEligibility');
 const DeliveryPaymentStateReadService = require('../delivery/DeliveryPaymentStateReadService');
@@ -534,7 +534,7 @@ function normalizeDeliveryOperationalRow(row = {}) {
 
 async function loadCanonicalSalesOrders(query = {}, options = {}) {
   const modelSet = getModels();
-  const result = await deliveryTodayCanonicalOrderReader.listSalesOrders(query, modelSet, options);
+  const result = await CanonicalDeliveryFinancialScopeReader.listOrdersPage(query, modelSet, options);
   return result;
 }
 

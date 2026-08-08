@@ -67,7 +67,11 @@ test('sửa phiếu đồng bộ lại reportCash/reportBank và chênh lệch t
     installStub('src/repositories/deliveryCashSubmissionRepository.js', deliveryRepo),
     installStub('src/repositories/expenseVoucherRepository.js', {}),
     installStub('src/repositories/fundTransferRepository.js', {}),
-    installStub('src/services/master-order/masterOrderDelivery.service.js', {
+    installStub('src/repositories/deliveryCashShortageRepository.js', { findAll: async () => [] }),
+    installStub('src/repositories/deliveryShortageRepaymentRepository.js', { findAll: async () => [] }),
+    installStub('src/services/auditService.js', { log: async () => null }),
+    installStub('src/services/accounting/FundBalanceReadService.js', {}),
+    installStub('src/services/delivery/CanonicalDeliveryFinancialScopeAdapter.js', {
       listDeliveryTodayOrdersCompact: async () => ({
         orders: [
           {

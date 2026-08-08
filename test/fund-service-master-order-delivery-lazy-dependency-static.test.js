@@ -11,7 +11,7 @@ function read(file) {
   return require('./helpers/sourceBundle.util').readSource(path.join(ROOT, file));
 }
 
-test('fundService lazily resolves the delivery-only master order service', () => {
+test('fundService lazily resolves the canonical delivery financial scope adapter', () => {
   const source = read('src/services/fundService.js');
 
   assert.doesNotMatch(
@@ -22,8 +22,14 @@ test('fundService lazily resolves the delivery-only master order service', () =>
 
   assert.match(
     source,
-    /function\s+getMasterOrderDeliveryService\s*\(\)\s*\{[\s\S]*require\(['"]\.\/master-order\/masterOrderDelivery\.service['"]\)/,
-    'fundService must lazily require masterOrderDelivery.service'
+    /function\s+getCanonicalDeliveryFinancialScopeAdapter\s*\(\)\s*\{[\s\S]*require\(['"]\.\/delivery\/CanonicalDeliveryFinancialScopeAdapter['"]\)/,
+    'fundService must lazily require the canonical delivery financial scope adapter'
+  );
+
+  assert.doesNotMatch(
+    source,
+    /require\(['"]\.\/master-order\/masterOrderDelivery\.service['"]\)/,
+    'fundService must not derive fund scope from the masterOrders-first compact reader'
   );
 
   assert.match(

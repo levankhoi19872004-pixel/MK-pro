@@ -2,7 +2,7 @@ async function buildDeliverySubmissionDraft(query = {}) {
   const deliveryDate = dateOnly(query.deliveryDate || query.date);
   const deliveryStaffCode = String(pickDeliveryStaffCode(query) || query.delivery || '').trim();
   if (!deliveryStaffCode) return { error: 'Thiếu nhân viên giao hàng để tạo phiếu nộp quỹ', status: 400 };
-  const deliveryService = getMasterOrderDeliveryService();
+  const deliveryService = getCanonicalDeliveryFinancialScopeAdapter();
   const listDeliveryOrders = typeof deliveryService.listDeliveryTodayOrdersCompact === 'function'
     ? deliveryService.listDeliveryTodayOrdersCompact
     : deliveryService.listDeliveryToday;

@@ -1,0 +1,28 @@
+{
+  "release_id": "CANONICAL-FUND-SCOPE-A1",
+  "title": "Canonical Delivery Financial Scope — Fund/Delivery Today parity fix",
+  "artifact": "MK-pro-closeout-perf-a3-ar-batch-canonical-fund-scope-fixed.zip",
+  "input": "MK-pro-closeout-perf-a3-ar-batch-fixed(1).zip",
+  "production_data_mutation": false,
+  "migration_required": false,
+  "status": "ENGINEERING_PASS_WITH_ENVIRONMENT_LIMITATIONS",
+  "gates": {
+    "red_reproduction_before_source_change": "PASS",
+    "green_36_vs_32_1760000": "PASS",
+    "targeted_tests_28_of_28": "PASS",
+    "syntax_1681_js_files": "PASS",
+    "secret_scan": "PASS",
+    "source_size_new_regression": "PASS",
+    "official_source_bundle_check": "BLOCKED_MISSING_TERSER",
+    "artifact_clean_script": "BLOCKED_MISSING_JSZIP",
+    "clean_unpack_targeted_tests_28_of_28": "PASS",
+    "clean_unpack_syntax_1681_js_files": "PASS"
+  },
+  "deploy_preconditions": [
+    "Run npm ci in normal build environment",
+    "Run npm run check:source-bundles",
+    "Run npm run test:artifact-clean",
+    "Verify canary on 05/08/2026 + ghth or equivalent production-safe read-only scope: order count/cash/bank parity"
+  ],
+  "rollback": "Deploy previous input ZIP; no data rollback is required because this patch changes read scope only."
+}

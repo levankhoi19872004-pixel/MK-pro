@@ -60,11 +60,14 @@ function installFundHarness({ deliveryOrders, closeoutVersions, allocations }) {
     installStub('src/repositories/deliveryCashShortageRepository.js', { findAll: async () => [] }),
     installStub('src/repositories/deliveryShortageRepaymentRepository.js', { findAll: async () => [] }),
     installStub('src/services/auditService.js', { log: async () => null }),
-    installStub('src/services/master-order/masterOrderDelivery.service.js', {
+    installStub('src/services/accounting/FundBalanceReadService.js', {}),
+    installStub('src/services/searchService.js', {}),
+    installStub('src/services/delivery/CanonicalDeliveryFinancialScopeAdapter.js', {
       listDeliveryTodayOrdersCompact: async () => ({ orders: structuredClone(deliveryOrders), summary: { totalOrders: deliveryOrders.length } })
     }),
     installStub('src/models/DeliveryCloseoutVersion.js', { find: () => chain(closeoutVersions) }),
-    installStub('src/models/OrderPaymentAllocation.js', { find: () => chain(allocations) })
+    installStub('src/models/OrderPaymentAllocation.js', { find: () => chain(allocations) }),
+    installStub('src/models/ReturnOrder.js', { find: () => chain([]) })
   ];
   clearRuntimeModules();
   return {

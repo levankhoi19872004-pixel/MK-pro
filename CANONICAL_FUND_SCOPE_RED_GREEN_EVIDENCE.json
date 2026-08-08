@@ -1,0 +1,43 @@
+{
+  "requirement": "CFS-A-RED-GREEN-001",
+  "fixture": {
+    "delivery_date": "2026-08-05",
+    "delivery_staff_code": "ghth",
+    "canonical_order_count": 36,
+    "legacy_master_ref_order_count": 32,
+    "missing_order_count": 4,
+    "canonical_cash_amount": 54903962,
+    "legacy_cash_amount": 53143962,
+    "cash_gap": 1760000,
+    "canonical_bank_amount": 6484000,
+    "legacy_bank_amount": 6484000,
+    "bank_gap": 0
+  },
+  "red_before_production_change": {
+    "exit_code": 1,
+    "observed_failure": "32 !== 36",
+    "assertion": "Fund preview must not be constrained by stale masterOrders child refs",
+    "log": "RED_CANONICAL_FUND_PARITY.log",
+    "verified": true
+  },
+  "green_after_fix": {
+    "exit_code": 0,
+    "log": "GREEN_CANONICAL_FUND_PARITY.log",
+    "verified": true,
+    "acceptance": {
+      "order_count": 36,
+      "report_current_order_cash_amount": 54903962,
+      "report_current_order_bank_amount": 6484000,
+      "legacy_master_reader_calls": 0,
+      "canonical_orders_reader_calls": 1
+    }
+  },
+  "final_regression": {
+    "exit_code": 0,
+    "log": "CANONICAL_FUND_SCOPE_FINAL_TESTS.log",
+    "tests": 28,
+    "pass": 28,
+    "fail": 0,
+    "verified": true
+  }
+}

@@ -120,7 +120,7 @@ function makeHarness(initialSubmission, options = {}) {
       }
     },
     'src/utils/transaction.util.js': { withMongoTransaction: async (work) => work({ id: 'TEST_SESSION' }) },
-    'src/services/master-order/masterOrderDelivery.service.js': {
+    'src/services/delivery/CanonicalDeliveryFinancialScopeAdapter.js': {
       listDeliveryTodayOrdersCompact: async () => ({ orders: structuredClone(deliveryOrders), summary: {} })
     },
     'src/services/delivery/DeliveryPaymentStateReadService.js': {

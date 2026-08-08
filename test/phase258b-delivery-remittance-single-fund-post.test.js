@@ -62,7 +62,7 @@ test('Phase258B: confirmed delivery remittance creates exactly one cash and one 
     installStub('src/repositories/expenseVoucherRepository.js', { findAll: async () => [] }),
     installStub('src/repositories/fundTransferRepository.js', { findAll: async () => [] }),
     installStub('src/services/auditService.js', { log: async () => null }),
-    installStub('src/services/master-order/masterOrderDelivery.service.js', { listDeliveryTodayOrdersCompact: async () => ({ orders: [], summary: {} }) })
+    installStub('src/services/delivery/CanonicalDeliveryFinancialScopeAdapter.js', { listDeliveryTodayOrdersCompact: async () => ({ orders: [], summary: {} }) })
   ];
   const servicePath = modulePath('src/services/fundService.js');
   const previous = require.cache[servicePath];

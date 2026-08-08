@@ -22,8 +22,8 @@ const {
   canonicalLineStatus,
   canonicalMethod: canonicalRemittanceMethod
 } = require('../domain/fund/deliveryRemittanceLines');
-function getMasterOrderDeliveryService() {
-  return require('./master-order/masterOrderDelivery.service');
+function getCanonicalDeliveryFinancialScopeAdapter() {
+  return require('./delivery/CanonicalDeliveryFinancialScopeAdapter');
 }
 const { pickDeliveryStaffCode } = require('../domain/staff/staffIdentity');
 

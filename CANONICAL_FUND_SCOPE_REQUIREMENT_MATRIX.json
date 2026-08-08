@@ -1,0 +1,65 @@
+{
+  "program": "Canonical Fund Delivery Scope - Option A",
+  "requirements": [
+    {
+      "id": "CFS-A-001",
+      "name": "RED reproduction before production change",
+      "status": "PASS",
+      "evidence": "CANONICAL_FUND_SCOPE_RED_GREEN_EVIDENCE.json"
+    },
+    {
+      "id": "CFS-A-002",
+      "name": "Shared canonical order-scope reader for Delivery Today and Fund",
+      "status": "PASS",
+      "evidence": "test/canonical-delivery-financial-scope-wiring-static.test.js"
+    },
+    {
+      "id": "CFS-A-003",
+      "name": "orders/SalesOrder primary; masterOrders metadata-only",
+      "status": "PASS",
+      "evidence": "src/services/delivery/CanonicalDeliveryFinancialScopeReader.js"
+    },
+    {
+      "id": "CFS-A-004",
+      "name": "Fund preview no longer calls masterOrders-first compact reader",
+      "status": "PASS",
+      "evidence": "test/fund-delivery-canonical-scope-parity.test.js"
+    },
+    {
+      "id": "CFS-A-005",
+      "name": "Payment values remain resolved by DeliveryPaymentStateReadService",
+      "status": "PASS",
+      "evidence": "test/phase258a-fund-remittance-canonical-payment-state.test.js"
+    },
+    {
+      "id": "CFS-A-006",
+      "name": "Pagination/dedupe/safety bound for full day+staff scope",
+      "status": "PASS",
+      "evidence": "test/canonical-delivery-financial-scope-reader.test.js"
+    },
+    {
+      "id": "CFS-A-007",
+      "name": "No source-size regression caused by this patch",
+      "status": "PASS_WITH_BASELINE_FAILURES",
+      "evidence": "SOURCE_SIZE_BUDGET.log"
+    },
+    {
+      "id": "CFS-A-008",
+      "name": "JavaScript syntax",
+      "status": "PASS",
+      "evidence": "CANONICAL_FUND_SCOPE_SYNTAX.log"
+    },
+    {
+      "id": "CFS-A-009",
+      "name": "Targeted regressions",
+      "status": "PASS",
+      "evidence": "CANONICAL_FUND_SCOPE_FINAL_TESTS.log"
+    },
+    {
+      "id": "CFS-A-010",
+      "name": "Official source-bundle regeneration/check",
+      "status": "BLOCKED_BY_ENVIRONMENT",
+      "evidence": "CANONICAL_FUND_SCOPE_BUNDLE_INTEGRITY.json"
+    }
+  ]
+}

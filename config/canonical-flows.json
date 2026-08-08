@@ -329,6 +329,7 @@
     "services": [
       "src/routes/newOperationsRoutes.js",
       "src/services/v2/deliveryTodayNew.service.js",
+      "src/services/delivery/CanonicalDeliveryFinancialScopeReader.js",
       "src/services/delivery/deliveryTodayCanonicalOrderReader.js",
       "src/services/delivery/deliveryTodayKpiCalculator.js"
     ],
@@ -561,7 +562,9 @@
     ],
     "services": [
       "src/controllers/fundController.js",
-      "src/services/fundService.js"
+      "src/services/fundService.js",
+      "src/services/delivery/CanonicalDeliveryFinancialScopeAdapter.js",
+      "src/services/delivery/CanonicalDeliveryFinancialScopeReader.js"
     ],
     "ssotCollections": [
       "fundLedgers",
@@ -572,7 +575,8 @@
     "forbiddenSources": [
       "cashbook/bankbook as canonical fund SSoT"
     ],
-    "owner": "fund"
+    "owner": "fund",
+    "sourceContract": "delivery remittance scope = orders/salesOrders via CanonicalDeliveryFinancialScopeReader; masterOrders = metadata-only; fund postings = fundLedgers"
   },
   "returnOrders": {
     "status": "canonical",

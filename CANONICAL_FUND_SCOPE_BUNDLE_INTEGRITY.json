@@ -1,0 +1,17 @@
+{
+  "target": "src/services/fundService.js",
+  "configured_source_sha256": "ec4740e7d60bf5b546067000c03aff6f4aa1923468b0d15103ef75fa2235d287",
+  "actual_source_sha256": "ec4740e7d60bf5b546067000c03aff6f4aa1923468b0d15103ef75fa2235d287",
+  "source_hash_match": true,
+  "generated_runtime_delta": {
+    "baseline_old_require_count": 1,
+    "fixed_old_require_count": 0,
+    "fixed_new_require_count": 1,
+    "fixed_equals_baseline_with_single_require_literal_replaced": true
+  },
+  "official_source_bundle_check": {
+    "status": "BLOCKED_BY_ENVIRONMENT",
+    "reason": "terser module is unavailable in this sandbox; node_modules is not present",
+    "log": "CANONICAL_FUND_SCOPE_SOURCE_BUNDLE_CHECK.log"
+  }
+}
