@@ -39,6 +39,35 @@ function percentile(values = [], ratio = 0.5) {
   return Math.round(sorted[index] || 0);
 }
 
+function uniqueTelemetryIdentities(values = []) {
+  const seen = new Set();
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = String(value == null ? '' : value).trim();
+    if (normalized) seen.add(normalized);
+  }
+  return seen.size;
+}
+
+function resolveMeasurementWorkload(req = {}) {
+  const body = req.body || {};
+  const method = String(req.method || '').toUpperCase();
+  const route = normalizePath(req);
+  if (method === 'POST' && route === '/api/new/delivery-today/closeout') {
+    const candidates = [
+      ['selectedOrderIds', body.selectedOrderIds],
+      ['orderIds', body.orderIds],
+      ['selectedOrderCodes', body.selectedOrderCodes]
+    ];
+    for (const [source, values] of candidates) {
+      const count = uniqueTelemetryIdentities(values);
+      if (count > 0) return { inputSize: count, orderCount: count, source };
+    }
+    return { inputSize: 0, orderCount: 0, source: 'none' };
+  }
+  const legacyCount = Number(body.targets?.length || body.orders?.length || 0);
+  return { inputSize: legacyCount, orderCount: legacyCount, source: body.targets?.length ? 'targets' : (body.orders?.length ? 'orders' : 'none') };
+}
+
 function compactJson(value, maxLength = MAX_QUERY_TRACE_LABEL) {
   try {
     const text = JSON.stringify(value || {});
@@ -639,11 +668,12 @@ function apiMonitor(req, res, next) {
 
   patchMongooseApiMonitor();
   const startedAt = nowMs();
+  const workload = resolveMeasurementWorkload(req);
   const measurement = performanceMeasurementStore.beginMeasurement({
     endpoint: normalizePath(req), httpMethod: req.method, operationName: moduleName(normalizePath(req)),
     operationMode: req.performanceOperationMode || req.query?.mode || 'request',
-    inputSize: Number(req.body?.targets?.length || req.body?.orders?.length || 0),
-    orderCount: Number(req.body?.targets?.length || req.body?.orders?.length || 0),
+    inputSize: workload.inputSize,
+    orderCount: workload.orderCount,
     scopeIdentity: req.user?.id || req.user?._id || req.user?.code || ''
   });
   const metricStore = createMetricStore();
@@ -679,7 +709,12 @@ function apiMonitor(req, res, next) {
         slowestQuery: body.perf?.slowestQuery ?? (metricStore.queryTraces || []).slice().sort((a, b) => (b.ms || 0) - (a.ms || 0))[0] ?? null
       };
     }
-    notifyApiMetricObservers({ dbQueries, physicalMongoCommandCount: Number(metricStore.physicalMongoCommandCount || 0), mongoMs, ms, statusCode: res.statusCode });
+    notifyApiMetricObservers({
+      dbQueries, queryExecCount: Number(metricStore.queryExecCount || 0), aggregateExecCount: Number(metricStore.aggregateExecCount || 0),
+      bulkWriteCommandCount: Number(metricStore.bulkWriteCommandCount || 0), bulkOperationCount: Number(metricStore.bulkOperationCount || 0),
+      modelCreateSaveCommandCount: Number(metricStore.modelCreateSaveCommandCount || 0), physicalMongoCommandCount: Number(metricStore.physicalMongoCommandCount || 0),
+      mongoMs, ms, statusCode: res.statusCode
+    });
     return originalJson(body);
   };
 
@@ -718,6 +753,8 @@ function apiMonitor(req, res, next) {
     const bodyPerf = res.locals?.performanceMeta || {};
     performanceMeasurementStore.completeMeasurement(measurement, {
       durationMs: metric.ms, mongoDurationMs: metric.mongoMs, jsDurationMs: metric.jsMs, queryCount: metric.dbQueries,
+      queryExecCount: metric.queryExecCount, aggregateExecCount: metric.aggregateExecCount, bulkWriteCommandCount: metric.bulkWriteCommandCount,
+      bulkOperationCount: metric.bulkOperationCount, modelCreateSaveCommandCount: metric.modelCreateSaveCommandCount, physicalMongoCommandCount: metric.physicalMongoCommandCount,
       slowestQueryFingerprint: metric.queryTraces?.[0]?.label || '', rowsReturned: metric.rows, statusCode: metric.statusCode,
       errorCategory: metric.statusCode >= 500 ? 'HTTP_5XX' : '', cacheSource: bodyPerf.cacheSource,
       readModelSource: bodyPerf.readModelSource, reportMode: bodyPerf.reportMode, correctnessCheck: bodyPerf.correctnessCheck,
@@ -933,6 +970,7 @@ module.exports = {
     createMetricStore,
     recordPhysicalMongoCommand,
     runWithMetricStoreForTest: (store, fn) => apiMonitorStore.run(store, fn),
-    patchMongooseApiMonitorForTest: (targetMongoose) => patchMongooseApiMonitor(targetMongoose)
+    patchMongooseApiMonitorForTest: (targetMongoose) => patchMongooseApiMonitor(targetMongoose),
+    resolveMeasurementWorkload
   }
 };

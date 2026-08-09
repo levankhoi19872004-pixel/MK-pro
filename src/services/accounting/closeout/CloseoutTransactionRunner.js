@@ -226,6 +226,17 @@ async function runCloseoutTransaction({
     allocationBulkCommands: Number(allocationPostedRefsBatch.commandCount || 0),
     transactionCount: 1 + idempotencyRaceRetries
   };
+  const arBalanceBatch = initialArBalanceBatch ? {
+    enabled: true,
+    scopeCount: initialArBalanceBatch.scopeCount,
+    rawQueryCount: initialArBalanceBatch.rawQueryCount,
+    canonicalQueryCount: initialArBalanceBatch.canonicalQueryCount
+  } : { enabled: false, scopeCount: 0, rawQueryCount: 0, canonicalQueryCount: 0 };
+
+  // Telemetry-only, sanitized and fail-open inside closeoutQueryAudit. No financial payload/identity is forwarded.
+  if (typeof closeoutQueryAudit.recordRuntimeExecutionSummary === 'function') {
+    closeoutQueryAudit.recordRuntimeExecutionSummary({ arBulk, allocationPostedRefsBatch, arBalanceBatch });
+  }
 
   return {
     results,
@@ -233,12 +244,7 @@ async function runCloseoutTransaction({
     syncGroups: collectReadModelSyncGroups(results),
     allocationPostedRefsBatch,
     arBulk,
-    arBalanceBatch: initialArBalanceBatch ? {
-      enabled: true,
-      scopeCount: initialArBalanceBatch.scopeCount,
-      rawQueryCount: initialArBalanceBatch.rawQueryCount,
-      canonicalQueryCount: initialArBalanceBatch.canonicalQueryCount
-    } : { enabled: false, scopeCount: 0, rawQueryCount: 0, canonicalQueryCount: 0 },
+    arBalanceBatch,
     commandOptions
   };
 }

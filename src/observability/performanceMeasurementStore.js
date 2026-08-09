@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const os = require('os');
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const MAX_RECORDS = Math.max(100, Math.min(Number(process.env.PERF_MEASUREMENT_MAX_RECORDS || 5000), 50000));
 const PROCESS_STARTED_AT = new Date().toISOString();
 const INSTANCE_ID = String(process.env.RENDER_INSTANCE_ID || process.env.INSTANCE_ID || `${os.hostname()}-${process.pid}`).trim();
@@ -14,6 +14,8 @@ let activeWindow = null;
 
 const FLAG_NAMES = Object.freeze([
   'PERF_BULK_BATCH_CONTEXT_V1','PERF_BULK_CONCURRENCY','PERF_BULK_TRANSIENT_RETRY_LIMIT',
+  'PERF_CLOSEOUT_QUERY_DEDUP_V1','PERF_CLOSEOUT_SYNC_BULK_V1','PERF_CLOSEOUT_AR_BALANCE_BATCH_V1',
+  'PERF_CLOSEOUT_ALLOCATION_POSTEDREFS_BATCH_V1','PERF_CLOSEOUT_AR_WRITE_BULK_V1',
   'PERF_DELIVERY_CANONICAL_FILTER_V1','PERF_SUGGESTIONS_SEARCH_V1','PERF_DASHBOARD_CACHE_V2',
   'PERF_DASHBOARD_READ_MODEL_V2','PERF_REPORT_DB_PAGINATION_V1','PERF_REPORT_CENTER_SNAPSHOT_V1'
 ]);
@@ -108,6 +110,9 @@ function completeMeasurement(start, output = {}) {
   const durationMs = Number(output.durationMs ?? (Date.parse(completedAt) - Date.parse(start.startedAt)));
   const record = Object.freeze({ ...start, completedAt, durationMs: Number.isFinite(durationMs) ? durationMs : 0,
     mongoDurationMs: Number(output.mongoDurationMs || 0), jsDurationMs: Number(output.jsDurationMs || 0), queryCount: Number(output.queryCount || 0),
+    queryExecCount: Number(output.queryExecCount || 0), aggregateExecCount: Number(output.aggregateExecCount || 0),
+    bulkWriteCommandCount: Number(output.bulkWriteCommandCount || 0), bulkOperationCount: Number(output.bulkOperationCount || 0),
+    modelCreateSaveCommandCount: Number(output.modelCreateSaveCommandCount || 0), physicalMongoCommandCount: Number(output.physicalMongoCommandCount || 0),
     slowestQueryFingerprint: String(output.slowestQueryFingerprint || ''), rowsReturned: Number(output.rowsReturned || 0), statusCode: Number(output.statusCode || 0),
     errorCategory: String(output.errorCategory || ''), correctnessCheck: String(output.correctnessCheck || 'not_applicable'),
     debtDeviation: output.debtDeviation == null ? null : Number(output.debtDeviation), duplicateLedgerDetected: output.duplicateLedgerDetected == null ? null : Boolean(output.duplicateLedgerDetected),
@@ -124,11 +129,28 @@ function exportWindow(windowId = activeWindow?.id) {
   for (const r of selected) { const key=groupKey(r); if(!groups.has(key)) groups.set(key,[]); groups.get(key).push(r); }
   const window = windows.get(windowId);
   return { schemaVersion: SCHEMA_VERSION, telemetryEnabled: true, generatedAt: new Date().toISOString(), release: window?.release || stableReleaseMetadata(), instanceId: INSTANCE_ID,
-    window: windowView(window), sampleCount: selected.length, groups: [...groups.values()].map((rows) => { const durations=rows.map(r=>r.durationMs); const first=rows[0]; return {
+    window: windowView(window), sampleCount: selected.length, groups: [...groups.values()].map((rows) => {
+      const durations=rows.map(r=>r.durationMs);
+      const mongoDurations=rows.map(r=>r.mongoDurationMs);
+      const physicalCommands=rows.map(r=>r.physicalMongoCommandCount);
+      const queryCounts=rows.map(r=>r.queryCount);
+      const bulkWriteCommands=rows.map(r=>r.bulkWriteCommandCount);
+      const bulkOperations=rows.map(r=>r.bulkOperationCount);
+      const first=rows[0];
+      const avg=(values)=>values.reduce((sum,value)=>sum+Number(value||0),0)/Math.max(1,values.length);
+      return {
       releaseSha:first.releaseSha, sampleWindowId:first.sampleWindowId, endpoint:first.endpoint, httpMethod:first.httpMethod, operationMode:first.operationMode,
       cacheSource:first.cacheSource, readModelSource:first.readModelSource, reportMode:first.reportMode, featureFlags:first.featureFlags,
-      sampleCount:rows.length, p50Ms:percentile(durations,.5), p95Ms:percentile(durations,.95), p99Ms:percentile(durations,.99), maxMs:Math.max(...durations),
-      errorRate:rows.filter(r=>r.statusCode>=500||r.errorCategory).length/rows.length, queryCountAvg:rows.reduce((s,r)=>s+r.queryCount,0)/rows.length }; }), records:selected };
+      sampleCount:rows.length, orderCountAvg:avg(rows.map(r=>r.orderCount)),
+      p50Ms:percentile(durations,.5), p95Ms:percentile(durations,.95), p99Ms:percentile(durations,.99), maxMs:Math.max(...durations),
+      mongoP50Ms:percentile(mongoDurations,.5), mongoP95Ms:percentile(mongoDurations,.95), mongoMaxMs:Math.max(...mongoDurations),
+      physicalMongoCommandCountAvg:avg(physicalCommands), physicalMongoCommandCountP50:percentile(physicalCommands,.5), physicalMongoCommandCountP95:percentile(physicalCommands,.95), physicalMongoCommandCountMax:Math.max(...physicalCommands),
+      queryCountAvg:avg(queryCounts), queryCountP50:percentile(queryCounts,.5), queryCountP95:percentile(queryCounts,.95), queryCountMax:Math.max(...queryCounts),
+      bulkWriteCommandCountAvg:avg(bulkWriteCommands), bulkWriteCommandCountMax:Math.max(...bulkWriteCommands),
+      bulkOperationCountAvg:avg(bulkOperations), bulkOperationCountMax:Math.max(...bulkOperations),
+      modelCreateSaveCommandCountAvg:avg(rows.map(r=>r.modelCreateSaveCommandCount)), modelCreateSaveCommandCountMax:Math.max(...rows.map(r=>r.modelCreateSaveCommandCount)),
+      http5xxRate:rows.filter(r=>r.statusCode>=500).length/rows.length,
+      errorRate:rows.filter(r=>r.statusCode>=500||r.errorCategory).length/rows.length }; }), records:selected };
 }
 function resetForTest() { records.splice(0, records.length); windows.clear(); activeWindow=null; }
 

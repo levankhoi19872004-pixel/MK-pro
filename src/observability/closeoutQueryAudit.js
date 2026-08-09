@@ -24,7 +24,8 @@ const WRITER_SAFETY_MAP = Object.freeze({
   writers: Object.freeze([
     Object.freeze({ model: 'salesOrders', operation: 'updateOne', owner: 'orderRepository.patchAccountingCloseoutById', safety: 'writer', transactionScoped: true }),
     Object.freeze({ model: 'orderPaymentAllocations', operation: 'findOneAndUpdate', owner: 'OrderPaymentAllocationService.upsertAllocation', safety: 'writer', transactionScoped: true }),
-    Object.freeze({ model: 'arLedgers', operation: 'findOneAndUpdate', owner: 'arPostingService.postArLedgerEntry', safety: 'writer', transactionScoped: true }),
+    Object.freeze({ model: 'arLedgers', operation: 'findOneAndUpdate', owner: 'arPostingService.postArLedgerEntry', safety: 'legacy-writer-when-ar-bulk-off-or-out-of-scope', transactionScoped: true }),
+    Object.freeze({ model: 'arLedgers', operation: 'bulkWrite', owner: 'CloseoutArBatchPostingService.postEligibleArIntentsBatch', safety: 'g4-transactional-writer-guarded-by-unique-idempotency-preflight-and-readback-comparator', transactionScoped: true }),
     Object.freeze({ model: 'fundLedgers', operation: 'upsert', owner: 'fundService.postFundLedger', safety: 'writer', transactionScoped: true }),
     Object.freeze({ model: 'auditLogs', operation: 'create/log', owner: 'auditService.log', safety: 'post-write-audit', transactionScoped: false }),
     Object.freeze({ model: 'readModelSyncJobs', operation: 'updateOne', owner: 'CloseoutPostCommitHandler.enqueueReadModelSync', safety: 'post-commit-queue', transactionScoped: false })
@@ -222,6 +223,13 @@ function createSession({ req = {}, route = CLOSEOUT_ROUTE, env = process.env } =
     counters: emptyCounters(),
     apiMonitorDbQueries: null,
     apiMonitorMongoMs: null,
+    apiMonitorPhysicalMongoCommandCount: null,
+    apiMonitorQueryExecCount: null,
+    apiMonitorAggregateExecCount: null,
+    apiMonitorBulkWriteCommandCount: null,
+    apiMonitorBulkOperationCount: null,
+    apiMonitorModelCreateSaveCommandCount: null,
+    runtimeExecution: null,
     lastStage: 'request',
     errorClass: '',
     envSnapshot: {
@@ -354,6 +362,75 @@ function recordApiMonitorSnapshot(metric = {}) {
   if (!session || !session.enabled) return;
   session.apiMonitorDbQueries = Math.max(0, Math.round(Number(metric.dbQueries || 0)));
   session.apiMonitorMongoMs = Math.max(0, Math.round(Number(metric.mongoMs || 0)));
+  session.apiMonitorPhysicalMongoCommandCount = Math.max(0, Math.round(Number(metric.physicalMongoCommandCount || 0)));
+  session.apiMonitorQueryExecCount = Math.max(0, Math.round(Number(metric.queryExecCount || 0)));
+  session.apiMonitorAggregateExecCount = Math.max(0, Math.round(Number(metric.aggregateExecCount || 0)));
+  session.apiMonitorBulkWriteCommandCount = Math.max(0, Math.round(Number(metric.bulkWriteCommandCount || 0)));
+  session.apiMonitorBulkOperationCount = Math.max(0, Math.round(Number(metric.bulkOperationCount || 0)));
+  session.apiMonitorModelCreateSaveCommandCount = Math.max(0, Math.round(Number(metric.modelCreateSaveCommandCount || 0)));
+}
+
+function nonNegativeInt(value) {
+  const numeric = Number(value || 0);
+  return Number.isFinite(numeric) ? Math.max(0, Math.round(numeric)) : 0;
+}
+
+function runtimePathProof(arBulk = {}) {
+  const enabled = Boolean(arBulk.enabled);
+  const intentCount = nonNegativeInt(arBulk.intentCount);
+  const preflight = nonNegativeInt(arBulk.arPreflightReadCommands);
+  const bulk = nonNegativeInt(arBulk.arBulkWriteCommands);
+  const readback = nonNegativeInt(arBulk.arReadbackCommands);
+  const legacy = nonNegativeInt(arBulk.legacyArWriteCommands);
+  if (!enabled) return { mode: 'LEGACY_AR_PER_ENTRY', attributable: bulk === 0 && readback === 0 };
+  if (intentCount === 0) return { mode: 'AR_BULK_NO_INTENTS', attributable: legacy === 0 };
+  if (preflight >= 1 && bulk >= 1 && readback >= 1 && legacy === 0) return { mode: 'AR_BULK_NEW_INTENTS', attributable: true };
+  if (preflight >= 1 && bulk === 0 && (readback === 0 || readback === 1) && legacy === 0) return { mode: 'AR_BULK_ALL_EXISTING', attributable: true };
+  return { mode: 'AR_BULK_UNKNOWN', attributable: false };
+}
+
+function sanitizeRuntimeExecutionSummary(input = {}) {
+  const arBulkInput = input.arBulk || {};
+  const allocationInput = input.allocationPostedRefsBatch || {};
+  const arBalanceInput = input.arBalanceBatch || {};
+  const arBulk = {
+    enabled: Boolean(arBulkInput.enabled),
+    intentCount: nonNegativeInt(arBulkInput.intentCount),
+    arPreflightReadCommands: nonNegativeInt(arBulkInput.arPreflightReadCommands),
+    arBulkWriteCommands: nonNegativeInt(arBulkInput.arBulkWriteCommands),
+    arReadbackCommands: nonNegativeInt(arBulkInput.arReadbackCommands),
+    legacyArWriteCommands: nonNegativeInt(arBulkInput.legacyArWriteCommands),
+    bulkOperationCount: nonNegativeInt(arBulkInput.bulkOperationCount),
+    wholeTransactionRaceRetries: nonNegativeInt(arBulkInput.wholeTransactionRaceRetries),
+    transactionCount: nonNegativeInt(arBulkInput.transactionCount)
+  };
+  return Object.freeze({
+    arBulk: Object.freeze(arBulk),
+    arBulkPathProof: Object.freeze(runtimePathProof(arBulk)),
+    allocationPostedRefsBatch: Object.freeze({
+      enabled: Boolean(allocationInput.enabled),
+      planned: nonNegativeInt(allocationInput.planned),
+      commandCount: nonNegativeInt(allocationInput.commandCount),
+      operationCount: nonNegativeInt(allocationInput.operationCount)
+    }),
+    arBalanceBatch: Object.freeze({
+      enabled: Boolean(arBalanceInput.enabled),
+      scopeCount: nonNegativeInt(arBalanceInput.scopeCount),
+      rawQueryCount: nonNegativeInt(arBalanceInput.rawQueryCount),
+      canonicalQueryCount: nonNegativeInt(arBalanceInput.canonicalQueryCount)
+    })
+  });
+}
+
+function recordRuntimeExecutionSummary(input = {}) {
+  const session = activeSession();
+  if (!session || !session.enabled) return null;
+  try {
+    session.runtimeExecution = sanitizeRuntimeExecutionSummary(input);
+    return clone(session.runtimeExecution);
+  } catch (_) {
+    return null;
+  }
 }
 
 function stageSummaryFromSession(session) {
@@ -469,6 +546,12 @@ function buildSummary(session) {
       mongoCumulativeMs,
       apiMonitorDbQueries: apiQueries,
       apiMonitorMongoMs: session.apiMonitorMongoMs,
+      physicalMongoCommandCount: session.apiMonitorPhysicalMongoCommandCount,
+      queryExecCount: session.apiMonitorQueryExecCount,
+      aggregateExecCount: session.apiMonitorAggregateExecCount,
+      bulkWriteCommandCount: session.apiMonitorBulkWriteCommandCount,
+      bulkOperationCount: session.apiMonitorBulkOperationCount,
+      modelCreateSaveCommandCount: session.apiMonitorModelCreateSaveCommandCount,
       attributionCoverage,
       unattributedQueries,
       rawEventsRetained: session.rawEvents.length,
@@ -480,6 +563,7 @@ function buildSummary(session) {
     modelSummary: modelSummaryFromSession(session),
     operationSummary: operationSummaryFromSession(session),
     multipliers: multiplierSummary(session, totalMongoQueries),
+    runtimeExecution: clone(session.runtimeExecution || sanitizeRuntimeExecutionSummary({})),
     rawEvents: clone(session.rawEvents),
     errorClass: session.errorClass || '',
     limitations: [
@@ -721,7 +805,8 @@ function listAudits() {
       totalMongoQueries: row.queryTotals?.totalMongoQueries || 0,
       mongoCumulativeMs: row.queryTotals?.mongoCumulativeMs || 0,
       requestWallMs: row.requestWallMs || 0,
-      attributionCoverage: row.queryTotals?.attributionCoverage
+      attributionCoverage: row.queryTotals?.attributionCoverage,
+      arBulkMode: row.runtimeExecution?.arBulkPathProof?.mode || 'UNKNOWN'
     }))
   };
 }
@@ -800,6 +885,15 @@ function exportMarkdown(data = null) {
     '|---|---|---|---:|---:|',
     ...(row.operationSummary || []).slice(0, 20).map((item) => `| ${item.stage} | ${item.model} | ${item.operation} | ${item.queries} | ${item.mongoCumulativeMs} |`),
     '',
+    '## Runtime execution proof',
+    '',
+    `- AR bulk mode: ${row.runtimeExecution?.arBulkPathProof?.mode || 'UNKNOWN'}`,
+    `- AR bulk enabled: ${Boolean(row.runtimeExecution?.arBulk?.enabled)}`,
+    `- AR intents: ${row.runtimeExecution?.arBulk?.intentCount || 0}`,
+    `- AR preflight/bulk/readback commands: ${row.runtimeExecution?.arBulk?.arPreflightReadCommands || 0}/${row.runtimeExecution?.arBulk?.arBulkWriteCommands || 0}/${row.runtimeExecution?.arBulk?.arReadbackCommands || 0}`,
+    `- Legacy AR writes: ${row.runtimeExecution?.arBulk?.legacyArWriteCommands || 0}`,
+    `- Allocation postedRefs batch commands/operations: ${row.runtimeExecution?.allocationPostedRefsBatch?.commandCount || 0}/${row.runtimeExecution?.allocationPostedRefsBatch?.operationCount || 0}`,
+    '',
     'Limitations: no raw order code, customer data, token, cookie, Mongo URI, request body, or raw query values are exported.'
   ];
   return `${lines.join('\n')}\n`;
@@ -848,6 +942,8 @@ module.exports = {
   observeMongoQueryEvent,
   observeNonQueryMongoOrModelWrite,
   recordApiMonitorSnapshot,
+  recordRuntimeExecutionSummary,
+  runtimePathProof,
   withCloseoutAuditRequest,
   withCloseoutAuditStage,
   withCloseoutOrder,
@@ -871,6 +967,7 @@ module.exports = {
     attachSession,
     buildSummary,
     sanitizeLabel,
+    sanitizeRuntimeExecutionSummary,
     safeDivide
   }
 };
