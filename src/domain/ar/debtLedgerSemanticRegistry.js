@@ -140,8 +140,21 @@ function upper(value = '') {
 
 function semanticRoleForLedger(ledger = {}) {
   const category = normalizeCategory(ledger.category || ledger.ledgerType);
+  const sourceType = upper(ledger.sourceType || ledger.refType);
+
+  // R1.1: AR-ADJUSTMENT is a shared accounting category. Its semantic role is
+  // determined by provenance rather than by category alone. Post-closeout
+  // correction events are immutable EVENT_DELTA entries; manual/admin uses of
+  // the same category remain manual adjustments.
+  if (category === AR_CATEGORIES.ADJUSTMENT) {
+    return sourceType === 'DELIVERY_CLOSEOUT_CORRECTION'
+      ? SEMANTIC_ROLES.CORRECTION_DELTA
+      : SEMANTIC_ROLES.MANUAL_ADJUSTMENT;
+  }
+
+  // Legacy AR-DEBT-ADJUSTMENT remains evidence-gated. Historical rows from
+  // non-correction sources are interpreted as manual adjustments only.
   if (category === AR_CATEGORIES.DEBT_ADJUSTMENT) {
-    const sourceType = upper(ledger.sourceType || ledger.refType);
     if (sourceType && sourceType !== 'DELIVERY_CLOSEOUT_CORRECTION') return SEMANTIC_ROLES.MANUAL_ADJUSTMENT;
   }
   return (CATEGORY_SEMANTIC_REGISTRY[category] || {}).semanticRole || SEMANTIC_ROLES.UNSUPPORTED;
@@ -153,9 +166,8 @@ function registryEntryForLedger(ledger = {}) {
   if (!base) {
     return entry(category || 'UNKNOWN', LEDGER_FAMILIES.UNKNOWN, SEMANTIC_ROLES.UNSUPPORTED, { balanceImpacting: false });
   }
-  if (category === AR_CATEGORIES.DEBT_ADJUSTMENT && semanticRoleForLedger(ledger) === SEMANTIC_ROLES.MANUAL_ADJUSTMENT) {
-    return { ...base, semanticRole: SEMANTIC_ROLES.MANUAL_ADJUSTMENT };
-  }
+  const semanticRole = semanticRoleForLedger(ledger);
+  if (semanticRole !== base.semanticRole) return { ...base, semanticRole };
   return base;
 }
 

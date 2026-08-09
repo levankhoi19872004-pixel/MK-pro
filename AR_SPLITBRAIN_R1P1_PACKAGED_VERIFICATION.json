@@ -1,0 +1,17 @@
+{
+  "first_package_sha256": "020905aee46642a8da625202c6dc1cd8f094ef695b7c61a11dc7e5b6f229a8a0",
+  "reextract": "PASS",
+  "packaged_core_tests": {
+    "tests": 17,
+    "pass": 17,
+    "fail": 0,
+    "exit_code": 0
+  },
+  "packaged_syntax": {
+    "result": "SYNTAX_OK 1709 JavaScript files",
+    "exit_code": 0
+  },
+  "forbidden_file_count": 0,
+  "node_modules_count": 0,
+  "note": "Final package is rebuilt after adding this verification artifact and final requirement status; final SHA is recorded in sidecar manifest."
+}

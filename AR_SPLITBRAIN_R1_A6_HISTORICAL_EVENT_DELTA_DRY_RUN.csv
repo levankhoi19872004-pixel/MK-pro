@@ -1,0 +1,2 @@
+correctionId,correctionCode,orderId,orderCode,customerCode,expectedEventDelta,receivableDelta,cashDelta,bankDelta,rewardDelta,returnDelta,returnDeltaExcluded,returnArOwner,canonicalEventCount,canonicalEventEffect,canonicalEventRefs,legacyDebtAdjustmentCount,legacyDebtAdjustmentEffect,legacyDebtAdjustmentRefs,issues,proposedAction
+DCOC-B0041181-v2,DCOC-B0041181-v2,SO-B0041181,B0041181,4499499,-23800000,0,22140000,0,1660000,0,true,returnOrders/returnArPostingService/AR-RETURN,0,0,,0,0,,MISSING_CANONICAL_CORRECTION_EVENT,REVIEW_EVENT_HISTORY_ONLY_NO_AUTO_REPAIR

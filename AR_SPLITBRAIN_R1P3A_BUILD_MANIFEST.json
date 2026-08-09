@@ -1,0 +1,22 @@
+{
+  "prompt_id": "MKPRO-AR-SPLITBRAIN-R1P3A-MICRO-HARDENING",
+  "input_zip_name": "MK-pro-closeout-ar-splitbrain-r1p3-final-hardening-fixed.zip",
+  "input_sha256": "56eaf3beb76b81d440055412af786f2d960f3f15b293db0612503f8cc38ee65d",
+  "final_zip_sha256_location": "EXTERNAL_RELEASE_MANIFEST_AND_SHA256_SIDECAR",
+  "production_runtime_changed_files": [],
+  "script_changed_files": [
+    "scripts/audit-closeout-ar-splitbrain.js"
+  ],
+  "test_changed_files": [
+    "test/ar-splitbrain-r1p3a-return-amount-divergence.test.js",
+    "test/ar-splitbrain-r1p3a-return-amount-matrix.test.js"
+  ],
+  "fixture_changed_files": [
+    "test/fixtures/ar-splitbrain-r1p3a-return-amount.fixture.json"
+  ],
+  "correctness_status": "PASS",
+  "engineering_environment_status": "BLOCKED_ENV",
+  "release_status": "PARTIAL",
+  "production_data_modified": false,
+  "note": "Final ZIP SHA256 intentionally omitted from the internal manifest to avoid a self-referential archive hash."
+}

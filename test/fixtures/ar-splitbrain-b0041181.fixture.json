@@ -1,0 +1,29 @@
+{
+  "corrections": [{
+    "id": "DCOC-B0041181-v2",
+    "correctionCode": "DCOC-B0041181-v2",
+    "orderId": "SO-B0041181",
+    "orderCode": "B0041181",
+    "customerCode": "4499499",
+    "cashDeltaAmount": 22140000,
+    "bankDeltaAmount": 0,
+    "rewardDeltaAmount": 1660000,
+    "returnAdjustmentAmount": 0,
+    "metadata": {
+      "receivableDelta": 0,
+      "correctionArPostingPolicy": "EVENT_DELTA_ONLY"
+    }
+  }],
+  "arLedgers": [{
+    "id": "AR-OPEN-B0041181",
+    "category": "AR-DEBT-OPEN",
+    "account": "AR",
+    "orderId": "SO-B0041181",
+    "orderCode": "B0041181",
+    "status": "posted",
+    "active": true,
+    "reversed": false,
+    "debit": 23800085,
+    "credit": 0
+  }]
+}

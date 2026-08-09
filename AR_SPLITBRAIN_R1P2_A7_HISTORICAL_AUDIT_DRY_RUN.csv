@@ -1,0 +1,8 @@
+scenario,orderCode,customerCode,deliverySnapshotDebt,canonicalArDebt,expectedArFromEventTimeline,deviation,classification,canonicalCorrectionEventCount,canonicalCorrectionEventEffect,issues,proposedAction
+healthy_correction_no_mismatch,B-A1,C-A1,8000,8000,8000,0,no_mismatch,1,-2000,,NONE
+true_splitbrain_missing_correction_event,B-A1,C-A1,8000,10000,8000,2000,true_splitbrain,0,0,MISSING_CANONICAL_CORRECTION_EVENT,REVIEW_EVENT_HISTORY_ONLY_NO_AUTO_REPAIR
+confirmed_receipt_after_snapshot,B-A1,C-A1,10000,6000,6000,0,explained_by_subsequent_events,0,0,,NONE
+confirmed_return_after_snapshot,B-A1,C-A1,10000,8000,8000,0,explained_by_subsequent_events,0,0,,NONE
+duplicate_source_ingestion_same_ledger,B-A1,C-A1,8000,8000,8000,0,no_mismatch,1,-2000,,NONE
+two_real_correction_ledgers_same_amount,B-A1,C-A1,8000,6000,8000,-2000,data_corruption,2,-4000,DUPLICATE_CANONICAL_CORRECTION_EVENTS|CANONICAL_CORRECTION_EVENT_DELTA_MISMATCH,REVIEW_DUPLICATE_OR_LEGACY_EVENT_NO_AUTO_REPAIR
+snapshot_unresolved,B-A1,C-A1,0,10000,0,10000,ambiguous,0,0,,RESOLVE_CANONICAL_DELIVERY_SNAPSHOT_FIRST

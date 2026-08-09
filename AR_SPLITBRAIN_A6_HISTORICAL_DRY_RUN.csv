@@ -1,0 +1,2 @@
+orderCode,orderId,customerCode,expectedDebt,rawDebtAmount,arDebt,deviation,sourceKind,allocationVersion,allocationRef,closeoutVersion,closeoutRef,arEvidenceCount,proposedAction
+B0041181,SO-B0041181,4499499,0,85,23800085,23800085,ORDER_PAYMENT_ALLOCATION,2,OPA-B0041181-v2,2,DCOV-B0041181-v2,1,REVIEW_CANONICAL_RECONCILE_REPAIR_PLAN

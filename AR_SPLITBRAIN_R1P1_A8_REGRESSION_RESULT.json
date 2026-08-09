@@ -1,0 +1,55 @@
+{
+  "core_targeted": {
+    "command": "node --test <11 R1/R1.1 financial files>",
+    "tests": 26,
+    "pass": 26,
+    "fail": 0,
+    "status": "PASS"
+  },
+  "broader_targeted": {
+    "tests_discovered": 53,
+    "pass": 49,
+    "fail_assertion": 0,
+    "blocked_env_files": 4,
+    "blocked_reason": "mongoose missing",
+    "status": "PASS_WITH_BLOCKED_ENV"
+  },
+  "syntax": {
+    "command": "npm run check:syntax",
+    "exit_code": 0,
+    "result": "SYNTAX_OK 1709 JavaScript files",
+    "status": "PASS"
+  },
+  "dependency_install": {
+    "command": "npm ci --ignore-scripts",
+    "exit_code": 1,
+    "status": "BLOCKED_ENV",
+    "reason": "404 zip-stream@4.1.1 from environment registry gateway"
+  },
+  "source_bundle_check": {
+    "command": "npm run check:source-bundles",
+    "exit_code": 1,
+    "status": "BLOCKED_ENV",
+    "reason": "terser missing because dependencies unavailable"
+  },
+  "full_test": {
+    "command": "npm test",
+    "exit_code": 1,
+    "status": "BLOCKED_ENV/BASELINE_FAIL",
+    "new_failure_names_vs_input_r1": 0,
+    "note": "Not reported as PASS; same environment prevents dependency-backed certification."
+  },
+  "lint": {
+    "status": "NOT_CONFIGURED",
+    "note": "No generic lint script in package.json"
+  },
+  "typecheck": {
+    "status": "NOT_CONFIGURED",
+    "note": "No typecheck script in package.json"
+  },
+  "build": {
+    "status": "BLOCKED_ENV",
+    "note": "source-bundle validation cannot start without terser; build not used to mutate source to bypass environment"
+  },
+  "production_data_modified": false
+}

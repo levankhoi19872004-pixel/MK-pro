@@ -67,6 +67,9 @@ module.exports = flexModel('DeliveryCloseoutCorrection', 'deliveryCloseoutCorrec
   status: String,
   sourceType: String,
   idempotencyKey: String,
+  arEventDeltaLedgerId: String,
+  arEventDeltaLedgerCode: String,
+  // Legacy aliases retained only for API/storage compatibility.
   arDebtAdjustmentLedgerId: String,
   arDebtAdjustmentLedgerCode: String,
 

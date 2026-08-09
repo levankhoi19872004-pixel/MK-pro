@@ -559,6 +559,16 @@ async function reconcileOneOrder({
   accountingBatchId = '',
   diagnosticLogger = null
 } = {}) {
+  const requestedSourceType = upper(sourceType || (allocation && allocation.sourceType) || (closeout && closeout.sourceType));
+  const forbiddenCorrectionSource = ['DELIVERY_CLOSEOUT_CORRECTION', 'BULK_DELIVERY_ADJUSTMENT_COMMIT'].includes(requestedSourceType)
+    || upper(sourceModel) === 'DELIVERYCLOSEOUTCORRECTIONS';
+  if (apply === true && forbiddenCorrectionSource) {
+    const err = new Error('Final-state AR reconciliation bị cấm cho post-closeout correction; phải dùng canonical EVENT_DELTA posting.');
+    err.code = 'FINAL_STATE_AR_RECONCILE_FORBIDDEN_FOR_CORRECTION';
+    err.status = 409;
+    err.data = { sourceType: requestedSourceType, sourceModel: clean(sourceModel) };
+    throw err;
+  }
   closeoutQueryAudit.updateCardinality({ addDebtReconcile: 1 });
   const effectiveAllocation = allocation && Object.keys(allocation).length
     ? { ...allocation }

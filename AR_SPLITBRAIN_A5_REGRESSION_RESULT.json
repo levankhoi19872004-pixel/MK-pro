@@ -1,0 +1,65 @@
+{
+  "prompt_id": "MKPRO-CLOSEOUT-AR-SPLITBRAIN-A-FIX",
+  "generated_at": "2026-08-09T09:00:00+07:00",
+  "overall": "PARTIAL",
+  "core_correctness": "PASS",
+  "environment": {
+    "dependency_install": {
+      "status": "BLOCKED",
+      "command": "npm ci --ignore-scripts --no-audit --no-fund",
+      "exit_code": 1,
+      "reason": "Internal npm registry returned 404 for zip-stream@4.1.1"
+    },
+    "full_suite": {
+      "status": "BLOCKED",
+      "command": "node scripts/run-tests.js",
+      "exit_code": 1,
+      "reason": "node_modules unavailable; many tests fail to load mongoose/express/dotenv/jsonwebtoken/jszip/read-excel-file"
+    }
+  },
+  "tests": [
+    {
+      "name": "B0041181 RED before fix",
+      "status": "PASS_AS_RED",
+      "expected_exit": 1,
+      "actual_exit": 1,
+      "evidence": "canonical AR actual 23800085 != expected 0"
+    },
+    {
+      "name": "B0041181 GREEN after fix",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "Final targeted aggregate",
+      "status": "PASS",
+      "pass": 90,
+      "fail": 0,
+      "exit_code": 0
+    },
+    {
+      "name": "JS syntax",
+      "status": "PASS",
+      "files_checked": 1700,
+      "exit_code": 0
+    }
+  ],
+  "financial_invariants": {
+    "b0041181_raw_debt": 85,
+    "b0041181_normalized_debt": 0,
+    "canonical_ar_after": 0,
+    "zero_tolerance": 1000,
+    "zero_tolerance_boundary_inclusive": true,
+    "retry_no_duplicate_effect": true,
+    "reconcile_failure_rolls_back": true,
+    "post_write_mismatch_rolls_back": true,
+    "payment_return_isolation_regression": "PASS",
+    "reward_double_count_regression": "PASS"
+  },
+  "pre_existing_failures_confirmed_on_baseline_and_working": [
+    "test/delivery-today-closeout-idempotent-fast-skip.test.js",
+    "test/debt-new-manual-debt-ui-static.test.js",
+    "test/delivery-today-new-view-selection-closeout-eligibility.test.js"
+  ],
+  "production_data_modified": false
+}

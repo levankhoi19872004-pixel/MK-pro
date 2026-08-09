@@ -1,0 +1,155 @@
+{
+  "generatedAt": "2026-08-09T05:26:36.066861+00:00",
+  "baseline": "MK-pro-closeout-ar-splitbrain-a-fixed.zip",
+  "baselineSha256": "4408a64a066947c01e4a17124179817636a406402a441ddde5a8a245ede2bcf2",
+  "preABaselineSha256": "b83ba6e807d36f72319312f04317cf326a5eb678db8f3eddda31d2586cace6a4",
+  "codeChangedFiles": [
+    {
+      "change": "MODIFY",
+      "path": "scripts/audit-closeout-ar-splitbrain.js",
+      "before_sha256": "4ac3299d6088b61fab40508cfa3e55e7be14bd42cc6be55baf65b67dddafc6d1",
+      "after_sha256": "3285c0d6f5f65ff120bd2ad6f11059f5caed22a171608ba1b6da370fc7b8d61a",
+      "reason": "Thay audit snapshot-vs-current AR (unsafe) bằng read-only event-level correction delta audit; không có apply/repair mode."
+    },
+    {
+      "change": "MODIFY",
+      "path": "src/domain/ar/arDebtCategoryRegistry.js",
+      "before_sha256": "caab7d2a90645b6924ce9c5ec3e1b77bbbddb2e2dcecab03ad98e0359feed5c0",
+      "after_sha256": "71aa0d59a58c805cd2aecba2ef42cad4ee29c12208afbc46a716322368d498dc",
+      "reason": "Cho phép AR-ADJUSTMENT tham gia Debt New chỉ khi provenance=DELIVERY_CLOSEOUT_CORRECTION; admin/legacy AR-ADJUSTMENT vẫn bị loại."
+    },
+    {
+      "change": "MODIFY",
+      "path": "src/domain/settlement/DeliverySettlementService.js",
+      "before_sha256": "8b6353a91f0fdf8282b78524c4ded67faafb9cc113c7ed5f6d9af746d954e6db",
+      "after_sha256": "bdfe61f35711b21daca542e2dc13b9528aef4c96b501b1e02942ae87f9d73403",
+      "reason": "Xóa thông báo runtime cũ hướng người dùng sang AR-DEBT-ADJUSTMENT; đổi sang canonical AR event-delta."
+    },
+    {
+      "change": "MODIFY",
+      "path": "src/models/DeliveryCloseoutCorrection.js",
+      "before_sha256": "4b5e3c20f9eceef1d38b7ae226b7ae6abb1cebac411a2e7910d7180862db1624",
+      "after_sha256": "121c5425ecfffe141fdf881ea13eeef5fbc6862c82e0b33ab10669416cc702ab",
+      "reason": "Lưu tham chiếu ledger event-delta mới, giữ alias legacy chỉ để tương thích API/storage."
+    },
+    {
+      "change": "ADD",
+      "path": "src/services/accounting/CloseoutCorrectionArEventDeltaPostingService.js",
+      "before_sha256": null,
+      "after_sha256": "f9af35ddb553c35e21125405053d93b8600f93d12cc7b98f631ae1ca8234e0d8",
+      "reason": "Writer R1 mới: AR-before + correction-owned delta, actual arPosting + actual arLedgerRead, idempotent, read-after-write invariant, return excluded."
+    },
+    {
+      "change": "MODIFY",
+      "path": "src/services/accounting/OrderPaymentDebtReconcileService.js",
+      "before_sha256": "4ed1a21fd06f47e5bb37296d7ac13d0bbdc4dd3dea4f9c49f47328a0b4dd78ea",
+      "after_sha256": "abe1a97b14c72bcda0c6628318d7bf9c039ae049001953fca9cb473e7e43aaf8",
+      "reason": "Defense-in-depth: cấm apply final-state reconcile cho DELIVERY_CLOSEOUT_CORRECTION/BULK_DELIVERY_ADJUSTMENT_COMMIT."
+    },
+    {
+      "change": "MODIFY",
+      "path": "src/services/delivery/DeliveryAdjustmentBatchContextService.js",
+      "before_sha256": "1aefd7b05207b62e785b029c274dcda47a22c0019bf937dcb8d039ff2f578b39",
+      "after_sha256": "ab29d9a5bae676ecfadcec33727fa699221fa6aeee3eec813b969f2dfc7d1eb5",
+      "reason": "Bulk context lookup chuyển correction idempotency từ retired AR-DEBT-ADJUSTMENT sang AR-ADJUSTMENT/provenance mới."
+    },
+    {
+      "change": "MODIFY",
+      "path": "src/services/delivery/DeliveryAdjustmentCommitService.js",
+      "before_sha256": "f2f04c9cc2a9dc7f874c4832a816215d2a11f0e0ed770133848b253e6a6c6a1e",
+      "after_sha256": "2601d727b14856872af9a14216947da5b10343133cd262fa4e6092bd467606ea",
+      "reason": "Loại final-state reconcile khỏi bulk/manual replay; preflight và verify theo current AR + operation delta."
+    },
+    {
+      "change": "MODIFY",
+      "path": "src/services/deliveryCloseoutCorrection.service.js",
+      "before_sha256": "3b8f0e34b4ce6841ac68e7e6b31010c45a3103db25e34eb3dbed1dc759ff2138",
+      "after_sha256": "a7fad5c31b92ac715009c2a3687e878eec130e3639a3f6f913ee4a429e3e3a30",
+      "reason": "Thay runtime final-state reconcile bằng transactional event-delta writer; preserve allocation/version, return ownership và rollback."
+    },
+    {
+      "change": "MODIFY",
+      "path": "test/ar-splitbrain-b0041181-regression.test.js",
+      "before_sha256": "882d7a6a0ce23ad732c98d163e83098e77a7425d7416807df4735fe6bf1531a1",
+      "after_sha256": "36eb399612302db9ef62d5bd427f4b8be7596aa5d9cd4ebdbbf207349fc92a26",
+      "reason": "R1 executable regression/evidence cập nhật theo event-delta contract."
+    },
+    {
+      "change": "MODIFY",
+      "path": "test/ar-splitbrain-historical-audit.test.js",
+      "before_sha256": "6646f93edb080733b4860b95f5cde5330624f6cc8f377973f106cd78bc89af33",
+      "after_sha256": "655c3a7f675e3c8665fb5b7d19af42fd68487a883920ef1b84fe4b27378ab99a",
+      "reason": "R1 executable regression/evidence cập nhật theo event-delta contract."
+    },
+    {
+      "change": "ADD",
+      "path": "test/ar-splitbrain-r1-category-provenance.test.js",
+      "before_sha256": null,
+      "after_sha256": "8d726871a4e5fb24ea4981dc5049bbd340aea5a228d96c20fdc5dd640960b212",
+      "reason": "R1 executable regression/evidence cập nhật theo event-delta contract."
+    },
+    {
+      "change": "ADD",
+      "path": "test/ar-splitbrain-r1-correction-e2e.test.js",
+      "before_sha256": null,
+      "after_sha256": "48eca307980dded9e6fe61de06cab601c6fad7cf4c52a1de4e15fde619621966",
+      "reason": "R1 executable regression/evidence cập nhật theo event-delta contract."
+    },
+    {
+      "change": "ADD",
+      "path": "test/ar-splitbrain-r1-event-delta-posting.test.js",
+      "before_sha256": null,
+      "after_sha256": "b81dea62172f5cfda17f729104e980669538003d993f0c7b1ba0573600386c26",
+      "reason": "R1 executable regression/evidence cập nhật theo event-delta contract."
+    },
+    {
+      "change": "ADD",
+      "path": "test/ar-splitbrain-r1-final-state-reconcile-receipt.red.test.js",
+      "before_sha256": null,
+      "after_sha256": "cfdea9efb9ea34a9ad4ac5ed17d4feee95f35b97120b1cb6e071157f36e33478",
+      "reason": "R1 executable regression/evidence cập nhật theo event-delta contract."
+    },
+    {
+      "change": "MODIFY",
+      "path": "test/delivery-adjustment-reward-allocation-integration-static.test.js",
+      "before_sha256": "4afb921dd650194548b421dc5e14d201c66b21c438f48dd36dba8ca3ab97b863",
+      "after_sha256": "78ee46a41f6d2e74ed9576aba6bbcb0f7f58393ec7de94d5ef7692a832626da6",
+      "reason": "R1 executable regression/evidence cập nhật theo event-delta contract."
+    },
+    {
+      "change": "MODIFY",
+      "path": "test/delivery-closeout-correction-contract-static.test.js",
+      "before_sha256": "79aa8e29778c7666b1b5b678bda61ba91206d8b6f62588f2100860c8d68188a5",
+      "after_sha256": "1fc9ca7e5db4c7173ce792ded4529908202a4c8967a35ccdd46fb1a69304e08c",
+      "reason": "R1 executable regression/evidence cập nhật theo event-delta contract."
+    },
+    {
+      "change": "MODIFY",
+      "path": "test/delivery-closeout-correction-no-change-optional-reason.test.js",
+      "before_sha256": "f7a2313354f7fa349ec73ccaf47d3d93ebf6a0b3f2a251e4618496fa8a00802d",
+      "after_sha256": "cc07e11c6a65e49310b41a9d141485b4a98a231bd3f33121cff7704aab884a36",
+      "reason": "R1 executable regression/evidence cập nhật theo event-delta contract."
+    },
+    {
+      "change": "MODIFY",
+      "path": "test/fixtures/ar-splitbrain-b0041181.fixture.json",
+      "before_sha256": "e894e3c9decba84155c350972e601e78ea5e965c7c9be728c83af9cd37f7bf5e",
+      "after_sha256": "0e44eaf1ae54348cf189838f444a3b7764b783f82b2bd7fc0c6a91b10a8396d8",
+      "reason": "R1 executable regression/evidence cập nhật theo event-delta contract."
+    }
+  ],
+  "productionChangedFiles": [
+    "src/domain/ar/arDebtCategoryRegistry.js",
+    "src/domain/settlement/DeliverySettlementService.js",
+    "src/models/DeliveryCloseoutCorrection.js",
+    "src/services/accounting/CloseoutCorrectionArEventDeltaPostingService.js",
+    "src/services/accounting/OrderPaymentDebtReconcileService.js",
+    "src/services/delivery/DeliveryAdjustmentBatchContextService.js",
+    "src/services/delivery/DeliveryAdjustmentCommitService.js",
+    "src/services/deliveryCloseoutCorrection.service.js"
+  ],
+  "productionChangedCount": 8,
+  "testChangedCount": 10,
+  "scriptChangedCount": 1,
+  "production_data_modified": false
+}

@@ -1,0 +1,65 @@
+{
+  "input_sha256": "ce88fdc0176c45333bc5bac81441febb9bac1eb6d3871b83e92a684e414a4bb6",
+  "production_changed_files": [
+    {
+      "path": "src/domain/ar/debtLedgerSemanticRegistry.js",
+      "status": "modified",
+      "before_sha256": "02c41809790def9fefe61cfa81cf1136a2d915707de4419784c388458249e8b3",
+      "after_sha256": "96e16ae4fd6701858c152a41dde11969bd2e14ba6dfe912906510fbe1f73b583"
+    },
+    {
+      "path": "src/services/v2/debtNew.service.js",
+      "status": "modified",
+      "before_sha256": "389006128fc7c949fbeb920d066fe1ed0f017a980f6bcd625b04b5a6bef2f419",
+      "after_sha256": "47dd5455f9a7d28ed959157fabb7a92ecb6855c61e034880e762bc1310ad4780"
+    }
+  ],
+  "script_changed_files": [
+    {
+      "path": "scripts/audit-closeout-ar-splitbrain.js",
+      "status": "modified",
+      "before_sha256": "3285c0d6f5f65ff120bd2ad6f11059f5caed22a171608ba1b6da370fc7b8d61a",
+      "after_sha256": "36e83d701ff858f5d3b9f0edeae69da8fbedc3d1d64cf7dc5057a5ddf2fba3a7"
+    }
+  ],
+  "test_changed_files": [
+    {
+      "path": "test/ar-splitbrain-r1p1-debtnew-e2e.test.js",
+      "status": "added",
+      "before_sha256": null,
+      "after_sha256": "e51117a4ef30b19230611cb228fbf7c5fa81d4448686f409262c3ee1506fe3ea"
+    },
+    {
+      "path": "test/ar-splitbrain-r1p1-historical-audit-v2.test.js",
+      "status": "added",
+      "before_sha256": null,
+      "after_sha256": "4122c0e88177f09be7dd7f6351c1cffb0d85ee16f659c44b0f127cb8a2c0351b"
+    },
+    {
+      "path": "test/ar-splitbrain-r1p1-historical-identity.red.test.js",
+      "status": "added",
+      "before_sha256": null,
+      "after_sha256": "9b7aead9c49569dfeec16a291d18e3ce547e91f75fcd9526091e5eb449d296bc"
+    },
+    {
+      "path": "test/ar-splitbrain-r1p1-semantic-role.red.test.js",
+      "status": "added",
+      "before_sha256": null,
+      "after_sha256": "ee2b7aecc8a991c51116f25f87f18e40c92fad0f65d84e26eb1642dd3d21f147"
+    }
+  ],
+  "artifact_files_added_during_release": [
+    "AR_SPLITBRAIN_R1P1_A0_SOURCE_INTEGRITY.json",
+    "AR_SPLITBRAIN_R1P1_A1_CORE_CONTRACT_REAUDIT.md",
+    "AR_SPLITBRAIN_R1P1_A2_RED_GREEN_EVIDENCE.md",
+    "AR_SPLITBRAIN_R1P1_A3_SEMANTIC_AND_DEBTNEW_E2E_REPORT.md",
+    "AR_SPLITBRAIN_R1P1_A4_RUNTIME_CALLER_AUDIT.md",
+    "AR_SPLITBRAIN_R1P1_A5_RETURN_OWNERSHIP_REVERIFY.md",
+    "AR_SPLITBRAIN_R1P1_A6_GREEN_INTEGRATION_EVIDENCE.md",
+    "AR_SPLITBRAIN_R1P1_A7_HISTORICAL_AUDIT_DRY_RUN.csv",
+    "AR_SPLITBRAIN_R1P1_A8_REGRESSION_RESULT.json",
+    "AR_SPLITBRAIN_R1P1_A9_FINAL_VERIFICATION_REPORT.md",
+    "AR_SPLITBRAIN_R1P1_REQUIREMENT_MATRIX.json",
+    "AR_SPLITBRAIN_R1P1_CHANGED_FILES.json"
+  ]
+}

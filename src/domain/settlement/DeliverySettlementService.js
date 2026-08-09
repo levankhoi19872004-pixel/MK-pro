@@ -91,7 +91,7 @@ async function unlockAccounting(idOrCode, body = {}, options = {}) {
     return getLegacyAccountingImplementation().adminUnlockDeliveryAccounting(idOrCode, body, options);
   }
   return {
-    error: 'Đơn đã accounting_confirmed không được mở khóa sửa in-place. Hãy dùng DeliveryCloseoutCorrectionService để tạo correction và AR-DEBT-ADJUSTMENT.',
+    error: 'Đơn đã accounting_confirmed không được mở khóa sửa in-place. Hãy dùng DeliveryCloseoutCorrectionService để tạo immutable correction và canonical AR event-delta.',
     status: 400,
     orderId: idOrCode,
     correctionRequired: true

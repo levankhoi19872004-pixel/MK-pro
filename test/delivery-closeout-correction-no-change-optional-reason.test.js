@@ -42,9 +42,11 @@ test('correction service still keeps negative corrected payment validation', () 
   assert.match(service, /Trả thưởng sau điều chỉnh/);
 });
 
-test('no-change correction response does not claim a zero AR-DEBT-ADJUSTMENT ledger was posted', () => {
+test('no-change correction response does not claim a zero canonical AR event-delta was posted', () => {
   const service = read('src/services/deliveryCloseoutCorrection.service.js');
 
-  assert.match(service, /không sinh AR-DEBT-ADJUSTMENT vì không có chênh lệch công nợ/);
+  assert.match(service, /không sinh AR event-delta vì correction không có payment\/reward\/receivable delta thuộc ownership của correction/);
   assert.match(service, /ledgerEntry && ledgerEntry\.code/);
+  assert.doesNotMatch(service, /ArDebtAdjustmentPostingService\.postAdjustment/);
+  assert.doesNotMatch(service, /OrderPaymentDebtReconcileService\.reconcileOrderDebt/);
 });

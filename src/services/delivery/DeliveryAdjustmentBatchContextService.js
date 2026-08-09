@@ -209,7 +209,8 @@ function createMongoAdapter() {
       const idempotencyLimit = 1000;
       const idempotencyLedgers = await arLedgerReadService.findArLedgerRowsByRawMatch({
         account: 'AR',
-        category: 'AR-DEBT-ADJUSTMENT',
+        category: 'AR-ADJUSTMENT',
+        sourceType: 'DELIVERY_CLOSEOUT_CORRECTION',
         active: { $ne: false }, reversed: { $ne: true }, isDeleted: { $ne: true }, deleted: { $ne: true },
         status: { $nin: ACTIVE_EXCLUDED_STATUSES },
         $or: [

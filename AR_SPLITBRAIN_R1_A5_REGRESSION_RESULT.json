@@ -1,0 +1,111 @@
+{
+  "generatedAt": "2026-08-09T05:26:36.066861+00:00",
+  "verdict": "TARGETED_PASS_RELEASE_ENV_BLOCKED",
+  "red_before": {
+    "command": "node --test test/ar-splitbrain-r1-final-state-reconcile-receipt.red.test.js",
+    "expected": "FAIL",
+    "actual": "FAIL",
+    "actual_ar_after": 8000000,
+    "expected_event_delta_ar_after": 4000000,
+    "evidence": "R1_RED_BEFORE.log"
+  },
+  "core_accounting_green": {
+    "tests": 14,
+    "pass": 14,
+    "fail": 0,
+    "exitCode": 0,
+    "evidence": "R1_CORE_ACCOUNTING_GREEN.log"
+  },
+  "targeted_green": {
+    "tests": 101,
+    "pass": 101,
+    "fail": 0,
+    "exitCode": 0,
+    "durationSeconds": 0.34,
+    "evidence": "R1_TARGETED_GREEN_FINAL.log"
+  },
+  "syntax": {
+    "jsFiles": 1705,
+    "status": "PASS",
+    "exitCode": 0,
+    "evidence": "R1_SYNTAX.log"
+  },
+  "dependency_install": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "BLOCKED",
+    "exitCode": 1,
+    "reason": "HTTP 404 internal registry for zip-stream@4.1.1",
+    "evidence": "R1_NPM_CI.log"
+  },
+  "dependency_blocked_tests": {
+    "tests": 4,
+    "status": "BLOCKED_BY_ENVIRONMENT",
+    "missing": [
+      "mongoose"
+    ],
+    "evidence": "R1_DEPENDENCY_BLOCKED_TESTS.log"
+  },
+  "full_suite": {
+    "command": "npm test",
+    "status": "BLOCKED/PARTIAL",
+    "exitCode": 1,
+    "r1NotOkOccurrences": 225,
+    "aBaselineNotOkOccurrences": 228,
+    "r1NonModuleFailureNames": 40,
+    "aBaselineNonModuleFailureNames": 40,
+    "newNonModuleFailureNamesVsA": [],
+    "missingModules": [
+      "mongoose",
+      "jsonwebtoken",
+      "read-excel-file/node",
+      "pino",
+      "dotenv",
+      "exceljs",
+      "jszip",
+      "express"
+    ],
+    "evidence": "R1_FULL_SUITE_FINAL.log / R1_BASELINE_A_FULL_SUITE.log"
+  },
+  "source_bundle_check": {
+    "status": "BLOCKED_BY_ENVIRONMENT",
+    "missing": "terser",
+    "exitCode": 1
+  },
+  "artifact_clean_builtin": {
+    "status": "BLOCKED_BY_ENVIRONMENT",
+    "missing": "jszip",
+    "exitCode": 1
+  },
+  "custom_source_clean_scan": {
+    "status": "PASS",
+    "node_modules": 0,
+    "dot_env": 0,
+    "private_keys": 0,
+    "logs": 0,
+    "nested_zips": 0,
+    "database_dumps": 0,
+    "obvious_secret_patterns_changed_files": 0
+  },
+  "b0041181": {
+    "arBefore": 23800085,
+    "correctionOwnedDelta": -23800000,
+    "rawArAfter": 85,
+    "debtZeroTolerance": 1000,
+    "debtNewRemainingDebt": 0
+  },
+  "receipt_preservation": {
+    "opening": 10000000,
+    "confirmedReceipt": 4000000,
+    "arBeforeCorrection": 6000000,
+    "cashCorrectionDelta": -2000000,
+    "arAfter": 4000000,
+    "snapshotDebt": 8000000,
+    "snapshotTargetingUsed": false
+  },
+  "returnOwnership": {
+    "correctionWriterIncludesReturnDelta": false,
+    "owner": "returnOrders/returnArPostingService/AR-RETURN",
+    "doubleCountTest": "PASS"
+  },
+  "production_data_modified": false
+}

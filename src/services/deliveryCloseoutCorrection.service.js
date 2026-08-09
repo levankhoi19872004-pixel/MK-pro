@@ -10,7 +10,7 @@ const ReturnOrder = require('../models/ReturnOrder');
 const returnOrderRepository = require('../repositories/returnOrderRepository');
 const DeliveryCloseoutCorrection = require('../models/DeliveryCloseoutCorrection');
 const DeliveryCloseoutVersion = require('../models/DeliveryCloseoutVersion');
-const ArDebtAdjustmentPostingService = require('./accounting/ArDebtAdjustmentPostingService');
+const CloseoutCorrectionArEventDeltaPostingService = require('./accounting/CloseoutCorrectionArEventDeltaPostingService');
 const OrderPaymentAllocationService = require('./accounting/OrderPaymentAllocationService');
 const { emitDomainEventSafe } = require('./events/domainEventBus');
 const { EVENT_TYPES } = require('./events/domainEventTypes');
@@ -1580,7 +1580,7 @@ async function upsertCorrectionPaymentAllocation(order = {}, version = {}, optio
       closeoutVersionId: text(version.id || version.code),
       closeoutVersion: versionNo,
       integration: 'manual_adjustment_payment_correction',
-      postingPolicy: 'mirror_final_state_only; AR delta handled by AR-DEBT-ADJUSTMENT reconcile'
+      postingPolicy: 'mirror_final_state_only; AR financial effect handled by canonical correction EVENT_DELTA writer'
     }
   });
   allocation.postedBy = actorName(options.actor || version.createdBy || 'accountant');
@@ -1595,19 +1595,31 @@ async function loadIdempotentResult(correction = {}, options = {}) {
   let versionQuery = DeliveryCloseoutVersion.findOne({ correctionId: correction.id }).lean();
   if (options.session) versionQuery = versionQuery.session(options.session);
   const newCloseoutVersion = await versionQuery;
-  const arDebtAdjustmentLedger = correction.arDebtAdjustmentLedgerCode
+  const ledgerCode = text(correction.arEventDeltaLedgerCode || correction.arDebtAdjustmentLedgerCode);
+  const ledgerId = text(correction.arEventDeltaLedgerId || correction.arDebtAdjustmentLedgerId);
+  const arEventDeltaLedger = ledgerCode
     ? {
-      id: text(correction.arDebtAdjustmentLedgerId),
-      code: text(correction.arDebtAdjustmentLedgerCode),
-      category: 'AR-DEBT-ADJUSTMENT',
-      ledgerType: 'AR-DEBT-ADJUSTMENT',
+      id: ledgerId,
+      code: ledgerCode,
+      category: 'AR-ADJUSTMENT',
+      ledgerType: 'AR-ADJUSTMENT',
       sourceType: 'DELIVERY_CLOSEOUT_CORRECTION',
-      sourceId: text(correction.id),
-      sourceCode: text(correction.correctionCode || correction.code),
-      idempotencyKey: `AR-DEBT-ADJUSTMENT:${correction.id}`
+      sourceId: text(correction.salesOrderId || correction.orderId),
+      sourceCode: text(correction.salesOrderCode || correction.orderCode),
+      refType: 'DELIVERY_CLOSEOUT_CORRECTION',
+      refId: text(correction.id),
+      refCode: text(correction.correctionCode || correction.code)
     }
     : null;
-  return { idempotent: true, correction, newCloseoutVersion, arDebtAdjustmentLedger };
+  return {
+    idempotent: true,
+    correction,
+    newCloseoutVersion,
+    arEventDeltaLedger,
+    // Backward-compatible response alias. This is an AR-ADJUSTMENT event ledger,
+    // never an AR-DEBT-ADJUSTMENT ledger.
+    arDebtAdjustmentLedger: arEventDeltaLedger
+  };
 }
 
 
@@ -2022,7 +2034,12 @@ async function createCorrection(input = {}, options = {}) {
         commandIntent: command.intent,
         operationIntent: command.operationIntent,
         requestFingerprint,
-        finalStateDebtDelta
+        finalStateDebtDelta,
+        correctionOwnedArDebtDelta: money(money(deltaInput.receivableDelta) - money(deltaInput.cashDelta) - money(deltaInput.bankDelta) - money(deltaInput.rewardDelta)),
+        correctionArPostingPolicy: 'EVENT_DELTA_ONLY',
+        correctionArExpectedFormula: 'canonicalArBeforeCorrection + correctionOwnedArDebtDelta',
+        returnDeltaExcludedFromCorrectionAr: true,
+        returnArOwner: 'returnOrders/returnArPostingService/AR-RETURN'
       }),
       debtAdjustmentAmount,
       currentState,
@@ -2112,6 +2129,11 @@ async function createCorrection(input = {}, options = {}) {
         legacyIntentInferred: command.legacyInferred,
         requestFingerprint,
         canonicalAdjustmentVersion: String(previousVersion),
+        correctionArPostingPolicy: 'EVENT_DELTA_ONLY',
+        correctionOwnedArDebtDelta: money(money(deltaInput.receivableDelta) - money(deltaInput.cashDelta) - money(deltaInput.bankDelta) - money(deltaInput.rewardDelta)),
+        correctionArExpectedFormula: 'canonicalArBeforeCorrection + correctionOwnedArDebtDelta',
+        returnDeltaExcludedFromCorrectionAr: true,
+        returnArOwner: 'returnOrders/returnArPostingService/AR-RETURN',
         ignoredLegacyReturnAggregate: command.ignoredLegacyReturnAggregate,
         ignoredLegacyReturnAggregateAmount: command.ignoredLegacyReturnAggregateAmount,
         clientReturnTotals: command.clientReturnTotals
@@ -2148,94 +2170,72 @@ async function createCorrection(input = {}, options = {}) {
       actor
     });
 
-    const adjustment = await ArDebtAdjustmentPostingService.postAdjustment(order, {
-      correctionId,
-      correctionCode,
-      sourceId: correctionId,
-      sourceCode: correctionCode,
-      orderId: orderId(order),
-      orderCode: orderCode(order),
-      originalCloseoutId: original.id,
-      originalCloseoutCode: original.code,
-      newCloseoutId,
-      newCloseoutCode,
-      deliveryCloseoutVersion: newCloseoutVersionNo,
-      version: newCloseoutVersionNo,
-      oldFinalDebtAmount: previousDebt,
-      newFinalDebtAmount: correction.newDebtAmount,
-      deltaDebt: debtAdjustmentAmount,
-      debtAdjustmentAmount,
-      receivableDelta: deltaInput.receivableDelta,
-      cashDelta: deltaInput.cashDelta,
-      bankDelta: deltaInput.bankDelta,
-      rewardDelta: deltaInput.rewardDelta,
-      returnDelta: deltaInput.returnDelta,
-      receivableAmount: sale,
-      cashAmount: nextPaymentState.cashAmount,
-      bankAmount: nextPaymentState.bankAmount,
-      rewardAmount: nextPaymentState.rewardAmount,
-      returnAmount: newReturnAmount,
-      rawDebtAmount: debtCalculation.rawDebtAmount,
-      zeroTolerance: 1000,
-      reconcileAllocation: {
-        allocationCode: correctionId,
-        idempotencyKey: `DCO-RECONCILE:${orderCode(order) || orderId(order)}:DELIVERY_CLOSEOUT_CORRECTION:${correctionId}:v${newCloseoutVersionNo}`,
-        orderId: orderId(order),
+    const zeroTolerance = 1000;
+    const expectedDebt = OrderPaymentAllocationService.computeDebtBreakdown(paymentAllocation, { zeroTolerance });
+    if (money(expectedDebt.debtAmount) !== money(correction.newDebtAmount)) {
+      const err = new Error('OrderPaymentAllocation không khớp canonical debt của closeout correction.');
+      err.code = 'CORRECTION_ALLOCATION_DEBT_MISMATCH';
+      err.status = 409;
+      err.data = {
         orderCode: orderCode(order),
-        customerCode: text(order.customerCode),
-        customerName: text(order.customerName),
-        salesStaffCode: text(order.salesStaffCode || order.salesmanCode || order.nvbhCode),
-        salesStaffName: text(order.salesStaffName || order.salesmanName || order.nvbhName),
-        deliveryStaffCode: text(order.deliveryStaffCode || order.deliveryCode || order.nvghCode),
-        deliveryStaffName: text(order.deliveryStaffName || order.deliveryName || order.nvghName),
-        deliveryDate: text(order.deliveryDate || order.orderDate || order.date || order.documentDate),
-        sourceType: 'DELIVERY_CLOSEOUT_CORRECTION',
-        sourceId: correctionId,
-        sourceCode: correctionCode,
-        sourceVersion: newCloseoutVersionNo,
-        receivableAmount: sale,
-        cashAmount: nextPaymentState.cashAmount,
-        bankAmount: nextPaymentState.bankAmount,
-        rewardAmount: nextPaymentState.rewardAmount,
-        returnAmount: newReturnAmount,
-        rawDebtAmount: debtCalculation.rawDebtAmount,
-        normalizedDebtAmount: correction.newDebtAmount,
-        debtAmount: correction.newDebtAmount,
-        zeroTolerance: 1000,
-        zeroToleranceApplied: Math.abs(money(debtCalculation.rawDebtAmount)) <= 1000 && money(debtCalculation.rawDebtAmount) !== correction.newDebtAmount,
-        zeroToleranceAdjustmentAmount: money(debtCalculation.rawDebtAmount - correction.newDebtAmount),
-        status: 'posted'
-      },
-      returnAdjustmentAmount,
-      cashAdjustmentAmount,
-      reason: correction.auditReason || correction.reason || 'Điều chỉnh không ghi lý do',
-      correctedBy: actor,
-      correctedAt: now
-    }, { ...options, session, actor, reconcileDebt: false, sourceType: 'DELIVERY_CLOSEOUT_CORRECTION', sourceId: correctionId, sourceCode: correctionCode, sourceModel: 'deliveryCloseoutCorrections' });
+        correctionId,
+        allocationDebt: money(expectedDebt.debtAmount),
+        correctionDebt: money(correction.newDebtAmount),
+        rawDebtAmount: money(expectedDebt.rawDebtAmount),
+        zeroTolerance
+      };
+      throw err;
+    }
 
-    const ledgerEntry = adjustment && (adjustment.entry || adjustment.arDebtAdjustmentLedger || adjustment);
+    const arEventDelta = await CloseoutCorrectionArEventDeltaPostingService.postCorrectionEventDelta({
+      order,
+      correction,
+      version: newCloseoutVersion,
+      allocation: paymentAllocation
+    }, {
+      session,
+      zeroTolerance,
+      actor,
+      now,
+      accountingBatchId: `AR-DCOC-EVENT-${correctionId}-${newCloseoutVersionNo}`,
+      reason: correction.auditReason || correction.reason || 'Điều chỉnh không ghi lý do',
+      note: `Canonical EVENT_DELTA AR sau closeout correction ${correctionCode}`
+    });
+
+    const ledgerEntry = arEventDelta && arEventDelta.ledger;
     if (ledgerEntry && ledgerEntry.code) {
       await DeliveryCloseoutCorrection.updateOne(
         { id: correctionId },
-        { $set: { arDebtAdjustmentLedgerId: text(ledgerEntry.id), arDebtAdjustmentLedgerCode: text(ledgerEntry.code), updatedAt: now } },
+        { $set: {
+          arEventDeltaLedgerId: text(ledgerEntry.id),
+          arEventDeltaLedgerCode: text(ledgerEntry.code),
+          // Preserve legacy response/storage aliases for old clients without
+          // changing the actual category: this row is AR-ADJUSTMENT.
+          arDebtAdjustmentLedgerId: text(ledgerEntry.id),
+          arDebtAdjustmentLedgerCode: text(ledgerEntry.code),
+          updatedAt: now
+        } },
         { session }
       );
     }
 
-    const adjustmentDirection = text(ledgerEntry && (ledgerEntry.direction || ledgerEntry.amountField))
+    const eventDirection = text(ledgerEntry && (ledgerEntry.direction || ledgerEntry.amountField))
       || (money(ledgerEntry && ledgerEntry.debit) > 0 ? 'debit' : (money(ledgerEntry && ledgerEntry.credit) > 0 ? 'credit' : ''));
-    const adjustmentAmountForMessage = Math.max(money(ledgerEntry && ledgerEntry.debit), money(ledgerEntry && ledgerEntry.credit), money(ledgerEntry && ledgerEntry.amount));
-    const adjustmentMessage = ledgerEntry && ledgerEntry.code && adjustmentAmountForMessage > 0
-      ? `và AR-DEBT-ADJUSTMENT ${adjustmentDirection || (debtAdjustmentAmount >= 0 ? 'debit' : 'credit')} ${adjustmentAmountForMessage}`
-      : 'không sinh AR-DEBT-ADJUSTMENT vì không có chênh lệch công nợ';
+    const eventAmountForMessage = Math.max(money(ledgerEntry && ledgerEntry.debit), money(ledgerEntry && ledgerEntry.credit), money(ledgerEntry && ledgerEntry.amount));
+    const adjustmentMessage = ledgerEntry && ledgerEntry.code && eventAmountForMessage > 0
+      ? `và canonical AR event-delta ${eventDirection || (arEventDelta.correctionOwnedDebtDelta >= 0 ? 'debit' : 'credit')} ${eventAmountForMessage}`
+      : 'không sinh AR event-delta vì correction không có payment/reward/receivable delta thuộc ownership của correction';
 
     return {
       success: true,
       correction,
       newCloseoutVersion,
       newCloseout: newCloseoutVersion,
+      arEventDeltaLedger: ledgerEntry,
+      arEventDelta,
+      // Backward-compatible aliases; ledger category remains AR-ADJUSTMENT.
       arDebtAdjustmentLedger: ledgerEntry,
-      arDebtAdjustment: adjustment,
+      arDebtAdjustment: arEventDelta,
       paymentAllocation,
       orderPaymentAllocation: paymentAllocation,
       paymentAllocationIntegrated: Boolean(paymentAllocation),

@@ -1,6 +1,6 @@
 'use strict';
 
-const { DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
+const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount } = require('../../constants/finance.constants');
 const { normalizeAccountingAmount, canProjectCanonicalAccountingLedgerToDebtReadModel } = require('../../domain/ar/arLedgerValidator');
 const {
   ACTIVE_DEBT_READ_MODEL_CATEGORIES,
@@ -106,6 +106,18 @@ function upper(value = '') {
 function money(value) {
   const n = Number(value || 0);
   return Number.isFinite(n) ? Math.round(n) : 0;
+}
+
+function projectDebtNewBalance(input = {}) {
+  const projection = projectBalanceFromTotals(input, { tolerance: DEBT_ZERO_TOLERANCE });
+  const normalizedSignedBalance = normalizeDebtAmount(projection.rawBalance, DEBT_ZERO_TOLERANCE);
+  return {
+    ...projection,
+    debtAmount: Math.max(0, normalizedSignedBalance),
+    positiveDebt: Math.max(0, normalizedSignedBalance),
+    creditBalance: Math.max(0, -normalizedSignedBalance),
+    creditBalanceAmount: Math.max(0, -normalizedSignedBalance)
+  };
 }
 
 function ledgerId(row = {}) {
@@ -240,7 +252,7 @@ function pendingCollectionsForDebtNewOrder(order = {}, pending = {}) {
 async function attachCollectibleState(grouped = {}, pending = {}) {
   const orders = Array.isArray(grouped.orders) ? grouped.orders : [];
   for (const order of orders) {
-    const projection = projectBalanceFromTotals({ rawBalance: order.rawBalance ?? order.rawDebt ?? order.balance ?? (money(order.debit) - money(order.credit)) }, { tolerance: DEBT_ZERO_TOLERANCE });
+    const projection = projectDebtNewBalance({ rawBalance: order.rawBalance ?? order.rawDebt ?? order.balance ?? (money(order.debit) - money(order.credit)) });
     const debtAmount = projection.debtAmount;
     const pendingCollectedAmount = pendingAmountForDebtNewOrder(order, pending);
     const availableToCollect = Math.max(0, money(debtAmount - pendingCollectedAmount));
@@ -670,8 +682,13 @@ function groupLedgers(ledgerRows = [], query = {}) {
     row.debit = money(row.debit);
     row.credit = money(row.credit);
     const projection = applyDebtProjection(row, { debit: row.debit, credit: row.credit }, { tolerance: DEBT_ZERO_TOLERANCE });
-    row.debt = projection.debtAmount;
-    row.remainingDebt = projection.debtAmount;
+    const normalizedProjection = projectDebtNewBalance({ rawBalance: projection.rawBalance });
+    row.debtAmount = normalizedProjection.debtAmount;
+    row.positiveDebt = normalizedProjection.positiveDebt;
+    row.creditBalance = normalizedProjection.creditBalance;
+    row.creditBalanceAmount = normalizedProjection.creditBalanceAmount;
+    row.debt = normalizedProjection.debtAmount;
+    row.remainingDebt = normalizedProjection.debtAmount;
     row.status = projection.status;
     row.displayStatus = projection.displayStatus;
     return row;
@@ -1106,9 +1123,9 @@ async function customerOrderSuggestions(q, type, limit, options = {}) {
         code: customer.customerCode || '',
         name: customer.customerName || '',
         phone: customer.phone || '',
-        debtAmount: customer.debt || customer.remainingDebt || 0,
+        debtAmount: customer.debt ?? customer.debtAmount ?? customer.remainingDebt ?? 0,
         label: [customer.customerCode, customer.customerName].filter(Boolean).join(' - '),
-        subLabel: [customer.phone ? `SĐT: ${customer.phone}` : '', `Nợ: ${formatSuggestionMoney(customer.debt || customer.remainingDebt || 0)}`].filter(Boolean).join(' · ')
+        subLabel: [customer.phone ? `SĐT: ${customer.phone}` : '', `Nợ: ${formatSuggestionMoney(customer.debt ?? customer.debtAmount ?? customer.remainingDebt ?? 0)}`].filter(Boolean).join(' · ')
       }, q);
     }
     if (includeOrder) {
@@ -1121,9 +1138,9 @@ async function customerOrderSuggestions(q, type, limit, options = {}) {
           code: orderCode,
           customerCode: customer.customerCode || order.customerCode || '',
           customerName: customer.customerName || order.customerName || '',
-          debtAmount: order.debt || order.remainingDebt || 0,
+          debtAmount: order.debt ?? order.debtAmount ?? order.remainingDebt ?? 0,
           label: [orderCode, customer.customerCode || order.customerCode, customer.customerName || order.customerName].filter(Boolean).join(' - '),
-          subLabel: `Còn nợ: ${formatSuggestionMoney(order.debt || order.remainingDebt || 0)}`
+          subLabel: `Còn nợ: ${formatSuggestionMoney(order.debt ?? order.debtAmount ?? order.remainingDebt ?? 0)}`
         }, q);
       }
     }
@@ -1154,7 +1171,7 @@ async function staffSuggestions(q, role, limit, options = {}) {
     const key = upper(code || name);
     const row = map.get(key) || { code, name, customerCount: 0, debtAmount: 0 };
     row.customerCount += 1;
-    row.debtAmount += money(customer.debt || customer.remainingDebt || 0);
+    row.debtAmount += money(customer.debt ?? customer.debtAmount ?? customer.remainingDebt ?? 0);
     map.set(key, row);
   }
   const items = Array.from(map.values()).map((row) => ({

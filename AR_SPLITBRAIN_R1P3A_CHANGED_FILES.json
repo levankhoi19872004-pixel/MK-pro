@@ -1,0 +1,51 @@
+{
+  "prompt_id": "MKPRO-AR-SPLITBRAIN-R1P3A-MICRO-HARDENING",
+  "production_runtime_changed_files": [],
+  "script_changed_files": [
+    {
+      "path": "scripts/audit-closeout-ar-splitbrain.js",
+      "before_sha256": "d5cf13560ca4f7e8ff01c057caaa0d217ab49777f76929834c37db71678d59f1",
+      "after_sha256": "28dc8413a1814ce067bfb499e5f9314a2eb51484b2c58cf4b26b5ff046076d07",
+      "reason": "three-way return amount divergence detection in read-only audit"
+    }
+  ],
+  "test_added_files": [
+    "test/ar-splitbrain-r1p3a-return-amount-divergence.test.js",
+    "test/ar-splitbrain-r1p3a-return-amount-matrix.test.js"
+  ],
+  "fixture_added_files": [
+    "test/fixtures/ar-splitbrain-r1p3a-return-amount.fixture.json"
+  ],
+  "locked_runtime_hashes": [
+    {
+      "file": "src/services/accounting/CloseoutCorrectionArEventDeltaPostingService.js",
+      "sha256": "f9af35ddb553c35e21125405053d93b8600f93d12cc7b98f631ae1ca8234e0d8",
+      "unchanged_from_input": true
+    },
+    {
+      "file": "src/services/deliveryCloseoutCorrection.service.js",
+      "sha256": "a7fad5c31b92ac715009c2a3687e878eec130e3639a3f6f913ee4a429e3e3a30",
+      "unchanged_from_input": true
+    },
+    {
+      "file": "src/services/v2/debtNew.service.js",
+      "sha256": "265697fda0596f2e9a8281b17a8a01b2c80416e440b006c30db53d72a69bc0bb",
+      "unchanged_from_input": true
+    },
+    {
+      "file": "src/domain/ar/debtBusinessEventIdentity.js",
+      "sha256": "5e1d2cc57e90ac0d6b7efe25815567cfd440bb4a4a4097564e1a48c55abbbb6a",
+      "unchanged_from_input": true
+    },
+    {
+      "file": "src/services/accounting/returnArPostingService.js",
+      "sha256": "f7cb88c183b3a520d3e75273ba712d54cd0c31c3279550143467c31b85ec63f0",
+      "unchanged_from_input": true
+    },
+    {
+      "file": "src/services/delivery/financial/deliveryReturnStateReader.js",
+      "sha256": "99485de35bc3a229181105aa35c752dc106ed73a3ce0c52328446a4a17d2c423",
+      "unchanged_from_input": true
+    }
+  ]
+}

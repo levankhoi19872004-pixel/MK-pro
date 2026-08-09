@@ -1,0 +1,120 @@
+{
+  "prompt_id": "MKPRO-AR-SPLITBRAIN-R1P1-HARDENING",
+  "release_status": "PARTIAL",
+  "requirements": [
+    {
+      "gate": "R1P1-G0",
+      "id": "AR-SB-R1P1-REQ-000",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P1_A0_SOURCE_INTEGRITY.json"
+      ],
+      "note": ""
+    },
+    {
+      "gate": "R1P1-G1",
+      "id": "AR-SB-R1P1-REQ-001",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P1_A1_CORE_CONTRACT_REAUDIT.md"
+      ],
+      "note": ""
+    },
+    {
+      "gate": "R1P1-G2",
+      "id": "AR-SB-R1P1-REQ-002",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P1_A2_RED_GREEN_EVIDENCE.md",
+        "test/ar-splitbrain-r1p1-historical-identity.red.test.js"
+      ],
+      "note": ""
+    },
+    {
+      "gate": "R1P1-G3",
+      "id": "AR-SB-R1P1-REQ-003",
+      "status": "PASS",
+      "evidence": [
+        "scripts/audit-closeout-ar-splitbrain.js",
+        "AR_SPLITBRAIN_R1P1_A7_HISTORICAL_AUDIT_DRY_RUN.csv"
+      ],
+      "note": ""
+    },
+    {
+      "gate": "R1P1-G4",
+      "id": "AR-SB-R1P1-REQ-004",
+      "status": "PASS",
+      "evidence": [
+        "src/domain/ar/debtLedgerSemanticRegistry.js",
+        "test/ar-splitbrain-r1p1-semantic-role.red.test.js"
+      ],
+      "note": ""
+    },
+    {
+      "gate": "R1P1-G5",
+      "id": "AR-SB-R1P1-REQ-005",
+      "status": "PASS",
+      "evidence": [
+        "src/services/v2/debtNew.service.js",
+        "test/ar-splitbrain-r1p1-debtnew-e2e.test.js",
+        "AR_SPLITBRAIN_R1P1_A3_SEMANTIC_AND_DEBTNEW_E2E_REPORT.md"
+      ],
+      "note": ""
+    },
+    {
+      "gate": "R1P1-G6",
+      "id": "AR-SB-R1P1-REQ-006",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P1_A6_GREEN_INTEGRATION_EVIDENCE.md"
+      ],
+      "note": ""
+    },
+    {
+      "gate": "R1P1-G7",
+      "id": "AR-SB-R1P1-REQ-007",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P1_A4_RUNTIME_CALLER_AUDIT.md"
+      ],
+      "note": ""
+    },
+    {
+      "gate": "R1P1-G8",
+      "id": "AR-SB-R1P1-REQ-008",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P1_A9_FINAL_VERIFICATION_REPORT.md"
+      ],
+      "note": ""
+    },
+    {
+      "gate": "R1P1-G9",
+      "id": "AR-SB-R1P1-REQ-009",
+      "status": "BLOCKED_ENV",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P1_A8_REGRESSION_RESULT.json"
+      ],
+      "note": "npm registry 404 zip-stream@4.1.1; mongoose/terser unavailable; syntax PASS"
+    },
+    {
+      "gate": "R1P1-G10",
+      "id": "AR-SB-R1P1-REQ-010",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P1_A7_HISTORICAL_AUDIT_DRY_RUN.csv"
+      ],
+      "note": ""
+    },
+    {
+      "gate": "R1P1-G11",
+      "id": "AR-SB-R1P1-REQ-011",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P1_CHANGED_FILES.json",
+        "AR_SPLITBRAIN_R1P1_PACKAGED_VERIFICATION.json"
+      ],
+      "note": "ZIP created cleanly and re-extracted; packaged core + syntax verification PASS."
+    }
+  ]
+}

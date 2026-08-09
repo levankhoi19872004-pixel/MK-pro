@@ -1,0 +1,108 @@
+{
+  "generatedAt": "2026-08-09T05:26:36.066861+00:00",
+  "input_zip": "MK-pro-closeout-ar-splitbrain-a-fixed.zip",
+  "input_sha256": "4408a64a066947c01e4a17124179817636a406402a441ddde5a8a245ede2bcf2",
+  "pre_a_baseline_zip": "MK-pro-closeout-perf-a4r2-g5a-r1-canary-observability-fixed(1).zip",
+  "pre_a_baseline_sha256": "b83ba6e807d36f72319312f04317cf326a5eb678db8f3eddda31d2586cace6a4",
+  "git_present": false,
+  "project": {
+    "stack": [
+      "Node.js",
+      "Express",
+      "MongoDB/Mongoose"
+    ],
+    "file_count_before_r1": 2619,
+    "current_workspace_file_count_before_r1_artifacts": 2432,
+    "current_js_files": 1705,
+    "src_js": 667,
+    "test_js": 731,
+    "script_js": 178
+  },
+  "package_commands": {
+    "test": "node scripts/run-tests.js",
+    "check_syntax": "node scripts/check-js-syntax.js",
+    "lint": null,
+    "typecheck": null,
+    "build": null,
+    "check_source_bundles": "node scripts/build-source-bundles.js --check"
+  },
+  "a_release_production_diff_from_pre_a": [
+    {
+      "change": "MODIFY",
+      "path": "src/services/deliveryCloseoutCorrection.service.js",
+      "before_sha256": "18f77aa78e5bbe269bd64260ce9e040d316fa9e65411b2d56367eb6c98fb57a7",
+      "after_sha256": "3b8f0e34b4ce6841ac68e7e6b31010c45a3103db25e34eb3dbed1dc759ff2138"
+    }
+  ],
+  "r1_production_changes": [
+    {
+      "change": "MODIFY",
+      "path": "src/domain/ar/arDebtCategoryRegistry.js",
+      "before_sha256": "caab7d2a90645b6924ce9c5ec3e1b77bbbddb2e2dcecab03ad98e0359feed5c0",
+      "after_sha256": "71aa0d59a58c805cd2aecba2ef42cad4ee29c12208afbc46a716322368d498dc",
+      "reason": "Cho phép AR-ADJUSTMENT tham gia Debt New chỉ khi provenance=DELIVERY_CLOSEOUT_CORRECTION; admin/legacy AR-ADJUSTMENT vẫn bị loại."
+    },
+    {
+      "change": "MODIFY",
+      "path": "src/domain/settlement/DeliverySettlementService.js",
+      "before_sha256": "8b6353a91f0fdf8282b78524c4ded67faafb9cc113c7ed5f6d9af746d954e6db",
+      "after_sha256": "bdfe61f35711b21daca542e2dc13b9528aef4c96b501b1e02942ae87f9d73403",
+      "reason": "Xóa thông báo runtime cũ hướng người dùng sang AR-DEBT-ADJUSTMENT; đổi sang canonical AR event-delta."
+    },
+    {
+      "change": "MODIFY",
+      "path": "src/models/DeliveryCloseoutCorrection.js",
+      "before_sha256": "4b5e3c20f9eceef1d38b7ae226b7ae6abb1cebac411a2e7910d7180862db1624",
+      "after_sha256": "121c5425ecfffe141fdf881ea13eeef5fbc6862c82e0b33ab10669416cc702ab",
+      "reason": "Lưu tham chiếu ledger event-delta mới, giữ alias legacy chỉ để tương thích API/storage."
+    },
+    {
+      "change": "ADD",
+      "path": "src/services/accounting/CloseoutCorrectionArEventDeltaPostingService.js",
+      "before_sha256": null,
+      "after_sha256": "f9af35ddb553c35e21125405053d93b8600f93d12cc7b98f631ae1ca8234e0d8",
+      "reason": "Writer R1 mới: AR-before + correction-owned delta, actual arPosting + actual arLedgerRead, idempotent, read-after-write invariant, return excluded."
+    },
+    {
+      "change": "MODIFY",
+      "path": "src/services/accounting/OrderPaymentDebtReconcileService.js",
+      "before_sha256": "4ed1a21fd06f47e5bb37296d7ac13d0bbdc4dd3dea4f9c49f47328a0b4dd78ea",
+      "after_sha256": "abe1a97b14c72bcda0c6628318d7bf9c039ae049001953fca9cb473e7e43aaf8",
+      "reason": "Defense-in-depth: cấm apply final-state reconcile cho DELIVERY_CLOSEOUT_CORRECTION/BULK_DELIVERY_ADJUSTMENT_COMMIT."
+    },
+    {
+      "change": "MODIFY",
+      "path": "src/services/delivery/DeliveryAdjustmentBatchContextService.js",
+      "before_sha256": "1aefd7b05207b62e785b029c274dcda47a22c0019bf937dcb8d039ff2f578b39",
+      "after_sha256": "ab29d9a5bae676ecfadcec33727fa699221fa6aeee3eec813b969f2dfc7d1eb5",
+      "reason": "Bulk context lookup chuyển correction idempotency từ retired AR-DEBT-ADJUSTMENT sang AR-ADJUSTMENT/provenance mới."
+    },
+    {
+      "change": "MODIFY",
+      "path": "src/services/delivery/DeliveryAdjustmentCommitService.js",
+      "before_sha256": "f2f04c9cc2a9dc7f874c4832a816215d2a11f0e0ed770133848b253e6a6c6a1e",
+      "after_sha256": "2601d727b14856872af9a14216947da5b10343133cd262fa4e6092bd467606ea",
+      "reason": "Loại final-state reconcile khỏi bulk/manual replay; preflight và verify theo current AR + operation delta."
+    },
+    {
+      "change": "MODIFY",
+      "path": "src/services/deliveryCloseoutCorrection.service.js",
+      "before_sha256": "3b8f0e34b4ce6841ac68e7e6b31010c45a3103db25e34eb3dbed1dc759ff2138",
+      "after_sha256": "a7fad5c31b92ac715009c2a3687e878eec130e3639a3f6f913ee4a429e3e3a30",
+      "reason": "Thay runtime final-state reconcile bằng transactional event-delta writer; preserve allocation/version, return ownership và rollback."
+    }
+  ],
+  "r1_test_changes_count": 10,
+  "r1_script_changes_count": 1,
+  "prohibited_file_scan": {
+    "node_modules": 0,
+    "dot_env": 0,
+    "private_key_files": 0,
+    "log_files_in_source": 0,
+    "nested_zip": 0,
+    "database_dump": 0,
+    "obvious_secret_pattern_in_changed_files": 0
+  },
+  "production_data_modified": false,
+  "status": "PASS"
+}

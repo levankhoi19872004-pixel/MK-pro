@@ -30,7 +30,9 @@ test('Phase92 correction service stays ledger-safe and writes returnOrders only 
 
   assert.match(service, /DeliveryCloseoutCorrection/);
   assert.match(service, /DeliveryCloseoutVersion/);
-  assert.match(service, /ArDebtAdjustmentPostingService\.postAdjustment/);
+  assert.match(service, /CloseoutCorrectionArEventDeltaPostingService\.postCorrectionEventDelta/);
+  assert.doesNotMatch(service, /OrderPaymentDebtReconcileService\.reconcileOrderDebt/);
+  assert.doesNotMatch(service, /ArDebtAdjustmentPostingService\.postAdjustment/);
   assert.match(service, /returnOrderRepository\.upsert/);
   assert.doesNotMatch(service, /ReturnOrder\.update(?:One|Many)|ReturnOrder\.findOneAndUpdate|ReturnOrder\.bulkWrite/);
   assert.match(service, /debtAdjustmentAmount/);
@@ -44,17 +46,17 @@ test('Phase92 route exposes correction and version endpoints under /api/new deli
   assert.match(route, /DeliveryAdjustmentCommitService\.commitOneAdjustment|deliveryCloseoutCorrectionService\.createCorrection/);
 });
 
-test('Phase92 AR-DEBT-ADJUSTMENT contract uses correction source and canonical debit credit', () => {
-  const posting = read('src/services/accounting/ArDebtAdjustmentPostingService.js');
-  assert.match(posting, /category:\s*'AR-DEBT-ADJUSTMENT'/);
-  assert.match(posting, /ledgerType:\s*'AR-DEBT-ADJUSTMENT'/);
-  assert.match(posting, /entryType:\s*'normal'/);
-  assert.match(posting, /sourceType/);
-  assert.match(posting, /DELIVERY_CLOSEOUT_CORRECTION/);
-  assert.match(posting, /correctionId/);
-  assert.match(posting, /originalCloseoutId/);
-  assert.match(posting, /newCloseoutId/);
+test('R1 canonical correction event uses AR-ADJUSTMENT with explicit return ownership isolation', () => {
+  const posting = read('src/services/accounting/CloseoutCorrectionArEventDeltaPostingService.js');
+  assert.match(posting, /const CATEGORY = 'AR-ADJUSTMENT'/);
+  assert.match(posting, /const SOURCE_TYPE = 'DELIVERY_CLOSEOUT_CORRECTION'/);
+  assert.match(posting, /arPostingService\.postArLedgerEntry/);
+  assert.match(posting, /canonicalArBeforeCorrection \+ correctionOwnedDebtDelta/);
+  assert.match(posting, /returnDeltaExcluded:\s*true/);
+  assert.match(posting, /returnOrders\/returnArPostingService\/AR-RETURN/);
+  assert.doesNotMatch(posting, /category:\s*'AR-DEBT-ADJUSTMENT'/);
 });
+
 
 test('Phase226 Debt New uses the canonical active category registry and keeps correction identity mapping', () => {
   const debtNew = read('src/services/v2/debtNew.service.js');

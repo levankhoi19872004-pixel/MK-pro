@@ -1,0 +1,67 @@
+[
+  {
+    "id": "AR-SB-R1P2-REQ-000",
+    "status": "PASS",
+    "evidence": "input SHA/inventory + baseline hashes"
+  },
+  {
+    "id": "AR-SB-R1P2-REQ-001",
+    "status": "PASS",
+    "evidence": "A1 core freeze audit + 118-test core suite"
+  },
+  {
+    "id": "AR-SB-R1P2-REQ-002",
+    "status": "PASS",
+    "evidence": "A2 RED dedupe evidence"
+  },
+  {
+    "id": "AR-SB-R1P2-REQ-003",
+    "status": "PASS",
+    "evidence": "A3 stable ledger dedupe + tests"
+  },
+  {
+    "id": "AR-SB-R1P2-REQ-004",
+    "status": "PASS",
+    "evidence": "A2 Debt New suggestion RED"
+  },
+  {
+    "id": "AR-SB-R1P2-REQ-005",
+    "status": "PASS",
+    "evidence": "A4 Debt New zero-tolerance report + tests"
+  },
+  {
+    "id": "AR-SB-R1P2-REQ-006",
+    "status": "PASS",
+    "evidence": "A2 identity RED"
+  },
+  {
+    "id": "AR-SB-R1P2-REQ-007",
+    "status": "PASS",
+    "evidence": "A5 identity/ownership audit + tests"
+  },
+  {
+    "id": "AR-SB-R1P2-REQ-008",
+    "status": "PASS",
+    "evidence": "actual Debt New B0041181 list/suggestion + R1P1 receipt/no-op/multi-order tests"
+  },
+  {
+    "id": "AR-SB-R1P2-REQ-009",
+    "status": "PASS",
+    "evidence": "118/118 core financial tests"
+  },
+  {
+    "id": "AR-SB-R1P2-REQ-010",
+    "status": "PASS",
+    "evidence": "A7 historical classification CSV + safety tests"
+  },
+  {
+    "id": "AR-SB-R1P2-REQ-011",
+    "status": "BLOCKED_ENV",
+    "evidence": "npm ci 404 zip-stream; full test cannot be dependency-certified; syntax PASS"
+  },
+  {
+    "id": "AR-SB-R1P2-REQ-012",
+    "status": "PASS",
+    "evidence": "clean packaging + unzip/hash verification documented in sidecar/final report"
+  }
+]

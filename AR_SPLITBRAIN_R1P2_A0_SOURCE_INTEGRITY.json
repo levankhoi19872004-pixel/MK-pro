@@ -1,0 +1,17 @@
+{
+  "prompt_id": "MKPRO-AR-SPLITBRAIN-R1P2-HARDENING",
+  "input_zip_name": "MK-pro-closeout-ar-splitbrain-r1p1-hardening-fixed.zip",
+  "input_sha256": "27a407a948aaecf5169e9fdfbeae5cc7dcc90e84d9b289798eafec18e04bb315",
+  "workspace_file_count_excluding_evidence": 2464,
+  "src_file_count": 703,
+  "test_file_count": 744,
+  "script_file_count": 178,
+  "package_scripts": {
+    "test": "node scripts/run-tests.js",
+    "syntax": "node scripts/check-js-syntax.js",
+    "source_bundles": "node scripts/build-source-bundles.js --check",
+    "source_size": "node scripts/check-source-size-budget.js"
+  },
+  "forbidden_input_findings": [],
+  "production_data_modified": false
+}

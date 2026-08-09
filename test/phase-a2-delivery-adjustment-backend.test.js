@@ -166,6 +166,7 @@ function createHarness({
         return { posted: true };
       }
     }),
+    installStub('src/services/accounting/OrderPaymentDebtReconcileService.js', {}),
     installStub('src/services/accounting/OrderPaymentAllocationService.js', {
       buildAllocationFromCloseout() { return {}; },
       async postAllocation() {

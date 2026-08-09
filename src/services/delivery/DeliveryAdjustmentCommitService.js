@@ -6,7 +6,8 @@ const { toNumber } = require('../../utils/common.util');
 const SalesOrder = require('../../models/SalesOrder');
 const DeliveryCloseoutVersion = require('../../models/DeliveryCloseoutVersion');
 const deliveryCloseoutCorrectionService = require('../deliveryCloseoutCorrection.service');
-const OrderPaymentDebtReconcileService = require('../accounting/OrderPaymentDebtReconcileService');
+const OrderPaymentAllocationService = require('../accounting/OrderPaymentAllocationService');
+const CloseoutCorrectionArEventDeltaPostingService = require('../accounting/CloseoutCorrectionArEventDeltaPostingService');
 
 const DEFAULT_ZERO_TOLERANCE = 1000;
 const ACTIVE_EXCLUDED_STATUSES = ['reversed', 'void', 'voided', 'cancelled', 'canceled', 'deleted', 'removed', 'superseded'];
@@ -168,13 +169,39 @@ function buildEffectiveCloseout(order = {}, latestVersion = null) {
 }
 
 function buildAllocation(order = {}, closeout = {}, options = {}) {
-  return OrderPaymentDebtReconcileService._internal.allocationFromCloseout(order, closeout, {
-    sourceType: text(options.sourceType || closeout.sourceType || 'BULK_DELIVERY_ADJUSTMENT_COMMIT'),
-    sourceId: text(options.sourceId || closeout.sourceId || closeout.id || closeout.closeoutId || orderId(order) || orderCode(order)),
-    sourceCode: text(options.sourceCode || closeout.sourceCode || closeout.code || closeout.closeoutCode || orderCode(order)),
-    sourceVersion: Number(options.sourceVersion || closeout.sourceVersion || closeout.closeoutVersion || closeout.version || 1) || 1,
+  const sourceType = text(options.sourceType || closeout.sourceType || 'BULK_DELIVERY_ADJUSTMENT_COMMIT');
+  const sourceId = text(options.sourceId || closeout.sourceId || closeout.id || closeout.closeoutId || orderId(order) || orderCode(order));
+  const sourceCode = text(options.sourceCode || closeout.sourceCode || closeout.code || closeout.closeoutCode || orderCode(order));
+  const sourceVersion = Number(options.sourceVersion || closeout.sourceVersion || closeout.closeoutVersion || closeout.version || 1) || 1;
+  const breakdown = OrderPaymentAllocationService.computeDebtBreakdown(closeout, {
     zeroTolerance: options.zeroTolerance || DEFAULT_ZERO_TOLERANCE
   });
+  return {
+    allocationCode: text(closeout.allocationCode || `DCO-EVENT-PREVIEW-${orderCode(order) || orderId(order)}-${sourceVersion}`),
+    idempotencyKey: text(closeout.allocationIdempotencyKey || `DCO-EVENT-PREVIEW:${orderCode(order) || orderId(order)}:${sourceType}:${sourceId}:v${sourceVersion}`),
+    orderId: orderId(order),
+    orderCode: orderCode(order),
+    customerCode: text(closeout.customerCode || order.customerCode),
+    customerName: text(closeout.customerName || order.customerName),
+    salesStaffCode: text(closeout.salesStaffCode || order.salesStaffCode || order.salesmanCode),
+    salesStaffName: text(closeout.salesStaffName || order.salesStaffName || order.salesmanName),
+    deliveryStaffCode: text(closeout.deliveryStaffCode || order.deliveryStaffCode || order.deliveryCode),
+    deliveryStaffName: text(closeout.deliveryStaffName || order.deliveryStaffName || order.deliveryName),
+    deliveryDate: text(closeout.deliveryDate || order.deliveryDate || order.orderDate || order.date),
+    sourceType, sourceId, sourceCode, sourceVersion,
+    receivableAmount: money(closeout.receivableAmount),
+    cashAmount: money(closeout.cashAmount),
+    bankAmount: money(closeout.bankAmount),
+    rewardAmount: money(closeout.rewardAmount),
+    returnAmount: money(closeout.returnAmount),
+    rawDebtAmount: money(breakdown.rawDebtAmount),
+    normalizedDebtAmount: money(breakdown.normalizedDebtAmount),
+    debtAmount: money(breakdown.debtAmount),
+    zeroTolerance: breakdown.zeroTolerance,
+    zeroToleranceApplied: breakdown.zeroToleranceApplied,
+    zeroToleranceAdjustmentAmount: money(breakdown.zeroToleranceAdjustmentAmount),
+    status: 'posted'
+  };
 }
 
 function paymentStateHash(allocation = {}) {
@@ -286,9 +313,9 @@ function ledgerAmount(entry = {}) {
 }
 
 function itemFromResult({ order, allocation, preflight, result, after, status, reason, error }) {
-  const ledger = result && (result.arDebtAdjustmentLedger || (result.arDebtAdjustment && (result.arDebtAdjustment.entry || result.arDebtAdjustment.ledger)) || result.ledger);
+  const ledger = result && (result.arEventDeltaLedger || result.arDebtAdjustmentLedger || (result.arEventDelta && result.arEventDelta.ledger) || (result.arDebtAdjustment && (result.arDebtAdjustment.entry || result.arDebtAdjustment.ledger)) || result.ledger);
   const before = preflight || {};
-  const afterBalance = after && typeof after.currentArBalance === 'number' ? after.currentArBalance : (result && result.arDebtAdjustment && result.arDebtAdjustment.afterBalance);
+  const afterBalance = after && typeof after.currentArBalance === 'number' ? after.currentArBalance : (result && result.arEventDelta && result.arEventDelta.arAfter);
   return {
     orderCode: orderCode(order) || allocation.orderCode,
     customerCode: text(order.customerCode || allocation.customerCode),
@@ -351,39 +378,60 @@ async function buildContextForOrder(input = {}, options = {}) {
   return { order, latestVersion, closeout, allocation, batchContextItem };
 }
 
-function prefetchedIdempotencyForAllocation(allocation = {}, batchContextItem = null) {
-  if (!batchContextItem || batchContextItem.idempotencyLoaded !== true) return { resolved: false, ledger: null };
-  const expected = OrderPaymentDebtReconcileService.computeExpectedDebtFromAllocation(allocation, {
-    zeroTolerance: allocation.zeroTolerance || DEFAULT_ZERO_TOLERANCE
+function prefetchedIdempotencyForAllocation() {
+  // Backward-compatible helper export. R1 event-delta posting does not derive
+  // idempotency from a target final AR balance.
+  return { resolved: false, ledger: null, key: '', reason: 'EVENT_DELTA_NO_FINAL_STATE_RECONCILE' };
+}
+
+function correctionOwnedDeltaBetween(baseAllocation = {}, desiredAllocation = {}) {
+  return CloseoutCorrectionArEventDeltaPostingService.computeCorrectionOwnedDebtDelta({
+    receivableDelta: money(desiredAllocation.receivableAmount - baseAllocation.receivableAmount),
+    cashDeltaAmount: money(desiredAllocation.cashAmount - baseAllocation.cashAmount),
+    bankDeltaAmount: money(desiredAllocation.bankAmount - baseAllocation.bankAmount),
+    rewardDeltaAmount: money(desiredAllocation.rewardAmount - baseAllocation.rewardAmount),
+    // Intentionally excluded by the writer; keep it here for diagnostic evidence.
+    returnAdjustmentAmount: money(desiredAllocation.returnAmount - baseAllocation.returnAmount)
   });
-  const key = OrderPaymentDebtReconcileService.debtAdjustmentIdempotencyKey(allocation, expected.expectedDebtAmount);
-  const ledger = (batchContextItem.idempotencyLedgers || []).find((row) => text(row.idempotencyKey) === key) || null;
-  return { resolved: true, ledger, key };
 }
 
 async function preflightReconcile(order = {}, allocation = {}, options = {}) {
-  const useBatchInitialContext = options.useBatchInitialContext === true && options.batchContextItem;
-  const prefetchedIdempotency = useBatchInitialContext
-    ? prefetchedIdempotencyForAllocation(allocation, options.batchContextItem)
-    : { resolved: false, ledger: null };
-  return OrderPaymentDebtReconcileService.reconcileOrderDebt({
-    order,
-    allocation,
-    apply: false,
-    session: options.session,
-    zeroTolerance: options.zeroTolerance || DEFAULT_ZERO_TOLERANCE,
-    actor: actorName(options.actor || 'accountant'),
-    sourceType: 'BULK_DELIVERY_ADJUSTMENT_COMMIT',
-    sourceId: text(allocation.sourceId || allocation.allocationCode || allocation.orderCode),
-    sourceCode: text(allocation.sourceCode || allocation.orderCode),
-    sourceModel: 'deliveryCloseoutCorrections',
-    reason: text(options.reason || 'Bulk ghi nhận lại điều chỉnh công nợ'),
-    note: text(options.note || 'Dry-run bulk adjustment commit'),
-    prefetchedArBalanceDetails: useBatchInitialContext ? options.batchContextItem.arBalanceDetails : null,
-    prefetchedArBalanceResolved: Boolean(useBatchInitialContext && options.batchContextItem.arContextLoaded === true),
-    prefetchedIdempotencyLedger: prefetchedIdempotency.ledger,
-    prefetchedIdempotencyResolved: prefetchedIdempotency.resolved
-  });
+  const baseAllocation = options.baseAllocation || allocation;
+  const correctionOwnedDebtDelta = correctionOwnedDeltaBetween(baseAllocation, allocation);
+  let currentArBalance;
+  let arInspection = null;
+  if (options.useBatchInitialContext === true
+    && options.batchContextItem
+    && options.batchContextItem.arContextLoaded === true
+    && options.batchContextItem.arBalanceDetails
+    && Number.isFinite(Number(options.batchContextItem.arBalanceDetails.currentArBalance))) {
+    currentArBalance = money(options.batchContextItem.arBalanceDetails.currentArBalance);
+    arInspection = options.batchContextItem.arBalanceDetails;
+  } else {
+    const inspected = await CloseoutCorrectionArEventDeltaPostingService.inspectCanonicalArBalance(order, {
+      session: options.session,
+      allocation
+    });
+    currentArBalance = money(inspected.currentArBalance);
+    arInspection = inspected.inspection;
+  }
+  const expectedArAfter = money(currentArBalance + correctionOwnedDebtDelta);
+  return {
+    action: correctionOwnedDebtDelta === 0 ? 'skip_no_correction_owned_delta' : 'event_delta_preview',
+    needsAdjustment: correctionOwnedDebtDelta !== 0,
+    skipReason: correctionOwnedDebtDelta === 0 ? 'NO_CORRECTION_OWNED_EVENT_DELTA' : '',
+    currentArBalance,
+    expectedArAfter,
+    expectedDebtAmount: expectedArAfter,
+    deltaDebt: correctionOwnedDebtDelta,
+    correctionOwnedDebtDelta,
+    returnDelta: money(allocation.returnAmount - baseAllocation.returnAmount),
+    returnDeltaExcluded: true,
+    returnArOwner: 'returnOrders/returnArPostingService/AR-RETURN',
+    preservesConfirmedReceipts: true,
+    finalStateReconcileUsed: false,
+    arInspection
+  };
 }
 
 async function commitOneAdjustment(input = {}, options = {}) {
@@ -411,7 +459,8 @@ async function commitOneAdjustment(input = {}, options = {}) {
     reason: input.reason,
     note: input.note,
     batchContextItem: context.batchContextItem,
-    useBatchInitialContext: Boolean(context.batchContextItem)
+    useBatchInitialContext: Boolean(context.batchContextItem),
+    baseAllocation: context.allocation
   });
 
   if (input.dryRun || options.dryRun) {
@@ -451,16 +500,32 @@ async function commitOneAdjustment(input = {}, options = {}) {
     actor: actorText,
     batchContextItem: context.batchContextItem
   });
-  const after = await preflightReconcile(context.order, effectiveAllocation, {
-    ...options,
-    actor,
-    reason: input.reason,
-    note: input.note,
-    batchContextItem: null,
-    useBatchInitialContext: false
-  });
-  const verified = !after.needsAdjustment;
   const idempotent = Boolean(result && result.idempotent);
+  let after;
+  if (result && result.arEventDelta) {
+    after = {
+      action: 'event_delta_verified',
+      currentArBalance: money(result.arEventDelta.arAfter),
+      expectedArAfter: money(result.arEventDelta.expectedArAfter),
+      correctionOwnedDebtDelta: money(result.arEventDelta.correctionOwnedDebtDelta),
+      returnDeltaExcluded: result.arEventDelta.returnDeltaExcluded !== false,
+      finalStateReconcileUsed: false
+    };
+  } else {
+    const inspected = await CloseoutCorrectionArEventDeltaPostingService.inspectCanonicalArBalance(context.order, {
+      session: options.session,
+      allocation: effectiveAllocation
+    });
+    after = {
+      action: idempotent ? 'idempotent_event_delta_already_committed' : 'event_delta_readback',
+      currentArBalance: money(inspected.currentArBalance),
+      expectedArAfter: idempotent ? money(inspected.currentArBalance) : money(preflight.expectedArAfter),
+      correctionOwnedDebtDelta: idempotent ? 0 : money(preflight.correctionOwnedDebtDelta),
+      returnDeltaExcluded: true,
+      finalStateReconcileUsed: false
+    };
+  }
+  const verified = idempotent || money(after.currentArBalance) === money(after.expectedArAfter);
   const status = verified ? (idempotent ? 'skipped' : 'processed') : 'manual_review';
   return {
     ...result,
@@ -475,7 +540,7 @@ async function commitOneAdjustment(input = {}, options = {}) {
       result,
       after,
       status,
-      reason: verified ? (idempotent ? 'skipped_already_synced' : (result && result.message)) : 'AR vẫn lệch sau khi bulk replay Lưu điều chỉnh; cần kiểm tra thủ công'
+      reason: verified ? (idempotent ? 'skipped_already_synced' : (result && result.message)) : 'AR sau event-delta không khớp invariant arBefore + correctionDelta; cần kiểm tra thủ công'
     }),
     payloadBuiltLikeManualSave: true,
     manualSaveRouteUsed: true,

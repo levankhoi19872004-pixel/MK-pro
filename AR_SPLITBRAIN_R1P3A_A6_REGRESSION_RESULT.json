@@ -1,0 +1,60 @@
+{
+  "prompt_id": "MKPRO-AR-SPLITBRAIN-R1P3A-MICRO-HARDENING",
+  "mandatory_red_green": {
+    "status": "PASS",
+    "before": "FAIL/no_mismatch",
+    "after": "PASS/data_corruption"
+  },
+  "amount_matrix": {
+    "status": "PASS",
+    "tests": 10,
+    "pass": 10,
+    "fail": 0
+  },
+  "r1p3_lifecycle_plus_r1p3a": {
+    "status": "PASS",
+    "tests": 11,
+    "pass": 11,
+    "fail": 0
+  },
+  "ar_splitbrain_family": {
+    "status": "PASS",
+    "tests": 69,
+    "pass": 69,
+    "fail": 0
+  },
+  "broader_targeted": {
+    "pass_assertions": 180,
+    "blocked_env_test_files": 2,
+    "assertion_failures": 0,
+    "blocked_reason": "missing mongoose"
+  },
+  "full_test": {
+    "status": "BLOCKED_ENV",
+    "exit_code": 1,
+    "r1p3a_failure_names": 219,
+    "r1p3_baseline_failure_names": 220,
+    "new_failure_names": 0,
+    "resolved_baseline_failure_names": 1
+  },
+  "syntax": {
+    "status": "PASS",
+    "js_files": 1718
+  },
+  "source_size": {
+    "status": "BASELINE_DEBT",
+    "failing_files": 7,
+    "same_as_r1p3_baseline": true
+  },
+  "source_bundles": {
+    "status": "BLOCKED_ENV",
+    "reason": "Cannot find module terser"
+  },
+  "dependency_install": {
+    "status": "BLOCKED_ENV",
+    "command": "npm ci --ignore-scripts",
+    "reason": "404 zip-stream@4.1.1 from internal registry"
+  },
+  "production_runtime_changed_files": 0,
+  "production_data_modified": false
+}

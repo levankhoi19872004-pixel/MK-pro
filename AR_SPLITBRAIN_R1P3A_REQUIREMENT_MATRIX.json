@@ -1,0 +1,105 @@
+{
+  "prompt_id": "MKPRO-AR-SPLITBRAIN-R1P3A-MICRO-HARDENING",
+  "requirements": [
+    {
+      "id": "AR-SB-R1P3A-REQ-000",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P3A_A0_BASELINE.md"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P3A-REQ-001",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P3A_A1_RETURN_AMOUNT_CONTRACT_AUDIT.md"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P3A-REQ-002",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P3A_A2_RED_EVIDENCE.md",
+        "test/ar-splitbrain-r1p3a-return-amount-divergence.test.js"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P3A-REQ-003",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P3A_A3_IMPLEMENTATION_REPORT.md"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P3A-REQ-004",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P3A_A3_IMPLEMENTATION_REPORT.md",
+        "AR_SPLITBRAIN_R1P3A_A4_GREEN_EVIDENCE.md"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P3A-REQ-005",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P3A_A4_GREEN_EVIDENCE.md"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P3A-REQ-006",
+      "status": "PASS",
+      "evidence": [
+        "test/ar-splitbrain-r1p3a-return-amount-matrix.test.js",
+        "AR_SPLITBRAIN_R1P3A_A4_GREEN_EVIDENCE.md"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P3A-REQ-007",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P3A_A4_GREEN_EVIDENCE.md"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P3A-REQ-008",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P3A_A6_REGRESSION_RESULT.json"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P3A-REQ-009",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P3A_A5_HISTORICAL_AUDIT_DRY_RUN.csv"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P3A-REQ-010",
+      "status": "BLOCKED_ENV",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P3A_A6_REGRESSION_RESULT.json"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P3A-REQ-011",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P3A_REQUIREMENT_MATRIX.json",
+        "AR_SPLITBRAIN_R1P3A_CHANGED_FILES.json"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P3A-REQ-012",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P3A_BUILD_MANIFEST.json"
+      ]
+    }
+  ],
+  "summary": {
+    "pass": 12,
+    "blocked_env": 1,
+    "fail": 0
+  }
+}

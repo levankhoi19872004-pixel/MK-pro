@@ -17,14 +17,15 @@ test('manual delivery adjustment integrates corrected reward final state into or
   assert.match(correctionService, /sourceType:\s*'DELIVERY_CLOSEOUT_CORRECTION'/);
   assert.match(correctionService, /OrderPaymentAllocationService\.upsertAllocation\(allocation, options\)/);
   assert.match(correctionService, /paymentAllocationIntegrated:\s*Boolean\(paymentAllocation\)/);
-  assert.match(correctionService, /postingPolicy:\s*'mirror_final_state_only; AR delta handled by AR-DEBT-ADJUSTMENT reconcile'/);
+  assert.match(correctionService, /postingPolicy:\s*'mirror_final_state_only; AR financial effect handled by canonical correction EVENT_DELTA writer'/);
 });
 
-test('payment allocation mirror is written before AR debt reconcile so read source is not stale', () => {
+test('payment allocation mirror is written before canonical correction EVENT_DELTA posting', () => {
   const allocationCall = correctionService.indexOf('const paymentAllocation = await upsertCorrectionPaymentAllocation');
-  const arCall = correctionService.indexOf('const adjustment = await ArDebtAdjustmentPostingService.postAdjustment');
+  const arCall = correctionService.indexOf('CloseoutCorrectionArEventDeltaPostingService.postCorrectionEventDelta');
   assert.ok(allocationCall > 0, 'missing correction allocation upsert call');
-  assert.ok(arCall > allocationCall, 'AR reconcile should run after allocation final-state mirror is available');
+  assert.ok(arCall > allocationCall, 'AR event-delta posting should run after allocation final-state mirror is available');
+  assert.doesNotMatch(correctionService, /OrderPaymentDebtReconcileService\.reconcileOrderDebt/);
 });
 
 test('delivery today list ignores stale orderPaymentAllocation when a newer closeout correction version exists', () => {

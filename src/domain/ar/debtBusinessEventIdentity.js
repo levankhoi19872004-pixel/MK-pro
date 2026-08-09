@@ -57,17 +57,30 @@ function paymentIdentity(ledger = {}) {
   ]);
 }
 
-function returnIdentity(ledger = {}) {
+function explicitReturnIdentity(ledger = {}) {
   return firstText(ledger, [
     'returnId',
     'returnOrderId',
     'sourceReturnOrderId',
     'metadata.returnId',
     'metadata.returnOrderId',
-    'metadata.sourceReturnOrderId',
-    'refId',
-    'sourceId'
+    'metadata.sourceReturnOrderId'
   ]);
+}
+
+function hasCanonicalReturnProvenance(ledger = {}) {
+  const category = upper(ledger.category || ledger.ledgerType);
+  const sourceType = upper(ledger.sourceType || ledger.refType);
+  return category === 'AR-RETURN'
+    || category === 'AR-RETURN-REVERSAL'
+    || ['RETURN_ORDER', 'ORDER_RETURN', 'RETURNORDERS', 'RETURNORDER'].includes(sourceType);
+}
+
+function returnIdentity(ledger = {}) {
+  const explicit = explicitReturnIdentity(ledger);
+  if (explicit) return explicit;
+  if (!hasCanonicalReturnProvenance(ledger)) return '';
+  return firstText(ledger, ['refId', 'sourceId', 'idempotencyKey']);
 }
 
 function correctionIdentity(ledger = {}) {
@@ -122,9 +135,15 @@ function buildDebtBusinessEventIdentity(input = {}) {
   } else if (semanticRole === SEMANTIC_ROLES.RETURN_REDUCTION) {
     source = returnIdentity(input);
     sourceKind = 'return';
-  } else if (semanticRole === SEMANTIC_ROLES.CORRECTION_DELTA || semanticRole === SEMANTIC_ROLES.MANUAL_ADJUSTMENT || semanticRole === SEMANTIC_ROLES.VOID) {
-    source = returnIdentity(input) || correctionIdentity(input);
-    sourceKind = returnIdentity(input) ? 'return' : 'correction';
+  } else if (semanticRole === SEMANTIC_ROLES.CORRECTION_DELTA) {
+    // A closeout correction is correction-owned. Generic refId/sourceId values
+    // are correction references and must never be promoted to return identity.
+    source = correctionIdentity(input);
+    sourceKind = 'correction';
+  } else if (semanticRole === SEMANTIC_ROLES.MANUAL_ADJUSTMENT || semanticRole === SEMANTIC_ROLES.VOID) {
+    const explicitReturn = returnIdentity(input);
+    source = explicitReturn || correctionIdentity(input);
+    sourceKind = explicitReturn ? 'return' : 'correction';
   } else if (semanticRole === SEMANTIC_ROLES.REVERSAL) {
     source = originalLedgerIdentity(input);
     sourceKind = 'originalLedger';
@@ -173,6 +192,8 @@ module.exports = {
   firstText,
   orderIdentity,
   paymentIdentity,
+  explicitReturnIdentity,
+  hasCanonicalReturnProvenance,
   returnIdentity,
   correctionIdentity,
   originalLedgerIdentity,

@@ -1,0 +1,28 @@
+{
+  "production_changed_files": [
+    "src/domain/ar/debtBusinessEventIdentity.js",
+    "src/services/v2/debtNew.service.js"
+  ],
+  "script_changed_files": [
+    "scripts/audit-closeout-ar-splitbrain.js"
+  ],
+  "test_changed_files": [
+    "test/ar-splitbrain-r1p2-correction-identity.red.test.js",
+    "test/ar-splitbrain-r1p2-debtnew-boundaries.test.js",
+    "test/ar-splitbrain-r1p2-debtnew-suggestion.red.test.js",
+    "test/ar-splitbrain-r1p2-historical-dedupe.red.test.js",
+    "test/ar-splitbrain-r1p2-historical-safety.test.js"
+  ],
+  "artifact_files": [
+    "AR_SPLITBRAIN_R1P2_A1_CORE_FREEZE_AUDIT.md",
+    "AR_SPLITBRAIN_R1P2_A2_RED_EVIDENCE.md",
+    "AR_SPLITBRAIN_R1P2_A3_IMPLEMENTATION_REPORT.md",
+    "AR_SPLITBRAIN_R1P2_A4_DEBTNEW_ZERO_TOLERANCE_REPORT.md",
+    "AR_SPLITBRAIN_R1P2_A5_EVENT_IDENTITY_OWNERSHIP_AUDIT.md",
+    "AR_SPLITBRAIN_R1P2_A6_GREEN_INTEGRATION_EVIDENCE.md",
+    "AR_SPLITBRAIN_R1P2_A7_HISTORICAL_AUDIT_DRY_RUN.csv",
+    "AR_SPLITBRAIN_R1P2_A8_REGRESSION_RESULT.json",
+    "AR_SPLITBRAIN_R1P2_A9_FINAL_VERIFICATION_REPORT.md",
+    "AR_SPLITBRAIN_R1P2_REQUIREMENT_MATRIX.json"
+  ]
+}

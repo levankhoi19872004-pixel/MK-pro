@@ -1,0 +1,36 @@
+{
+  "input_sha256": "b83ba6e807d36f72319312f04317cf326a5eb678db8f3eddda31d2586cace6a4",
+  "production_changed_files": [
+    {
+      "path": "src/services/deliveryCloseoutCorrection.service.js",
+      "reason": "Replace retired AR facade with transactional canonical debt reconcile + read-after-write invariant",
+      "sha256_before": "18f77aa78e5bbe269bd64260ce9e040d316fa9e65411b2d56367eb6c98fb57a7",
+      "sha256_after": "3b8f0e34b4ce6841ac68e7e6b31010c45a3103db25e34eb3dbed1dc759ff2138"
+    }
+  ],
+  "test_changed_files": [
+    "test/delivery-adjustment-reward-allocation-integration-static.test.js",
+    "test/delivery-closeout-correction-contract-static.test.js",
+    "test/phase-a2-delivery-adjustment-backend.test.js"
+  ],
+  "test_added_files": [
+    "test/ar-splitbrain-b0041181-regression.test.js",
+    "test/ar-splitbrain-financial-correctness.test.js",
+    "test/ar-splitbrain-historical-audit.test.js",
+    "test/fixtures/ar-splitbrain-b0041181.fixture.json"
+  ],
+  "script_added_files": [
+    "scripts/audit-closeout-ar-splitbrain.js"
+  ],
+  "artifact_files": [
+    "AR_SPLITBRAIN_A1_ROOT_CAUSE_AUDIT.md",
+    "AR_SPLITBRAIN_A2_RED_GREEN_EVIDENCE.md",
+    "AR_SPLITBRAIN_A3_IMPLEMENTATION_REPORT.md",
+    "AR_SPLITBRAIN_A4_RETIRED_CALLER_AUDIT.md",
+    "AR_SPLITBRAIN_A5_REGRESSION_RESULT.json",
+    "AR_SPLITBRAIN_A6_HISTORICAL_DRY_RUN.csv",
+    "AR_SPLITBRAIN_A7_FINAL_VERIFICATION_REPORT.md",
+    "AR_SPLITBRAIN_A7_CHANGED_FILES.json"
+  ],
+  "production_data_modified": false
+}

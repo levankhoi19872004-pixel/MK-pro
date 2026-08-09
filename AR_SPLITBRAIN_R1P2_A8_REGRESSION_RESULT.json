@@ -1,0 +1,47 @@
+{
+  "core_financial_tests": {
+    "tests": 118,
+    "pass": 118,
+    "fail": 0,
+    "status": "PASS"
+  },
+  "broader_targeted_files": {
+    "pass_files": 38,
+    "blocked_env_files": 12,
+    "baseline_fail_files": 1,
+    "new_assertion_regressions": 0
+  },
+  "full_npm_test": {
+    "status": "BLOCKED_ENV",
+    "exit_code": 1,
+    "current_normalized_failure_names": 222,
+    "baseline_normalized_failure_names": 224,
+    "new_failure_names_vs_baseline": 0,
+    "removed_failure_names_vs_baseline": 2
+  },
+  "dependency_install": {
+    "status": "BLOCKED_ENV",
+    "command": "npm ci --ignore-scripts",
+    "exit_code": 1,
+    "error": "404 zip-stream@4.1.1 from configured internal registry"
+  },
+  "syntax": {
+    "status": "PASS",
+    "javascript_files": 1714
+  },
+  "source_bundle_check": {
+    "status": "BLOCKED_ENV",
+    "error": "Cannot find module 'terser'"
+  },
+  "source_size_check": {
+    "status": "BASELINE_FAIL_UNCHANGED",
+    "note": "same seven over-budget files fail on input R1.1 baseline"
+  },
+  "lint": {
+    "status": "NOT_CONFIGURED"
+  },
+  "typecheck": {
+    "status": "NOT_CONFIGURED"
+  },
+  "production_data_modified": false
+}
