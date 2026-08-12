@@ -1,0 +1,30 @@
+{
+  "baseline_input_sha256": "46de34202187671eb3dea8adce071a5f7ccbb5f893f5e48ab5bc56d1cd68e813",
+  "normal_correction_core_changed_files": [],
+  "runtime_changed_files_due_new_r1p4_red": [
+    "src/domain/ar/arDebtCategoryRegistry.js",
+    "src/services/accounting/returnArPostingService.js"
+  ],
+  "repair_service_changed_files": [
+    "src/services/accounting/HistoricalCorrectionTimelineService.js",
+    "src/services/accounting/HistoricalCorrectionMissingEventDetector.js",
+    "src/services/accounting/HistoricalCorrectionRepairPlanner.js",
+    "src/services/accounting/HistoricalCorrectionRepairExecutor.js"
+  ],
+  "repair_script_changed_files": [
+    "scripts/lib/historical-correction-repair-db.js",
+    "scripts/audit-historical-missing-correction-events.js",
+    "scripts/plan-historical-correction-repair.js",
+    "scripts/apply-historical-correction-repair.js"
+  ],
+  "test_changed_files": [
+    "test/ar-splitbrain-r1p4-production-repro.red.test.js",
+    "test/ar-splitbrain-r1p4-repair-executor.test.js",
+    "test/ar-splitbrain-r1p4-repair-planner.test.js",
+    "test/ar-splitbrain-r1p4-return-canonical-provenance.red.test.js",
+    "test/fixtures/ar-splitbrain-r1p4-b0041181.fixture.json"
+  ],
+  "artifact_files_added": [],
+  "production_data_modified": false,
+  "note": "return writer/registry were minimally changed only after an R1.4 RED proved actual AR-RETURN writer output was not canonical Debt New projectable."
+}

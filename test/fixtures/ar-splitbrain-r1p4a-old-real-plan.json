@@ -1,0 +1,239 @@
+{
+  "planVersion": "R1P4_HISTORICAL_CORRECTION_REPAIR_V1",
+  "generatedAt": "2026-08-12T00:29:33.455Z",
+  "readOnly": true,
+  "mutation": false,
+  "orderCode": "B0041181",
+  "orderId": "SO1785834570204388",
+  "customerCode": "4499499",
+  "currentArBeforeObserved": 23800085,
+  "transitionCount": 4,
+  "proposedRepairCount": 2,
+  "transitions": [
+    {
+      "orderCode": "B0041181",
+      "correctionId": "DCOA-SO1785834570204388-b00deac1ae6d",
+      "correctionCode": "DCOA-SO1785834570204388-b00deac1ae6d",
+      "fromVersion": 1,
+      "toVersion": 1,
+      "correctionOwnedDebtDelta": 0,
+      "eventIdentity": "AR-ADJUSTMENT:DELIVERY_CLOSEOUT_CORRECTION:SO1785834570204388:DCOA-SO1785834570204388-b00deac1ae6d:v1",
+      "timelineClassification": "NO_EFFECT",
+      "detectorClassification": "NO_EFFECT",
+      "safeToApply": false,
+      "evidenceHash": "5e1e32d0ed8e1a45e16b06c1d17ccdd16a6279976c044105a99c3028ace42c03"
+    },
+    {
+      "orderCode": "B0041181",
+      "correctionId": "DCOC-SO1785834570204388-2-32bce04cc9f9",
+      "correctionCode": "DCOC-SO1785834570204388-2-32bce04cc9f9",
+      "fromVersion": 1,
+      "toVersion": 2,
+      "correctionOwnedDebtDelta": -23800085,
+      "eventIdentity": "AR-ADJUSTMENT:DELIVERY_CLOSEOUT_CORRECTION:SO1785834570204388:DCOC-SO1785834570204388-2-32bce04cc9f9:v2",
+      "timelineClassification": "RECONSTRUCTED",
+      "detectorClassification": "MISSING_EVENT_SAFE_TO_PLAN",
+      "safeToApply": true,
+      "evidenceHash": "8ee1079e8adcd0831cf148bf0d0a4730394a50df1e30ebe8996a5edf23008601"
+    },
+    {
+      "orderCode": "B0041181",
+      "correctionId": "DCOC-SO1785834570204388-3-347f125ae955",
+      "correctionCode": "DCOC-SO1785834570204388-3-347f125ae955",
+      "fromVersion": 1,
+      "toVersion": 3,
+      "correctionOwnedDebtDelta": 85,
+      "eventIdentity": "AR-ADJUSTMENT:DELIVERY_CLOSEOUT_CORRECTION:SO1785834570204388:DCOC-SO1785834570204388-3-347f125ae955:v3",
+      "timelineClassification": "RECONSTRUCTED",
+      "detectorClassification": "MISSING_EVENT_SAFE_TO_PLAN",
+      "safeToApply": true,
+      "evidenceHash": "4b7afc45e2d2e951c2cbf20e5e9033773a3cde09d5ec05fb6b14f5ab0e858303"
+    },
+    {
+      "orderCode": "B0041181",
+      "correctionId": "DCOC-SO1785834570204388-4-9680b15aab02",
+      "correctionCode": "DCOC-SO1785834570204388-4-9680b15aab02",
+      "fromVersion": 1,
+      "toVersion": 4,
+      "correctionOwnedDebtDelta": 0,
+      "eventIdentity": "AR-ADJUSTMENT:DELIVERY_CLOSEOUT_CORRECTION:SO1785834570204388:DCOC-SO1785834570204388-4-9680b15aab02:v4",
+      "timelineClassification": "NO_EFFECT",
+      "detectorClassification": "NO_EFFECT",
+      "safeToApply": false,
+      "evidenceHash": "b724f4eb97c657be1c053064770b2caf62e498238ca44a1fd258818f01653806"
+    }
+  ],
+  "items": [
+    {
+      "planVersion": "R1P4_HISTORICAL_CORRECTION_REPAIR_V1",
+      "generatedAt": "2026-08-12T00:29:33.455Z",
+      "orderCode": "B0041181",
+      "orderId": "SO1785834570204388",
+      "customerCode": "4499499",
+      "correctionId": "DCOC-SO1785834570204388-2-32bce04cc9f9",
+      "correctionCode": "DCOC-SO1785834570204388-2-32bce04cc9f9",
+      "fromVersion": 1,
+      "toVersion": 2,
+      "expectedMissingEventDelta": -23800085,
+      "expectedDebit": 0,
+      "expectedCredit": 23800085,
+      "canonicalCategory": "AR-ADJUSTMENT",
+      "sourceType": "DELIVERY_CLOSEOUT_CORRECTION",
+      "sourceId": "SO1785834570204388",
+      "sourceCode": "B0041181",
+      "refType": "DELIVERY_CLOSEOUT_CORRECTION",
+      "refId": "DCOC-SO1785834570204388-2-32bce04cc9f9",
+      "refCode": "DCOC-SO1785834570204388-2-32bce04cc9f9",
+      "idempotencyIdentity": "AR-ADJUSTMENT:DELIVERY_CLOSEOUT_CORRECTION:SO1785834570204388:DCOC-SO1785834570204388-2-32bce04cc9f9:v2",
+      "currentArBeforeObserved": 23800085,
+      "expectedCurrentArAfterIfAppliedNow": 0,
+      "subsequentEventSummary": [
+        {
+          "ledgerId": "AR-SALE-OPA-B0041181-v1",
+          "category": "AR-SALE",
+          "sourceType": "ORDER_PAYMENT_ALLOCATION",
+          "debit": 23800085,
+          "credit": 0,
+          "effect": 23800085,
+          "createdAt": "2026-08-07T09:14:06.136Z"
+        }
+      ],
+      "classification": "MISSING_EVENT_SAFE_TO_PLAN",
+      "safeToApply": true,
+      "evidenceRefs": [
+        "DCOC-SO1785834570204388-2-32bce04cc9f9",
+        "DCOV-SO1785834570204388-v2-a3aa601c486c",
+        "DCOA-SO1785834570204388-b00deac1ae6d"
+      ],
+      "timelineEvidenceHash": "8ee1079e8adcd0831cf148bf0d0a4730394a50df1e30ebe8996a5edf23008601",
+      "previousFinancialState": {
+        "receivableAmount": 23800085,
+        "cashAmount": 0,
+        "bankAmount": 0,
+        "rewardAmount": 0,
+        "returnAmount": 0,
+        "debtAmount": 23800085
+      },
+      "correctedFinancialState": {
+        "receivableAmount": 23800085,
+        "cashAmount": 22200085,
+        "bankAmount": 0,
+        "rewardAmount": 1600000,
+        "returnAmount": 0,
+        "debtAmount": 0
+      },
+      "componentDeltas": {
+        "receivableDelta": 0,
+        "cashDelta": 22200085,
+        "bankDelta": 0,
+        "rewardDelta": 1600000,
+        "returnDeltaObserved": 0
+      },
+      "canonicalLedgerPreview": {
+        "category": "AR-ADJUSTMENT",
+        "ledgerType": "AR-ADJUSTMENT",
+        "type": "ar_closeout_correction_event_delta",
+        "debit": 0,
+        "credit": 23800085,
+        "amount": 23800085,
+        "direction": "credit",
+        "sourceType": "DELIVERY_CLOSEOUT_CORRECTION",
+        "sourceId": "SO1785834570204388",
+        "sourceCode": "B0041181",
+        "refType": "DELIVERY_CLOSEOUT_CORRECTION",
+        "refId": "DCOC-SO1785834570204388-2-32bce04cc9f9",
+        "refCode": "DCOC-SO1785834570204388-2-32bce04cc9f9",
+        "idempotencyKey": "AR-ADJUSTMENT:DELIVERY_CLOSEOUT_CORRECTION:SO1785834570204388:DCOC-SO1785834570204388-2-32bce04cc9f9:v2",
+        "correctionId": "DCOC-SO1785834570204388-2-32bce04cc9f9",
+        "correctionCode": "DCOC-SO1785834570204388-2-32bce04cc9f9"
+      },
+      "planItemHash": "4c3894c9e491f0c3886b43500f9cf2dda77286df38cb29d8047eff6291b1f129"
+    },
+    {
+      "planVersion": "R1P4_HISTORICAL_CORRECTION_REPAIR_V1",
+      "generatedAt": "2026-08-12T00:29:33.455Z",
+      "orderCode": "B0041181",
+      "orderId": "SO1785834570204388",
+      "customerCode": "4499499",
+      "correctionId": "DCOC-SO1785834570204388-3-347f125ae955",
+      "correctionCode": "DCOC-SO1785834570204388-3-347f125ae955",
+      "fromVersion": 1,
+      "toVersion": 3,
+      "expectedMissingEventDelta": 85,
+      "expectedDebit": 85,
+      "expectedCredit": 0,
+      "canonicalCategory": "AR-ADJUSTMENT",
+      "sourceType": "DELIVERY_CLOSEOUT_CORRECTION",
+      "sourceId": "SO1785834570204388",
+      "sourceCode": "B0041181",
+      "refType": "DELIVERY_CLOSEOUT_CORRECTION",
+      "refId": "DCOC-SO1785834570204388-3-347f125ae955",
+      "refCode": "DCOC-SO1785834570204388-3-347f125ae955",
+      "idempotencyIdentity": "AR-ADJUSTMENT:DELIVERY_CLOSEOUT_CORRECTION:SO1785834570204388:DCOC-SO1785834570204388-3-347f125ae955:v3",
+      "currentArBeforeObserved": 23800085,
+      "expectedCurrentArAfterIfAppliedNow": 23800170,
+      "subsequentEventSummary": [
+        {
+          "ledgerId": "AR-SALE-OPA-B0041181-v1",
+          "category": "AR-SALE",
+          "sourceType": "ORDER_PAYMENT_ALLOCATION",
+          "debit": 23800085,
+          "credit": 0,
+          "effect": 23800085,
+          "createdAt": "2026-08-07T09:14:06.136Z"
+        }
+      ],
+      "classification": "MISSING_EVENT_SAFE_TO_PLAN",
+      "safeToApply": true,
+      "evidenceRefs": [
+        "DCOC-SO1785834570204388-3-347f125ae955",
+        "DCOV-SO1785834570204388-v3-c619bf0fd90e",
+        "DCOV-SO1785834570204388-v2-a3aa601c486c"
+      ],
+      "timelineEvidenceHash": "4b7afc45e2d2e951c2cbf20e5e9033773a3cde09d5ec05fb6b14f5ab0e858303",
+      "previousFinancialState": {
+        "receivableAmount": 23800085,
+        "cashAmount": 22200085,
+        "bankAmount": 0,
+        "rewardAmount": 1600000,
+        "returnAmount": 0,
+        "debtAmount": 0
+      },
+      "correctedFinancialState": {
+        "receivableAmount": 23800085,
+        "cashAmount": 22140000,
+        "bankAmount": 0,
+        "rewardAmount": 1660000,
+        "returnAmount": 0,
+        "debtAmount": 0
+      },
+      "componentDeltas": {
+        "receivableDelta": 0,
+        "cashDelta": -60085,
+        "bankDelta": 0,
+        "rewardDelta": 60000,
+        "returnDeltaObserved": 0
+      },
+      "canonicalLedgerPreview": {
+        "category": "AR-ADJUSTMENT",
+        "ledgerType": "AR-ADJUSTMENT",
+        "type": "ar_closeout_correction_event_delta",
+        "debit": 85,
+        "credit": 0,
+        "amount": 85,
+        "direction": "debit",
+        "sourceType": "DELIVERY_CLOSEOUT_CORRECTION",
+        "sourceId": "SO1785834570204388",
+        "sourceCode": "B0041181",
+        "refType": "DELIVERY_CLOSEOUT_CORRECTION",
+        "refId": "DCOC-SO1785834570204388-3-347f125ae955",
+        "refCode": "DCOC-SO1785834570204388-3-347f125ae955",
+        "idempotencyKey": "AR-ADJUSTMENT:DELIVERY_CLOSEOUT_CORRECTION:SO1785834570204388:DCOC-SO1785834570204388-3-347f125ae955:v3",
+        "correctionId": "DCOC-SO1785834570204388-3-347f125ae955",
+        "correctionCode": "DCOC-SO1785834570204388-3-347f125ae955"
+      },
+      "planItemHash": "9d0e34320623f5d5e76fdd86495a4fe80f52df678bd7a11a13a0f40427c6134e"
+    }
+  ],
+  "planHash": "41db128858fc09f17cce83416eac547aa0bea9f0c12dc24efd3145f83501f6a7"
+}

@@ -1,0 +1,68 @@
+{
+  "generated_at": "2026-08-12T00:59:49.894489+00:00",
+  "runtime_correction_changed_files": [],
+  "repair_service_changed_files": [
+    "src/services/accounting/HistoricalCorrectionTimelineService.js",
+    "src/services/accounting/HistoricalCorrectionMissingEventDetector.js",
+    "src/services/accounting/HistoricalCorrectionRepairPlanner.js",
+    "src/services/accounting/HistoricalCorrectionRepairExecutor.js"
+  ],
+  "repair_script_changed_files": [
+    "scripts/audit-historical-missing-correction-events.js",
+    "scripts/apply-historical-correction-repair.js"
+  ],
+  "test_changed_files": [
+    "test/ar-splitbrain-r1p4a-lineage-preflight.red.test.js",
+    "test/ar-splitbrain-r1p4a-safety-matrix.test.js",
+    "test/ar-splitbrain-r1p4a-b0041181-multievent.test.js",
+    "test/fixtures/ar-splitbrain-r1p4a-old-real-plan.json",
+    "test/fixtures/ar-splitbrain-r1p4a-production-lineage.fixture.json"
+  ],
+  "evidence_fixture_plan": [
+    "AR_SPLITBRAIN_R1P4A_B0041181_FIXTURE_REPLAN.json"
+  ],
+  "locked_runtime_hashes": [
+    {
+      "file": "src/services/accounting/CloseoutCorrectionArEventDeltaPostingService.js",
+      "baseline_sha256": "f9af35ddb553c35e21125405053d93b8600f93d12cc7b98f631ae1ca8234e0d8",
+      "working_sha256": "f9af35ddb553c35e21125405053d93b8600f93d12cc7b98f631ae1ca8234e0d8",
+      "unchanged": true
+    },
+    {
+      "file": "src/services/deliveryCloseoutCorrection.service.js",
+      "baseline_sha256": "a7fad5c31b92ac715009c2a3687e878eec130e3639a3f6f913ee4a429e3e3a30",
+      "working_sha256": "a7fad5c31b92ac715009c2a3687e878eec130e3639a3f6f913ee4a429e3e3a30",
+      "unchanged": true
+    },
+    {
+      "file": "src/services/v2/debtNew.service.js",
+      "baseline_sha256": "265697fda0596f2e9a8281b17a8a01b2c80416e440b006c30db53d72a69bc0bb",
+      "working_sha256": "265697fda0596f2e9a8281b17a8a01b2c80416e440b006c30db53d72a69bc0bb",
+      "unchanged": true
+    },
+    {
+      "file": "src/domain/ar/debtBusinessEventIdentity.js",
+      "baseline_sha256": "5e1d2cc57e90ac0d6b7efe25815567cfd440bb4a4a4097564e1a48c55abbbb6a",
+      "working_sha256": "5e1d2cc57e90ac0d6b7efe25815567cfd440bb4a4a4097564e1a48c55abbbb6a",
+      "unchanged": true
+    },
+    {
+      "file": "src/services/accounting/returnArPostingService.js",
+      "baseline_sha256": "0f0e8e8f17453c736f47f76c4d9ec07ac84f850477cb6e84aeecb9876595be0a",
+      "working_sha256": "0f0e8e8f17453c736f47f76c4d9ec07ac84f850477cb6e84aeecb9876595be0a",
+      "unchanged": true
+    },
+    {
+      "file": "src/services/delivery/DeliveryAdjustmentCommitService.js",
+      "baseline_sha256": "2601d727b14856872af9a14216947da5b10343133cd262fa4e6092bd467606ea",
+      "working_sha256": "2601d727b14856872af9a14216947da5b10343133cd262fa4e6092bd467606ea",
+      "unchanged": true
+    },
+    {
+      "file": "src/services/delivery/DeliveryAdjustmentBatchContextService.js",
+      "baseline_sha256": "ab29d9a5bae676ecfadcec33727fa699221fa6aeee3eec813b969f2dfc7d1eb5",
+      "working_sha256": "ab29d9a5bae676ecfadcec33727fa699221fa6aeee3eec813b969f2dfc7d1eb5",
+      "unchanged": true
+    }
+  ]
+}

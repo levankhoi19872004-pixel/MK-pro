@@ -1,0 +1,118 @@
+{
+  "planVersion": "R1P4_HISTORICAL_CORRECTION_REPAIR_V1",
+  "generatedAt": "2026-08-09T23:14:03.634Z",
+  "readOnly": true,
+  "mutation": false,
+  "orderCode": "B0041181",
+  "orderId": "SO-B0041181",
+  "customerCode": "4499499",
+  "currentArBeforeObserved": 23800085,
+  "transitionCount": 2,
+  "proposedRepairCount": 1,
+  "transitions": [
+    {
+      "orderCode": "B0041181",
+      "correctionId": "DCOC-B0041181-v2",
+      "correctionCode": "DCOC-B0041181-v2",
+      "fromVersion": 1,
+      "toVersion": 2,
+      "correctionOwnedDebtDelta": -23800000,
+      "eventIdentity": "AR-ADJUSTMENT:DELIVERY_CLOSEOUT_CORRECTION:SO-B0041181:DCOC-B0041181-v2:v2",
+      "timelineClassification": "RECONSTRUCTED",
+      "detectorClassification": "MISSING_EVENT_SAFE_TO_PLAN",
+      "safeToApply": true,
+      "evidenceHash": "8b28d589aa9f2aea87eec1e1b7bf6af1be3c0f9cc9aa153754e93de6b0f1ed64"
+    },
+    {
+      "orderCode": "B0041181",
+      "correctionId": "DCOC-B0041181-v3-NOOP",
+      "correctionCode": "DCOC-B0041181-v3-NOOP",
+      "fromVersion": 2,
+      "toVersion": 3,
+      "correctionOwnedDebtDelta": 0,
+      "eventIdentity": "AR-ADJUSTMENT:DELIVERY_CLOSEOUT_CORRECTION:SO-B0041181:DCOC-B0041181-v3-NOOP:v3",
+      "timelineClassification": "NO_EFFECT",
+      "detectorClassification": "NO_EFFECT",
+      "safeToApply": false,
+      "evidenceHash": "23ad9afc4965ec5fcc96e7a9a1d1da36b5c57511c188385619f7788984629f53"
+    }
+  ],
+  "items": [
+    {
+      "planVersion": "R1P4_HISTORICAL_CORRECTION_REPAIR_V1",
+      "generatedAt": "2026-08-09T23:14:03.634Z",
+      "orderCode": "B0041181",
+      "orderId": "SO-B0041181",
+      "customerCode": "4499499",
+      "correctionId": "DCOC-B0041181-v2",
+      "correctionCode": "DCOC-B0041181-v2",
+      "fromVersion": 1,
+      "toVersion": 2,
+      "expectedMissingEventDelta": -23800000,
+      "expectedDebit": 0,
+      "expectedCredit": 23800000,
+      "canonicalCategory": "AR-ADJUSTMENT",
+      "sourceType": "DELIVERY_CLOSEOUT_CORRECTION",
+      "sourceId": "SO-B0041181",
+      "sourceCode": "B0041181",
+      "refType": "DELIVERY_CLOSEOUT_CORRECTION",
+      "refId": "DCOC-B0041181-v2",
+      "refCode": "DCOC-B0041181-v2",
+      "idempotencyIdentity": "AR-ADJUSTMENT:DELIVERY_CLOSEOUT_CORRECTION:SO-B0041181:DCOC-B0041181-v2:v2",
+      "currentArBeforeObserved": 23800085,
+      "expectedCurrentArAfterIfAppliedNow": 85,
+      "subsequentEventSummary": [],
+      "classification": "MISSING_EVENT_SAFE_TO_PLAN",
+      "safeToApply": true,
+      "evidenceRefs": [
+        "DCOC-B0041181-v2",
+        "DCOV-B0041181-v2",
+        "salesOrders.deliveryCloseout"
+      ],
+      "timelineEvidenceHash": "8b28d589aa9f2aea87eec1e1b7bf6af1be3c0f9cc9aa153754e93de6b0f1ed64",
+      "previousFinancialState": {
+        "receivableAmount": 23800085,
+        "cashAmount": 0,
+        "bankAmount": 0,
+        "rewardAmount": 0,
+        "returnAmount": 0,
+        "debtAmount": 23800085
+      },
+      "correctedFinancialState": {
+        "receivableAmount": 23800085,
+        "cashAmount": 22140000,
+        "bankAmount": 0,
+        "rewardAmount": 1660000,
+        "returnAmount": 0,
+        "debtAmount": 85
+      },
+      "componentDeltas": {
+        "receivableDelta": 0,
+        "cashDelta": 22140000,
+        "bankDelta": 0,
+        "rewardDelta": 1660000,
+        "returnDeltaObserved": 0
+      },
+      "canonicalLedgerPreview": {
+        "category": "AR-ADJUSTMENT",
+        "ledgerType": "AR-ADJUSTMENT",
+        "type": "ar_closeout_correction_event_delta",
+        "debit": 0,
+        "credit": 23800000,
+        "amount": 23800000,
+        "direction": "credit",
+        "sourceType": "DELIVERY_CLOSEOUT_CORRECTION",
+        "sourceId": "SO-B0041181",
+        "sourceCode": "B0041181",
+        "refType": "DELIVERY_CLOSEOUT_CORRECTION",
+        "refId": "DCOC-B0041181-v2",
+        "refCode": "DCOC-B0041181-v2",
+        "idempotencyKey": "AR-ADJUSTMENT:DELIVERY_CLOSEOUT_CORRECTION:SO-B0041181:DCOC-B0041181-v2:v2",
+        "correctionId": "DCOC-B0041181-v2",
+        "correctionCode": "DCOC-B0041181-v2"
+      },
+      "planItemHash": "b833354800d416ab23a39314521b1526c48c682717f9b5cd8f0224b33dd47c75"
+    }
+  ],
+  "planHash": "4c1eaba7c69ce3895e4bbd78e242498a4c15d92d9a32ed87f0f43fb9eb0b9aa7"
+}

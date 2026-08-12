@@ -1,0 +1,37 @@
+{
+  "prompt_id": "MKPRO-AR-SPLITBRAIN-R1P4-HISTORICAL-MISSING-EVENT-REPAIR",
+  "input_zip_name": "MK-pro-closeout-ar-splitbrain-r1p3a-micro-hardening-fixed(2).zip",
+  "input_sha256": "46de34202187671eb3dea8adce071a5f7ccbb5f893f5e48ab5bc56d1cd68e813",
+  "build_status": "CORRECTNESS_PASS_ENV_BLOCKED_REAL_B004_APPLY_PENDING_DRY_RUN",
+  "correction_runtime_algorithm_changed": false,
+  "runtime_changed_files": [
+    "src/domain/ar/arDebtCategoryRegistry.js",
+    "src/services/accounting/returnArPostingService.js"
+  ],
+  "repair_service_changed_files": [
+    "src/services/accounting/HistoricalCorrectionTimelineService.js",
+    "src/services/accounting/HistoricalCorrectionMissingEventDetector.js",
+    "src/services/accounting/HistoricalCorrectionRepairPlanner.js",
+    "src/services/accounting/HistoricalCorrectionRepairExecutor.js"
+  ],
+  "repair_script_changed_files": [
+    "scripts/lib/historical-correction-repair-db.js",
+    "scripts/audit-historical-missing-correction-events.js",
+    "scripts/plan-historical-correction-repair.js",
+    "scripts/apply-historical-correction-repair.js"
+  ],
+  "test_changed_files": [
+    "test/ar-splitbrain-r1p4-production-repro.red.test.js",
+    "test/ar-splitbrain-r1p4-repair-executor.test.js",
+    "test/ar-splitbrain-r1p4-repair-planner.test.js",
+    "test/ar-splitbrain-r1p4-return-canonical-provenance.red.test.js",
+    "test/fixtures/ar-splitbrain-r1p4-b0041181.fixture.json"
+  ],
+  "fixture_plan_hash": "4c1eaba7c69ce3895e4bbd78e242498a4c15d92d9a32ed87f0f43fb9eb0b9aa7",
+  "fixture_plan_item_hash": "b833354800d416ab23a39314521b1526c48c682717f9b5cd8f0224b33dd47c75",
+  "fixture_b004_missing_event_delta": -23800000,
+  "fixture_b004_raw_ar_after": 85,
+  "fixture_b004_debt_new_after": 0,
+  "production_data_modified": false,
+  "final_zip_sha256": "EXTERNAL_AFTER_FINAL_ZIP_TO_AVOID_SELF_REFERENCE"
+}

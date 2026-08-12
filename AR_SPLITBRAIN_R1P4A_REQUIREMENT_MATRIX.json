@@ -1,0 +1,92 @@
+[
+  {
+    "requirement": "AR-SB-R1P4A-REQ-000",
+    "name": "Baseline and Scope Integrity",
+    "status": "PASS",
+    "evidence": "A0; input SHA; locked runtime hashes unchanged"
+  },
+  {
+    "requirement": "AR-SB-R1P4A-REQ-001",
+    "name": "Audit Actual Predecessor Contract",
+    "status": "PASS",
+    "evidence": "A1; sourceOriginalVersion separated from actual predecessor"
+  },
+  {
+    "requirement": "AR-SB-R1P4A-REQ-002",
+    "name": "RED — v3 Wrong fromVersion",
+    "status": "PASS",
+    "evidence": "A2; RED 0/4 then GREEN"
+  },
+  {
+    "requirement": "AR-SB-R1P4A-REQ-003",
+    "name": "Fix Historical Timeline Predecessor Resolution",
+    "status": "PASS",
+    "evidence": "TimelineService; core 11/11"
+  },
+  {
+    "requirement": "AR-SB-R1P4A-REQ-004",
+    "name": "Stale R1.4 REAL Plan Must Fail DB Revalidation",
+    "status": "PASS",
+    "evidence": "old plan hash 41db... remains valid but fixture DB revalidation rejects lineage"
+  },
+  {
+    "requirement": "AR-SB-R1P4A-REQ-005",
+    "name": "Read-only DB Revalidation Preflight",
+    "status": "PASS",
+    "evidence": "Executor.revalidateRepairPlan + CLI default read-only DB path"
+  },
+  {
+    "requirement": "AR-SB-R1P4A-REQ-006",
+    "name": "Multi-event Sequential Repair Plan",
+    "status": "PASS",
+    "evidence": "A5; 23800085 -> 0 -> 85"
+  },
+  {
+    "requirement": "AR-SB-R1P4A-REQ-007",
+    "name": "Guarded Executor Sequence and Transaction Hardening",
+    "status": "PASS",
+    "evidence": "Safety matrix; whole-plan transaction/rollback/idempotency"
+  },
+  {
+    "requirement": "AR-SB-R1P4A-REQ-008",
+    "name": "B0041181 Production-shaped GREEN Fixture",
+    "status": "PASS",
+    "evidence": "actual canonical event writer test; final raw 85; Debt New/list/suggestion 0"
+  },
+  {
+    "requirement": "AR-SB-R1P4A-REQ-009",
+    "name": "Safety Matrix",
+    "status": "PASS",
+    "evidence": "A6; stale/partial/ambiguous/order/idempotency guards"
+  },
+  {
+    "requirement": "AR-SB-R1P4A-REQ-010",
+    "name": "CLI UX Hardening",
+    "status": "PASS",
+    "evidence": "default DB revalidation; explicit --offline-verify; no implicit mutation"
+  },
+  {
+    "requirement": "AR-SB-R1P4A-REQ-011",
+    "name": "Preserve R1-R1.4 Financial Contracts",
+    "status": "PASS",
+    "evidence": "100/100 split-brain; locked runtime hashes; broader exact parity"
+  },
+  {
+    "requirement": "AR-SB-R1P4A-REQ-012",
+    "name": "Dependency and Engineering Verification",
+    "status": "BLOCKED_ENV",
+    "evidence": "npm registry EAI_AGAIN; full dependency-backed suite/build not certified; syntax PASS; source-size baseline debt"
+  },
+  {
+    "requirement": "AR-SB-R1P4A-REQ-013",
+    "name": "No Production Mutation",
+    "status": "PASS",
+    "evidence": "No production --apply executed; production_data_modified=false"
+  },
+  {
+    "requirement": "AR-SB-R1P4A-REQ-014",
+    "name": "Release Packaging",
+    "status": "PASS",
+    "evidence": "Clean source tree; final ZIP/SHA/extraction verification performed externally after archive finalization to avoid self-referential hash."
+  }
+]

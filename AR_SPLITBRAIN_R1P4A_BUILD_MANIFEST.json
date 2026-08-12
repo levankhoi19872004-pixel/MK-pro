@@ -1,0 +1,29 @@
+{
+  "prompt_id": "MKPRO-AR-SPLITBRAIN-R1P4A-LINEAGE-PREFLIGHT-HARDENING",
+  "generated_at": "2026-08-12T00:59:49.894489+00:00",
+  "input_zip": "MK-pro-closeout-ar-splitbrain-r1p4-historical-repair-fixed.zip",
+  "input_sha256": "eb1fe5c299e7c8cb68b8214a8bf0b7d6e9b242afa637810a1f8c30af4452478c",
+  "old_real_plan_hash": "41db128858fc09f17cce83416eac547aa0bea9f0c12dc24efd3145f83501f6a7",
+  "old_real_plan_policy": "STALE_DO_NOT_APPLY",
+  "runtime_correction_changed_files": [],
+  "repair_service_changed_files": [
+    "src/services/accounting/HistoricalCorrectionTimelineService.js",
+    "src/services/accounting/HistoricalCorrectionMissingEventDetector.js",
+    "src/services/accounting/HistoricalCorrectionRepairPlanner.js",
+    "src/services/accounting/HistoricalCorrectionRepairExecutor.js"
+  ],
+  "repair_script_changed_files": [
+    "scripts/audit-historical-missing-correction-events.js",
+    "scripts/apply-historical-correction-repair.js"
+  ],
+  "test_fixture_changed_files": [
+    "test/ar-splitbrain-r1p4a-lineage-preflight.red.test.js",
+    "test/ar-splitbrain-r1p4a-safety-matrix.test.js",
+    "test/ar-splitbrain-r1p4a-b0041181-multievent.test.js",
+    "test/fixtures/ar-splitbrain-r1p4a-old-real-plan.json",
+    "test/fixtures/ar-splitbrain-r1p4a-production-lineage.fixture.json"
+  ],
+  "production_data_modified": false,
+  "release_candidate_status": "PARTIAL_READY_FOR_REAL_REPLAN",
+  "note": "Final ZIP SHA is intentionally external to this in-ZIP build manifest to avoid self-reference."
+}

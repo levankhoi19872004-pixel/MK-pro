@@ -170,7 +170,7 @@ function canProjectDetailedAccountingCategoryBySource(ledger = {}) {
   if (PHASE87_READ_MODEL_CATEGORIES.includes(category)) return true;
 
   const sourceType = upper(ledger.sourceType);
-  if (category === AR_CATEGORIES.RETURN && ['RETURN_ORDER', 'ORDER_RETURN', 'RETURNORDERS'].includes(sourceType)) return true;
+  if (category === AR_CATEGORIES.RETURN && ['RETURN_ORDER', 'ORDER_RETURN', 'RETURNORDERS', 'RETURNORDER'].includes(sourceType)) return true;
   if (category === AR_CATEGORIES.ADJUSTMENT && sourceType === 'DELIVERY_CLOSEOUT_CORRECTION') return true;
   if ([AR_CATEGORIES.EXTERNAL, AR_CATEGORIES.EXTERNAL_DEBT].includes(category) && ['EXTERNALDEBT', 'EXTERNALDEBTORDER', 'EXTERNAL_DEBT', 'EXTERNAL_DEBT_ORDER'].includes(sourceType)) return true;
   if (sourceType === 'ORDER_PAYMENT_ALLOCATION') return true;

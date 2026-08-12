@@ -1,0 +1,135 @@
+{
+  "prompt_id": "MKPRO-AR-SPLITBRAIN-R1P4-HISTORICAL-MISSING-EVENT-REPAIR",
+  "requirements": [
+    {
+      "id": "AR-SB-R1P4-REQ-000",
+      "name": "Baseline Integrity",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P4_A0_BASELINE.md"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P4-REQ-001",
+      "name": "Historical Correction Timeline Contract Audit",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P4_A1_TIMELINE_CONTRACT_AUDIT.md"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P4-REQ-002",
+      "name": "Mandatory RED — Production-shaped B0041181",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P4_A2_RED_PRODUCTION_REPRO.md"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P4-REQ-003",
+      "name": "Historical Event Delta Reconstruction Engine",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P4_A3_RECONSTRUCTION_IMPLEMENTATION.md",
+        "test/ar-splitbrain-r1p4-repair-planner.test.js"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P4-REQ-004",
+      "name": "Missing Canonical Correction Event Detector",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P4_A4_MISSING_EVENT_DETECTOR_REPORT.md",
+        "test/ar-splitbrain-r1p4-repair-planner.test.js"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P4-REQ-005",
+      "name": "Receipt and Subsequent Event Preservation Proof",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P4_A6_REPAIR_EXECUTOR_EVIDENCE.md",
+        "test/ar-splitbrain-r1p4-repair-executor.test.js"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P4-REQ-006",
+      "name": "Read-only Historical Repair Planner",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P4_A5_REPAIR_PLANNER_EVIDENCE.md",
+        "AR_SPLITBRAIN_R1P4_B0041181_FIXTURE_REPAIR_PLAN.json"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P4-REQ-007",
+      "name": "Guarded Historical Repair Executor",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P4_A6_REPAIR_EXECUTOR_EVIDENCE.md"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P4-REQ-008",
+      "name": "B0041181 GREEN — fixture historical repair",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P4_A7_B0041181_GREEN_EVIDENCE.md"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P4-REQ-009",
+      "name": "Historical Repair Safety Matrix",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P4_A8_SAFETY_MATRIX.md"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P4-REQ-010",
+      "name": "Prevent UI Auto-repair Regression",
+      "status": "PASS",
+      "evidence": [
+        "test/ar-splitbrain-r1p4-production-repro.red.test.js"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P4-REQ-011",
+      "name": "Existing Split-brain Regression",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P4_A9_REGRESSION_RESULT.json"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P4-REQ-012",
+      "name": "Dependency, Full Test, Syntax and Build",
+      "status": "BLOCKED_ENV",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P4_A9_REGRESSION_RESULT.json"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P4-REQ-013",
+      "name": "No Production Mutation During Verification",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P4_B0041181_REPAIR_RUNBOOK.md"
+      ]
+    },
+    {
+      "id": "AR-SB-R1P4-REQ-014",
+      "name": "Release Packaging",
+      "status": "PASS",
+      "evidence": [
+        "AR_SPLITBRAIN_R1P4_BUILD_MANIFEST.json"
+      ]
+    }
+  ],
+  "summary": {
+    "PASS": 14,
+    "BLOCKED_ENV": 1,
+    "FAIL": 0
+  },
+  "actual_b004_apply_eligibility": "BLOCKED_PENDING_REAL_IMMUTABLE_TIMELINE_DRY_RUN"
+}

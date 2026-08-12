@@ -1,0 +1,70 @@
+{
+  "generated_at": "2026-08-12T00:59:49.894489+00:00",
+  "splitbrain_family": {
+    "command": "node --test test/ar-splitbrain*.test.js",
+    "tests": 100,
+    "pass": 100,
+    "fail": 0,
+    "status": "PASS"
+  },
+  "r1p4a_core": {
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "status": "PASS"
+  },
+  "broader_exact_command_comparison": {
+    "working": {
+      "tests": 50,
+      "pass": 43,
+      "fail": 7
+    },
+    "input_r1p4_baseline": {
+      "tests": 50,
+      "pass": 43,
+      "fail": 7
+    },
+    "verdict": "EXACT_PARITY; no R1.4a-caused difference in this selected financial/return matrix"
+  },
+  "full_npm_test": {
+    "command": "npm test",
+    "working_exit": 1,
+    "working_failure_names": 216,
+    "baseline_exit": 1,
+    "baseline_failure_names": 216,
+    "apparent_name_delta": {
+      "new": 3,
+      "resolved": 3
+    },
+    "apparent_new_probe": "All 3 apparent new names fail identically on R1.4 baseline when run directly because mongoose is unavailable; chunk-boundary exposure, not R1.4a code regression.",
+    "certification": "NOT_FULL_PASS_ENV_BLOCKED"
+  },
+  "dependency_install": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0 --fetch-timeout=5000",
+    "status": "BLOCKED_ENV",
+    "evidence": "registry fetches including zip-stream@4.1.1 failed EAI_AGAIN; later bounded attempt timed out"
+  },
+  "syntax": {
+    "command": "npm run check:syntax",
+    "exit": 0,
+    "files": 1733,
+    "status": "PASS",
+    "duration_seconds": 0.86
+  },
+  "source_size": {
+    "command": "npm run check:source-size",
+    "exit": 1,
+    "status": "BASELINE_DEBT",
+    "duration_seconds": 0.1,
+    "failures": 7,
+    "new_failures_vs_input": 0
+  },
+  "source_bundles": {
+    "command": "npm run check:source-bundles",
+    "exit": 1,
+    "status": "BLOCKED_ENV",
+    "duration_seconds": 0.1,
+    "reason": "Cannot find module 'terser'"
+  },
+  "production_data_modified": false
+}

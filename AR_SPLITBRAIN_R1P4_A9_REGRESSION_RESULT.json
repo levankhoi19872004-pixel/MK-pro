@@ -1,0 +1,59 @@
+{
+  "prompt_id": "MKPRO-AR-SPLITBRAIN-R1P4-HISTORICAL-MISSING-EVENT-REPAIR",
+  "splitbrain_matrix": {
+    "test_files_pass": 24,
+    "test_files_fail": 0,
+    "test_files_blocked": 0,
+    "assertions_pass": 89,
+    "assertions_fail": 0
+  },
+  "broader_matrix": {
+    "test_files_pass": 9,
+    "test_files_fail": 0,
+    "test_files_blocked_env": 2,
+    "assertions_pass": 73,
+    "assertions_fail": 0
+  },
+  "repair_planner": {
+    "assertions_pass": 11,
+    "assertions_fail": 0
+  },
+  "repair_executor": {
+    "assertions_pass": 7,
+    "assertions_fail": 0
+  },
+  "return_provenance_red_green": {
+    "before": "FAIL",
+    "after": "PASS"
+  },
+  "full_test": {
+    "working_exit": 1,
+    "baseline_exit": 1,
+    "working_failure_names": 216,
+    "baseline_failure_names": 219,
+    "new_failure_names": 0,
+    "resolved_baseline_failure_names": 3,
+    "status": "BLOCKED_ENV/BASELINE_FAILURES_NOT_FULL_PASS"
+  },
+  "dependency_install": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "exit_code": 1,
+    "status": "BLOCKED_ENV",
+    "error": "404 zip-stream@4.1.1 from internal registry"
+  },
+  "syntax": {
+    "status": "PASS",
+    "files": 1730
+  },
+  "source_size": {
+    "status": "BASELINE_DEBT",
+    "working_failures": 7,
+    "baseline_failures": 7,
+    "new_failures": 0
+  },
+  "source_bundles": {
+    "status": "BLOCKED_ENV",
+    "error": "Cannot find module terser"
+  },
+  "production_data_modified": false
+}
