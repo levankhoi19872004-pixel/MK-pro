@@ -98,6 +98,12 @@ const SalesOrder = flexModel('SalesOrder', 'orders', {
 
   source: String,
   orderSource: String,
+  // Import provenance is intentionally separate from the business source.
+  // S3 orders keep DMS business semantics while remaining queryable/auditable as S3.
+  sourceProfile: String,
+  importType: String,
+  importSource: String,
+  origin: String,
   externalOrderCode: String,
   status: String,
   lifecycleStatus: String,

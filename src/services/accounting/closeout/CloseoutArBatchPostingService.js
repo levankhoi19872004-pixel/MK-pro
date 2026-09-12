@@ -2,6 +2,7 @@
 
 const closeoutQueryAudit = require('../../../observability/closeoutQueryAudit');
 const arPostingService = require('../../arPosting.service');
+const arLedgerReadService = require('../../arLedgerRead.service');
 const { validateArLedgerContract } = require('../../../domain/ar/arLedgerContract');
 const {
   normalizeIdempotencyKey,
@@ -33,11 +34,10 @@ function defaultRepository() {
   const ArLedger = require('../../../models/ArLedger');
   return {
     async findByIdempotencyKeys(keys = [], options = {}) {
-      let query = ArLedger.find({ idempotencyKey: { $in: keys } });
-      if (options.session && typeof query.session === 'function') query = query.session(options.session);
-      if (typeof query.lean === 'function') query = query.lean();
-      if (typeof query.exec === 'function') return query.exec();
-      return query;
+      return arLedgerReadService.findArLedgerRowsByRawMatch(
+        { idempotencyKey: { $in: keys } },
+        { session: options.session }
+      );
     },
     async bulkUpsert(rows = [], options = {}) {
       const operations = rows.map((row) => ({

@@ -378,9 +378,9 @@ function getDateFromRow(row = {}) {
 
 function getPackingFromRow(row = {}, product = null) {
   // File S3 cung cấp quy cách tại cột Qc. Đây là snapshot quy cách của chính
-  // chứng từ import nên được ưu tiên để hiển thị thùng/lẻ và in lại đơn cũ.
-  // Số lượng trong cột "Số lượng" vẫn là tổng SU, tuyệt đối không nhân thêm Qc.
-  const rowPacking = [
+  // chứng từ import nên phải được ưu tiên kể cả khi QC = 1.
+  // Chỉ fallback về catalog khi file thực sự không có giá trị quy cách hợp lệ.
+  const packingCandidates = [
     row['Qc'],
     row['QC'],
     row['Q/c'],
@@ -391,11 +391,15 @@ function getPackingFromRow(row = {}, product = null) {
     row['Dong goi'],
     row['Quy cách'],
     row['Quy cach']
-  ].map(toNumber).find((value) => value > 1) || 0;
-  if (rowPacking > 1) return rowPacking;
+  ];
+  const explicitPacking = packingCandidates
+    .filter((value) => value !== undefined && value !== null && String(value).trim() !== '')
+    .map(toNumber)
+    .find((value) => value >= 1);
+  if (explicitPacking >= 1) return explicitPacking;
 
   const productPacking = toNumber(product?.conversionRate ?? product?.packingQty ?? product?.unitsPerCase);
-  return Math.max(1, productPacking || rowPacking || 1);
+  return Math.max(1, productPacking || 1);
 }
 
 function hasAnyQuantityColumn(row = {}, fields = []) {
@@ -497,6 +501,17 @@ function hasOwnImportValue(row = {}, keys = []) {
   return keys.some((key) => Object.prototype.hasOwnProperty.call(row, key) && row[key] !== undefined && row[key] !== null && row[key] !== '');
 }
 
+function isS3ImportRow(row = {}) {
+  const profile = cleanText(
+    row.__importProfile ??
+    row.sourceProfile ??
+    row.importProfile ??
+    row.importType ??
+    ''
+  ).toUpperCase();
+  return profile === 'S3' || profile === 'SALESORDERSS3';
+}
+
 function getRawDmsQuantityValue(row = {}) {
   return toNumber(row.quantity ?? row.qty ?? row['Số lượng'] ?? row['So luong'] ?? row.sl ?? number(row, ['quantity', 'qty', 'số lượng', 'so luong', 'sl']));
 }
@@ -523,6 +538,9 @@ function getExplicitDmsAmount(row = {}) {
 
 function isZeroAmountPromoLineFromRow(row = {}) {
   if (isPromoLineFromRow(row)) return true;
+  // S3 có cột "Là KM" riêng. Không suy diễn dòng bán có Thành tiền = 0 thành KM,
+  // vì như vậy một dòng SALE sai giá có thể âm thầm biến thành hàng miễn phí.
+  if (isS3ImportRow(row)) return false;
   const qty = getRawDmsQuantityValue(row);
   if (qty <= 0) return false;
   if (!hasExplicitDmsAmount(row)) return false;
@@ -542,6 +560,7 @@ function getDmsQuantityFromRow(row = {}, product = null) {
 }
 
 function getDmsPromoQuantityFromRow(row = {}, product = null) {
+  if (row && row.__adjustedQuantityCanonical) return Math.max(0, toNumber(row.promoQuantity));
   const packing = getPackingFromRow(row, product);
   // DMS có thể có nhiều cột khuyến mại. Quy đổi toàn bộ về số lượng lẻ để xuất kho,
   // nhưng không tính tiền bán hàng.
@@ -560,7 +579,9 @@ function getDmsPromoQuantityFromRow(row = {}, product = null) {
     0
   );
   const flaggedPromoQty = isZeroAmountPromoLineFromRow(row)
-    ? getRawDmsQuantityValue(row)
+    ? (hasCartonUnitQuantityColumns(row)
+        ? getCartonUnitQuantityFromRow(row, product)
+        : getRawDmsQuantityValue(row))
     : 0;
   return promoQty1 + promoQty2 + directPromoQty + flaggedPromoQty;
 }
@@ -658,15 +679,94 @@ function getDmsVatAmountForLine(row = {}, quantity = 0, finalPrice = 0, lineAmou
   return 0;
 }
 
+function hasExplicitSalePriceFromRow(row = {}) {
+  return hasOwnImportValue(row, [
+    'salePrice',
+    'price',
+    'Đơn giá sau KM/Ck',
+    'Don gia sau KM/Ck',
+    'Đơn giá sau KM/CK',
+    'Don gia sau KM/CK',
+    'Giá bán',
+    'Gia ban',
+    'Đơn giá',
+    'Don gia'
+  ]);
+}
+
 function getDmsPriceFromRow(row = {}, quantity = 0) {
   if (isZeroAmountPromoLineFromRow(row)) return 0;
+  const explicit = getSalePriceFromRow(row);
+
+  // S3 coi "Đơn giá sau KM/Ck" là giá đơn vị authoritative của dòng.
+  // "Thành tiền" được dùng để đối soát và giữ tổng dòng, không được phép
+  // âm thầm thay đổi đơn giá nếu file nhập sai một chữ số.
+  if (isS3ImportRow(row) && hasExplicitSalePriceFromRow(row)) return explicit;
+
   const actualAmount = getActualAmountFromRow(row);
   if (actualAmount > 0 && quantity > 0) return actualAmount / quantity;
-  const explicit = getSalePriceFromRow(row);
   if (explicit > 0) return explicit;
   const beforeVat = getListPriceBeforeVatFromRow(row);
   if (beforeVat > 0) return beforeVat * 1.08;
   return 0;
+}
+
+function getS3PriceAmountValidation(row = {}, quantity = 0, tolerance = 1000) {
+  if (!isS3ImportRow(row) || isPromoLineFromRow(row) || quantity <= 0) {
+    return { errors: [], expectedAmount: 0, actualAmount: 0, difference: 0, tolerance: Math.max(0, toNumber(tolerance)) };
+  }
+
+  const errors = [];
+  const hasPrice = hasExplicitSalePriceFromRow(row);
+  const explicitPrice = getSalePriceFromRow(row);
+  const hasAmount = hasExplicitDmsAmount(row);
+  const actualAmount = hasAmount ? getExplicitDmsAmount(row) : 0;
+  const safeTolerance = Math.max(0, toNumber(tolerance));
+
+  if (!hasPrice || explicitPrice <= 0) {
+    errors.push('Đơn S3 hàng bán phải có Đơn giá sau KM/Ck lớn hơn 0');
+  }
+  if (hasAmount && actualAmount < 0) {
+    errors.push('Thành tiền S3 không được âm');
+  }
+
+  const expectedAmount = quantity * explicitPrice;
+  if (hasAmount && actualAmount === 0 && expectedAmount > 0) {
+    errors.push('Đơn S3 hàng bán không được có Thành tiền = 0; nếu là hàng KM phải đánh dấu Là KM');
+  }
+  const difference = hasPrice && hasAmount
+    ? Math.abs(actualAmount - expectedAmount)
+    : 0;
+
+  if (hasPrice && explicitPrice > 0 && hasAmount && difference > safeTolerance) {
+    errors.push(`Thành tiền S3 lệch quá ${safeTolerance}đ so với SL × Đơn giá`);
+  }
+
+  return { errors, expectedAmount, actualAmount, difference, tolerance: safeTolerance };
+}
+
+function getS3StructureValidation(row = {}) {
+  if (!isS3ImportRow(row)) return { errors: [] };
+  const errors = [];
+  const firstOwn = (keys) => {
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(row, key) && row[key] !== '' && row[key] !== null && row[key] !== undefined) {
+        return { key, value: toNumber(row[key]) };
+      }
+    }
+    return null;
+  };
+
+  const qc = firstOwn(['Qc', 'QC', 'Q/c', 'Q/C', 'packingQty', 'conversionRate']);
+  if (qc && (qc.value < 1 || !Number.isInteger(qc.value))) errors.push('QC S3 phải là số nguyên lớn hơn hoặc bằng 1');
+
+  const cartons = firstOwn(['cartons', 'cartonQty', 'Số lượng thùng', 'So luong thung', 'SL thùng', 'SL thung', 'Thùng', 'Thung']);
+  const units = firstOwn(['units', 'unitQty', 'Số lượng SU', 'So luong SU', 'SL lẻ', 'SL le', 'Lẻ', 'Le']);
+  if (!cartons && !units) errors.push('Đơn S3 phải có cột SL thùng hoặc SL lẻ');
+  if (cartons && (cartons.value < 0 || !Number.isInteger(cartons.value))) errors.push('SL thùng S3 phải là số nguyên không âm');
+  if (units && (units.value < 0 || !Number.isInteger(units.value))) errors.push('SL lẻ S3 phải là số nguyên không âm');
+
+  return { errors };
 }
 
 function getDmsAmountFromRow(row = {}, quantity = 0, salePrice = 0) {
@@ -816,6 +916,7 @@ module.exports = {
   getPromoUnits2FromRow,
   isPromoLineFromRow,
   hasOwnImportValue,
+  isS3ImportRow,
   getRawDmsQuantityValue,
   hasExplicitDmsAmount,
   getExplicitDmsAmount,
@@ -830,7 +931,10 @@ module.exports = {
   getNivAmountFromRow,
   getDmsCatalogPriceAfterVatFromRow,
   getDmsVatAmountForLine,
+  hasExplicitSalePriceFromRow,
   getDmsPriceFromRow,
+  getS3PriceAmountValidation,
+  getS3StructureValidation,
   getDmsAmountFromRow,
   getProductCodeFromRow,
   getCustomerCodeFromRow,

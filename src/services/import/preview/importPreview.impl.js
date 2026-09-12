@@ -38,6 +38,9 @@ const {
   getDmsPromoQuantityFromRow,
   getDmsQuantityFromRow,
   getPackingFromRow,
+  getS3PriceAmountValidation,
+  getS3StructureValidation,
+  isS3ImportRow,
   getProductCodeFromRow,
   getQtyFromRow,
   pickCustomerPayload,
@@ -385,6 +388,7 @@ async function previewMongoNative(type, rows = [], options = {}) {
       const errors = [];
       const warnings = [];
       const detailErrors = [];
+      const criticalDetailErrors = [];
       const shortageReport = [];
       const lineDetails = [];
       const adjustedRows = [];
@@ -423,12 +427,19 @@ async function previewMongoNative(type, rows = [], options = {}) {
         const allowedQuantity = allocation.allowedDeliveredQuantity;
         const missingQuantity = allocation.missingQuantity;
         const lineErrors = [];
+        const lineCriticalErrors = [];
+        const packingRate = getPackingFromRow(row, product);
 
         if (!productCode) lineErrors.push('Thiếu mã sản phẩm / mã hàng hóa');
         if (!product) lineErrors.push('Không tìm thấy sản phẩm');
-        // Hàng khuyến mại hợp lệ dù số lượng bán = 0. Chỉ bỏ qua/báo lỗi khi cả hàng bán và 4 cột KM đều bằng 0.
         if (deliveredQuantity <= 0) lineErrors.push('Số lượng bán hoặc khuyến mại phải lớn hơn 0');
         if (salePrice < 0) lineErrors.push('Giá bán không được âm');
+
+        if (isS3ImportRow(row)) {
+          lineCriticalErrors.push(...getS3StructureValidation(row).errors);
+          lineCriticalErrors.push(...getS3PriceAmountValidation(row, quantity, 1000).errors);
+        }
+        if (lineCriticalErrors.length) lineErrors.push(...lineCriticalErrors);
 
         totalQuantity += Math.max(0, deliveredQuantity);
         totalAmount += Math.max(0, amount);
@@ -457,7 +468,6 @@ async function previewMongoNative(type, rows = [], options = {}) {
             missingSaleQuantity: allocation.missingSaleQuantity,
             missingPromoQuantity: allocation.missingPromoQuantity,
             salePrice,
-            // Ưu tiên cắt KM trước nên chỉ tính giảm giá trị khi bị cắt cả hàng bán.
             cutAmount: allocation.missingSaleQuantity * salePrice
           });
         }
@@ -465,8 +475,23 @@ async function previewMongoNative(type, rows = [], options = {}) {
         if (lineErrors.length) {
           detailErrors.push({ rowNo: row.__rowNo || row.rowNo || '', productCode, productName: product?.name || '', errors: lineErrors });
         }
+        if (lineCriticalErrors.length) {
+          criticalDetailErrors.push({ rowNo: row.__rowNo || row.rowNo || '', productCode, errors: lineCriticalErrors });
+        }
 
-        const adjustedRow = applyAdjustedQuantityToRow(row, allocation.allowedSaleQuantity, allocation.allowedPromoQuantity, salePrice);
+        const adjustedRow = applyAdjustedQuantityToRow(
+          row,
+          allocation.allowedSaleQuantity,
+          allocation.allowedPromoQuantity,
+          salePrice,
+          packingRate
+        );
+        if (isS3ImportRow(row) && allocation.allowedSaleQuantity === quantity && quantity > 0) {
+          adjustedRow.actualAmount = amount;
+          adjustedRow.amount = amount;
+          adjustedRow.lineAmount = amount;
+        }
+        if (lineCriticalErrors.length) adjustedRow.__skipImportLine = true;
         adjustedRows.push(adjustedRow);
         adjustedQuantity += allowedQuantity;
         adjustedAmount += allocation.allowedSaleQuantity * salePrice;
@@ -501,10 +526,11 @@ async function previewMongoNative(type, rows = [], options = {}) {
 
       const importableAdjustedRows = adjustedRows.filter((r) => !r.__skipImportLine);
       const blockingErrors = [...errors];
-      // Lỗi chi tiết từng dòng chỉ để cảnh báo/cắt dòng đó, không khóa cả hóa đơn
-      // nếu hóa đơn vẫn còn dòng hợp lệ để import.
       if (detailErrors.length && !importableAdjustedRows.length) {
         blockingErrors.push(`${detailErrors.length} dòng hàng lỗi`);
+      }
+      if (criticalDetailErrors.length) {
+        blockingErrors.push(`${criticalDetailErrors.length} dòng S3 lỗi giá/QC cần sửa trước khi import`);
       }
       const shortageSummary = summarizeOrderShortages(shortageReport);
       const normalStatusText = customerAutoCreate ? 'Hợp lệ - tạo KH mới' : 'Hợp lệ';
@@ -744,15 +770,20 @@ function normalizeImportFiles({ files = [], buffer = null, fileName = '' } = {})
   return list;
 }
 
-async function buildPreviewFromRows({ type, rows = [], userName = '', importMode = '' } = {}) {
+async function buildPreviewFromRows({ type, rows = [], userName = '', importMode = '', sourceProfile = '' } = {}) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
+  const requestedType = type;
+  const requestedSourceProfile = String(sourceProfile || (requestedType === 'salesOrdersS3' ? 'S3' : '')).trim().toUpperCase();
   if (type === 'salesOrdersS3') type = 'salesOrders';
   if (!Array.isArray(rows) || !rows.length) {
     return { error: 'File Excel không có dữ liệu hoặc không tìm thấy sheet Import/header hợp lệ', status: 400 };
   }
 
   const normalizedImportMode = normalizeImportMode(importMode, type);
-  const result = await previewMongoNative(type, rows, { importMode: normalizedImportMode });
+  const profiledRows = requestedSourceProfile === 'S3'
+    ? rows.map((row) => ({ ...row, __importProfile: 'S3' }))
+    : rows;
+  const result = await previewMongoNative(type, profiledRows, { importMode: normalizedImportMode });
 
   if (type === 'salesOrders') {
     const validatedRows = await importRules.validateImportBatch(result.rows || []);
@@ -772,6 +803,8 @@ async function buildPreviewFromRows({ type, rows = [], userName = '', importMode
 
 async function previewPastedRows({ type, rows = [], userName = '', importMode = '' } = {}) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
+  const requestedType = type;
+  const sourceProfile = requestedType === 'salesOrdersS3' ? 'S3' : (requestedType === 'salesOrders' ? 'DMS' : '');
   if (type === 'salesOrdersS3') type = 'salesOrders';
   if (!Array.isArray(rows) || !rows.length) return { error: 'Chưa có dữ liệu được dán từ Excel', status: 400 };
   if (rows.length > 5000) return { error: 'Mỗi lần chỉ được dán tối đa 5.000 dòng', status: 413 };
@@ -786,6 +819,7 @@ async function previewPastedRows({ type, rows = [], userName = '', importMode = 
     ]));
     return {
       ...normalized,
+      __importProfile: sourceProfile || normalized.__importProfile || '',
       __rowNo: Number(normalized.__rowNo || normalized.rowNo || index + 1),
       __sourceFile: 'Dán trực tiếp từ Excel'
     };
@@ -796,7 +830,8 @@ async function previewPastedRows({ type, rows = [], userName = '', importMode = 
     fileName: 'clipboard-paste.xlsx',
     fileNames: ['clipboard-paste.xlsx'],
     createdBy: userName,
-    importMode: normalizedImportMode
+    importMode: normalizedImportMode,
+    sourceProfile
   });
 
   try {
@@ -805,7 +840,8 @@ async function previewPastedRows({ type, rows = [], userName = '', importMode = 
       type,
       rows: safeRows,
       userName,
-      importMode: normalizedImportMode
+      importMode: normalizedImportMode,
+      sourceProfile
     });
 
     if (result && result.error) {
@@ -842,6 +878,7 @@ async function previewPastedRows({ type, rows = [], userName = '', importMode = 
       sessionId: session.id,
       importSessionId: session.id,
       importMode: normalizedImportMode,
+      sourceProfile,
       status: 'preview_ready',
       source: 'clipboard-paste'
     };
@@ -858,6 +895,8 @@ async function previewPastedRows({ type, rows = [], userName = '', importMode = 
 
 async function preview({ type, files = [], buffer = null, fileName = '', userName = '', importMode = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
+  const requestedType = type;
+  const sourceProfile = requestedType === 'salesOrdersS3' ? 'S3' : (requestedType === 'salesOrders' ? 'DMS' : '');
   if (type === 'salesOrdersS3') type = 'salesOrders';
   const normalizedImportMode = normalizeImportMode(importMode, type);
 
@@ -869,7 +908,8 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
     fileName: normalizedFiles[0]?.fileName || '',
     fileNames: normalizedFiles.map((f) => f.fileName),
     createdBy: userName,
-    importMode: normalizedImportMode
+    importMode: normalizedImportMode,
+    sourceProfile
   });
 
   console.info('[IMPORT_PREVIEW_SESSION_CREATED]', {
@@ -937,6 +977,7 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
       sessionId: session.id,
       importSessionId: session.id,
       importMode: normalizedImportMode,
+      sourceProfile,
       jobId: queued.job.id,
       jobStatusUrl: `/api/background-jobs/${encodeURIComponent(queued.job.id)}`,
       queue: { queued: true, persistent: true, jobId: queued.job.id }
@@ -975,6 +1016,7 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
     sessionId: session.id,
     importSessionId: session.id,
     importMode: normalizedImportMode,
+    sourceProfile,
     status: 'preview_ready'
   };
 }

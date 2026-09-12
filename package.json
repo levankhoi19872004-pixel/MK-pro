@@ -187,7 +187,14 @@
     "performance:perf-a5r1": "node scripts/performance/perf-a5r1/run-remediation.js",
     "performance:perf-a5r2": "node --test test/performance/perf-a5r2/*.test.js",
     "verify:performance-release": "node scripts/verify-performance-release.js",
-    "audit:reward-offset-legacy": "node scripts/audit-reward-offset-legacy.js --json"
+    "audit:reward-offset-legacy": "node scripts/audit-reward-offset-legacy.js --json",
+    "qa": "node scripts/qa-forensic-suite.js --profile=core",
+    "qa:quick": "node scripts/qa-forensic-suite.js --profile=quick",
+    "qa:core": "node scripts/qa-forensic-suite.js --profile=core",
+    "qa:forensic": "node scripts/qa-forensic-suite.js --profile=forensic",
+    "qa:forensic:require-db": "node scripts/qa-forensic-suite.js --profile=forensic --require-db",
+    "qa:full": "node scripts/qa-forensic-suite.js --profile=full",
+    "qa:db": "node scripts/qa-db-forensics.js --json"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

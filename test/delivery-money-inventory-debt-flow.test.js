@@ -129,6 +129,8 @@ function salesOrderFixture(overrides = {}) {
 function createDeliveryHarness(orderRows = [], returnRows = []) {
   const SalesOrder = createMemoryModel(orderRows);
   const ReturnOrder = createMemoryModel(returnRows);
+  const DeliveryCloseoutVersion = createMemoryModel([]);
+  const OrderPaymentAllocation = createMemoryModel([]);
   const restoreLifecycle = installStub('src/domain/lifecycle/ReturnLifecycleService.js', {
     async createPendingReturn(patch = {}) {
       return ReturnOrder.upsertByIdOrCode({
@@ -141,6 +143,8 @@ function createDeliveryHarness(orderRows = [], returnRows = []) {
   const engine = new DeliveryEngine({
     SalesOrder,
     ReturnOrder,
+    DeliveryCloseoutVersion,
+    OrderPaymentAllocation,
     MasterOrder: null,
     StockTransaction: {},
     ArLedger: {},
@@ -150,6 +154,8 @@ function createDeliveryHarness(orderRows = [], returnRows = []) {
     engine,
     SalesOrder,
     ReturnOrder,
+    DeliveryCloseoutVersion,
+    OrderPaymentAllocation,
     restore: restoreLifecycle,
     actor: {
       actorDeliveryStaffCode: 'GH01',

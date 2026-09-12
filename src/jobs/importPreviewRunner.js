@@ -41,6 +41,7 @@ async function runImportPreviewPipeline({ sessionId, type, files = [], userName 
       await importSessionService.updateProgress(sessionId, { percent: 20, step: `parsing:${currentFileName}` });
       const fileRows = (await parseExcelBuffer(buffer)).map((row, index) => ({
         ...row,
+        __importProfile: parsingSession?.sourceProfile || row.__importProfile || '',
         __sourceFile: currentFileName,
         sourceFile: currentFileName,
         fileName: currentFileName,

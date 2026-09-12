@@ -191,8 +191,9 @@ async function insertPreviewRowsInBatches(sessionId, type, rows = []) {
   return inserted;
 }
 
-async function createUploadedSession({ type, fileName = '', fileNames = [], createdBy = '', importMode = 'create' }) {
+async function createUploadedSession({ type, fileName = '', fileNames = [], createdBy = '', importMode = 'create', sourceProfile = '' }) {
   const id = makeId('IMP');
+  const normalizedSourceProfile = String(sourceProfile || '').trim().toUpperCase();
 
   return ImportSession.create({
     id,
@@ -200,6 +201,7 @@ async function createUploadedSession({ type, fileName = '', fileNames = [], crea
     type,
     fileName,
     fileNames,
+    sourceProfile: ['DMS', 'S3'].includes(normalizedSourceProfile) ? normalizedSourceProfile : '',
     importMode: importMode === 'update' ? 'update' : 'create',
     status: 'uploaded',
     createdBy,

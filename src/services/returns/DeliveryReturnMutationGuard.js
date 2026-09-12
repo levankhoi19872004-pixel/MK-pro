@@ -10,7 +10,18 @@ async function assertEngineReturnMutationAllowed(engine, order, body = {}, optio
   const returnOrder = typeof matchReturnOrder === 'function'
     ? currentReturns.find((ret) => matchReturnOrder(ret, order)) || null
     : null;
-  const context = await loadReturnMutationContext({ order, returnOrder, options });
+  const context = await loadReturnMutationContext({
+    order,
+    returnOrder,
+    options: {
+      ...options,
+      models: {
+        ...(options.models || {}),
+        ...(engine.DeliveryCloseoutVersion ? { DeliveryCloseoutVersion: engine.DeliveryCloseoutVersion } : {}),
+        ...(engine.OrderPaymentAllocation ? { OrderPaymentAllocation: engine.OrderPaymentAllocation } : {})
+      }
+    }
+  });
   assertReturnMutationAllowed({
     order,
     returnOrder,

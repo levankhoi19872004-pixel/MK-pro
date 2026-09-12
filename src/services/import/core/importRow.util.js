@@ -61,6 +61,7 @@ const {
   getDateFromRow,
   getCustomerCodeFromRow,
   getProductCodeFromRow,
+  getPackingFromRow,
   buildCustomerSelectiveUpdate,
   buildProductSelectiveUpdate,
   pickCustomerPayload,
@@ -355,20 +356,38 @@ function flattenAdjustedCommitRows(rows = []) {
   return result;
 }
 
-function applyAdjustedQuantityToRow(row = {}, allowedSaleQuantity = 0, allowedPromoQuantity = 0, salePrice = 0) {
+function splitQuantityByPacking(quantity = 0, packingRate = 1) {
+  const qty = Math.max(0, toNumber(quantity));
+  const packing = Math.max(1, toNumber(packingRate) || 1);
+  const cartons = Math.floor(qty / packing);
+  const units = qty - (cartons * packing);
+  return { cartons, units, quantity: qty, packingRate: packing };
+}
+
+function applyAdjustedQuantityToRow(row = {}, allowedSaleQuantity = 0, allowedPromoQuantity = 0, salePrice = 0, packingRate = 0) {
   const adjusted = { ...(row.raw || row) };
   const saleQty = Math.max(0, toNumber(allowedSaleQuantity));
   const promoQty = Math.max(0, toNumber(allowedPromoQuantity));
+  const packing = Math.max(1, toNumber(packingRate) || getPackingFromRow(adjusted) || 1);
+  const saleSplit = splitQuantityByPacking(saleQty, packing);
+  const promoSplit = splitQuantityByPacking(promoQty, packing);
+
+  adjusted.__importProfile = row.__importProfile || adjusted.__importProfile || '';
+  adjusted.__adjustedQuantityCanonical = true;
   adjusted.quantity = saleQty;
   adjusted.qty = saleQty;
   adjusted.stockQuantity = saleQty + promoQty;
   adjusted.deliveredQuantity = saleQty + promoQty;
   adjusted.soldQuantity = saleQty;
-  adjusted.cartons = 0;
-  adjusted.units = saleQty;
-  adjusted.promoCartons = 0;
-  adjusted.promoUnits = promoQty;
+  // Giữ snapshot thùng/lẻ thay vì ép toàn bộ về SU. Nếu bị cắt tồn thì
+  // tái phân rã theo đúng QC snapshot của chứng từ.
+  adjusted.cartons = saleSplit.cartons;
+  adjusted.units = saleSplit.units;
+  adjusted.promoCartons = promoSplit.cartons;
+  adjusted.promoUnits = promoSplit.units;
   adjusted.promoQuantity = promoQty;
+  adjusted.conversionRate = packing;
+  adjusted.packingQty = packing;
   adjusted.actualAmount = saleQty * salePrice;
   adjusted.amount = saleQty * salePrice;
   adjusted.lineAmount = saleQty * salePrice;
@@ -668,6 +687,7 @@ module.exports = {
   cloneRawRowForImport,
   flattenCommitRows,
   flattenAdjustedCommitRows,
+  splitQuantityByPacking,
   applyAdjustedQuantityToRow,
   normalizeShortageRows,
   summarizeOrderShortages,

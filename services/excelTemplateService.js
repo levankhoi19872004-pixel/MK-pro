@@ -119,8 +119,9 @@ const TEMPLATE_DEFINITIONS = {
       'Mã Nv là mã NVBH bắt buộc; hệ thống tra trong Users/Tài khoản. Nếu mã sai hoặc không tồn tại thì đơn bị báo lỗi.',
       'Mã Khách và Mã hàng là khóa chính để tra danh mục; tên khách/tên hàng chỉ dùng để đối chiếu.',
       'Ngày chấp nhận dạng DD.MM.YYYY, DD/MM/YYYY hoặc YYYY-MM-DD.',
-      'Đơn giá sau KM/Ck là giá bán cuối cùng của dòng; Thành tiền dùng để kiểm tra/tính tổng dòng.',
-      'Nếu cột Là KM có giá trị 1/Y/KM/Có thì dòng đó được hiểu là hàng khuyến mại, trừ tồn nhưng không tính doanh thu.'
+      'Đơn giá sau KM/Ck là giá bán cuối cùng của dòng; Thành tiền dùng để kiểm tra/tính tổng dòng. Hệ thống chặn sai lệch lớn giữa SL × Đơn giá và Thành tiền.',
+      'QC, SL thùng và SL lẻ phải là số nguyên hợp lệ; QC tối thiểu là 1, số lượng không được âm.',
+      'Nếu cột Là KM có giá trị 1/Y/KM/Có thì dòng đó được hiểu là hàng khuyến mại, trừ tồn nhưng không tính doanh thu. Hàng bán giá 0 không được tự suy diễn thành KM.'
     ]
   },
 

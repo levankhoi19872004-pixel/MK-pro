@@ -18,7 +18,8 @@ test('S3 Qc is accepted as the line packing snapshot without multiplying raw Sá»
   const qtyBlock = source.slice(qtyStart, qtyEnd);
 
   assert.match(packingBlock, /row\['Qc'\]/);
-  assert.match(packingBlock, /if \(rowPacking > 1\) return rowPacking/);
+  assert.match(packingBlock, /find\(\(value\) => value >= 1\)/);
+  assert.match(packingBlock, /if \(explicitPacking >= 1\) return explicitPacking/);
   assert.match(qtyBlock, /return getRawDmsQuantityValue\(row\)/);
   assert.doesNotMatch(qtyBlock, /getRawDmsQuantityValue\(row\)\s*\*/);
 });

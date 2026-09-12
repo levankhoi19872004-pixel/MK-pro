@@ -27,7 +27,6 @@ const {
   allocateStockForSaleAndPromo,
   cleanText,
   dateOnly,
-  getCartonsFromRow,
   getCustomerCodeFromRow,
   getCustomerNameFromRow,
   getDateFromRow,
@@ -40,14 +39,12 @@ const {
   getGsvAmountFromRow,
   getNivAmountFromRow,
   getPackingFromRow,
+  getS3PriceAmountValidation,
+  getS3StructureValidation,
+  isS3ImportRow,
   getProductCodeFromRow,
-  getPromoCartons2FromRow,
-  getPromoCartonsFromRow,
-  getPromoUnits2FromRow,
-  getPromoUnitsFromRow,
   getQtyFromRow,
-  getRouteCodeFromRow,
-  getUnitsFromRow
+  getRouteCodeFromRow
 } = values;
 const {
   buildImportedCustomerPlaceholder,
@@ -65,7 +62,8 @@ const {
   getOrderDocumentCode,
   makeSalesOrderGroupKey,
   preloadSalesStaffUsersByCode,
-  resolveSalesStaffForImportRow
+  resolveSalesStaffForImportRow,
+  splitQuantityByPacking
 } = rows;
 
 async function importOpeningStock(rows = []) {
@@ -259,6 +257,12 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
 async function importSalesOrders(rows = [], options = {}) {
   const startedAtMs = Date.now();
   const autoCutStock = Boolean(options.autoCutStock);
+  const sourceProfile = String(
+    options.sourceProfile ||
+    rows.find((row) => row && row.__importProfile)?.__importProfile ||
+    ''
+  ).trim().toUpperCase();
+  const isS3Import = sourceProfile === 'S3';
   let skipped = 0;
   const errors = [];
   const customerMap = await preloadCustomersByCode(rows);
@@ -378,6 +382,15 @@ async function importSalesOrders(rows = [], options = {}) {
       const originalPromoQuantity = rawPromoQuantity;
       const salePrice = getDmsPriceFromRow(row, rawSaleQuantity);
       let lineAmount = getDmsAmountFromRow(row, rawSaleQuantity, salePrice);
+      const s3Errors = (isS3Import || isS3ImportRow(row))
+        ? [...getS3StructureValidation(row).errors, ...getS3PriceAmountValidation(row, rawSaleQuantity, 1000).errors]
+        : [];
+      if (s3Errors.length) {
+        skipped += 1;
+        groupInvalid = true;
+        errors.push({ documentCode: docCodeCheck, productCode, message: s3Errors.join('; ') });
+        continue;
+      }
 
       // Cột 4 của mẫu đơn con là giá bán chuẩn trong danh mục sản phẩm,
       // không phải giá thực tế lấy từ file DMS. Đóng băng giá này ngay lúc import
@@ -468,6 +481,8 @@ async function importSalesOrders(rows = [], options = {}) {
 
       productStockMap.set(normalizedProductCode, Math.max(0, toNumber(productStockMap.get(normalizedProductCode)) - deliveredQuantity));
       const conversionRateAtOrder = getPackingFromRow(row, product);
+      const saleSplit = splitQuantityByPacking(rawSaleQuantity, conversionRateAtOrder);
+      const promoSplit = splitQuantityByPacking(rawPromoQuantity, conversionRateAtOrder);
       const catalogSalePriceAtOrder = productCatalogSalePrice > 0
         ? productCatalogSalePrice
         : (catalogPriceAfterVat || salePrice);
@@ -530,8 +545,8 @@ async function importSalesOrders(rows = [], options = {}) {
           isPromo: false,
           isPromotionItem: false,
           lineTypeName: 'Hàng bán',
-          cartons: getCartonsFromRow(row),
-          units: getUnitsFromRow(row),
+          cartons: saleSplit.cartons,
+          units: saleSplit.units,
           quantity: rawSaleQuantity,
           deliveredQuantity: rawSaleQuantity,
           stockQuantity: rawSaleQuantity,
@@ -557,14 +572,14 @@ async function importSalesOrders(rows = [], options = {}) {
           isPromo: true,
           isPromotionItem: true,
           lineTypeName: 'Xuất khuyến mại',
-          cartons: 0,
-          units: rawPromoQuantity,
+          cartons: promoSplit.cartons,
+          units: promoSplit.units,
           quantity: rawPromoQuantity,
           deliveredQuantity: rawPromoQuantity,
           stockQuantity: rawPromoQuantity,
           soldQuantity: 0,
-          promoCartons: getPromoCartonsFromRow(row) + getPromoCartons2FromRow(row),
-          promoUnits: getPromoUnitsFromRow(row) + getPromoUnits2FromRow(row),
+          promoCartons: promoSplit.cartons,
+          promoUnits: promoSplit.units,
           promoQuantity: rawPromoQuantity,
           catalogSalePriceAtOrder: 0,
           catalogSalePriceSource: 'promotion_free_item',
@@ -635,11 +650,16 @@ async function importSalesOrders(rows = [], options = {}) {
       staffName: resolvedSalesStaff.staffName,
       salesStaffName: resolvedSalesStaff.salesStaffName,
       routeCode: getRouteCodeFromRow(first),
-      note: cleanText(first.note || first['Ghi chú'] || first['Ghi chu']) || 'Import Excel DMS bulk',
+      note: cleanText(first.note || first['Ghi chú'] || first['Ghi chu']) || (isS3Import ? 'Import Excel S3 rút gọn' : 'Import Excel DMS bulk'),
+      // Giữ DMS ở orderSource để tương thích toàn bộ nghiệp vụ/print hiện hữu,
+      // đồng thời lưu provenance S3 riêng để audit và lọc chính xác nguồn import.
       source: 'DMS',
       sourceType: 'dms_import',
       orderSource: 'DMS',
       orderSourceName: 'Từ DMS',
+      sourceProfile: isS3Import ? 'S3' : 'DMS',
+      importType: isS3Import ? 'salesOrdersS3' : 'salesOrders',
+      origin: isS3Import ? 'S3' : 'DMS',
       vatInvoiceRequired: true,
       vatInvoiceDecisionSource: 'default',
       vatInvoiceNote: '',
@@ -672,7 +692,7 @@ async function importSalesOrders(rows = [], options = {}) {
       netAmount: totalAmount,
       goodsAmountAfterPromotion: totalAmount,
       // DMS_DIRECT_PRICE_LOCK_END
-      importSource: 'excel_dms',
+      importSource: isS3Import ? 'excel_s3' : 'excel_dms',
       isImported: true,
       isChildOrder: true,
       masterOrderId: '',
@@ -703,6 +723,10 @@ async function importSalesOrders(rows = [], options = {}) {
       updatedAt: now
     };
     Object.assign(doc, applyOrderSourceFields(doc, ORDER_SOURCE.DMS));
+    doc.sourceProfile = isS3Import ? 'S3' : 'DMS';
+    doc.importType = isS3Import ? 'salesOrdersS3' : 'salesOrders';
+    doc.importSource = isS3Import ? 'excel_s3' : 'excel_dms';
+    doc.origin = isS3Import ? 'S3' : 'DMS';
     orderDocs.push(doc);
     if (doc.documentCode) importedDocumentSet.add(cleanText(doc.documentCode));
   }

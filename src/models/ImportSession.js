@@ -52,6 +52,9 @@ const ImportSessionSchema = new mongoose.Schema({
 
   fileName: { type: String, default: '', trim: true },
   fileNames: { type: [String], default: [] },
+  // Business type vẫn là salesOrders; sourceProfile giữ provenance của template
+  // (DMS/S3) xuyên suốt preview -> shortage review -> commit.
+  sourceProfile: { type: String, enum: ['', 'DMS', 'S3'], default: '' },
   importMode: { type: String, enum: ['create', 'update'], default: 'create' },
 
   status: {

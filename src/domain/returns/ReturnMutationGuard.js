@@ -1,7 +1,4 @@
 'use strict';
-
-const DeliveryCloseoutVersion = require('../../models/DeliveryCloseoutVersion');
-const OrderPaymentAllocation = require('../../models/OrderPaymentAllocation');
 const {
   ACCOUNTING_LOCKED_STATUSES,
   CLOSEOUT_LOCKED_STATUSES,
@@ -229,7 +226,10 @@ function buildOrderLookupOr(order = {}) {
 async function loadLatestCloseoutVersionForOrder(order = {}, options = {}) {
   const or = buildOrderLookupOr(order);
   if (!or.length) return null;
-  let query = DeliveryCloseoutVersion.findOne({ $or: or }).sort({ closeoutVersion: -1, createdAt: -1, updatedAt: -1 }).lean();
+  const model = options.models && options.models.DeliveryCloseoutVersion
+    ? options.models.DeliveryCloseoutVersion
+    : require('../../models/DeliveryCloseoutVersion');
+  let query = model.findOne({ $or: or }).sort({ closeoutVersion: -1, createdAt: -1, updatedAt: -1 }).lean();
   if (options.session) query = query.session(options.session);
   return query;
 }
@@ -241,7 +241,10 @@ async function loadLatestAllocationForOrder(order = {}, options = {}) {
   if (ids.length) or.push({ orderId: { $in: ids } });
   if (codes.length) or.push({ orderCode: { $in: codes } });
   if (!or.length) return null;
-  let query = OrderPaymentAllocation.findOne({ $or: or }).sort({ sourceVersion: -1, postedAt: -1, updatedAt: -1 }).lean();
+  const model = options.models && options.models.OrderPaymentAllocation
+    ? options.models.OrderPaymentAllocation
+    : require('../../models/OrderPaymentAllocation');
+  let query = model.findOne({ $or: or }).sort({ sourceVersion: -1, postedAt: -1, updatedAt: -1 }).lean();
   if (options.session) query = query.session(options.session);
   return query;
 }

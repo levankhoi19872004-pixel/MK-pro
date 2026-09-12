@@ -16,11 +16,12 @@ test('Express app configures trust proxy before rate limiters', () => {
   assert.match(src, /TRUST_PROXY/);
   assert.match(src, /app\.set\(['"]trust proxy['"]/);
 
-  const createAppIndex = src.indexOf('function createApp()');
+  const createAppMatch = /function\s+createApp\s*\([^)]*\)\s*\{/.exec(src);
+  const createAppIndex = createAppMatch ? createAppMatch.index : -1;
   const trustProxyIndex = src.indexOf('configureTrustProxy(app);');
   const apiLimiterIndex = src.indexOf("app.use('/api', createApiLimiter())");
 
-  assert.ok(createAppIndex >= 0, 'createApp() must exist');
+  assert.ok(createAppIndex >= 0, 'createApp(...) must exist');
   assert.ok(trustProxyIndex > createAppIndex, 'configureTrustProxy(app) must be called inside createApp()');
   assert.ok(apiLimiterIndex > trustProxyIndex, 'trust proxy must be configured before /api rate limiter');
 });

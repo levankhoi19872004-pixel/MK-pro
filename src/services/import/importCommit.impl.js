@@ -114,6 +114,7 @@ async function getSessionStatus(sessionId) {
     sessionId: session.sessionId || session.id,
     importSessionId: session.sessionId || session.id,
     type: session.type,
+    sourceProfile: session.sourceProfile || '',
     importMode: normalizeImportMode(session.importMode, session.type),
     status: effectiveStatus,
     progress: session.progress || backgroundJob?.progress || { percent: 0, step: '' },
@@ -420,6 +421,7 @@ async function commit({
           importSessionId: currentSessionId,
           sessionId: currentSessionId,
           importMode,
+          sourceProfile: session.sourceProfile || '',
           onProgress: async (progress = {}) => {
             await importSessionService.updateProgress(currentSessionId, progress);
             console.info('[IMPORT_COMMIT_PROGRESS]', {
@@ -572,6 +574,7 @@ async function commit({
     ok: true,
     message: result.message || `Đã import ${result.imported || 0} chứng từ`,
     importMode,
+    sourceProfile: session.sourceProfile || '',
     totalRows: sourceRows.length,
     totalCommitRows: commitRows.length,
     hasShortage: type === 'salesOrders' && (hasShortage || shortageRows.length > 0),
