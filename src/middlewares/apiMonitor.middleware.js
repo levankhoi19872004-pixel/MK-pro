@@ -484,10 +484,14 @@ function patchMongooseApiMonitor(targetMongoose = mongoose) {
 patchMongooseApiMonitor();
 
 function normalizePath(req) {
-  const base = req.baseUrl || '';
-  const routePath = req.route && req.route.path ? String(req.route.path) : '';
-  if (base && routePath && routePath !== '/') return `${base}${routePath}`.replace(/\/+/g, '/');
-  return (req.path || req.originalUrl || req.url || '').split('?')[0];
+  const base = String(req.baseUrl || '').trim();
+  const routePath = req.route && req.route.path ? String(req.route.path).trim() : '';
+  if (base && routePath) {
+    if (routePath === '/') return base.replace(/\/+/g, '/') || '/';
+    return `${base}${routePath}`.replace(/\/+/g, '/');
+  }
+  if (base) return base.replace(/\/+/g, '/') || '/';
+  return (req.originalUrl || req.path || req.url || '').split('?')[0];
 }
 
 function moduleName(pathname = '') {
@@ -971,6 +975,7 @@ module.exports = {
     recordPhysicalMongoCommand,
     runWithMetricStoreForTest: (store, fn) => apiMonitorStore.run(store, fn),
     patchMongooseApiMonitorForTest: (targetMongoose) => patchMongooseApiMonitor(targetMongoose),
-    resolveMeasurementWorkload
+    resolveMeasurementWorkload,
+    normalizePath
   }
 };

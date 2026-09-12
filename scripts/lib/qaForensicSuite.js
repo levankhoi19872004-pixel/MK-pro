@@ -13,7 +13,8 @@ const CRITICAL_TESTS_QUICK = [
   'test/no-direct-ledger-write.test.js',
   'test/phase78-cross-ledger-reconciliation-gate.test.js',
   'test/inventory-source-contract.test.js',
-  'test/s3-import-data-integrity.test.js'
+  'test/s3-import-data-integrity.test.js',
+  'test/mobile-debt-performance-hardening.test.js'
 ];
 
 const CRITICAL_TESTS_CORE = [

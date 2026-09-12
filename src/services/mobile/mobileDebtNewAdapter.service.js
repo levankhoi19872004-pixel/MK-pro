@@ -8,6 +8,8 @@ const {
   canonicalDebtOrderIdentity
 } = require('../../utils/debtOrderIdentity.util');
 
+const MOBILE_DEBT_SCOPE_KEY_BATCH_SIZE = 7000;
+
 function text(value) {
   return String(value ?? '').trim();
 }
@@ -285,7 +287,8 @@ function mapDebtNewResultToMobileDebtResponse(result = {}, options = {}) {
       source: 'mobile-debtnew-arledgers',
       canonicalService: 'DebtNewService.listCustomers',
       legacyMobileDebtQueryRuntime: false,
-      endpoint: '/api/mobile/debts'
+      endpoint: '/api/mobile/debts',
+      scopeKeyBatchSize: MOBILE_DEBT_SCOPE_KEY_BATCH_SIZE
     },
     sourceNote: result.sourceNote || null
   };
@@ -294,7 +297,8 @@ function mapDebtNewResultToMobileDebtResponse(result = {}, options = {}) {
 async function listMobileDebtsFromDebtNew({ query = {}, mobileUser = {}, user = {}, options = {} } = {}) {
   const scopedQuery = buildMobileDebtNewQuery({ query, mobileUser, user });
   const DebtNewService = require('../v2/debtNew.service');
-  const result = await DebtNewService.listCustomers(scopedQuery, options);
+  const debtOptions = { scopeKeyBatchSize: MOBILE_DEBT_SCOPE_KEY_BATCH_SIZE, ...options };
+  const result = await DebtNewService.listCustomers(scopedQuery, debtOptions);
   return mapDebtNewResultToMobileDebtResponse(result, { query, scopedQuery, mobileUser, user });
 }
 

@@ -557,6 +557,7 @@ function mergeActiveDebtInspectionWithRows(inspection = {}, rows = [], filters =
 
 const DEFAULT_ORDER_SCOPE_LIMIT = 20000;
 const DEFAULT_SCOPE_KEY_BATCH_SIZE = 400;
+const MAX_SCOPE_KEY_BATCH_SIZE = 8000;
 const DEFAULT_SCOPE_LEDGER_LIMIT = 100000;
 
 function boundedPositiveInteger(value, fallback, max) {
@@ -757,7 +758,7 @@ function exactScopeLedgerFilters(filters = {}) {
 }
 
 async function getActiveDebtReadModelLedgersForOrderScopes(scopes = [], filters = {}, options = {}) {
-  const batchSize = boundedPositiveInteger(options.scopeKeyBatchSize, DEFAULT_SCOPE_KEY_BATCH_SIZE, 1000);
+  const batchSize = boundedPositiveInteger(options.scopeKeyBatchSize, DEFAULT_SCOPE_KEY_BATCH_SIZE, MAX_SCOPE_KEY_BATCH_SIZE);
   const maxLedgerRows = boundedPositiveInteger(options.maxLedgerRows, DEFAULT_SCOPE_LEDGER_LIMIT, 500000);
   const aliases = Array.from(new Set((Array.isArray(scopes) ? scopes : [])
     .flatMap((scope) => [scope.orderKey, ...(Array.isArray(scope.aliases) ? scope.aliases : [])])
@@ -797,6 +798,7 @@ async function getActiveDebtReadModelLedgersForOrderScopes(scopes = [], filters 
     ledgers: rows,
     diagnostics: {
       aliasCount: aliases.length,
+      batchSize,
       batchCount,
       ledgerRowsRead: rows.length,
       maxLedgerRows,

@@ -365,10 +365,42 @@
 
     async api(path, options) {
       options = options || {};
+      var timeoutMs = Math.max(1000, Math.min(60000, Number(options.timeoutMs) || 15000));
 
       async function sendRequest() {
-        var headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
-        return fetch(path, Object.assign({}, options, { credentials: options.credentials || 'same-origin', headers: headers }));
+        var requestOptions = Object.assign({}, options);
+        delete requestOptions.timeoutMs;
+        var headers = Object.assign({ 'Content-Type': 'application/json' }, requestOptions.headers || {});
+        var externalSignal = requestOptions.signal;
+        var controller = typeof AbortController === 'function' ? new AbortController() : null;
+        var timedOut = false;
+        var timer = null;
+        var abortListener = null;
+        if (controller) {
+          if (externalSignal && externalSignal.aborted) controller.abort();
+          else if (externalSignal && typeof externalSignal.addEventListener === 'function') {
+            abortListener = function () { controller.abort(); };
+            externalSignal.addEventListener('abort', abortListener, { once: true });
+          }
+          timer = setTimeout(function () { timedOut = true; controller.abort(); }, timeoutMs);
+          requestOptions.signal = controller.signal;
+        }
+        try {
+          return await fetch(path, Object.assign({}, requestOptions, { credentials: requestOptions.credentials || 'same-origin', headers: headers }));
+        } catch (err) {
+          if (controller && controller.signal.aborted && timedOut) {
+            var timeoutError = new Error('Yêu cầu quá thời gian chờ (' + Math.round(timeoutMs / 1000) + ' giây). Vui lòng thử lại.');
+            timeoutError.code = 'REQUEST_TIMEOUT';
+            timeoutError.name = 'TimeoutError';
+            throw timeoutError;
+          }
+          throw err;
+        } finally {
+          if (timer) clearTimeout(timer);
+          if (externalSignal && abortListener && typeof externalSignal.removeEventListener === 'function') {
+            externalSignal.removeEventListener('abort', abortListener);
+          }
+        }
       }
 
       var res = await sendRequest();
