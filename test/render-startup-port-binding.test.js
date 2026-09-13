@@ -115,7 +115,13 @@ test('Render startup opens HTTP port before Mongo bootstrap and gates business A
     if (child.exitCode === null && !child.killed) child.kill('SIGKILL');
   });
 
-  const health = await waitForHttp(port, '/api/health');
+  const live = await waitForHttp(port, '/api/health/live');
+  assert.equal(live.statusCode, 200);
+  const liveBody = JSON.parse(live.body);
+  assert.equal(liveBody.status, 'ok');
+  assert.equal(liveBody.boot.httpListening, true);
+
+  const health = await request(port, '/api/health');
   assert.equal(health.statusCode, 200);
 
   const businessApi = await request(port, '/api/products');
@@ -129,6 +135,8 @@ test('Render startup opens HTTP port before Mongo bootstrap and gates business A
   const exited = await waitForExit(child);
   assert.equal(exited.code, 1, output);
   assert.match(output, /HTTP server listening on http:\/\/0\.0\.0\.0:/);
+  assert.match(output, /\[BOOT_TRACE\].*\"stage\":\"http_listening\"/);
+  assert.match(output, /\[BOOT_TRACE\].*\"stage\":\"startup_step_failed\".*mongodb-connect/);
   assert.match(output, /MongoDB connection error/);
   assert.ok(
     output.indexOf('HTTP server listening') < output.indexOf('MongoDB connection error'),

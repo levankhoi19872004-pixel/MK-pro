@@ -195,7 +195,8 @@
     "qa:forensic:require-db": "node scripts/qa-forensic-suite.js --profile=forensic --require-db",
     "qa:full": "node scripts/qa-forensic-suite.js --profile=full",
     "qa:db": "node scripts/qa-db-forensics.js --json",
-    "test:mobile-debt-load": "node --test test/mobile-debt-performance-hardening.test.js test/mobile-debt-load-flow.test.js"
+    "test:mobile-debt-load": "node --test test/mobile-debt-performance-hardening.test.js test/mobile-debt-load-flow.test.js",
+    "test:startup-forensics": "node --test test/startup-forensics-static.test.js test/render-startup-port-binding.test.js test/operations-health-http.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

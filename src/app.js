@@ -9,6 +9,9 @@
 
 require('dotenv').config();
 
+const bootTrace = require('./observability/bootTrace');
+bootTrace.emit('app_module_evaluation_start');
+
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
@@ -44,6 +47,8 @@ const { createHeartbeat } = require('./operations/heartbeatService');
 const { internalReleaseSummary } = require('./operations/releaseMetadata');
 const { closeMongoForShutdown: closeMongoConnectionForShutdown } = require('./operations/mongoShutdown');
 const { createScheduledJobOrchestrator } = require('./jobs/scheduledJobOrchestrator');
+
+bootTrace.emit('app_dependencies_loaded');
 
 const INITIAL_CONFIG = getRuntimeConfig();
 const BOOTSTRAP_FEATURE_SNAPSHOT = Object.freeze({ ...createFeatureSnapshot() });
@@ -183,6 +188,11 @@ function createApp(options = {}) {
   app.use(requestContextMiddleware);
   app.use(performanceTelemetry.requestLifecycleMiddleware);
 
+  // Health endpoints must stay reachable before rate limit, auth, tenant and
+  // application bootstrap middleware. This makes Render liveness diagnostic
+  // even while Mongo/bootstrap is unavailable.
+  registerHealthRoutes(app);
+
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cspHeaders);
   app.post('/csp-report',
@@ -271,8 +281,6 @@ function createApp(options = {}) {
     }
   }));
 
-  registerHealthRoutes(app);
-
   app.use('/api', (req, res) => {
     res.status(404).json({ ok: false, success: false, message: 'API không tồn tại' });
   });
@@ -300,7 +308,9 @@ function createApp(options = {}) {
   return app;
 }
 
+bootTrace.emit('create_app_start');
 const app = createApp();
+bootTrace.emit('create_app_complete');
 
 function closeMongoForShutdown(timeoutMs, log = logger) {
   return closeMongoConnectionForShutdown(timeoutMs, log, {
@@ -382,6 +392,7 @@ function startupTimeoutMs(key) {
 async function runStartupStep(name, task, timeoutMs) {
   const startedAt = Date.now();
   startupState.markStepStarted(name);
+  bootTrace.emit('startup_step_start', { step: name, timeoutMs });
   let timeoutId;
 
   try {
@@ -397,7 +408,17 @@ async function runStartupStep(name, task, timeoutMs) {
       })
     ]);
     startupState.markStepCompleted(name, startedAt);
+    bootTrace.emit('startup_step_complete', { step: name, durationMs: Date.now() - startedAt });
     return result;
+  } catch (error) {
+    bootTrace.emit('startup_step_failed', {
+      step: name,
+      durationMs: Date.now() - startedAt,
+      errorName: error?.name || 'Error',
+      errorCode: error?.code || 'STARTUP_STEP_FAILED',
+      errorMessage: error?.message || 'Startup step failed'
+    });
+    throw error;
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
   }
@@ -427,6 +448,7 @@ async function closeServerAfterStartupFailure(server) {
 }
 
 async function startServer() {
+  bootTrace.emit('start_server_enter');
   shutdownRequested = false;
   const runtimeConfig = validateRuntimeConfig(process.env, { profile: 'server' });
   webSchedulerOrchestrator = createScheduledJobOrchestrator({
@@ -437,12 +459,14 @@ async function startServer() {
   });
   startupState.begin();
   startupState.markStepStarted('http-listen');
+  bootTrace.emit('http_listen_start', { bindHost: BIND_HOST, port: PORT });
   const listenStartedAt = Date.now();
   let server;
 
   try {
     server = await listenHttpServer();
     startupState.markStepCompleted('http-listen', listenStartedAt);
+    bootTrace.emit('http_listening', { bindHost: BIND_HOST, port: PORT, durationMs: Date.now() - listenStartedAt });
     performanceTelemetry.start({ logger });
   } catch (error) {
     startupState.markFailed(error);
@@ -528,6 +552,7 @@ async function startServer() {
     });
 
     startupState.markReady();
+    bootTrace.emit('application_ready', { bindHost: BIND_HOST, port: PORT });
     await webHeartbeat?.beat({
       status: 'ready',
       metadata: {
@@ -545,6 +570,12 @@ async function startServer() {
       return server;
     }
     startupState.markFailed(error);
+    bootTrace.emit('application_bootstrap_failed', {
+      currentStep: startupState.snapshot().currentStep || 'unknown',
+      errorName: error?.name || 'Error',
+      errorCode: error?.code || 'STARTUP_FAILED',
+      errorMessage: error?.message || 'Application bootstrap failed'
+    });
     await webHeartbeat?.beat({ status: 'failed', metadata: { startupErrorCode: error.code || 'STARTUP_FAILED' } }).catch(() => null);
     logger.fatal({ err: error, startup: startupState.snapshot() }, 'Application bootstrap failed');
     await webSchedulerOrchestrator?.stop();

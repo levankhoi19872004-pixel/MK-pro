@@ -33,6 +33,9 @@ test('liveness is dependency-free, readiness fails closed, and request ID is ret
   const live = await request(server, '/api/health/live', { 'x-request-id': 'health-trace-1234' });
   assert.equal(live.statusCode, 200);
   assert.equal(live.body.status, 'ok');
+  assert.equal(typeof live.body.uptimeSeconds, 'number');
+  assert.equal(typeof live.body.boot, 'object');
+  assert.equal(typeof live.body.boot.stage, 'string');
   assert.equal(live.headers['x-request-id'], 'health-trace-1234');
   assert.equal(Object.hasOwn(live.body, 'version'), false);
 
@@ -40,4 +43,6 @@ test('liveness is dependency-free, readiness fails closed, and request ID is ret
   assert.equal(ready.statusCode, 503);
   assert.equal(ready.body.ok, false);
   assert.equal(ready.body.checks.database, false);
+  assert.equal(typeof ready.body.boot, 'object');
+  assert.equal(typeof ready.body.startup, 'object');
 });
