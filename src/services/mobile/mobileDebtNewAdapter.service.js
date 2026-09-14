@@ -8,7 +8,11 @@ const {
   canonicalDebtOrderIdentity
 } = require('../../utils/debtOrderIdentity.util');
 
-const MOBILE_DEBT_SCOPE_KEY_BATCH_SIZE = 7000;
+// Production traces showed that a single 7k-key $in/$or lookup could spend
+// several seconds inside ArLedger.find even though the command count stayed
+// low. Prefer smaller indexed batches and overlap a bounded number of reads.
+const MOBILE_DEBT_SCOPE_KEY_BATCH_SIZE = 1000;
+const MOBILE_DEBT_SCOPE_BATCH_CONCURRENCY = 4;
 
 function text(value) {
   return String(value ?? '').trim();
@@ -288,7 +292,8 @@ function mapDebtNewResultToMobileDebtResponse(result = {}, options = {}) {
       canonicalService: 'DebtNewService.listCustomers',
       legacyMobileDebtQueryRuntime: false,
       endpoint: '/api/mobile/debts',
-      scopeKeyBatchSize: MOBILE_DEBT_SCOPE_KEY_BATCH_SIZE
+      scopeKeyBatchSize: MOBILE_DEBT_SCOPE_KEY_BATCH_SIZE,
+      scopeBatchConcurrency: MOBILE_DEBT_SCOPE_BATCH_CONCURRENCY
     },
     sourceNote: result.sourceNote || null
   };
@@ -297,7 +302,11 @@ function mapDebtNewResultToMobileDebtResponse(result = {}, options = {}) {
 async function listMobileDebtsFromDebtNew({ query = {}, mobileUser = {}, user = {}, options = {} } = {}) {
   const scopedQuery = buildMobileDebtNewQuery({ query, mobileUser, user });
   const DebtNewService = require('../v2/debtNew.service');
-  const debtOptions = { scopeKeyBatchSize: MOBILE_DEBT_SCOPE_KEY_BATCH_SIZE, ...options };
+  const debtOptions = {
+    scopeKeyBatchSize: MOBILE_DEBT_SCOPE_KEY_BATCH_SIZE,
+    scopeBatchConcurrency: MOBILE_DEBT_SCOPE_BATCH_CONCURRENCY,
+    ...options
+  };
   const result = await DebtNewService.listCustomers(scopedQuery, debtOptions);
   return mapDebtNewResultToMobileDebtResponse(result, { query, scopedQuery, mobileUser, user });
 }

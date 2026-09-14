@@ -26,7 +26,11 @@ const {
   canProjectDetailedAccountingCategoryBySource
 } = require('../domain/ar/arDebtCategoryRegistry');
 const { selectLegacyAdjustmentProjectedRows } = require('../domain/ar/legacyAdjustmentProjectionPolicy');
-const { canonicalDebtOrderIdentity, debtOrderAliasKeys } = require('../utils/debtOrderIdentity.util');
+const {
+  DEBT_ORDER_LOOKUP_FIELDS,
+  canonicalDebtOrderIdentity,
+  debtOrderAliasKeys
+} = require('../utils/debtOrderIdentity.util');
 const { stripStaffScopeFilters } = require('../domain/ar/debtOrderStaffScope');
 
 let models = null;
@@ -48,7 +52,9 @@ async function queryRows(Model, match, options = {}) {
   const query = Model.find(match);
   if (options.session && typeof query.session === 'function') query.session(options.session);
   if (options.projection && typeof query.select === 'function') query.select(options.projection);
-  if (typeof query.sort === 'function') query.sort(options.sort || { customerCode: 1, sourceId: 1, date: 1, createdAt: 1, _id: 1 });
+  if (options.sort !== false && typeof query.sort === 'function') {
+    query.sort(options.sort || { customerCode: 1, sourceId: 1, date: 1, createdAt: 1, _id: 1 });
+  }
   if (options.limit && typeof query.limit === 'function') query.limit(Math.max(1, Math.min(1000, Number(options.limit) || 100)));
   if (typeof query.lean === 'function') query.lean();
   return query;
@@ -171,26 +177,7 @@ async function getCanonicalLedgersByOrderKeys(orderKeys = [], filters = {}, opti
 
 function appendOrderKeyCondition(match, keys = []) {
   const condition = {
-    $or: [
-      { sourceId: { $in: keys } },
-      { salesOrderId: { $in: keys } },
-      { orderId: { $in: keys } },
-      { sourceOrderId: { $in: keys } },
-      { canonicalOrderId: { $in: keys } },
-      { canonicalOrderKey: { $in: keys } },
-      { orderKey: { $in: keys } },
-      { refId: { $in: keys } },
-      { sourceCode: { $in: keys } },
-      { salesOrderCode: { $in: keys } },
-      { orderCode: { $in: keys } },
-      { sourceOrderCode: { $in: keys } },
-      { canonicalOrderCode: { $in: keys } },
-      { refCode: { $in: keys } },
-      { 'metadata.salesOrderId': { $in: keys } },
-      { 'metadata.orderId': { $in: keys } },
-      { 'metadata.salesOrderCode': { $in: keys } },
-      { 'metadata.orderCode': { $in: keys } }
-    ]
+    $or: DEBT_ORDER_LOOKUP_FIELDS.map((field) => ({ [field]: { $in: keys } }))
   };
   if (!Array.isArray(match.$and)) match.$and = [];
   match.$and.push(condition);
@@ -558,12 +545,36 @@ function mergeActiveDebtInspectionWithRows(inspection = {}, rows = [], filters =
 const DEFAULT_ORDER_SCOPE_LIMIT = 20000;
 const DEFAULT_SCOPE_KEY_BATCH_SIZE = 400;
 const MAX_SCOPE_KEY_BATCH_SIZE = 8000;
+const DEFAULT_SCOPE_BATCH_CONCURRENCY = 1;
+const MAX_SCOPE_BATCH_CONCURRENCY = 8;
 const DEFAULT_SCOPE_LEDGER_LIMIT = 100000;
 
 function boundedPositiveInteger(value, fallback, max) {
   const parsed = Math.floor(Number(value));
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.min(parsed, max);
+}
+
+async function mapWithConcurrency(items = [], concurrency = 1, mapper) {
+  const source = Array.isArray(items) ? items : [];
+  if (!source.length) return [];
+  const workerCount = Math.max(1, Math.min(source.length, boundedPositiveInteger(
+    concurrency,
+    DEFAULT_SCOPE_BATCH_CONCURRENCY,
+    MAX_SCOPE_BATCH_CONCURRENCY
+  )));
+  const output = new Array(source.length);
+  let cursor = 0;
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= source.length) return;
+      output[index] = await mapper(source[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return output;
 }
 
 function mongoTextExpression(fieldExpression) {
@@ -759,26 +770,48 @@ function exactScopeLedgerFilters(filters = {}) {
 
 async function getActiveDebtReadModelLedgersForOrderScopes(scopes = [], filters = {}, options = {}) {
   const batchSize = boundedPositiveInteger(options.scopeKeyBatchSize, DEFAULT_SCOPE_KEY_BATCH_SIZE, MAX_SCOPE_KEY_BATCH_SIZE);
+  const requestedBatchConcurrency = boundedPositiveInteger(
+    options.scopeBatchConcurrency,
+    DEFAULT_SCOPE_BATCH_CONCURRENCY,
+    MAX_SCOPE_BATCH_CONCURRENCY
+  );
+  const batchConcurrency = options.session ? 1 : requestedBatchConcurrency;
   const maxLedgerRows = boundedPositiveInteger(options.maxLedgerRows, DEFAULT_SCOPE_LEDGER_LIMIT, 500000);
   const aliases = Array.from(new Set((Array.isArray(scopes) ? scopes : [])
     .flatMap((scope) => [scope.orderKey, ...(Array.isArray(scope.aliases) ? scope.aliases : [])])
     .map(clean)
     .filter(Boolean)));
   if (!aliases.length) {
-    return { ledgers: [], diagnostics: { aliasCount: 0, batchCount: 0, ledgerRowsRead: 0, maxLedgerRows, partial: false } };
+    return {
+      ledgers: [],
+      diagnostics: {
+        aliasCount: 0,
+        batchSize,
+        batchCount: 0,
+        batchConcurrency,
+        ledgerRowsRead: 0,
+        maxLedgerRows,
+        partial: false
+      }
+    };
   }
 
   const scopedFilters = exactScopeLedgerFilters(filters);
+  const batches = [];
+  for (let index = 0; index < aliases.length; index += batchSize) {
+    batches.push(aliases.slice(index, index + batchSize));
+  }
+  const batchResults = await mapWithConcurrency(batches, batchConcurrency, (batch) => (
+    getActiveDebtReadModelLedgersByOrderKeys(batch, scopedFilters, {
+      ...options,
+      limit: undefined,
+      sort: false
+    })
+  ));
+
   const rows = [];
   const seen = new Set();
-  let batchCount = 0;
-  for (let index = 0; index < aliases.length; index += batchSize) {
-    const batch = aliases.slice(index, index + batchSize);
-    batchCount += 1;
-    const batchRows = await getActiveDebtReadModelLedgersByOrderKeys(batch, scopedFilters, {
-      ...options,
-      limit: undefined
-    });
+  for (const batchRows of batchResults) {
     for (const row of Array.isArray(batchRows) ? batchRows : []) {
       const key = clean(row.id || row.code || row._id || row.idempotencyKey)
         || `${clean(row.customerCode)}::${clean(row.sourceId || row.sourceCode)}::${clean(row.category)}::${rows.length}`;
@@ -799,7 +832,8 @@ async function getActiveDebtReadModelLedgersForOrderScopes(scopes = [], filters 
     diagnostics: {
       aliasCount: aliases.length,
       batchSize,
-      batchCount,
+      batchCount: batches.length,
+      batchConcurrency: Math.min(batchConcurrency, Math.max(1, batches.length)),
       ledgerRowsRead: rows.length,
       maxLedgerRows,
       partial: false

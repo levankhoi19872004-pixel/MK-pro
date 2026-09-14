@@ -10,16 +10,23 @@ function read(rel) {
   return fs.readFileSync(path.join(ROOT, rel), 'utf8');
 }
 
-test('mobile debt endpoint uses a large exact-scope batch without changing global default', () => {
+test('mobile debt endpoint uses bounded parallel exact-scope batches without changing global default', () => {
   const adapter = read('src/services/mobile/mobileDebtNewAdapter.service.js');
   const arRead = read('src/services/arLedgerRead.service.js');
+  const indexService = read('src/services/mongoIndexService.js');
 
-  assert.match(adapter, /MOBILE_DEBT_SCOPE_KEY_BATCH_SIZE\s*=\s*7000/);
+  assert.match(adapter, /MOBILE_DEBT_SCOPE_KEY_BATCH_SIZE\s*=\s*1000/);
+  assert.match(adapter, /MOBILE_DEBT_SCOPE_BATCH_CONCURRENCY\s*=\s*4/);
   assert.match(adapter, /scopeKeyBatchSize:\s*MOBILE_DEBT_SCOPE_KEY_BATCH_SIZE/);
+  assert.match(adapter, /scopeBatchConcurrency:\s*MOBILE_DEBT_SCOPE_BATCH_CONCURRENCY/);
   assert.match(adapter, /DebtNewService\.listCustomers\(scopedQuery,\s*debtOptions\)/);
   assert.match(arRead, /DEFAULT_SCOPE_KEY_BATCH_SIZE\s*=\s*400/);
   assert.match(arRead, /MAX_SCOPE_KEY_BATCH_SIZE\s*=\s*8000/);
-  assert.match(arRead, /batchSize,\s*\n\s*batchCount,/);
+  assert.match(arRead, /DEFAULT_SCOPE_BATCH_CONCURRENCY\s*=\s*1/);
+  assert.match(arRead, /MAX_SCOPE_BATCH_CONCURRENCY\s*=\s*8/);
+  assert.match(arRead, /batchSize,\s*\n\s*batchCount:\s*batches\.length,\s*\n\s*batchConcurrency:/);
+  assert.match(indexService, /idx_ar_debt_order_alias_wildcard/);
+  assert.match(indexService, /wildcardProjection:\s*AR_DEBT_ORDER_ALIAS_WILDCARD_PROJECTION/);
 });
 
 test('delivery core has a bounded AbortController timeout so debt skeleton cannot wait forever', () => {
@@ -38,18 +45,27 @@ test('API monitor keeps mounted root route instead of collapsing /api/mobile/deb
 });
 
 
-test('7000-key mobile scope batch collapses a 14000-alias debt read to two Mongo finds', async () => {
+test('1000-key mobile scope batches overlap at bounded concurrency for a 14000-alias debt read', async () => {
   const arRead = require('../src/services/arLedgerRead.service');
   let findCount = 0;
-  const emptyQuery = {
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const query = () => ({
     select() { return this; },
-    sort() { return this; },
+    sort() { throw new Error('exact-scope batch read must not request Mongo sort'); },
     lean() { return this; },
-    then(resolve, reject) { return Promise.resolve([]).then(resolve, reject); }
-  };
+    then(resolve, reject) {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      return new Promise((done) => setTimeout(done, 5))
+        .then(() => [])
+        .finally(() => { inFlight -= 1; })
+        .then(resolve, reject);
+    }
+  });
   arRead.setModelsForTest({
     ArLedger: {
-      find() { findCount += 1; return Object.create(emptyQuery); }
+      find() { findCount += 1; return query(); }
     }
   });
   try {
@@ -57,11 +73,17 @@ test('7000-key mobile scope batch collapses a 14000-alias debt read to two Mongo
       orderKey: `SO${String(index).padStart(8, '0')}`,
       aliases: [`B${String(index).padStart(8, '0')}`]
     }));
-    const result = await arRead.getActiveDebtReadModelLedgersForOrderScopes(scopes, {}, { scopeKeyBatchSize: 7000 });
+    const result = await arRead.getActiveDebtReadModelLedgersForOrderScopes(scopes, {}, {
+      scopeKeyBatchSize: 1000,
+      scopeBatchConcurrency: 4
+    });
     assert.equal(result.diagnostics.aliasCount, 14000);
-    assert.equal(result.diagnostics.batchSize, 7000);
-    assert.equal(result.diagnostics.batchCount, 2);
-    assert.equal(findCount, 2);
+    assert.equal(result.diagnostics.batchSize, 1000);
+    assert.equal(result.diagnostics.batchCount, 14);
+    assert.equal(result.diagnostics.batchConcurrency, 4);
+    assert.equal(findCount, 14);
+    assert.ok(maxInFlight > 1, `expected overlapped Mongo reads, maxInFlight=${maxInFlight}`);
+    assert.ok(maxInFlight <= 4, `Mongo read concurrency exceeded budget: ${maxInFlight}`);
   } finally {
     arRead.setModelsForTest(null);
   }

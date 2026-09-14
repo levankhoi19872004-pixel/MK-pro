@@ -12,6 +12,27 @@ function unique(values = []) {
   return Array.from(new Set(values.map(text).filter(Boolean)));
 }
 
+const DEBT_ORDER_LOOKUP_FIELDS = Object.freeze([
+  'sourceId',
+  'salesOrderId',
+  'orderId',
+  'sourceOrderId',
+  'canonicalOrderId',
+  'canonicalOrderKey',
+  'orderKey',
+  'refId',
+  'sourceCode',
+  'salesOrderCode',
+  'orderCode',
+  'sourceOrderCode',
+  'canonicalOrderCode',
+  'refCode',
+  'metadata.salesOrderId',
+  'metadata.orderId',
+  'metadata.salesOrderCode',
+  'metadata.orderCode'
+]);
+
 function isCloseoutCorrectionKey(value) {
   return /^(DCO|DTC|DCOV|DCOA|DCOC)[-_]/i.test(text(value));
 }
@@ -138,6 +159,7 @@ function debtOrderAliasKeys(row = {}) {
 }
 
 module.exports = {
+  DEBT_ORDER_LOOKUP_FIELDS,
   text,
   upper,
   isCloseoutCorrectionKey,

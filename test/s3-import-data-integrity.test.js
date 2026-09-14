@@ -51,6 +51,37 @@ test('S3 QC=1 is authoritative and must not fall back to the current product con
   assert.equal(values.getDmsQuantityFromRow(row, { conversionRate: 12 }), 5);
 });
 
+test('S3 compact file accepts canonical Số lượng without requiring SL thùng/SL lẻ', () => {
+  const row = {
+    __importProfile: 'S3',
+    Qc: 84,
+    'Số lượng': 12,
+    'Đơn giá sau KM/Ck': 7944,
+    'Thành tiền': 95327
+  };
+
+  assert.equal(values.getDmsQuantityFromRow(row, { conversionRate: 1 }), 12);
+  assert.deepEqual(values.getS3StructureValidation(row).errors, []);
+  assert.deepEqual(values.getS3PriceAmountValidation(row, 12, 1000).errors, []);
+});
+
+test('S3 promo flag accepts the real Excel header variant Là Km', () => {
+  const row = {
+    __importProfile: 'S3',
+    Qc: 84,
+    'Là Km': 'X',
+    'Số lượng': 6,
+    'Đơn giá sau KM/Ck': 0,
+    'Thành tiền': 0
+  };
+
+  assert.equal(values.isPromoLineFromRow(row), true);
+  assert.equal(values.getDmsQuantityFromRow(row, { conversionRate: 84 }), 0);
+  assert.equal(values.getDmsPromoQuantityFromRow(row, { conversionRate: 84 }), 6);
+  assert.deepEqual(values.getS3StructureValidation(row).errors, []);
+  assert.deepEqual(values.getS3PriceAmountValidation(row, 0, 1000).errors, []);
+});
+
 test('S3 explicit unit price remains authoritative while small amount rounding differences are accepted', () => {
   const row = {
     __importProfile: 'S3',

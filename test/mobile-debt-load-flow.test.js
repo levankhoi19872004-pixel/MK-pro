@@ -200,18 +200,35 @@ test('delivery API timeout is bounded and abort-backed without waiting 15 second
   assert.match(CORE_SOURCE, /timeoutError\.code\s*=\s*'REQUEST_TIMEOUT'/);
 });
 
-test('mobile debt query budget stays at or below six expected Mongo commands for a 14k-alias scope', async () => {
+test('mobile debt query fanout keeps each alias lookup small and concurrency bounded for a 14k-alias scope', async () => {
   const arRead = require('../src/services/arLedgerRead.service');
   let ledgerFindCount = 0;
-  const emptyQuery = {
-    select() { return this; },
-    sort() { return this; },
-    lean() { return this; },
-    then(resolve, reject) { return Promise.resolve([]).then(resolve, reject); }
-  };
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const keyCounts = [];
   arRead.setModelsForTest({
     ArLedger: {
-      find() { ledgerFindCount += 1; return Object.create(emptyQuery); }
+      find(match) {
+        ledgerFindCount += 1;
+        const aliasClause = Array.isArray(match?.$and)
+          ? match.$and.find((row) => Array.isArray(row?.$or))
+          : null;
+        const firstIn = aliasClause?.$or?.map((row) => Object.values(row || {})[0]?.$in).find(Array.isArray) || [];
+        keyCounts.push(firstIn.length);
+        return {
+          select() { return this; },
+          sort() { throw new Error('exact-scope read should not sort in Mongo'); },
+          lean() { return this; },
+          then(resolve, reject) {
+            inFlight += 1;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            return new Promise((done) => setTimeout(done, 4))
+              .then(() => [])
+              .finally(() => { inFlight -= 1; })
+              .then(resolve, reject);
+          }
+        };
+      }
     }
   });
 
@@ -220,13 +237,18 @@ test('mobile debt query budget stays at or below six expected Mongo commands for
       orderKey: `SO${String(index).padStart(8, '0')}`,
       aliases: [`B${String(index).padStart(8, '0')}`]
     }));
-    const result = await arRead.getActiveDebtReadModelLedgersForOrderScopes(scopes, {}, { scopeKeyBatchSize: 7000 });
-    const expectedCommands = 1 + ledgerFindCount + 2; // 1 scope discovery + AR batches + allocation + pending collection.
+    const result = await arRead.getActiveDebtReadModelLedgersForOrderScopes(scopes, {}, {
+      scopeKeyBatchSize: 1000,
+      scopeBatchConcurrency: 4
+    });
 
     assert.equal(result.diagnostics.aliasCount, 14000);
-    assert.equal(result.diagnostics.batchCount, 2);
-    assert.equal(ledgerFindCount, 2);
-    assert.ok(expectedCommands <= 6, `mobile debt expected ${expectedCommands} Mongo commands; budget is 6`);
+    assert.equal(result.diagnostics.batchCount, 14);
+    assert.equal(result.diagnostics.batchConcurrency, 4);
+    assert.equal(ledgerFindCount, 14);
+    assert.ok(keyCounts.every((count) => count > 0 && count <= 1000), `oversized alias batch detected: ${keyCounts.join(',')}`);
+    assert.ok(maxInFlight > 1, `expected concurrent batches, got maxInFlight=${maxInFlight}`);
+    assert.ok(maxInFlight <= 4, `batch concurrency exceeded 4: ${maxInFlight}`);
   } finally {
     arRead.setModelsForTest(null);
   }

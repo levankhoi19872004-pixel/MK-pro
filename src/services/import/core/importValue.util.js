@@ -482,17 +482,19 @@ function getPromoUnits2FromRow(row = {}) {
 }
 
 function isPromoLineFromRow(row = {}) {
-  const value = cleanText(
-    row.isPromo ??
-    row.promoFlag ??
-    row['Là KM'] ??
-    row['La KM'] ??
-    row['Hàng KM'] ??
-    row['Hang KM'] ??
-    row['Khuyến mại'] ??
-    row['Khuyen mai'] ??
-    ''
-  ).toLowerCase();
+  // Header Excel thực tế có thể dùng biến thể hoa/thường như "Là Km".
+  // Dùng get() để match tên cột không phân biệt hoa/thường thay vì chỉ truy cập
+  // property "Là KM" chính xác, tránh biến dòng KM thành dòng bán giá 0.
+  const value = cleanText(get(row, [
+    'isPromo',
+    'promoFlag',
+    'Là KM',
+    'La KM',
+    'Hàng KM',
+    'Hang KM',
+    'Khuyến mại',
+    'Khuyen mai'
+  ])).toLowerCase();
   if (!value) return false;
   return ['1', 'y', 'yes', 'true', 'x', 'km', 'co', 'có'].includes(value);
 }
@@ -762,9 +764,23 @@ function getS3StructureValidation(row = {}) {
 
   const cartons = firstOwn(['cartons', 'cartonQty', 'Số lượng thùng', 'So luong thung', 'SL thùng', 'SL thung', 'Thùng', 'Thung']);
   const units = firstOwn(['units', 'unitQty', 'Số lượng SU', 'So luong SU', 'SL lẻ', 'SL le', 'Lẻ', 'Le']);
-  if (!cartons && !units) errors.push('Đơn S3 phải có cột SL thùng hoặc SL lẻ');
-  if (cartons && (cartons.value < 0 || !Number.isInteger(cartons.value))) errors.push('SL thùng S3 phải là số nguyên không âm');
-  if (units && (units.value < 0 || !Number.isInteger(units.value))) errors.push('SL lẻ S3 phải là số nguyên không âm');
+  const rawQuantity = firstOwn(['quantity', 'qty', 'Số lượng', 'So luong', 'sl']);
+  const hasCartonUnitStructure = Boolean(cartons || units);
+
+  // S3 đang tồn tại hai dạng nguồn hợp lệ:
+  // 1) SL thùng + SL lẻ; hoặc 2) một cột Số lượng đã là số lượng lẻ canonical.
+  // getDmsQuantityFromRow() vốn đã hỗ trợ cả hai dạng, vì vậy validator phải
+  // giữ cùng contract để không chặn nhầm file S3 rút gọn thực tế.
+  if (!hasCartonUnitStructure && !rawQuantity) {
+    errors.push('Đơn S3 phải có SL thùng/SL lẻ hoặc cột Số lượng');
+  }
+
+  if (hasCartonUnitStructure) {
+    if (cartons && (cartons.value < 0 || !Number.isInteger(cartons.value))) errors.push('SL thùng S3 phải là số nguyên không âm');
+    if (units && (units.value < 0 || !Number.isInteger(units.value))) errors.push('SL lẻ S3 phải là số nguyên không âm');
+  } else if (rawQuantity && (rawQuantity.value < 0 || !Number.isInteger(rawQuantity.value))) {
+    errors.push('Số lượng S3 phải là số nguyên không âm');
+  }
 
   return { errors };
 }

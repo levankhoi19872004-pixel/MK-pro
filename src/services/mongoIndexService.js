@@ -2,6 +2,14 @@
 
 const MongoStore = require('../models');
 const { AR_LEDGER_IDEMPOTENCY_UNIQUE_INDEX } = require('../domain/ar/arLedgerIdempotencyIndexContract');
+const { DEBT_ORDER_LOOKUP_FIELDS } = require('../utils/debtOrderIdentity.util');
+
+const AR_DEBT_ORDER_ALIAS_WILDCARD_PROJECTION = Object.freeze(
+  DEBT_ORDER_LOOKUP_FIELDS.reduce((projection, field) => {
+    projection[field] = 1;
+    return projection;
+  }, {})
+);
 
 const INDEX_DEFINITIONS = {
   products: [
@@ -158,6 +166,13 @@ const INDEX_DEFINITIONS = {
     // P0 AR-RETURN idempotency: tầng 1 chỉ tạo non-unique index an toàn khi deploy.
     // Unique DB-level guard được bật riêng bằng scripts/create-ar-return-unique-index.js sau audit sạch.
     [{ idempotencyKey: 1 }, { name: 'idx_arledger_idempotencyKey' }],
+    [
+      { '$**': 1 },
+      {
+        name: 'idx_ar_debt_order_alias_wildcard',
+        wildcardProjection: AR_DEBT_ORDER_ALIAS_WILDCARD_PROJECTION
+      }
+    ],
     [{ account: 1, accountingConfirmed: 1, accountingStatus: 1, active: 1, reversed: 1, category: 1, sourceId: 1 }, { name: 'idx_ar_ledger_canonical_source_lookup' }],
     [{ customerCode: 1, status: 1, reversed: 1, category: 1 }, { name: 'idx_ar_ledger_customer_status_category_lookup' }],
     [{ type: 1, sourceType: 1, sourceId: 1 }, { name: 'idx_ar_return_source_lookup' }],
@@ -636,6 +651,7 @@ function comparableIndexOptions(index = {}) {
     sparse: Boolean(index.sparse),
     expireAfterSeconds: index.expireAfterSeconds ?? null,
     partialFilterExpression: stableValue(index.partialFilterExpression || null),
+    wildcardProjection: stableValue(index.wildcardProjection || null),
     collation: stableValue(index.collation || null),
     weights: stableValue(index.weights || null),
     default_language: index.default_language || null,
